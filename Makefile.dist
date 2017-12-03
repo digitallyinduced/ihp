@@ -1,0 +1,34 @@
+.PHONY: run
+
+.envrc: shell.nix
+	rm -f .envrc
+	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
+	direnv allow
+
+run: bin/RunDevServer .envrc db/state
+	bin/RunDevServer --root src
+
+psql:
+	psql -p 8001 -d app
+
+initdb:
+	psql -p 8001 -d app < src/Model/Schema.sql
+
+
+ghci:
+	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XOverloadedLabels
+
+bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js
+	nix-shell --command "cd db && make && cd .. && ghc -threaded -XOverloadedStrings -XNoImplicitPrelude -O0 -j4 $< -o $@"
+	chmod +x $<
+
+static/build.js: static/livereload.js
+	cd static && node_modules/.bin/browserify livereload.js > build.js
+
+
+install:
+	brew install direnv
+	echo "https://github.com/direnv/direnv"
+
+db/state:
+	cd db && make
