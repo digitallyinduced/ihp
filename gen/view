@@ -1,0 +1,33 @@
+#!/usr/bin/env php
+<?php
+$basePath = realpath(__DIR__ . "/..");
+$controller = ucfirst($argv[1]);
+$action = $argv[2];
+
+$controllerPath = "$basePath/src/Controller/$controller.hs";
+if (!file_exists($controllerPath)) {
+    echo "Controller not found: $controllerPath\n";
+    exit(1);
+}
+
+$viewPath = "$basePath/src/View/$controller/" . ucfirst($action) . ".hs";
+if (file_exists($viewPath)) {
+    echo "View already exists: $viewPath\n";
+    exit(1);
+}
+
+ob_start();
+?>
+module View.<?= $controller ?>.<?= ucfirst($action) ?> (render) where
+
+import Foundation.ViewPrelude
+import qualified View.Layout.Default
+
+render :: Html
+render = View.Layout.Default.html $ do
+    p "Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"
+<?php
+$body = ob_get_clean();
+
+file_put_contents($viewPath, $body);
+echo "+ $viewPath\n";

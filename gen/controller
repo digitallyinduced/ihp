@@ -1,0 +1,38 @@
+#!/usr/bin/env php
+<?php
+if ($argc < 2) {
+    echo "Usage: gen/controller RESOURCE_NAME\n";
+    exit(1);
+}
+$basePath = realpath(__DIR__ . "/..");
+$controller = ucfirst($argv[1]);
+
+$controllerPath = "$basePath/src/Controller/$controller.hs";
+if (file_exists($controllerPath)) {
+    echo "Controller already exists: $controllerPath\n";
+    exit(1);
+}
+
+ob_start();
+?>
+module Controller.<?= $controller ?> where
+
+import ClassyPrelude
+import Foundation.ControllerSupport
+
+index :: Action
+index = do
+    renderPlain "<?= $controller ?> Index Action"
+
+new :: Action
+new = do
+    renderPlain "<?= $controller ?> New Action"
+
+show :: Action
+show = do
+    renderPlain "<?= $controller ?> Show Action"
+<?php
+$body = ob_get_clean();
+
+file_put_contents($controllerPath, $body);
+echo "+ $controllerPath\n";
