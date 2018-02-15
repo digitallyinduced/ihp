@@ -4,6 +4,7 @@ import Data.String.Conversions (cs)
 import Model.Schema (database)
 import Foundation.SchemaSupport
 import Foundation.NameSupport (tableNameToModelName)
+import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 
 
@@ -25,7 +26,7 @@ compileTable table@(Table name attributes) =
     "module Model.Generated." <> tableNameToModelName name <> " where\n\n"
     <> "import Foundation.HaskellSupport\n"
     <> "import Foundation.ModelSupport\n"
-    <> "import ClassyPrelude\n"
+    <> "import ClassyPrelude hiding (id) \n"
     <> "import Database.PostgreSQL.Simple\n"
     <> "import Database.PostgreSQL.Simple.FromRow\n"
     <> section
@@ -56,7 +57,7 @@ compileDataDefinition table@(Table name attributes) =
 		haskellType (SerialField) = "Int"
 		haskellType (TextField _) = "Text"
 		haskellType (IntField) = "Int"
-		
+
 
 compileCreate table@(Table name attributes) =
     let
@@ -68,14 +69,18 @@ compileCreate table@(Table name attributes) =
             case fieldType of
                 SerialField -> "DEFAULT"
                 otherwise   -> "?"
-        bindings = intercalate ", " $ map toBinding attributes
-        toBinding (Field fieldName fieldType) = fieldName <> " model"
+        bindings :: Text
+        bindings = let bindingValues = map fromJust $ filter isJust (map toBinding attributes) in if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else intercalate ", " bindingValues
+        toBinding (Field fieldName fieldType) =
+            case fieldType of
+                SerialField -> Nothing
+                otherwise   -> Just $ fieldName <> " model"
     in
         "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> " \n"
         <> "create model = do\n"
         <> indent ("let (ModelContext conn) = ?modelContext\n"
-            <> "PG.execute conn \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES (" <> values <> ")\" [" <> bindings <> "]\n"
-            <> "return model\n"
+            <> "result <- Database.PostgreSQL.Simple.query conn \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES (" <> values <> ") RETURNING *\" (" <> bindings <> ")\n"
+            <> "return (unsafeHead result)\n"
         )
 
 compileFindAll table@(Table name attributes) =
@@ -86,7 +91,7 @@ compileFindAll table@(Table name attributes) =
         <> "findAll = do\n"
         <> indent (
             "let (ModelContext conn) = ?modelContext\n"
-            <> "projects <- PG.query_ conn \"SELECT * FROM projects\"\n"
+            <> "projects <- Database.PostgreSQL.Simple.query_ conn \"SELECT * FROM " <> name <> "\"\n"
             <> "return projects\n"
         )
 
@@ -99,7 +104,7 @@ compileFind table@(Table name attributes) =
         <> "find id = do\n"
         <> indent (
             "let (ModelContext conn) = ?modelContext\n"
-            <> "results <- PG.query conn \"SELECT * FROM " <> name <> " WHERE id = ?\" [id]\n"
+            <> "results <- Database.PostgreSQL.Simple.query conn \"SELECT * FROM " <> name <> " WHERE id = ?\" [id]\n"
             <> "return $ headMay results\n"
         )
 

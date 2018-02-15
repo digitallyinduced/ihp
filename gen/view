@@ -1,16 +1,17 @@
 #!/usr/bin/env php
 <?php
-$basePath = realpath(__DIR__ . "/..");
+$basePath = realpath(__DIR__ . "../../..");
 $controller = ucfirst($argv[1]);
 $action = $argv[2];
 
-$controllerPath = "$basePath/src/Controller/$controller.hs";
+$controllerPath = ltrim("$basePath/src/Controller/$controller.hs", '/');
 if (!file_exists($controllerPath)) {
     echo "Controller not found: $controllerPath\n";
     exit(1);
 }
 
-$viewPath = "$basePath/src/View/$controller/" . ucfirst($action) . ".hs";
+$viewDirectory = ltrim("$basePath/src/View/$controller", '/');
+$viewPath = ltrim("$basePath/src/View/$controller/" . ucfirst($action) . ".hs", '/');
 if (file_exists($viewPath)) {
     echo "View already exists: $viewPath\n";
     exit(1);
@@ -28,6 +29,11 @@ render = View.Layout.Default.html $ do
     p "Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"
 <?php
 $body = ob_get_clean();
+
+if (!file_exists($viewDirectory)) {
+    echo "+ $viewDirectory\n";
+    mkdir($viewDirectory);
+}
 
 file_put_contents($viewPath, $body);
 echo "+ $viewPath\n";

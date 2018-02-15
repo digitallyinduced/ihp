@@ -25,7 +25,7 @@ module Main where
         Process.terminateProcess p'
 
     startGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-isrc/Controller", "-isrc/Model", "-isrc/Generated", "-XOverloadedStrings", "-XNoImplicitPrelude", "-XImplicitParams", "-XRank2Types"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-isrc/Controller", "-isrc/Model", "-isrc/Generated", "-XOverloadedStrings", "-XNoImplicitPrelude", "-XImplicitParams", "-XRank2Types", "-XDisambiguateRecordFields", "-XNamedFieldPuns"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         let ghci = (input, handle)
         threadDelay $ 1 * 1000000
@@ -36,13 +36,19 @@ module Main where
         threadDelay $ 1 * 1000000
         return (input, handle) 
     watch serverProcess = defaultMain $ do
-        "**/*.hs" |> const (rebuild serverProcess)
+        "Controller/*.hs" |> const (rebuild serverProcess)
+        "View/*/*.hs" |> const (rebuild serverProcess)
+        "Model/*.hs" |> const (rebuild serverProcess)
         "Foundation/*.hs" |> const (rebuild serverProcess)
 
     rebuild serverProcess = do
         putStrLn "Rebuilding"
         ghci@(input, process) <- readIORef serverProcess
         stopServer
+        sendGhciCommand ghci ":r"
+        sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
+        sendGhciCommand ghci "c"
+        sendGhciCommand ghci (":l " <> runServerHs)
         sendGhciCommand ghci ":r"
         sendGhciCommand ghci "main"
         putStrLn "Restarted server"

@@ -4,10 +4,11 @@ if ($argc < 2) {
     echo "Usage: gen/controller RESOURCE_NAME\n";
     exit(1);
 }
-$basePath = realpath(__DIR__ . "/..");
+$basePath = realpath(__DIR__ . "../../..");
+
 $controller = ucfirst($argv[1]);
 
-$controllerPath = "$basePath/src/Controller/$controller.hs";
+$controllerPath = ltrim("$basePath/src/Controller/$controller.hs", '/');
 if (file_exists($controllerPath)) {
     echo "Controller already exists: $controllerPath\n";
     exit(1);
