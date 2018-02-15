@@ -6,7 +6,7 @@
 	echo "path_add PYTHONPATH $$(nix-shell --run 'echo $$PYTHONPATH')" >> .envrc
 	direnv allow
 
-run: bin/RunDevServer .envrc db/state
+run: bin/RunDevServer .envrc db/state src/Model/Generated
 	bin/RunDevServer --root src
 
 psql:
@@ -26,6 +26,8 @@ bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js
 static/build.js: static/livereload.js
 	cd static && node_modules/.bin/browserify livereload.js > build.js
 
+src/Model/Generated:
+	mkdir -p src/Model/Generated
 
 install:
 	brew install direnv
