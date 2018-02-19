@@ -5,7 +5,7 @@ $controller = ucfirst($argv[1]);
 $action = $argv[2];
 
 $controllerPath = ltrim("$basePath/src/Controller/$controller.hs", '/');
-if (!file_exists($controllerPath)) {
+if (!file_exists($controllerPath) && $controller !== 'Layout') {
     echo "Controller not found: $controllerPath\n";
     exit(1);
 }

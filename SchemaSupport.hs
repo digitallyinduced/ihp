@@ -5,7 +5,7 @@ module Foundation.SchemaSupport where
                deriving (Show)
 
     data Attribute = Field Name FieldType
-                   | BelongsTo Table
+                   | BelongsTo Name
                    | HasMany Table
                    deriving (Show)
 

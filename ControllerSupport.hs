@@ -1,4 +1,4 @@
-module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, cs, (|>), redirectTo) where
+module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, cs, (|>), redirectTo, renderNotFound) where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
@@ -11,6 +11,11 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
     import qualified Data.ByteString.Lazy
     import qualified Network.URI
     import Data.Maybe (fromJust)
+    import qualified Foundation.ViewSupport
+    import qualified Data.Text.Read
+    import qualified Data.Either
+    import qualified Data.Text.Encoding
+    import qualified Data.Text
 
     import qualified Config
 
@@ -49,10 +54,14 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
         let (ControllerContext _ respond _ _) = ?controllerContext
         respond $ responseLBS status200 [] (cs text)
 
-    renderHtml :: (?controllerContext :: ControllerContext) => Html -> IO ResponseReceived
+    renderHtml :: (?controllerContext :: ControllerContext) => Foundation.ViewSupport.Html -> IO ResponseReceived
     renderHtml html = do
-        let (ControllerContext _ respond _ _) = ?controllerContext
-        respond $ responseLBS status200 [("Content-Type", "text/html")] (Blaze.renderHtml html)
+        let (ControllerContext request respond _ _) = ?controllerContext
+        let boundHtml = let ?viewContext = Foundation.ViewSupport.ViewContext request in html
+        respond $ responseLBS status200 [("Content-Type", "text/html")] (Blaze.renderHtml boundHtml)
+
+    renderNotFound :: (?controllerContext :: ControllerContext) => IO ResponseReceived
+    renderNotFound = renderPlain "Not Found"
 
     redirectTo :: (?controllerContext :: ControllerContext) => Text -> IO ResponseReceived
     redirectTo url = do
@@ -69,3 +78,6 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
             allParams :: [(ByteString, Maybe ByteString)]
             allParams = concat [(map (\(a, b) -> (a, Just b)) bodyParams), (queryString request)]
         fromMaybe (error $ "Required parameter " <> cs name <> " is missing") (join (lookup name allParams))
+
+    paramInt :: (?controllerContext :: ControllerContext) => ByteString -> Int
+    paramInt name = fst $ Data.Either.fromRight (error $ "Invalid parameter " <> cs name) (Data.Text.Read.decimal $ cs $ param name)

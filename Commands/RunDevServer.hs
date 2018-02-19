@@ -25,11 +25,13 @@ module Main where
         Process.terminateProcess p'
 
     startGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-isrc/Controller", "-isrc/Model", "-isrc/Generated", "-XOverloadedStrings", "-XNoImplicitPrelude", "-XImplicitParams", "-XRank2Types", "-XDisambiguateRecordFields", "-XNamedFieldPuns"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-isrc/Controller", "-isrc/Model", "-isrc/Generated", "-XOverloadedStrings", "-XNoImplicitPrelude", "-XImplicitParams", "-XRank2Types", "-XDisambiguateRecordFields", "-XNamedFieldPuns", "-fprint-potential-instances"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         let ghci = (input, handle)
         threadDelay $ 1 * 1000000
         putStrLn "Loading Modules"
+        sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
+        sendGhciCommand ghci "c"
         sendGhciCommand ghci (":l " <> runServerHs)
         threadDelay $ 1 * 1000000
         sendGhciCommand ghci "main"
@@ -40,6 +42,11 @@ module Main where
         "View/*/*.hs" |> const (rebuild serverProcess)
         "Model/*.hs" |> const (rebuild serverProcess)
         "Foundation/*.hs" |> const (rebuild serverProcess)
+        "src/Routes.hs" |> const (rebuild serverProcess)
+        "src/UrlGenerator.hs" |> const (rebuild serverProcess)
+
+
+    waitASec = threadDelay $ 1 * 1000000
 
     rebuild serverProcess = do
         putStrLn "Rebuilding"
@@ -51,6 +58,7 @@ module Main where
         sendGhciCommand ghci (":l " <> runServerHs)
         sendGhciCommand ghci ":r"
         sendGhciCommand ghci "main"
+        waitASec
         putStrLn "Restarted server"
 
     sendGhciCommand ghciProcess command = do
