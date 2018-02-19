@@ -19,7 +19,10 @@ initdb:
 ghci:
 	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns
 
-bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js
+bin:
+    mkdir -p bin
+
+bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js bin
 	nix-shell --command "cd db && make && cd .. && ghc -threaded -XOverloadedStrings -XNoImplicitPrelude -O0 -j4 $< -o $@"
 	chmod +x $<
 
