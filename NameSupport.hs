@@ -1,4 +1,4 @@
-module Foundation.NameSupport (tableNameToModelName) where
+module Foundation.NameSupport (tableNameToModelName, pluralToSingular) where
 
 import ClassyPrelude
 import Text.Inflections as Inflector

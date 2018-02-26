@@ -1,4 +1,4 @@
-module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, cs, (|>), redirectTo, renderNotFound) where
+module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, paramText, cs, (|>), redirectTo, renderNotFound, params, ParamName (paramName)) where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
@@ -81,3 +81,15 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
 
     paramInt :: (?controllerContext :: ControllerContext) => ByteString -> Int
     paramInt name = fst $ Data.Either.fromRight (error $ "Invalid parameter " <> cs name) (Data.Text.Read.decimal $ cs $ param name)
+
+    paramText :: (?controllerContext :: ControllerContext) => ByteString -> Text
+    paramText name = cs $ param name
+
+    class ParamName a where
+        paramName :: a -> ByteString
+
+    instance ParamName ByteString where
+        paramName = ClassyPrelude.id
+
+    params :: (?controllerContext :: ControllerContext) => ParamName a => [a] -> [(a, ByteString)]
+    params = map (\name -> (name, param $ paramName name))

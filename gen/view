@@ -26,7 +26,16 @@ import qualified View.Layout.Default
 
 render :: Html
 render = View.Layout.Default.html $ do
+<?php if (strtolower($action) === 'new') { ?>
+    h1 "New <?php echo $controller; ?>"
+    form ! method "post" ! action "TODO" $ do
+        div ! class_ "form-group" $ do
+            label "Name:"
+            input ! type_ "text" ! name "name" ! class_ "form-control"
+        button ! type_ "submit" ! class_ "btn btn-primary" $ "Submit"
+<?php } else { ?>
     p "Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"
+<?php } ?>
 <?php
 $body = ob_get_clean();
 

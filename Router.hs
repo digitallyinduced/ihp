@@ -1,31 +1,37 @@
-{-# LANGUAGE ExistentialQuantification, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
 
 module Foundation.Router
     ( match
     , get
     , post
     , prefix
-    , Router
+    , Router (..)
     , arg
-    , action
+    , action, urlGenerators, UrlGenerator (..), UrlGeneratorPath (..)
     ) where
 
 import           ClassyPrelude                 hiding (index)
+import           Data.ByteString.Char8         (split)
 import           Data.String.Conversions       (cs)
 import           Foundation.ApplicationContext
 import qualified Foundation.ControllerSupport  as ControllerSupport
 import           Network.HTTP.Types.Method     (Method, methodGet, methodPost)
 import           Network.Wai                   (Application, Request, rawPathInfo, requestMethod)
 import           Text.Read                     (read)
-import Data.ByteString.Char8 (split)
 
 data Router = MatchMethod Method Matchable
     | Prefix Text Matchable
     | Capture (Int -> Matchable) -- | Capture (Int -> ApplicationContext -> Application)
     | Action (ApplicationContext -> Application)
 
+data UrlGenerator = UrlGenerator { path :: [UrlGeneratorPath] } deriving (Show)
+data UrlGeneratorPath = Constant Text | Variable Text deriving (Show)
+
 class Match a where
     match' :: ByteString -> Request -> a -> Maybe (ApplicationContext -> Application)
+    urlGenerators :: a -> UrlGenerator -> [UrlGenerator]
 
 data Matchable = forall a . Match a => Matchable a
 toMatchable :: Match a => a -> Matchable
@@ -52,7 +58,10 @@ action = Action . ControllerSupport.withContext
 instance Match Router where
     match' requestUrl request router =
         case router of
-            Action action -> Just action
+            Action action ->
+                case requestUrl of
+                    "" -> Just action
+                    _  -> Nothing
             MatchMethod method next ->
                 if requestMethod request == method
                     then match' requestUrl request next
@@ -63,15 +72,31 @@ instance Match Router where
                     Nothing        -> Nothing
             Capture action ->
                 let
-                    token = unsafeHead $ split '/' requestUrl
-                    parsed = read $ cs token
-                    remainingUrl = fromMaybe mempty (stripPrefix (cs $ token) requestUrl)
+                    token = headMay $ split '/' requestUrl
                 in
-                    match' remainingUrl request (action parsed)
-                -- Just $ action $ read $ cs requestUrl
+                    case token of
+                        Just token ->
+                            let
+                                parsed = read $ cs token
+                                remainingUrl = fromMaybe mempty (stripPrefix (cs token) requestUrl)
+                            in
+                                match' remainingUrl request (action parsed)
+                        Nothing -> Nothing
+
+    urlGenerators router urlGenerator =
+        case router of
+            Action _                -> [urlGenerator]
+            MatchMethod method next -> urlGenerators next urlGenerator
+            Prefix prefix routes -> map (\urlGenerator -> (urlGenerator { path = (Constant prefix):(path urlGenerator) })) (urlGenerators routes urlGenerator)
+            Capture next -> map (\urlGenerator -> (urlGenerator { path = (Variable "x"):(path urlGenerator) } )) $ urlGenerators (next 0) urlGenerator
+
+
+
 
 instance Match a => Match [a] where
     match' requestUrl request router = headMay $ mapMaybe (match' requestUrl request) router
+    urlGenerators routes urlGenerator = join $ map (\route -> urlGenerators route urlGenerator) routes
 
 instance Match Matchable where
     match' requestUrl request (Matchable matchable) = match' requestUrl request matchable
+    urlGenerators (Matchable matchable) urlGenerator = urlGenerators matchable urlGenerator
