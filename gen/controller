@@ -18,8 +18,7 @@ ob_start();
 ?>
 module Controller.<?= $controller ?> where
 
-import ClassyPrelude
-import Foundation.ControllerSupport
+import Foundation.ControllerPrelude
 
 index :: Action
 index = do
