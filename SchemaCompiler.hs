@@ -47,12 +47,15 @@ compileTable table@(Table name attributes) =
     <> "import ClassyPrelude hiding (id) \n"
     <> "import Database.PostgreSQL.Simple\n"
     <> "import Database.PostgreSQL.Simple.FromRow\n"
+    <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
+    <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
     <> "import Foundation.ControllerSupport (ParamName (..))\n"
     <> "import qualified Data.Function\n"
     <> section
     <> compileGenericDataDefinition table
     <> compileTypeAlias table
     <> compileNewTypeAlias table
+    <> compileEnumDataDefinitions table
     <> section
     <> compileFromRowInstance table
     <> section
@@ -108,11 +111,13 @@ compileDataDefinition table@(Table name attributes) = "data " <> tableNameToMode
 		compileFields :: [Attribute] -> Text
 		compileFields attributes = intercalate ", " $ map compileField attributes
 		compileField :: Attribute -> Text
-		compileField (Field fieldName fieldType) = fieldName <> " :: " <> haskellType fieldType
-		haskellType :: FieldType -> Text
-		haskellType (SerialField) = "Int"
-		haskellType (TextField _) = "Text"
-		haskellType (IntField) = "Int"
+		compileField (Field fieldName fieldType) = fieldName <> " :: " <> haskellType fieldName fieldType
+
+haskellType :: Text -> FieldType -> Text
+haskellType fieldName (SerialField) = "Int"
+haskellType fieldName (TextField _) = "Text"
+haskellType fieldName (IntField) = "Int"
+haskellType fieldName (EnumField {}) = tableNameToModelName fieldName
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =
@@ -121,11 +126,7 @@ compileTypeAlias table@(Table name attributes) =
 		compileFields :: [Attribute] -> Text
 		compileFields attributes = intercalate " " $ map compileField attributes
 		compileField :: Attribute -> Text
-		compileField (Field fieldName fieldType) = haskellType fieldType
-		haskellType :: FieldType -> Text
-		haskellType (SerialField) = "Int"
-		haskellType (TextField _) = "Text"
-		haskellType (IntField) = "Int"
+		compileField (Field fieldName fieldType) = haskellType fieldName fieldType
 
 
 compileNewTypeAlias :: Table -> Text
@@ -135,11 +136,9 @@ compileNewTypeAlias table@(Table name attributes) =
 		compileFields :: [Attribute] -> Text
 		compileFields attributes = intercalate " " $ map compileField attributes
 		compileField :: Attribute -> Text
-		compileField (Field fieldName fieldType) = haskellType fieldType
-		haskellType :: FieldType -> Text
-		haskellType (SerialField) = "()"
-		haskellType (TextField _) = "Text"
-		haskellType (IntField) = "Int"
+		compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
+		haskellType' fieldName (SerialField) = "()"
+		haskellType' fieldName fieldType = haskellType fieldName fieldType
 
 compileGenericDataDefinition :: Table -> Text
 compileGenericDataDefinition table@(Table name attributes) =
@@ -153,6 +152,35 @@ compileGenericDataDefinition table@(Table name attributes) =
         compileFields attributes = intercalate ", " $ map compileField (zip attributes [0..])
         compileField :: (Attribute, Int) -> Text
         compileField (Field fieldName fieldType, n) = fieldName <> " :: " <> (allParameters !! n)
+
+compileEnumDataDefinitions :: Table -> Text
+compileEnumDataDefinitions table@(Table name attributes) =
+        (intercalate "\n" (map compileEnumField enumFields))
+        <> section
+        <> section
+        <> (intercalate "\n" (map compileFromFieldInstance enumFields))
+        <> section
+        <> section
+        <> (intercalate "\n" (map compileToFieldInstance enumFields))
+        <> section
+        <> section
+        <> (intercalate "\n" (map compileInputValueInstance enumFields))
+        <> section
+    where
+        isEnumField (Field _ (EnumField {})) = True
+        isEnumField _ = False
+        enumFields = filter isEnumField attributes
+        compileEnumField (Field fieldName (EnumField values)) = "data " <> tableNameToModelName fieldName <> " = " <> (intercalate " | " (map tableNameToModelName values))
+        compileFromFieldInstance (Field fieldName (EnumField values)) = "instance FromField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" ((map compileFromFieldInstanceForValue values) <> [compileFromFieldInstanceForError, compileFromFieldInstanceForNull]))
+        compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = return " <> tableNameToModelName value
+        compileFromFieldInstanceForError = "fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
+        compileFromFieldInstanceForNull = "fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\""
+
+        compileToFieldInstance (Field fieldName (EnumField values)) = "instance ToField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileToFieldInstanceForValue values))
+        compileToFieldInstanceForValue value = "toField " <> tableNameToModelName value <> " = toField (" <> tshow value <> " :: Text)"
+
+        compileInputValueInstance (Field fieldName (EnumField values)) = "instance InputValue " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileInputValue values))
+        compileInputValue value = "inputValue " <> tableNameToModelName value <> " = " <> tshow value <> " :: Text"
 
 compileCreate table@(Table name attributes) =
     let
