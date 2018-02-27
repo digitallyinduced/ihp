@@ -1,4 +1,4 @@
-module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, paramText, cs, (|>), redirectTo, renderNotFound, params, ParamName (paramName)) where
+module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, paramText, cs, (|>), redirectTo, renderNotFound, renderJson, params, ParamName (paramName)) where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
@@ -16,6 +16,7 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
     import qualified Data.Either
     import qualified Data.Text.Encoding
     import qualified Data.Text
+    import qualified Data.Aeson
 
     import qualified Config
 
@@ -59,6 +60,11 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
         let (ControllerContext request respond _ _) = ?controllerContext
         let boundHtml = let ?viewContext = Foundation.ViewSupport.ViewContext request in html
         respond $ responseLBS status200 [("Content-Type", "text/html")] (Blaze.renderHtml boundHtml)
+
+    renderJson :: (?controllerContext :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
+    renderJson json = do
+        let (ControllerContext request respond _ _) = ?controllerContext
+        respond $ responseLBS status200 [("Content-Type", "application/json")] (Data.Aeson.encode json)
 
     renderNotFound :: (?controllerContext :: ControllerContext) => IO ResponseReceived
     renderNotFound = renderPlain "Not Found"
