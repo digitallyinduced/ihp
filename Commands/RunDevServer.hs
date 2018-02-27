@@ -61,6 +61,7 @@ module Main where
         "View/*/*.hs" |> const (rebuild serverProcess)
         "Model/Schema.hs" |> const (rebuildModels state)
         "Model/*.hs" |> const (rebuild serverProcess)
+        "Config.hs" |> const (rebuild serverProcess)
         "Foundation/*.hs" |> const (rebuild serverProcess)
         "Routes.hs" |> const (do rebuildUrlGenerator state; rebuild serverProcess)
         "UrlGenerator.hs" |> const (rebuild serverProcess)
