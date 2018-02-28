@@ -1,8 +1,9 @@
-module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, paramText, cs, (|>), redirectTo, renderNotFound, renderJson, params, ParamName (paramName)) where
+module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, paramText, cs, (|>), redirectTo, renderNotFound, renderJson, params, ParamName (paramName), getRequestBody) where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
     import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString)
+    import qualified Network.Wai
     import Network.HTTP.Types (status200, status302)
     import Foundation.ModelSupport
     import Foundation.ApplicationContext
@@ -90,6 +91,11 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
 
     paramText :: (?controllerContext :: ControllerContext) => ByteString -> Text
     paramText name = cs $ param name
+
+    getRequestBody :: (?controllerContext :: ControllerContext) => IO ByteString
+    getRequestBody =
+        let (ControllerContext request _ _ _ ) = ?controllerContext
+        in Network.Wai.requestBody request
 
     class ParamName a where
         paramName :: a -> ByteString
