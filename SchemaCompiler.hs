@@ -39,7 +39,7 @@ section = "\n"
 compileTable table@(Table name attributes) =
     "-- This file is auto generated and will be overriden regulary. Please edit `src/Model/" <> tableNameToModelName name <> ".hs` to customize the Model"
     <> section
-    <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies #-}"
+    <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances  #-}"
     <> section
     <> "module Model.Generated." <> tableNameToModelName name <> " where\n\n"
     <> "import Foundation.HaskellSupport\n"
@@ -51,6 +51,7 @@ compileTable table@(Table name attributes) =
     <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
     <> "import Foundation.ControllerSupport (ParamName (..))\n"
     <> "import qualified Data.Function\n"
+    <> "import GHC.TypeLits\n"
     <> section
     <> compileGenericDataDefinition table
     <> compileTypeAlias table
@@ -63,6 +64,8 @@ compileTable table@(Table name attributes) =
     <> compileCreate table
     <> section
     <> compileUpdate table
+    <> section
+    <> compileDelete table
     <> section
     <> compileFindAll table
     <> section
@@ -85,6 +88,8 @@ compileTable table@(Table name attributes) =
     <> compileCombine table
     <> section
     <> compileHasId table
+    <> section
+    <> compileErrorHints table
 
 
 compileStub table@(Table name attributes) =
@@ -142,7 +147,7 @@ compileNewTypeAlias table@(Table name attributes) =
 
 compileGenericDataDefinition :: Table -> Text
 compileGenericDataDefinition table@(Table name attributes) =
-		"data " <> tableNameToModelName name <> "' " <> params <> " = " <> tableNameToModelName name <> " { " <> compileFields attributes <> " }\n"
+		"data " <> tableNameToModelName name <> "' " <> params <> " = " <> tableNameToModelName name <> " { " <> compileFields attributes <> " } deriving (Eq)\n"
     where
         params :: Text
         params = intercalate " " allParameters
@@ -243,6 +248,19 @@ compileUpdate table@(Table name attributes) =
         <> indent ("let (ModelContext conn) = ?modelContext\n"
             <> "result <- Database.PostgreSQL.Simple.query conn \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
             <> "return (unsafeHead result)\n"
+        )
+
+compileDelete table@(Table name attributes) =
+    let
+        modelName = tableNameToModelName name
+        bindings :: Text
+        bindings = "Only (id model)"
+    in
+        "delete :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO () \n"
+        <> "delete model = do\n"
+        <> indent ("let (ModelContext conn) = ?modelContext\n"
+            <> "Database.PostgreSQL.Simple.execute conn \"DELETE FROM " <> name <> " WHERE id = ?\" (" <> bindings <> ")\n"
+            <> "return ()\n"
         )
 
 compileFindAll table@(Table name attributes) =
@@ -358,6 +376,23 @@ compileCombine table@(Table tableName attributes) =
         attributesToArgs :: Text -> [Attribute] -> [Text]
         attributesToArgs prefix attributes = map (\n -> prefix <> tshow n) $ (map snd (zip attributes [0..]))
         attributesToApplications attributes = map (\n -> "(f" <> tshow n <> " arg" <> tshow n <> ") ") $ (map snd (zip attributes [0..]))
+
+compileErrorHints table@(Table tableName attributes) =
+        intercalate "\n" (map compileErrorHintForAttribute attributesExceptSerials)
+    where
+        attributesExceptSerials = filter (not . isSerial) attributes
+        isSerial (Field _ SerialField) = True
+        isSerial (Field _ _) = False
+        compileArgument currentAttribute attribute@(Field name _) = if currentAttribute == attribute then "()" else name
+        compileArguments attributes currentAttribute = map (compileArgument currentAttribute) attributes
+
+        compileErrorHintForAttribute :: Attribute -> Text
+        compileErrorHintForAttribute attribute@(Field name _) =
+            let
+                arguments :: Text
+                arguments = intercalate " " (compileArguments attributes attribute)
+            in
+                "instance TypeError (GHC.TypeLits.Text \"Parameter `" <> name <> "` is missing\" ':$$: 'GHC.TypeLits.Text \"Add something like `" <> name <> " = ...`\") => (Foundation.ModelSupport.CanCreate (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ")) where create = undefined;"
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"
