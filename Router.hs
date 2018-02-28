@@ -1,23 +1,32 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE TypeSynonymInstances      #-}
+{-# LANGUAGE InstanceSigs              #-}
+{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses      #-}
 
 module Foundation.Router
     ( match
     , get
     , post
+    , delete
     , prefix
     , Router (..)
     , arg
     , action, urlGenerators, UrlGenerator (..), UrlGeneratorPath (..)
+    , resource
+    , index
+    , new
+    , create
+    , baseUrl
+    , toRoutes
+    , destroy
     ) where
 
-import           ClassyPrelude                 hiding (index)
+import           ClassyPrelude                 hiding (index, delete)
 import           Data.ByteString.Char8         (split)
 import           Data.String.Conversions       (cs)
 import           Foundation.ApplicationContext
 import qualified Foundation.ControllerSupport  as ControllerSupport
-import           Network.HTTP.Types.Method     (Method, methodGet, methodPost)
+import           Network.HTTP.Types.Method     (Method, methodGet, methodPost, methodDelete)
 import           Network.Wai                   (Application, Request, rawPathInfo, requestMethod)
 import           Text.Read                     (read)
 
@@ -42,6 +51,9 @@ get matchable = MatchMethod methodGet (toMatchable matchable)
 
 post :: Match a => a -> Router
 post matchable = MatchMethod methodPost (toMatchable matchable)
+
+delete :: Match a => a -> Router
+delete matchable = MatchMethod methodDelete (toMatchable matchable)
 
 prefix :: Match a => Text -> a -> Router
 prefix url matchable = Prefix url (toMatchable matchable)
@@ -100,3 +112,57 @@ instance Match a => Match [a] where
 instance Match Matchable where
     match' requestUrl request (Matchable matchable) = match' requestUrl request matchable
     urlGenerators (Matchable matchable) urlGenerator = urlGenerators matchable urlGenerator
+
+data Resource baseUrlType indexActionType newActionType createActionType destroyActionType = Resource { baseUrl :: baseUrlType, index :: indexActionType, new :: newActionType, create :: createActionType, destroy :: destroyActionType }
+
+resource = Resource { baseUrl = (), index = (), new = (), create = (), destroy = () }
+
+toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (Int -> Router)) => Resource Text a b c d -> Router
+toRoutes resource =
+    let
+        newAction :: Maybe Router
+        newAction = toMaybeValue $ new resource
+        createAction :: Maybe Router
+        createAction = toMaybeValue $ create resource
+        destroyAction :: Maybe (Int -> Router)
+        destroyAction = toMaybeValue $ destroy resource
+        indexAction :: Maybe Router
+        indexAction = toMaybeValue $ index resource
+    in prefix (baseUrl resource) (catMaybes [
+            Just (prefix "/" (catMaybes [
+                    case newAction of
+                        Just action -> Just (prefix "new" $ get action)
+                        Nothing     -> Nothing
+                    ,
+                    Just (arg $ \id -> (catMaybes [
+                        case destroyAction of
+                            Just action -> Just (delete (action id))
+                            Nothing -> Nothing
+                    ]))
+                ])
+            ),
+            case createAction of
+                Just action -> Just (post action)
+                Nothing -> Nothing
+            ,
+            case indexAction of
+                Just action -> Just (get action)
+                Nothing -> Nothing
+        ])
+
+
+class ValueOrUnit a b where
+    toMaybeValue :: a -> Maybe b
+
+instance ValueOrUnit () Router where
+    toMaybeValue :: () -> Maybe Router
+    toMaybeValue _ = Nothing
+
+instance ValueOrUnit Router Router where
+    toMaybeValue router = Just router
+
+instance ValueOrUnit () (Int -> Router) where
+    toMaybeValue _ = Nothing
+
+instance ValueOrUnit (Int -> Router) (Int -> Router) where
+    toMaybeValue curriedRouter = Just curriedRouter
