@@ -52,7 +52,9 @@ module Main where
         sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
         sendGhciCommand ghci "c"
         sendGhciCommand ghci (":l " <> runServerHs)
-        waitASec
+        sendGhciCommand ghci ":l src/Foundation/UrlGeneratorCompiler.hs"
+        sendGhciCommand ghci "c"
+        sendGhciCommand ghci (":l " <> runServerHs)
         sendGhciCommand ghci "main"
         return ghci
 
@@ -63,7 +65,7 @@ module Main where
         "Model/*.hs" |> const (rebuild serverProcess)
         "Config.hs" |> const (rebuild serverProcess)
         "Foundation/*.hs" |> const (rebuild serverProcess)
-        "Routes.hs" |> const (do rebuildUrlGenerator state; rebuild serverProcess)
+        "Routes.hs" |> const (rebuildUrlGenerator state)
         "UrlGenerator.hs" |> const (rebuild serverProcess)
 
 
