@@ -3,9 +3,9 @@ module Foundation.Server (run) where
     import qualified Network.Wai.Handler.Warp as Warp
     import Network.Wai
     import Foundation.Router (Router, match)
-    import qualified Routes
 
     import Network.Wai.Middleware.RequestLogger (logStdoutDev)
+    import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
     import Network.Wai.Middleware.Static
     import Network.HTTP.Types.Status (status404)
 
@@ -16,6 +16,7 @@ module Foundation.Server (run) where
 
     import qualified Routes
 
+    defaultPort :: Int
     defaultPort = 8000
 
     run :: IO ()
@@ -24,7 +25,7 @@ module Foundation.Server (run) where
         Warp.runEnv defaultPort $ applyMiddlewares $ application Routes.match (ApplicationContext $ ModelContext conn)
 
     applyMiddlewares :: Application -> Application
-    applyMiddlewares = logStdoutDev . staticPolicy (addBase "static/")
+    applyMiddlewares = logStdoutDev . staticPolicy (addBase "static/") . methodOverridePost
 
     -- TODO: logger middleware
     application :: Router -> ApplicationContext -> Application
