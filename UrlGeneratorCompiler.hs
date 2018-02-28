@@ -99,10 +99,15 @@ simplify ((Constant value):rest) =
 simplify (x:xs) = x:(simplify xs)
 simplify rest = rest
 
+applyFirst :: (Text -> Text) -> Text -> Text
 applyFirst f text =
     let (first, rest) = Data.Text.splitAt 1 text
     in (f first) <> rest
+
+lcfirst :: Text -> Text
 lcfirst = applyFirst Data.Text.toLower
+
+ucfirst :: Text -> Text
 ucfirst = applyFirst Data.Text.toUpper
 
 mkUniq :: Ord a => [a] -> [a]
