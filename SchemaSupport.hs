@@ -2,12 +2,12 @@ module Foundation.SchemaSupport where
     import ClassyPrelude hiding (length)
 
     data Table = Table Text [Attribute]
-               deriving (Show)
+               deriving (Show, Eq)
 
     data Attribute = Field Name FieldType
                    | BelongsTo Name
                    | HasMany Table
-                   deriving (Show)
+                   deriving (Show, Eq)
 
     newtype SqlType = SqlType Text
     type Name = Text
@@ -16,7 +16,7 @@ module Foundation.SchemaSupport where
                | TextField { length ::  Int }
                | IntField
                | EnumField { values :: [Text] }
-               deriving (Show)
+               deriving (Show, Eq)
 
     table :: Text -> Table
     table name = Table name []
