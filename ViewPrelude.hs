@@ -7,7 +7,7 @@ module Foundation.ViewPrelude (
     
     ($), (!), forM_, mempty,
 
-    (|>),
+    module Foundation.HaskellSupport,
     (<>),
     Show (show),
     stringValue,
@@ -23,7 +23,10 @@ module Foundation.ViewPrelude (
     textField,
     formFor,
 
-    isActivePath
+    isActivePath,
+    when,
+
+    module UrlGenerator
 ) where
 
 import ClassyPrelude (($), forM_, mempty, Text, (<>), fromString, fmap, Show (show), (.), String, (==))
@@ -41,7 +44,8 @@ import qualified Foundation.ModelSupport
 import Foundation.ViewErrorMessages
 import qualified Network.Wai
 import qualified ClassyPrelude
-
+import UrlGenerator
+import Control.Monad (when)
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text
 

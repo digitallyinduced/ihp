@@ -14,6 +14,3 @@ class UrlArgument a where
 
 instance HasId a => UrlArgument a where
     toText model = tshow (getId model)
-
-instance UrlArgument Int where
-    toText int = tshow int

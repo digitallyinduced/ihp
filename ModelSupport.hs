@@ -35,3 +35,6 @@ instance InputValue Int where
 
 class HasId a where
     getId :: a -> Int
+
+instance HasId Int where
+    getId value = value
