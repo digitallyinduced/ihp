@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, TypeSynonymInstances, FlexibleInstances, MultiParamTypeClasses, TypeFamilies #-}
 
 module Foundation.ViewPrelude (
-    Html, div, span, p, a, href, nav, h1, h2, h3, h4, h5, ul, ol, id, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, text, value, hr, footer, table, thead, tr, th, tbody, td, onClick, preEscapedText, iframe, placeholder, autofocus, autocomplete, img, httpEquiv, content, small,
+    Html, div, span, p, a, href, nav, h1, h2, h3, h4, h5, ul, ol, id, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, text, value, hr, footer, table, thead, tr, th, tbody, td, onClick, preEscapedText, iframe, placeholder, autofocus, autocomplete, img, httpEquiv, content, small, dataAttribute, h6,
     
     src, class_, lang, rel, charset, type_, method, action, name, style,
     
@@ -25,17 +25,21 @@ module Foundation.ViewPrelude (
 
     isActivePath,
     when,
+    Int,
+
+    Maybe (..),
+    viewContext,
 
     module UrlGenerator
 ) where
 
-import ClassyPrelude (($), forM_, mempty, Text, (<>), fromString, fmap, Show (show), (.), String, (==))
-import Text.Blaze.Html5 (html, div, span, p, a, nav, h1, h2, h3, h4, h5, ul, ol, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, hr, footer, table, thead, tr, th, tbody, td, iframe, img, small)
+import ClassyPrelude (($), forM_, mempty, Text, (<>), fromString, fmap, Show (show), (.), String, (==), Int, Maybe (..))
+import Text.Blaze.Html5 (html, div, span, p, a, nav, h1, h2, h3, h4, h5, h6, ul, ol, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, hr, footer, table, thead, tr, th, tbody, td, iframe, img, small)
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as Html5
 import Text.Blaze.Html5.Attributes (class_, src, id, lang, rel, charset, type_, method, action, name, href, onclick, style, autofocus, placeholder, autocomplete, value, httpEquiv, content)
 import qualified Text.Blaze.Html5.Attributes as A
-import Text.Blaze (text, Attribute, stringValue, preEscapedText)
+import Text.Blaze (text, Attribute, stringValue, preEscapedText, dataAttribute)
 import Foundation.HaskellSupport
 import Data.Text (intercalate, Text)
 import Data.String.Conversions (cs, ConvertibleStrings (convertString))
@@ -46,6 +50,8 @@ import qualified Network.Wai
 import qualified ClassyPrelude
 import UrlGenerator
 import Control.Monad (when)
+import qualified View.Context
+
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text
 
@@ -97,10 +103,12 @@ textField param model = FormField {
         fieldValue = cs (Foundation.ModelSupport.formFieldValue param model)
     }
 
-isActivePath :: (?viewContext :: ViewContext) => String -> ClassyPrelude.Bool
+isActivePath :: (?viewContext :: View.Context.ViewContext) => String -> ClassyPrelude.Bool
 isActivePath path =
     let
-        (ViewContext request) = ?viewContext
-        currentPath = Network.Wai.rawPathInfo request
+        currentPath = Network.Wai.rawPathInfo (View.Context.request ?viewContext)
     in
         currentPath == (cs path)
+
+viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewContext
+viewContext = ?viewContext

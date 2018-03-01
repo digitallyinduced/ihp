@@ -61,6 +61,7 @@ module Main where
     watch state@(DevServerState {serverProcess}) = defaultMain $ do
         "Controller/*.hs" |> const (rebuild serverProcess)
         "View/*/*.hs" |> const (rebuild serverProcess)
+        "View/Context.hs" |> const (rebuild serverProcess)
         "Model/Schema.hs" |> const (rebuildModels state)
         "Model/*.hs" |> const (rebuild serverProcess)
         "Config.hs" |> const (rebuild serverProcess)

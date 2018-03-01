@@ -1,4 +1,6 @@
-module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlain, param, paramInt, paramText, cs, (|>), redirectTo, renderNotFound, renderJson, params, ParamName (paramName), getRequestBody) where
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+
+module Foundation.ControllerSupport (withContext, Action, param, paramInt, paramText, cs, (|>), redirectTo, params, ParamName (paramName), getRequestBody, ControllerContext (..)) where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
@@ -12,7 +14,6 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
     import qualified Data.ByteString.Lazy
     import qualified Network.URI
     import Data.Maybe (fromJust)
-    import qualified Foundation.ViewSupport
     import qualified Data.Text.Read
     import qualified Data.Either
     import qualified Data.Text.Encoding
@@ -50,25 +51,6 @@ module Foundation.ControllerSupport (withContext, Action, renderHtml, renderPlai
 
     --(|>) :: a -> f -> f a
 
-
-    renderPlain :: (?controllerContext :: ControllerContext) => ByteString -> IO ResponseReceived
-    renderPlain text = do
-        let (ControllerContext _ respond _ _) = ?controllerContext
-        respond $ responseLBS status200 [] (cs text)
-
-    renderHtml :: (?controllerContext :: ControllerContext) => Foundation.ViewSupport.Html -> IO ResponseReceived
-    renderHtml html = do
-        let (ControllerContext request respond _ _) = ?controllerContext
-        let boundHtml = let ?viewContext = Foundation.ViewSupport.ViewContext request in html
-        respond $ responseLBS status200 [("Content-Type", "text/html")] (Blaze.renderHtml boundHtml)
-
-    renderJson :: (?controllerContext :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
-    renderJson json = do
-        let (ControllerContext request respond _ _) = ?controllerContext
-        respond $ responseLBS status200 [("Content-Type", "application/json")] (Data.Aeson.encode json)
-
-    renderNotFound :: (?controllerContext :: ControllerContext) => IO ResponseReceived
-    renderNotFound = renderPlain "Not Found"
 
     redirectTo :: (?controllerContext :: ControllerContext) => Text -> IO ResponseReceived
     redirectTo url = do
