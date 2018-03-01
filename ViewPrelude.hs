@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, TypeSynonymInstances, FlexibleInstances, MultiParamTypeClasses, TypeFamilies #-}
 
 module Foundation.ViewPrelude (
-    Html, div, span, p, a, href, nav, h1, h2, h3, h4, h5, ul, ol, id, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, text, value, hr, footer, table, thead, tr, th, tbody, td, onClick, preEscapedText, iframe, placeholder, autofocus, autocomplete, img, httpEquiv, content,
+    Html, div, span, p, a, href, nav, h1, h2, h3, h4, h5, ul, ol, id, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, text, value, hr, footer, table, thead, tr, th, tbody, td, onClick, preEscapedText, iframe, placeholder, autofocus, autocomplete, img, httpEquiv, content, small,
     
     src, class_, lang, rel, charset, type_, method, action, name, style,
     
@@ -30,7 +30,7 @@ module Foundation.ViewPrelude (
 ) where
 
 import ClassyPrelude (($), forM_, mempty, Text, (<>), fromString, fmap, Show (show), (.), String, (==))
-import Text.Blaze.Html5 (html, div, span, p, a, nav, h1, h2, h3, h4, h5, ul, ol, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, hr, footer, table, thead, tr, th, tbody, td, iframe, img)
+import Text.Blaze.Html5 (html, div, span, p, a, nav, h1, h2, h3, h4, h5, ul, ol, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, hr, footer, table, thead, tr, th, tbody, td, iframe, img, small)
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as Html5
 import Text.Blaze.Html5.Attributes (class_, src, id, lang, rel, charset, type_, method, action, name, href, onclick, style, autofocus, placeholder, autocomplete, value, httpEquiv, content)
