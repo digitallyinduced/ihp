@@ -22,13 +22,14 @@ module Foundation.Server (run) where
     import Database.PostgreSQL.Simple
 
     import qualified Routes
+    import qualified Config
 
     defaultPort :: Int
     defaultPort = 8000
 
     run :: IO ()
     run = do
-        conn <- connectPostgreSQL "postgresql://localhost:8001/app"
+        conn <- connectPostgreSQL Config.postgreSQLUrl
         session <- Vault.newKey
         store <- fmap clientsessionStore getDefaultKey
         let applicationContext = ApplicationContext (ModelContext conn) session

@@ -9,7 +9,7 @@
 run: bin/RunDevServer .envrc db/state src/Model/Generated
 	bin/RunDevServer --root src
 
-run-production: bin/RunProdServer
+run-production: bin/RunProdServer src/Model/Generated
 
 psql:
 	psql -p 8001 -d app
