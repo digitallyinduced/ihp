@@ -4,6 +4,11 @@ $basePath = realpath(__DIR__ . "../../..");
 $controller = ucfirst($argv[1]);
 $action = $argv[2];
 
+if ($argc < 3) {
+    echo "Usage: gen/view CONTROLLER_NAME ACTION_NAME\n";
+    exit(1);
+}
+
 $controllerPath = ltrim("$basePath/src/Controller/$controller.hs", '/');
 if (!file_exists($controllerPath) && $controller !== 'Layout') {
     echo "Controller not found: $controllerPath\n";
