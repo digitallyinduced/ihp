@@ -109,7 +109,7 @@ textField param model = FormField {
         fieldValue = cs (Foundation.ModelSupport.formFieldValue param model)
     }
 
-isActivePath :: (?viewContext :: View.Context.ViewContext) => String -> ClassyPrelude.Bool
+isActivePath :: (?viewContext :: View.Context.ViewContext) => Text -> ClassyPrelude.Bool
 isActivePath path =
     let
         currentPath = Network.Wai.rawPathInfo (View.Context.request ?viewContext)
