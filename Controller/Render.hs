@@ -32,19 +32,19 @@ module Foundation.Controller.Render where
 
     renderPlain :: (?controllerContext :: ControllerContext) => ByteString -> IO ResponseReceived
     renderPlain text = do
-        let (ControllerContext _ respond _ _) = ?controllerContext
+        let (ControllerContext _ respond _ _ _) = ?controllerContext
         respond $ responseLBS status200 [] (cs text)
 
     renderHtml :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => Foundation.ViewSupport.Html -> IO ResponseReceived
     renderHtml html = do
-        let (ControllerContext request respond _ _) = ?controllerContext
+        let (ControllerContext request respond _ _ _) = ?controllerContext
         viewContext <- View.Context.createViewContext request
         let boundHtml = let ?viewContext = viewContext in html
         respond $ responseLBS status200 [("Content-Type", "text/html")] (Blaze.renderHtml boundHtml)
 
     renderJson :: (?controllerContext :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
     renderJson json = do
-        let (ControllerContext request respond _ _) = ?controllerContext
+        let (ControllerContext request respond _ _ _) = ?controllerContext
         respond $ responseLBS status200 [("Content-Type", "application/json")] (Data.Aeson.encode json)
 
     renderNotFound :: (?controllerContext :: ControllerContext) => IO ResponseReceived

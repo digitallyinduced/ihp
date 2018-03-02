@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ControllerSupport (withContext, Action, param, paramInt, paramText, cs, (|>), redirectTo, params, ParamName (paramName), getRequestBody, ControllerContext (..)) where
+module Foundation.ControllerSupport (withContext, Action, param, paramInt, paramText, cs, (|>), redirectTo, params, ParamName (paramName), getRequestBody, ControllerContext (..), setSession, getSession, getSessionInt) where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
@@ -29,7 +29,10 @@ module Foundation.ControllerSupport (withContext, Action, param, paramInt, param
 
     import Control.Monad.Reader
 
-    data ControllerContext = ControllerContext Request Respond [WaiParse.Param] [WaiParse.File Data.ByteString.Lazy.ByteString]
+    import Network.Wai.Session (Session)
+    import qualified Data.Vault.Lazy         as Vault
+
+    data ControllerContext = ControllerContext Request Respond [WaiParse.Param] [WaiParse.File Data.ByteString.Lazy.ByteString] (Vault.Key (Session IO String String))
 
     type Respond = Response -> IO ResponseReceived
     type WithControllerContext returnType = ReaderT ControllerContext IO returnType
@@ -37,10 +40,10 @@ module Foundation.ControllerSupport (withContext, Action, param, paramInt, param
     type Action = ((?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO ResponseReceived)
 
     withContext :: Action -> ApplicationContext -> Request -> Respond -> IO ResponseReceived
-    withContext theAction (ApplicationContext modelContext) request respond = do
+    withContext theAction (ApplicationContext modelContext session) request respond = do
         (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
         let
-            ?controllerContext = ControllerContext request respond params files
+            ?controllerContext = ControllerContext request respond params files session
             ?modelContext = modelContext
             in theAction
 
@@ -54,7 +57,7 @@ module Foundation.ControllerSupport (withContext, Action, param, paramInt, param
 
     redirectTo :: (?controllerContext :: ControllerContext) => Text -> IO ResponseReceived
     redirectTo url = do
-        let (ControllerContext _ respond _ _) = ?controllerContext
+        let (ControllerContext _ respond _ _ _) = ?controllerContext
         respond $ fromJust $ Network.Wai.Util.redirect status302 [] (fromJust $ Network.URI.parseURI (cs $ Config.baseUrl <> url))
 
     --params ::
@@ -62,7 +65,7 @@ module Foundation.ControllerSupport (withContext, Action, param, paramInt, param
 
     param :: (?controllerContext :: ControllerContext) => ByteString -> ByteString
     param name = do
-        let (ControllerContext request _ bodyParams _) = ?controllerContext
+        let (ControllerContext request _ bodyParams _ _) = ?controllerContext
         let
             allParams :: [(ByteString, Maybe ByteString)]
             allParams = concat [(map (\(a, b) -> (a, Just b)) bodyParams), (queryString request)]
@@ -76,8 +79,28 @@ module Foundation.ControllerSupport (withContext, Action, param, paramInt, param
 
     getRequestBody :: (?controllerContext :: ControllerContext) => IO ByteString
     getRequestBody =
-        let (ControllerContext request _ _ _ ) = ?controllerContext
+        let (ControllerContext request _ _ _ _) = ?controllerContext
         in Network.Wai.requestBody request
+
+    setSession :: (?controllerContext :: ControllerContext) => String -> String -> IO ()
+    setSession name value = sessionInsert name value
+        where
+            (ControllerContext request _ _ _ session) = ?controllerContext
+            Just (_, sessionInsert) = Vault.lookup session (Network.Wai.vault request)
+
+
+    getSession :: (?controllerContext :: ControllerContext) => String -> IO (Maybe String)
+    getSession = sessionLookup
+        where
+            (ControllerContext request _ _ _ session) = ?controllerContext
+            Just (sessionLookup, _) = Vault.lookup session (Network.Wai.vault request)
+
+    getSessionInt :: (?controllerContext :: ControllerContext) => String -> IO (Maybe Int)
+    getSessionInt name = do
+        value <- getSession name
+        return $ case fmap (Data.Text.Read.decimal . cs) value of
+                Just (Right value) -> Just $ fst value
+                _ -> Nothing
 
     class ParamName a where
         paramName :: a -> ByteString

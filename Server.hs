@@ -8,6 +8,13 @@ module Foundation.Server (run) where
     import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
     import Network.Wai.Middleware.Static
     import Network.HTTP.Types.Status (status404)
+    import Network.Wai.Session (withSession, Session)
+    import Network.Wai.Session.ClientSession (clientsessionStore)
+    import Web.ClientSession (getDefaultKey)
+    import qualified Data.Vault.Lazy as Vault
+    import Data.Default (def)
+    import Network.Wai.Session.Map (mapStore_)
+    import qualified Web.Cookie
 
     import Foundation.ModelSupport
     import Foundation.ApplicationContext
@@ -22,10 +29,11 @@ module Foundation.Server (run) where
     run :: IO ()
     run = do
         conn <- connectPostgreSQL "postgresql://localhost:8001/app"
-        Warp.runEnv defaultPort $ applyMiddlewares $ application Routes.match (ApplicationContext $ ModelContext conn)
+        session <- Vault.newKey
+        store <- fmap clientsessionStore getDefaultKey
+        let applicationContext = ApplicationContext (ModelContext conn) session
+        Warp.runEnv defaultPort $ withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/" }) session $ logStdoutDev $ staticPolicy (addBase "static/") $ methodOverridePost $ application Routes.match applicationContext
 
-    applyMiddlewares :: Application -> Application
-    applyMiddlewares = logStdoutDev . staticPolicy (addBase "static/") . methodOverridePost
 
     -- TODO: logger middleware
     application :: Router -> ApplicationContext -> Application
