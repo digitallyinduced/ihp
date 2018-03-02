@@ -49,7 +49,7 @@ compileTable table@(Table name attributes) =
     <> "import Database.PostgreSQL.Simple.FromRow\n"
     <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
     <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
-    <> "import Foundation.ControllerSupport (ParamName (..))\n"
+    <> "import Foundation.Controller.Param (ParamName (..))\n"
     <> "import qualified Data.Function\n"
     <> "import GHC.TypeLits\n"
     <> section
@@ -177,7 +177,7 @@ compileEnumDataDefinitions table@(Table name attributes) =
         isEnumField (Field _ (EnumField {})) = True
         isEnumField _ = False
         enumFields = filter isEnumField attributes
-        compileEnumField (Field fieldName (EnumField values)) = "data " <> tableNameToModelName fieldName <> " = " <> (intercalate " | " (map tableNameToModelName values))
+        compileEnumField (Field fieldName (EnumField values)) = "data " <> tableNameToModelName fieldName <> " = " <> (intercalate " | " (map tableNameToModelName values)) <> " deriving (Eq, Show)"
         compileFromFieldInstance (Field fieldName (EnumField values)) = "instance FromField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" ((map compileFromFieldInstanceForValue values) <> [compileFromFieldInstanceForError, compileFromFieldInstanceForNull]))
         compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = return " <> tableNameToModelName value
         compileFromFieldInstanceForError = "fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
