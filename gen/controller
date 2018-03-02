@@ -38,11 +38,11 @@ show id = do
 
 edit :: Int -> Action
 edit id = do
-    renderPlain "<?= $controller ?> Show Action"
+    renderPlain "<?= $controller ?> Edit Action"
 
 create :: Action
 create = do
-    renderPlain "<?= $controller ?> Show Action"
+    renderPlain "<?= $controller ?> Create Action"
 <?php
 $body = ob_get_clean();
 

@@ -9,6 +9,7 @@ module Main where
     import qualified Control.Exception as Exception
     import qualified GHC.IO.Handle as Handle
     import System.Process.Internals
+    import Data.String.Conversions (cs)
 
     runServerHs = "src/Foundation/Commands/RunServer.hs"
 
@@ -64,17 +65,17 @@ module Main where
         "View/Context.hs" |> const (rebuild serverProcess)
         "Model/Schema.hs" |> const (rebuildModels state)
         "Model/*.hs" |> const (rebuild serverProcess)
+        "Model/Generated/*.hs" |> const (rebuild serverProcess)
         "Config.hs" |> const (rebuild serverProcess)
         "Foundation/*.hs" |> const (rebuild serverProcess)
         "Routes.hs" |> const (rebuildUrlGenerator state)
         "UrlGenerator.hs" |> const (rebuild serverProcess)
 
 
-    waitASec = threadDelay $ 1 * 1000000
-
     rebuildModels (DevServerState {compilerProcess}) = do
         putStrLn "rebuildModels"
         ghci@(input, process) <- readIORef compilerProcess
+        sendGhciCommand ghci ":!clear"
         sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
         sendGhciCommand ghci "c"
         putStrLn "rebuildModels => Finished"
@@ -102,11 +103,11 @@ module Main where
         sendGhciCommand ghci ""
         sendGhciCommand ghci ":r"
         sendGhciCommand ghci "main"
-        waitASec
         putStrLn "Restarted server"
 
     sendGhciCommand ghciProcess command = do
         let (input, process) = ghciProcess
+        putStrLn $ "Sending to ghci: " <> cs command
         Handle.hPutStr input (command <> "\n")
         Handle.hFlush input
 

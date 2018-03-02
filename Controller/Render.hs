@@ -19,7 +19,8 @@ module Foundation.Controller.Render where
     import qualified Data.Text
     import qualified Data.Aeson
     import qualified View.Context
-    import Foundation.ControllerSupport (ControllerContext (..))
+    import Foundation.ControllerSupport (RequestContext (..))
+    import qualified Controller.Context
 
     import qualified Config
 
@@ -30,22 +31,22 @@ module Foundation.Controller.Render where
 
     import Control.Monad.Reader
 
-    renderPlain :: (?controllerContext :: ControllerContext) => ByteString -> IO ResponseReceived
+    renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ResponseReceived
     renderPlain text = do
-        let (ControllerContext _ respond _ _) = ?controllerContext
+        let (RequestContext _ respond _ _ _) = ?requestContext
         respond $ responseLBS status200 [] (cs text)
 
-    renderHtml :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => Foundation.ViewSupport.Html -> IO ResponseReceived
+    renderHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => Foundation.ViewSupport.Html -> IO ResponseReceived
     renderHtml html = do
-        let (ControllerContext request respond _ _) = ?controllerContext
+        let (RequestContext request respond _ _ _) = ?requestContext
         viewContext <- View.Context.createViewContext request
         let boundHtml = let ?viewContext = viewContext in html
         respond $ responseLBS status200 [("Content-Type", "text/html")] (Blaze.renderHtml boundHtml)
 
-    renderJson :: (?controllerContext :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
+    renderJson :: (?requestContext :: RequestContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
     renderJson json = do
-        let (ControllerContext request respond _ _) = ?controllerContext
+        let (RequestContext request respond _ _ _) = ?requestContext
         respond $ responseLBS status200 [("Content-Type", "application/json")] (Data.Aeson.encode json)
 
-    renderNotFound :: (?controllerContext :: ControllerContext) => IO ResponseReceived
+    renderNotFound :: (?requestContext :: RequestContext) => IO ResponseReceived
     renderNotFound = renderPlain "Not Found"
