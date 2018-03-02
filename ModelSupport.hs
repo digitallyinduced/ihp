@@ -33,6 +33,11 @@ instance InputValue Text where
 instance InputValue Int where
     inputValue = tshow
 
+instance InputValue Bool where
+    inputValue True = "yes"
+    inputValue False = "no"
+
+
 class HasId a where
     getId :: a -> Int
 
