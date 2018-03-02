@@ -1,10 +1,14 @@
-{-# LANGUAGE FlexibleContexts, TypeSynonymInstances, FlexibleInstances, MultiParamTypeClasses, TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
 
 module Foundation.ViewPrelude (
     Html, div, span, p, a, href, nav, h1, h2, h3, h4, h5, ul, ol, id, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, text, value, hr, footer, table, thead, tr, th, tbody, td, onClick, preEscapedText, iframe, placeholder, autofocus, autocomplete, img, httpEquiv, content, small, dataAttribute, h6,
-    
+
     src, class_, lang, rel, charset, type_, method, action, name, style,
-    
+
     ($), (!), forM_, mempty,
 
     module Foundation.HaskellSupport,
@@ -33,23 +37,25 @@ module Foundation.ViewPrelude (
     module UrlGenerator
 ) where
 
-import ClassyPrelude (($), forM_, mempty, Text, (<>), fromString, fmap, Show (show), (.), String, (==), Int, Maybe (..))
-import Text.Blaze.Html5 (html, div, span, p, a, nav, h1, h2, h3, h4, h5, h6, ul, ol, li, head, meta, title, link, docTypeHtml, script, body, form, input, label, button, hr, footer, table, thead, tr, th, tbody, td, iframe, img, small)
-import Text.Blaze.Html5 ((!))
-import qualified Text.Blaze.Html5 as Html5
-import Text.Blaze.Html5.Attributes (class_, src, id, lang, rel, charset, type_, method, action, name, href, onclick, style, autofocus, placeholder, autocomplete, value, httpEquiv, content)
-import qualified Text.Blaze.Html5.Attributes as A
-import Text.Blaze (text, Attribute, stringValue, preEscapedText, dataAttribute)
-import Foundation.HaskellSupport
-import Data.Text (intercalate, Text)
-import Data.String.Conversions (cs, ConvertibleStrings (convertString))
-import Foundation.ViewSupport
-import qualified Foundation.ModelSupport
-import Foundation.ViewErrorMessages
-import qualified Network.Wai
+import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==))
 import qualified ClassyPrelude
-import UrlGenerator
-import Control.Monad (when)
+import           Control.Monad                (when)
+import           Data.String.Conversions      (ConvertibleStrings (convertString), cs)
+import           Data.Text                    (Text, intercalate)
+import           Foundation.HaskellSupport
+import qualified Foundation.ModelSupport
+import           Foundation.ViewErrorMessages
+import           Foundation.ViewSupport
+import qualified Network.Wai
+import           Text.Blaze                   (Attribute, dataAttribute, preEscapedText, stringValue, text)
+import           Text.Blaze.Html5             (a, body, button, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img, input,
+                                               label, li, link, meta, nav, ol, p, script, small, span, table, tbody, td, th, thead, title, tr, ul)
+import           Text.Blaze.Html5             ((!))
+import qualified Text.Blaze.Html5             as Html5
+import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name, onclick,
+                                               placeholder, rel, src, style, type_, value)
+import qualified Text.Blaze.Html5.Attributes  as A
+import           UrlGenerator
 import qualified View.Context
 
 type Style = [StyleRule]
@@ -60,7 +66,7 @@ style2 theStyle = A.style (stringValue (cs (intercalate "; " (fmap compile theSt
     where
         compile :: StyleRule -> Text
         compile (BackgroundColor color) = "background-color: " <> color
-        compile (FontSize size) = "font-size: " <> size
+        compile (FontSize size)         = "font-size: " <> size
 
 instance ConvertibleStrings String Html5.AttributeValue where
     convertString = stringValue
