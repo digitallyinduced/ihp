@@ -123,6 +123,7 @@ haskellType fieldName (SerialField) = "Int"
 haskellType fieldName (TextField _) = "Text"
 haskellType fieldName (IntField) = "Int"
 haskellType fieldName (EnumField {}) = tableNameToModelName fieldName
+haskellType fieldName (BoolField) = "Bool"
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =

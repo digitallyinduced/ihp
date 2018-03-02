@@ -16,6 +16,7 @@ module Foundation.SchemaSupport where
                | TextField { length ::  Int }
                | IntField
                | EnumField { values :: [Text] }
+               | BoolField
                deriving (Show, Eq)
 
     table :: Text -> Table
@@ -29,6 +30,7 @@ module Foundation.SchemaSupport where
     text = TextField { length = 64 }
     int = IntField
     enum = EnumField
+    bool = BoolField
 
     belongsTo = BelongsTo
     hasMany = HasMany
