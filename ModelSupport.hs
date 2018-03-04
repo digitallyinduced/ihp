@@ -33,8 +33,4 @@ instance InputValue Text where
 instance InputValue Int where
     inputValue = tshow
 
-class HasId a where
-    getId :: a -> Int
-
-instance HasId Int where
-    getId value = value
+newtype Equal a = Equal a

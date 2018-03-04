@@ -7,6 +7,7 @@ import Foundation.NameSupport (tableNameToModelName)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
+import qualified Data.Set
 import Data.List ((!!))
 
 
@@ -20,6 +21,8 @@ compile = do
     let compiledStubs = map (\table -> (getStubFilePath table, compileStub table)) database
     mapM_ writeTable compiled
     mapM_ writeStub compiledStubs
+    writeTable (getTypesFilePath, compileTypes database)
+
 
 writeTable :: (FilePath, Text) -> IO ()
 writeTable (path, content) = do
@@ -33,7 +36,6 @@ writeStub :: (FilePath, Text) -> IO ()
 writeStub (path, content) = do
     stubExists <- Directory.doesFileExist (cs path)
     if not stubExists then writeFile (cs path) (cs content) else return ()
-
 
 section = "\n"
 compileTable table@(Table name attributes) =
@@ -51,15 +53,8 @@ compileTable table@(Table name attributes) =
     <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
     <> "import Foundation.Controller.Param (ParamName (..))\n"
     <> "import qualified Data.Function\n"
+    <> "import Model.Generated.Types\n"
     <> "import GHC.TypeLits\n"
-    <> section
-    <> compileGenericDataDefinition table
-    <> compileTypeAlias table
-    <> compileNewTypeAlias table
-    <> compileEnumDataDefinitions table
-    <> section
-    <> compileFromRowInstance table
-    <> section
     <> section
     <> compileCreate table
     <> section
@@ -83,15 +78,44 @@ compileTable table@(Table name attributes) =
     <> section
     <> compileAttributeNames table
     <> section
-    <> compileAssign table
+    -- <> compileAssign table
     <> section
     <> compileIdentity table
     <> section
     <> compileCombine table
     <> section
-    <> compileHasId table
     <> section
     <> compileErrorHints table
+
+
+compileTypes :: [Table] -> Text
+compileTypes database = prelude <> "\n\n" <> intercalate "\n\n" (map compileTypes' database) <> section <> compileHasInstances database
+    where
+        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `src/Model/Schema.hs` to customize the Types"
+                  <> section
+                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds  #-}"
+                  <> section
+                  <> "module Model.Generated.Types where\n\n"
+                  <> "import Foundation.HaskellSupport\n"
+                  <> "import Foundation.ModelSupport\n"
+                  <> "import ClassyPrelude hiding (id) \n"
+                  <> "import Database.PostgreSQL.Simple\n"
+                  <> "import Database.PostgreSQL.Simple.FromRow\n"
+                  <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
+                  <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
+                  <> "import Foundation.Controller.Param (ParamName (..))\n"
+                  <> "import qualified Data.Function\n"
+                  <> "import GHC.TypeLits\n"
+
+compileTypes' table@(Table name attributes) =
+    "-- Types for " <> cs name <> "\n\n"
+    <> compileGenericDataDefinition table
+    <> compileTypeAlias table
+    <> compileNewTypeAlias table
+    <> compileEnumDataDefinitions table
+    <> section
+    <> section
+    <> compileFromRowInstance table
 
 
 compileStub table@(Table name attributes) =
@@ -112,13 +136,17 @@ getFilePath (Table name attributes) = "src/Model/Generated/" <> (cs $ tableNameT
 getStubFilePath :: Table -> FilePath
 getStubFilePath (Table name attributes) = "src/Model/" <> (cs $ tableNameToModelName name) <> ".hs"
 
+getTypesFilePath :: FilePath
+getTypesFilePath = "src/Model/Generated/Types.hs"
+
 compileDataDefinition :: Table -> Text
-compileDataDefinition table@(Table name attributes) = "data " <> tableNameToModelName name <> " = " <> tableNameToModelName name <> " { " <> compileFields attributes <> " }\n"
-    where
-		compileFields :: [Attribute] -> Text
-		compileFields attributes = intercalate ", " $ map compileField attributes
-		compileField :: Attribute -> Text
-		compileField (Field fieldName fieldType) = fieldName <> " :: " <> haskellType fieldName fieldType
+compileDataDefinition table@(Table name attributes) =
+    "data " <> tableNameToModelName name <> " = " <> tableNameToModelName name <> " { " <> compileFields attributes <> " }\n"
+        where
+            compileFields :: [Attribute] -> Text
+            compileFields attributes = intercalate ", " $ map compileField attributes
+            compileField :: Attribute -> Text
+            compileField (Field fieldName fieldType) = fieldName <> " :: " <> haskellType fieldName fieldType
 
 haskellType :: Text -> FieldType -> Text
 haskellType fieldName (SerialField) = "Int"
@@ -149,7 +177,7 @@ compileNewTypeAlias table@(Table name attributes) =
 
 compileGenericDataDefinition :: Table -> Text
 compileGenericDataDefinition table@(Table name attributes) =
-		"data " <> tableNameToModelName name <> "' " <> params <> " = " <> tableNameToModelName name <> " { " <> compileFields attributes <> " } deriving (Eq)\n"
+		"data " <> tableNameToModelName name <> "' " <> params <> " = " <> tableNameToModelName name <> " { " <> compileFields attributes <> " } deriving (Eq, Show)\n"
     where
         params :: Text
         params = intercalate " " allParameters
@@ -200,11 +228,7 @@ compileCreate table@(Table name attributes) =
                 SerialField -> "DEFAULT"
                 otherwise   -> "?"
         bindings :: Text
-        bindings = let bindingValues = map fromJust $ filter isJust (map toBinding attributes) in if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else intercalate ", " bindingValues
-        toBinding (Field fieldName fieldType) =
-            case fieldType of
-                SerialField -> Nothing
-                otherwise   -> Just $ fieldName <> " model"
+        bindings = let bindingValues = map fromJust $ filter isJust (map (toBinding modelName) attributes) in if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else intercalate ", " bindingValues
     in
         "instance CanCreate New" <> modelName <> " where\n"
         <> indent (
@@ -216,6 +240,11 @@ compileCreate table@(Table name attributes) =
                     <> "return (unsafeHead result)\n"
                     )
             )
+
+toBinding modelName (Field fieldName fieldType) =
+    case fieldType of
+        SerialField -> Nothing
+        otherwise   -> Just ("let " <> modelName <> "{" <> fieldName <> "} = model in " <> fieldName)
 
 compileUpdate table@(Table name attributes) =
     let
@@ -230,15 +259,12 @@ compileUpdate table@(Table name attributes) =
         bindings :: Text
         bindings =
             let
-                bindingValues = (map fromJust $ filter isJust (map toBinding attributes)) <> (["id model"])
+                bindingValues = (map fromJust $ filter isJust (map (toBinding modelName) attributes)) <> (["getId model"])
             in
                 if (ClassyPrelude.length bindingValues == 1)
                     then "Only (" <> (unsafeHead bindingValues) <> ")"
                     else intercalate ", " bindingValues
-        toBinding (Field fieldName fieldType) =
-            case fieldType of
-                SerialField -> Nothing
-                otherwise   -> Just $ fieldName <> " model"
+
         updates = intercalate ", " (map fromJust $ filter isJust $ map update attributes)
         update (Field fieldName fieldType) =
             case fieldType of
@@ -256,7 +282,7 @@ compileDelete table@(Table name attributes) =
     let
         modelName = tableNameToModelName name
         bindings :: Text
-        bindings = "Only (id model)"
+        bindings = "Only (getId model)"
     in
         "delete :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO () \n"
         <> "delete model = do\n"
@@ -327,7 +353,7 @@ compileIdentity table@(Table name attributes) =
 		compileField _ = "Data.Function.id"
 
 compileHasId :: Table -> Text
-compileHasId table@(Table name attributes) = "instance HasId " <> tableNameToModelName name <> " where getId model = id model\n"
+compileHasId table@(Table name attributes) = "instance HasId " <> tableNameToModelName name <> " where getId (" <> tableNameToModelName name <> "{id}) = id\n"
 
 compileFindByAttributes table@(Table tableName attributes) =
         intercalate "\n\n" $ map compileFindByAttribute attributes
@@ -386,9 +412,9 @@ compileAssign table@(Table tableName attributes) =
         --"assignField :: Field -> Text -> " <> tableNameToModelName tableName <> " -> " <> tableNameToModelName tableName <> "\n"
         <> "assignField field value model = case field of \n" <> intercalate "\n" (map compileAssignField attributes) <> " \n"
         <> "assign :: [(Field, Text)] -> " <> tableNameToModelName tableName <> " -> " <> tableNameToModelName tableName <> "\n"
-        <> "assign = undefined"
+        <> "assign = error \"unreachable\""
     where
-        compileAssignField (Field name _) = "   " <>  tableNameToModelName name <> " -> model { " <> name <> " = value }"
+        compileAssignField (Field name _) = "   " <>  tableNameToModelName name <> " -> (model :: " <> tableNameToModelName tableName <> ") { " <> name <> " = value }"
 
 compileCombine table@(Table tableName attributes) =
         "combine (" <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToArgs "arg" attributes)) <> ") (" <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToArgs "f" attributes)) <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToApplications attributes))
@@ -412,7 +438,17 @@ compileErrorHints table@(Table tableName attributes) =
                 arguments :: Text
                 arguments = intercalate " " (compileArguments attributes attribute)
             in
-                "instance TypeError (GHC.TypeLits.Text \"Parameter `" <> name <> "` is missing\" ':$$: 'GHC.TypeLits.Text \"Add something like `" <> name <> " = ...`\") => (Foundation.ModelSupport.CanCreate (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ")) where create = undefined;"
+                "instance TypeError (GHC.TypeLits.Text \"Parameter `" <> name <> "` is missing\" ':$$: 'GHC.TypeLits.Text \"Add something like `" <> name <> " = ...`\") => (Foundation.ModelSupport.CanCreate (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ")) where type Created (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ") = (); create = error \"Unreachable\";"
+
+compileHasInstances :: [Table] -> Text
+compileHasInstances tables = intercalate "\n" $ hasIdInt:(mkUniq $ concat $ map compileHasInstance tables)
+    where
+        hasIdInt = "instance HasId Int where type IdType Int = Int; getId a = a"
+        compileHasInstance (Table tableName tableAttributes) = concat $ map (\field -> [compileHasClass field, compileHasInstance' field]) tableAttributes
+            where
+                compileHasInstance' (Field fieldName fieldType) = "instance Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = " <> haskellType fieldName fieldType <> "; get" <> tableNameToModelName fieldName <> " (" <> tableNameToModelName tableName <> "{" <> fieldName <> "}) = " <> fieldName
+                compileHasClass (Field fieldName fieldType) = "class (Show (" <> tableNameToModelName fieldName <> "Type a)) => Has" <> tableNameToModelName fieldName <> " a where type " <> tableNameToModelName fieldName <> "Type a; get" <> tableNameToModelName fieldName <> " :: a -> " <> tableNameToModelName fieldName <> "Type a"
+
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"
@@ -422,3 +458,7 @@ indent code =
     where
         indentLine ""   = ""
         indentLine line = "    " <> line
+
+
+mkUniq :: Ord a => [a] -> [a]
+mkUniq = Data.Set.toList . Data.Set.fromList

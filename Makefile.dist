@@ -19,7 +19,7 @@ initdb:
 
 
 ghci:
-	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XFlexibleContexts
+	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XFlexibleContexts -XDuplicateRecordFields
 
 bin:
 	mkdir -p bin

@@ -8,6 +8,7 @@ module Foundation.UrlGeneratorSupport where
 import           ClassyPrelude
 import           Foundation.ModelSupport
 import           GHC.Records
+import Model.Generated.Types (HasId, getId)
 
 class UrlArgument a where
     toText :: a -> Text

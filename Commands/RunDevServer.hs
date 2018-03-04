@@ -45,7 +45,7 @@ module Main where
         forM_ processes stopProcess
 
     startPlainGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-isrc/Controller", "-isrc/Model", "-isrc/Generated", "-XOverloadedStrings", "-XNoImplicitPrelude", "-XImplicitParams", "-XRank2Types", "-XDisambiguateRecordFields", "-XNamedFieldPuns", "-XDuplicateRecordFields", "-fprint-potential-instances", "-XFlexibleContexts"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-isrc/Controller", "-isrc/Model", "-isrc/Generated", "-XOverloadedStrings", "-XNoImplicitPrelude", "-XImplicitParams", "-XRank2Types", "-XDisambiguateRecordFields", "-XNamedFieldPuns", "-XDuplicateRecordFields", "-XOverloadedLabels", "-fprint-potential-instances", "-XFlexibleContexts", "-XTypeSynonymInstances", "-XFlexibleInstances"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         return (input, handle)
 
