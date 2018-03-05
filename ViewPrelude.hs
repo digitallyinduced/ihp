@@ -25,6 +25,7 @@ module Foundation.ViewPrelude (
     renderFormField,
     FormField (..),
     textField,
+    colorField,
     formFor,
 
     isActivePath,
@@ -101,13 +102,19 @@ formFor model url fields = form ! method "POST" ! action url $ do
 
 data FormField = FormField { fieldType :: Html5.AttributeValue, fieldName :: Html5.AttributeValue, fieldLabel :: Html5.Html, fieldValue :: Html5.AttributeValue }
 
-textField :: Foundation.ModelSupport.FormField a => a -> Foundation.ModelSupport.Model a -> FormField
-textField param model = FormField {
-        fieldType = "text",
+fieldFactory :: Foundation.ModelSupport.FormField a => Html5.AttributeValue -> a -> Foundation.ModelSupport.Model a -> FormField
+fieldFactory fieldType param model = FormField {
+        fieldType = fieldType,
         fieldName = cs (Foundation.ModelSupport.formFieldName param),
         fieldLabel = cs (Foundation.ModelSupport.formFieldLabel param),
         fieldValue = cs (Foundation.ModelSupport.formFieldValue param model)
     }
+
+textField :: Foundation.ModelSupport.FormField a => a -> Foundation.ModelSupport.Model a -> FormField
+textField = fieldFactory "text"
+
+colorField :: Foundation.ModelSupport.FormField a => a -> Foundation.ModelSupport.Model a -> FormField
+colorField = fieldFactory "color"
 
 isActivePath :: (?viewContext :: View.Context.ViewContext) => Text -> ClassyPrelude.Bool
 isActivePath path =
