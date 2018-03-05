@@ -15,6 +15,7 @@ module Foundation.SchemaSupport where
     data FieldType = SerialField
                | TextField { length ::  Int }
                | IntField
+               | BoolField
                | EnumField { values :: [Text] }
                deriving (Show, Eq, Ord)
 
@@ -29,6 +30,7 @@ module Foundation.SchemaSupport where
     text = TextField { length = 64 }
     int = IntField
     enum = EnumField
+    bool = BoolField
 
     belongsTo = BelongsTo
     hasMany = HasMany
