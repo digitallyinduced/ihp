@@ -9,6 +9,7 @@ import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import qualified Data.Set
 import Data.List ((!!), (\\))
+import Data.List.Split
 
 
 -- USE LINE PRAGMA IN OUTPUT
@@ -158,6 +159,7 @@ haskellType fieldName (SerialField) = "Int"
 haskellType fieldName (TextField _) = "Text"
 haskellType fieldName (IntField) = "Int"
 haskellType fieldName (EnumField {}) = tableNameToModelName fieldName
+haskellType fieldName (BoolField{}) = "Bool"
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =
@@ -224,6 +226,8 @@ compileEnumDataDefinitions table@(Table name attributes) =
         compileInputValueInstance (Field fieldName (EnumField values)) = "instance InputValue " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileInputValue values))
         compileInputValue value = "inputValue " <> tableNameToModelName value <> " = " <> tshow value <> " :: Text"
 
+compileToRowValues bindingValues = if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else "(" <> intercalate ") :. (" (map (intercalate ", ") (chunksOf 8 bindingValues)) <> ")"
+
 compileCreate table@(Table name attributes) =
     let
         modelName = tableNameToModelName name
@@ -235,7 +239,7 @@ compileCreate table@(Table name attributes) =
                 SerialField -> "DEFAULT"
                 otherwise   -> "?"
         bindings :: Text
-        bindings = let bindingValues = map fromJust $ filter isJust (map (toBinding modelName) attributes) in if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else intercalate ", " bindingValues
+        bindings = let bindingValues = map fromJust $ filter isJust (map (toBinding modelName) attributes) in compileToRowValues bindingValues
     in
         "instance CanCreate New" <> modelName <> " where\n"
         <> indent (
@@ -268,9 +272,7 @@ compileUpdate table@(Table name attributes) =
             let
                 bindingValues = (map fromJust $ filter isJust (map (toBinding modelName) attributes)) <> (["getId model"])
             in
-                if (ClassyPrelude.length bindingValues == 1)
-                    then "Only (" <> (unsafeHead bindingValues) <> ")"
-                    else intercalate ", " bindingValues
+                compileToRowValues bindingValues
 
         updates = intercalate ", " (map fromJust $ filter isJust $ map update attributes)
         update (Field fieldName fieldType) =
@@ -488,7 +490,7 @@ compileCanFilterInstance table@(Table tableName attributes) =
                 <> indent (
                         "let (ModelContext conn) = ?modelContext\n"
                         <> intercalate "\n" (map compileLetBinding (zip [1..] attributes)) <> "\n"
-                        <> "Database.PostgreSQL.Simple.query conn (Query ((\"SELECT * FROM " <> tableName <> " WHERE \" <> " <> queryConditions <> ") :: ByteString)) (" <> intercalate ", " (map (\(n, _) -> "snd val" <> tshow n) (zip [1..] attributes)) <> ")\n"
+                        <> "Database.PostgreSQL.Simple.query conn (Query ((\"SELECT * FROM " <> tableName <> " WHERE \" <> " <> queryConditions <> ") :: ByteString)) (" <> compileToRowValues (map (\(n, _) -> "snd val" <> tshow n) (zip [1..] attributes)) <> ")\n"
                     )
             where
                 modelName = tableNameToModelName tableName
