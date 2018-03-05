@@ -6,12 +6,19 @@ import Foundation.HaskellSupport
 import ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
+import Database.PostgreSQL.Simple.Types (Query (Query))
+import Data.Default
 
 data ModelContext = ModelContext Connection
 
 class CanCreate a where
     type Created a :: *
     create :: (?modelContext :: ModelContext) => a -> IO (Created a)
+
+class FindWhere a where
+    type FindWhereResult a :: *
+    findWhere :: (?modelContext :: ModelContext) => a -> IO [FindWhereResult a]
+    buildCriteria :: a
 
 class FormField field where
     type Model field :: *
@@ -33,4 +40,9 @@ instance InputValue Text where
 instance InputValue Int where
     inputValue = tshow
 
-newtype Equal a = Equal a
+data QueryCondition a = NoCondition | Equal a
+
+type FieldName = ByteString
+toSQLCondition :: FieldName -> QueryCondition a -> (ByteString, Maybe a)
+toSQLCondition _ NoCondition = ("? IS NULL", Nothing)
+toSQLCondition fieldName (Equal a) = (fieldName <> " = ?", Just a)

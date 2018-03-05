@@ -8,7 +8,7 @@ import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import qualified Data.Set
-import Data.List ((!!))
+import Data.List ((!!), (\\))
 
 
 -- USE LINE PRAGMA IN OUTPUT
@@ -54,7 +54,9 @@ compileTable table@(Table name attributes) =
     <> "import Foundation.Controller.Param (ParamName (..))\n"
     <> "import qualified Data.Function\n"
     <> "import Model.Generated.Types\n"
+    <> "import Database.PostgreSQL.Simple.Types (Query (Query))\n"
     <> "import GHC.TypeLits\n"
+    <> "import Data.Default (def)\n"
     <> section
     <> compileCreate table
     <> section
@@ -86,6 +88,8 @@ compileTable table@(Table name attributes) =
     <> section
     <> section
     <> compileErrorHints table
+    <> section
+    <> compileCanFilterInstance table
 
 
 compileTypes :: [Table] -> Text
@@ -114,13 +118,14 @@ compileTypes' table@(Table name attributes) =
     <> compileNewTypeAlias table
     <> compileEnumDataDefinitions table
     <> section
-    <> section
     <> compileFromRowInstance table
+    <> section
 
 
 compileStub table@(Table name attributes) =
     "module Model." <> tableNameToModelName name <> " (module Model.Generated." <> tableNameToModelName name <> ") where\n\n"
     <> "import Model.Generated." <> tableNameToModelName name <> "\n"
+    <> "import Model.Generated.Types\n"
     <> "import Foundation.HaskellSupport\n"
     <> "import Foundation.ModelSupport\n"
     <> "import ClassyPrelude hiding (id) \n"
@@ -174,6 +179,8 @@ compileNewTypeAlias table@(Table name attributes) =
 		compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
 		haskellType' fieldName (SerialField) = "()"
 		haskellType' fieldName fieldType = haskellType fieldName fieldType
+
+
 
 compileGenericDataDefinition :: Table -> Text
 compileGenericDataDefinition table@(Table name attributes) =
@@ -441,13 +448,62 @@ compileErrorHints table@(Table tableName attributes) =
                 "instance TypeError (GHC.TypeLits.Text \"Parameter `" <> name <> "` is missing\" ':$$: 'GHC.TypeLits.Text \"Add something like `" <> name <> " = ...`\") => (Foundation.ModelSupport.CanCreate (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ")) where type Created (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ") = (); create = error \"Unreachable\";"
 
 compileHasInstances :: [Table] -> Text
-compileHasInstances tables = intercalate "\n" $ hasIdInt:(mkUniq $ concat $ map compileHasInstance tables)
+compileHasInstances tables = intercalate "\n" $ concat [ (mkUniq $ concat $ map compileHasClass tables), hasIdInt:(concat $ map compileHasInstance tables) ]
     where
+        allFields :: [Attribute]
+        allFields = concat $ map (\(Table _ attributes) -> attributes) tables
         hasIdInt = "instance HasId Int where type IdType Int = Int; getId a = a"
-        compileHasInstance (Table tableName tableAttributes) = concat $ map (\field -> [compileHasClass field, compileHasInstance' field]) tableAttributes
+        compileHasClass (Table tableName tableAttributes) = map (\field -> compileHasClass' field) tableAttributes
+        compileHasClass' (Field fieldName fieldType) = "class (Show (" <> tableNameToModelName fieldName <> "Type a)) => Has" <> tableNameToModelName fieldName <> " a where type " <> tableNameToModelName fieldName <> "Type a; get" <> tableNameToModelName fieldName <> " :: a -> " <> tableNameToModelName fieldName <> "Type a"
+        compileHasInstance (Table tableName tableAttributes) = concat [ map compileHasInstance' tableAttributes, map compileHasInstanceError fieldsNotInTable ]
             where
-                compileHasInstance' (Field fieldName fieldType) = "instance Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = " <> haskellType fieldName fieldType <> "; get" <> tableNameToModelName fieldName <> " (" <> tableNameToModelName tableName <> "{" <> fieldName <> "}) = " <> fieldName
-                compileHasClass (Field fieldName fieldType) = "class (Show (" <> tableNameToModelName fieldName <> "Type a)) => Has" <> tableNameToModelName fieldName <> " a where type " <> tableNameToModelName fieldName <> "Type a; get" <> tableNameToModelName fieldName <> " :: a -> " <> tableNameToModelName fieldName <> "Type a"
+                compileHasInstance' (Field fieldName fieldType) = "instance Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = " <> haskellType fieldName fieldType <> "; get" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> "{" <> fieldName <> "} = " <> fieldName
+                compileHasInstanceError (Field fieldName fieldType) = "instance TypeError (GHC.TypeLits.Text \"" <> tableNameToModelName tableName <> " has no field `" <> fieldName <> "`\") => Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = (); get" <> tableNameToModelName fieldName <> " _ = error \"unreachable\""
+                fieldsNotInTable = (mkUniq allFields) Data.List.\\ tableAttributes
+
+compileCanFilterInstance table@(Table tableName attributes) =
+        compileCriteriaTypeAlias
+        <> "instance FindWhere (" <> criteria <> ") where\n"
+        <> indent (
+                compileFindWhereResult table
+                <> compileFindWhere table
+                <> compileBuildCriteria table
+            )
+    where
+        compileCriteriaTypeAlias = "type " <> tableNameToModelName tableName <> "Criteria = " <> criteria <> "\n"
+        criteria =
+                tableNameToModelName tableName <> "' " <> compileFields attributes
+            where
+                compileFields :: [Attribute] -> Text
+                compileFields attributes = intercalate " " $ map compileField attributes
+                compileField :: Attribute -> Text
+                compileField (Field fieldName fieldType) = "(QueryCondition " <> haskellType fieldName fieldType <> ")"
+
+        compileFindWhereResult table@(Table tableName attributes) = "type FindWhereResult (" <> criteria <> ") = " <> tableNameToModelName tableName <> "\n"
+
+        compileFindWhere :: Table -> Text
+        compileFindWhere table@(Table tableName attributes) =
+                "findWhere :: (?modelContext :: ModelContext) => " <> criteria <> " -> IO [FindWhereResult (" <> criteria <> ")]\n"
+                <> "findWhere criteria = do\n"
+                <> indent (
+                        "let (ModelContext conn) = ?modelContext\n"
+                        <> intercalate "\n" (map compileLetBinding (zip [1..] attributes)) <> "\n"
+                        <> "Database.PostgreSQL.Simple.query conn (Query ((\"SELECT * FROM " <> tableName <> " WHERE \" <> " <> queryConditions <> ") :: ByteString)) (" <> intercalate ", " (map (\(n, _) -> "snd val" <> tshow n) (zip [1..] attributes)) <> ")\n"
+                    )
+            where
+                modelName = tableNameToModelName tableName
+                queryConditions = intercalate " <> \" AND \" <> " (map (\arg -> "fst " <> letBindingName arg) (zip [1..] attributes))
+                compileLetBinding arg@(n, Field fieldName fieldType) = "let " <> letBindingName arg <> " = " <> " (let " <> modelName <> " {" <> fieldName <> "} = criteria in toSQLCondition \"" <> fieldName <> "\" " <> fieldName <> ") "
+                letBindingName (n, Field fieldName fieldType) = "val" <> tshow  n
+        compileBuildCriteria :: Table -> Text
+        compileBuildCriteria table@(Table name attributes) =
+                "buildCriteria = " <> tableNameToModelName name <> " " <> compileFields attributes <> "\n"
+            where
+                compileFields :: [Attribute] -> Text
+                compileFields attributes = intercalate " " $ map compileField attributes
+                compileField :: Attribute -> Text
+                compileField (Field fieldName fieldType) = "(NoCondition :: QueryCondition " <> haskellType fieldName fieldType <> ")"
+
 
 
 --compileAttributeBag :: Table -> Text
