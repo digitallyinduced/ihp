@@ -29,7 +29,7 @@ bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js bin
 	chmod +x $<
 
 bin/RunProdServer: src/Main.hs bin
-	nix-shell -K --command "ghc -threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -O2 -fllvm -j4 $< -o $@"
+	nix-shell -K --command "ghc -threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -O2 -fllvm -j4 $< -o $@"
 	chmod +x $<
 
 static/build.js: static/livereload.js
