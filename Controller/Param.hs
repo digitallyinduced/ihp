@@ -26,6 +26,9 @@ paramInt name = fst $ Data.Either.fromRight (error $ "Invalid parameter " <> cs 
 paramText :: (?requestContext :: RequestContext) => ByteString -> Text
 paramText name = cs $ param name
 
+paramBool :: (?requestContext :: RequestContext) => ByteString -> Bool
+paramBool name = case param name of "on" -> True; otherwise -> False
+
 class ParamName a where
     paramName :: a -> ByteString
 
