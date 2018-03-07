@@ -16,14 +16,16 @@ module Main where
     data DevServerState = DevServerState {
             postgresProcess :: IORef (Handle, Process.ProcessHandle),
             serverProcess :: IORef (Handle, Process.ProcessHandle),
-            compilerProcess :: IORef (Handle, Process.ProcessHandle)
+            modelCompilerProcess :: IORef (Handle, Process.ProcessHandle),
+            urlGeneratorCompilerProcess :: IORef (Handle, Process.ProcessHandle)
         }
 
     initDevServerState = do
         postgresProcess <- startPostgres >>= newIORef
         serverProcess <- startPlainGhci >>= initServer >>= newIORef
-        compilerProcess <- startPlainGhci >>= newIORef
-        return $ DevServerState { postgresProcess = postgresProcess, serverProcess = serverProcess, compilerProcess = compilerProcess }
+        modelCompilerProcess <- startCompileGhci >>= newIORef
+        urlGeneratorCompilerProcess <- startCompileGhci >>= newIORef
+        return $ DevServerState { postgresProcess = postgresProcess, serverProcess = serverProcess, modelCompilerProcess = modelCompilerProcess, urlGeneratorCompilerProcess = urlGeneratorCompilerProcess }
 
     registerExitHandler handler = do
         threadId <- myThreadId
@@ -38,14 +40,19 @@ module Main where
 
     cleanup :: DevServerState -> IO ()
     cleanup state = do
-        let DevServerState { serverProcess, postgresProcess, compilerProcess } = state
-        let processes = [serverProcess, postgresProcess, compilerProcess]
+        let DevServerState { serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess } = state
+        let processes = [serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess]
         let stopProcess process = do (_, p') <- readIORef serverProcess; Process.terminateProcess p'
         stopServer
         forM_ processes stopProcess
 
     startPlainGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-isrc/Controller", "-isrc/Model", "-isrc/Generated", "-XOverloadedStrings", "-XNoImplicitPrelude", "-XImplicitParams", "-XRank2Types", "-XDisambiguateRecordFields", "-XNamedFieldPuns", "-XDuplicateRecordFields", "-XOverloadedLabels", "-fprint-potential-instances", "-XFlexibleContexts", "-XTypeSynonymInstances", "-XFlexibleInstances"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances", "-fobject-code"]) { Process.std_in = Process.CreatePipe }
+        (Just input, _, _, handle) <- Process.createProcess process
+        return (input, handle)
+
+    startCompileGhci = do
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fobject-code", "-w"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         return (input, handle)
 
@@ -72,22 +79,20 @@ module Main where
         "UrlGenerator.hs" |> const (rebuild serverProcess)
 
 
-    rebuildModels (DevServerState {compilerProcess}) = do
+    rebuildModels (DevServerState {modelCompilerProcess}) = do
         putStrLn "rebuildModels"
-        ghci@(input, process) <- readIORef compilerProcess
+        ghci@(input, process) <- readIORef modelCompilerProcess
         sendGhciCommand ghci ":!clear"
         sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
         sendGhciCommand ghci "c"
         putStrLn "rebuildModels => Finished"
 
-    rebuildUrlGenerator (DevServerState {compilerProcess}) = do
+    rebuildUrlGenerator (DevServerState {urlGeneratorCompilerProcess}) = do
         putStrLn "rebuildUrlGenerator"
-        ghci@(input, process) <- readIORef compilerProcess
+        ghci@(input, process) <- readIORef urlGeneratorCompilerProcess
         sendGhciCommand ghci ":l src/Foundation/UrlGeneratorCompiler.hs"
         sendGhciCommand ghci "c"
         putStrLn "rebuildUrlGenerator => Finished"
-
-
 
     sendGhciInterrupt ghci@(input, process) = do
         pid <- getPid process

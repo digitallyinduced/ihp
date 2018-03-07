@@ -1,0 +1,14 @@
+:set -isrc/Controller
+:set -isrc/Model
+:set -isrc/Generated
+:set -XOverloadedStrings
+:set -XNoImplicitPrelude
+:set -XImplicitParams
+:set -XRank2Types
+:set -XDisambiguateRecordFields
+:set -XNamedFieldPuns
+:set -XDuplicateRecordFields
+:set -XOverloadedLabels
+:set -XFlexibleContexts
+:set -XTypeSynonymInstances
+:set -XFlexibleInstances
