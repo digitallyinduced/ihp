@@ -19,6 +19,7 @@ module Foundation.Router
     , baseUrl
     , toRoutes
     , destroy
+    , update
     ) where
 
 import           ClassyPrelude                 hiding (index, delete)
@@ -113,11 +114,11 @@ instance Match Matchable where
     match' requestUrl request (Matchable matchable) = match' requestUrl request matchable
     urlGenerators (Matchable matchable) urlGenerator = urlGenerators matchable urlGenerator
 
-data Resource baseUrlType indexActionType newActionType createActionType destroyActionType = Resource { baseUrl :: baseUrlType, index :: indexActionType, new :: newActionType, create :: createActionType, destroy :: destroyActionType }
+data Resource baseUrlType indexActionType newActionType createActionType destroyActionType updateActionType = Resource { baseUrl :: baseUrlType, index :: indexActionType, new :: newActionType, create :: createActionType, destroy :: destroyActionType, update :: updateActionType}
 
-resource = Resource { baseUrl = (), index = (), new = (), create = (), destroy = () }
+resource = Resource { baseUrl = (), index = (), new = (), create = (), destroy = (), update = () }
 
-toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (Int -> Router)) => Resource Text a b c d -> Router
+toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (Int -> Router), ValueOrUnit e (Int -> Router)) => Resource Text a b c d e -> Router
 toRoutes resource =
     let
         newAction :: Maybe Router
@@ -128,6 +129,8 @@ toRoutes resource =
         destroyAction = toMaybeValue $ destroy resource
         indexAction :: Maybe Router
         indexAction = toMaybeValue $ index resource
+        updateAction :: Maybe (Int -> Router)
+        updateAction = toMaybeValue $ update resource
     in prefix (baseUrl resource) (catMaybes [
             Just (prefix "/" (catMaybes [
                     case newAction of
@@ -137,6 +140,9 @@ toRoutes resource =
                     Just (arg $ \id -> (catMaybes [
                         case destroyAction of
                             Just action -> Just (delete (action id))
+                            Nothing -> Nothing,
+                        case updateAction  of
+                            Just action -> Just (post (action id))
                             Nothing -> Nothing
                     ]))
                 ])
