@@ -24,6 +24,7 @@ import qualified Text.Blaze.Html5.Attributes  as A
 import           UrlGenerator
 import qualified View.Context
 import Foundation.View.ConvertibleStrings ()
+import Foundation.ValidationSupport
 
 
 
@@ -38,29 +39,33 @@ colorFieldWithLabel = inputFieldWithLabel "color"
 emailFieldWithLabel = inputFieldWithLabel "email"
 numberFieldWithLabel = inputFieldWithLabel "number"
 
-renderFormField (FormField fieldType fieldName fieldLabel fieldValue) = div ! class_ "form-group" $ do
+renderFormField (FormField fieldType fieldName fieldLabel fieldValue validatorResult) model = div ! class_ "form-group" $ do
     label fieldLabel
-    input ! type_ fieldType ! name fieldName ! class_ "form-control" ! value fieldValue
+    input ! type_ fieldType ! name fieldName ! class_ ("form-control " <> if isSuccess validatorResult then "" else "is-invalid") ! value fieldValue
+    case validatorResult of
+        Success -> return ()
+        Failure message -> div ! class_ "invalid-feedback" $ cs message
 
 formFor model url fields = form ! method "POST" ! action url $ do
     renderFlashMessages
-    forM_ fields (\field -> renderFormField (field model))
+    forM_ fields (\field -> renderFormField (field model) model)
     button ! class_ "btn btn-primary" $ "Submit"
 
-data FormField = FormField { fieldType :: Html5.AttributeValue, fieldName :: Html5.AttributeValue, fieldLabel :: Html5.Html, fieldValue :: Html5.AttributeValue }
+data FormField = FormField { fieldType :: Html5.AttributeValue, fieldName :: Html5.AttributeValue, fieldLabel :: Html5.Html, fieldValue :: Html5.AttributeValue, validatorResult :: ValidatorResult }
 
-fieldFactory :: Foundation.ModelSupport.FormField a => Html5.AttributeValue -> a -> Foundation.ModelSupport.Model a -> FormField
+fieldFactory :: (Foundation.ModelSupport.FormField a, CanValidateField a) => Html5.AttributeValue -> a -> Foundation.ModelSupport.Model a -> FormField
 fieldFactory fieldType param model = FormField {
         fieldType = fieldType,
         fieldName = cs (Foundation.ModelSupport.formFieldName param),
         fieldLabel = cs (Foundation.ModelSupport.formFieldLabel param),
-        fieldValue = cs (Foundation.ModelSupport.formFieldValue param model)
+        fieldValue = cs (Foundation.ModelSupport.formFieldValue param model),
+        validatorResult = validateModelField model param
     }
 
-textField :: Foundation.ModelSupport.FormField a => a -> Foundation.ModelSupport.Model a -> FormField
+textField :: (Foundation.ModelSupport.FormField a, CanValidateField a) => a -> Foundation.ModelSupport.Model a -> FormField
 textField = fieldFactory "text"
 
-colorField :: Foundation.ModelSupport.FormField a => a -> Foundation.ModelSupport.Model a -> FormField
+colorField :: (Foundation.ModelSupport.FormField a, CanValidateField a) => a -> Foundation.ModelSupport.Model a -> FormField
 colorField = fieldFactory "color"
 
 renderFlashMessages :: Html

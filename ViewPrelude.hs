@@ -29,6 +29,7 @@ module Foundation.ViewPrelude (
 
     module UrlGenerator,
     module Foundation.View.Form,
+    module Model.Generated.Validators,
     viewContext
 ) where
 
@@ -54,6 +55,7 @@ import           UrlGenerator
 import qualified View.Context
 import Foundation.View.Form
 import Foundation.View.ConvertibleStrings ()
+import Model.Generated.Validators
 
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text
