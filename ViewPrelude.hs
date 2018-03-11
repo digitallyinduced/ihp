@@ -20,22 +20,15 @@ module Foundation.ViewPrelude (
 
     cs,
 
-    textFieldWithLabel, colorFieldWithLabel, emailFieldWithLabel, numberFieldWithLabel,
-
-    renderFormField,
-    FormField (..),
-    textField,
-    colorField,
-    formFor,
-
     isActivePath,
     when,
     Int,
 
     Maybe (..),
-    viewContext,
 
-    module UrlGenerator
+    module UrlGenerator,
+    module Foundation.View.Form,
+    viewContext
 ) where
 
 import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==))
@@ -58,6 +51,8 @@ import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, 
 import qualified Text.Blaze.Html5.Attributes  as A
 import           UrlGenerator
 import qualified View.Context
+import Foundation.View.Form
+import Foundation.View.ConvertibleStrings ()
 
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text
@@ -69,52 +64,8 @@ style2 theStyle = A.style (stringValue (cs (intercalate "; " (fmap compile theSt
         compile (BackgroundColor color) = "background-color: " <> color
         compile (FontSize size)         = "font-size: " <> size
 
-instance ConvertibleStrings String Html5.AttributeValue where
-    convertString = stringValue
-
-instance ConvertibleStrings Text Html5.AttributeValue where
-    convertString = Html5.textValue
-
-instance ConvertibleStrings String Html5.Html where
-    convertString = Html5.string
-
-instance ConvertibleStrings Text Html5.Html where
-    convertString = Html5.text
-
 onClick = onclick
 
-inputFieldWithLabel inputType labelText fieldName = div ! class_ "form-group" $ do
-    label labelText
-    input ! type_ inputType ! name fieldName ! class_ "form-control"
-
-textFieldWithLabel = inputFieldWithLabel "text"
-colorFieldWithLabel = inputFieldWithLabel "color"
-emailFieldWithLabel = inputFieldWithLabel "email"
-numberFieldWithLabel = inputFieldWithLabel "number"
-
-renderFormField (FormField fieldType fieldName fieldLabel fieldValue) = div ! class_ "form-group" $ do
-    label fieldLabel
-    input ! type_ fieldType ! name fieldName ! class_ "form-control" ! value fieldValue
-
-formFor model url fields = form ! method "POST" ! action url $ do
-    forM_ fields (\field -> renderFormField (field model))
-    button ! class_ "btn btn-primary" $ "Submit"
-
-data FormField = FormField { fieldType :: Html5.AttributeValue, fieldName :: Html5.AttributeValue, fieldLabel :: Html5.Html, fieldValue :: Html5.AttributeValue }
-
-fieldFactory :: Foundation.ModelSupport.FormField a => Html5.AttributeValue -> a -> Foundation.ModelSupport.Model a -> FormField
-fieldFactory fieldType param model = FormField {
-        fieldType = fieldType,
-        fieldName = cs (Foundation.ModelSupport.formFieldName param),
-        fieldLabel = cs (Foundation.ModelSupport.formFieldLabel param),
-        fieldValue = cs (Foundation.ModelSupport.formFieldValue param model)
-    }
-
-textField :: Foundation.ModelSupport.FormField a => a -> Foundation.ModelSupport.Model a -> FormField
-textField = fieldFactory "text"
-
-colorField :: Foundation.ModelSupport.FormField a => a -> Foundation.ModelSupport.Model a -> FormField
-colorField = fieldFactory "color"
 
 isActivePath :: (?viewContext :: View.Context.ViewContext) => Text -> ClassyPrelude.Bool
 isActivePath path =
@@ -125,3 +76,5 @@ isActivePath path =
 
 viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewContext
 viewContext = ?viewContext
+
+

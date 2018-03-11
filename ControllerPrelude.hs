@@ -16,4 +16,3 @@ import           Foundation.ControllerSupport
 import           Helper.Controller
 import           Model.Generated.Types
 import           UrlGenerator
-
