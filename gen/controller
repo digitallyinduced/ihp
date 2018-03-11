@@ -20,7 +20,6 @@ ob_start();
 module Controller.<?= $controller ?> where
 
 import Foundation.ControllerPrelude
-import Model.<?= $model ?> (<?= $model ?>)
 import qualified Model.<?= $model ?> as <?= $model ?>
 
 

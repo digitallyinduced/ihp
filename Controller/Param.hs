@@ -13,12 +13,15 @@ import qualified Network.URI
 import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
 
 param :: (?requestContext :: RequestContext) => ByteString -> ByteString
-param name = do
+param name = fromMaybe (error $ "Required parameter " <> cs name <> " is missing") (paramOrNothing name)
+
+paramOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
+paramOrNothing name = do
     let (RequestContext request _ bodyParams _ _) = ?requestContext
     let
         allParams :: [(ByteString, Maybe ByteString)]
         allParams = concat [(map (\(a, b) -> (a, Just b)) bodyParams), (queryString request)]
-    fromMaybe (error $ "Required parameter " <> cs name <> " is missing") (join (lookup name allParams))
+    join (lookup name allParams)
 
 paramInt :: (?requestContext :: RequestContext) => ByteString -> Int
 paramInt name = fst $ Data.Either.fromRight (error $ "Invalid parameter " <> cs name) (Data.Text.Read.decimal $ cs $ param name)
@@ -27,7 +30,7 @@ paramText :: (?requestContext :: RequestContext) => ByteString -> Text
 paramText name = cs $ param name
 
 paramBool :: (?requestContext :: RequestContext) => ByteString -> Bool
-paramBool name = case param name of "on" -> True; otherwise -> False
+paramBool name = case paramOrNothing name of Just "on" -> True; otherwise -> False
 
 class ParamName a where
     paramName :: a -> ByteString
