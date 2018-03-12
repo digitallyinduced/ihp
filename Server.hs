@@ -24,6 +24,7 @@ module Foundation.Server (run) where
 
     import qualified Routes
     import qualified Config
+    import qualified Foundation.LoginSupport.Middleware
 
     defaultPort :: Int
     defaultPort = 8000
@@ -34,8 +35,7 @@ module Foundation.Server (run) where
         session <- Vault.newKey
         store <- fmap clientsessionStore getDefaultKey
         let applicationContext = ApplicationContext (ModelContext conn) session
-        Warp.runEnv defaultPort $ withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30) }) session $ logStdoutDev $ staticPolicy (addBase "static/") $ methodOverridePost $ application Routes.match applicationContext
-
+        Warp.runEnv defaultPort $ withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30) }) session $ logStdoutDev $ staticPolicy (addBase "static/") $ Foundation.LoginSupport.Middleware.middleware applicationContext $ methodOverridePost $ application Routes.match applicationContext
 
     -- TODO: logger middleware
     application :: Router -> ApplicationContext -> Application

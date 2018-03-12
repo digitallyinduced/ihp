@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ControllerSupport (withContext, Action, cs, (|>), redirectTo, getRequestBody, RequestContext (..)) where
+module Foundation.ControllerSupport (withContext, Action, cs, (|>), redirectTo, getRequestBody, getRequestUrl, RequestContext (..)) where
 import ClassyPrelude
 import Foundation.HaskellSupport
 import Data.String.Conversions (cs)
@@ -54,6 +54,10 @@ getRequestBody =
     let (RequestContext request _ _ _ _) = ?requestContext
     in Network.Wai.requestBody request
 
+getRequestUrl :: (?requestContext :: RequestContext) => ByteString
+getRequestUrl =
+    let (RequestContext request _ _ _ _) = ?requestContext
+    in Network.Wai.rawPathInfo request
 
 withContext :: Action -> ApplicationContext -> Request -> Respond -> IO ResponseReceived
 withContext theAction (ApplicationContext modelContext session) request respond = do

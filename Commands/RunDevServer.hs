@@ -47,12 +47,12 @@ module Main where
         forM_ processes stopProcess
 
     startPlainGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances", "-fobject-code"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         return (input, handle)
 
     startCompileGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fobject-code", "-w"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-w"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         return (input, handle)
 
