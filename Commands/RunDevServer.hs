@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Main where
-    import ClassyPrelude
+    import ClassyPrelude hiding (threadDelay)
     import qualified System.Process as Process
     import Twitch
     import System.Exit
@@ -10,6 +10,7 @@ module Main where
     import qualified GHC.IO.Handle as Handle
     import System.Process.Internals
     import Data.String.Conversions (cs)
+    import Control.Concurrent (threadDelay)
 
     runServerHs = "src/Foundation/Commands/RunServer.hs"
 
@@ -40,6 +41,7 @@ module Main where
 
     cleanup :: DevServerState -> IO ()
     cleanup state = do
+        putStrLn "cleanup"
         let DevServerState { serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess } = state
         let processes = [serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess]
         let stopProcess process = do (_, p') <- readIORef serverProcess; Process.terminateProcess p'
@@ -47,7 +49,7 @@ module Main where
         forM_ processes stopProcess
 
     startPlainGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances", "-fobject-code"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         return (input, handle)
 
@@ -57,13 +59,7 @@ module Main where
         return (input, handle)
 
     initServer ghci = do
-        sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
-        sendGhciCommand ghci "c"
-        sendGhciCommand ghci (":l " <> runServerHs)
-        sendGhciCommand ghci ":l src/Foundation/UrlGeneratorCompiler.hs"
-        sendGhciCommand ghci "c"
-        sendGhciCommand ghci (":l " <> runServerHs)
-        sendGhciCommand ghci "main"
+        sendGhciCommand ghci (":script src/Foundation/startDevServerGhciScript")
         return ghci
 
     watch state@(DevServerState {serverProcess}) = defaultMain $ do
@@ -107,7 +103,7 @@ module Main where
         sendGhciInterrupt ghci
         sendGhciCommand ghci ""
         sendGhciCommand ghci ":r"
-        sendGhciCommand ghci "main"
+        sendGhciCommand ghci "run"
         putStrLn "Restarted server"
 
     sendGhciCommand ghciProcess command = do

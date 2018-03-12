@@ -16,6 +16,7 @@ import Data.List.Split
 --{-# LINE 42 "Foo.vhs" #-}
 
 c = compile
+main = compile
 compile :: IO ()
 compile = do
     let compiled = map (\table -> (getFilePath table, compileTable table)) database

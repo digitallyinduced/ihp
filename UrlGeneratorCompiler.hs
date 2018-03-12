@@ -13,6 +13,7 @@ import qualified Routes
 import qualified System.Directory        as Directory
 import qualified Data.Set
 c = compile
+main = c
 
 compile :: IO ()
 compile = do

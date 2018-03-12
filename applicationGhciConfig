@@ -12,3 +12,4 @@
 :set -XFlexibleContexts
 :set -XTypeSynonymInstances
 :set -XFlexibleInstances
+:set -XQuasiQuotes

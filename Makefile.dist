@@ -1,12 +1,14 @@
 .PHONY: run
 
+GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -XQuasiQuotes
+
 .envrc: default.nix src/Foundation/NixSupport/default.nix
 	rm -f .envrc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	echo "path_add PYTHONPATH $$(nix-shell --run 'echo $$PYTHONPATH')" >> .envrc
 	direnv allow
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated
+run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs
 	bin/RunDevServer --root src
 
 run-production: bin/RunProdServer src/Model/Generated
@@ -28,15 +30,19 @@ bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js bin
 	nix-shell --command "cd db && make && cd .. && ghc -threaded -XOverloadedStrings -XNoImplicitPrelude -O0 -j4 $< -o $@"
 	chmod +x $<
 
+src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
+	mkdir -p src/Model/Generated
+	runghc ${GHC_OPTIONS} "src/Foundation/SchemaCompiler.hs"
+
+src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
+	runghc ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
+
 bin/RunProdServer: src/Main.hs bin
-	nix-shell -K --command "ghc -threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -O2 -fllvm -j4 $< -o $@"
+	nix-shell -K --command "ghc -O2 -fllvm -j4 $< -o $@"
 	chmod +x $<
 
 static/build.js: static/livereload.js
 	cd static && node_modules/.bin/browserify livereload.js > build.js
-
-src/Model/Generated:
-	mkdir -p src/Model/Generated
 
 install:
 	brew install direnv
