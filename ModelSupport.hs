@@ -44,9 +44,15 @@ instance InputValue Bool where
     inputValue True = "yes"
     inputValue False = "no"
 
+instance InputValue () where
+    inputValue () = "error: inputValue(()) not supported"
+
 data QueryCondition a = NoCondition | Equal a
 
 type FieldName = ByteString
 toSQLCondition :: FieldName -> QueryCondition a -> (ByteString, Maybe a)
 toSQLCondition _ NoCondition = ("? IS NULL", Nothing)
 toSQLCondition fieldName (Equal a) = (fieldName <> " = ?", Just a)
+
+class IsNew model where
+    isNew :: model -> Bool

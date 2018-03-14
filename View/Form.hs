@@ -6,47 +6,57 @@
 
 module Foundation.View.Form where
 
-import ClassyPrelude hiding (div)
-import           Data.String.Conversions      (cs)
+import           ClassyPrelude                      hiding (div)
+import           Data.String.Conversions            (cs)
 import           Foundation.HaskellSupport
 import qualified Foundation.ModelSupport
+import           Foundation.ValidationSupport
+import           Foundation.View.ConvertibleStrings ()
 import           Foundation.ViewErrorMessages
 import           Foundation.ViewSupport
+import           Network.HTTP.Types.Method          (methodPost)
+import           Network.Wai                        (requestMethod)
 import qualified Network.Wai
-import           Text.Blaze                   (Attribute, dataAttribute, preEscapedText, stringValue, text)
-import           Text.Blaze.Html5             (a, body, button, code, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img,
-                                               input, label, li, link, meta, nav, ol, p, pre, script, small, span, table, tbody, td, th, thead, title, tr, ul)
-import           Text.Blaze.Html5             ((!))
-import qualified Text.Blaze.Html5             as Html5
-import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name, onclick,
-                                               placeholder, rel, src, style, type_, value)
-import qualified Text.Blaze.Html5.Attributes  as A
+import           Text.Blaze                         (Attribute, dataAttribute, preEscapedText, stringValue, text)
+import           Text.Blaze.Html5                   (a, body, button, code, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img,
+                                                     input, label, li, link, meta, nav, ol, p, pre, script, small, span, table, tbody, td, th, thead, title, tr,
+                                                     ul)
+import           Text.Blaze.Html5                   ((!))
+import qualified Text.Blaze.Html5                   as Html5
+import           Text.Blaze.Html5.Attributes        (action, autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
+                                                     onclick, placeholder, rel, src, style, type_, value)
+import qualified Text.Blaze.Html5.Attributes        as A
 import           UrlGenerator
 import qualified View.Context
-import Foundation.View.ConvertibleStrings ()
-import Foundation.ValidationSupport
-
-
-
 
 
 inputFieldWithLabel inputType labelText fieldName = div ! class_ "form-group" $ do
     label labelText
     input ! type_ inputType ! name fieldName ! class_ "form-control"
 
+textFieldWithLabel :: Html5.Html -> Html5.AttributeValue -> Html5.Html
 textFieldWithLabel = inputFieldWithLabel "text"
+
+colorFieldWithLabel :: Html5.Html -> Html5.AttributeValue -> Html5.Html
 colorFieldWithLabel = inputFieldWithLabel "color"
+
+emailFieldWithLabel :: Html5.Html -> Html5.AttributeValue -> Html5.Html
 emailFieldWithLabel = inputFieldWithLabel "email"
+
+numberFieldWithLabel :: Html5.Html -> Html5.AttributeValue -> Html5.Html
 numberFieldWithLabel = inputFieldWithLabel "number"
 
+renderFormField :: (?viewContext :: ViewContext) => Foundation.ModelSupport.IsNew model => FormField -> model -> Html5.Html
 renderFormField (FormField fieldType fieldName fieldLabel fieldValue validatorResult) model = div ! class_ "form-group" $ do
     label fieldLabel
-    input ! type_ fieldType ! name fieldName ! class_ ("form-control " <> if isSuccess validatorResult then "" else "is-invalid") ! value fieldValue
-    case validatorResult of
-        Success -> return ()
+    input ! type_ fieldType ! name fieldName ! class_ ("form-control " <> if not isSubmitted || isSuccess validatorResult then "" else "is-invalid") ! value fieldValue
+    when (Foundation.ModelSupport.isNew model) $ case validatorResult of
+        Success         -> return ()
         Failure message -> div ! class_ "invalid-feedback" $ cs message
 
+formFor :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model) => model -> Html5.AttributeValue -> [model -> FormField] -> Html5.Html
 formFor model url fields = form ! method "POST" ! action url $ do
+
     renderFlashMessages
     forM_ fields (\field -> renderFormField (field model) model)
     button ! class_ "btn btn-primary" $ "Submit"
@@ -74,4 +84,7 @@ renderFlashMessages =
     in
         case flashMessage of
             Just message -> div ! class_ "alert alert-success" $ cs message
-            Nothing -> mempty
+            Nothing      -> mempty
+
+isSubmitted :: (?viewContext :: ViewContext) => Bool
+isSubmitted = let ViewContext {request} = ?viewContext in requestMethod request == methodPost
