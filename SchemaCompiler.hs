@@ -131,6 +131,8 @@ compileTypes' table@(Table name attributes) =
     <> section
     <> compileIsNewInstance table
     <> section
+    <> compileHasModelNameInstance table
+    <> section
 
 
 compileValidators :: [Table] -> Text
@@ -609,6 +611,8 @@ compileCanValidate table@(Table name attributes) =
 compileIsNewInstance table@(Table name attributes) =
     "instance IsNew New" <> tableNameToModelName name <> " where isNew _ = True\n"
     <> "instance IsNew " <> tableNameToModelName name <> " where isNew _ = False\n"
+
+compileHasModelNameInstance table@(Table name attributes) = "instance HasModelName (" <> compileNewOrSavedType table <> ") where getModelName _ = " <> tshow (tableNameToModelName name) <> "\n"
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"

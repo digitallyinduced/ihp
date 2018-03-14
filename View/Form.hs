@@ -54,12 +54,11 @@ renderFormField (FormField fieldType fieldName fieldLabel fieldValue validatorRe
         Success         -> return ()
         Failure message -> div ! class_ "invalid-feedback" $ cs message
 
-formFor :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model) => model -> Html5.AttributeValue -> [model -> FormField] -> Html5.Html
+formFor :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Html5.AttributeValue -> [model -> FormField] -> Html5.Html
 formFor model url fields = form ! method "POST" ! action url $ do
-
     renderFlashMessages
     forM_ fields (\field -> renderFormField (field model) model)
-    button ! class_ "btn btn-primary" $ "Submit"
+    button ! class_ "btn btn-primary" $ if Foundation.ModelSupport.isNew model then "Create " <> (cs $ Foundation.ModelSupport.getModelName model) else "Save"
 
 data FormField = FormField { fieldType :: Html5.AttributeValue, fieldName :: Html5.AttributeValue, fieldLabel :: Html5.Html, fieldValue :: Html5.AttributeValue, validatorResult :: ValidatorResult }
 

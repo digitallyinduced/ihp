@@ -57,3 +57,6 @@ toSQLCondition fieldName (Equal a) = (fieldName <> " = ?", Just a)
 
 class IsNew model where
     isNew :: model -> Bool
+
+class HasModelName model where
+    getModelName :: model -> Text
