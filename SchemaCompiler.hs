@@ -124,6 +124,7 @@ compileTypes' table@(Table name attributes) =
     <> compileGenericDataDefinition table
     <> compileTypeAlias table
     <> compileNewTypeAlias table
+    <> compileNewOrSavedTypeAlias table
     <> compileEnumDataDefinitions table
     <> section
     <> compileFromRowInstance table
@@ -142,7 +143,7 @@ compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compil
                   <> "module Model.Generated.Validators where\n\n"
                   <> "import Foundation.ValidationSupport\n\n"
                   <> "import Model.Generated.Types\n\n"
-                  <> "import ClassyPrelude ((==))\n\n"
+                  <> "import ClassyPrelude\n\n"
                   <> intercalate "\n" (map (\(Table name attributes) -> "import qualified Model." <> tableNameToModelName name <> " (validator, combine, fields, Field(..))\n") database)
 
 
@@ -209,7 +210,20 @@ compileNewTypeAlias table@(Table name attributes) =
 		haskellType' fieldName (SerialField) = "()"
 		haskellType' fieldName fieldType = haskellType fieldName fieldType
 
+compileNewOrSavedTypeAlias :: Table -> Text
+compileNewOrSavedTypeAlias table@(Table name attributes) =
+		"type NewOrSaved" <> tableNameToModelName name <> " = forall id. " <> compileNewOrSavedType table <> "\n"
 
+compileNewOrSavedType :: Table -> Text
+compileNewOrSavedType table@(Table name attributes) =
+		"" <> tableNameToModelName name <> "' " <> compileFields attributes
+    where
+		compileFields :: [Attribute] -> Text
+		compileFields attributes = intercalate " " $ map compileField attributes
+		compileField :: Attribute -> Text
+		compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
+		haskellType' fieldName (SerialField) = "id"
+		haskellType' fieldName fieldType = haskellType fieldName fieldType
 
 compileGenericDataDefinition :: Table -> Text
 compileGenericDataDefinition table@(Table name attributes) =
@@ -432,11 +446,11 @@ compileAttributeNames table@(Table tableName attributes) =
         <> section
         <> section
         <> "instance ParamName Field where \n" <> (intercalate "\n" (map compileParamName attributes)) <> "\n"
-        <> "instance FormField Field where \n"
-        <> "    type Model Field = " <> tableNameToModelName tableName <> "\n"
-        <> (intercalate "\n" (map compileFormFieldName attributes))
+        <> "instance FormField Field where \n" <> (intercalate "\n" (map compileFormFieldName attributes))
         <> section
-        <> (intercalate "\n" (map compileFormFieldValue attributes))
+        <> "instance FormFieldValue Field " <> tableNameToModelName tableName <> " where \n" <> (intercalate "\n" (map compileFormFieldValue attributes))
+        <> section
+        <> "instance FormFieldValue Field New" <> tableNameToModelName tableName <> " where \n" <> (intercalate "\n" (map compileFormFieldValue attributes))
         <> section
     where
         compileAttributeName (Field name _) = tableNameToModelName name
@@ -562,7 +576,7 @@ compileCanValidate table@(Table name attributes) =
         <> compileCanValidateInstance (tableNameToModelName name) True
         <> section
         <> section
-        <> "instance CanValidateField Model." <> tableNameToModelName name <> ".Field where\n"
+        <> "instance CanValidateField (" <> compileNewOrSavedType table <> ") Model." <> tableNameToModelName name <> ".Field where\n"
         <> indent (
                 compileValidateModelField
             )
@@ -577,13 +591,15 @@ compileCanValidate table@(Table name attributes) =
                     <> compileIsValid modelName
                     <> section
                 )
-        compileValidateModelResult modelName isNew = "type ValidateModelResult " <> (if isNew then "New" else "") <> modelName <> " = " <> modelName <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
+        compileValidateModelResult modelName isNew = "type ValidateModelResult " <> (if isNew then "New" else "") <>  modelName <> " = " <> modelName <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
             where
                 compileAttribute _ = "ValidatorResult"
         compileCanValidateModelField = "type Model Model." <> tableNameToModelName name <> ".Field = Model." <> tableNameToModelName name <> ".Field\n"
+        compileValidate :: Text -> Text
         compileValidate modelName = "validate model = let combine = Model." <> modelName <> ".combine in combine model (combine Model." <> modelName <> ".fields (combine (Model." <> modelName <> ".validator) (" <> modelName <> " " <> intercalate " " (map compileAttribute attributes) <> ")))"
             where
                 compileAttribute _ = "Foundation.ValidationSupport.validateField"
+        compileIsValid :: Text -> Text
         compileIsValid modelName = "isValid model = validate model == (" <> modelName <> " " <> intercalate " " (map (\_ -> "Success") attributes) <> ")"
         compileValidateModelField = intercalate "\n" (map compileValidateModelField' attributes)
         compileValidateModelField' (Field fieldName fieldType) = "validateModelField model Model." <> tableNameToModelName name <> "." <> tableNameToModelName fieldName <> " = let " <> tableNameToModelName name <> "{" <> fieldName <> "} = " <> ("let combine = Model." <> tableNameToModelName name <> ".combine in combine model (combine Model." <> tableNameToModelName name <> ".fields (combine (Model." <> tableNameToModelName name <> ".validator) (" <> tableNameToModelName name <> " " <> intercalate " " (map compileAttribute attributes) <> ")))") <> " in " <> fieldName

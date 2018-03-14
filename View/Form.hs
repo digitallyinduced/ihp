@@ -63,7 +63,7 @@ formFor model url fields = form ! method "POST" ! action url $ do
 
 data FormField = FormField { fieldType :: Html5.AttributeValue, fieldName :: Html5.AttributeValue, fieldLabel :: Html5.Html, fieldValue :: Html5.AttributeValue, validatorResult :: ValidatorResult }
 
-fieldFactory :: (Foundation.ModelSupport.FormField a, CanValidateField a) => Html5.AttributeValue -> a -> Foundation.ModelSupport.Model a -> FormField
+fieldFactory :: (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute) => Html5.AttributeValue -> attribute -> model -> FormField
 fieldFactory fieldType param model = FormField {
         fieldType = fieldType,
         fieldName = cs (Foundation.ModelSupport.formFieldName param),
@@ -72,10 +72,10 @@ fieldFactory fieldType param model = FormField {
         validatorResult = validateModelField model param
     }
 
-textField :: (Foundation.ModelSupport.FormField a, CanValidateField a) => a -> Foundation.ModelSupport.Model a -> FormField
+textField :: (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute) => attribute -> model -> FormField
 textField = fieldFactory "text"
 
-colorField :: (Foundation.ModelSupport.FormField a, CanValidateField a) => a -> Foundation.ModelSupport.Model a -> FormField
+colorField :: (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute) => attribute -> model -> FormField
 colorField = fieldFactory "color"
 
 renderFlashMessages :: Html

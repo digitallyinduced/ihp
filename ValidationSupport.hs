@@ -1,5 +1,6 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Foundation.ValidationSupport where
 import           ClassyPrelude
@@ -33,5 +34,5 @@ class CanValidate model where
     validate :: model -> ValidateModelResult model
     isValid :: model -> Bool
 
-class CanValidateField field where
-    validateModelField :: Model field -> field -> ValidatorResult
+class CanValidateField model field where
+    validateModelField :: (FormFieldValue field model) => model -> field -> ValidatorResult

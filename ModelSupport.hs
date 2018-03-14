@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes #-}
 
 module Foundation.ModelSupport where
 
@@ -21,7 +21,6 @@ class FindWhere a where
     buildCriteria :: a
 
 class FormField field where
-    type Model field :: *
     formFieldName :: field -> Text
     formFieldLabel :: field -> Text
     formFieldLabel field =
@@ -29,7 +28,9 @@ class FormField field where
             name = formFieldName field
             (Right parts) = Text.Inflections.parseSnakeCase [] name
         in Text.Inflections.titleize parts
-    formFieldValue :: field -> Model field -> Text
+
+class FormFieldValue field model where
+    formFieldValue :: field -> model -> Text
 
 class InputValue a where
     inputValue :: a -> Text
