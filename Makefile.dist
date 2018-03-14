@@ -25,7 +25,7 @@ ghci:
 
 bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js
 	mkdir -p bin
-	nix-shell --command "cd db && make && cd .. && ghc -threaded -XOverloadedStrings -XNoImplicitPrelude -O0 -j4 $< -o $@"
+	nix-shell --command "cd db && make && cd .. && ghc -threaded -XOverloadedStrings -XNoImplicitPrelude -O0 -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
 
 src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
