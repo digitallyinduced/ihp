@@ -11,7 +11,7 @@ import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
 import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
-import Text.Blaze.Internal (attribute, MarkupM (Parent), StaticString)
+import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
 import Data.String.Conversions (cs)
 
 hsx :: QuasiQuoter
@@ -60,13 +60,16 @@ applyAttributes el (x:xs) = applyAttributes (el ! x) xs
 makeElement :: String -> [Html] -> Html
 makeElement name children =
     let
-        children' = (foldl' (<>) (unsafeHead children) (unsafeTail children))
         element :: Html -> Html
         element = (Parent (fromString name) (fromString $ "<" <> name) (fromString $ "</" <> name <> ">"))
+        leaf = (Leaf (fromString name) (fromString $ "<" <> name) (fromString $ ">"))
     in if name `elem` parents then
-            element children'
+            let children' = (foldl' (<>) (unsafeHead children) (unsafeTail children)) in element children'
         else
-            error ("makeElement: Unknown tag ")
+            if name `elem` leafs then
+                leaf ()
+            else
+                error ("makeElement: Unknown tag ")
 
 attributes =
         [ "accept", "accept-charset", "accesskey", "action", "alt", "async"
@@ -116,4 +119,8 @@ parents =
         , "section", "select", "small", "span", "strong", "style", "sub"
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
         , "thead", "time", "title", "tr", "ul", "var", "video"
+        ]
+
+leafs =
+        [ "area", "br", "col", "hr", "link", "img", "input",  "meta", "param"
         ]
