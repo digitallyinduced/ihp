@@ -7,7 +7,7 @@
 module Foundation.ViewPrelude (
     Html, div, span, p, a, href, nav, h1, h2, h3, h4, h5, ul, ol, id, li, head, meta, title, link, docTypeHtml, script, body, form, input, select, option, label, button, text, value, hr, footer, table, thead, tr, th, tbody, td, onClick, preEscapedText, iframe, placeholder, autofocus, autocomplete, img, httpEquiv, content, small, dataAttribute, h6, pre, code,
 
-    src, class_, lang, rel, charset, type_, method, action, name, style,
+    src, class_, lang, rel, charset, type_, method, action, name, style, selected, checked,
 
     ($), (!), forM_, mempty,
 
@@ -49,7 +49,7 @@ import           Text.Blaze.Html5             (a, body, button, div, docTypeHtml
                                                label, li, link, meta, nav, ol, p, script, small, span, table, tbody, td, th, thead, title, tr, ul, pre, code, select, option)
 import           Text.Blaze.Html5             ((!))
 import qualified Text.Blaze.Html5             as Html5
-import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name, onclick,
+import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, charset, class_, selected, checked, content, href, httpEquiv, id, lang, method, name, onclick,
                                                placeholder, rel, src, style, type_, value)
 import qualified Text.Blaze.Html5.Attributes  as A
 import           UrlGenerator
