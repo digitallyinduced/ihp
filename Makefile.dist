@@ -1,6 +1,7 @@
 .PHONY: run
 
 GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -XQuasiQuotes
+RUNGHC=runghc
 
 .envrc: default.nix src/Foundation/NixSupport/default.nix
 	rm -f .envrc
@@ -30,10 +31,10 @@ bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js
 
 src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
 	mkdir -p src/Model/Generated
-	runghc ${GHC_OPTIONS} "src/Foundation/SchemaCompiler.hs"
+	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/SchemaCompiler.hs"
 
 src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
-	runghc ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
+	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
 
 bin/RunProdServer: src/Main.hs bin
 	nix-shell -K --command "ghc -O2 -fllvm -j4 ${GHC_OPTIONS} $< -o $@"
