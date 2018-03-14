@@ -30,7 +30,8 @@ module Foundation.ViewPrelude (
     module UrlGenerator,
     module Foundation.View.Form,
     module Model.Generated.Validators,
-    viewContext
+    viewContext,
+    hsx
 ) where
 
 import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==))
@@ -56,6 +57,7 @@ import qualified View.Context
 import Foundation.View.Form
 import Foundation.View.ConvertibleStrings ()
 import Model.Generated.Validators
+import Foundation.HtmlSupport.QQ (hsx)
 
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text

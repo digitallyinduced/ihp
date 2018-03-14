@@ -30,8 +30,8 @@ import Foundation.ViewPrelude
 import qualified View.Layout.Default
 
 render :: Html
-render = View.Layout.Default.html $ do
 <?php if (strtolower($action) === 'new') { ?>
+render = View.Layout.Default.html $ do
     h1 "New <?php echo $controller; ?>"
     form ! method "post" ! action "TODO" $ do
         div ! class_ "form-group" $ do
@@ -39,7 +39,9 @@ render = View.Layout.Default.html $ do
             input ! type_ "text" ! name "name" ! class_ "form-control"
         button ! type_ "submit" ! class_ "btn btn-primary" $ "Submit"
 <?php } else { ?>
-    p "Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"
+render = View.Layout.Default.html [hsx|
+    <p>"Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"</p>
+|]
 <?php } ?>
 <?php
 $body = ob_get_clean();
