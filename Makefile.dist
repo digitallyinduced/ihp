@@ -36,7 +36,7 @@ src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
 	runghc ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
 
 bin/RunProdServer: src/Main.hs bin
-	nix-shell -K --command "ghc -O2 -fllvm -j4 $< -o $@"
+	nix-shell -K --command "ghc -O2 -fllvm -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
 
 static/build.js: static/livereload.js
