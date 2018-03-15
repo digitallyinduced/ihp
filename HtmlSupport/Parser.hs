@@ -73,7 +73,7 @@ hsxSplicedValue = do
     return (ExpressionValue value)
 
 hsxClosingElement name = do
-    _ <- string "</" *> string name *> char '>'
+    _ <- string ("</" <> name <> ">")
     return ()
 
 hsxChild = try hsxText <|> try hsxSplicedNode <|> try hsxElement
