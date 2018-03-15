@@ -13,4 +13,4 @@
 :set -XTypeSynonymInstances
 :set -XFlexibleInstances
 :set -XQuasiQuotes
-:set -XUnicodeSyntax
+:set -XTypeFamilies

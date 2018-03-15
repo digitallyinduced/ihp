@@ -49,7 +49,7 @@ module Main where
         forM_ processes stopProcess
 
     startPlainGhci = do
-        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances", "-fobject-code"]) { Process.std_in = Process.CreatePipe }
+        let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances"]) { Process.std_in = Process.CreatePipe }
         (Just input, _, _, handle) <- Process.createProcess process
         return (input, handle)
 
@@ -70,7 +70,7 @@ module Main where
         "Model/*.hs" |> const (rebuild serverProcess)
         "Model/Generated/*.hs" |> const (rebuild serverProcess)
         "Config.hs" |> const (rebuild serverProcess)
-        "Foundation/*.hs" |> const (rebuild serverProcess)
+        "Foundation/**.hs" |> const (rebuild serverProcess)
         "Routes.hs" |> const (rebuildUrlGenerator state)
         "UrlGenerator.hs" |> const (rebuild serverProcess)
 
