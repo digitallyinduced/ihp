@@ -53,6 +53,14 @@ toStringAttribute (name, TextValue value) = do
     if name `elem` attributes then return () else fail ("Invalid attribute: " <> name)
     [| (attribute name nameWithSuffix) value |]
 
+toStringAttribute (name, ExpressionValue code) = do
+    let nameWithSuffix = " " <> name <> "=\""
+    if name `elem` attributes then return () else fail ("Invalid attribute: " <> name)
+    case parseExp code of
+        Right expression -> [| (attribute name nameWithSuffix) (cs $(return expression)) |]
+        Left error -> fail ("toStringAttribute.compileToHaskell(" <> code <> "): " <> show error)
+
+
 applyAttributes :: Html5.Html -> [Html5.Attribute] -> Html5.Html
 applyAttributes el [] = el
 applyAttributes el (x:xs) = applyAttributes (el ! x) xs
