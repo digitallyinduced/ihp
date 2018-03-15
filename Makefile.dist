@@ -30,7 +30,7 @@ bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js
 	chmod +x $<
 
 src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
-	mkdir -p src/Model/Generated
+	rm -rf src/Model/Generated && mkdir -p src/Model/Generated
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/SchemaCompiler.hs"
 
 src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
