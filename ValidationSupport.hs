@@ -5,9 +5,9 @@
 module Foundation.ValidationSupport where
 import           ClassyPrelude
 import           Foundation.ModelSupport
+import qualified Data.Text as Text
 
 data ValidatorIdentity a = ValidatorIdentity deriving (Show)
-data NonEmpty = NonEmpty deriving (Show)
 
 data ValidatorResult = Success | Failure Text deriving (Show, Eq)
 
@@ -18,10 +18,17 @@ class Validator constraint where
     type ValidatorValue constraint :: *
     validateField :: FormField modelField => constraint -> modelField -> ValidatorValue constraint -> ValidatorResult
 
+data NonEmpty = NonEmpty deriving (Show)
 instance Validator NonEmpty where
     type ValidatorValue NonEmpty = Text
     validateField NonEmpty field "" = Failure (formFieldName field <> " cannot be empty")
     validateField NonEmpty _ _      = Success
+
+data IsPhoneNumber = IsPhoneNumber deriving (Show)
+instance Validator IsPhoneNumber where
+    type ValidatorValue IsPhoneNumber = Text
+    validateField IsPhoneNumber _ text | "+" `isPrefixOf` text = Success
+    validateField IsPhoneNumber field _ = Failure (formFieldName field <> " is not a valid phone number (has to start with +)")
 
 instance Validator (ValidatorIdentity fieldType) where
     type ValidatorValue (ValidatorIdentity fieldType) = fieldType
