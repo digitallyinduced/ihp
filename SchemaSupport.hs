@@ -12,11 +12,14 @@ module Foundation.SchemaSupport where
     newtype SqlType = SqlType Text
     type Name = Text
 
-    data FieldType = SerialField
-               | TextField { length ::  Int }
-               | IntField
-               | BoolField
-               | EnumField { values :: [Text] }
+    data DefaultValue = SqlDefaultValue Text deriving (Show, Eq, Ord)
+
+    data FieldType = SerialField { defaultValue :: Maybe DefaultValue }
+               | TextField { defaultValue :: Maybe DefaultValue, length ::  Int }
+               | IntField { defaultValue :: Maybe DefaultValue }
+               | BoolField { defaultValue :: Maybe DefaultValue }
+               | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text] }
+               | Timestamp { defaultValue :: Maybe DefaultValue }
                deriving (Show, Eq, Ord)
 
     table :: Text -> Table
@@ -26,11 +29,12 @@ module Foundation.SchemaSupport where
 
     (Table name fields) + field = Table name (fields <> [field])
 
-    serial = SerialField
-    text = TextField { length = 64 }
-    int = IntField
-    enum = EnumField
-    bool = BoolField
+    serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT") }
+    text = TextField { defaultValue = Nothing, length = 64 }
+    int = IntField { defaultValue = Nothing }
+    enum values = EnumField { defaultValue = Nothing, values }
+    bool = BoolField { defaultValue = Nothing }
+    timestamp = Timestamp { defaultValue = Nothing }
 
     belongsTo = BelongsTo
     hasMany = HasMany

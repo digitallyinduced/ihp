@@ -31,7 +31,8 @@ module Foundation.ViewPrelude (
     module Foundation.View.Form,
     module Model.Generated.Validators,
     viewContext,
-    hsx
+    hsx,
+    timeAgo
 ) where
 
 import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==))
@@ -58,6 +59,7 @@ import Foundation.View.Form
 import Foundation.View.ConvertibleStrings ()
 import Model.Generated.Validators
 import Foundation.HtmlSupport.QQ (hsx)
+import qualified Data.Time.Format
 
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text
@@ -83,3 +85,7 @@ viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewCo
 viewContext = ?viewContext
 
 
+timeAgo :: ClassyPrelude.UTCTime -> Html5.Html
+timeAgo dateTime = span ! A.datetime (cs $ formatDateTime dateTime) $ cs (formatDateTime dateTime)
+    where
+        formatDateTime = (Data.Time.Format.formatTime Data.Time.Format.defaultTimeLocale (Data.Time.Format.iso8601DateFormat (Just "%H:%M:%S")))

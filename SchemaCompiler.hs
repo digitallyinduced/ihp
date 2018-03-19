@@ -185,11 +185,12 @@ compileDataDefinition table@(Table name attributes) =
             compileField (Field fieldName fieldType) = fieldName <> " :: " <> haskellType fieldName fieldType
 
 haskellType :: Text -> FieldType -> Text
-haskellType fieldName (SerialField) = "Int"
-haskellType fieldName (TextField _) = "Text"
-haskellType fieldName (IntField) = "Int"
+haskellType fieldName (SerialField {}) = "Int"
+haskellType fieldName (TextField {}) = "Text"
+haskellType fieldName (IntField {}) = "Int"
 haskellType fieldName (EnumField {}) = tableNameToModelName fieldName
-haskellType fieldName (BoolField{}) = "Bool"
+haskellType fieldName (BoolField {}) = "Bool"
+haskellType fieldName (Timestamp { defaultValue }) = "UTCTime"
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =
@@ -209,12 +210,16 @@ compileNewTypeAlias table@(Table name attributes) =
 		compileFields attributes = intercalate " " $ map compileField attributes
 		compileField :: Attribute -> Text
 		compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
-		haskellType' fieldName (SerialField) = "()"
+		haskellType' fieldName fieldType | isJust (defaultValue fieldType) = "()"
 		haskellType' fieldName fieldType = haskellType fieldName fieldType
 
 compileNewOrSavedTypeAlias :: Table -> Text
 compileNewOrSavedTypeAlias table@(Table name attributes) =
-		"type NewOrSaved" <> tableNameToModelName name <> " = forall id. " <> compileNewOrSavedType table <> "\n"
+		"type NewOrSaved" <> tableNameToModelName name <> " = forall " <> (intercalate " " getAttributesWithDefaultValue) <> ". " <> compileNewOrSavedType table <> "\n"
+	    where
+	        getAttributesWithDefaultValue = map (\(Field name _) -> name) $ filter hasDefaultValue attributes
+	        hasDefaultValue (Field fieldName fieldType) | isJust (defaultValue fieldType) = True
+	        hasDefaultValue _ = False
 
 compileNewOrSavedType :: Table -> Text
 compileNewOrSavedType table@(Table name attributes) =
@@ -224,7 +229,7 @@ compileNewOrSavedType table@(Table name attributes) =
 		compileFields attributes = intercalate " " $ map compileField attributes
 		compileField :: Attribute -> Text
 		compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
-		haskellType' fieldName (SerialField) = "id"
+		haskellType' fieldName fieldType | isJust (defaultValue fieldType) = fieldName
 		haskellType' fieldName fieldType = haskellType fieldName fieldType
 
 compileGenericDataDefinition :: Table -> Text
@@ -257,16 +262,16 @@ compileEnumDataDefinitions table@(Table name attributes) =
         isEnumField (Field _ (EnumField {})) = True
         isEnumField _ = False
         enumFields = filter isEnumField attributes
-        compileEnumField (Field fieldName (EnumField values)) = "data " <> tableNameToModelName fieldName <> " = " <> (intercalate " | " (map tableNameToModelName values)) <> " deriving (Eq, Show)"
-        compileFromFieldInstance (Field fieldName (EnumField values)) = "instance FromField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" ((map compileFromFieldInstanceForValue values) <> [compileFromFieldInstanceForError, compileFromFieldInstanceForNull]))
+        compileEnumField (Field fieldName (EnumField {values})) = "data " <> tableNameToModelName fieldName <> " = " <> (intercalate " | " (map tableNameToModelName values)) <> " deriving (Eq, Show)"
+        compileFromFieldInstance (Field fieldName (EnumField {values})) = "instance FromField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" ((map compileFromFieldInstanceForValue values) <> [compileFromFieldInstanceForError, compileFromFieldInstanceForNull]))
         compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = return " <> tableNameToModelName value
         compileFromFieldInstanceForError = "fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
         compileFromFieldInstanceForNull = "fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\""
 
-        compileToFieldInstance (Field fieldName (EnumField values)) = "instance ToField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileToFieldInstanceForValue values))
+        compileToFieldInstance (Field fieldName (EnumField { values })) = "instance ToField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileToFieldInstanceForValue values))
         compileToFieldInstanceForValue value = "toField " <> tableNameToModelName value <> " = toField (" <> tshow value <> " :: Text)"
 
-        compileInputValueInstance (Field fieldName (EnumField values)) = "instance InputValue " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileInputValue values))
+        compileInputValueInstance (Field fieldName (EnumField { values })) = "instance InputValue " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileInputValue values))
         compileInputValue value = "inputValue " <> tableNameToModelName value <> " = " <> tshow value <> " :: Text"
 
 compileToRowValues bindingValues = if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else "(" <> intercalate ") :. (" (map (intercalate ", ") (chunksOf 8 bindingValues)) <> ")"
@@ -278,9 +283,14 @@ compileCreate table@(Table name attributes) =
         toColumn (Field fieldName fieldType) = fieldName
         values = intercalate ", " $ map toValue attributes
         toValue (Field fieldName fieldType) =
-            case fieldType of
-                SerialField -> "DEFAULT"
+            case defaultValue fieldType of
+                Just (SqlDefaultValue sql) -> sql
                 otherwise   -> "?"
+
+        toBinding modelName (Field fieldName fieldType) =
+            case defaultValue fieldType of
+                Just (SqlDefaultValue _) -> Nothing
+                otherwise   -> Just ("let " <> modelName <> "{" <> fieldName <> "} = model in " <> fieldName)
         bindings :: Text
         bindings = let bindingValues = map fromJust $ filter isJust (map (toBinding modelName) attributes) in compileToRowValues bindingValues
     in
@@ -297,7 +307,7 @@ compileCreate table@(Table name attributes) =
 
 toBinding modelName (Field fieldName fieldType) =
     case fieldType of
-        SerialField -> Nothing
+        SerialField {} -> Nothing
         otherwise   -> Just ("let " <> modelName <> "{" <> fieldName <> "} = model in " <> fieldName)
 
 compileUpdate table@(Table name attributes) =
@@ -307,9 +317,9 @@ compileUpdate table@(Table name attributes) =
         toColumn (Field fieldName fieldType) = fieldName
         values = intercalate ", " $ map toValue attributes
         toValue (Field fieldName fieldType) =
-            case fieldType of
-                SerialField -> "DEFAULT"
-                otherwise   -> "?"
+            case defaultValue fieldType of
+                Just (SqlDefaultValue sql) -> sql
+                Nothing -> "?"
         bindings :: Text
         bindings =
             let
@@ -320,7 +330,7 @@ compileUpdate table@(Table name attributes) =
         updates = intercalate ", " (map fromJust $ filter isJust $ map update attributes)
         update (Field fieldName fieldType) =
             case fieldType of
-                SerialField -> Nothing
+                SerialField {} -> Nothing
                 otherwise -> Just $ fieldName <> " = ?"
     in
         "update :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> " \n"
@@ -482,11 +492,11 @@ compileCombine table@(Table tableName attributes) =
         attributesToApplications attributes = map (\n -> "(f" <> tshow n <> " arg" <> tshow n <> ") ") $ (map snd (zip attributes [0..]))
 
 compileErrorHints table@(Table tableName attributes) =
-        intercalate "\n" (map compileErrorHintForAttribute attributesExceptSerials)
+        intercalate "\n" (map compileErrorHintForAttribute attributesWithoutDefaultValues)
     where
-        attributesExceptSerials = filter (not . isSerial) attributes
-        isSerial (Field _ SerialField) = True
-        isSerial (Field _ _) = False
+        attributesWithoutDefaultValues = filter (not . hasDefaultValue) attributes
+        hasDefaultValue (Field _ fieldValue) | isJust (defaultValue fieldValue) = True
+        hasDefaultValue (Field _ _) = False
         compileArgument currentAttribute attribute@(Field name _) = if currentAttribute == attribute then "()" else name
         compileArguments attributes currentAttribute = map (compileArgument currentAttribute) attributes
 

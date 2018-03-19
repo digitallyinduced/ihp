@@ -8,6 +8,8 @@ import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
 import Database.PostgreSQL.Simple.Types (Query (Query))
 import Data.Default
+import qualified Data.Time.Format
+import Data.String.Conversions (cs)
 
 data ModelContext = ModelContext Connection
 
@@ -47,6 +49,9 @@ instance InputValue Bool where
 
 instance InputValue () where
     inputValue () = "error: inputValue(()) not supported"
+
+instance InputValue UTCTime where
+    inputValue = cs . (Data.Time.Format.formatTime Data.Time.Format.defaultTimeLocale (Data.Time.Format.iso8601DateFormat Nothing))
 
 data QueryCondition a = NoCondition | Equal a
 
