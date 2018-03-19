@@ -73,6 +73,7 @@ watch state@(DevServerState {serverProcess}) = do
     "Model/Generated/*.hs" |> const (rebuild serverProcess)
     "UrlGenerator.hs" |> const (rebuild serverProcess)
     "**.hs" |> const (rebuild serverProcess)
+    "*.hs" |> const (rebuild serverProcess)
     "*/*.hs" |> const (rebuild serverProcess)
     "*/*/*.hs" |> const (rebuild serverProcess)
     "*/*/*/*.hs" |> const (rebuild serverProcess)
