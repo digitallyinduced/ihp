@@ -50,12 +50,12 @@ compileToHaskell (SplicedNode code) =
 toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
 toStringAttribute (name, TextValue value) = do
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes then return () else fail ("Invalid attribute: " <> name)
+    if name `elem` attributes || ("data-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
     [| (attribute name nameWithSuffix) value |]
 
 toStringAttribute (name, ExpressionValue code) = do
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes then return () else fail ("Invalid attribute: " <> name)
+    if name `elem` attributes || ("data-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
     case parseExp code of
         Right expression -> [| (attribute name nameWithSuffix) (cs $(return expression)) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> code <> "): " <> show error)
