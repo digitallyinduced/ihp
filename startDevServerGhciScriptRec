@@ -1,0 +1,3 @@
+:r
+Prelude.putStrLn "ghci: Restarting in progress"
+run
