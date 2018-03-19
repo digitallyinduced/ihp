@@ -58,7 +58,7 @@ formFor :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model
 formFor model url fields = form ! method "POST" ! action url $ do
     renderFlashMessages
     forM_ fields (\field -> renderFormField (field model) model)
-    button ! class_ "btn btn-primary" $ if Foundation.ModelSupport.isNew model then "Create " <> (cs $ Foundation.ModelSupport.getModelName model) else "Save"
+    button ! class_ "btn btn-primary" $ (if Foundation.ModelSupport.isNew model then "Create " else "Save ") <> (cs $ Foundation.ModelSupport.getModelName model)
 
 data FormField = FormField { fieldType :: Html5.AttributeValue, fieldName :: Html5.AttributeValue, fieldLabel :: Html5.Html, fieldValue :: Html5.AttributeValue, validatorResult :: ValidatorResult }
 
