@@ -1,0 +1,14 @@
+state:
+	initdb state
+	(postgres -D state -p 8001) & echo $$! > server.pid
+	sleep 8
+	createdb app -p 8001
+	psql -p 8001 -d app < ../src/Model/Schema.sql
+	psql -p 8001 -d app < ../src/Model/Schema.sql
+	psql -p 8001 -d app < ../src/Model/Schema.sql
+	psql -p 8001 -d app < ../src/Model/Schema.sql
+	kill `cat server.pid`
+	rm server.pid
+
+clean:
+	rm -rf state
