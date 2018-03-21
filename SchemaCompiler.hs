@@ -151,7 +151,7 @@ compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compil
 
 
 compileStub table@(Table name attributes) =
-    "module Model." <> tableNameToModelName name <> " (module Model.Generated." <> tableNameToModelName name <> ") where\n\n"
+    "module Model." <> tableNameToModelName name <> " (module Model.Generated." <> tableNameToModelName name <> ", validator) where\n\n"
     <> "import Model.Generated." <> tableNameToModelName name <> "\n"
     <> "import Model.Generated.Types\n"
     <> "import Foundation.HaskellSupport\n"
@@ -160,8 +160,7 @@ compileStub table@(Table name attributes) =
     <> "import Database.PostgreSQL.Simple\n"
     <> "import Database.PostgreSQL.Simple.FromRow\n"
     <> section
-    <> "-- Here you can customize the model"
-    <> section
+    <> "validator = buildValidator"
 
 getFilePath :: Table -> FilePath
 getFilePath (Table name attributes) = "src/Model/Generated/" <> (cs $ tableNameToModelName name) <> ".hs"

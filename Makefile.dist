@@ -40,11 +40,10 @@ bin/RunProdServer: src/Main.hs bin
 	nix-shell -K --command "ghc -O2 -fllvm -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
 
-src/Foundation/static/node_modules:
-	cd src/Foundation/static && npm install virtual-dom html-to-vdom
-
-src/Foundation/static/build.js: src/Foundation/static/livereload.js src/Foundation/static/node_modules
+src/Foundation/static/build.js: src/Foundation/static/livereload.js
+	cd src/Foundation/static && npm install virtual-dom html-to-vdom browserify vdom-virtualize
 	cd src/Foundation/static && node_modules/.bin/browserify livereload.js > build.js
+	cd src/Foundation/static && rm -rf node_modules
 
 install:
 	brew install direnv
@@ -52,3 +51,8 @@ install:
 
 db/state:
 	cd db && make
+
+clean:
+	rm -rf bin/
+	rm -rf src/Foundation/static/node_modules
+	cd db && make clean
