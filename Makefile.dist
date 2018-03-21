@@ -24,7 +24,7 @@ initdb:
 ghci:
 	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XFlexibleContexts -XDuplicateRecordFields -fexternal-interpreter
 
-bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs static/build.js
+bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs src/Foundation/static/build.js
 	mkdir -p bin
 	nix-shell --command "cd db && make && cd .. && ghc -threaded -XOverloadedStrings -XNoImplicitPrelude -O0 -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
@@ -40,8 +40,11 @@ bin/RunProdServer: src/Main.hs bin
 	nix-shell -K --command "ghc -O2 -fllvm -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
 
-static/build.js: static/livereload.js
-	cd static && node_modules/.bin/browserify livereload.js > build.js
+src/Foundation/static/node_modules:
+	cd src/Foundation/static && npm install virtual-dom html-to-vdom
+
+src/Foundation/static/build.js: src/Foundation/static/livereload.js src/Foundation/static/node_modules
+	cd src/Foundation/static && node_modules/.bin/browserify livereload.js > build.js
 
 install:
 	brew install direnv

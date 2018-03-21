@@ -38,7 +38,7 @@ run = do
     session <- Vault.newKey
     store <- fmap clientsessionStore getDefaultKey
     let applicationContext = ApplicationContext (ModelContext conn) session
-    Warp.runEnv defaultPort $ withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30) }) session $ logStdoutDev $ staticPolicy (addBase "static/") $ Foundation.LoginSupport.Middleware.middleware applicationContext $ methodOverridePost $ application Routes.match applicationContext
+    Warp.runEnv defaultPort $ withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30) }) session $ logStdoutDev $ staticPolicy (addBase "static/") $ staticPolicy (addBase "src/Foundation/static/") $ Foundation.LoginSupport.Middleware.middleware applicationContext $ methodOverridePost $ application Routes.match applicationContext
 
 -- TODO: logger middleware
 application :: Router -> ApplicationContext -> Application
