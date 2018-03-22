@@ -10,6 +10,7 @@ let
                             overrides = self: super: {
                                 ghc-mod = pkgs.haskell.lib.dontCheck (pkgs.haskell.lib.doJailbreak (self.callPackage ./ghc-mod.nix { }));
                                 cabal-helper = pkgs.haskell.lib.dontCheck (self.callPackage ./cabal-helper.nix { });
+                                time_1_9_1 = pkgs.haskell.lib.dontCheck super.time_1_9_1;
                             };
                         };
                     };
@@ -20,8 +21,8 @@ let
     pkgs = import ((import <nixpkgs> { }).fetchFromGitHub {
       owner = "NixOS";
       repo = "nixpkgs";
-      rev = "017154391b4a2a4e418640d3a7677274fe981dc9";
-      sha256 = "0anjjsv4js286l4m3ysz2qpqv85db0d2fih4wy9pc5z53ds1qf9g";
+      rev = "592fb2c5a16da017fb5cb0d56214c9b3939a2c31";
+      sha256 = "0gbmzj8mywkhbxv2fmy801qvnj9m68rx7nq2n1md5vgzvyc75vq5";
     }) { config = config; };
 
     ghc = pkgs.haskell.packages.${compiler};
