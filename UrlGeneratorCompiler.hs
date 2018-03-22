@@ -49,11 +49,11 @@ generateUrlGeneratorCode (Just name, path) = typeDefinition <> "\n" <> implement
             else ""
         compilePath :: (UrlGeneratorPath, Int) -> Text
         compilePath (Constant value, i) = cs $ "\"/" <> value <> "\""
-        compilePath (Variable x, i)     = cs $ "\"/\" <> toText arg" <> show i
+        compilePath (Variable x, i)     = cs $ "\"/\" <> toText arg" <> tshow i
         compileArgs = intercalate " " $ map fromJust $ filter isJust $ map compileArg $ zip path [0..]
             where
                 compileArg :: (UrlGeneratorPath, Int) -> Maybe Text
-                compileArg (Variable _, i) = Just $ cs $ "arg" <> show i
+                compileArg (Variable _, i) = Just $ cs $ "arg" <> tshow i
                 compileArg _               = Nothing
         compilePathToType :: (UrlGeneratorPath, Int) -> Text
         compilePathToType (Variable x, i) = "urlArgument" <> tshow i
@@ -61,7 +61,7 @@ generateUrlGeneratorCode (Just name, path) = typeDefinition <> "\n" <> implement
         compilePathToTypeConstraint (Variable x, i) = "UrlArgument urlArgument" <> tshow i
 
 generateUrlGeneratorCode (Nothing, []) = ""
-generateUrlGeneratorCode (Nothing, path) = "-- " <> (cs $ show path)
+generateUrlGeneratorCode (Nothing, path) = "-- " <> (cs $ tshow path)
 
 generateName = generateNewEditName
 

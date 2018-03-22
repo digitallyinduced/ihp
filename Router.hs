@@ -20,9 +20,11 @@ module Foundation.Router
     , toRoutes
     , destroy
     , update
+    , show
+    , child
     ) where
 
-import           ClassyPrelude                 hiding (index, delete)
+import           ClassyPrelude                 hiding (index, delete, show)
 import           Data.ByteString.Char8         (split)
 import           Data.String.Conversions       (cs)
 import           Foundation.ApplicationContext
@@ -114,11 +116,11 @@ instance Match Matchable where
     match' requestUrl request (Matchable matchable) = match' requestUrl request matchable
     urlGenerators (Matchable matchable) urlGenerator = urlGenerators matchable urlGenerator
 
-data Resource baseUrlType indexActionType newActionType createActionType destroyActionType updateActionType = Resource { baseUrl :: baseUrlType, index :: indexActionType, new :: newActionType, create :: createActionType, destroy :: destroyActionType, update :: updateActionType}
+data Resource baseUrlType indexActionType newActionType createActionType destroyActionType updateActionType showActionType childType = Resource { baseUrl :: baseUrlType, index :: indexActionType, new :: newActionType, create :: createActionType, destroy :: destroyActionType, update :: updateActionType, show :: showActionType, child :: childType }
 
-resource = Resource { baseUrl = (), index = (), new = (), create = (), destroy = (), update = () }
+resource = Resource { baseUrl = (), index = (), new = (), create = (), destroy = (), update = (), show = (), child = () }
 
-toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (Int -> Router), ValueOrUnit e (Int -> Router)) => Resource Text a b c d e -> Router
+toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (Int -> Router), ValueOrUnit e (Int -> Router), ValueOrUnit f (Int -> Router), ValueOrUnit g (Int -> Router)) => Resource Text a b c d e f g -> Router
 toRoutes resource =
     let
         newAction :: Maybe Router
@@ -131,6 +133,10 @@ toRoutes resource =
         indexAction = toMaybeValue $ index resource
         updateAction :: Maybe (Int -> Router)
         updateAction = toMaybeValue $ update resource
+        showAction :: Maybe (Int -> Router)
+        showAction = toMaybeValue $ show resource
+        child :: Maybe (Int -> Router)
+        child = toMaybeValue $ let Resource {child} = resource in child
     in prefix (baseUrl resource) (catMaybes [
             Just (prefix "/" (catMaybes [
                     case newAction of
@@ -143,6 +149,12 @@ toRoutes resource =
                             Nothing -> Nothing,
                         case updateAction  of
                             Just action -> Just (post (action id))
+                            Nothing -> Nothing,
+                        case showAction of
+                            Just action -> Just (get (action id))
+                            Nothing -> Nothing,
+                        case child of
+                            Just router -> Just (router id)
                             Nothing -> Nothing
                     ]))
                 ])
