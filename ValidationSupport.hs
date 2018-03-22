@@ -27,8 +27,8 @@ instance Validator NonEmpty where
 data IsPhoneNumber = IsPhoneNumber deriving (Show)
 instance Validator IsPhoneNumber where
     type ValidatorValue IsPhoneNumber = Text
-    validateField IsPhoneNumber _ text | "+" `isPrefixOf` text = Success
-    validateField IsPhoneNumber field _ = Failure (formFieldName field <> " is not a valid phone number (has to start with +)")
+    validateField IsPhoneNumber _ text | "+" `isPrefixOf` text && length text > 5 = Success
+    validateField IsPhoneNumber field _ = Failure (formFieldName field <> " is not a valid phone number (has to start with +, at least 5 characters)")
 
 instance Validator (ValidatorIdentity fieldType) where
     type ValidatorValue (ValidatorIdentity fieldType) = fieldType
