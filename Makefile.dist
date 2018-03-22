@@ -9,7 +9,7 @@ RUNGHC=runghc
 	echo "path_add PYTHONPATH $$(nix-shell --run 'echo $$PYTHONPATH')" >> .envrc
 	direnv allow
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs
+run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs src/Foundation/static/build.js
 	bin/RunDevServer --root src
 
 run-production: bin/RunProdServer src/Model/Generated
@@ -17,14 +17,30 @@ run-production: bin/RunProdServer src/Model/Generated
 psql:
 	psql -p 8001 -d app
 
-initdb:
+src/Model/Schema.sql:
+	touch $@
+
+src/Model/Fixtures.sql:
+	touch $@
+
+initdb: src/Model/Schema.sql src/Model/Fixtures.sql
+	echo "drop schema public cascade; create schema public;" | psql -p 8001 -d app
 	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Fixtures.sql
 
 
 ghci:
 	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XFlexibleContexts -XDuplicateRecordFields -fexternal-interpreter
 
-bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs src/Foundation/static/build.js
+bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs
 	mkdir -p bin
 	nix-shell --command "cd db && make && cd .. && ghc -threaded -XOverloadedStrings -XNoImplicitPrelude -O0 -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
