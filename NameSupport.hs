@@ -1,8 +1,8 @@
-module Foundation.NameSupport (tableNameToModelName, pluralToSingular) where
+module Foundation.NameSupport (tableNameToModelName, pluralToSingular, humanize) where
 
 import           ClassyPrelude
 import           Data.String.Conversions (cs)
-import           Text.Inflections        as Inflector
+import qualified Text.Inflections        as Inflector
 
 -- `users` => `User`
 -- `projects` => `Project`
@@ -17,3 +17,5 @@ pluralToSingular w    | toLower w == "status"
                       || toLower w == "in_progress"
                       = w
 pluralToSingular word = fromMaybe word (stripSuffix "s" word)
+
+humanize text = let (Right value) = Inflector.toHumanized True text in value
