@@ -14,3 +14,4 @@
 :set -XFlexibleInstances
 :set -XQuasiQuotes
 :set -XTypeFamilies
+:set -XPackageImports
