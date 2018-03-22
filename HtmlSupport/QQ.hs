@@ -41,6 +41,12 @@ compileToHaskell (Node name attributes children) =
             let
                 stringAttributes = TH.listE $ map toStringAttribute attributes
             in [| (applyAttributes (makeElement name $(renderedChildren)) $(stringAttributes)) |]
+
+compileToHaskell (Children children) =
+    let
+        renderedChildren = TH.listE $ map compileToHaskell children
+    in [| foldl' (>>) mempty $(renderedChildren) |]
+
 compileToHaskell (TextNode value) = [| Html5.string value |]
 compileToHaskell (SplicedNode code) =
     case parseExp code of

@@ -12,6 +12,7 @@ data Attributes = SplicedAttributes String | StaticAttributes [(String, Attribut
 data Node = Node String Attributes [Node]
     | TextNode String
     | SplicedNode String
+    | Children [Node]
     deriving (Show)
 
 parseHsx :: String -> Either ParseError Node
@@ -20,12 +21,16 @@ parseHsx code = runParser parser () "" code
 
 parser = do
     spaces
-    node <- hsxElement
+    node <- manyHsxElement <|> hsxElement
     spaces
     eof
     return node
 
 hsxElement = try hsxSelfClosingElement <|> hsxNormalElement
+
+manyHsxElement = do
+    values <- many (do a <- hsxElement; spaces; return a)
+    return $ Children values
 
 hsxSelfClosingElement = do
     _ <- char '<'
