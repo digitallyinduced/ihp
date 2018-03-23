@@ -32,7 +32,8 @@ module Foundation.ViewPrelude (
     module Model.Generated.Validators,
     viewContext,
     hsx,
-    timeAgo
+    timeAgo,
+    toHtml
 ) where
 
 import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==))
@@ -63,6 +64,7 @@ import qualified Data.Time.Format
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Unsafe.Coerce
+import Foundation.HtmlSupport.ToHtml
 
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text
