@@ -13,6 +13,7 @@ import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
 import Data.String.Conversions (cs)
+import Foundation.HtmlSupport.ToHtml
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
@@ -50,7 +51,7 @@ compileToHaskell (Children children) =
 compileToHaskell (TextNode value) = [| Html5.string value |]
 compileToHaskell (SplicedNode code) =
     case parseExp code of
-        Right expression -> return expression
+        Right expression -> [| toHtml $(return expression) |]
         Left error -> fail ("compileToHaskell(" <> code <> "): " <> show error)
 
 toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
