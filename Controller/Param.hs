@@ -12,8 +12,14 @@ import           Foundation.HaskellSupport
 import qualified Network.URI
 import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
 
-param :: (?requestContext :: RequestContext) => ByteString -> ByteString
-param name = fromMaybe (error $ "Required parameter " <> cs name <> " is missing") (paramOrNothing name)
+param :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a
+param name = fromParameterOrError (paramOrNothing name)
+
+paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a -> a
+paramOrDefault name defaultValue =
+    case fromParameter (paramOrNothing name) of
+        Left _ -> defaultValue
+        Right value -> value
 
 paramOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
 paramOrNothing name = do
@@ -24,13 +30,15 @@ paramOrNothing name = do
     join (lookup name allParams)
 
 paramInt :: (?requestContext :: RequestContext) => ByteString -> Int
-paramInt name = fst $ Data.Either.fromRight (error $ "Invalid parameter " <> cs name) (Data.Text.Read.decimal $ cs $ param name)
+paramInt name = fromParameterOrError (paramOrNothing name)
 
 paramText :: (?requestContext :: RequestContext) => ByteString -> Text
-paramText name = cs $ param name
+paramText name = fromParameterOrError (paramOrNothing name)
 
 paramBool :: (?requestContext :: RequestContext) => ByteString -> Bool
-paramBool name = case paramOrNothing name of Just "on" -> True; otherwise -> False
+paramBool name = fromParameterOrError (paramOrNothing name)
+
+fromParameterOrError value = Data.Either.fromRight (error $ "Invalid parameter ") (fromParameter value)
 
 class ParamName a where
     paramName :: a -> ByteString
@@ -40,3 +48,26 @@ instance ParamName ByteString where
 
 params :: (?requestContext :: RequestContext) => ParamName a => [a] -> [(a, ByteString)]
 params = map (\name -> (name, param $ paramName name))
+
+
+class FromParameter a where
+    fromParameter :: Maybe ByteString -> Either String a
+
+instance FromParameter ByteString where
+    fromParameter (Just byteString) = pure byteString
+    fromParameter Nothing = Left "FromParameter ByteString: Parameter missing"
+
+instance FromParameter Int where
+    fromParameter (Just byteString) =
+        case (Data.Text.Read.decimal $ cs $ byteString) of
+            Left error -> Left error
+            Right (value, _) -> Right value
+    fromParameter Nothing = Left "FromParameter Int: Parameter missing"
+
+instance FromParameter Text where
+    fromParameter (Just byteString) = pure $ cs byteString
+    fromParameter Nothing = Left "FromParameter Text: Parameter missing"
+
+instance FromParameter Bool where
+    fromParameter (Just "on") = pure True
+    fromParameter _ = pure False
