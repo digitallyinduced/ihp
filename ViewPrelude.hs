@@ -33,10 +33,11 @@ module Foundation.ViewPrelude (
     viewContext,
     hsx,
     timeAgo,
-    toHtml
+    toHtml,
+    tshow
 ) where
 
-import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==))
+import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==), tshow)
 import qualified ClassyPrelude
 import           Control.Monad                (when)
 import           Data.String.Conversions      (ConvertibleStrings (convertString), cs)
