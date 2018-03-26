@@ -10,6 +10,7 @@ import qualified System.Directory as Directory
 import qualified Data.Set
 import Data.List ((!!), (\\))
 import Data.List.Split
+import qualified Foundation.SqlCompiler
 
 
 -- USE LINE PRAGMA IN OUTPUT
@@ -25,6 +26,7 @@ compile = do
     mapM_ writeStub compiledStubs
     writeTable (getTypesFilePath, compileTypes database)
     writeTable (getValidatorsFilePath, compileValidators database)
+    Foundation.SqlCompiler.main
 
 
 writeTable :: (FilePath, Text) -> IO ()

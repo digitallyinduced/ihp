@@ -26,14 +26,6 @@ src/Model/Fixtures.sql:
 initdb: src/Model/Schema.sql src/Model/Fixtures.sql
 	echo "drop schema public cascade; create schema public;" | psql -p 8001 -d app
 	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Schema.sql
 	psql -p 8001 -d app < src/Model/Fixtures.sql
 
 
