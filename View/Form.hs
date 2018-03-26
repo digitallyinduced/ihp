@@ -47,18 +47,29 @@ emailFieldWithLabel = inputFieldWithLabel "email"
 numberFieldWithLabel :: Html5.Html -> Html5.AttributeValue -> Html5.Html
 numberFieldWithLabel = inputFieldWithLabel "number"
 
-renderFormField :: (?viewContext :: ViewContext) => Foundation.ModelSupport.IsNew model => FormField -> model -> Html5.Html
-renderFormField (FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult}) model = div ! class_ "form-group" $ do
-    label fieldLabel
-    input ! type_ fieldType ! name fieldName ! class_ ("form-control " <> if not isSubmitted || isSuccess validatorResult then "" else "is-invalid") ! value fieldValue
-    when (Foundation.ModelSupport.isNew model) $ case validatorResult of
+renderFormGroupFormField :: FormField -> Html5.Html
+renderFormGroupFormField (FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted }) = div ! class_ "form-group" $ do
+    if disableLabel then return () else label fieldLabel
+    input ! type_ fieldType ! name fieldName ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
+    when modelIsNew $ case validatorResult of
         Success         -> return ()
         Failure message -> div ! class_ "invalid-feedback" $ cs message
+
+renderCheckboxFormField :: FormField -> Html5.Html
+renderCheckboxFormField (FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
+    (if disableLabel then div else label ! class_ "form-check-label") $ do
+        let theInput = input ! type_ fieldType ! name fieldName ! class_ ("form-check-input " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass)
+        if fieldValue == "yes" then theInput ! A.checked "checked" else theInput
+        fieldLabel
+    when modelIsNew $ case validatorResult of
+        Success         -> return ()
+        Failure message -> div ! class_ "invalid-feedback" $ cs message
+
 
 renderFormField2 :: FormField -> Html5.Html
 renderFormField2 (FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted }) = do
     if disableLabel then return () else label fieldLabel
-    fieldInput ! type_ fieldType ! name fieldName ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value fieldValue
+    fieldInput ! type_ fieldType ! name fieldName ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
     when modelIsNew $ case validatorResult of
         Success         -> return ()
         Failure message -> div ! class_ "invalid-feedback" $ cs message
@@ -66,7 +77,7 @@ renderFormField2 (FormField {fieldType, fieldName, fieldLabel, fieldValue, valid
 formFor :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Html5.AttributeValue -> [model -> FormField] -> Html5.Html
 formFor model url fields = form ! method "POST" ! action url $ do
     renderFlashMessages
-    forM_ fields (\field -> renderFormField (field model) model)
+    forM_ (map (\field -> field model) fields) (\field@(FormField { renderFormField }) -> renderFormField field)
     button ! class_ "btn btn-primary" $ (if Foundation.ModelSupport.isNew model then "Create " else "Save ") <> (cs $ Foundation.ModelSupport.getModelName model)
 
 formFor2 :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
@@ -83,38 +94,45 @@ data FormField = FormField {
         fieldType :: Html5.AttributeValue,
         fieldName :: Html5.AttributeValue,
         fieldLabel :: Html5.Html,
-        fieldValue :: Html5.AttributeValue,
+        fieldValue :: Text,
         validatorResult :: ValidatorResult,
         fieldInput :: Html5.Html,
         fieldClass :: Html5.AttributeValue,
         disableLabel :: Bool,
         modelIsNew :: Bool,
-        formIsSubmitted :: Bool
+        formIsSubmitted :: Bool,
+        renderFormField :: FormField -> Html5.Html
     }
 
-fieldFactory :: (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute) => Html5.AttributeValue -> attribute -> model -> FormField
-fieldFactory fieldType param model = FormField {
+fieldFactory :: (?viewContext :: ViewContext, Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model) => Html5.AttributeValue -> (FormField -> Html5.Html) -> attribute -> model -> FormField
+fieldFactory fieldType renderFormField param model = FormField {
         fieldType = fieldType,
         fieldName = cs (Foundation.ModelSupport.formFieldName param),
         fieldLabel = cs (Foundation.ModelSupport.formFieldLabel param),
-        fieldValue = cs (Foundation.ModelSupport.formFieldValue param model),
-        validatorResult = validateModelField model param
+        fieldValue = (Foundation.ModelSupport.formFieldValue param model),
+        validatorResult = validateModelField model param,
+        renderFormField = renderFormField,
+        fieldClass = "",
+        disableLabel = False,
+        fieldInput = input,
+        modelIsNew = Foundation.ModelSupport.isNew model,
+        formIsSubmitted = isSubmitted
     }
 
-textField :: (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute) => attribute -> model -> FormField
-textField = fieldFactory "text"
+textField :: (?viewContext :: ViewContext, Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model) => attribute -> model -> FormField
+textField = fieldFactory "text" renderFormGroupFormField
 
 data FormContext model = FormContext { model :: model }
 
 renderTextField :: (?formContext :: FormContext model) => (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model) => attribute -> Html
-renderTextField attribute = renderFormField2 (fieldFactory "text" attribute (model ?formContext))
+renderTextField attribute = renderFormField2 (fieldFactory "text" renderFormField2 attribute (model ?formContext))
 
 makeField :: (?formContext :: FormContext model, ?viewContext :: ViewContext) => (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model) => attribute -> FormField
 makeField param = FormField {
                     fieldType = "text",
                     fieldName = cs (Foundation.ModelSupport.formFieldName param),
                     fieldLabel = cs (Foundation.ModelSupport.formFieldLabel param),
-                    fieldValue = cs (Foundation.ModelSupport.formFieldValue param (model ?formContext)),
+                    fieldValue = (Foundation.ModelSupport.formFieldValue param (model ?formContext)),
                     validatorResult = validateModelField (model ?formContext) param,
                     fieldClass = "",
                     disableLabel = False,
@@ -127,8 +145,11 @@ instance ToHtml FormField where
     toHtml ::  FormField -> Html5.Html
     toHtml = renderFormField2
 
-colorField :: (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute) => attribute -> model -> FormField
-colorField = fieldFactory "color"
+colorField :: (?viewContext :: ViewContext, Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model) => attribute -> model -> FormField
+colorField = fieldFactory "color" renderFormGroupFormField
+
+checkboxField :: (?viewContext :: ViewContext, Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model) => attribute -> model -> FormField
+checkboxField = fieldFactory "checkbox" renderCheckboxFormField
 
 renderFlashMessages :: Html
 renderFlashMessages =
