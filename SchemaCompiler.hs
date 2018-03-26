@@ -152,13 +152,8 @@ compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compil
 
 compileStub table@(Table name attributes) =
     "module Model." <> tableNameToModelName name <> " (module Model.Generated." <> tableNameToModelName name <> ", validator) where\n\n"
+    <> "import Foundation.ModelPrelude\n"
     <> "import Model.Generated." <> tableNameToModelName name <> "\n"
-    <> "import Model.Generated.Types\n"
-    <> "import Foundation.HaskellSupport\n"
-    <> "import Foundation.ModelSupport\n"
-    <> "import ClassyPrelude hiding (id) \n"
-    <> "import Database.PostgreSQL.Simple\n"
-    <> "import Database.PostgreSQL.Simple.FromRow\n"
     <> section
     <> "validator = buildValidator"
 
