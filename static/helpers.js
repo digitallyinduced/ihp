@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initDelete();
     initDisableButtonsOnSubmit();
     initBack();
+    initToggle();
 
     window.timeago().render(document.querySelectorAll('span[datetime]'));
 });
@@ -94,5 +95,36 @@ function initDisableButtonsOnSubmit() {
         }
 
         initForm(form);
+    }
+}
+
+function initToggle() {
+    var elements = document.querySelectorAll('[data-toggle]');
+
+    function handler () {
+        var elements = document.querySelectorAll(this.getAttribute('data-toggle'));
+        for (var i in elements) {
+            var element = elements[i];
+            if (!(element instanceof HTMLElement)) {
+                return;
+            }
+
+            if (!this.checked) {
+                element.setAttribute('disabled', 'disabled');
+            } else {
+                element.removeAttribute('disabled');
+            }
+         }
+
+    };
+
+    for (var i in elements) {
+        var element = elements[i];
+        if (!(element instanceof HTMLInputElement)) {
+            continue;
+        }
+
+        element.addEventListener('change', handler);
+        handler.call(element);
     }
 }
