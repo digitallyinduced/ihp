@@ -19,6 +19,9 @@ instance ConvertibleStrings Text Html5.AttributeValue where
 instance ConvertibleStrings String Html5.Html where
     convertString = Html5.string
 
+instance ConvertibleStrings ByteString Html5.AttributeValue where
+    convertString value = convertString (cs value :: Text)
+
 instance ConvertibleStrings Text Html5.Html where
     convertString = Html5.text
 
