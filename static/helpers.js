@@ -4,7 +4,8 @@ document.addEventListener('DOMContentLoaded', function () {
     initBack();
     initToggle();
 
-    window.timeago().render(document.querySelectorAll('span[datetime]'));
+    if (window.timeago)
+        window.timeago().render(document.querySelectorAll('span[datetime]'));
 });
 
 document.addEventListener('turbolinks:load', function() {
@@ -12,7 +13,8 @@ document.addEventListener('turbolinks:load', function() {
     initDisableButtonsOnSubmit();
     initBack();
 
-    window.timeago().render(document.querySelectorAll('span[datetime]'));
+    if (window.timeago)
+        window.timeago().render(document.querySelectorAll('span[datetime]'));
 });
 
 function initDelete() {
