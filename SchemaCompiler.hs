@@ -273,7 +273,7 @@ compileEnumDataDefinitions table@(Table name attributes) =
         compileInputValueInstance (Field fieldName (EnumField { values })) = "instance InputValue " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileInputValue values))
         compileInputValue value = "inputValue " <> tableNameToModelName value <> " = " <> tshow value <> " :: Text"
 
-compileToRowValues bindingValues = if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else "(" <> intercalate ") :. (" (map (intercalate ", ") (chunksOf 8 bindingValues)) <> ")"
+compileToRowValues bindingValues = if (ClassyPrelude.length bindingValues == 1) then "Only (" <> (unsafeHead bindingValues) <> ")" else "(" <> intercalate ") :. (" (map (\list -> if ClassyPrelude.length list == 1 then "Only (" <> (unsafeHead list) <> ")" else intercalate ", " list) (chunksOf 8 bindingValues)) <> ")"
 
 compileCreate table@(Table name attributes) =
     let
