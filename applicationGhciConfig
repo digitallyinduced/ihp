@@ -15,3 +15,4 @@
 :set -XQuasiQuotes
 :set -XTypeFamilies
 :set -XPackageImports
+:set -XScopedTypeVariables
