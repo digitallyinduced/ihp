@@ -1,10 +1,12 @@
 module Foundation.HtmlSupport.Parser (parseHsx, Node (..), Attributes (..), AttributeValue (..)) where
 
-import           ClassyPrelude                hiding (many, try)
-import           Control.Applicative          ((<|>))
-import           Text.Parsec                  (Parsec, between, eof, many, many1, runParser, try)
-import           Text.Parsec.Char             (alphaNum, char, letter, noneOf, spaces, string)
+import           Prelude       hiding (many, try)
+import ClassyPrelude ((<>), unsafeInit, unsafeHead, intercalate, unsafeTail)
+import           Control.Applicative ((<|>))
+import           Text.Parsec         (Parsec, between, eof, many, many1, runParser, try)
+import           Text.Parsec.Char    (alphaNum, char, letter, noneOf, spaces, string)
 import           Text.Parsec.Error
+import Data.Char (isSpace)
 
 data AttributeValue = TextValue String | ExpressionValue String deriving (Show)
 data Attributes = SplicedAttributes String | StaticAttributes [(String, AttributeValue)] deriving (Show)
@@ -85,7 +87,7 @@ hsxChild = try hsxText <|> try hsxSplicedNode <|> try hsxElement
 
 hsxText = do
     value <- many1 (noneOf "{}<>")
-    return (TextNode value)
+    return (TextNode (trim value))
 
 
 data TokenTree = TokenLeaf String | TokenNode [TokenTree] deriving (Show)
@@ -103,8 +105,8 @@ hsxSplicedNode = do
         node = TokenNode <$> between (char '{') (char '}') (many parseTree)
         leaf = TokenLeaf <$> many1 (noneOf "{}")
         treeToString :: String -> TokenTree -> String
-        treeToString acc (TokenLeaf value) = acc <> value
-        treeToString acc (TokenNode []) = acc
+        treeToString acc (TokenLeaf value)  = acc <> value
+        treeToString acc (TokenNode [])     = acc
         treeToString acc (TokenNode (x:xs)) = ((treeToString (acc <> "{") x) <> (intercalate "" $ map (treeToString "") xs)) <> "}"
 
 
@@ -114,3 +116,7 @@ hsxIdentifier = do
     name <- many1 alphaNum
     spaces
     return name
+
+trim :: String -> String
+trim = f . f
+   where f = reverse . dropWhile isSpace

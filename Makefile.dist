@@ -45,7 +45,7 @@ src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
 
 bin/RunProdServer: src/Main.hs bin
-	ghc -O${GHC_OLEVEL} -fllvm -j4 ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} $< -o $@
+	ghc -O${GHC_OLEVEL} -fllvm ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} $< -o $@
 	chmod +x $<
 
 src/Foundation/static/build.js: src/Foundation/static/livereload.js
