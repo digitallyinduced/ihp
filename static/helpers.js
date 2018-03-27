@@ -12,6 +12,7 @@ document.addEventListener('turbolinks:load', function() {
     initDelete();
     initDisableButtonsOnSubmit();
     initBack();
+    initToggle();
 
     if (window.timeago)
         window.timeago().render(document.querySelectorAll('span[datetime]'));
