@@ -2,9 +2,10 @@ module Foundation.Controller.Render where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
-    import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString)
+    import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, responseBuilder)
     import qualified Network.Wai
     import Network.HTTP.Types (status200, status302)
+    import Network.HTTP.Types.Header
     import Foundation.ModelSupport
     import Foundation.ApplicationContext
     import Network.Wai.Parse as WaiParse
@@ -41,12 +42,17 @@ module Foundation.Controller.Render where
         let (RequestContext request respond _ _ _) = ?requestContext
         viewContext <- View.Context.createViewContext request
         let boundHtml = let ?viewContext = viewContext in html
-        respond $ responseLBS status200 [("Content-Type", "text/html")] (Blaze.renderHtml boundHtml)
+        respond $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder boundHtml)
 
     renderJson :: (?requestContext :: RequestContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
     renderJson json = do
         let (RequestContext request respond _ _ _) = ?requestContext
-        respond $ responseLBS status200 [("Content-Type", "application/json")] (Data.Aeson.encode json)
+        respond $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
+
+    renderJson' :: (?requestContext :: RequestContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ResponseReceived
+    renderJson' additionalHeaders json = do
+        let (RequestContext request respond _ _ _) = ?requestContext
+        respond $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 
     renderNotFound :: (?requestContext :: RequestContext) => IO ResponseReceived
     renderNotFound = renderPlain "Not Found"
