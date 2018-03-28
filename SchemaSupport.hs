@@ -1,5 +1,6 @@
 module Foundation.SchemaSupport where
     import ClassyPrelude hiding (length)
+    import Data.Maybe (fromJust)
 
     data Table = Table Text [Attribute]
                deriving (Show, Eq, Ord)
@@ -41,3 +42,11 @@ module Foundation.SchemaSupport where
 
     createdAt = field "created_at" int
     updatedAt = field "updated_at" int
+
+    validate :: [Table] -> [Text]
+    validate = map fromJust . filter isJust . map validateTable
+
+    validateTable :: Table -> Maybe Text
+    validateTable (Table "" _) = Just "Table name cannot be empty"
+    validateTable (Table name []) = Just $ "Table " <> name <> " needs to have atleast one field"
+    validateTable _ = Nothing

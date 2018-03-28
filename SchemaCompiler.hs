@@ -20,6 +20,11 @@ c = compile
 main = compile
 compile :: IO ()
 compile = do
+    let validationErrors = validate database
+    if validationErrors /= [] then
+            error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors)
+        else
+            return ()
     let compiled = map (\table -> (getFilePath table, compileTable table)) database
     let compiledStubs = map (\table -> (getStubFilePath table, compileStub table)) database
     mapM_ writeTable compiled
