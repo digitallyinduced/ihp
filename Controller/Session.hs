@@ -9,6 +9,7 @@ import qualified Data.Text.Read
 import qualified Data.Either
 import qualified Data.Text
 import Foundation.Controller.RequestContext
+import qualified Data.UUID
 
 import Network.Wai.Session (Session)
 import qualified Data.Vault.Lazy         as Vault
@@ -35,6 +36,13 @@ getSessionInt name = do
     value <- getSession name
     return $ case fmap (Data.Text.Read.decimal . cs) value of
             Just (Right value) -> Just $ fst value
+            _ -> Nothing
+
+getSessionUUID :: (?requestContext :: RequestContext) => Text -> IO (Maybe Data.UUID.UUID)
+getSessionUUID name = do
+    value <- getSession name
+    return $ case fmap Data.UUID.fromText value of
+            Just (Just value) -> Just value
             _ -> Nothing
 
 -- Due to a compiler bug we have to place these functions inside the Session module

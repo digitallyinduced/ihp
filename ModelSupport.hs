@@ -13,6 +13,7 @@ import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime)
 import Unsafe.Coerce
+import Data.UUID
 
 data ModelContext = ModelContext Connection
 
@@ -49,6 +50,10 @@ instance InputValue Int where
 instance InputValue Bool where
     inputValue True = "yes"
     inputValue False = "no"
+
+instance InputValue Data.UUID.UUID where
+    inputValue = Data.UUID.toText
+
 
 instance InputValue () where
     inputValue () = "error: inputValue(()) not supported"

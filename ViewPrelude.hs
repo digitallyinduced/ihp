@@ -34,7 +34,9 @@ module Foundation.ViewPrelude (
     hsx,
     timeAgo,
     toHtml,
-    tshow
+    tshow,
+    UUID,
+    def
 ) where
 
 import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==), tshow)
@@ -66,6 +68,8 @@ import Data.Time.Clock (UTCTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Unsafe.Coerce
 import Foundation.HtmlSupport.ToHtml
+import Data.UUID (UUID)
+import Data.Default (def)
 
 type Style = [StyleRule]
 data StyleRule = BackgroundColor Text | FontSize Text

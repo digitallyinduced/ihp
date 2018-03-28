@@ -1,5 +1,6 @@
 module Foundation.SchemaCompiler where
 import ClassyPrelude
+import ClassyPrelude
 import Data.String.Conversions (cs)
 import Model.Schema (database)
 import Foundation.SchemaSupport
@@ -68,6 +69,7 @@ compileTable table@(Table name attributes) =
     <> "import GHC.TypeLits\n"
     <> "import Data.Default (def)\n"
     <> "import Foundation.ValidationSupport\n"
+    <> "import Data.UUID (UUID)\n"
     <> section
     <> compileCreate table
     <> section
@@ -125,6 +127,7 @@ compileTypes database = prelude <> "\n\n" <> intercalate "\n\n" (map compileType
                   <> "import Foundation.Controller.Param (ParamName (..))\n"
                   <> "import qualified Data.Function\n"
                   <> "import GHC.TypeLits\n"
+                  <> "import Data.UUID (UUID)\n"
 
 compileTypes' table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
@@ -153,6 +156,7 @@ compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compil
                   <> "import Foundation.ValidationSupport\n\n"
                   <> "import Model.Generated.Types\n\n"
                   <> "import ClassyPrelude\n\n"
+                  <> "import Data.UUID (UUID)\n"
                   <> intercalate "\n" (map (\(Table name attributes) -> "import qualified Model." <> tableNameToModelName name <> " (validator, combine, fields, Field(..))\n") database)
 
 
@@ -192,6 +196,7 @@ haskellType fieldName (IntField {}) = "Int"
 haskellType fieldName (EnumField {}) = tableNameToModelName fieldName
 haskellType fieldName (BoolField {}) = "Bool"
 haskellType fieldName (Timestamp { defaultValue }) = "UTCTime"
+haskellType fieldName (UUIDField {}) = "UUID"
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =
@@ -371,7 +376,7 @@ compileFindOrNothing table@(Table name attributes) =
     let
         modelName = tableNameToModelName name
     in
-        "findOrNothing :: (?modelContext :: ModelContext) => Int -> IO (Maybe " <> modelName <> ")\n"
+        "findOrNothing :: (?modelContext :: ModelContext) => UUID -> IO (Maybe " <> modelName <> ")\n"
         <> "findOrNothing id = do\n"
         <> indent (
             "let (ModelContext conn) = ?modelContext\n"
@@ -383,7 +388,7 @@ compileFind table@(Table name attributes) =
     let
         modelName = tableNameToModelName name
     in
-        "find :: (?modelContext :: ModelContext) => Int -> IO " <> modelName <> "\n"
+        "find :: (?modelContext :: ModelContext) => UUID -> IO " <> modelName <> "\n"
         <> "find id = do\n"
         <> indent (
             "result <- findOrNothing id\n"
@@ -514,7 +519,7 @@ compileHasInstances tables = intercalate "\n" $ concat [ (mkUniq $ concat $ map 
     where
         allFields :: [Attribute]
         allFields = concat $ map (\(Table _ attributes) -> attributes) tables
-        hasIdInt = "instance HasId Int where type IdType Int = Int; getId a = a"
+        hasIdInt = "instance HasId UUID where type IdType UUID = UUID; getId a = a"
         compileHasClass (Table tableName tableAttributes) = map (\field -> compileHasClass' field) tableAttributes
         compileHasClass' (Field fieldName fieldType) = "class (Show (" <> tableNameToModelName fieldName <> "Type a)) => Has" <> tableNameToModelName fieldName <> " a where type " <> tableNameToModelName fieldName <> "Type a; get" <> tableNameToModelName fieldName <> " :: a -> " <> tableNameToModelName fieldName <> "Type a"
         compileHasInstance (Table tableName tableAttributes) = concat [ map compileHasInstance' tableAttributes, map compileHasInstanceError fieldsNotInTable ]

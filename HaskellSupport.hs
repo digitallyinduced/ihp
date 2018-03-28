@@ -1,6 +1,9 @@
 module Foundation.HaskellSupport ((|>), isEmpty, whenEmpty) where
     import ClassyPrelude
     import Control.Monad (when)
+    import qualified Data.Default
+    import qualified Data.UUID
+
     --(|>) :: a -> f -> f a
     a |> f = f a
 
@@ -8,3 +11,7 @@ module Foundation.HaskellSupport ((|>), isEmpty, whenEmpty) where
     isEmpty value = value == mempty
 
     whenEmpty condition = when (isEmpty condition)
+
+
+    instance Data.Default.Default Data.UUID.UUID where
+        def = Data.UUID.nil

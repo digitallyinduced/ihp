@@ -20,6 +20,7 @@ module Foundation.SchemaSupport where
                | IntField { defaultValue :: Maybe DefaultValue, references :: Maybe Text }
                | BoolField { defaultValue :: Maybe DefaultValue }
                | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text] }
+               | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text  }
                | Timestamp { defaultValue :: Maybe DefaultValue }
                deriving (Show, Eq, Ord)
 
@@ -31,6 +32,8 @@ module Foundation.SchemaSupport where
     (Table name fields) + field = Table name (fields <> [field])
 
     serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT") }
+    uuid = UUIDField { defaultValue = Nothing, references = Nothing }
+    primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()") }
     text = TextField { defaultValue = Nothing }
     int = IntField { defaultValue = Nothing, references = Nothing }
     enum values = EnumField { defaultValue = Nothing, values }

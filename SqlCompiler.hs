@@ -1,11 +1,11 @@
 module Foundation.SqlCompiler where
 import           ClassyPrelude
+import           Data.String.Conversions  (cs)
 import qualified Data.Text                as Text
+import qualified Foundation.NameSupport
 import           Foundation.SchemaSupport
 import           Model.Schema
-import qualified Foundation.NameSupport
-import qualified System.Directory as Directory
-import Data.String.Conversions (cs)
+import qualified System.Directory         as Directory
 
 main :: IO ()
 main = writeFileIfNecessary "src/Model/Schema.sql" compileDatabase
@@ -18,7 +18,7 @@ writeFileIfNecessary path content = do
         putStrLn $ "Updating " <> cs path
         writeFile (cs path) (cs content)
 
-compileDatabase = (lineSep $ map compileTable database) <> "\n" <> (lineSep $ map compileConstraints database)
+compileDatabase = "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n\n" <>(lineSep $ map compileTable database) <> "\n" <> (lineSep $ map compileConstraints database)
 
 compileTable table@(Table name attributes) =
     "-- Please don't make any modifications to this file as it's auto generated. Use src/Model/Schema.hs to change the schema\n"
@@ -28,12 +28,13 @@ compileTable table@(Table name attributes) =
 compileAttribute :: Table -> Attribute -> Text
 compileAttribute table field@(Field name fieldType) = name <> " " <> compileType fieldType
     where
-        compileType SerialField {}                     = "SERIAL PRIMARY KEY"
-        compileType TextField { defaultValue } = compileTokens ["TEXT", compileDefaultValue defaultValue, "NOT NULL"]
-        compileType IntField { defaultValue, references }          = compileTokens ["INT", compileDefaultValue defaultValue, "NOT NULL"]
-        compileType BoolField { defaultValue }         = compileTokens ["BOOLEAN", compileDefaultValue defaultValue, "NOT NULL"]
-        compileType EnumField { defaultValue }         = compileTokens [enumTypeName table field, compileDefaultValue defaultValue, "NOT NULL"]
-        compileType Timestamp { defaultValue }         = compileTokens ["TIMESTAMP WITH TIME ZONE", compileDefaultValue defaultValue, "NOT NULL"]
+        compileType SerialField {}                        = "SERIAL PRIMARY KEY"
+        compileType TextField { defaultValue }            = compileTokens ["TEXT", compileDefaultValue defaultValue, "NOT NULL"]
+        compileType IntField { defaultValue, references } = compileTokens ["INT", compileDefaultValue defaultValue, "NOT NULL"]
+        compileType BoolField { defaultValue }            = compileTokens ["BOOLEAN", compileDefaultValue defaultValue, "NOT NULL"]
+        compileType EnumField { defaultValue }            = compileTokens [enumTypeName table field, compileDefaultValue defaultValue, "NOT NULL"]
+        compileType Timestamp { defaultValue }            = compileTokens ["TIMESTAMP WITH TIME ZONE", compileDefaultValue defaultValue, "NOT NULL"]
+        compileType UUIDField { defaultValue }            = compileTokens ["UUID", compileDefaultValue defaultValue, "NOT NULL"]
 
         compileDefaultValue (Just (SqlDefaultValue value)) = "DEFAULT " <> value
         compileDefaultValue _                              = ""

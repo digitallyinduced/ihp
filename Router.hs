@@ -32,10 +32,12 @@ import qualified Foundation.ControllerSupport  as ControllerSupport
 import           Network.HTTP.Types.Method     (Method, methodGet, methodPost, methodDelete)
 import           Network.Wai                   (Application, Request, rawPathInfo, requestMethod)
 import           Text.Read                     (read)
+import Data.UUID (UUID)
+import qualified Data.UUID
 
 data Router = MatchMethod Method Matchable
     | Prefix Text Matchable
-    | Capture (Int -> Matchable) -- | Capture (Int -> ApplicationContext -> Application)
+    | Capture (UUID -> Matchable) -- | Capture (Int -> ApplicationContext -> Application)
     | Action (ApplicationContext -> Application)
 
 data UrlGenerator = UrlGenerator { path :: [UrlGeneratorPath] } deriving (Show)
@@ -61,7 +63,7 @@ delete matchable = MatchMethod methodDelete (toMatchable matchable)
 prefix :: Match a => Text -> a -> Router
 prefix url matchable = Prefix url (toMatchable matchable)
 
-arg :: Match a => (Int -> a) -> Router
+arg :: Match a => (UUID -> a) -> Router
 arg matchable = Capture (\value -> toMatchable (matchable value))
 
 match :: Request -> Router -> Maybe (ApplicationContext -> Application)
@@ -103,7 +105,7 @@ instance Match Router where
             Action _                -> [urlGenerator]
             MatchMethod method next -> urlGenerators next urlGenerator
             Prefix prefix routes -> map (\urlGenerator -> (urlGenerator { path = (Constant prefix):(path urlGenerator) })) (urlGenerators routes urlGenerator)
-            Capture next -> map (\urlGenerator -> (urlGenerator { path = (Variable "x"):(path urlGenerator) } )) $ urlGenerators (next 0) urlGenerator
+            Capture next -> map (\urlGenerator -> (urlGenerator { path = (Variable "x"):(path urlGenerator) } )) $ urlGenerators (next Data.UUID.nil) urlGenerator
 
 
 
@@ -120,22 +122,22 @@ data Resource baseUrlType indexActionType newActionType createActionType destroy
 
 resource = Resource { baseUrl = (), index = (), new = (), create = (), destroy = (), update = (), show = (), child = () }
 
-toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (Int -> Router), ValueOrUnit e (Int -> Router), ValueOrUnit f (Int -> Router), ValueOrUnit g (Int -> Router)) => Resource Text a b c d e f g -> Router
+toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (UUID -> Router), ValueOrUnit e (UUID -> Router), ValueOrUnit f (UUID -> Router), ValueOrUnit g (UUID -> Router)) => Resource Text a b c d e f g -> Router
 toRoutes resource =
     let
         newAction :: Maybe Router
         newAction = toMaybeValue $ new resource
         createAction :: Maybe Router
         createAction = toMaybeValue $ create resource
-        destroyAction :: Maybe (Int -> Router)
+        destroyAction :: Maybe (UUID -> Router)
         destroyAction = toMaybeValue $ destroy resource
         indexAction :: Maybe Router
         indexAction = toMaybeValue $ index resource
-        updateAction :: Maybe (Int -> Router)
+        updateAction :: Maybe (UUID -> Router)
         updateAction = toMaybeValue $ update resource
-        showAction :: Maybe (Int -> Router)
+        showAction :: Maybe (UUID -> Router)
         showAction = toMaybeValue $ show resource
-        child :: Maybe (Int -> Router)
+        child :: Maybe (UUID -> Router)
         child = toMaybeValue $ let Resource {child} = resource in child
     in prefix (baseUrl resource) (catMaybes [
             Just (prefix "/" (catMaybes [
@@ -179,8 +181,8 @@ instance ValueOrUnit () Router where
 instance ValueOrUnit Router Router where
     toMaybeValue router = Just router
 
-instance ValueOrUnit () (Int -> Router) where
+instance ValueOrUnit () (UUID -> Router) where
     toMaybeValue _ = Nothing
 
-instance ValueOrUnit (Int -> Router) (Int -> Router) where
+instance ValueOrUnit (UUID -> Router) (UUID -> Router) where
     toMaybeValue curriedRouter = Just curriedRouter

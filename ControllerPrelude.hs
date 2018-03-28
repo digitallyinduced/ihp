@@ -8,9 +8,15 @@ module Foundation.ControllerPrelude (
         module Helper.Controller,
         module Model.Generated.Types,
         module Model.Generated.Validators,
-        module Foundation.ValidationSupport
+        module Foundation.ValidationSupport,
+        module Data.UUID,
+        module Data.Default,
+        module Foundation.HaskellSupport
     ) where
 import           ClassyPrelude
+import           Data.Default                  (def)
+import           Data.UUID                     (UUID)
+import qualified Data.UUID
 import           Foundation.Controller.Param
 import           Foundation.Controller.Render
 import           Foundation.Controller.Session
@@ -20,3 +26,4 @@ import           Helper.Controller
 import           Model.Generated.Types
 import           Model.Generated.Validators
 import           UrlGenerator
+import Foundation.HaskellSupport

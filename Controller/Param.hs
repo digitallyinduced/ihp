@@ -11,6 +11,8 @@ import           Foundation.Controller.RequestContext
 import           Foundation.HaskellSupport
 import qualified Network.URI
 import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
+import qualified Data.UUID
+import Data.UUID (UUID)
 
 param :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a
 param name = fromParameterOrError (paramOrNothing name)
@@ -71,3 +73,10 @@ instance FromParameter Text where
 instance FromParameter Bool where
     fromParameter (Just "on") = pure True
     fromParameter _ = pure False
+
+instance FromParameter UUID where
+    fromParameter (Just byteString) =
+        case Data.UUID.fromASCIIBytes (byteString) of
+            Just uuid -> pure uuid
+            Nothing -> Left "FromParamter UUID: Parse error"
+    fromParameter Nothing = Left "FromParameter UUID: Parameter missing"
