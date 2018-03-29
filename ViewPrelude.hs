@@ -36,7 +36,8 @@ module Foundation.ViewPrelude (
     toHtml,
     tshow,
     UUID,
-    def
+    def,
+    (==)
 ) where
 
 import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==), tshow)
