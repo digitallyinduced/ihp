@@ -15,13 +15,14 @@ module Foundation.SchemaSupport where
 
     data DefaultValue = SqlDefaultValue Text deriving (Show, Eq, Ord)
 
-    data FieldType = SerialField { defaultValue :: Maybe DefaultValue }
-               | TextField { defaultValue :: Maybe DefaultValue }
-               | IntField { defaultValue :: Maybe DefaultValue, references :: Maybe Text }
-               | BoolField { defaultValue :: Maybe DefaultValue }
-               | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text] }
-               | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text  }
-               | Timestamp { defaultValue :: Maybe DefaultValue }
+    data FieldType =
+                 SerialField { defaultValue :: Maybe DefaultValue, allowNull :: Bool }
+               | TextField { defaultValue :: Maybe DefaultValue, allowNull :: Bool }
+               | IntField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool }
+               | BoolField { defaultValue :: Maybe DefaultValue, allowNull :: Bool }
+               | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text], allowNull :: Bool }
+               | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool  }
+               | Timestamp { defaultValue :: Maybe DefaultValue, allowNull :: Bool }
                deriving (Show, Eq, Ord)
 
     table :: Text -> Table
@@ -31,14 +32,14 @@ module Foundation.SchemaSupport where
 
     (Table name fields) + field = Table name (fields <> [field])
 
-    serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT") }
-    uuid = UUIDField { defaultValue = Nothing, references = Nothing }
-    primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()") }
-    text = TextField { defaultValue = Nothing }
-    int = IntField { defaultValue = Nothing, references = Nothing }
-    enum values = EnumField { defaultValue = Nothing, values }
-    bool = BoolField { defaultValue = Nothing }
-    timestamp = Timestamp { defaultValue = Nothing }
+    serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), allowNull = False }
+    uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False }
+    primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()"), allowNull = False }
+    text = TextField { defaultValue = Nothing, allowNull = False }
+    int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False }
+    enum values = EnumField { defaultValue = Nothing, values, allowNull = False }
+    bool = BoolField { defaultValue = Nothing, allowNull = False }
+    timestamp = Timestamp { defaultValue = Nothing, allowNull = False }
 
     belongsTo = BelongsTo
     hasMany = HasMany

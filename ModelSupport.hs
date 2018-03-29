@@ -64,6 +64,10 @@ instance InputValue UTCTime where
 instance InputValue ClassyPrelude.UTCTime where
     inputValue time = cs (iso8601Show ((unsafeCoerce time) :: UTCTime))
 
+instance InputValue fieldType => InputValue (Maybe fieldType) where
+    inputValue (Just value) = inputValue value
+    inputValue Nothing = ""
+
 data QueryCondition a = NoCondition | Equal a
 
 type FieldName = ByteString

@@ -29,15 +29,19 @@ compileAttribute :: Table -> Attribute -> Text
 compileAttribute table field@(Field name fieldType) = name <> " " <> compileType fieldType
     where
         compileType SerialField {}                        = "SERIAL PRIMARY KEY"
-        compileType TextField { defaultValue }            = compileTokens ["TEXT", compileDefaultValue defaultValue, "NOT NULL"]
-        compileType IntField { defaultValue, references } = compileTokens ["INT", compileDefaultValue defaultValue, "NOT NULL"]
-        compileType BoolField { defaultValue }            = compileTokens ["BOOLEAN", compileDefaultValue defaultValue, "NOT NULL"]
-        compileType EnumField { defaultValue }            = compileTokens [enumTypeName table field, compileDefaultValue defaultValue, "NOT NULL"]
-        compileType Timestamp { defaultValue }            = compileTokens ["TIMESTAMP WITH TIME ZONE", compileDefaultValue defaultValue, "NOT NULL"]
-        compileType UUIDField { defaultValue }            = compileTokens ["UUID", compileDefaultValue defaultValue, "NOT NULL"]
+        compileType TextField { defaultValue, allowNull }            = compileTokens ["TEXT", compileDefaultValue defaultValue, compileNullConstraint allowNull]
+        compileType IntField { defaultValue, references, allowNull } = compileTokens ["INT", compileDefaultValue defaultValue, compileNullConstraint allowNull]
+        compileType BoolField { defaultValue, allowNull }            = compileTokens ["BOOLEAN", compileDefaultValue defaultValue, compileNullConstraint allowNull]
+        compileType EnumField { defaultValue, allowNull }            = compileTokens [enumTypeName table field, compileDefaultValue defaultValue, compileNullConstraint allowNull]
+        compileType Timestamp { defaultValue, allowNull }            = compileTokens ["TIMESTAMP WITH TIME ZONE", compileDefaultValue defaultValue, compileNullConstraint allowNull]
+        compileType UUIDField { defaultValue, allowNull }            = compileTokens ["UUID", compileDefaultValue defaultValue, compileNullConstraint allowNull]
 
         compileDefaultValue (Just (SqlDefaultValue value)) = "DEFAULT " <> value
         compileDefaultValue _                              = ""
+
+        compileNullConstraint :: Bool -> Text
+        compileNullConstraint True  = ""
+        compileNullConstraint False = "NOT NULL"
 
 compileCreateEnum :: Table -> Attribute -> Text
 compileCreateEnum table field@(Field fieldName (EnumField { defaultValue, values })) = "CREATE TYPE " <> enumTypeName table field <> " AS ENUM (" <> commaSep (map valueToSql values) <> ");\n"

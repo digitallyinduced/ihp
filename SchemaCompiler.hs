@@ -190,13 +190,19 @@ compileDataDefinition table@(Table name attributes) =
             compileField (Field fieldName fieldType) = fieldName <> " :: " <> haskellType fieldName fieldType
 
 haskellType :: Text -> FieldType -> Text
-haskellType fieldName (SerialField {}) = "Int"
-haskellType fieldName (TextField {}) = "Text"
-haskellType fieldName (IntField {}) = "Int"
-haskellType fieldName (EnumField {}) = tableNameToModelName fieldName
-haskellType fieldName (BoolField {}) = "Bool"
-haskellType fieldName (Timestamp { defaultValue }) = "UTCTime"
-haskellType fieldName (UUIDField {}) = "UUID"
+haskellType fieldName field =
+    let
+        actualType =
+            case field of
+                SerialField {} -> "Int"
+                TextField {}   -> "Text"
+                IntField {}    -> "Int"
+                EnumField {}   -> tableNameToModelName fieldName
+                BoolField {}   -> "Bool"
+                Timestamp {}   -> "UTCTime"
+                UUIDField {}   -> "UUID"
+    in if allowNull field then "(Maybe " <> actualType <> ")" else actualType
+
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =
