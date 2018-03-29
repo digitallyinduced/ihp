@@ -455,12 +455,18 @@ compileFindOneByAttributes table@(Table tableName attributes) =
                 modelName = tableNameToModelName tableName
                 fieldName = tableNameToModelName name
             in
-                "findOneBy" <> fieldName <> " :: (?modelContext :: ModelContext) => " <> haskellType name fieldType <> " -> IO " <> modelName <> "\n"
-                <> "findOneBy" <> fieldName <> " value = do\n"
+                "findOneBy" <> fieldName <> "OrNothing :: (?modelContext :: ModelContext) => " <> haskellType name fieldType <> " -> IO (Maybe " <> modelName <> ")\n"
+                <> "findOneBy" <> fieldName <> "OrNothing value = do\n"
                 <> indent (
                     "let (ModelContext conn) = ?modelContext\n"
                     <> "results <- Database.PostgreSQL.Simple.query conn \"SELECT * FROM " <> tableName <> " WHERE " <> name <> " = ? LIMIT 1\" [value]\n"
-                    <> "return (fromMaybe (error \"Not found\") (headMay results))\n"
+                    <> "return (headMay results)\n"
+                )
+                <> "findOneBy" <> fieldName <> " :: (?modelContext :: ModelContext) => " <> haskellType name fieldType <> " -> IO " <> modelName <> "\n"
+                <> "findOneBy" <> fieldName <> " value = do\n"
+                <> indent (
+                    "result <- findOneBy" <> fieldName <> "OrNothing value\n"
+                    <> "return (fromMaybe (error \"Not found\") result)\n"
                 )
 
         compileFindByAttribute _ = ""
