@@ -53,7 +53,7 @@ compileCreateEnum _ _ = ""
 compileConstraints table@(Table _ attributes) =
         lineSep $ map (compileConstraints' table) attributes
     where
-        compileConstraints' (Table tableName _) (Field name (IntField { references })) =
+        compileConstraints' (Table tableName _) (Field name (UUIDField { references })) =
             case references of
                 Just refName -> "ALTER TABLE " <> tableName <> " ADD CONSTRAINT " <> tableName <> "_ref_" <> name <> " FOREIGN KEY (" <> name <> ") REFERENCES " <> refName <> " (id);"
                 Nothing -> ""
