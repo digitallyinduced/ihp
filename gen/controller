@@ -31,11 +31,11 @@ new :: Action
 new = do
     renderPlain "<?= $controller ?> New Action"
 
-show :: Int -> Action
+show :: UUID -> Action
 show id = do
     renderPlain "<?= $controller ?> Show Action"
 
-edit :: Int -> Action
+edit :: UUID -> Action
 edit id = do
     renderPlain "<?= $controller ?> Edit Action"
 

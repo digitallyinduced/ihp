@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+if ($argc < 2) {
+    echo "Usage: del/controller RESOURCE_NAME\n";
+    exit(1);
+}
+$basePath = realpath(__DIR__ . "../../..");
+
+$controller = ucfirst($argv[1]);
+
+$controllerPath = ltrim("$basePath/src/Controller/$controller.hs", '/');
+if (!file_exists($controllerPath)) {
+    echo "Controller does not exist: $controllerPath\n";
+    exit(1);
+}
+
+unlink($controllerPath);
+
+echo "- $controllerPath\n";

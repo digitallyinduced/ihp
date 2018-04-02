@@ -64,3 +64,9 @@ clean:
 	rm -rf bin/
 	rm -rf src/Foundation/static/node_modules
 	cd db && make clean
+
+del:
+	ln -s src/Foundation/del del
+
+gen:
+	ln -s src/Foundation/gen gen
