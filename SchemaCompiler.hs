@@ -254,9 +254,10 @@ compileNewOrSavedType table@(Table name attributes) =
 
 compileIdNewType :: Table -> Text
 compileIdNewType table@(Table name attributes) =
-	"newtype " <> typeName <> " = " <> typeName <> " UUID " <> defaultDerivingClause <> "\n"
+	"newtype " <> typeName <> " = " <> typeName <> " UUID deriving (Eq)\n"
 	<> "instance NewTypeWrappedUUID " <> typeName <> " where unwrap (" <> typeName <> " value) = value; wrap = "<> typeName <> "\n"
 	<> "instance HasId " <> typeName <> " where type IdType " <> typeName <> " = UUID; getId (" <> typeName <> " value) = value\n"
+	<> "instance Show " <> typeName <> " where show id = show (unwrap id)\n"
     where typeName = primaryKeyTypeName table
 
 primaryKeyTypeName :: Table -> Text
