@@ -1,7 +1,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE InstanceSigs              #-}
-{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses      #-}
+{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses, ScopedTypeVariables, AllowAmbiguousTypes #-}
 
 module Foundation.Router
     ( match
@@ -22,6 +22,8 @@ module Foundation.Router
     , update
     , show
     , child
+    , edit
+    , resource'
     ) where
 
 import           ClassyPrelude                 hiding (index, delete, show)
@@ -34,14 +36,15 @@ import           Network.Wai                   (Application, Request, rawPathInf
 import           Text.Read                     (read)
 import Data.UUID (UUID)
 import qualified Data.UUID
+import Foundation.ModelSupport (NewTypeWrappedUUID, wrap, unwrap)
 
 data Router = MatchMethod Method Matchable
-    | Prefix Text Matchable
+    | Prefix ByteString Matchable
     | Capture (UUID -> Matchable) -- | Capture (Int -> ApplicationContext -> Application)
     | Action (ApplicationContext -> Application)
 
 data UrlGenerator = UrlGenerator { path :: [UrlGeneratorPath] } deriving (Show)
-data UrlGeneratorPath = Constant Text | Variable Text deriving (Show)
+data UrlGeneratorPath = Constant ByteString | Variable ByteString deriving (Show)
 
 class Match a where
     match' :: ByteString -> Request -> a -> Maybe (ApplicationContext -> Application)
@@ -60,7 +63,7 @@ post matchable = MatchMethod methodPost (toMatchable matchable)
 delete :: Match a => a -> Router
 delete matchable = MatchMethod methodDelete (toMatchable matchable)
 
-prefix :: Match a => Text -> a -> Router
+prefix :: Match a => ByteString -> a -> Router
 prefix url matchable = Prefix url (toMatchable matchable)
 
 arg :: Match a => (UUID -> a) -> Router
@@ -84,7 +87,7 @@ instance Match Router where
                     then match' requestUrl request next
                     else Nothing
             Prefix prefix routes ->
-                case stripPrefix (cs prefix) requestUrl of
+                case stripPrefix prefix requestUrl of
                     Just remainder -> match' remainder request routes
                     Nothing        -> Nothing
             Capture action ->
@@ -118,71 +121,60 @@ instance Match Matchable where
     match' requestUrl request (Matchable matchable) = match' requestUrl request matchable
     urlGenerators (Matchable matchable) urlGenerator = urlGenerators matchable urlGenerator
 
-data Resource baseUrlType indexActionType newActionType createActionType destroyActionType updateActionType showActionType childType = Resource { baseUrl :: baseUrlType, index :: indexActionType, new :: newActionType, create :: createActionType, destroy :: destroyActionType, update :: updateActionType, show :: showActionType, child :: childType }
+data Resource idType = Resource {
+        baseUrl :: ByteString,
+        index :: Maybe Router,
+        new :: Maybe Router,
+        create :: Maybe Router,
+        destroy ::  Maybe (idType -> Router),
+        update :: Maybe (idType -> Router),
+        show :: Maybe (idType -> Router),
+        edit :: Maybe (idType -> Router),
+        child :: Maybe (idType -> Router)
+    }
 
-resource = Resource { baseUrl = (), index = (), new = (), create = (), destroy = (), update = (), show = (), child = () }
+resource = Resource { baseUrl = "", index = Nothing, new = Nothing, create = Nothing, destroy = Nothing, update = Nothing, show = Nothing, edit = Nothing, child = Nothing }
 
-toRoutes :: (ValueOrUnit a Router, ValueOrUnit b Router, ValueOrUnit c Router, ValueOrUnit d (UUID -> Router), ValueOrUnit e (UUID -> Router), ValueOrUnit f (UUID -> Router), ValueOrUnit g (UUID -> Router)) => Resource Text a b c d e f g -> Router
+resource' :: Resource NoUUID
+resource' = Resource { baseUrl = "", index = Nothing, new = Nothing, create = Nothing, destroy = Nothing, update = Nothing, show = Nothing, edit = Nothing, child = Nothing }
+
+newtype NoUUID = NoUUID ()
+instance NewTypeWrappedUUID NoUUID where
+    wrap = error ""
+    unwrap = error ""
+
+toRoutes :: NewTypeWrappedUUID idType => Resource idType -> Router
 toRoutes resource =
-    let
-        newAction :: Maybe Router
-        newAction = toMaybeValue $ new resource
-        createAction :: Maybe Router
-        createAction = toMaybeValue $ create resource
-        destroyAction :: Maybe (UUID -> Router)
-        destroyAction = toMaybeValue $ destroy resource
-        indexAction :: Maybe Router
-        indexAction = toMaybeValue $ index resource
-        updateAction :: Maybe (UUID -> Router)
-        updateAction = toMaybeValue $ update resource
-        showAction :: Maybe (UUID -> Router)
-        showAction = toMaybeValue $ show resource
-        child :: Maybe (UUID -> Router)
-        child = toMaybeValue $ let Resource {child} = resource in child
-    in prefix (baseUrl resource) (catMaybes [
+    prefix (baseUrl resource) (catMaybes [
             Just (prefix "/" (catMaybes [
-                    case newAction of
+                    case new resource of
                         Just action -> Just (prefix "new" $ get action)
                         Nothing     -> Nothing
                     ,
-                    Just (arg $ \id -> (catMaybes [
-                        case destroyAction of
-                            Just action -> Just (delete (action id))
+                    Just (arg $ \(id :: UUID) -> (catMaybes [
+                        case let Resource{destroy} = resource in destroy of
+                            Just action -> Just (delete (action $ (wrap id)))
                             Nothing -> Nothing,
-                        case updateAction  of
-                            Just action -> Just (post (action id))
+                        case let Resource{update} = resource in update of
+                            Just action -> Just (post (action $ wrap id))
                             Nothing -> Nothing,
-                        case showAction of
-                            Just action -> Just (get (action id))
+                        case let Resource{show} = resource in show of
+                            Just action -> Just (get (action $ wrap id))
                             Nothing -> Nothing,
-                        case child of
-                            Just router -> Just (router id)
+                        case let Resource{edit} = resource in edit of
+                            Just action -> Just (prefix "/edit" $ get (action $ wrap id))
+                            Nothing     -> Nothing,
+                        case let Resource{child} = resource in child of
+                            Just router -> Just (router $ wrap id)
                             Nothing -> Nothing
                     ]))
                 ])
             ),
-            case createAction of
+            case let Resource{create} = resource in create of
                 Just action -> Just (post action)
                 Nothing -> Nothing
             ,
-            case indexAction of
+            case let Resource{index} = resource in index of
                 Just action -> Just (get action)
                 Nothing -> Nothing
         ])
-
-
-class ValueOrUnit a b where
-    toMaybeValue :: a -> Maybe b
-
-instance ValueOrUnit () Router where
-    toMaybeValue :: () -> Maybe Router
-    toMaybeValue _ = Nothing
-
-instance ValueOrUnit Router Router where
-    toMaybeValue router = Just router
-
-instance ValueOrUnit () (UUID -> Router) where
-    toMaybeValue _ = Nothing
-
-instance ValueOrUnit (UUID -> Router) (UUID -> Router) where
-    toMaybeValue curriedRouter = Just curriedRouter

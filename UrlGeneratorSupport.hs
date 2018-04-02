@@ -8,10 +8,14 @@ module Foundation.UrlGeneratorSupport where
 import           ClassyPrelude
 import           Foundation.ModelSupport
 import           GHC.Records
-import Model.Generated.Types (HasId, getId)
+import Data.UUID (UUID)
+import Model.Generated.Types (HasId, getId, IdType)
 
 class UrlArgument a where
     toText :: a -> Text
 
-instance HasId a => UrlArgument a where
-    toText model = tshow (getId model)
+instance UrlArgument UUID where
+    toText uuid = tshow uuid
+
+instance (HasId a, NewTypeWrappedUUID (IdType a)) => UrlArgument a where
+    toText model = tshow $ unwrap (getId model)

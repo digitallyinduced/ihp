@@ -5,12 +5,14 @@ module Foundation.ModelPrelude (
         module Foundation.ModelSupport,
         module Foundation.ValidationSupport,
         module Model.Generated.Types,
-        module Data.String.Conversions
+        module Data.String.Conversions,
+        module Data.UUID
     ) where
 
 
 import           ClassyPrelude                      hiding (id)
 import           Data.String.Conversions            (cs)
+import           Data.UUID                          (UUID)
 import           Database.PostgreSQL.Simple         hiding (fold)
 import           Database.PostgreSQL.Simple.FromRow
 import           Foundation.HaskellSupport

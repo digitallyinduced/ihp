@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances #-}
+
 module Foundation.Controller.Param where
 import           ClassyPrelude
 import qualified Data.ByteString.Lazy
@@ -13,9 +15,10 @@ import qualified Network.URI
 import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
 import qualified Data.UUID
 import Data.UUID (UUID)
+import qualified Foundation.ModelSupport as ModelSupport
 
 param :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a
-param name = fromParameterOrError (paramOrNothing name)
+param name = (fromParameterOrError name) (paramOrNothing name)
 
 paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a -> a
 paramOrDefault name defaultValue =
@@ -23,24 +26,25 @@ paramOrDefault name defaultValue =
         Left _ -> defaultValue
         Right value -> value
 
-paramOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
-paramOrNothing name = do
+paramOrNothing :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> Maybe a
+paramOrNothing name = fromParameterOrNothing name (paramOrNothing' name)
+
+paramOrNothing' :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
+paramOrNothing' name = do
     let (RequestContext request _ bodyParams _ _) = ?requestContext
     let
         allParams :: [(ByteString, Maybe ByteString)]
         allParams = concat [(map (\(a, b) -> (a, Just b)) bodyParams), (queryString request)]
     join (lookup name allParams)
 
-paramInt :: (?requestContext :: RequestContext) => ByteString -> Int
-paramInt name = fromParameterOrError (paramOrNothing name)
+fromParameterOrError :: FromParameter a => ByteString -> Maybe ByteString -> a
+fromParameterOrError name value = Data.Either.fromRight (error $ "Invalid parameter " <> cs name <> ": " <> show value) (fromParameter value)
 
-paramText :: (?requestContext :: RequestContext) => ByteString -> Text
-paramText name = fromParameterOrError (paramOrNothing name)
-
-paramBool :: (?requestContext :: RequestContext) => ByteString -> Bool
-paramBool name = fromParameterOrError (paramOrNothing name)
-
-fromParameterOrError value = Data.Either.fromRight (error $ "Invalid parameter ") (fromParameter value)
+fromParameterOrNothing :: FromParameter a => ByteString -> Maybe ByteString -> Maybe a
+fromParameterOrNothing name value =
+    case fromParameter value of
+        Left _ -> Nothing
+        Right value -> Just value
 
 class ParamName a where
     paramName :: a -> ByteString
@@ -80,3 +84,11 @@ instance FromParameter UUID where
             Just uuid -> pure uuid
             Nothing -> Left "FromParamter UUID: Parse error"
     fromParameter Nothing = Left "FromParameter UUID: Parameter missing"
+
+instance {-# OVERLAPPABLE #-} (ModelSupport.NewTypeWrappedUUID idField) => FromParameter idField where
+    fromParameter maybeUUID =
+        case (fromParameter maybeUUID) :: Either String UUID of
+            Right uuid -> pure (ModelSupport.wrap uuid)
+            Left error -> Left error
+
+

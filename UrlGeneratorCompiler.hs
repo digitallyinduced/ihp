@@ -71,12 +71,12 @@ generateNewEditName path =
     case last path of
         Constant value ->
             if value == "new" || value == "edit" then
-                Just (value <> (intercalate "" (map Foundation.NameSupport.pluralToSingular $ unwrappedConstants $ init path)))
+                Just (cs value <> (intercalate "" (map Foundation.NameSupport.pluralToSingular $ unwrappedConstants $ init path)))
             else
                 Just (intercalate "" (unwrappedConstants $ map uppercaseFirstLetter path))
         Variable name -> Just (intercalate "" (map Foundation.NameSupport.pluralToSingular $ unwrappedConstants $ path))
 
-unwrappedConstants = map (\(Constant value) -> value) . constantsOnly
+unwrappedConstants = map (\(Constant value) -> cs value) . constantsOnly
 
 constantsOnly list = filter isConstant list
     where
@@ -88,14 +88,14 @@ variablesOnly list = filter isVariable list
         isVariable (Variable _) = True
         isVariable _            = False
 
-uppercaseFirstLetter (Constant value) = Constant (ucfirst value)
+uppercaseFirstLetter (Constant value) = Constant (cs $ ucfirst $ cs value)
 uppercaseFirstLetter otherwise        = otherwise
 
 simplify :: [UrlGeneratorPath] -> [UrlGeneratorPath]
 simplify ((Constant "/"):rest) = simplify rest
 simplify ((Constant value):rest) =
-    case stripPrefix "/" value of
-        Just stripped -> (Constant stripped):(simplify rest)
+    case stripPrefix "/" (cs value) of
+        Just stripped -> (Constant (cs stripped)):(simplify rest)
         Nothing       -> (Constant value):(simplify rest)
 simplify (x:xs) = x:(simplify xs)
 simplify rest = rest

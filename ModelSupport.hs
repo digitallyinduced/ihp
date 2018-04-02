@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances #-}
 
 module Foundation.ModelSupport where
 
@@ -8,6 +8,8 @@ import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
 import Database.PostgreSQL.Simple.Types (Query (Query))
+import Database.PostgreSQL.Simple.FromField hiding (Field, name)
+import Database.PostgreSQL.Simple.ToField
 import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.String.Conversions (cs)
@@ -80,3 +82,31 @@ class IsNew model where
 
 class HasModelName model where
     getModelName :: model -> Text
+
+class NewTypeWrappedUUID wrapperType where
+    unwrap :: wrapperType -> UUID
+    wrap :: UUID -> wrapperType
+
+instance NewTypeWrappedUUID UUID where
+    unwrap uuid = uuid
+    wrap uuid = uuid
+
+instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wrapperType where
+    inputValue wrapped =
+        let
+            innerValue :: UUID
+            innerValue = unwrap wrapped
+        in
+            (inputValue innerValue) :: Text
+
+instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => FromField wrapperType where
+    fromField value metaData = do
+        fieldValue <- fromField value metaData
+        return $ ((wrap fieldValue) :: wrapperType)
+
+instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => ToField wrapperType where
+    toField value =
+        let
+            value' :: UUID
+            value' = unwrap value
+        in toField value'
