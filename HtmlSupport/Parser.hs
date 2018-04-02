@@ -31,7 +31,7 @@ parser = do
 hsxElement = try hsxSelfClosingElement <|> hsxNormalElement
 
 manyHsxElement = do
-    values <- many (do a <- hsxElement; spaces; return a)
+    values <- many (do a <- hsxChild; spaces; return a)
     return $ Children values
 
 hsxSelfClosingElement = do
