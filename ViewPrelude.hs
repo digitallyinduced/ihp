@@ -37,10 +37,12 @@ module Foundation.ViewPrelude (
     tshow,
     UUID,
     def,
-    (==)
+    Bool (..),
+    (==),
+    find, isJust
 ) where
 
-import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==), tshow)
+import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==), tshow, Bool(..), find, isJust)
 import qualified ClassyPrelude
 import           Control.Monad                (when)
 import           Data.String.Conversions      (ConvertibleStrings (convertString), cs)
