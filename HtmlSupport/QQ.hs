@@ -118,7 +118,7 @@ attributes =
         , "spellcheck", "src", "srcdoc", "start", "step", "style", "subject"
         , "summary", "tabindex", "target", "title", "type", "usemap", "value"
         , "width", "wrap", "xmlns"
-        , "ontouchstart"
+        , "ontouchstart", "download"
         ]
 
 
