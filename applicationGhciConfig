@@ -16,3 +16,4 @@
 :set -XTypeFamilies
 :set -XPackageImports
 :set -XScopedTypeVariables
+:set -XRecordWildCards
