@@ -15,6 +15,8 @@ if (file_exists($controllerPath)) {
 }
 $model = substr($controller, 0,-1);
 
+$idType = $model . "Id";
+
 ob_start();
 ?>
 module Controller.<?= $controller ?> where
@@ -31,13 +33,17 @@ new :: Action
 new = do
     renderPlain "<?= $controller ?> New Action"
 
-show :: UUID -> Action
+show :: <?= $idType ?> -> Action
 show id = do
     renderPlain "<?= $controller ?> Show Action"
 
-edit :: UUID -> Action
+edit :: <?= $idType ?> -> Action
 edit id = do
     renderPlain "<?= $controller ?> Edit Action"
+
+update :: <?= $idType ?> -> Action
+update id = do
+    renderPlain "<?= $controller ?> Update Action"
 
 create :: Action
 create = do
