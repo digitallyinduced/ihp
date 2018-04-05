@@ -20,6 +20,10 @@ import qualified Foundation.ModelSupport as ModelSupport
 param :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a
 param name = (fromParameterOrError name) (paramOrNothing name)
 
+hasParam :: (?requestContext :: RequestContext) => ByteString -> Bool
+hasParam = isJust . paramOrNothing'
+
+
 paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a -> a
 paramOrDefault name defaultValue =
     case fromParameter (paramOrNothing name) of
