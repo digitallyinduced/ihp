@@ -24,7 +24,8 @@ doCompile router =
     let
         namePathPairs = map (\(UrlGenerator path) -> let path' = simplify path in (generateName path', path')) (urlGenerators router (UrlGenerator { path = [] }))
     in
-        "module UrlGenerator where\n\n"
+        "-- This file is auto generated and will be overriden regulary. Please edit `src/Routes.hs`\n"
+        <> "module UrlGenerator where\n\n"
         <> "import ClassyPrelude\n"
         <> "import Foundation.UrlGeneratorSupport\n"
         <> "\n\n"
