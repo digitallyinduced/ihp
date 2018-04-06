@@ -14,8 +14,9 @@ import Data.String.Conversions (cs)
 import Control.Concurrent (threadDelay)
 import qualified System.FSNotify as FS
 import System.Directory (getCurrentDirectory, withCurrentDirectory)
-import Data.Default ()
-
+import qualified System.Directory as Directory
+import Data.Default (def)
+import Data.Maybe (fromJust)
 runServerHs = "src/Foundation/Commands/RunServer.hs"
 
 data DevServerState = DevServerState {
@@ -40,7 +41,11 @@ registerExitHandler handler = do
 main = do
     state <- initDevServerState
     registerExitHandler (cleanup state)
-    manager <- withCurrentDirectory "./src" $ Twitch.run (watch state)
+    manager <- withCurrentDirectory "./src" $ do
+        currentDir <- getCurrentDirectory
+        dirs <- findAllDirectories
+        let config = def { logger = print, dirs = ".":dirs }
+        Twitch.runWithConfig currentDir config (watch state)
     forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
 
 cleanup :: DevServerState -> IO ()
@@ -134,3 +139,20 @@ getPid ph = withProcessHandle ph go
         go ph_ = case ph_ of
             OpenHandle x   -> return $ Just x
             ClosedHandle _ -> return Nothing
+
+findAllDirectories :: IO [FilePath]
+findAllDirectories = do
+    let findDirs base = do
+        all' <- Directory.listDirectory base
+        let all = map (base </>) $ filter (\file -> (unsafeHead file /= '.') && (file /= "node_modules") ) all'
+        filterM (Directory.doesDirectoryExist) all
+    dirs <- findDirs "."
+    let doRecurse dirs = do
+        result <- forM dirs $ \directory -> do
+            dirs <- findDirs directory
+            inner <- doRecurse dirs
+            return $ concat [(directory:dirs), inner]
+        return $ join result
+
+    allDirectories <- doRecurse dirs
+    return $ map (fromJust . stripPrefix "./") allDirectories
