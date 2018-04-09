@@ -17,4 +17,3 @@
 :set -XPackageImports
 :set -XScopedTypeVariables
 :set -XRecordWildCards
-:set -j4
