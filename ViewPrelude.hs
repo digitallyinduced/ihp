@@ -5,18 +5,17 @@
 {-# LANGUAGE TypeSynonymInstances  #-}
 
 module Foundation.ViewPrelude (
-    Html, div, span, p, a, href, nav, h1, h2, h3, h4, h5, ul, ol, id, li, head, meta, title, link, docTypeHtml, script, body, form, input, select, option, label, button, text, value, hr, footer, table, thead, tr, th, tbody, td, onClick, onLoad, preEscapedText, iframe, placeholder, autofocus, autocomplete, img, httpEquiv, content, small, dataAttribute, h6, pre, code,
-
-    src, class_, lang, rel, charset, type_, method, action, name, style, selected, checked,
+    Html,
 
     ($), (!), forM_, mempty,
 
     module Foundation.HaskellSupport,
+    module ClassyPrelude,
+    module Foundation.View.TimeAgo,
+    module Model.Generated.Types,
     (<>),
     Show (show),
     stringValue,
-
-    StyleRule (BackgroundColor, FontSize),
 
     cs,
 
@@ -42,8 +41,8 @@ module Foundation.ViewPrelude (
     find, isJust
 ) where
 
-import           ClassyPrelude                (Int, Maybe (..), Show (show), String, Text, fmap, forM_, fromString, mempty, ($), (.), (<>), (==), tshow, Bool(..), find, isJust)
-import qualified ClassyPrelude
+import Model.Generated.Types
+import ClassyPrelude
 import           Control.Monad                (when)
 import           Data.String.Conversions      (ConvertibleStrings (convertString), cs)
 import           Data.Text                    (Text, intercalate)
@@ -73,16 +72,7 @@ import Unsafe.Coerce
 import Foundation.HtmlSupport.ToHtml
 import Data.UUID (UUID)
 import Data.Default (def)
-
-type Style = [StyleRule]
-data StyleRule = BackgroundColor Text | FontSize Text
-
-style2 :: Style -> Attribute
-style2 theStyle = A.style (stringValue (cs (intercalate "; " (fmap compile theStyle))))
-    where
-        compile :: StyleRule -> Text
-        compile (BackgroundColor color) = "background-color: " <> color
-        compile (FontSize size)         = "font-size: " <> size
+import Foundation.View.TimeAgo
 
 onClick = onclick
 onLoad = onload
@@ -98,8 +88,3 @@ isActivePath path =
 viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewContext
 viewContext = ?viewContext
 
-
-timeAgo :: ClassyPrelude.UTCTime -> Html5.Html
-timeAgo dateTime = span ! A.datetime (cs $ formatDateTime dateTime) $ cs (formatDateTime dateTime)
-    where
-        formatDateTime time = iso8601Show (unsafeCoerce time :: UTCTime)
