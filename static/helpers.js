@@ -3,9 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initDisableButtonsOnSubmit();
     initBack();
     initToggle();
-
-    if (window.timeago)
-        window.timeago().render(document.querySelectorAll('span[datetime]'));
+    initTime();
 });
 
 document.addEventListener('turbolinks:load', function() {
@@ -13,10 +11,19 @@ document.addEventListener('turbolinks:load', function() {
     initDisableButtonsOnSubmit();
     initBack();
     initToggle();
-
-    if (window.timeago)
-        window.timeago().render(document.querySelectorAll('span[datetime]'));
+    initTime();
 });
+
+function initTime() {
+    if (window.timeago)
+        window.timeago().render(document.querySelectorAll('.time-ago'));
+
+    var dateElements = document.querySelectorAll(".date-time");
+    dateElements.forEach(function(elem){
+        var date = new Date(elem.dateTime);
+        elem.innerHTML = date.toLocaleDateString() +", " + date.toLocaleTimeString().substr(0,5)+" Uhr";
+    });
+}
 
 function initDelete() {
     var elements = document.getElementsByClassName('js-delete');
