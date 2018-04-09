@@ -4,7 +4,7 @@ import ClassyPrelude
 import Data.String.Conversions (cs)
 import Model.Schema (database)
 import Foundation.SchemaSupport
-import Foundation.NameSupport (tableNameToModelName)
+import Foundation.NameSupport (tableNameToModelName, columnNameToFieldName)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
@@ -189,7 +189,7 @@ compileDataDefinition table@(Table name attributes) =
             compileFields :: [Attribute] -> Text
             compileFields attributes = intercalate ", " $ map compileField attributes
             compileField :: Attribute -> Text
-            compileField (Field fieldName fieldType) = fieldName <> " :: " <> haskellType table fieldName fieldType
+            compileField (Field fieldName fieldType) = columnNameToFieldName fieldName <> " :: " <> haskellType table (columnNameToFieldName fieldName) fieldType
 
 haskellType :: Table -> Text -> FieldType -> Text
 haskellType table fieldName field =
@@ -280,7 +280,7 @@ compileGenericDataDefinition table@(Table name attributes) =
         compileFields :: [Attribute] -> Text
         compileFields attributes = intercalate ", " $ map compileField (zip attributes [0..])
         compileField :: (Attribute, Int) -> Text
-        compileField (Field fieldName fieldType, n) = fieldName <> " :: " <> (allParameters !! n)
+        compileField (Field fieldName fieldType, n) = columnNameToFieldName fieldName <> " :: " <> (allParameters !! n)
 
 compileEnumDataDefinitions :: Table -> Text
 compileEnumDataDefinitions table@(Table name attributes) =
@@ -327,7 +327,7 @@ compileCreate table@(Table name attributes) =
         toBinding modelName (Field fieldName fieldType) =
             case defaultValue fieldType of
                 Just (SqlDefaultValue _) -> Nothing
-                otherwise   -> Just ("let " <> modelName <> "{" <> fieldName <> "} = model in " <> fieldName)
+                otherwise   -> Just ("let " <> modelName <> "{" <> columnNameToFieldName fieldName <> "} = model in " <> columnNameToFieldName fieldName)
         bindings :: Text
         bindings = let bindingValues = map fromJust $ filter isJust (map (toBinding modelName) attributes) in compileToRowValues bindingValues
     in
@@ -345,7 +345,7 @@ compileCreate table@(Table name attributes) =
 toBinding modelName (Field fieldName fieldType) =
     case fieldType of
         SerialField {} -> Nothing
-        otherwise   -> Just ("let " <> modelName <> "{" <> fieldName <> "} = model in " <> fieldName)
+        otherwise   -> Just ("let " <> modelName <> "{" <> columnNameToFieldName fieldName <> "} = model in " <> columnNameToFieldName fieldName)
 
 compileUpdate table@(Table name attributes) =
     let
@@ -512,7 +512,7 @@ compileAttributeNames table@(Table tableName attributes) =
         compileAttributeName (Field name _) = tableNameToModelName name
         compileParamName (Field name _) = indent $ "paramName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
         compileFormFieldName (Field name _) = indent $ "formFieldName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
-        compileFormFieldValue (Field name _) = indent $ "formFieldValue " <> moduleNamePrefix <> (tableNameToModelName name) <> " (" <> tableNameToModelName tableName <> " { " <> name <> " }) = inputValue " <> name
+        compileFormFieldValue (Field name _) = indent $ "formFieldValue " <> moduleNamePrefix <> (tableNameToModelName name) <> " (" <> tableNameToModelName tableName <> " { " <> columnNameToFieldName name <> " }) = inputValue " <> columnNameToFieldName name
 
 compileFieldModel table@(Table tableName attributes) =
         "fields = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttributeName attributes))
@@ -562,8 +562,8 @@ compileHasInstances tables = intercalate "\n" $ mkUniq $  concat [ (mkUniq $ con
         compileHasClass' (Field fieldName fieldType) = "class (Show (" <> tableNameToModelName fieldName <> "Type a)) => Has" <> tableNameToModelName fieldName <> " a where type " <> tableNameToModelName fieldName <> "Type a; get" <> tableNameToModelName fieldName <> " :: a -> " <> tableNameToModelName fieldName <> "Type a"
         compileHasInstance table@(Table tableName tableAttributes) = concat [ map compileHasInstance' tableAttributes, map compileHasInstanceError fieldsNotInTable ]
             where
-                compileHasInstance' (Field fieldName fieldType) = "instance Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = " <> haskellType table fieldName fieldType <> "; get" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> "{" <> fieldName <> "} = " <> fieldName
-                compileHasInstanceError (Field fieldName fieldType) = "instance TypeError (GHC.TypeLits.Text \"" <> tableNameToModelName tableName <> " has no field `" <> fieldName <> "`\") => Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = (); get" <> tableNameToModelName fieldName <> " _ = error \"unreachable\""
+                compileHasInstance' (Field fieldName fieldType) = "instance Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = " <> haskellType table fieldName fieldType <> "; get" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> "{" <> columnNameToFieldName fieldName <> "} = " <> columnNameToFieldName fieldName
+                compileHasInstanceError (Field fieldName fieldType) = "instance TypeError (GHC.TypeLits.Text \"" <> tableNameToModelName tableName <> " has no field `" <> columnNameToFieldName fieldName <> "`\") => Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = (); get" <> tableNameToModelName fieldName <> " _ = error \"unreachable\""
                 fieldsNotInTable = filter (\(Field fieldName _) -> not $ hasFieldByName fieldName tableAttributes) allFields
 
                 hasFieldByName name fields = length (filter (\(Field fieldName _) -> fieldName == name) fields) > 0
@@ -600,7 +600,7 @@ compileCanFilterInstance table@(Table tableName attributes) =
             where
                 modelName = tableNameToModelName tableName
                 queryConditions = intercalate " <> \" AND \" <> " (map (\arg -> "fst " <> letBindingName arg) (zip [1..] attributes))
-                compileLetBinding arg@(n, Field fieldName fieldType) = "let " <> letBindingName arg <> " = " <> " (let " <> modelName <> " {" <> fieldName <> "} = criteria in toSQLCondition \"" <> fieldName <> "\" " <> fieldName <> ") "
+                compileLetBinding arg@(n, Field fieldName fieldType) = "let " <> letBindingName arg <> " = " <> " (let " <> modelName <> " {" <> columnNameToFieldName fieldName <> "} = criteria in toSQLCondition \"" <> fieldName <> "\" " <> columnNameToFieldName fieldName <> ") "
                 letBindingName (n, Field fieldName fieldType) = "val" <> tshow  n
         compileBuildCriteria :: Table -> Text
         compileBuildCriteria table@(Table name attributes) =
@@ -660,7 +660,7 @@ compileCanValidate table@(Table name attributes) =
         compileIsValid :: Text -> Text
         compileIsValid modelName = "isValid model = validate model == (" <> modelName <> " " <> intercalate " " (map (\_ -> "Success") attributes) <> ")"
         compileValidateModelField = intercalate "\n" (map compileValidateModelField' attributes)
-        compileValidateModelField' (Field fieldName fieldType) = "validateModelField model Model." <> tableNameToModelName name <> "." <> tableNameToModelName fieldName <> " = let " <> tableNameToModelName name <> "{" <> fieldName <> "} = " <> ("let combine = Model." <> tableNameToModelName name <> ".combine in combine model (combine Model." <> tableNameToModelName name <> ".fields (combine (Model." <> tableNameToModelName name <> ".validator) (" <> tableNameToModelName name <> " " <> intercalate " " (map compileAttribute attributes) <> ")))") <> " in " <> fieldName
+        compileValidateModelField' (Field fieldName fieldType) = "validateModelField model Model." <> tableNameToModelName name <> "." <> tableNameToModelName fieldName <> " = let " <> tableNameToModelName name <> "{" <> columnNameToFieldName fieldName <> "} = " <> ("let combine = Model." <> tableNameToModelName name <> ".combine in combine model (combine Model." <> tableNameToModelName name <> ".fields (combine (Model." <> tableNameToModelName name <> ".validator) (" <> tableNameToModelName name <> " " <> intercalate " " (map compileAttribute attributes) <> ")))") <> " in " <> columnNameToFieldName fieldName
             where
                 compileAttribute _ = "Foundation.ValidationSupport.validateField"
 
