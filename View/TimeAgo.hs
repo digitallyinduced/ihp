@@ -13,6 +13,10 @@ import qualified Text.Blaze.Html5.Attributes        as A
 import           Unsafe.Coerce
 
 timeAgo :: ClassyPrelude.UTCTime -> Html
-timeAgo dateTime = H.span ! A.datetime (cs $ formatDateTime dateTime) $ cs (formatDateTime dateTime)
-    where
-        formatDateTime time = iso8601Show (unsafeCoerce time :: UTCTime)
+timeAgo = timeElement "timeAgo"
+
+dateTime = timeElement "dateTime"
+
+timeElement :: String -> ClassyPrelude.UTCTime-> Html
+timeElement className dateTime= H.time ! A.class_ (cs className) ! A.datetime (cs $ formatDateTime dateTime) $ cs (formatDateTime dateTime)
+    where formatDateTime time = iso8601Show (unsafeCoerce time :: UTCTime)
