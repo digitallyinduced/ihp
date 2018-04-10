@@ -119,6 +119,7 @@ attributes =
         , "summary", "tabindex", "target", "title", "type", "usemap", "value"
         , "width", "wrap", "xmlns"
         , "ontouchstart", "download"
+        , "allowtransparency"
         ]
 
 
