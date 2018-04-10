@@ -94,5 +94,3 @@ instance {-# OVERLAPPABLE #-} (ModelSupport.NewTypeWrappedUUID idField) => FromP
         case (fromParameter maybeUUID) :: Either String UUID of
             Right uuid -> pure (ModelSupport.wrap uuid)
             Left error -> Left error
-
-
