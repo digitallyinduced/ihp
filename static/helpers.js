@@ -31,8 +31,10 @@ function initDelete() {
     function handleClick(event) {
         event.preventDefault();
 
-        if (!confirm('Are you sure you want to delete this?')) {
-            return;
+        if (!event.target.classList.contains('js-delete-no-confirm')) {
+            if (!confirm('Are you sure you want to delete this?')) {
+                return;
+            }
         }
 
         var form = document.createElement('form');

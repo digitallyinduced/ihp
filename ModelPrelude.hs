@@ -13,7 +13,7 @@ module Foundation.ModelPrelude (
 import           ClassyPrelude                      hiding (id)
 import           Data.String.Conversions            (cs)
 import           Data.UUID                          (UUID)
-import           Database.PostgreSQL.Simple         hiding (fold)
+import           Database.PostgreSQL.Simple         hiding (fold, query)
 import           Database.PostgreSQL.Simple.FromRow
 import           Foundation.HaskellSupport
 import           Foundation.ModelSupport

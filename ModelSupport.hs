@@ -7,6 +7,7 @@ import ClassyPrelude hiding (UTCTime)
 import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
+import qualified Database.PostgreSQL.Simple as PG
 import Database.PostgreSQL.Simple.Types (Query (Query))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
@@ -110,3 +111,6 @@ instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => ToField wrappe
             value' :: UUID
             value' = unwrap value
         in toField value'
+
+query :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
+query = let (ModelContext conn) = ?modelContext in PG.query conn
