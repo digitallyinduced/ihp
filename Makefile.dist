@@ -6,7 +6,6 @@ RUNGHC=runghc
 .envrc: default.nix src/Foundation/NixSupport/default.nix
 	rm -f .envrc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
-	echo "path_add PYTHONPATH $$(nix-shell --run 'echo $$PYTHONPATH')" >> .envrc
 	direnv allow
 
 run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs src/Foundation/static/build.js
