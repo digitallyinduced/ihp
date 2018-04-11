@@ -17,13 +17,14 @@ import System.Directory (getCurrentDirectory, withCurrentDirectory)
 import qualified System.Directory as Directory
 import Data.Default (def)
 import Data.Maybe (fromJust)
-runServerHs = "src/Foundation/Commands/RunServer.hs"
+import qualified Control.Concurrent.Lock as Lock
 
 data DevServerState = DevServerState {
         postgresProcess :: IORef (Handle, Process.ProcessHandle),
         serverProcess :: IORef (Handle, Process.ProcessHandle),
         modelCompilerProcess :: IORef (Handle, Process.ProcessHandle),
-        urlGeneratorCompilerProcess :: IORef (Handle, Process.ProcessHandle)
+        urlGeneratorCompilerProcess :: IORef (Handle, Process.ProcessHandle),
+        rebuildServerLock :: Lock.Lock
     }
 
 initDevServerState = do
@@ -31,7 +32,8 @@ initDevServerState = do
     serverProcess <- startPlainGhci >>= initServer >>= newIORef
     modelCompilerProcess <- startCompileGhci >>= newIORef
     urlGeneratorCompilerProcess <- startCompileGhci >>= newIORef
-    return $ DevServerState { postgresProcess = postgresProcess, serverProcess = serverProcess, modelCompilerProcess = modelCompilerProcess, urlGeneratorCompilerProcess = urlGeneratorCompilerProcess }
+    rebuildServerLock <- Lock.new
+    return $ DevServerState { postgresProcess = postgresProcess, serverProcess = serverProcess, modelCompilerProcess = modelCompilerProcess, urlGeneratorCompilerProcess = urlGeneratorCompilerProcess, rebuildServerLock = rebuildServerLock }
 
 registerExitHandler handler = do
     threadId <- myThreadId
@@ -71,17 +73,17 @@ initServer ghci = do
     sendGhciCommand ghci (":script src/Foundation/startDevServerGhciScript")
     return ghci
 
-watch state@(DevServerState {serverProcess}) = do
+watch state@(DevServerState {serverProcess, rebuildServerLock}) = do
     "Model/Schema.hs" |> const (rebuildModels state)
     "Routes.hs" |> const (rebuildUrlGenerator state)
-    "View/*/*.hs" |> const (rebuild serverProcess)
-    "Model/Generated/*.hs" |> const (rebuild serverProcess)
-    "UrlGenerator.hs" |> const (rebuild serverProcess)
-    "**.hs" |> const (rebuild serverProcess)
-    "*.hs" |> const (rebuild serverProcess)
-    "*/*.hs" |> const (rebuild serverProcess)
-    "*/*/*.hs" |> const (rebuild serverProcess)
-    "*/*/*/*.hs" |> const (rebuild serverProcess)
+    "View/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "Model/Generated/*.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "UrlGenerator.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "**.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "*.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "*/*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
 
 
 rebuildModels (DevServerState {modelCompilerProcess}) = do
@@ -105,7 +107,7 @@ sendGhciInterrupt ghci@(input, process) = do
         Just pid -> signalProcess sigINT pid
         Nothing -> putStrLn "sendGhciInterrupt: failed, pid not found"
 
-rebuild serverProcess = do
+rebuild serverProcess rebuildServerLock = Lock.with rebuildServerLock $ do
     putStrLn "Rebuilding server"
     ghci <- readIORef serverProcess
     _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
