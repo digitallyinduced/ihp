@@ -107,13 +107,15 @@ sendGhciInterrupt ghci@(input, process) = do
         Just pid -> signalProcess sigINT pid
         Nothing -> putStrLn "sendGhciInterrupt: failed, pid not found"
 
-rebuild serverProcess rebuildServerLock = Lock.with rebuildServerLock $ do
-    putStrLn "Rebuilding server"
-    ghci <- readIORef serverProcess
-    _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
-    threadDelay 1000000
-    sendGhciCommand ghci ":script src/Foundation/startDevServerGhciScriptRec"
-    putStrLn "Restarted server"
+rebuild serverProcess rebuildServerLock = do
+    _ <- Lock.tryWith rebuildServerLock $ do
+        putStrLn "Rebuilding server"
+        ghci <- readIORef serverProcess
+        _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
+        threadDelay 1000000
+        sendGhciCommand ghci ":script src/Foundation/startDevServerGhciScriptRec"
+        putStrLn "Restarted server"
+    return ()
 
 sendGhciCommand ghciProcess command = do
     let (input, process) = ghciProcess
