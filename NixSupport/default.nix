@@ -26,7 +26,7 @@ let
     }) { config = config; };
 
     ghc = pkgs.haskell.packages.${compiler};
-    allHaskellPackages = ghc.ghcWithPackages (p: builtins.concatLists [(haskellDeps p) [pkgs.haskell.lib.doJailbreak p.ghc-mod]] );
+    allHaskellPackages = ghc.ghcWithPackages (p: builtins.concatLists [(haskellDeps p) [pkgs.haskell.lib.doJailbreak p.ghc-mod p.hlint p.http-media]] );
     allNativePackages = builtins.concatLists [ [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [pkgs.darwin.apple_sdk.frameworks.Cocoa pkgs.llvm_39 pkgs.nodejs] else [pkgs.llvm_39 pkgs.nodejs]) ];
 in
     pkgs.stdenv.mkDerivation {

@@ -4,7 +4,7 @@ module Foundation.Controller.Render where
     import Data.String.Conversions (cs)
     import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, responseBuilder)
     import qualified Network.Wai
-    import Network.HTTP.Types (status200, status302)
+    import Network.HTTP.Types (status200, status302, status406)
     import Network.HTTP.Types.Header
     import Foundation.ModelSupport
     import Foundation.ApplicationContext
@@ -22,6 +22,8 @@ module Foundation.Controller.Render where
     import qualified View.Context
     import Foundation.ControllerSupport (RequestContext (..))
     import qualified Controller.Context
+    import qualified Network.HTTP.Media as Accept
+    import qualified Data.List as List
 
     import qualified Config
 
@@ -56,3 +58,38 @@ module Foundation.Controller.Render where
 
     renderNotFound :: (?requestContext :: RequestContext) => IO ResponseReceived
     renderNotFound = renderPlain "Not Found"
+
+    data PolymorphicRender htmlType jsonType = PolymorphicRender { html :: htmlType, json :: jsonType }
+    class MaybeRender a where maybeRenderToMaybe :: a -> Maybe (IO ResponseReceived)
+    instance MaybeRender () where maybeRenderToMaybe _ = Nothing
+    instance MaybeRender (IO ResponseReceived) where maybeRenderToMaybe response = Just response
+
+    -- Can be used to render different responses for html, json, etc. requests based on `Accept` header
+    -- Example:
+    --
+    -- show :: Action
+    -- show = do
+    --     renderPolymorphic polymorphicRender {
+    --         html = renderHtml [hsx|<div>Hello World</div>|]
+    --         json = renderJson True
+    --     }
+    --
+    -- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
+    renderPolymorphic :: (?requestContext :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ResponseReceived
+    renderPolymorphic PolymorphicRender { html, json } = do
+        let RequestContext request respond _ _ _ = ?requestContext
+        let headers = Network.Wai.requestHeaders request
+        let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
+        let send406Error = respond $ responseLBS status406 [] "Could not find any acceptable response format"
+        let formats = concat [
+                    case maybeRenderToMaybe html of
+                        Just handler -> [("text/html", handler)]
+                        Nothing -> mempty
+                     ,
+                    case maybeRenderToMaybe json of
+                        Just handler -> [("application/json", handler)]
+                        Nothing -> mempty
+                ]
+        fromMaybe send406Error (Accept.mapAcceptMedia formats acceptHeader)
+
+    polymorphicRender = PolymorphicRender () ()
