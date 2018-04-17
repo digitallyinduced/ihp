@@ -649,14 +649,16 @@ compileCanValidate table@(Table name attributes) =
                     <> compileIsValid modelName
                     <> section
                 )
-        compileValidateModelResult modelName isNew = "type ValidateModelResult " <> (if isNew then "New" else "") <>  modelName <> " = " <> modelName <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
             where
-                compileAttribute _ = "ValidatorResult"
-        compileCanValidateModelField = "type Model Model." <> tableNameToModelName name <> ".Field = Model." <> tableNameToModelName name <> ".Field\n"
         compileValidate :: Text -> Text
         compileValidate modelName = "validate model = let combine = Model." <> modelName <> ".combine in combine model (combine Model." <> modelName <> ".fields (combine (Model." <> modelName <> ".validator) (" <> modelName <> " " <> intercalate " " (map compileAttribute attributes) <> ")))"
             where
                 compileAttribute _ = "Foundation.ValidationSupport.validateField"
+
+        compileValidateModelResult modelName isNew = "type ValidateModelResult " <> (if isNew then "New" else "") <>  modelName <> " = " <> modelName <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
+            where
+                compileAttribute _ = "ValidatorResult"
+        compileCanValidateModelField = "type Model Model." <> tableNameToModelName name <> ".Field = Model." <> tableNameToModelName name <> ".Field\n"
         compileIsValid :: Text -> Text
         compileIsValid modelName = "isValid model = validate model == (" <> modelName <> " " <> intercalate " " (map (\_ -> "Success") attributes) <> ")"
         compileValidateModelField = intercalate "\n" (map compileValidateModelField' attributes)

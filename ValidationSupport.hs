@@ -31,6 +31,12 @@ instance Validator IsPhoneNumber where
     validateField IsPhoneNumber _ text | "+" `isPrefixOf` text && length text > 5 = Success
     validateField IsPhoneNumber field _ = Failure (humanize (formFieldName field) <> " is not a valid phone number (has to start with +, at least 5 characters)")
 
+data IsInRange = IsInRange (Int, Int) deriving (Show)
+instance Validator IsInRange where
+    type ValidatorValue IsInRange = Int
+    validateField (IsInRange (min, max)) _ value | value >= min && value <= max = Success
+    validateField (IsInRange (min, max)) field _ = Failure $ (humanize (formFieldName field)) <> " has to be between " <> tshow min <> " and " <> tshow max
+
 instance Validator (ValidatorIdentity fieldType) where
     type ValidatorValue (ValidatorIdentity fieldType) = fieldType
     validateField _ _ _ = Success

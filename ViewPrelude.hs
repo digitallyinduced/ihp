@@ -38,7 +38,8 @@ module Foundation.ViewPrelude (
     def,
     Bool (..),
     (==),
-    find, isJust
+    find, isJust,
+    ViewContext
 ) where
 
 import Model.Generated.Types

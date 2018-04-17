@@ -11,6 +11,6 @@ import Foundation.ControllerSupport (withContext)
 
 
 
-middleware applicationContext application request respond = (application request respond) `catch` (\(e :: Foundation.LoginSupport.Types.NotLoggedIn) -> handleNotLoggedIn)
+middleware applicationContext application request respond = (application request respond) `catch` (\(e :: Foundation.LoginSupport.Types.NotLoggedIn) -> handleNotLoggedIn e)
     where
-        handleNotLoggedIn = withContext Foundation.LoginSupport.Controller.notLoggedIn applicationContext request respond
+        handleNotLoggedIn (Foundation.LoginSupport.Types.NotLoggedIn newSessionUrl) = withContext (Foundation.LoginSupport.Controller.notLoggedIn newSessionUrl) applicationContext request respond
