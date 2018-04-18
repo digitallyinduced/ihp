@@ -57,7 +57,8 @@ compileTable table@(Table name attributes) =
     <> "module Model.Generated." <> tableNameToModelName name <> " where\n\n"
     <> "import Foundation.HaskellSupport\n"
     <> "import Foundation.ModelSupport\n"
-    <> "import ClassyPrelude hiding (id) \n"
+    <> "import ClassyPrelude hiding (id, const) \n"
+    <> "import qualified Data.Function\n"
     <> "import Database.PostgreSQL.Simple\n"
     <> "import Database.PostgreSQL.Simple.FromRow\n"
     <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
@@ -107,6 +108,12 @@ compileTable table@(Table name attributes) =
     <> compileFieldModel table
     <> section
     <> compileBuildValidator table
+    <> section
+    <> compileColumnNames table
+    <> section
+    <> compileConst table
+    <> section
+    <> compileReadParams table
     <> section
 
 compileTypes :: [Table] -> Text
@@ -535,6 +542,12 @@ compileCombine table@(Table tableName attributes) =
         attributesToArgs prefix attributes = map (\n -> prefix <> tshow n) $ (map snd (zip attributes [0..]))
         attributesToApplications attributes = map (\n -> "(f" <> tshow n <> " arg" <> tshow n <> ") ") $ (map snd (zip attributes [0..]))
 
+compileConst table@(Table tableName attributes) =
+        "const model = model { " <> intercalate ", " (map compileField attributes) <> " }\n"
+        <> "buildConst = const build\n"
+    where
+        compileField field@(Field fieldName fieldType) = columnNameToFieldName fieldName <> " = (Data.Function.const (" <> fromJust (toBinding (tableNameToModelName tableName) field) <> "))"
+
 compileErrorHints table@(Table tableName attributes) =
         intercalate "\n" (mkUniq $ map compileErrorHintForAttribute attributesWithoutDefaultValues)
     where
@@ -671,6 +684,14 @@ compileIsNewInstance table@(Table name attributes) =
     <> "instance IsNew " <> tableNameToModelName name <> " where isNew _ = False\n"
 
 compileHasModelNameInstance table@(Table name attributes) = "instance HasModelName (" <> compileNewOrSavedType table <> ") where getModelName _ = " <> tshow (tableNameToModelName name) <> "\n"
+
+compileReadParams :: Table -> Text
+compileReadParams _ = "readParams = combine columnNames\n"
+
+compileColumnNames table@(Table tableName attributes) = "columnNames = " <> tableNameToModelName tableName <> " " <> compiledFields
+    where
+        compiledFields = intercalate " " (map compileField attributes)
+        compileField (Field fieldName _) = "(" <>tshow fieldName <> " :: ByteString)"
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"

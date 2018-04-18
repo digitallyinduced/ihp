@@ -23,9 +23,8 @@ param name = (fromParameterOrError name) (paramOrNothing name)
 hasParam :: (?requestContext :: RequestContext) => ByteString -> Bool
 hasParam = isJust . paramOrNothing'
 
-
-paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a -> a
-paramOrDefault name defaultValue =
+paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => a -> ByteString -> a
+paramOrDefault defaultValue name =
     case fromParameter (paramOrNothing name) of
         Left _ -> defaultValue
         Right value -> value
