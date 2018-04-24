@@ -30,6 +30,7 @@ import           UrlGenerator
 import qualified View.Context
 import qualified Text.Blaze.Internal
 import Foundation.HtmlSupport.ToHtml
+import qualified Foundation.Controller.Session
 
 inputFieldWithLabel inputType labelText fieldName = div ! class_ "form-group" $ do
     label labelText
@@ -153,11 +154,12 @@ checkboxField = fieldFactory "checkbox" renderCheckboxFormField
 
 renderFlashMessages :: Html
 renderFlashMessages =
-    let View.Context.ViewContext{flashMessage} = ?viewContext
+    let View.Context.ViewContext{flashMessages} = ?viewContext
     in
-        case flashMessage of
-            Just message -> div ! class_ "alert alert-success" $ cs message
-            Nothing      -> mempty
+        forM_ flashMessages $ \flashMessage -> do
+            case flashMessage of
+                Foundation.Controller.Session.SuccessFlashMessage message -> div ! class_ "alert alert-success" $ cs message
+                Foundation.Controller.Session.ErrorFlashMessage message -> div ! class_ "alert alert-danger" $ cs message
 
 isSubmitted :: (?viewContext :: ViewContext) => Bool
 isSubmitted = let ViewContext {request} = ?viewContext in requestMethod request == methodPost

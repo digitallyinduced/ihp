@@ -1,18 +1,19 @@
 module Foundation.Controller.Session where
-import ClassyPrelude
-import Foundation.HaskellSupport
-import Data.String.Conversions (cs)
-import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString)
-import qualified Network.Wai
-import Network.HTTP.Types (status200, status302)
-import qualified Data.Text.Read
+import           ClassyPrelude
 import qualified Data.Either
+import           Data.String.Conversions              (cs)
 import qualified Data.Text
-import Foundation.Controller.RequestContext
+import qualified Data.Text.Read
 import qualified Data.UUID
+import           Foundation.Controller.RequestContext
+import           Foundation.HaskellSupport
+import           Network.HTTP.Types                   (status200, status302)
+import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
+import qualified Network.Wai
 
-import Network.Wai.Session (Session)
-import qualified Data.Vault.Lazy         as Vault
+import qualified Data.Vault.Lazy                      as Vault
+import           Network.Wai.Session                  (Session)
+import qualified Data.Maybe as Maybe
 
 
 setSession :: (?requestContext :: RequestContext) => Text -> Text -> IO ()
@@ -36,15 +37,44 @@ getSessionInt name = do
     value <- getSession name
     return $ case fmap (Data.Text.Read.decimal . cs) value of
             Just (Right value) -> Just $ fst value
-            _ -> Nothing
+            _                  -> Nothing
 
 getSessionUUID :: (?requestContext :: RequestContext) => Text -> IO (Maybe Data.UUID.UUID)
 getSessionUUID name = do
     value <- getSession name
     return $ case fmap Data.UUID.fromText value of
             Just (Just value) -> Just value
-            _ -> Nothing
+            _                 -> Nothing
+
+successMessageKey :: Text
+successMessageKey = "flashSuccessMessage"
+
+errorMessageKey :: Text
+errorMessageKey = "flashErrorMessage"
+
+data FlashMessage = SuccessFlashMessage Text | ErrorFlashMessage Text
 
 -- Due to a compiler bug we have to place these functions inside the Session module
 setSuccessMessage :: (?requestContext :: RequestContext) => Text -> IO ()
-setSuccessMessage message = setSession "flashMessage" message
+setSuccessMessage = setSession successMessageKey
+
+getSuccessMessage :: (?requestContext :: RequestContext) => IO (Maybe Text)
+getSuccessMessage = getSession successMessageKey
+
+clearSuccessMessage :: (?requestContext :: RequestContext) => IO ()
+clearSuccessMessage = setSession successMessageKey ""
+
+setErrorMessage :: (?requestContext :: RequestContext) => Text -> IO ()
+setErrorMessage = setSession errorMessageKey
+
+getAndClearFlashMessages :: (?requestContext :: RequestContext) => IO [FlashMessage]
+getAndClearFlashMessages = do
+    successMessage <- getSuccessMessage
+    errorMessage <- getSession errorMessageKey
+    case successMessage of
+        Just value | value /= "" -> setSuccessMessage ""
+        Nothing -> return ()
+    case errorMessage of
+        Just value | value /= "" -> setErrorMessage ""
+        Nothing -> return ()
+    return $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])
