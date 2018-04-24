@@ -1,6 +1,7 @@
 module Foundation.SchemaSupport where
     import ClassyPrelude hiding (length)
     import Data.Maybe (fromJust)
+    import qualified Data.List as List
 
     data Table = Table Text [Attribute]
                deriving (Show, Eq, Ord)
@@ -48,9 +49,23 @@ module Foundation.SchemaSupport where
     updatedAt = field "updated_at" int
 
     validate :: [Table] -> [Text]
-    validate = map fromJust . filter isJust . map validateTable
+    validate database = concat $ map (validateTable database) database
 
-    validateTable :: Table -> Maybe Text
-    validateTable (Table "" _) = Just "Table name cannot be empty"
-    validateTable (Table name []) = Just $ "Table " <> name <> " needs to have atleast one field"
-    validateTable _ = Nothing
+    validateTable :: [Table] -> Table -> [Text]
+    validateTable _ (Table "" _) = pure "Table name cannot be empty"
+    validateTable _ (Table name []) = pure $ "Table " <> name <> " needs to have atleast one field"
+    validateTable database table@(Table name attributes) = catMaybes $ map (validateAttribute database table) attributes
+
+    validateAttribute :: [Table] -> Table -> Attribute -> Maybe Text
+    validateAttribute database table (Field fieldName (UUIDField { references })) =
+        case references of
+            Just tableName ->
+                let
+                    referencedTable = List.find (\(Table tableName' _) -> tableName' == tableName) database
+                    (Table refTableName _) = table
+                in
+                    case referencedTable of
+                        Just _ -> Nothing
+                        Nothing -> Just ("In the definition `+ field \"" <> fieldName <> "\" uuid { references = Just \"" <> tableName <> "\" }` the table named `" <> tableName <> "` could not be found in the Schema.hs")
+            Nothing -> Nothing
+    validateAttribute _ _ _ = Nothing
