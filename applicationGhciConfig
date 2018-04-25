@@ -1,6 +1,4 @@
-:set -isrc/Controller
-:set -isrc/Model
-:set -isrc/Generated
+:set -isrc/
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
 :set -XImplicitParams
