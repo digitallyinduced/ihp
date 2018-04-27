@@ -15,6 +15,7 @@ import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
 import Data.String.Conversions (cs)
 import Foundation.HtmlSupport.ToHtml
 
+
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
         quoteExp = quoteHsxExpression,
@@ -79,7 +80,11 @@ makeElement name children =
         element = (Parent (fromString name) (fromString $ "<" <> name) (fromString $ "</" <> name <> ">"))
         leaf = (Leaf (fromString name) (fromString $ "<" <> name) (fromString $ ">"))
     in if name `elem` parents then
-            let children' = (foldl' (<>) (unsafeHead children) (unsafeTail children)) in element children'
+            let children' = case length children of
+                    0 -> mempty
+                    1 -> unsafeHead children
+                    _ -> (foldl' (<>) (unsafeHead children) (unsafeTail children))
+            in element children'
         else
             if name `elem` leafs then
                 leaf ()
