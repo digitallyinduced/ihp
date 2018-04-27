@@ -1,7 +1,7 @@
 module Foundation.UrlGeneratorCompiler where
 
 import           ClassyPrelude           (when, tshow)
-import           Data.Maybe              (fromJust, isJust)
+import           Data.Maybe              (fromJust, isJust, catMaybes)
 import           Data.Monoid             ((<>))
 import           Data.String.Conversions (cs)
 import           Data.Text               (Text, intercalate, stripPrefix, toTitle)
@@ -12,6 +12,9 @@ import           Prelude
 import qualified Routes
 import qualified System.Directory        as Directory
 import qualified Data.Set
+import qualified Data.Text as Text
+import qualified Model.Schema
+import qualified Foundation.SchemaSupport
 c = compile
 main = c
 
@@ -28,8 +31,11 @@ doCompile router =
         <> "module UrlGenerator where\n\n"
         <> "import ClassyPrelude\n"
         <> "import Foundation.UrlGeneratorSupport\n"
+        <> "import Model.Generated.Types\n"
         <> "\n\n"
         <> (intercalate "\n\n" $ mkUniq $ map generateUrlGeneratorCode namePathPairs)
+        <> "\n\n"
+        <> (intercalate "\n\n" $ mkUniq $ catMaybes $ map generatePathToCode namePathPairs)
 
 
 writeCompiledUrlGenerator :: Text -> IO ()
@@ -60,9 +66,21 @@ generateUrlGeneratorCode (Just name, path) = typeDefinition <> "\n" <> implement
         compilePathToType (Variable x, i) = "urlArgument" <> tshow i
         compilePathToTypeConstraint :: (UrlGeneratorPath, Int) -> Text
         compilePathToTypeConstraint (Variable x, i) = "UrlArgument urlArgument" <> tshow i
-
 generateUrlGeneratorCode (Nothing, []) = ""
 generateUrlGeneratorCode (Nothing, path) = "-- " <> (cs $ tshow path)
+
+generatePathToCode (Just name, path) | "new" `Text.isPrefixOf` name =
+        if belongsToModel
+            then Just $
+                "instance PathTo " <> newModelTypeName <> " where pathTo _ = " <> name <> "Path\n"
+            else Nothing
+    where
+        newModelTypeName = ucfirst name
+        modelTypeName = fromJust (Text.stripPrefix "new" name)
+        belongsToModel = modelTypeName `elem` modelNames
+        modelNames = map (\(Foundation.SchemaSupport.Table tableName _) -> Foundation.NameSupport.tableNameToModelName tableName) Model.Schema.database
+generatePathToCode (Just name, path) = Just $ "-- " <> name
+generatePathToCode (Nothing, path) = Just $ "-- " <> tshow path
 
 generateName = generateNewEditName
 

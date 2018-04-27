@@ -39,7 +39,8 @@ module Foundation.ViewPrelude (
     Bool (..),
     (==),
     find, isJust,
-    ViewContext
+    ViewContext,
+    module Foundation.UrlGeneratorSupport
 ) where
 
 import Model.Generated.Types
@@ -74,6 +75,7 @@ import Foundation.HtmlSupport.ToHtml
 import Data.UUID (UUID)
 import Data.Default (def)
 import Foundation.View.TimeAgo
+import Foundation.UrlGeneratorSupport
 
 onClick = onclick
 onLoad = onload
@@ -88,4 +90,3 @@ isActivePath path =
 
 viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewContext
 viewContext = ?viewContext
-

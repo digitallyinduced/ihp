@@ -19,3 +19,6 @@ instance UrlArgument UUID where
 
 instance (HasId a, NewTypeWrappedUUID (IdType a)) => UrlArgument a where
     toText model = tshow $ unwrap (getId model)
+
+class PathTo model where
+    pathTo :: model -> Text
