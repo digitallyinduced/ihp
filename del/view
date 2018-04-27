@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php
+$basePath = realpath(__DIR__ . "../../..");
+$controller = ucfirst($argv[1]);
+$action = $argv[2];
+
+if ($argc < 3) {
+    echo "Usage: del/view CONTROLLER_NAME ACTION_NAME\n";
+    exit(1);
+}
+
+$viewDirectory = ltrim("$basePath/src/View/$controller", '/');
+$viewPath = ltrim("$basePath/src/View/$controller/" . ucfirst($action) . ".hs", '/');
+if (!file_exists($viewPath)) {
+    echo "View does not exists: $viewPath\n";
+    exit(1);
+}
+
+unlink($viewPath);
+echo "- $viewPath\n";
