@@ -543,10 +543,14 @@ compileCombine table@(Table tableName attributes) =
         attributesToApplications attributes = map (\n -> "(f" <> tshow n <> " arg" <> tshow n <> ") ") $ (map snd (zip attributes [0..]))
 
 compileConst table@(Table tableName attributes) =
-        "const model = model { " <> intercalate ", " (map compileField attributes) <> " }\n"
+        "const :: " <> typeSignature <> "\n"
+        <> "const model = model { " <> intercalate ", " (map compileField attributes) <> " }\n"
         <> "buildConst = const build\n"
     where
         compileField field@(Field fieldName fieldType) = columnNameToFieldName fieldName <> " = (Data.Function.const (" <> fromJust (toBinding (tableNameToModelName tableName) field) <> "))"
+        typeSignature = tableNameToModelName tableName <> "' " <> (intercalate " " $ map (\i -> "p" <> tshow i) typeArgumentNumbers) <> " -> " <> tableNameToModelName tableName <> "' " <> (intercalate " " $ map (\i -> "(p" <> tshow i <> "' -> " <> "p" <> tshow i <> ")") typeArgumentNumbers)
+        typeArgumentNumbers :: [Int]
+        typeArgumentNumbers = (map snd (zip attributes [1..]))
 
 compileErrorHints table@(Table tableName attributes) =
         intercalate "\n" (mkUniq $ map compileErrorHintForAttribute attributesWithoutDefaultValues)
