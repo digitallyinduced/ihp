@@ -1,6 +1,6 @@
 .PHONY: run
 
-GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -XQuasiQuotes -XScopedTypeVariables -XTypeFamilies -XRecordWildCards
+GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -XQuasiQuotes -XScopedTypeVariables -XTypeFamilies -XRecordWildCards -XTypeApplications
 RUNGHC=runghc
 
 .envrc: default.nix src/Foundation/NixSupport/default.nix

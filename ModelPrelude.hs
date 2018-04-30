@@ -11,7 +11,7 @@ module Foundation.ModelPrelude (
     ) where
 
 
-import           ClassyPrelude                      hiding (id)
+import           ClassyPrelude                      hiding (id, find)
 import           Data.String.Conversions            (cs)
 import           Data.UUID                          (UUID)
 import           Database.PostgreSQL.Simple         hiding (fold, query)

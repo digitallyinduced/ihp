@@ -71,18 +71,13 @@ compileTable table@(Table name attributes) =
     <> "import Data.Default (def)\n"
     <> "import Foundation.ValidationSupport\n"
     <> "import Data.UUID (UUID)\n"
+    <> "import qualified Foundation.GeneratedModelSupport\n"
     <> section
     <> compileCreate table
     <> section
     <> compileUpdate table
     <> section
-    <> compileDelete table
-    <> section
     <> compileFindAll table
-    <> section
-    <> compileFindOrNothing table
-    <> section
-    <> compileFind table
     <> section
     <> compileUnit table
     <> section
@@ -126,6 +121,7 @@ compileTypes database = prelude <> "\n\n" <> intercalate "\n\n" (map compileType
                   <> "module Model.Generated.Types where\n\n"
                   <> "import Foundation.HaskellSupport\n"
                   <> "import Foundation.ModelSupport\n"
+                  <> "import Foundation.ModelSupport\n"
                   <> "import ClassyPrelude hiding (id) \n"
                   <> "import Database.PostgreSQL.Simple\n"
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
@@ -149,6 +145,7 @@ compileTypes' table@(Table name attributes) =
     <> compileIsNewInstance table
     <> section
     <> compileHasModelNameInstance table
+    <> compileHasTableNameInstance table
     <> section
     <> compileIdNewType table
     <> section
@@ -232,6 +229,7 @@ compileTypeAlias table@(Table name attributes) =
 compileNewTypeAlias :: Table -> Text
 compileNewTypeAlias table@(Table name attributes) =
 		"type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> compileFields attributes <> "\n"
+        <> "type instance GetModelById " <> tableNameToModelName name <> "Id = " <> tableNameToModelName name <> "\n"
     where
 		compileFields :: [Attribute] -> Text
 		compileFields attributes = intercalate " " $ map compileField attributes
@@ -384,19 +382,6 @@ compileUpdate table@(Table name attributes) =
             <> "return (unsafeHead result)\n"
         )
 
-compileDelete table@(Table name attributes) =
-    let
-        modelName = tableNameToModelName name
-        bindings :: Text
-        bindings = "Only (getId model)"
-    in
-        "delete :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO () \n"
-        <> "delete model = do\n"
-        <> indent ("let (ModelContext conn) = ?modelContext\n"
-            <> "Database.PostgreSQL.Simple.execute conn \"DELETE FROM " <> name <> " WHERE id = ?\" (" <> bindings <> ")\n"
-            <> "return ()\n"
-        )
-
 compileFindAll table@(Table name attributes) =
     let
         modelName = tableNameToModelName name
@@ -409,18 +394,6 @@ compileFindAll table@(Table name attributes) =
             <> "return projects\n"
         )
 
-
-compileFindOrNothing table@(Table name attributes) =
-    let
-        modelName = tableNameToModelName name
-    in
-        "findOrNothing :: (?modelContext :: ModelContext) => " <> primaryKeyTypeName table <> " -> IO (Maybe " <> modelName <> ")\n"
-        <> "findOrNothing id = do\n"
-        <> indent (
-            "let (ModelContext conn) = ?modelContext\n"
-            <> "results <- Database.PostgreSQL.Simple.query conn \"SELECT * FROM " <> name <> " WHERE id = ?\" [id]\n"
-            <> "return $ headMay results\n"
-        )
 
 compileFind table@(Table name attributes) =
     let
@@ -688,6 +661,7 @@ compileIsNewInstance table@(Table name attributes) =
     <> "instance IsNew " <> tableNameToModelName name <> " where isNew _ = False\n"
 
 compileHasModelNameInstance table@(Table name attributes) = "instance HasModelName (" <> compileNewOrSavedType table <> ") where getModelName _ = " <> tshow (tableNameToModelName name) <> "\n"
+compileHasTableNameInstance table@(Table name attributes) = "instance HasTableName (" <> compileNewOrSavedType table <> ") where getTableName _ = " <> tshow name <> "\ntype instance GetTableName (New" <> tableNameToModelName name <> ") = " <> tshow name <> "\n" <> "\ntype instance GetTableName (" <> tableNameToModelName name <> ") = " <> tshow name <> "\n"
 
 compileReadParams :: Table -> Text
 compileReadParams _ = "readParams = combine columnNames\n"
