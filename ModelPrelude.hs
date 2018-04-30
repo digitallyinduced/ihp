@@ -6,7 +6,8 @@ module Foundation.ModelPrelude (
         module Foundation.ValidationSupport,
         module Model.Generated.Types,
         module Data.String.Conversions,
-        module Data.UUID
+        module Data.UUID,
+        module Database.PostgreSQL.Simple.SqlQQ
     ) where
 
 
@@ -15,6 +16,7 @@ import           Data.String.Conversions            (cs)
 import           Data.UUID                          (UUID)
 import           Database.PostgreSQL.Simple         hiding (fold, query)
 import           Database.PostgreSQL.Simple.FromRow
+import           Database.PostgreSQL.Simple.SqlQQ (sql)
 import           Foundation.HaskellSupport
 import           Foundation.ModelSupport
 import           Foundation.ValidationSupport

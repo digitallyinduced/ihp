@@ -25,6 +25,9 @@ if (file_exists($viewPath)) {
 }
 
 $model = str_replace('Mailer', '', $controller);
+if ($model[strlen($model) - 1] === "s") {
+    $model = substr($model, 0, strlen($model) - 1);
+}
 $modelVariable = lcfirst($model);
 
 ob_start();
@@ -34,16 +37,29 @@ module View.<?= $controller ?>.<?= ucfirst($action) ?> (render) where
 import Foundation.ViewPrelude
 import qualified View.Layout.Default
 
-render :: Html
 <?php if (strtolower($action) === 'new') { ?>
-    render = View.Layout.Default.html $ do
-        h1 "New <?php echo $controller; ?>"
-        form ! method "post" ! action "TODO" $ do
-            div ! class_ "form-group" $ do
-                label "Name:"
-                input ! type_ "text" ! name "name" ! class_ "form-control"
-            button ! type_ "submit" ! class_ "btn btn-primary" $ "Submit"
+import qualified Model.<?php echo $model; ?> as <?php echo $model; ?>
+
+
+render :: New<?php echo $model; ?> -> Html
+render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
+<h1>New <?php echo $controller; ?></h1>
+{renderForm <?php echo $modelVariable; ?>}
+|]
+
+renderForm :: New<?php echo $model; ?> -> Html
+renderForm <?php echo $modelVariable; ?> = formFor2 <?php echo $modelVariable; ?> (pathTo <?php echo $modelVariable; ?>) [hsx|
+<div class="form-group">{renderTextField <?php echo $model; ?>.Name}</div>
+{submitButton}
+|]
+
+<?php } elseif (strtolower($action) === 'index') { ?>
+render :: [<?php echo $model; ?>] -> Html
+render <?php echo $modelVariable; ?>s = View.Layout.Default.html [hsx|
+    <p>"Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"</p>
+|]
 <?php } else { ?>
+render :: Html
 render = View.Layout.Default.html [hsx|
     <p>"Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"</p>
 |]
