@@ -48,7 +48,7 @@ render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
 |]
 
 renderForm :: New<?php echo $model; ?> -> Html
-renderForm <?php echo $modelVariable; ?> = formFor2 <?php echo $modelVariable; ?> (pathTo <?php echo $modelVariable; ?>) [hsx|
+renderForm <?php echo $modelVariable; ?> = formFor <?php echo $modelVariable; ?> (pathTo <?php echo $modelVariable; ?>) [hsx|
 <div class="form-group">{renderTextField <?php echo $model; ?>.Name}</div>
 {submitButton}
 |]

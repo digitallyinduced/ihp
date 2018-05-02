@@ -75,7 +75,7 @@ generatePathToCode (Just name, path) | "new" `Text.isPrefixOf` name =
                 "instance PathTo " <> newModelTypeName <> " where pathTo _ = " <> name <> "Path\n"
             else Nothing
     where
-        newModelTypeName = ucfirst name
+        newModelTypeName = Foundation.NameSupport.ucfirst name
         modelTypeName = fromJust (Text.stripPrefix "new" name)
         belongsToModel = modelTypeName `elem` modelNames
         modelNames = map (\(Foundation.SchemaSupport.Table tableName _) -> Foundation.NameSupport.tableNameToModelName tableName) Model.Schema.database
@@ -107,7 +107,7 @@ variablesOnly list = filter isVariable list
         isVariable (Variable _) = True
         isVariable _            = False
 
-uppercaseFirstLetter (Constant value) = Constant (cs $ ucfirst $ cs value)
+uppercaseFirstLetter (Constant value) = Constant (cs $ Foundation.NameSupport.ucfirst $ cs value)
 uppercaseFirstLetter otherwise        = otherwise
 
 simplify :: [UrlGeneratorPath] -> [UrlGeneratorPath]
@@ -118,17 +118,6 @@ simplify ((Constant value):rest) =
         Nothing       -> (Constant value):(simplify rest)
 simplify (x:xs) = x:(simplify xs)
 simplify rest = rest
-
-applyFirst :: (Text -> Text) -> Text -> Text
-applyFirst f text =
-    let (first, rest) = Data.Text.splitAt 1 text
-    in (f first) <> rest
-
-lcfirst :: Text -> Text
-lcfirst = applyFirst Data.Text.toLower
-
-ucfirst :: Text -> Text
-ucfirst = applyFirst Data.Text.toUpper
 
 mkUniq :: Ord a => [a] -> [a]
 mkUniq = Data.Set.toList . Data.Set.fromList
