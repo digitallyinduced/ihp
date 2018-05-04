@@ -48,8 +48,8 @@ writeCompiledUrlGenerator content = do
 
 generateUrlGeneratorCode (Just name, path) = typeDefinition <> "\n" <> implementation
     where
-        typeDefinition = (lcfirst name) <> "Path :: " <> typeConstraints <> intercalate " -> " (map compilePathToType (zip (variablesOnly path) [0..]) <> ["Text"])
-        implementation = (lcfirst name) <> "Path " <> compileArgs <> " = " <> intercalate " <> " (map compilePath (zip path [0..]))
+        typeDefinition = (Foundation.NameSupport.lcfirst name) <> "Path :: " <> typeConstraints <> intercalate " -> " (map compilePathToType (zip (variablesOnly path) [0..]) <> ["Text"])
+        implementation = (Foundation.NameSupport.lcfirst name) <> "Path " <> compileArgs <> " = " <> intercalate " <> " (map compilePath (zip path [0..]))
         typeConstraints =
             if length (variablesOnly path) > 0
             then "(" <> (intercalate ", " $ map compilePathToTypeConstraint (zip (variablesOnly path) [0..])) <> ") => "
