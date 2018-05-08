@@ -35,6 +35,13 @@ compileAttribute table field@(Field name fieldType) = name <> " " <> compileType
         compileType EnumField { defaultValue, allowNull, isPrimaryKey }            = compileTokens [enumTypeName table field, compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull]
         compileType Timestamp { defaultValue, allowNull, isPrimaryKey }            = compileTokens ["TIMESTAMP WITH TIME ZONE", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull]
         compileType UUIDField { defaultValue, allowNull, isPrimaryKey }            = compileTokens ["UUID", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull]
+        compileType ArrayField {innerType, defaultValue, allowNull, isPrimaryKey}  = compileTokens [compileInnerType innerType, compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull]
+          where
+            compileInnerType TextField {} = "TEXT[]"
+            compileInnerType IntField {} = "INT[]"
+            compileInnerType BoolField {} = "BOOLEAN[]"
+            compileInnerType ArrayField {innerType} = (compileInnerType innerType) <> "[]"
+
 
         compileDefaultValue (Just (SqlDefaultValue value)) = "DEFAULT " <> value
         compileDefaultValue _                              = ""

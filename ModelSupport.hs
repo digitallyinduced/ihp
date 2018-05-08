@@ -106,6 +106,18 @@ instance NewTypeWrappedUUID UUID where
     unwrap uuid = uuid
     wrap uuid = uuid
 
+
+instance ToField a => ToField [a] where
+    toField a = toField $ (PG.PGArray a :: PG.PGArray a)
+
+instance (FromField a, Typeable a) => FromField [a] where
+    fromField value metaData = do
+      fieldValue :: PG.PGArray a <- fromField value metaData
+      return $ PG.fromPGArray (fieldValue :: PG.PGArray a)
+
+instance InputValue [a] where
+  inputValue list = error "InputValue.inputValue not defined for list"
+
 instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wrapperType where
     inputValue wrapped =
         let
