@@ -198,14 +198,15 @@ compileDataDefinition table@(Table name attributes) =
 haskellType :: Table -> Text -> FieldType -> Text
 haskellType table fieldName field =
     let
-        actualType =
-            case field of
+        actualType fieldVar =
+            case fieldVar of
                 SerialField {} -> "Int"
                 TextField {}   -> "Text"
                 IntField {}    -> "Int"
                 EnumField {}   -> tableNameToModelName fieldName
                 BoolField {}   -> "Bool"
                 Timestamp {}   -> "UTCTime"
+                ArrayField {innerType} -> "["<>(actualType innerType)<>"]"
                 UUIDField {isPrimaryKey, references}   ->
                     if isPrimaryKey
                         then primaryKeyTypeName table
@@ -213,7 +214,7 @@ haskellType table fieldName field =
                             if isJust references
                                 then primaryKeyTypeName' (fromJust references)
                                 else "UUID"
-    in if allowNull field then "(Maybe " <> actualType <> ")" else actualType
+    in if allowNull field then "(Maybe " <> (actualType field) <> ")" else actualType field
 
 
 compileTypeAlias :: Table -> Text

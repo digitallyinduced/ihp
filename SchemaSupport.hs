@@ -24,6 +24,7 @@ module Foundation.SchemaSupport where
                | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool }
                | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool  }
                | Timestamp { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
+               | ArrayField {innerType :: FieldType, defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
                deriving (Show, Eq, Ord)
 
     table :: Text -> Table
@@ -41,6 +42,7 @@ module Foundation.SchemaSupport where
     enum values = EnumField { defaultValue = Nothing, values, allowNull = False, isPrimaryKey = False }
     bool = BoolField { defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
     timestamp = Timestamp { defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
+    array innerType = ArrayField {innerType, defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
 
     belongsTo = BelongsTo
     hasMany = HasMany
