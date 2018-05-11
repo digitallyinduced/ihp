@@ -14,6 +14,8 @@ import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
 import Data.String.Conversions (cs)
 import Foundation.HtmlSupport.ToHtml
+import qualified Debug.Trace
+import qualified Language.Haskell.Exts.Syntax as HS
 
 
 hsx :: QuasiQuoter
@@ -52,8 +54,18 @@ compileToHaskell (Children children) =
 compileToHaskell (TextNode value) = [| Html5.string value |]
 compileToHaskell (SplicedNode code) =
     case parseExp code of
-        Right expression -> [| toHtml $(return expression) |]
+        Right expression -> [| toHtml $(return (patchExpr expression)) |]
         Left error -> fail ("compileToHaskell(" <> code <> "): " <> show error)
+
+patchExpr :: TH.Exp -> TH.Exp
+patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.VarE labelValue)) | hash == TH.mkName "#" = TH.AppE (TH.VarE varName) fromLabel
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+patchExpr (TH.ParensE e) = TH.ParensE (patchExpr e)
+patchExpr (TH.RecUpdE a b) = TH.RecUpdE (patchExpr a) b
+patchExpr e = e
+
+
 
 toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
 toStringAttribute (name, TextValue value) = do

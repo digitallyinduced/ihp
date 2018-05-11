@@ -7,6 +7,9 @@ import           ClassyPrelude
 import           Foundation.ModelSupport
 import qualified Data.Text as Text
 import Foundation.NameSupport (humanize)
+import GHC.Records
+import Data.Proxy
+import GHC.TypeLits (KnownSymbol, Symbol)
 
 data ValidatorIdentity a = ValidatorIdentity deriving (Show)
 
@@ -48,5 +51,6 @@ class CanValidate model where
     validate :: model -> ValidateModelResult model
     isValid :: model -> Bool
 
-class CanValidateField model field where
-    validateModelField :: (FormFieldValue field model) => model -> field -> ValidatorResult
+class CanValidateField model where
+    type ModelFieldType model :: *
+    validateModelField :: (FormFieldValue (ModelFieldType model) model) => model -> ModelFieldType model -> ValidatorResult

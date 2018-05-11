@@ -1,4 +1,4 @@
-module Foundation.NameSupport (tableNameToModelName, columnNameToFieldName, pluralToSingular, humanize, ucfirst, lcfirst) where
+module Foundation.NameSupport (tableNameToModelName, columnNameToFieldName, pluralToSingular, humanize, ucfirst, lcfirst, fieldNameToColumnName) where
 
 import           ClassyPrelude
 import           Data.String.Conversions (cs)
@@ -18,6 +18,14 @@ columnNameToFieldName :: Text -> Text
 columnNameToFieldName columnName =
     let (Right fieldName) = Inflector.toCamelCased False columnName
     in fieldName
+
+-- `email` => `email`
+-- `projectId` => `project_id`
+fieldNameToColumnName :: Text -> Text
+fieldNameToColumnName columnName =
+    let (Right fieldName) = Inflector.toUnderscore columnName
+    in fieldName
+
 
 pluralToSingular :: Text -> Text
 pluralToSingular w    | toLower w == "status"

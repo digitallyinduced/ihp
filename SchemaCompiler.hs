@@ -72,6 +72,7 @@ compileTable table@(Table name attributes) =
     <> "import Foundation.ValidationSupport\n"
     <> "import Data.UUID (UUID)\n"
     <> "import qualified Foundation.GeneratedModelSupport\n"
+    <> "import GHC.OverloadedLabels\n"
     <> section
     <> compileCreate table
     <> section
@@ -156,13 +157,16 @@ compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compil
     where
         prelude = "-- This file is auto generated and will be overriden regulary."
                   <> section
-                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds  #-}"
+                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, ScopedTypeVariables  #-}"
                   <> section
                   <> "module Model.Generated.Validators where\n\n"
                   <> "import Foundation.ValidationSupport\n\n"
                   <> "import Model.Generated.Types\n\n"
                   <> "import ClassyPrelude\n\n"
                   <> "import Data.UUID (UUID)\n"
+                  <> "import GHC.Records\n"
+                  <> "import Data.Proxy\n"
+                  <> "import GHC.TypeLits (symbolVal, KnownSymbol)\n"
                   <> intercalate "\n" (map (\(Table name attributes) -> "import qualified Model." <> tableNameToModelName name <> " (validator, combine, fields, Field(..))\n") database)
 
 
@@ -487,12 +491,14 @@ compileAttributeNames table@(Table tableName attributes) =
         <> section
         <> "instance FormFieldValue Field New" <> tableNameToModelName tableName <> " where \n" <> (intercalate "\n" (map compileFormFieldValue attributes))
         <> section
+        <> intercalate "\n" (map compileIsLabel attributes)
     where
         moduleNamePrefix = "Model.Generated." <> tableNameToModelName tableName <> "."
         compileAttributeName (Field name _) = tableNameToModelName name
         compileParamName (Field name _) = indent $ "paramName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
         compileFormFieldName (Field name _) = indent $ "formFieldName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
         compileFormFieldValue (Field name _) = indent $ "formFieldValue " <> moduleNamePrefix <> (tableNameToModelName name) <> " (" <> tableNameToModelName tableName <> " { " <> columnNameToFieldName name <> " }) = inputValue " <> columnNameToFieldName name
+        compileIsLabel (Field fieldName fieldType) = "instance IsLabel " <> tshow (columnNameToFieldName fieldName) <> " Field where fromLabel = " <> moduleNamePrefix <> tableNameToModelName fieldName
 
 compileFieldModel table@(Table tableName attributes) =
         "fields = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttributeName attributes))
@@ -624,10 +630,9 @@ compileCanValidate table@(Table name attributes) =
         <> compileCanValidateInstance (tableNameToModelName name) True
         <> section
         <> section
-        <> "instance CanValidateField (" <> compileNewOrSavedType table <> ") Model." <> tableNameToModelName name <> ".Field where\n"
-        <> indent (
-                compileValidateModelField
-            )
+        <> "instance CanValidateField (" <> compileNewOrSavedType table <> ") where\n"
+        <> indent ("type ModelFieldType (" <> compileNewOrSavedType table <> ") = Model." <> tableNameToModelName name <> ".Field\n")
+        <> indent compileValidateModelField
     where
         compileCanValidateInstance :: Text -> Bool -> Text
         compileCanValidateInstance modelName isNew =

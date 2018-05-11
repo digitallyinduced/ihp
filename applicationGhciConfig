@@ -16,3 +16,5 @@
 :set -XScopedTypeVariables
 :set -XRecordWildCards
 :set -XTypeApplications
+:set -XDataKinds
+:set -XInstanceSigs

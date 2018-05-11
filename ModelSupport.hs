@@ -68,7 +68,6 @@ instance InputValue Bool where
 instance InputValue Data.UUID.UUID where
     inputValue = Data.UUID.toText
 
-
 instance InputValue () where
     inputValue () = "error: inputValue(()) not supported"
 

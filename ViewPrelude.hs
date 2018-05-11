@@ -40,7 +40,9 @@ module Foundation.ViewPrelude (
     (==),
     find, isJust,
     ViewContext,
-    module Foundation.UrlGeneratorSupport
+    module Foundation.UrlGeneratorSupport,
+    module GHC.OverloadedLabels,
+    module GHC.Records
 ) where
 
 import Model.Generated.Types
@@ -76,6 +78,8 @@ import Data.UUID (UUID)
 import Data.Default (def)
 import Foundation.View.TimeAgo
 import Foundation.UrlGeneratorSupport
+import GHC.OverloadedLabels (fromLabel)
+import GHC.Records (HasField)
 
 onClick = onclick
 onLoad = onload

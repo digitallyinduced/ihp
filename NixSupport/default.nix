@@ -35,4 +35,3 @@ in
         buildInputs = builtins.concatLists [allNativePackages [allHaskellPackages]];
         shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
     }
-

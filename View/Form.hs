@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeSynonymInstances, StandaloneDeriving,InstanceSigs, UndecidableInstances, AllowAmbiguousTypes  #-}
+{-# LANGUAGE TypeSynonymInstances, StandaloneDeriving,InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables  #-}
 
 module Foundation.View.Form where
 
@@ -33,6 +33,13 @@ import qualified Text.Blaze.Internal
 import Foundation.HtmlSupport.ToHtml
 import qualified Foundation.Controller.Session
 import qualified Foundation.NameSupport
+import GHC.OverloadedLabels
+import GHC.Types
+import GHC.TypeLits
+import Data.Proxy
+import qualified Data.Text
+import qualified Text.Inflections
+import GHC.Records
 
 data FormField = FormField {
         fieldType :: !InputType,
@@ -69,23 +76,6 @@ formFor' formContext url inner = form ! method "POST" ! action (cs url) $ do
 
 submitButton :: (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => SubmitButton
 submitButton = SubmitButton { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext), modelName = Foundation.ModelSupport.getModelName (model ?formContext), renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit }
-
-buildField :: (?formContext :: FormContext model, ?viewContext :: ViewContext) => (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => InputType -> attribute -> FormField
-buildField fieldType param = FormField {
-                    fieldType = fieldType,
-                    fieldName = cs (Foundation.ModelSupport.formFieldName param),
-                    fieldLabel = cs (Foundation.ModelSupport.formFieldLabel param),
-                    fieldValue = (Foundation.ModelSupport.formFieldValue param (model ?formContext)),
-                    fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model ?formContext)) <> "_" <> Foundation.ModelSupport.formFieldName param),
-                    validatorResult = validateModelField (model ?formContext) param,
-                    fieldClass = "",
-                    labelClass = "",
-                    disableLabel = False,
-                    fieldInput = input,
-                    modelIsNew = Foundation.ModelSupport.isNew (model ?formContext),
-                    formIsSubmitted = isSubmitted,
-                    renderFormField = let FormContext { renderFormField } = ?formContext in renderFormField
-                }
 
 data InputType = TextInput | CheckboxInput | ColorInput
 
@@ -146,14 +136,49 @@ renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= di
         button ! class_ "btn btn-primary btn-lg pl-4 pr-4 w-100" $ (if modelIsNew then "Create " else "Save ") <> (cs $ modelName)
 
 
-textField :: (?formContext :: FormContext model, ?viewContext :: ViewContext) => (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => attribute -> FormField
-textField param = buildField TextInput param
 
-colorField :: (?formContext :: FormContext model, ?viewContext :: ViewContext) => (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => attribute -> FormField
-colorField param = buildField ColorInput param
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model Text, IsLabel symbol (Foundation.ValidationSupport.ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (Foundation.ValidationSupport.ModelFieldType model) model ) => IsLabel symbol ((FormContext model, ViewContext, Proxy Text) -> FormField) where
+    fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
+                        fieldType = TextInput,
+                        fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        fieldLabel = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts),
+                        fieldValue =  getField @(symbol) (model formContext),
+                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        validatorResult = (validateModelField (model formContext) :: ModelFieldType model -> ValidatorResult) (fromLabel @symbol),
+                        fieldClass = "",
+                        labelClass = "",
+                        disableLabel = False,
+                        fieldInput = input,
+                        modelIsNew = Foundation.ModelSupport.isNew (model formContext),
+                        formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
+                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField
+                    }
 
-checkboxField :: (?formContext :: FormContext model, ?viewContext :: ViewContext) => (Foundation.ModelSupport.FormField attribute, Foundation.ModelSupport.FormFieldValue attribute model, CanValidateField model attribute, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => attribute -> FormField
-checkboxField param = buildField CheckboxInput param
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model Bool) => IsLabel symbol ((FormContext model, ViewContext, Proxy Bool) -> FormField) where
+    fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
+                        fieldType = CheckboxInput,
+                        fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        fieldLabel = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts),
+                        fieldValue =  let value = getField @(symbol) (model formContext) in if value then "yes" else "no",
+                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        validatorResult = Success,
+                        fieldClass = "",
+                        labelClass = "",
+                        disableLabel = False,
+                        fieldInput = input,
+                        modelIsNew = Foundation.ModelSupport.isNew (model formContext),
+                        formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
+                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField
+                    }
+
+textField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
+textField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Text)
+
+colorField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
+colorField alpha = (textField alpha) { fieldType = ColorInput }
+
+checkboxField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Bool) -> FormField)) => alpha -> FormField
+checkboxField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Bool)
 
 instance ToHtml FormField where
     toHtml ::  FormField -> Html5.Html
