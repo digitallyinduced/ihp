@@ -137,12 +137,13 @@ renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= di
 
 
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model Text, IsLabel symbol (Foundation.ValidationSupport.ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (Foundation.ValidationSupport.ModelFieldType model) model ) => IsLabel symbol ((FormContext model, ViewContext, Proxy Text) -> FormField) where
+
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, IsLabel symbol (Foundation.ValidationSupport.ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (Foundation.ValidationSupport.ModelFieldType model) model, Foundation.ModelSupport.InputValue value ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
     fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
                         fieldType = TextInput,
                         fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
                         fieldLabel = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts),
-                        fieldValue =  getField @(symbol) (model formContext),
+                        fieldValue =  Foundation.ModelSupport.inputValue $ getField @(symbol) (model formContext),
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
                         validatorResult = (validateModelField (model formContext) :: ModelFieldType model -> ValidatorResult) (fromLabel @symbol),
                         fieldClass = "",
@@ -176,6 +177,9 @@ textField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Text)
 
 colorField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
 colorField alpha = (textField alpha) { fieldType = ColorInput }
+
+hiddenField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (Foundation.ModelSupport.InputValue value, alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
+hiddenField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy value)
 
 checkboxField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Bool) -> FormField)) => alpha -> FormField
 checkboxField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Bool)

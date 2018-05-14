@@ -38,9 +38,6 @@ import Foundation.ViewPrelude
 import qualified View.Layout.Default
 
 <?php if (strtolower($action) === 'new') { ?>
-import qualified Model.<?php echo $model; ?> as <?php echo $model; ?>
-
-
 render :: New<?php echo $model; ?> -> Html
 render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
 <h1>New <?php echo $controller; ?></h1>
@@ -49,7 +46,7 @@ render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
 
 renderForm :: New<?php echo $model; ?> -> Html
 renderForm <?php echo $modelVariable; ?> = formFor <?php echo $modelVariable; ?> (pathTo <?php echo $modelVariable; ?>) [hsx|
-<div class="form-group">{renderTextField <?php echo $model; ?>.Name}</div>
+{textField #name}
 {submitButton}
 |]
 

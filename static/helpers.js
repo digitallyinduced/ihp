@@ -86,7 +86,10 @@ function initDisableButtonsOnSubmit() {
             for (var j in buttons) {
                 var button = buttons[j];
                 if (button instanceof HTMLButtonElement) {
-                    button.setAttribute('disabled', 'disabled');
+                    // We cannot disable the button right now, as then it's value
+                    // is not sent to the server
+                    // See https://sarbbottam.github.io/blog/2015/08/21/multiple-submit-buttons-and-javascript
+                    setTimeout(function () { button.setAttribute('disabled', 'disabled'); }, 0);
                 }
             }
 
