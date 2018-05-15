@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeSynonymInstances, StandaloneDeriving,InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables  #-}
+{-# LANGUAGE TypeSynonymInstances, StandaloneDeriving,InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
 
 module Foundation.View.Form where
 
@@ -77,7 +77,7 @@ formFor' formContext url inner = form ! method "POST" ! action (cs url) $ do
 submitButton :: (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => SubmitButton
 submitButton = SubmitButton { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext), modelName = Foundation.ModelSupport.getModelName (model ?formContext), renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit }
 
-data InputType = TextInput | CheckboxInput | ColorInput
+data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput
 
 renderValidationResult (FormField { modelIsNew, validatorResult })= when modelIsNew $ case validatorResult of
                 Success         -> return ()
@@ -89,6 +89,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
             TextInput -> renderTextField "text" formField
             ColorInput -> renderTextField "color" formField
             CheckboxInput -> renderCheckboxFormField formField
+            HiddenInput -> renderTextField "hidden" formField { disableLabel = True }
     where
         renderCheckboxFormField :: FormField -> Html5.Html
         renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
@@ -114,6 +115,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
             TextInput -> renderTextField "text" formField
             ColorInput -> renderTextField "color" formField
             CheckboxInput -> renderCheckboxFormField formField
+            HiddenInput -> renderTextField "hidden" formField { disableLabel = True }
     where
         renderCheckboxFormField :: FormField -> Html5.Html
         renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
@@ -172,14 +174,14 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         renderFormField = let FormContext { renderFormField } = formContext in renderFormField
                     }
 
-textField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
-textField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Text)
+textField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
+textField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy value)
 
 colorField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
 colorField alpha = (textField alpha) { fieldType = ColorInput }
 
-hiddenField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (Foundation.ModelSupport.InputValue value, alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
-hiddenField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy value)
+hiddenField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
+hiddenField alpha = (textField alpha) { fieldType = HiddenInput }
 
 checkboxField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Bool) -> FormField)) => alpha -> FormField
 checkboxField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Bool)
