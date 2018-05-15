@@ -45,8 +45,8 @@ module Foundation.SchemaSupport where
     belongsTo = BelongsTo
     hasMany = HasMany
 
-    createdAt = field "created_at" int
-    updatedAt = field "updated_at" int
+    createdAt = field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }
+    updatedAt = field "updated_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }
 
     validate :: [Table] -> [Text]
     validate database = concat $ map (validateTable database) database
