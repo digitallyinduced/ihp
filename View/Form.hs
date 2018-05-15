@@ -77,7 +77,7 @@ formFor' formContext url inner = form ! method "POST" ! action (cs url) $ do
 submitButton :: (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => SubmitButton
 submitButton = SubmitButton { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext), modelName = Foundation.ModelSupport.getModelName (model ?formContext), renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit }
 
-data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput
+data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput | TextareaInput
 
 renderValidationResult (FormField { modelIsNew, validatorResult })= when modelIsNew $ case validatorResult of
                 Success         -> return ()
@@ -90,6 +90,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
             ColorInput -> renderTextField "color" formField
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True }
+            TextareaInput -> renderTextField "text" formField { fieldInput = Html5.textarea (cs $ fieldValue formField) }
     where
         renderCheckboxFormField :: FormField -> Html5.Html
         renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
@@ -176,6 +177,9 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
 
 textField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 textField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy value)
+
+textareaField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
+textareaField alpha = (textField alpha) { fieldType = TextareaInput }
 
 colorField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
 colorField alpha = (textField alpha) { fieldType = ColorInput }
