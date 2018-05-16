@@ -73,6 +73,7 @@ compileTable table@(Table name attributes) =
     <> "import Data.UUID (UUID)\n"
     <> "import qualified Foundation.GeneratedModelSupport\n"
     <> "import GHC.OverloadedLabels\n"
+    <> "import Data.Default\n"
     <> section
     <> compileCreate table
     <> section
@@ -132,6 +133,7 @@ compileTypes database = prelude <> "\n\n" <> intercalate "\n\n" (map compileType
                   <> "import qualified Data.Function\n"
                   <> "import GHC.TypeLits\n"
                   <> "import Data.UUID (UUID)\n"
+                  <> "import Data.Default\n"
 
 compileTypes' table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
@@ -267,6 +269,7 @@ compileIdNewType table@(Table name attributes) =
 	<> "instance NewTypeWrappedUUID " <> typeName <> " where unwrap (" <> typeName <> " value) = value; wrap = "<> typeName <> "\n"
 	<> "instance HasId " <> typeName <> " where type IdType " <> typeName <> " = UUID; getId (" <> typeName <> " value) = value\n"
 	<> "instance Show " <> typeName <> " where show id = show (unwrap id)\n"
+    <> "instance Default " <> typeName <> " where def = wrap def\n"
     where typeName = primaryKeyTypeName table
 
 primaryKeyTypeName :: Table -> Text

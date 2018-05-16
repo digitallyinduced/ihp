@@ -42,7 +42,8 @@ module Foundation.ViewPrelude (
     ViewContext,
     module Foundation.UrlGeneratorSupport,
     module GHC.OverloadedLabels,
-    module GHC.Records
+    module GHC.Records,
+    module Data.List.Split
 ) where
 
 import Model.Generated.Types
@@ -80,6 +81,7 @@ import Foundation.View.TimeAgo
 import Foundation.UrlGeneratorSupport
 import GHC.OverloadedLabels (fromLabel)
 import GHC.Records (HasField)
+import Data.List.Split (chunksOf)
 
 onClick = onclick
 onLoad = onload

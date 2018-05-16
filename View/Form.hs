@@ -40,6 +40,7 @@ import Data.Proxy
 import qualified Data.Text
 import qualified Text.Inflections
 import GHC.Records
+import qualified Data.Text as Text
 
 data FormField = FormField {
         fieldType :: !InputType,
@@ -77,7 +78,7 @@ formFor' formContext url inner = form ! method "POST" ! action (cs url) $ do
 submitButton :: (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => SubmitButton
 submitButton = SubmitButton { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext), modelName = Foundation.ModelSupport.getModelName (model ?formContext), renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit }
 
-data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput | TextareaInput
+data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput | TextareaInput | SelectInput { options :: [(Text, Text)] }
 
 renderValidationResult (FormField { modelIsNew, validatorResult })= when modelIsNew $ case validatorResult of
                 Success         -> return ()
@@ -91,7 +92,9 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True }
             TextareaInput -> renderTextField "text" formField { fieldInput = Html5.textarea (cs $ fieldValue formField) }
+            SelectInput {} -> renderSelectField formField
     where
+        maybeWithFormGroup (FormField { disableLabel }) renderInner = if disableLabel then renderInner else div ! A.class_ "form-group" $ renderInner
         renderCheckboxFormField :: FormField -> Html5.Html
         renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
             (if disableLabel then div else label ! class_ "form-check-label") $ do
@@ -100,12 +103,20 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                 fieldLabel
                 renderValidationResult formField
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
-        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = if disableLabel then renderInner else div ! A.class_ "form-group" $ renderInner
-            where
-                renderInner = do
-                    if disableLabel then return () else label ! A.class_ labelClass ! A.for (cs fieldInputId) $ fieldLabel
-                    fieldInput ! type_ inputType ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
-                    renderValidationResult formField
+        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) =
+            maybeWithFormGroup formField $ do
+                if disableLabel then return () else label ! A.class_ labelClass ! A.for (cs fieldInputId) $ fieldLabel
+                fieldInput ! type_ inputType ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
+                renderValidationResult formField
+        renderSelectField :: FormField -> Html5.Html
+        renderSelectField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) =
+            maybeWithFormGroup formField $ do
+                if disableLabel then return () else label ! A.class_ labelClass ! A.for (cs fieldInputId) $ fieldLabel
+                Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
+                    --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
+                    Html5.option ! A.selected "selected" $ Html5.text ("Kein Team")
+                    forM_ (options fieldType) $ \(optionLabel, optionValue) -> (Html5.option ! A.value (cs optionValue) $ cs optionLabel)
+                renderValidationResult formField
 
 renderBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= button ! class_ "btn btn-primary" $ (if modelIsNew then "Create " else "Save ") <> (cs $ modelName)
 
@@ -145,7 +156,7 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
     fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
                         fieldType = TextInput,
                         fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
-                        fieldLabel = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts),
+                        fieldLabel = cs $ fieldNameToFieldLabel fieldName,
                         fieldValue =  Foundation.ModelSupport.inputValue $ getField @(symbol) (model formContext),
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
                         validatorResult = (validateModelField (model formContext) :: ModelFieldType model -> ValidatorResult) (fromLabel @symbol),
@@ -162,7 +173,7 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
     fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
                         fieldType = CheckboxInput,
                         fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
-                        fieldLabel = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts),
+                        fieldLabel = cs $ fieldNameToFieldLabel fieldName,
                         fieldValue =  let value = getField @(symbol) (model formContext) in if value then "yes" else "no",
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
                         validatorResult = Success,
@@ -174,6 +185,36 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
                         renderFormField = let FormContext { renderFormField } = formContext in renderFormField
                     }
+
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model (Maybe (SelectValue item)), CanSelect item, Foundation.ModelSupport.NewTypeWrappedUUID (SelectValue item)) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
+    fromLabel = \(formContext, viewContext, items, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
+                        fieldType =
+                            let
+                                itemToTuple item = (selectLabel item, (Foundation.ModelSupport.inputValue . Foundation.ModelSupport.unwrap) (selectValue item))
+                            in
+                                 SelectInput $ map itemToTuple items
+                            ,
+                        fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        fieldLabel = cs . removeIdSuffix $ fieldNameToFieldLabel fieldName,
+                        fieldValue =
+                            let value = ((getField @(symbol) (model formContext)) :: Maybe (SelectValue item))
+                            in maybe "" (Foundation.ModelSupport.inputValue . Foundation.ModelSupport.unwrap) value,
+                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        validatorResult = Success,
+                        fieldClass = "",
+                        labelClass = "",
+                        disableLabel = False,
+                        fieldInput = Html5.select mempty,
+                        modelIsNew = Foundation.ModelSupport.isNew (model formContext),
+                        formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
+                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField
+                    }
+
+fieldNameToFieldLabel :: Text -> Text
+fieldNameToFieldLabel fieldName = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts)
+
+removeIdSuffix :: Text -> Text
+removeIdSuffix text = fromMaybe text (Text.stripSuffix " Id" text)
 
 textField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 textField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy value)
@@ -189,6 +230,14 @@ hiddenField alpha = (textField alpha) { fieldType = HiddenInput }
 
 checkboxField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Bool) -> FormField)) => alpha -> FormField
 checkboxField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Bool)
+
+selectField :: forall alpha attributeName model value item. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, [item], Proxy value) -> FormField), CanSelect item) => alpha -> [item] -> FormField
+selectField alpha items = alpha (?formContext, ?viewContext, items, Proxy :: Proxy value)
+
+class CanSelect model where
+    type SelectValue model :: GHC.Types.*
+    selectLabel :: model -> Text
+    selectValue :: model -> SelectValue model
 
 instance ToHtml FormField where
     toHtml ::  FormField -> Html5.Html

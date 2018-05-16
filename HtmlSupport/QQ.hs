@@ -61,6 +61,9 @@ patchExpr :: TH.Exp -> TH.Exp
 patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.VarE labelValue)) | hash == TH.mkName "#" = TH.AppE (TH.VarE varName) fromLabel
     where
             fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) arg)) | hash == TH.mkName "#" = TH.AppE (TH.AppE (TH.VarE varName) fromLabel) arg
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
 patchExpr (TH.ParensE e) = TH.ParensE (patchExpr e)
 patchExpr (TH.RecUpdE a b) = TH.RecUpdE (patchExpr a) b
 patchExpr e = e

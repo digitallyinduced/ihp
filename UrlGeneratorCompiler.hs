@@ -35,7 +35,7 @@ doCompile router =
         <> "\n\n"
         <> (intercalate "\n\n" $ mkUniq $ map generateUrlGeneratorCode namePathPairs)
         <> "\n\n"
-        <> (intercalate "\n\n" $ mkUniq $ catMaybes $ map generatePathToCode namePathPairs)
+        -- <> (intercalate "\n\n" $ mkUniq $ catMaybes $ map generatePathToCode namePathPairs)
 
 
 writeCompiledUrlGenerator :: Text -> IO ()
