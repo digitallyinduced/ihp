@@ -12,7 +12,8 @@ module Foundation.ControllerPrelude (
         module Data.UUID,
         module Data.Default,
         module Foundation.HaskellSupport,
-        module Foundation.UrlGeneratorSupport
+        module Foundation.UrlGeneratorSupport,
+        module Foundation.ModelSupport
     ) where
 import           ClassyPrelude
 import           Data.Default                  (def)
@@ -29,3 +30,4 @@ import           Model.Generated.Validators
 import           UrlGenerator
 import Foundation.HaskellSupport
 import Foundation.UrlGeneratorSupport (pathTo)
+import Foundation.ModelSupport (findMany)

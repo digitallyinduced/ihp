@@ -7,7 +7,6 @@ import ClassyPrelude hiding (UTCTime, find)
 import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
-import qualified Database.PostgreSQL.Simple as PG
 import Database.PostgreSQL.Simple.Types (Query (Query))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
@@ -133,16 +132,21 @@ deleteModel model = do
     let (ModelContext conn) = ?modelContext
     let id = getField @"id" model
     let tableName = getTableName model
-    PG.execute conn (PG.Query . cs $ "DELETE FROM " <> tableName <> " WHERE id = ?") (PG.Only (unwrap id))
+    PG.execute conn (PG.Query . cs $ "DELETE FROM " <> tableName <> " WHERE id = ? LIMIT 1") (PG.Only (unwrap id))
     return ()
 
 findOrNothing :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (Maybe (GetModelById id))
 findOrNothing id = do
     let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
-    results <- query (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id = ?") [id]
+    results <- query (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id = ? LIMIT 1") [id]
     return $ headMay results
 
 find :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (GetModelById id)
 find id = do
     result <- findOrNothing id
     return (fromMaybe (error "Model cannot be found") result)
+
+findMany :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => [id] -> IO [GetModelById id]
+findMany ids = do
+    let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
+    query (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id IN ?") (PG.Only $ PG.In ids)
