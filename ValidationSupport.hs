@@ -52,5 +52,4 @@ class CanValidate model where
     isValid :: model -> Bool
 
 class CanValidateField model where
-    type ModelFieldType model :: *
     validateModelField :: (FormFieldValue (ModelFieldType model) model) => model -> ModelFieldType model -> ValidatorResult

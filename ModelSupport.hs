@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
 
 module Foundation.ModelSupport where
 
@@ -112,17 +112,17 @@ instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wra
         in
             (inputValue innerValue) :: Text
 
-instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => FromField wrapperType where
-    fromField value metaData = do
-        fieldValue <- fromField value metaData
-        return $ ((wrap fieldValue) :: wrapperType)
+--instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => FromField wrapperType where
+--    fromField value metaData = do
+--        fieldValue <- fromField value metaData
+--        return $ ((wrap fieldValue) :: wrapperType)
 
-instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => ToField wrapperType where
-    toField value =
-        let
-            value' :: UUID
-            value' = unwrap value
-        in toField value'
+--instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => ToField wrapperType where
+--    toField value =
+--        let
+--            value' :: UUID
+--            value' = unwrap value
+--        in toField value'
 
 query :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 query = let (ModelContext conn) = ?modelContext in PG.query conn
@@ -150,3 +150,6 @@ findMany :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedU
 findMany ids = do
     let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
     query (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id IN ?") (PG.Only $ PG.In ids)
+
+type family ModelFieldType model :: GHC.Types.*
+type family ModelFieldValue model (field :: GHC.Types.Symbol) :: GHC.Types.Type

@@ -10,6 +10,7 @@ import           ClassyPrelude                      hiding (div)
 import           Data.String.Conversions            (cs)
 import           Foundation.HaskellSupport
 import qualified Foundation.ModelSupport
+import Foundation.ModelSupport (ModelFieldType)
 import           Foundation.ValidationSupport
 import           Foundation.View.ConvertibleStrings ()
 import           Foundation.ViewErrorMessages
@@ -152,7 +153,7 @@ renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= di
 
 
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, IsLabel symbol (Foundation.ValidationSupport.ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (Foundation.ValidationSupport.ModelFieldType model) model, Foundation.ModelSupport.InputValue value ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, IsLabel symbol (ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (ModelFieldType model) model, Foundation.ModelSupport.InputValue value ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
     fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
                         fieldType = TextInput,
                         fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),

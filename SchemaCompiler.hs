@@ -152,6 +152,7 @@ compileTypes' table@(Table name attributes) =
     <> section
     <> compileIdNewType table
     <> section
+    <> compileModelFieldValueTypeInstances table
 
 
 compileValidators :: [Table] -> Text
@@ -159,7 +160,7 @@ compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compil
     where
         prelude = "-- This file is auto generated and will be overriden regulary."
                   <> section
-                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, ScopedTypeVariables  #-}"
+                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, ScopedTypeVariables, TypeFamilies  #-}"
                   <> section
                   <> "module Model.Generated.Validators where\n\n"
                   <> "import Foundation.ValidationSupport\n\n"
@@ -169,6 +170,7 @@ compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compil
                   <> "import GHC.Records\n"
                   <> "import Data.Proxy\n"
                   <> "import GHC.TypeLits (symbolVal, KnownSymbol)\n"
+                  <> "import Foundation.ModelSupport (ModelFieldType)\n"
                   <> intercalate "\n" (map (\(Table name attributes) -> "import qualified Model." <> tableNameToModelName name <> " (validator, combine, fields, Field(..))\n") database)
 
 
@@ -244,6 +246,15 @@ compileNewTypeAlias table@(Table name attributes) =
 		haskellType' fieldName fieldType | isJust (defaultValue fieldType) = "()"
 		haskellType' fieldName fieldType = haskellType table fieldName fieldType
 
+compileModelFieldValueTypeInstances :: Table -> Text
+compileModelFieldValueTypeInstances table@(Table name attributes) =
+        intercalate "\n" $ map compileModelFieldValueTypeInstance attributes
+    where
+        compileModelFieldValueTypeInstance :: Attribute -> Text
+        compileModelFieldValueTypeInstance (Field fieldName fieldType) =
+            "type instance ModelFieldValue " <> modelType <> " " <> tshow (columnNameToFieldName fieldName) <> " = " <> haskellType table fieldName fieldType
+        modelType = tableNameToModelName name
+
 compileNewOrSavedTypeAlias :: Table -> Text
 compileNewOrSavedTypeAlias table@(Table name attributes) =
 		"type NewOrSaved" <> tableNameToModelName name <> " = forall " <> (intercalate " " getAttributesWithDefaultValue) <> ". " <> compileNewOrSavedType table <> "\n"
@@ -270,6 +281,8 @@ compileIdNewType table@(Table name attributes) =
 	<> "instance HasId " <> typeName <> " where type IdType " <> typeName <> " = UUID; getId (" <> typeName <> " value) = value\n"
 	<> "instance Show " <> typeName <> " where show id = show (unwrap id)\n"
     <> "instance Default " <> typeName <> " where def = wrap def\n"
+    <> "instance ToField " <> typeName <> " where toField = toField . unwrap\n"
+    <> "instance FromField " <> typeName <> " where fromField value metaData = do fieldValue <- fromField value metaData; return $ wrap fieldValue\n"
     where typeName = primaryKeyTypeName table
 
 primaryKeyTypeName :: Table -> Text
@@ -633,8 +646,8 @@ compileCanValidate table@(Table name attributes) =
         <> compileCanValidateInstance (tableNameToModelName name) True
         <> section
         <> section
+        <> ("type instance ModelFieldType (" <> compileNewOrSavedType table <> ") = Model." <> tableNameToModelName name <> ".Field\n")
         <> "instance CanValidateField (" <> compileNewOrSavedType table <> ") where\n"
-        <> indent ("type ModelFieldType (" <> compileNewOrSavedType table <> ") = Model." <> tableNameToModelName name <> ".Field\n")
         <> indent compileValidateModelField
     where
         compileCanValidateInstance :: Text -> Bool -> Text

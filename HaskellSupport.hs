@@ -5,6 +5,7 @@ module Foundation.HaskellSupport ((|>), isEmpty, whenEmpty) where
     import qualified Data.UUID
 
     --(|>) :: a -> f -> f a
+    infixl 8 |>
     a |> f = f a
 
     isEmpty :: (Eq a, Monoid a) => a -> Bool
