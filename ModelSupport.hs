@@ -141,8 +141,8 @@ findOrNothing id = do
     results <- query (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id = ? LIMIT 1") [id]
     return $ headMay results
 
-find :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (GetModelById id)
-find id = do
+findModel :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (GetModelById id)
+findModel id = do
     result <- findOrNothing id
     return (fromMaybe (error "Model cannot be found") result)
 

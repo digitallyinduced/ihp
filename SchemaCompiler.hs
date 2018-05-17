@@ -85,10 +85,6 @@ compileTable table@(Table name attributes) =
     <> section
     <> compileBuild table
     <> section
-    <> compileFindByAttributes table
-    <> section
-    <> compileFindOneByAttributes table
-    <> section
     <> compileAttributeNames table
     <> section
     -- <> compileAssign table
@@ -454,47 +450,6 @@ compileIdentity table@(Table name attributes) =
 compileHasId :: Table -> Text
 compileHasId table@(Table name attributes) = "instance HasId " <> tableNameToModelName name <> " where getId (" <> tableNameToModelName name <> "{id}) = id\n"
 
-compileFindByAttributes table@(Table tableName attributes) =
-        intercalate "\n\n" $ map compileFindByAttribute attributes
-    where
-        compileFindByAttribute (Field name fieldType) =
-            let
-                modelName = tableNameToModelName tableName
-                fieldName = tableNameToModelName name
-            in
-                "findBy" <> fieldName <> " :: (?modelContext :: ModelContext) => " <> haskellType table name fieldType <> " -> IO [" <> modelName <> "]\n"
-                <> "findBy" <> fieldName <> " value = do\n"
-                <> indent (
-                    "let (ModelContext conn) = ?modelContext\n"
-                    <> "results <- Database.PostgreSQL.Simple.query conn \"SELECT * FROM " <> tableName <> " WHERE " <> name <> " = ?\" [value]\n"
-                    <> "return results\n"
-                )
-
-        compileFindByAttribute _ = ""
-
-compileFindOneByAttributes table@(Table tableName attributes) =
-        intercalate "\n\n" $ map compileFindByAttribute attributes
-    where
-        compileFindByAttribute (Field name fieldType) =
-            let
-                modelName = tableNameToModelName tableName
-                fieldName = tableNameToModelName name
-            in
-                "findOneBy" <> fieldName <> "OrNothing :: (?modelContext :: ModelContext) => " <> haskellType table name fieldType <> " -> IO (Maybe " <> modelName <> ")\n"
-                <> "findOneBy" <> fieldName <> "OrNothing value = do\n"
-                <> indent (
-                    "let (ModelContext conn) = ?modelContext\n"
-                    <> "results <- Database.PostgreSQL.Simple.query conn \"SELECT * FROM " <> tableName <> " WHERE " <> name <> " = ? LIMIT 1\" [value]\n"
-                    <> "return (headMay results)\n"
-                )
-                <> "findOneBy" <> fieldName <> " :: (?modelContext :: ModelContext) => " <> haskellType table name fieldType <> " -> IO " <> modelName <> "\n"
-                <> "findOneBy" <> fieldName <> " value = do\n"
-                <> indent (
-                    "result <- findOneBy" <> fieldName <> "OrNothing value\n"
-                    <> "return (fromMaybe (error \"Not found\") result)\n"
-                )
-
-        compileFindByAttribute _ = ""
 
 compileAttributeNames table@(Table tableName attributes) =
         "data Field = " <> (intercalate " | " (map compileAttributeName attributes)) <> " deriving (Show)"

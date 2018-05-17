@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances #-}
+{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes #-}
 
 module Foundation.QueryBuilder where
 
@@ -24,12 +24,13 @@ import Data.String.Conversions (cs)
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
-import Foundation.ModelSupport (ModelFieldValue, GetTableName)
+import Foundation.ModelSupport (ModelFieldValue, GetTableName, ModelContext, GetModelById, NewTypeWrappedUUID)
 import Model.Generated.Types
 import qualified Foundation.ModelSupport
 import Foundation.NameSupport (fieldNameToColumnName)
-queryBuilder :: forall model. QueryBuilder model
-queryBuilder = NewQueryBuilder
+
+query :: forall model. QueryBuilder model
+query = NewQueryBuilder
 
 data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
@@ -42,7 +43,8 @@ data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
         selectFrom :: Text,
         whereConditions :: [(Text, Action)],
-        orderByClause :: Maybe (Text, OrderByDirection)
+        orderByClause :: Maybe (Text, OrderByDirection),
+        limitClause :: Maybe Text
     }
 
 buildQuery :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> SQLQuery
@@ -50,7 +52,7 @@ buildQuery queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolVal @(GetTableName model) Proxy
-            in SQLQuery { selectFrom = cs tableName, whereConditions = [], orderByClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, whereConditions = [], orderByClause = Nothing, limitClause = Nothing }
         FilterByQueryBuilder (fieldProxy, value) queryBuilder ->
             let query = (buildQuery queryBuilder)
             in query { whereConditions = (whereConditions query) <> [((fieldNameToColumnName . cs $ symbolVal fieldProxy) <> " = ?", value)] }
@@ -61,19 +63,33 @@ buildQuery queryBuilder =
 
 fetch :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO [model]
 fetch queryBuilder =
-    let (theQuery, theParameters) = toSQL queryBuilder
+    let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
     in Foundation.ModelSupport.query (Query $ cs theQuery) theParameters
+
+fetchOneOrNothing :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
+fetchOneOrNothing queryBuilder = do
+    let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
+    results <- Foundation.ModelSupport.query (Query $ cs theQuery) theParameters
+    return $ listToMaybe results
+
+fetchOne :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
+fetchOne queryBuilder = do
+    maybeModel <- fetchOneOrNothing queryBuilder
+    return $ case maybeModel of
+        Just model -> model
+        Nothing -> error "Cannot find model"
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
-toSQL' SQLQuery { selectFrom, whereConditions, orderByClause } =
-        ("SELECT * FROM " <> selectFrom <> whereConditions' <> " " <> orderByClause', map snd whereConditions)
+toSQL' SQLQuery { selectFrom, whereConditions, orderByClause, limitClause } =
+        ("SELECT * FROM " <> selectFrom <> whereConditions' <> " " <> orderByClause' <> " " <> limitClause', map snd whereConditions)
     where
         whereConditions' = if length whereConditions == 0 then mempty else " WHERE " <> intercalate " AND " (map fst whereConditions)
         orderByClause' =
             case orderByClause of
                 Just (column, direction) -> " ORDER BY " <> column <> (if direction == Desc then " DESC" else mempty)
                 Nothing -> mempty
+        limitClause' = fromMaybe "" limitClause
 
 instance forall name model f value. (KnownSymbol name) => IsLabel name ((Proxy OrderByTag -> QueryBuilder model -> OrderByDirection -> QueryBuilder model)) where
     fromLabel _ queryBuilder orderByDirection = OrderByQueryBuilder (Proxy @name, orderByDirection) queryBuilder
@@ -97,3 +113,17 @@ orderBy makeOrderBy queryBuilder = makeOrderBy (Proxy @OrderByTag) queryBuilder 
 
 infixl 9 `isEq`
 a `isEq` b = filterWhere (a, b)
+
+
+findBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model)) => (Proxy FilterWhereTag -> queryBuilder -> value -> QueryBuilder model) -> value -> queryBuilder -> IO model
+findBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOne
+
+findMaybeBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model)) => (Proxy FilterWhereTag -> queryBuilder -> value -> QueryBuilder model) -> value -> queryBuilder -> IO (Maybe model)
+findMaybeBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOneOrNothing
+
+findById :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> QueryBuilder model -> IO model
+findById value queryBuilder = queryBuilder |> filterWhere (#id, value) |> fetchOne
+
+findManyBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model)) => (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) -> value -> QueryBuilder model -> IO [model]
+findManyBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetch
+-- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #workflowId id
