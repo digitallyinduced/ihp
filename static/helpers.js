@@ -31,14 +31,14 @@ function initDelete() {
     function handleClick(event) {
         event.preventDefault();
 
-        if (!event.target.classList.contains('js-delete-no-confirm')) {
+        if (!event.currentTarget.classList.contains('js-delete-no-confirm')) {
             if (!confirm('Are you sure you want to delete this?')) {
                 return;
             }
         }
 
         var form = document.createElement('form');
-        form.action = event.target.href;
+        form.action = event.currentTarget.href;
         form.method = 'POST';
 
         var methodInput = document.createElement('input');

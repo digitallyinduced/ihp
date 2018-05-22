@@ -132,7 +132,7 @@ deleteModel model = do
     let (ModelContext conn) = ?modelContext
     let id = getField @"id" model
     let tableName = getTableName model
-    PG.execute conn (PG.Query . cs $ "DELETE FROM " <> tableName <> " WHERE id = ? LIMIT 1") (PG.Only (unwrap id))
+    PG.execute conn (PG.Query . cs $ "DELETE FROM " <> tableName <> " WHERE id = ?") (PG.Only (unwrap id))
     return ()
 
 findOrNothing :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (Maybe (GetModelById id))
