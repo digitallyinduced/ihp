@@ -44,7 +44,8 @@ module Foundation.ViewPrelude (
     module GHC.OverloadedLabels,
     module GHC.Records,
     module Data.List.Split,
-    module Helper.View
+    module Helper.View,
+    isActivePathOrSub
 ) where
 
 import Model.Generated.Types
@@ -95,6 +96,13 @@ isActivePath path =
         currentPath = Network.Wai.rawPathInfo (View.Context.request ?viewContext)
     in
         currentPath == (cs path)
+
+isActivePathOrSub :: (?viewContext :: View.Context.ViewContext) => Text -> ClassyPrelude.Bool
+isActivePathOrSub path =
+    let
+        currentPath = Network.Wai.rawPathInfo (View.Context.request ?viewContext)
+    in
+        (cs path) `isPrefixOf` currentPath
 
 viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewContext
 viewContext = ?viewContext
