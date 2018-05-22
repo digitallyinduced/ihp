@@ -115,8 +115,9 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                 if disableLabel then return () else label ! A.class_ labelClass ! A.for (cs fieldInputId) $ fieldLabel
                 Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
                     --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
-                    Html5.option ! A.selected "selected" $ Html5.text ("Kein Team")
-                    forM_ (options fieldType) $ \(optionLabel, optionValue) -> (Html5.option ! A.value (cs optionValue) $ cs optionLabel)
+                    let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
+                    (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") $ Html5.text ("Kein Team")
+                    forM_ (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
                 renderValidationResult formField
 
 renderBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= button ! class_ "btn btn-primary" $ (if modelIsNew then "Create " else "Save ") <> (cs $ modelName)
