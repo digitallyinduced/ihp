@@ -22,8 +22,8 @@ compileDatabase = "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n\n" <>(lineSep
 
 compileTable table@(Table name attributes) =
     "-- Please don't make any modifications to this file as it's auto generated. Use src/Model/Schema.hs to change the schema\n"
-    <> (lineSep (map (compileCreateEnum table) attributes))
-    <> "CREATE TABLE " <> name <> " (\n" <> indent (intercalate ",\n" $ map (compileAttribute table) attributes) <> "\n);"
+    <> (lineSep (map (compileCreateEnum table) $ fieldsOnly attributes))
+    <> "CREATE TABLE " <> name <> " (\n" <> indent (intercalate ",\n" $ map (compileAttribute table) $ fieldsOnly attributes) <> "\n);"
 
 compileAttribute :: Table -> Attribute -> Text
 compileAttribute table field@(Field name fieldType) = name <> " " <> compileType fieldType

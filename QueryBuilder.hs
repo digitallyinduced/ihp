@@ -25,7 +25,6 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
 import Foundation.ModelSupport (ModelFieldValue, GetTableName, ModelContext, GetModelById, NewTypeWrappedUUID)
-import Model.Generated.Types
 import qualified Foundation.ModelSupport
 import Foundation.NameSupport (fieldNameToColumnName)
 
@@ -36,6 +35,7 @@ data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
     FilterByQueryBuilder :: KnownSymbol field => (Proxy field, Action) -> QueryBuilder model -> QueryBuilder model
     OrderByQueryBuilder :: KnownSymbol field => (Proxy field, OrderByDirection) -> QueryBuilder model -> QueryBuilder model
+    IncludeQueryBuilder :: KnownSymbol field => (Proxy field) -> QueryBuilder model -> QueryBuilder model
 
 deriving instance Show (QueryBuilder a)
 
@@ -44,7 +44,8 @@ data SQLQuery = SQLQuery {
         selectFrom :: Text,
         whereConditions :: [(Text, Action)],
         orderByClause :: Maybe (Text, OrderByDirection),
-        limitClause :: Maybe Text
+        limitClause :: Maybe Text,
+        includes :: [Text]
     }
 
 buildQuery :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> SQLQuery
@@ -52,23 +53,28 @@ buildQuery queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolVal @(GetTableName model) Proxy
-            in SQLQuery { selectFrom = cs tableName, whereConditions = [], orderByClause = Nothing, limitClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, whereConditions = [], orderByClause = Nothing, limitClause = Nothing, includes = [] }
         FilterByQueryBuilder (fieldProxy, value) queryBuilder ->
             let query = (buildQuery queryBuilder)
             in query { whereConditions = (whereConditions query) <> [((fieldNameToColumnName . cs $ symbolVal fieldProxy) <> " = ?", value)] }
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
             let query = (buildQuery queryBuilder)
             in query { orderByClause = Just (fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection) }
+        IncludeQueryBuilder (fieldProxy) queryBuilder ->
+            let query = (buildQuery queryBuilder)
+            in query { includes = (includes query) <> [fieldNameToColumnName . cs $ symbolVal fieldProxy] }
         otherwise -> error $ show otherwise
 
 fetch :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO [model]
-fetch queryBuilder =
+fetch queryBuilder = do
     let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
-    in Foundation.ModelSupport.query (Query $ cs theQuery) theParameters
+    putStrLn $ tshow (theQuery, theParameters)
+    Foundation.ModelSupport.query (Query $ cs theQuery) theParameters
 
 fetchOneOrNothing :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
 fetchOneOrNothing queryBuilder = do
     let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
+    putStrLn $ tshow (theQuery, theParameters)
     results <- Foundation.ModelSupport.query (Query $ cs theQuery) theParameters
     return $ listToMaybe results
 
@@ -81,20 +87,48 @@ fetchOne queryBuilder = do
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
-toSQL' SQLQuery { selectFrom, whereConditions, orderByClause, limitClause } =
-        ("SELECT * FROM " <> selectFrom <> whereConditions' <> " " <> orderByClause' <> " " <> limitClause', map snd whereConditions)
+toSQL' sqlQuery@SQLQuery { selectFrom, whereConditions, orderByClause, limitClause } =
+        (theQuery, theParams)
     where
-        whereConditions' = if length whereConditions == 0 then mempty else " WHERE " <> intercalate " AND " (map fst whereConditions)
+        theQuery =
+            "SELECT " <> selectors <> " FROM "
+            <> fromClause
+            <> whereConditions' <> " "
+            <> orderByClause' <> " "
+            <> limitClause'
+
+        commaSep = intercalate ", "
+        selectors :: Text
+        selectors = commaSep (rootTableSelector:joinedTableSelectors)
+            where
+                rootTableSelector :: Text
+                rootTableSelector = selectFrom <> ".*"
+                joinedTableSelectors :: [Text]
+                joinedTableSelectors = map (\tableName -> tableName <> ".*") (includes sqlQuery)
+        fromClause :: Text
+        fromClause = commaSep (rootTableFromClause:joinedTableFromClauses)
+            where
+                rootTableFromClause = selectFrom
+                joinedTableFromClauses = includes sqlQuery
+        theParams = map snd whereConditions
+        toQualifiedName unqualifiedName = selectFrom <> "." <> unqualifiedName
+        whereConditions' =
+            if length whereConditions == 0
+                then mempty
+                else " WHERE " <> intercalate " AND " (map toQualifiedName $ map fst whereConditions)
         orderByClause' =
             case orderByClause of
                 Just (column, direction) -> " ORDER BY " <> column <> (if direction == Desc then " DESC" else mempty)
                 Nothing -> mempty
         limitClause' = fromMaybe "" limitClause
 
-instance forall name model f value. (KnownSymbol name) => IsLabel name ((Proxy OrderByTag -> QueryBuilder model -> OrderByDirection -> QueryBuilder model)) where
+instance {-# OVERLAPS #-} forall name model f value. (KnownSymbol name) => IsLabel name ((Proxy OrderByTag -> QueryBuilder model -> OrderByDirection -> QueryBuilder model)) where
     fromLabel _ queryBuilder orderByDirection = OrderByQueryBuilder (Proxy @name, orderByDirection) queryBuilder
 
-instance forall name model f value. (KnownSymbol name, ToField (ModelFieldValue model name), f ~ (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model), value ~ ModelFieldValue model name) => IsLabel name f where
+instance {-# OVERLAPS #-} forall name model f value. (KnownSymbol name) => IsLabel name ((Proxy IncludeTag -> QueryBuilder model -> QueryBuilder model)) where
+    fromLabel _ queryBuilder = IncludeQueryBuilder (Proxy @name) queryBuilder
+
+instance {-# OVERLAPS #-} forall name model f value. (KnownSymbol name, ToField (ModelFieldValue model name), f ~ (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model), value ~ ModelFieldValue model name) => IsLabel name f where
     fromLabel _ queryBuilder value = FilterByQueryBuilder (Proxy @name, toField value) queryBuilder
 
 
@@ -110,6 +144,10 @@ filterWhere (makeCriteria, value) queryBuilder = makeCriteria (Proxy @FilterWher
 data OrderByTag
 orderBy :: (Proxy OrderByTag -> QueryBuilder model -> OrderByDirection -> QueryBuilder model) -> QueryBuilder model -> QueryBuilder model
 orderBy makeOrderBy queryBuilder = makeOrderBy (Proxy @OrderByTag) queryBuilder Asc
+
+data IncludeTag
+include :: (Proxy IncludeTag -> QueryBuilder model -> QueryBuilder model) -> QueryBuilder model -> QueryBuilder model
+include makeInclude queryBuilder = makeInclude (Proxy @IncludeTag) queryBuilder
 
 infixl 9 `isEq`
 a `isEq` b = filterWhere (a, b)
