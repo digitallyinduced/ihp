@@ -27,6 +27,8 @@ initdb: src/Model/Schema.sql src/Model/Fixtures.sql
 	psql -p 8001 -d app < src/Model/Schema.sql
 	psql -p 8001 -d app < src/Model/Fixtures.sql
 
+initfixtures:
+	pg_dump -a --inserts --disable-trigger -p 8001 app > src/Model/Fixtures.sql
 
 ghci:
 	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XFlexibleContexts -XDuplicateRecordFields -fexternal-interpreter
