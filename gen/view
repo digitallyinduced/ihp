@@ -88,3 +88,13 @@ if (!file_exists($viewDirectory)) {
 
 file_put_contents($viewPath, $body);
 echo "+ $viewPath\n";
+
+if (file_exists($controllerPath)) {
+    $content = file_get_contents($controllerPath);
+    $lines = explode("\n", $content);
+    $importLine = "import View.$controller." . ucfirst($action);
+    array_splice($lines, 2, 0, [$importLine]);
+    $newContent = implode("\n", $lines);
+    file_put_contents($controllerPath, $newContent);
+    echo "* $controllerPath\n";
+}
