@@ -188,11 +188,11 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         renderFormField = let FormContext { renderFormField } = formContext in renderFormField
                     }
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model (Maybe (SelectValue item)), CanSelect item, Foundation.ModelSupport.NewTypeWrappedUUID (SelectValue item)) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model (Maybe (SelectValue item)), CanSelect item, Foundation.ModelSupport.InputValue (SelectValue item)) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
     fromLabel = \(formContext, viewContext, items, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
                         fieldType =
                             let
-                                itemToTuple item = (selectLabel item, (Foundation.ModelSupport.inputValue . Foundation.ModelSupport.unwrap) (selectValue item))
+                                itemToTuple item = (selectLabel item, Foundation.ModelSupport.inputValue (selectValue item))
                             in
                                  SelectInput $ map itemToTuple items
                             ,
@@ -200,7 +200,7 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         fieldLabel = cs . removeIdSuffix $ fieldNameToFieldLabel fieldName,
                         fieldValue =
                             let value = ((getField @(symbol) (model formContext)) :: Maybe (SelectValue item))
-                            in maybe "" (Foundation.ModelSupport.inputValue . Foundation.ModelSupport.unwrap) value,
+                            in maybe "" (Foundation.ModelSupport.inputValue) value,
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
                         validatorResult = Success,
                         fieldClass = "",
