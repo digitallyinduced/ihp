@@ -7,6 +7,16 @@ Foundation
 2. Install direnv via homebrew: `brew install direnv`
 3. Run `make` in the project root. This will launch the database server and the webserver. You can visit the app at `http://localhost:8000/`.
 
+## Useful Commands
+Create a ghci instance with all files loaded. Useful to manually regenerate files.
+```
+make ghci
+```
+Regenerate Nix-Environment 
+```
+make -B .envrc
+```
+
 # Generators
 
 ## Adding a view
