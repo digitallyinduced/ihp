@@ -29,8 +29,8 @@ instance Data.Default.Default Data.UUID.UUID where
 (==>) :: forall model attribute value. (KnownSymbol attribute, HasField attribute model value) => model -> Proxy attribute -> value
 (==>) struct _ = getField @attribute struct
 
-get :: forall attribute model value. (KnownSymbol attribute, HasField attribute model value) => model -> value
-get model = getField @attribute model
+get :: forall attribute model value. (model -> value) -> model -> value
+get getter model = getter model
 
-instance {-# OVERLAPS #-} forall name. (KnownSymbol name) => IsLabel name (Proxy name) where
-    fromLabel = Proxy @name
+instance forall name model value. (KnownSymbol name, HasField name model value) => IsLabel name (model -> value) where
+    fromLabel = getField @name
