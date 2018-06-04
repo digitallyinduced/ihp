@@ -451,7 +451,7 @@ compileFromRowInstance table@(Table name attributes) =
         compileValue (HasMany name) = "()"
 
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
-        compileQuery (HasMany hasManyName) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (#workflowId, " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") QueryBuilder.query)"
+        compileQuery (HasMany hasManyName) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (#workflowId, " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
 
 compileUnit :: Table -> Text
 compileUnit table@(Table name attributes) =
