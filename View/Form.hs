@@ -56,7 +56,8 @@ data FormField = FormField {
         disableLabel :: Bool,
         modelIsNew :: Bool,
         formIsSubmitted :: Bool,
-        renderFormField :: FormField -> Html5.Html
+        renderFormField :: FormField -> Html5.Html,
+        helpText :: Text
     }
 
 data SubmitButton = SubmitButton { modelIsNew :: Bool, modelName :: Text, renderSubmit :: SubmitButton -> Html5.Html }
@@ -75,11 +76,15 @@ formFor' formContext url inner = form ! method "POST" ! action (cs url) $ do
     let ?formContext = formContext in inner
 
 
-
 submitButton :: (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => SubmitButton
 submitButton = SubmitButton { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext), modelName = Foundation.ModelSupport.getModelName (model ?formContext), renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit }
 
 data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput | TextareaInput | SelectInput { options :: [(Text, Text)] }
+
+renderHelpText (FormField { helpText }) =
+    case helpText of
+        "" -> mempty
+        helpText -> small ! A.class_ "form-text text-muted" $ text helpText
 
 renderValidationResult (FormField { modelIsNew, validatorResult })= when modelIsNew $ case validatorResult of
                 Success         -> return ()
@@ -109,6 +114,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                 if disableLabel then return () else label ! A.class_ labelClass ! A.for (cs fieldInputId) $ fieldLabel
                 fieldInput ! type_ inputType ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
                 renderValidationResult formField
+                renderHelpText formField
         renderSelectField :: FormField -> Html5.Html
         renderSelectField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) =
             maybeWithFormGroup formField $ do
@@ -168,7 +174,8 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         fieldInput = input,
                         modelIsNew = Foundation.ModelSupport.isNew (model formContext),
                         formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
-                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField
+                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField,
+                        helpText = ""
                     }
 
 instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model Bool) => IsLabel symbol ((FormContext model, ViewContext, Proxy Bool) -> FormField) where
@@ -185,10 +192,11 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         fieldInput = input,
                         modelIsNew = Foundation.ModelSupport.isNew (model formContext),
                         formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
-                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField
+                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField,
+                        helpText = ""
                     }
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model (Maybe (SelectValue item)), CanSelect item, Foundation.ModelSupport.InputValue (SelectValue item)) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model ((SelectValue item)), CanSelect item, Foundation.ModelSupport.InputValue (SelectValue item)) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
     fromLabel = \(formContext, viewContext, items, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
                         fieldType =
                             let
@@ -199,8 +207,8 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
                         fieldLabel = cs . removeIdSuffix $ fieldNameToFieldLabel fieldName,
                         fieldValue =
-                            let value = ((getField @(symbol) (model formContext)) :: Maybe (SelectValue item))
-                            in maybe "" (Foundation.ModelSupport.inputValue) value,
+                            let value = ((getField @(symbol) (model formContext)) :: (SelectValue item))
+                            in Foundation.ModelSupport.inputValue value,
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
                         validatorResult = Success,
                         fieldClass = "",
@@ -209,7 +217,8 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         fieldInput = Html5.select mempty,
                         modelIsNew = Foundation.ModelSupport.isNew (model formContext),
                         formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
-                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField
+                        renderFormField = let FormContext { renderFormField } = formContext in renderFormField,
+                        helpText = ""
                     }
 
 fieldNameToFieldLabel :: Text -> Text
