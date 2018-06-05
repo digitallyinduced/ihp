@@ -8,23 +8,20 @@ import qualified Data.Text
 -- `users` => `User`
 -- `projects` => `Project`
 tableNameToModelName :: Text -> Text
-tableNameToModelName tableName =
-    let (Right modelName) = Inflector.toCamelCased True $ cs (pluralToSingular tableName)
-    in modelName
+tableNameToModelName tableName = unwrapEither tableName $ Inflector.toCamelCased True $ cs (pluralToSingular tableName)
 
 -- `email` => `email`
 -- `project_id` => `projectId`
 columnNameToFieldName :: Text -> Text
-columnNameToFieldName columnName =
-    let (Right fieldName) = Inflector.toCamelCased False columnName
-    in fieldName
+columnNameToFieldName columnName = unwrapEither columnName $ Inflector.toCamelCased False columnName
+
+unwrapEither _ (Right value) = value
+unwrapEither input (Left value) = error "Foundation.NameSupport: " <> tshow value <> " (value to be transformed: " <>  tshow input <> ")"
 
 -- `email` => `email`
 -- `projectId` => `project_id`
 fieldNameToColumnName :: Text -> Text
-fieldNameToColumnName columnName =
-    let (Right fieldName) = Inflector.toUnderscore columnName
-    in fieldName
+fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUnderscore columnName
 
 
 pluralToSingular :: Text -> Text
@@ -34,7 +31,7 @@ pluralToSingular w    | toLower w == "status"
                       = w
 pluralToSingular word = fromMaybe word (stripSuffix "s" word)
 
-humanize text = let (Right value) = Inflector.toHumanized True text in value
+humanize text = unwrapEither text $ Inflector.toHumanized True text
 
 applyFirst :: (Text -> Text) -> Text -> Text
 applyFirst f text =
