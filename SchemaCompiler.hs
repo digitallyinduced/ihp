@@ -4,7 +4,7 @@ import ClassyPrelude
 import Data.String.Conversions (cs)
 import Model.Schema (database)
 import Foundation.SchemaSupport
-import Foundation.NameSupport (tableNameToModelName, columnNameToFieldName)
+import Foundation.NameSupport (tableNameToModelName, columnNameToFieldName, pluralToSingular)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
@@ -451,7 +451,7 @@ compileFromRowInstance table@(Table name attributes) =
         compileValue (HasMany name) = "()"
 
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
-        compileQuery (HasMany hasManyName) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (#workflowId, " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
+        compileQuery (HasMany hasManyName) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (#" <> columnNameToFieldName (pluralToSingular name) <> "Id, " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
 
 compileUnit :: Table -> Text
 compileUnit table@(Table name attributes) =
