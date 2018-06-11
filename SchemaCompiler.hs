@@ -227,7 +227,10 @@ compileTypeAlias table@(Table name attributes) =
         compileFields attributes = intercalate " " $ map compileField attributes
         compileField :: Attribute -> Text
         compileField (Field fieldName fieldType) = haskellType table fieldName fieldType
-        compileField (HasMany name) = "(QueryBuilder.QueryBuilder " <> (tableNameToModelName name) <> ")"
+        compileField (HasMany name inverseOf) = "(QueryBuilder.QueryBuilder " <> compileInverseOf inverseOf <> ")"
+            where
+                compileInverseOf Nothing = tableNameToModelName name
+                compileInverseOf (Just name) = tableNameToModelName name
 
 
 compileNewTypeAlias :: Table -> Text
@@ -239,7 +242,7 @@ compileNewTypeAlias table@(Table name attributes) =
         compileFields attributes = intercalate " " $ map compileField attributes
         compileField :: Attribute -> Text
         compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
-        compileField (HasMany _) = "()"
+        compileField (HasMany {}) = "()"
         haskellType' fieldName fieldType | isJust (defaultValue fieldType) = "()"
         haskellType' fieldName fieldType = haskellType table fieldName fieldType
 
@@ -258,9 +261,9 @@ compileNewOrSavedTypeAlias table@(Table name attributes) =
 	    where
             getAttributesWithDefaultValue = map getName $ filter hasDefaultValue attributes
             getName (Field fieldName _) = fieldName
-            getName (HasMany name) = name
+            getName (HasMany {name}) = name
             hasDefaultValue (Field fieldName fieldType) | isJust (defaultValue fieldType) = True
-            hasDefaultValue (HasMany _) = True
+            hasDefaultValue (HasMany {}) = True
             hasDefaultValue _ = False
 
 compileNewOrSavedType :: Table -> Text
@@ -271,7 +274,7 @@ compileNewOrSavedType table@(Table name attributes) =
         compileFields attributes = intercalate " " $ map compileField attributes
         compileField :: Attribute -> Text
         compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
-        compileField (HasMany name) = name
+        compileField (HasMany {name}) = name
         haskellType' fieldName fieldType | isJust (defaultValue fieldType) = fieldName
         haskellType' fieldName fieldType = haskellType table fieldName fieldType
 
@@ -311,7 +314,7 @@ compileGenericDataDefinition table@(Table name attributes) =
                 fieldName =
                     case attribute of
                         Field fieldName _ -> fieldName
-                        HasMany fieldName -> fieldName
+                        HasMany {name} -> name
 
 compileEnumDataDefinitions :: Table -> Text
 compileEnumDataDefinitions table@(Table name attributes) =
@@ -381,7 +384,7 @@ toBinding modelName attribute = Just ("let " <> modelName <> "{" <> columnNameTo
         fieldName =
             case attribute of
                 Field fieldName _ -> fieldName
-                HasMany fieldName -> fieldName
+                HasMany {name} -> name
 
 compileUpdate table@(Table name attributes) =
     let
@@ -446,12 +449,15 @@ compileFromRowInstance table@(Table name attributes) =
             <> ("fromRow = do model <- " <> modelConstructor <> " <$> " <>  (intercalate " <*> " $ map (const "field") $ fieldsOnly attributes)) <> "; return " <> tableNameToModelName name <> " { " <> intercalate ", " (map compileQuery attributes) <> " }\n"
         modelConstructor = "(\\" <> intercalate " " (map compileParam $ fieldsOnly attributes) <> " -> " <> tableNameToModelName name <> " " <> intercalate " " (map compileValue attributes) <> ")"
         compileParam (Field fieldName _) = fieldName
-        compileParam (HasMany name) = name
+        compileParam (HasMany {name}) = name
         compileValue field@(Field _ _) = compileParam field
-        compileValue (HasMany name) = "()"
+        compileValue (HasMany {}) = "()"
 
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
-        compileQuery (HasMany hasManyName) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (#" <> columnNameToFieldName (pluralToSingular name) <> "Id, " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
+        compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (#" <> compileInverseOf inverseOf <> "Id, " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
+            where
+                compileInverseOf Nothing = columnNameToFieldName (pluralToSingular name)
+                compileInverseOf (Just name) = columnNameToFieldName (pluralToSingular name)
 
 compileUnit :: Table -> Text
 compileUnit table@(Table name attributes) =
@@ -493,9 +499,9 @@ compileAttributeNames table@(Table tableName attributes) =
     where
         moduleNamePrefix = "Model.Generated." <> tableNameToModelName tableName <> "."
         compileAttributeName (Field name _) = tableNameToModelName name
-        compileAttributeName (HasMany name) = tableNameToModelName name
+        compileAttributeName (HasMany {name}) = tableNameToModelName name
         compileParamName (Field name _) = indent $ "paramName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
-        compileParamName (HasMany name) = indent $ "paramName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
+        compileParamName (HasMany {name}) = indent $ "paramName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
         compileFormFieldName (Field name _) = indent $ "formFieldName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
         compileFormFieldValue (Field name _) = indent $ "formFieldValue " <> moduleNamePrefix <> (tableNameToModelName name) <> " (" <> tableNameToModelName tableName <> " { " <> columnNameToFieldName name <> " }) = inputValue " <> columnNameToFieldName name
         compileIsLabel (Field fieldName fieldType) = "instance IsLabel " <> tshow (columnNameToFieldName fieldName) <> " Field where fromLabel = " <> moduleNamePrefix <> tableNameToModelName fieldName
@@ -508,7 +514,7 @@ compileFieldModel table@(Table tableName attributes) =
                 name =
                     case attribute of
                         Field name _ -> name
-                        HasMany name -> name
+                        HasMany {name} -> name
 
 compileAssign table@(Table tableName attributes) =
         ""
@@ -536,7 +542,7 @@ compileConst table@(Table tableName attributes) =
                 fieldName =
                     case field of
                         Field fieldName _ -> fieldName
-                        HasMany fieldName -> fieldName
+                        HasMany {name} -> name
         typeSignature = tableNameToModelName tableName <> "' " <> (intercalate " " $ map (\i -> "p" <> tshow i) typeArgumentNumbers) <> " -> " <> tableNameToModelName tableName <> "' " <> (intercalate " " $ map (\i -> "(p" <> tshow i <> "' -> " <> "p" <> tshow i <> ")") typeArgumentNumbers)
         typeArgumentNumbers :: [Int]
         typeArgumentNumbers = (map snd (zip attributes [1..]))
@@ -547,13 +553,13 @@ compileErrorHints table@(Table tableName attributes) =
         attributesWithoutDefaultValues = filter (not . hasDefaultValue) attributes
         hasDefaultValue (Field _ fieldValue) | isJust (defaultValue fieldValue) = True
         hasDefaultValue (Field _ _) = False
-        hasDefaultValue (HasMany _) = False
+        hasDefaultValue (HasMany {}) = False
         compileArgument currentAttribute attribute =
             if currentAttribute == attribute
                 then "()"
                 else case attribute of
                     Field name _ -> name
-                    HasMany name -> name
+                    HasMany {name} -> name
         compileArguments attributes currentAttribute = map (compileArgument currentAttribute) attributes
 
         compileErrorHintForAttribute :: Attribute -> Text
@@ -561,7 +567,7 @@ compileErrorHints table@(Table tableName attributes) =
             let
                 arguments :: Text
                 arguments = intercalate " " (compileArguments attributes attribute)
-                name = case attribute of Field name _ -> name; HasMany name -> name
+                name = case attribute of Field name _ -> name; HasMany {name} -> name
             in
                 "instance TypeError (GHC.TypeLits.Text \"Parameter `" <> name <> "` is missing\" ':$$: 'GHC.TypeLits.Text \"Add something like `" <> name <> " = ...`\") => (Foundation.ModelSupport.CanCreate (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ")) where type Created (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ") = (); create = error \"Unreachable\";"
 
@@ -650,7 +656,7 @@ compileColumnNames table@(Table tableName attributes) = "columnNames = " <> tabl
     where
         compiledFields = intercalate " " (map compileField attributes)
         compileField (Field fieldName _) = "(" <>tshow fieldName <> " :: ByteString)"
-        compileField (HasMany fieldName) = "(" <>tshow fieldName <> " :: ByteString)"
+        compileField (HasMany {name}) = "(" <>tshow name <> " :: ByteString)"
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"
