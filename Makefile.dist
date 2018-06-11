@@ -1,6 +1,6 @@
 .PHONY: run
 
-GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -XQuasiQuotes -XScopedTypeVariables -XTypeFamilies -XRecordWildCards -XTypeApplications -XDataKinds
+GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -XQuasiQuotes -XScopedTypeVariables -XTypeFamilies -XRecordWildCards -XTypeApplications -XDataKinds -XOverloadedLabels
 RUNGHC=runghc
 
 .envrc: default.nix src/Foundation/NixSupport/default.nix
@@ -28,7 +28,7 @@ initdb: src/Model/Schema.sql src/Model/Fixtures.sql
 	psql -p 8001 -d app < src/Model/Fixtures.sql
 
 initfixtures:
-	pg_dump -a --inserts --disable-trigger -p 8001 app > src/Model/Fixtures.sql
+	pg_dump -a --inserts --disable-triggers -p 8001 app > src/Model/Fixtures.sql
 
 ghci:
 	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XFlexibleContexts -XDuplicateRecordFields -fexternal-interpreter
