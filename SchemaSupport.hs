@@ -8,7 +8,7 @@ data Table = Table Text [Attribute]
 
 data Attribute = Field Name FieldType
                | BelongsTo Name
-               | HasMany Name
+               | HasMany { name :: Name, inverseOf :: Maybe Name }
                deriving (Show, Eq, Ord)
 
 newtype SqlType = SqlType Text
@@ -43,7 +43,7 @@ bool = BoolField { defaultValue = Nothing, allowNull = False, isPrimaryKey = Fal
 timestamp = Timestamp { defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
 
 belongsTo = BelongsTo
-hasMany = HasMany
+hasMany name = HasMany { name = name, inverseOf = Nothing }
 
 createdAt = field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }
 updatedAt = field "updated_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }
