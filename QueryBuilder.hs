@@ -31,15 +31,16 @@ import Foundation.NameSupport (fieldNameToColumnName)
 query :: forall model. QueryBuilder model
 query = NewQueryBuilder
 
-data FilterOperator = EqOp | InOp deriving (Show, Eq)
+data FilterOperator = EqOp | InOp | IsOp deriving (Show, Eq)
 
-compileOperator :: FilterOperator -> Text
-compileOperator EqOp = "="
-compileOperator InOp = "IN"
+
+compileOperator _ EqOp = "="
+compileOperator _ InOp = "IN"
+compileOperator _ IsOp = "IS"
 
 data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
-    FilterByQueryBuilder :: KnownSymbol field => (Proxy field, FilterOperator, Action) -> QueryBuilder model -> QueryBuilder model
+    FilterByQueryBuilder :: (KnownSymbol field) => (Proxy field, FilterOperator, Action) -> QueryBuilder model -> QueryBuilder model
     OrderByQueryBuilder :: KnownSymbol field => (Proxy field, OrderByDirection) -> QueryBuilder model -> QueryBuilder model
     IncludeQueryBuilder :: KnownSymbol field => (Proxy field) -> QueryBuilder model -> QueryBuilder model
     UnionQueryBuilder :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
@@ -66,7 +67,7 @@ buildQuery queryBuilder =
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = (buildQuery queryBuilder)
-                condition = VarCondition ((fieldNameToColumnName . cs $ symbolVal fieldProxy) <> " " <> compileOperator operator <> " ?") value
+                condition = VarCondition ((fieldNameToColumnName . cs $ symbolVal fieldProxy) <> " " <> compileOperator fieldProxy operator <> " ?") value
             in
                 query { whereCondition = Just $ case whereCondition query of Just c -> AndCondition c condition; Nothing -> condition }
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
@@ -174,8 +175,13 @@ instance {-# OVERLAPS #-} forall name model f value. (KnownSymbol name) => IsLab
 instance {-# OVERLAPS #-} forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), value ~ ModelFieldValue model name) => IsLabel name (Proxy FilterWhereTag -> QueryBuilder model -> [value] -> QueryBuilder model) where
     fromLabel _ queryBuilder value = FilterByQueryBuilder (Proxy @name, InOp, toField (In value)) queryBuilder
 
-instance forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), value ~ ModelFieldValue model name) => IsLabel name (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) where
-    fromLabel _ queryBuilder value = FilterByQueryBuilder (Proxy @name, EqOp, toField value) queryBuilder
+instance forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), value ~ ModelFieldValue model name, EqOrIsOperator value) => IsLabel name (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) where
+    fromLabel _ queryBuilder value = FilterByQueryBuilder (Proxy @name, toEqOrIsOperator value, toField value) queryBuilder
+
+-- Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
+class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
+instance EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
+instance EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
 
 
 
