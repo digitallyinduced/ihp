@@ -45,7 +45,8 @@ module Foundation.ViewPrelude (
     module GHC.Records,
     module Data.List.Split,
     module Helper.View,
-    isActivePathOrSub
+    isActivePathOrSub,
+    module View.Context
 ) where
 
 import Model.Generated.Types
@@ -67,7 +68,7 @@ import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, 
                                                placeholder, rel, src, style, type_, value)
 import qualified Text.Blaze.Html5.Attributes  as A
 import           UrlGenerator
-import qualified View.Context
+import View.Context
 import Foundation.View.Form
 import Foundation.View.ConvertibleStrings ()
 import Model.Generated.Validators
