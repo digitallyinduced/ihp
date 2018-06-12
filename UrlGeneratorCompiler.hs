@@ -20,6 +20,9 @@ main = c
 
 compile :: IO ()
 compile = do
+    let ?controllerContext = undefined
+    let ?modelContext = undefined
+    let ?requestContext = undefined
     writeCompiledUrlGenerator (doCompile Routes.match)
 
 doCompile :: Router -> Text

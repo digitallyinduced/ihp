@@ -2,7 +2,7 @@ module Foundation.Server (run) where
 import ClassyPrelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
-import Foundation.Router (Router, match)
+import Foundation.Router (AppRouter, match)
 
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
@@ -19,6 +19,7 @@ import qualified Data.Time.Clock
 
 import Foundation.ModelSupport
 import Foundation.ApplicationContext
+import qualified Foundation.ControllerSupport as ControllerSupport
 
 import Database.PostgreSQL.Simple
 
@@ -39,11 +40,19 @@ run = do
     session <- Vault.newKey
     store <- fmap clientsessionStore getDefaultKey
     let applicationContext = ApplicationContext (ModelContext conn) session
-    Warp.runEnv defaultPort $ withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session $ logStdoutDev $ staticPolicy (addBase "static/")  $ staticPolicy (addBase "src/Foundation/static/") $ Foundation.LoginSupport.Middleware.middleware applicationContext $ methodOverridePost $ application Routes.match applicationContext
-
--- TODO: logger middleware
-application :: Router -> ApplicationContext -> Application
-application router applicationContext request respond = do
-    case match request router of
-        Just application -> application applicationContext request respond
-        Nothing -> respond $ responseLBS status404 [] "Not found!"
+    let application :: Application = \request respond -> do
+            boundRouter <- ControllerSupport.withContext Routes.match applicationContext request respond
+            case match request boundRouter  of
+                Just application -> application
+                Nothing -> respond $ responseLBS status404 [] "Not found!"
+    let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
+    let logMiddleware :: Middleware = logStdoutDev
+    let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase "src/Foundation/static/")
+    let frameworkMiddleware :: Middleware = Foundation.LoginSupport.Middleware.middleware applicationContext
+    Warp.runEnv defaultPort $
+            sessionMiddleware $
+                logMiddleware $
+                    staticMiddleware $
+                         frameworkMiddleware $
+                            methodOverridePost $
+                                application

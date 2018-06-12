@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ControllerSupport (withContext, Action, cs, (|>), redirectTo, getRequestBody, getRequestUrl, RequestContext (..)) where
+module Foundation.ControllerSupport (withContext, Action, Action', cs, (|>), redirectTo, getRequestBody, getRequestUrl, RequestContext (..)) where
 import ClassyPrelude
 import Foundation.HaskellSupport
 import Data.String.Conversions (cs)
@@ -35,6 +35,7 @@ import qualified Data.Vault.Lazy         as Vault
 import qualified Controller.Context
 
 type Action = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => IO ResponseReceived)
+type Action' = IO ResponseReceived
 
 --request :: StateT RequestContext IO ResponseReceived -> Request
 --request = do
@@ -59,11 +60,11 @@ getRequestUrl =
     let (RequestContext request _ _ _ _) = ?requestContext
     in Network.Wai.rawPathInfo request
 
-withContext :: Action -> ApplicationContext -> Request -> Respond -> IO ResponseReceived
+withContext :: ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => a) -> ApplicationContext -> Request -> Respond -> IO a
 withContext theAction (ApplicationContext modelContext session) request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
     let ?requestContext = RequestContext request respond params files session
     let ?modelContext = modelContext
     controllerContext <- Controller.Context.createControllerContext
     let ?controllerContext = controllerContext
-    theAction
+    return $ theAction

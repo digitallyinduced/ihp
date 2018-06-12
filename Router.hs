@@ -1,7 +1,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE InstanceSigs              #-}
-{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses, ScopedTypeVariables, AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
 
 module Foundation.Router
     ( match
@@ -24,6 +24,8 @@ module Foundation.Router
     , child
     , edit
     , resource'
+    , justAction
+    , AppRouter
     ) where
 
 import           ClassyPrelude                 hiding (index, delete, show)
@@ -38,16 +40,20 @@ import Data.UUID (UUID)
 import qualified Data.UUID
 import Foundation.ModelSupport (NewTypeWrappedUUID, wrap, unwrap)
 
+import qualified Controller.Context
+import qualified Foundation.ModelSupport
+import qualified Foundation.Controller.RequestContext
+
 data Router = MatchMethod Method Matchable
     | Prefix ByteString Matchable
     | Capture (UUID -> Matchable) -- | Capture (Int -> ApplicationContext -> Application)
-    | Action (ApplicationContext -> Application)
+    | Action ControllerSupport.Action'
 
 data UrlGenerator = UrlGenerator { path :: [UrlGeneratorPath] } deriving (Show)
 data UrlGeneratorPath = Constant ByteString | Variable ByteString deriving (Show)
 
 class Match a where
-    match' :: ByteString -> Request -> a -> Maybe (ApplicationContext -> Application)
+    match' :: ByteString -> Request -> a -> Maybe ControllerSupport.Action'
     urlGenerators :: a -> UrlGenerator -> [UrlGenerator]
 
 data Matchable = forall a . Match a => Matchable a
@@ -69,11 +75,16 @@ prefix url matchable = Prefix url (toMatchable matchable)
 arg :: Match a => (UUID -> a) -> Router
 arg matchable = Capture (\value -> toMatchable (matchable value))
 
-match :: Request -> Router -> Maybe (ApplicationContext -> Application)
+match :: Request -> Router -> Maybe ControllerSupport.Action'
 match request router = match' (rawPathInfo request) request router
 
-action :: ControllerSupport.Action -> Router
-action = Action . ControllerSupport.withContext
+action :: (?controllerContext::Controller.Context.ControllerContext, ?modelContext::Foundation.ModelSupport.ModelContext, ?requestContext::Foundation.Controller.RequestContext.RequestContext)  => ControllerSupport.Action -> Router
+action = Action
+
+justAction :: (?controllerContext::Controller.Context.ControllerContext, ?modelContext::Foundation.ModelSupport.ModelContext, ?requestContext::Foundation.Controller.RequestContext.RequestContext)  => ControllerSupport.Action -> Maybe Router
+justAction = Just . action
+
+type AppRouter = (?controllerContext::Controller.Context.ControllerContext, ?modelContext::Foundation.ModelSupport.ModelContext, ?requestContext::Foundation.Controller.RequestContext.RequestContext) => Router
 
 instance Match Router where
     match' requestUrl request router =
@@ -121,47 +132,49 @@ instance Match Matchable where
     match' requestUrl request (Matchable matchable) = match' requestUrl request matchable
     urlGenerators (Matchable matchable) urlGenerator = urlGenerators matchable urlGenerator
 
-data Resource idType = Resource {
+data Resource idType newType createType indexType showType editType updateType destroyType = Resource  {
         baseUrl :: ByteString,
-        index :: Maybe Router,
-        new :: Maybe Router,
-        create :: Maybe Router,
-        destroy ::  Maybe (idType -> Router),
-        update :: Maybe (idType -> Router),
-        show :: Maybe (idType -> Router),
-        edit :: Maybe (idType -> Router),
+        index :: indexType,
+        new :: newType,
+        create :: createType,
+        destroy :: idType -> destroyType,
+        update :: idType -> updateType,
+        show :: showType,
+        edit :: editType,
         child :: Maybe (idType -> Router)
     }
 
-resource = Resource { baseUrl = "", index = Nothing, new = Nothing, create = Nothing, destroy = Nothing, update = Nothing, show = Nothing, edit = Nothing, child = Nothing }
+type EmptyResource idType = Resource idType (Maybe Router) (Maybe Router) (Maybe Router) (Maybe (idType -> Router)) (Maybe (idType -> Router)) () ()
+resource :: EmptyResource idType
+resource = Resource { baseUrl = "", index = Nothing, new = Nothing, create = Nothing, destroy = const (), update = const (), show = Nothing, edit = Nothing, child = Nothing }
 
-resource' :: Resource NoUUID
-resource' = Resource { baseUrl = "", index = Nothing, new = Nothing, create = Nothing, destroy = Nothing, update = Nothing, show = Nothing, edit = Nothing, child = Nothing }
+resource' :: EmptyResource NoUUID
+resource' = Resource { baseUrl = "", index = Nothing, new = Nothing, create = Nothing, destroy = const (), update = const (), show = Nothing, edit = Nothing, child = Nothing }
 
 newtype NoUUID = NoUUID ()
 instance NewTypeWrappedUUID NoUUID where
     wrap = error ""
     unwrap = error ""
 
-toRoutes :: NewTypeWrappedUUID idType => Resource idType -> Router
+toRoutes :: forall idType newType createType indexType showType editType updateType destroyType. (NewTypeWrappedUUID idType, ToMaybeRouter newType, ToMaybeRouter createType, ToMaybeRouter indexType, ToMaybeRouterWithId showType idType, ToMaybeRouterWithId editType idType, ToMaybeRouter destroyType, ToMaybeRouter updateType) => Resource idType newType createType indexType showType editType updateType destroyType -> Router
 toRoutes resource =
     prefix (baseUrl resource) (catMaybes [
             Just (prefix "/" (catMaybes [
-                    case new resource of
+                    case toMaybeRouter (new resource) of
                         Just action -> Just (prefix "new" $ get action)
                         Nothing     -> Nothing
                     ,
                     Just (arg $ \(id :: UUID) -> (catMaybes [
-                        case let Resource{destroy} = resource in destroy of
-                            Just action -> Just (delete (action $ (wrap id)))
+                        case let Resource{destroy} = resource in toMaybeRouter (destroy (wrap id)) of
+                            Just action -> Just (delete action)
                             Nothing -> Nothing,
-                        case let Resource{update} = resource in update of
-                            Just action -> Just (post (action $ wrap id))
+                        case let Resource{update} = resource in toMaybeRouter (update (wrap id)) of
+                            Just action -> Just (post action)
                             Nothing -> Nothing,
-                        case let Resource{show} = resource in show of
+                        case let Resource{show} = resource in (toMaybeRouterWithId :: showType -> Maybe (idType -> Router)) show of
                             Just action -> Just (get (action $ wrap id))
                             Nothing -> Nothing,
-                        case let Resource{edit} = resource in edit of
+                        case let Resource{edit} = resource in (toMaybeRouterWithId :: editType -> Maybe (idType -> Router)) edit of
                             Just action -> Just (prefix "/edit" $ get (action $ wrap id))
                             Nothing     -> Nothing,
                         case let Resource{child} = resource in child of
@@ -170,11 +183,23 @@ toRoutes resource =
                     ]))
                 ])
             ),
-            case let Resource{create} = resource in create of
+            case let Resource{create} = resource in toMaybeRouter create of
                 Just action -> Just (post action)
                 Nothing -> Nothing
             ,
-            case let Resource{index} = resource in index of
+            case let Resource{index} = resource in toMaybeRouter index of
                 Just action -> Just (get action)
                 Nothing -> Nothing
         ])
+
+class ToMaybeRouter a where toMaybeRouter :: a -> Maybe Router
+instance ToMaybeRouter (Maybe Router) where toMaybeRouter a = a
+instance ToMaybeRouter (()) where toMaybeRouter _ = Nothing
+instance ToMaybeRouter Router where toMaybeRouter = Just
+instance ToMaybeRouter ControllerSupport.Action' where toMaybeRouter = Just . Action
+
+class ToMaybeRouterWithId value idType where toMaybeRouterWithId :: value -> Maybe (idType -> Router)
+instance ToMaybeRouterWithId (idType -> Router) idType where toMaybeRouterWithId = Just
+instance ToMaybeRouterWithId ((idType -> ControllerSupport.Action')) idType where toMaybeRouterWithId action = Just $ \idType -> Action (action idType)
+
+instance {-# OVERLAPS #-} ToMaybeRouterWithId (Maybe (idType -> Router)) idType where toMaybeRouterWithId value = value
