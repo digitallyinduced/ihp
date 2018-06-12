@@ -15,7 +15,8 @@ module Foundation.ControllerPrelude (
         module Foundation.UrlGeneratorSupport,
         module Foundation.ModelSupport,
         module Foundation.QueryBuilder,
-        module GHC.Records
+        module GHC.Records,
+        module Controller.Context
     ) where
 import           ClassyPrelude
 import           Data.Default                  (def)
@@ -35,3 +36,4 @@ import Foundation.UrlGeneratorSupport (pathTo)
 import Foundation.ModelSupport (findMany)
 import Foundation.QueryBuilder
 import GHC.Records
+import Controller.Context
