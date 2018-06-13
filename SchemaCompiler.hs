@@ -129,6 +129,7 @@ compileTypes database = prelude <> "\n\n" <> intercalate "\n\n" (map compileType
                   <> "import Data.UUID (UUID)\n"
                   <> "import Data.Default\n"
                   <> "import qualified Foundation.QueryBuilder as QueryBuilder\n"
+                  <> "import Foundation.UrlGeneratorSupport (UrlArgument (..))\n"
 
 compileTypes' table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
@@ -284,6 +285,7 @@ compileIdNewType table@(Table name attributes) =
 	<> "instance NewTypeWrappedUUID " <> typeName <> " where unwrap (" <> typeName <> " value) = value; wrap = "<> typeName <> "\n"
 	<> "instance HasId " <> typeName <> " where type IdType " <> typeName <> " = UUID; getId (" <> typeName <> " value) = value\n"
 	<> "instance Show " <> typeName <> " where show id = show (unwrap id)\n"
+    <> "instance UrlArgument " <> typeName <> " where toText = toText . unwrap\n"
     <> "instance Default " <> typeName <> " where def = wrap def\n"
     <> "instance ToField " <> typeName <> " where toField = toField . unwrap\n"
     <> "instance FromField " <> typeName <> " where fromField value metaData = do fieldValue <- fromField value metaData; return $ wrap fieldValue\n"
@@ -576,7 +578,7 @@ compileHasInstances tables = intercalate "\n" $ mkUniq $  concat [ (mkUniq $ con
     where
         allFields :: [Attribute]
         allFields = fieldsOnly $ concat $ map (\(Table _ attributes) -> attributes) tables
-        hasIdInt = "instance HasId UUID where type IdType UUID = UUID; getId a = a"
+        hasIdInt = if length tables == 0 then "" else "instance HasId UUID where type IdType UUID = UUID; getId a = a"
         compileHasClass (Table tableName tableAttributes) = map (\field -> compileHasClass' field) $ fieldsOnly tableAttributes
         compileHasClass' (Field fieldName fieldType) = "class (Show (" <> tableNameToModelName fieldName <> "Type a)) => Has" <> tableNameToModelName fieldName <> " a where type " <> tableNameToModelName fieldName <> "Type a; get" <> tableNameToModelName fieldName <> " :: a -> " <> tableNameToModelName fieldName <> "Type a"
         compileHasInstance table@(Table tableName tableAttributes) = concat [ map compileHasInstance' (fieldsOnly tableAttributes), map compileHasInstanceError fieldsNotInTable ]
