@@ -7,7 +7,6 @@
 :set -XNamedFieldPuns
 :set -XDuplicateRecordFields
 :set -XOverloadedLabels
-:set -XOverloadedRecordFields
 :set -XFlexibleContexts
 :set -XTypeSynonymInstances
 :set -XFlexibleInstances
