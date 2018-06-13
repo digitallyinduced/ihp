@@ -87,14 +87,11 @@ buildQuery queryBuilder =
                         (Nothing, whereCondition) -> whereCondition
                         (whereCondition, Nothing) -> whereCondition
                         (Just firstWhere, Just secondWhere) -> Just $ OrCondition firstWhere secondWhere
-                        (Nothing, Nothing) -> Nothing
             in
                 if isSimpleUnion then
                     firstQuery { whereCondition = unionWhere }
                 else
                     error "buildQuery: Union of complex queries not supported yet"
-
-        otherwise -> error $ show otherwise
 
 fetch :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO [model]
 fetch queryBuilder = do
