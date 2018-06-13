@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+$basePath = realpath(__DIR__ . "/../../../src/Foundation");
+
+if ($argc < 2) {
+    echo "Usage: new PROJECT_NAME\n";
+    exit(1);
+}
+
+$projectName = $argv[1];
+$boilerplatePath = "$basePath/ProjectGenerator/boilerplate";
+
+
+system("cp -r $boilerplatePath $projectName");
+chdir($projectName);
+system("cp -r $basePath src/Foundation");
+system("make .envrc");
+echo "Project created, happy coding :)\n";
+// TODO: create static dir, bin dir
