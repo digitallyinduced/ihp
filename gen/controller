@@ -4,16 +4,21 @@ if ($argc < 2) {
     echo "Usage: gen/controller RESOURCE_NAME\n";
     exit(1);
 }
-$basePath = realpath(__DIR__ . "../../..");
+$basePath = getcwd();
 
 $controller = ucfirst($argv[1]);
 
-$controllerPath = ltrim("$basePath/src/Controller/$controller.hs", '/');
+$controllerPath = "$basePath/src/Controller/$controller.hs";
 if (file_exists($controllerPath)) {
     echo "Controller already exists: $controllerPath\n";
     exit(1);
 }
 $model = substr($controller, 0,-1);
+$modelVariable = lcfirst($controller);
+$singularModelVariable = substr(lcfirst($controller), 0, -1);
+$viewBaseModule = "View." . ucfirst($modelVariable) . ".";
+$pathGenerator = $singularModelVariable . "Path";
+$pluralPathGenerator = $modelVariable . "Path";
 
 $idType = $model . "Id";
 
@@ -27,29 +32,101 @@ import qualified Model.<?= $model ?> as <?= $model ?>
 
 index :: Action
 index = do
-    renderPlain "<?= $controller ?> Index Action"
+    <?= $modelVariable ?> <- query @<?= $model ?> |> fetch
+    renderHtml $ <?= $viewBaseModule ?>Index.render <?= $modelVariable ?>
+
 
 new :: Action
 new = do
-    renderPlain "<?= $controller ?> New Action"
+    let <?= $singularModelVariable ?> = <?= $model?>.build
+    renderHtml $ <?= $viewBaseModule ?>New.render <?= $singularModelVariable ?>
+
 
 show :: <?= $idType ?> -> Action
 show id = do
-    renderPlain "<?= $controller ?> Show Action"
+    <?= $singularModelVariable ?> <- query @<?= $model ?> |> findById id
+    renderHtml $ <?= $viewBaseModule ?>Show.render <?= $singularModelVariable ?>
+
 
 edit :: <?= $idType ?> -> Action
 edit id = do
-    renderPlain "<?= $controller ?> Edit Action"
+    <?= $singularModelVariable ?> <- query @<?= $model ?> |> findById id
+    renderHtml $ <?= $viewBaseModule ?>Edit.render <?= $singularModelVariable ?>
+
 
 update :: <?= $idType ?> -> Action
 update id = do
-    renderPlain "<?= $controller ?> Update Action"
+    <?= $singularModelVariable ?>' <- query @<?= $model ?> |> findById id
+    let <?= $singularModelVariable ?> :: <?= $model ?> = <?= $model?>.readParams (<?= $model?>.const <?= $singularModelVariable ?>') {
+            title = param,
+            body = param
+        }
+    if isValid <?= $singularModelVariable ?> then do
+        <?= $singularModelVariable ?> <- <?= $model ?>.update <?= $singularModelVariable ?>
+
+        setSuccessMessage "<?= $model ?> updated"
+        redirectTo (edit<?= ucfirst($pathGenerator) ?> <?= $singularModelVariable ?>)
+    else
+        renderHtml $ <?= $viewBaseModule ?>Edit.render <?= $singularModelVariable ?>
+
 
 create :: Action
 create = do
-    renderPlain "<?= $controller ?> Create Action"
+    let <?= $singularModelVariable ?> :: New<?= $model ?> = <?= $model?>.readParams <?= $model?>.buildConst {
+            title = param,
+            body = param
+        }
+    if isValid <?= $singularModelVariable ?> then do
+        <?= $singularModelVariable ?> <- createRecord <?= $singularModelVariable ?>
+
+        setSuccessMessage "<?= $model ?> created successfully"
+        redirectTo (<?= $pathGenerator ?> <?= $singularModelVariable ?>)
+    else
+        renderHtml $ <?= $viewBaseModule ?>New.render <?= $singularModelVariable ?>
+
+
+delete :: <?= $idType ?> -> Action
+delete id = do
+    <?= $singularModelVariable ?> <- query @<?= $model ?> |> findById id
+    deleteRecord <?= $singularModelVariable ?>
+
+    setSuccessMessage "Deleted <?= $model ?> successfully"
+    redirectTo <?= $pluralPathGenerator ?>
+
 <?php
 $body = ob_get_clean();
+ob_start();
+$marker = '        -- Generator Marker';
+?>
+        , toRoutes $ resource {
+            baseUrl = "<?= $controller ?>",
+            index = Controller.<?= $controller ?>.index,
+            new = Controller.<?= $controller ?>.new,
+            show = Controller.<?= $controller ?>.show,
+            edit = Controller.<?= $controller ?>.edit,
+            update = Controller.<?= $controller ?>.update,
+            create = Controller.<?= $controller ?>.create,
+            destroy = Controller.<?= $controller ?>.delete
+        }
+<?= $marker ?>
+<?php
+$routes = ob_get_clean();
 
 file_put_contents($controllerPath, $body);
 echo "+ $controllerPath\n";
+
+// Add url generator stubs
+$urlGenerators = file_get_contents("$basePath/src/UrlGenerator.hs");
+$urlGenerators .= "\n" . lcfirst($model) . "Path a = \"\" :: Text\n" . lcfirst($model) . "sPath = \"\" :: Text\nedit${model}Path a = \"\" :: Text\nnew${model}Path = \"\" :: Text";
+file_put_contents("$basePath/src/UrlGenerator.hs", $urlGenerators);
+
+
+$actions = ['index', 'new', 'show', 'edit'];
+foreach ($actions as $action) {
+    system("gen/view $controller $action");
+}
+
+$routesHs = file_get_contents("$basePath/src/Routes.hs");
+$routesHs = str_replace($marker, $routes, $routesHs);
+$routesHs = str_replace("-- Controller Imports\n", "-- Controller Imports\nimport qualified Controller.$controller\n", $routesHs);
+file_put_contents("$basePath/src/Routes.hs", $routesHs);

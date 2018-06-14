@@ -40,24 +40,72 @@ import qualified View.Layout.Default
 <?php if (strtolower($action) === 'new') { ?>
 render :: New<?php echo $model; ?> -> Html
 render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
+<nav>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href={<?= lcfirst($model) ?>sPath}><?php echo $controller; ?></a></li>
+        <li class="breadcrumb-item active">New <?= $controller ?></li>
+    </ol>
+</nav>
 <h1>New <?php echo $controller; ?></h1>
 {renderForm <?php echo $modelVariable; ?>}
 |]
 
 renderForm :: New<?php echo $model; ?> -> Html
-renderForm <?php echo $modelVariable; ?> = formFor <?php echo $modelVariable; ?> (pathTo <?php echo $modelVariable; ?>) [hsx|
-{textField #name}
+renderForm <?php echo $modelVariable; ?> = formFor <?php echo $modelVariable; ?> <?php echo $modelVariable; ?>sPath [hsx|
+{submitButton}
+|]
+
+<?php } elseif (strtolower($action) === 'edit') { ?>
+render :: <?php echo $model; ?> -> Html
+render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
+<nav>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href={<?= lcfirst($model) ?>sPath}><?php echo $controller; ?></a></li>
+        <li class="breadcrumb-item active">Edit <?= $controller ?></li>
+    </ol>
+</nav>
+<h1>Edit <?php echo $controller; ?></h1>
+{renderForm <?php echo $modelVariable; ?>}
+|]
+
+renderForm :: <?php echo $model; ?> -> Html
+renderForm <?php echo $modelVariable; ?> = formFor <?php echo $modelVariable; ?> (<?php echo $modelVariable; ?>Path <?= $modelVariable ?>) [hsx|
 {submitButton}
 |]
 
 <?php } elseif (strtolower($action) === 'index') { ?>
 render :: [<?php echo $model; ?>] -> Html
 render <?php echo $modelVariable; ?>s = View.Layout.Default.html [hsx|
-    <p>"Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"</p>
+<h1>
+    <?= $controller ?>
+
+    <a href={new<?= $model ?>Path} class="btn btn-link ml-2">+ New <?= $model ?></a>
+</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th><?= $model ?></th>
+            <th></th>
+            <th></th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>{forM_ <?= lcfirst($model) ?>s render<?= $model ?>}</tbody>
+</table>
+|]
+
+render<?= $model ?> <?= lcfirst($model) ?> = [hsx|
+<tr>
+    <td>{<?= lcfirst($model) ?>}</td>
+    <td><a href={<?= lcfirst($model) ?>Path post}>Show</a></td>
+    <td><a href={edit<?= $model ?>Path <?= lcfirst($model) ?>}>Edit</a></td>
+    <td><a href={<?= lcfirst($model) ?>Path <?= lcfirst($model) ?>} class="js-delete text-danger">Destroy</a></td>
+</tr>
 |]
 <?php } else { ?>
-render :: Html
-render = View.Layout.Default.html [hsx|
+render :: <?php echo $model; ?> -> Html
+render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
     <p>"Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"</p>
 |]
 <?php } ?>
@@ -92,7 +140,7 @@ echo "+ $viewPath\n";
 if (file_exists($controllerPath)) {
     $content = file_get_contents($controllerPath);
     $lines = explode("\n", $content);
-    $importLine = "import View.$controller." . ucfirst($action);
+    $importLine = "import qualified View.$controller." . ucfirst($action);
     array_splice($lines, 2, 0, [$importLine]);
     $newContent = implode("\n", $lines);
     file_put_contents($controllerPath, $newContent);
