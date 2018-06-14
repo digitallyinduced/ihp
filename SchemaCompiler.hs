@@ -331,6 +331,8 @@ compileEnumDataDefinitions table@(Table name attributes) =
         <> section
         <> (intercalate "\n" (map compileInputValueInstance enumFields))
         <> section
+        <> (intercalate "\n" (map compileDefaultInstance enumFields))
+        <> section
     where
         isEnumField (Field _ (EnumField {})) = True
         isEnumField _ = False
@@ -340,6 +342,7 @@ compileEnumDataDefinitions table@(Table name attributes) =
         compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = return " <> tableNameToModelName value
         compileFromFieldInstanceForError = "fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
         compileFromFieldInstanceForNull = "fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\""
+        compileDefaultInstance (Field fieldName (EnumField {values})) = "instance Default " <> tableNameToModelName fieldName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
 
         compileToFieldInstance (Field fieldName (EnumField { values })) = "instance ToField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileToFieldInstanceForValue values))
         compileToFieldInstanceForValue value = "toField " <> tableNameToModelName value <> " = toField (" <> tshow value <> " :: Text)"
@@ -471,7 +474,16 @@ compileUnit table@(Table name attributes) =
 		compileField :: Attribute -> Text
 		compileField _ = "value"
 
-compileBuild _ = "build = unit ()\n"
+compileBuild :: Table -> Text
+compileBuild table@(Table name attributes) =
+        "build :: New" <> tableNameToModelName name <> "\n"
+		<> "build = " <> tableNameToModelName name <> " " <> compileFields attributes <> "\n"
+    where
+        compileFields :: [Attribute] -> Text
+        compileFields attributes = intercalate " " $ map compileField attributes
+        compileField :: Attribute -> Text
+        compileField (Field fieldName fieldType) | isJust (defaultValue fieldType) = "()"
+        compileField _ = "def"
 
 compileIdentity :: Table -> Text
 compileIdentity table@(Table name attributes) =
