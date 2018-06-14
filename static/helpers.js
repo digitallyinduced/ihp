@@ -75,6 +75,8 @@ function initBack() {
         var element = elements[i];
         if (element instanceof HTMLButtonElement) {
             element.addEventListener('click', handleClick);
+        } else if (element instanceof HTMLAnchorElement) {
+            console.error('js-back does not supports <a> elements, use a <button> instead', element);
         }
     }
 }
