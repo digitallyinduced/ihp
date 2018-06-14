@@ -43,6 +43,9 @@ function refresh() {
             );
             let patches = diff(currentDom, newDom);
             patch(document.body.parentElement, patches);
+
+            var event = new CustomEvent('turbolinks:load', {});
+            document.dispatchEvent(event);
         })
 }
 
