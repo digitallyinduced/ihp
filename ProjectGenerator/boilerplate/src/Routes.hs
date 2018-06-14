@@ -8,4 +8,5 @@ import qualified Foundation.Welcome.Controller
 match :: AppRouter
 match = prefix "/" [
         get $ action Foundation.Welcome.Controller.welcome
+        -- Generator Marker
     ]

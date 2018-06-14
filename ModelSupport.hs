@@ -34,6 +34,9 @@ class CanCreate a where
     type Created a :: Type
     create :: (?modelContext :: ModelContext) => a -> IO (Created a)
 
+createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO (Created model)
+createRecord = create
+
 class FindWhere a where
     type FindWhereResult a :: Type
     findWhere :: (?modelContext :: ModelContext) => a -> IO [FindWhereResult a]
@@ -79,6 +82,9 @@ instance InputValue ClassyPrelude.UTCTime where
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
+
+instance Default Text where
+    def = ""
 
 data QueryCondition a = NoCondition | Equal a
 
@@ -127,8 +133,8 @@ instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wra
 query :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 query = let (ModelContext conn) = ?modelContext in PG.query conn
 
-deleteModel :: (?modelContext::ModelContext) => (HasTableName model, NewTypeWrappedUUID idType, HasField "id" model idType) => model -> IO ()
-deleteModel model = do
+deleteRecord :: (?modelContext::ModelContext) => (HasTableName model, NewTypeWrappedUUID idType, HasField "id" model idType) => model -> IO ()
+deleteRecord model = do
     let (ModelContext conn) = ?modelContext
     let id = getField @"id" model
     let tableName = getTableName model

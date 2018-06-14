@@ -22,12 +22,14 @@ src/Model/Schema.sql:
 src/Model/Fixtures.sql:
 	touch $@
 
-initdb: src/Model/Schema.sql src/Model/Fixtures.sql
+initdb: db
+db: src/Model/Schema.sql src/Model/Fixtures.sql
 	echo "drop schema public cascade; create schema public;" | psql -p 8001 -d app
 	psql -p 8001 -d app < src/Model/Schema.sql
 	psql -p 8001 -d app < src/Model/Fixtures.sql
 
-initfixtures:
+dumpdb: dump_db
+dump_db:
 	pg_dump -a --inserts --disable-triggers -p 8001 app > src/Model/Fixtures.sql
 
 ghci:
