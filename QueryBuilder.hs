@@ -214,7 +214,7 @@ findById value queryBuilder = queryBuilder |> filterWhere (#id, value) |> fetchO
 
 findManyBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model)) => (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) -> value -> QueryBuilder model -> IO [model]
 findManyBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetch
--- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #workflowId id
+-- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #templateId id
 
 queryUnion :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
 queryUnion = UnionQueryBuilder
