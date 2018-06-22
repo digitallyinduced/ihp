@@ -34,6 +34,12 @@ instance Validator IsPhoneNumber where
     validateField IsPhoneNumber _ text | "+" `isPrefixOf` text && length text > 5 = Success
     validateField IsPhoneNumber field _ = Failure (humanize (formFieldName field) <> " is not a valid phone number (has to start with +, at least 5 characters)")
 
+data IsEmail = IsEmail deriving (Show)
+instance Validator IsEmail where
+    type ValidatorValue IsEmail = Text
+    validateField IsEmail _ text | "@" `isInfixOf` text = Success
+    validateField IsEmail field _ = Failure (humanize (formFieldName field) <> " is not a valid email")
+
 data IsInRange = IsInRange (Int, Int) deriving (Show)
 instance Validator IsInRange where
     type ValidatorValue IsInRange = Int
