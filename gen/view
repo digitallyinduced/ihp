@@ -98,7 +98,7 @@ render <?php echo $modelVariable; ?>s = View.Layout.Default.html [hsx|
 render<?= $model ?> <?= lcfirst($model) ?> = [hsx|
 <tr>
     <td>{<?= lcfirst($model) ?>}</td>
-    <td><a href={<?= lcfirst($model) ?>Path post}>Show</a></td>
+    <td><a href={<?= lcfirst($model) ?>Path <?= lcfirst($model) ?>}>Show</a></td>
     <td><a href={edit<?= $model ?>Path <?= lcfirst($model) ?>}>Edit</a></td>
     <td><a href={<?= lcfirst($model) ?>Path <?= lcfirst($model) ?>} class="js-delete text-danger">Destroy</a></td>
 </tr>
