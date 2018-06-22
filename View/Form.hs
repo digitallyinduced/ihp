@@ -55,6 +55,7 @@ data FormField = FormField {
         labelClass :: Html5.AttributeValue,
         disableLabel :: Bool,
         disableGroup :: Bool,
+        disableValidationResult :: Bool,
         modelIsNew :: Bool,
         formIsSubmitted :: Bool,
         renderFormField :: FormField -> Html5.Html,
@@ -87,9 +88,16 @@ renderHelpText (FormField { helpText }) =
         "" -> mempty
         helpText -> small ! A.class_ "form-text text-muted" $ text helpText
 
-renderValidationResult (FormField { modelIsNew, validatorResult })= when modelIsNew $ case validatorResult of
+renderValidationResult (FormField { modelIsNew, validatorResult }) = when modelIsNew $ case validatorResult of
                 Success         -> return ()
                 Failure message -> div ! class_ "invalid-feedback" $ cs message
+
+isInvalid (FormField { modelIsNew, formIsSubmitted, validatorResult }) =
+        if formIsSubmitted
+            then case validatorResult of
+                    Success         -> False
+                    Failure _       -> True
+            else False
 
 renderBootstrapFormField :: FormField -> Html5.Html
 renderBootstrapFormField formField@(FormField { fieldType }) =
@@ -97,28 +105,28 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
             TextInput -> renderTextField "text" formField
             ColorInput -> renderTextField "color" formField
             CheckboxInput -> renderCheckboxFormField formField
-            HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True }
+            HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField { fieldInput = Html5.textarea (cs $ fieldValue formField) }
             SelectInput {} -> renderSelectField formField
     where
         maybeWithFormGroup (FormField { fieldInputId, disableGroup }) renderInner = if disableGroup then renderInner else div ! A.class_ "form-group" ! A.id (cs $ "form-group-" <> fieldInputId) $ renderInner
         renderCheckboxFormField :: FormField -> Html5.Html
-        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
+        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
             (if disableLabel then div else label ! class_ "form-check-label") $ do
                 let theInput = input ! type_ "checkbox" ! name fieldName ! class_ ("form-check-input " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass)
                 if fieldValue == "yes" then theInput ! A.checked "checked" else theInput
                 Html5.text fieldLabel
-                renderValidationResult formField
+                if disableValidationResult then mempty else renderValidationResult formField
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
-        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) =
+        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) =
             maybeWithFormGroup formField $ do
                 if disableLabel || fieldLabel == "" then return () else label ! A.class_ labelClass ! A.for (cs fieldInputId) $ cs fieldLabel
                 let theInput = fieldInput ! type_ inputType ! name fieldName ! A.placeholder (cs placeholder) ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass)
                 if fieldValue == "" then theInput else theInput ! value (cs fieldValue)
-                renderValidationResult formField
+                if disableValidationResult then mempty else renderValidationResult formField
                 renderHelpText formField
         renderSelectField :: FormField -> Html5.Html
-        renderSelectField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) =
+        renderSelectField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass }) =
             maybeWithFormGroup formField $ do
                 if disableLabel then return () else label ! A.class_ labelClass ! A.for (cs fieldInputId) $ cs fieldLabel
                 Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
@@ -127,7 +135,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                     (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") $ Html5.text ("Kein Team")
                     forM_ (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
                 renderHelpText formField
-                renderValidationResult formField
+                if disableValidationResult then mempty else renderValidationResult formField
 
 renderBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= button ! class_ "btn btn-primary" $ (if modelIsNew then "Create " else "Save ") <> (cs $ modelName)
 
@@ -138,28 +146,28 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
             TextInput -> renderTextField "text" formField
             ColorInput -> renderTextField "color" formField
             CheckboxInput -> renderCheckboxFormField formField
-            HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True }
+            HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField { fieldInput = Html5.textarea (cs $ fieldValue formField) }
             SelectInput {} -> renderSelectField formField
     where
         renderCheckboxFormField :: FormField -> Html5.Html
-        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
+        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
             (if disableLabel then div else label ! class_ "form-check-label") $ do
                 let theInput = input ! type_ "checkbox" ! name fieldName ! class_ ("form-check-input " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass)
                 if fieldValue == "yes" then theInput ! A.checked "checked" else theInput
                 Html5.text fieldLabel
-                renderValidationResult formField
+                if disableValidationResult then mempty else renderValidationResult formField
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
-        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
+        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
                     if disableLabel || fieldLabel == "" then return () else label ! A.class_ ("col-sm-2 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
                     div ! class_ "col-sm-6" $ do
                         fieldInput ! type_ inputType ! name fieldName ! A.placeholder (cs placeholder) ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
-                        renderValidationResult formField
+                        if disableValidationResult then mempty else renderValidationResult formField
                         renderHelpText formField
         renderSelectField :: FormField -> Html5.Html
-        renderSelectField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
+        renderSelectField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
                     if disableLabel || fieldLabel == "" then return () else label ! A.class_ ("col-sm-2 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
@@ -169,7 +177,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
                             let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
                             (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") $ Html5.text ("Kein Team")
                             forM_ (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
-                        renderValidationResult formField
+                        if disableValidationResult then mempty else renderValidationResult formField
                         renderHelpText formField
 
 renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= div ! class_ "form-group row" $ do
@@ -191,6 +199,7 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         labelClass = "",
                         disableLabel = False,
                         disableGroup = False,
+                        disableValidationResult = False,
                         fieldInput = input,
                         modelIsNew = Foundation.ModelSupport.isNew (model formContext),
                         formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
@@ -211,6 +220,7 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         labelClass = "",
                         disableLabel = False,
                         disableGroup = False,
+                        disableValidationResult = False,
                         fieldInput = input,
                         modelIsNew = Foundation.ModelSupport.isNew (model formContext),
                         formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
@@ -239,6 +249,7 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         labelClass = "",
                         disableLabel = False,
                         disableGroup = False,
+                        disableValidationResult = False,
                         fieldInput = Html5.select mempty,
                         modelIsNew = Foundation.ModelSupport.isNew (model formContext),
                         formIsSubmitted = let ?viewContext = viewContext in isSubmitted,
