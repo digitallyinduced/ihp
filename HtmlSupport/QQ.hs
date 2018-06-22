@@ -140,6 +140,7 @@ attributes =
         , "width", "wrap", "xmlns"
         , "ontouchstart", "download"
         , "allowtransparency", "minlength", "maxlength", "property"
+        , "role"
         ]
 
 
