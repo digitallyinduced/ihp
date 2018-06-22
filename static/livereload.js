@@ -1,17 +1,3 @@
-let h = require('virtual-dom/h');
-let diff = require('virtual-dom/diff');
-let patch = require('virtual-dom/patch');
-let virtualize = require('vdom-virtualize');
-
-var VNode = require('virtual-dom/vnode/vnode');
-var VText = require('virtual-dom/vnode/vtext');
-
-var convertHTML = require('html-to-vdom')({
-    VNode: VNode,
-    VText: VText
-}).bind(null, {getVNodeKey: function (attributes) { return attributes.id || attributes.style; }})
-
-
 let lastHtml = null;
 function refresh() {
     fetch(window.location.href, {credentials: 'include'})
@@ -29,33 +15,45 @@ function refresh() {
 
             var parser = new DOMParser();
             var dom = parser.parseFromString(html, 'text/html');
-            return convertHTML(dom.body.parentElement.outerHTML);
-        })
-        .then(newDocument => {
-            if (!newDocument) {
-                return;
-            }
+            morphdom(document.body, dom.body, {
+                getNodeKey: function (el) {
 
-            let newDom = newDocument;
-            let html = document.body.parentElement.outerHTML;
-            let currentDom = convertHTML(
-                html
-            );
-            let patches = diff(currentDom, newDom);
-            patch(document.body.parentElement, patches);
-
-            var event = new CustomEvent('turbolinks:load', {});
-            document.dispatchEvent(event);
+                    var key = el.id;
+                    if (el.id) {
+                        key = el.id;
+                    } else if (el.form && el.name) {
+                        key = el.name + "_" + el.form.action;
+                    } else if (el instanceof HTMLFormElement) {
+                        key = "form#" + el.action;
+                    } else if (el instanceof HTMLScriptElement) {
+                        key = el.src;
+                    }
+                    console.log('getNodeKey', key, el);
+                    return key;
+                },
+                onElUpdated: function () {
+                    var event = new CustomEvent('turbolinks:load', {});
+                    document.dispatchEvent(event);
+                },
+                onBeforeElChildrenUpdated: function(fromEl, toEl) {
+                    console.log('x');
+                    if (fromEl.tagName === 'TEXTAREA' || fromEl.tagName === 'INPUT') {
+                        toEl.checked = fromEl.checked;
+                        toEl.value = fromEl.value;
+                    } else if (fromEl.tagName === 'OPTION') {
+                        toEl.selected = fromEl.selected;
+                    }
+                }
+            });
         })
 }
 
 if (window.liveReloadEnabled) {
-    return;
+
+} else {
+    window.liveReloadEnabled = true;
+    document.addEventListener('DOMContentLoaded', function () {
+        var interval = parseInt(document.getElementById('livereload-script').getAttribute('data-interval') || 1000);
+        setInterval(refresh, interval);
+    });
 }
-window.liveReloadEnabled = true;
-
-
-document.addEventListener('DOMContentLoaded', function () {
-    var interval = parseInt(document.getElementById('livereload-script').getAttribute('data-interval') || 1000);
-    setInterval(refresh, interval);
-});

@@ -8,7 +8,7 @@ RUNGHC=runghc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	direnv allow
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs src/Foundation/static/build.js
+run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs
 	bin/RunDevServer --root src
 
 run-production: bin/RunProdServer src/Model/Generated
@@ -50,11 +50,6 @@ src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
 bin/RunProdServer: src/Main.hs bin
 	ghc -O${GHC_OLEVEL} -fllvm ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} $< -o $@
 	chmod +x $<
-
-src/Foundation/static/build.js: src/Foundation/static/livereload.js
-	cd src/Foundation/static && npm install virtual-dom html-to-vdom browserify vdom-virtualize
-	cd src/Foundation/static && node_modules/.bin/browserify livereload.js > build.js
-	cd src/Foundation/static && rm -rf node_modules
 
 install:
 	brew install direnv
