@@ -74,12 +74,11 @@ compileTable table@(Table name attributes) =
     <> "import qualified Foundation.GeneratedModelSupport\n"
     <> "import GHC.OverloadedLabels\n"
     <> "import Data.Default\n"
+    <> "import GHC.Records (getField)\n"
     <> section
     <> compileCreate table
     <> section
     <> compileUpdate table
-    <> section
-    <> compileFindAll table
     <> section
     <> compileUnit table
     <> section
@@ -108,7 +107,12 @@ compileTable table@(Table name attributes) =
     <> section
 
 compileTypes :: [Table] -> Text
-compileTypes database = prelude <> "\n\n" <> intercalate "\n\n" (map compileTypes' database) <> section <> compileHasInstances database
+compileTypes database =
+        prelude
+        <> "\n\n"
+        <> intercalate "\n\n" (map compileGenericDataDefinition database)
+        <> intercalate "\n\n" (map compileTypes' database)
+        <> section
     where
         prelude = "-- This file is auto generated and will be overriden regulary. Please edit `src/Model/Schema.hs` to customize the Types"
                   <> section
@@ -130,10 +134,11 @@ compileTypes database = prelude <> "\n\n" <> intercalate "\n\n" (map compileType
                   <> "import Data.Default\n"
                   <> "import qualified Foundation.QueryBuilder as QueryBuilder\n"
                   <> "import Foundation.UrlGeneratorSupport (UrlArgument (..))\n"
+                  <> "import qualified Data.Proxy\n"
+                  <> "import GHC.Records\n"
 
 compileTypes' table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
-    <> compileGenericDataDefinition table
     <> compileTypeAlias table
     <> compileNewTypeAlias table
     <> compileNewOrSavedTypeAlias table
@@ -283,7 +288,7 @@ compileIdNewType :: Table -> Text
 compileIdNewType table@(Table name attributes) =
 	"newtype " <> typeName <> " = " <> typeName <> " UUID deriving (Eq)\n"
 	<> "instance NewTypeWrappedUUID " <> typeName <> " where unwrap (" <> typeName <> " value) = value; wrap = "<> typeName <> "\n"
-	<> "instance HasId " <> typeName <> " where type IdType " <> typeName <> " = UUID; getId (" <> typeName <> " value) = value\n"
+	-- <> "instance HasId " <> typeName <> " where type IdType " <> typeName <> " = UUID; get #id (" <> typeName <> " value) = value\n"
 	<> "instance Show " <> typeName <> " where show id = show (unwrap id)\n"
     <> "instance UrlArgument " <> typeName <> " where toText = toText . unwrap\n"
     <> "instance Default " <> typeName <> " where def = wrap def\n"
@@ -404,7 +409,7 @@ compileUpdate table@(Table name attributes) =
         bindings :: Text
         bindings =
             let
-                bindingValues = (map fromJust $ filter isJust (map (toBinding modelName) $ fieldsOnly attributes)) <> (["getId model"])
+                bindingValues = (map fromJust $ filter isJust (map (toBinding modelName) $ fieldsOnly attributes)) <> (["getField @\"id\" model"])
             in
                 compileToRowValues bindingValues
 
@@ -421,30 +426,6 @@ compileUpdate table@(Table name attributes) =
             <> "return (unsafeHead result)\n"
         )
 
-compileFindAll table@(Table name attributes) =
-    let
-        modelName = tableNameToModelName name
-    in
-        "findAll :: (?modelContext :: ModelContext) => IO [" <> modelName <> "]\n"
-        <> "findAll = do\n"
-        <> indent (
-            "let (ModelContext conn) = ?modelContext\n"
-            <> "projects <- Database.PostgreSQL.Simple.query_ conn \"SELECT * FROM " <> name <> "\"\n"
-            <> "return projects\n"
-        )
-
-
-compileFind table@(Table name attributes) =
-    let
-        modelName = tableNameToModelName name
-    in
-        "find :: (?modelContext :: ModelContext) => " <> primaryKeyTypeName table <> " -> IO " <> modelName <> "\n"
-        <> "find id = do\n"
-        <> indent (
-            "result <- findOrNothing id\n"
-            <> "return (fromMaybe (error \"Model cannot be found \") result)"
-        )
-
 compileFromRowInstance table@(Table name attributes) =
     defaultFromRow
     -- <> "instance FromRow " <> tableNameToModelName name <> " where "<> (indent "fromRow = " <> tableNameToModelName name <> " <$> " <>  (intercalate " <*> " $ map (const "field") $ fieldsOnly attributes))
@@ -459,7 +440,7 @@ compileFromRowInstance table@(Table name attributes) =
         compileValue (HasMany {}) = "()"
 
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
-        compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (#" <> compileInverseOf inverseOf <> "Id, " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
+        compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow (compileInverseOf inverseOf <> "Id") <> ", " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
             where
                 compileInverseOf Nothing = columnNameToFieldName (pluralToSingular name)
                 compileInverseOf (Just name) = columnNameToFieldName (pluralToSingular name)
@@ -493,10 +474,6 @@ compileIdentity table@(Table name attributes) =
 		compileFields attributes = intercalate " " $ map compileField attributes
 		compileField :: Attribute -> Text
 		compileField _ = "Data.Function.id"
-
-compileHasId :: Table -> Text
-compileHasId table@(Table name attributes) = "instance HasId " <> tableNameToModelName name <> " where getId (" <> tableNameToModelName name <> "{id}) = id\n"
-
 
 compileAttributeNames table@(Table tableName attributes) =
         "data Field = " <> (intercalate " | " (map compileAttributeName attributes)) <> " deriving (Show)"
@@ -584,23 +561,6 @@ compileErrorHints table@(Table tableName attributes) =
                 name = case attribute of Field name _ -> name; HasMany {name} -> name
             in
                 "instance TypeError (GHC.TypeLits.Text \"Parameter `" <> name <> "` is missing\" ':$$: 'GHC.TypeLits.Text \"Add something like `" <> name <> " = ...`\") => (Foundation.ModelSupport.CanCreate (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ")) where type Created (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ") = (); create = error \"Unreachable\";"
-
-compileHasInstances :: [Table] -> Text
-compileHasInstances tables = intercalate "\n" $ mkUniq $  concat [ (mkUniq $ concat $ map compileHasClass tables), hasIdInt:(concat $ map compileHasInstance tables) ]
-    where
-        allFields :: [Attribute]
-        allFields = fieldsOnly $ concat $ map (\(Table _ attributes) -> attributes) tables
-        hasIdInt = if length tables == 0 then "" else "instance HasId UUID where type IdType UUID = UUID; getId a = a"
-        compileHasClass (Table tableName tableAttributes) = map (\field -> compileHasClass' field) $ fieldsOnly tableAttributes
-        compileHasClass' (Field fieldName fieldType) = "class (Show (" <> tableNameToModelName fieldName <> "Type a)) => Has" <> tableNameToModelName fieldName <> " a where type " <> tableNameToModelName fieldName <> "Type a; get" <> tableNameToModelName fieldName <> " :: a -> " <> tableNameToModelName fieldName <> "Type a"
-        compileHasInstance table@(Table tableName tableAttributes) = concat [ map compileHasInstance' (fieldsOnly tableAttributes), map compileHasInstanceError fieldsNotInTable ]
-            where
-                compileHasInstance' (Field fieldName fieldType) = "instance Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = " <> haskellType table fieldName fieldType <> "; get" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> "{" <> columnNameToFieldName fieldName <> "} = " <> columnNameToFieldName fieldName
-                compileHasInstanceError (Field fieldName fieldType) = "instance TypeError (GHC.TypeLits.Text \"" <> tableNameToModelName tableName <> " has no field `" <> columnNameToFieldName fieldName <> "`\") => Has" <> tableNameToModelName fieldName <> " " <> tableNameToModelName tableName <> " where type " <> tableNameToModelName fieldName <> "Type " <> tableNameToModelName tableName <> " = (); get" <> tableNameToModelName fieldName <> " _ = error \"unreachable\""
-                fieldsNotInTable = filter (\(Field fieldName _) -> not $ hasFieldByName fieldName tableAttributes) allFields
-
-                hasFieldByName name fields = length (filter (\(Field fieldName _) -> fieldName == name) (fieldsOnly fields)) > 0
-
 
 compileBuildValidator :: Table -> Text
 compileBuildValidator table@(Table name attributes) =

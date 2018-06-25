@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
 module Foundation.HaskellSupport ((|>), isEmpty, whenEmpty, (==>), get, ifOrEmpty) where
 
 import ClassyPrelude
@@ -29,8 +29,8 @@ instance Data.Default.Default Data.UUID.UUID where
 (==>) :: forall model attribute value. (KnownSymbol attribute, HasField attribute model value) => model -> Proxy attribute -> value
 (==>) struct _ = getField @attribute struct
 
-get :: forall attribute model value. (model -> value) -> model -> value
-get getter model = getter model
+instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
+    fromLabel = Proxy @name'
 
-instance forall name model value. (KnownSymbol name, HasField name model value) => IsLabel name (model -> value) where
-    fromLabel = getField @name
+get :: forall model name value. (KnownSymbol name, HasField name model value) => Proxy name -> model -> value
+get _ = getField @name

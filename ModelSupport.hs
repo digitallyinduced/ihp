@@ -130,8 +130,8 @@ instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wra
 --            value' = unwrap value
 --        in toField value'
 
-query :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
-query = let (ModelContext conn) = ?modelContext in PG.query conn
+sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
+sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
 
 deleteRecord :: (?modelContext::ModelContext) => (HasTableName model, NewTypeWrappedUUID idType, HasField "id" model idType) => model -> IO ()
 deleteRecord model = do
@@ -144,7 +144,7 @@ deleteRecord model = do
 findOrNothing :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (Maybe (GetModelById id))
 findOrNothing id = do
     let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
-    results <- query (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id = ? LIMIT 1") [id]
+    results <- sqlQuery (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id = ? LIMIT 1") [id]
     return $ headMay results
 
 findModel :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (GetModelById id)
@@ -155,7 +155,7 @@ findModel id = do
 findMany :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => [id] -> IO [GetModelById id]
 findMany ids = do
     let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
-    query (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id IN ?") (PG.Only $ PG.In ids)
+    sqlQuery (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id IN ?") (PG.Only $ PG.In ids)
 
 type family ModelFieldType model :: GHC.Types.*
 type family ModelFieldValue model (field :: GHC.Types.Symbol) :: GHC.Types.Type

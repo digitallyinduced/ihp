@@ -54,20 +54,48 @@ compileToHaskell (Children children) =
 compileToHaskell (TextNode value) = [| Html5.string value |]
 compileToHaskell (SplicedNode code) =
     case parseExp code of
-        Right expression -> [| toHtml $(return (patchExpr expression)) |]
+        Right expression -> let patched = Debug.Trace.traceShow (patchExpr expression)  (patchExpr expression) in [| toHtml $(return patched) |]
         Left error -> fail ("compileToHaskell(" <> code <> "): " <> show error)
 
 patchExpr :: TH.Exp -> TH.Exp
 patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.VarE labelValue)) | hash == TH.mkName "#" = TH.AppE (TH.VarE varName) fromLabel
     where
             fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+--- UInfixE (UInfixE a (VarE |>) (VarE get)) (VarE #) (VarE firstName)
+patchExpr input@(TH.UInfixE (TH.UInfixE a (TH.VarE arrow) (TH.VarE get)) (TH.VarE hash) (TH.VarE labelValue)) | (hash == TH.mkName "#") && (arrow == TH.mkName "|>") && (get == TH.mkName "get") =
+        (TH.UInfixE (patchExpr a) (TH.VarE arrow) (TH.AppE (TH.VarE get) fromLabel))
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+-- UInfixE (UInfixE a (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
+patchExpr (TH.UInfixE (TH.UInfixE a b get) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) (TH.VarE d))) | (hash == TH.mkName "#") =
+        TH.UInfixE (patchExpr a) (patchExpr b) (TH.AppE (TH.AppE get fromLabel) (TH.VarE d))
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
 patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) arg)) | hash == TH.mkName "#" = TH.AppE (TH.AppE (TH.VarE varName) fromLabel) arg
     where
             fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+patchExpr (TH.UInfixE (TH.VarE a) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) (TH.VarE b))) | hash == TH.mkName "#" =
+        TH.AppE (TH.AppE (TH.VarE a) fromLabel) (TH.VarE b)
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+
+patchExpr (TH.UInfixE a b c) = TH.UInfixE (patchExpr a) (patchExpr b) (patchExpr c)
 patchExpr (TH.ParensE e) = TH.ParensE (patchExpr e)
 patchExpr (TH.RecUpdE a b) = TH.RecUpdE (patchExpr a) b
+patchExpr (TH.AppE a b) = TH.AppE (patchExpr a) (patchExpr b)
+patchExpr (TH.LamE a b) = TH.LamE a (patchExpr b)
+patchExpr (TH.LetE a b) = TH.LetE a' (patchExpr b)
+    where
+        a' = map patchDec a
+        patchDec (TH.ValD a (TH.NormalB b) c) = (TH.ValD a (TH.NormalB (patchExpr b)) c)
+        patchDec a = a
+patchExpr (TH.CondE a b c) = TH.CondE (patchExpr a) (patchExpr b) (patchExpr c)
 patchExpr e = e
 
+-- UInfixE (VarE get) (VarE #) (AppE (VarE id) (VarE step))
+
+-- UInfixE (UInfixE (UInfixE (UInfixE (UInfixE (UInfixE (VarE currentUser) (VarE |>) (VarE get)) (VarE #) (VarE firstName)) (VarE <>) (LitE (StringL " "))) (VarE <>) (VarE currentUser)) (VarE |>) (VarE get)) (VarE #) (VarE lastName)
+-- UInfixE (UInfixE (VarE tshow) (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
 
 
 toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
@@ -80,7 +108,7 @@ toStringAttribute (name, ExpressionValue code) = do
     let nameWithSuffix = " " <> name <> "=\""
     if name `elem` attributes || ("data-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
     case parseExp code of
-        Right expression -> [| (attribute name nameWithSuffix) (cs $(return expression)) |]
+        Right expression -> let patched = Debug.Trace.traceShow (patchExpr expression) (patchExpr expression) in [| (attribute name nameWithSuffix) (cs $(return patched)) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> code <> "): " <> show error)
 
 

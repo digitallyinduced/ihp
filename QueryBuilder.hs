@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances #-}
 
-module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr) where
+module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn) where
 
 import Foundation.HaskellSupport
 import ClassyPrelude hiding (UTCTime, find)
@@ -28,8 +28,13 @@ import Foundation.ModelSupport (ModelFieldValue, GetTableName, ModelContext, Get
 import qualified Foundation.ModelSupport
 import Foundation.NameSupport (fieldNameToColumnName)
 
-query :: forall model. QueryBuilder model
-query = NewQueryBuilder
+query :: forall model. DefaultScope model => QueryBuilder model
+query = defaultScope NewQueryBuilder
+
+class DefaultScope model where
+    defaultScope :: QueryBuilder model -> QueryBuilder model
+
+instance DefaultScope model where defaultScope queryBuilder = queryBuilder
 
 data FilterOperator = EqOp | InOp | IsOp deriving (Show, Eq)
 
@@ -97,13 +102,13 @@ fetch :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow 
 fetch queryBuilder = do
     let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
     putStrLn $ tshow (theQuery, theParameters)
-    Foundation.ModelSupport.query (Query $ cs theQuery) theParameters
+    Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
 
 fetchOneOrNothing :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
 fetchOneOrNothing queryBuilder = do
     let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
     putStrLn $ tshow (theQuery, theParameters)
-    results <- Foundation.ModelSupport.query (Query $ cs theQuery) theParameters
+    results <- Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
     return $ listToMaybe results
 
 fetchOne :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
@@ -163,18 +168,6 @@ compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
 
-instance {-# OVERLAPS #-} forall name model f value. (KnownSymbol name) => IsLabel name ((Proxy OrderByTag -> QueryBuilder model -> OrderByDirection -> QueryBuilder model)) where
-    fromLabel _ queryBuilder orderByDirection = OrderByQueryBuilder (Proxy @name, orderByDirection) queryBuilder
-
-instance {-# OVERLAPS #-} forall name model f value. (KnownSymbol name) => IsLabel name ((Proxy IncludeTag -> QueryBuilder model -> QueryBuilder model)) where
-    fromLabel _ queryBuilder = IncludeQueryBuilder (Proxy @name) queryBuilder
-
-instance {-# OVERLAPS #-} forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), value ~ ModelFieldValue model name) => IsLabel name (Proxy FilterWhereTag -> QueryBuilder model -> [value] -> QueryBuilder model) where
-    fromLabel _ queryBuilder value = FilterByQueryBuilder (Proxy @name, InOp, toField (In value)) queryBuilder
-
-instance forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), value ~ ModelFieldValue model name, EqOrIsOperator value) => IsLabel name (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) where
-    fromLabel _ queryBuilder value = FilterByQueryBuilder (Proxy @name, toEqOrIsOperator value, toField value) queryBuilder
-
 -- Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
 instance EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
@@ -187,36 +180,48 @@ instance EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
   -- FilterByQueryBuilder (Just criteria) queryBuilder
 --filterBy :: forall model name value makeCriteria. (value ~ ModelFieldValue model name, makeCriteria ~ (QueryBuilder model -> value -> QueryBuilder model)) => (makeCriteria, value) -> QueryBuilder model -> QueryBuilder model
 
+-- filterWhere (name, values) = FilterByQueryBuilder (name, InOp, toField (In values))
+--filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
+
+class PolymorphicValue model name poly where
+    type PolymorphicValueUnpacked poly :: GHC.Types.Type
+    polymorphicValueToField :: (KnownSymbol name) => Proxy model -> Proxy name -> poly -> (Proxy name, FilterOperator, Action)
+
+--instance ToField value => PolymorphicValue model name [value] where
+--polymorphicValueToField value = (Proxy @name, InOp, toField (In value))
+
+filterWhere :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name)) => (Proxy name, ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
+filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
+
+filterWhereIn :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name)) => (Proxy name, [ModelFieldValue model name]) -> QueryBuilder model -> QueryBuilder model
+filterWhereIn (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField $ In value)
+
 data FilterWhereTag
-filterWhere :: (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model, value) -> QueryBuilder model -> QueryBuilder model
-filterWhere (makeCriteria, value) queryBuilder = makeCriteria (Proxy @FilterWhereTag) queryBuilder value
 
 data OrderByTag
-orderBy :: (Proxy OrderByTag -> QueryBuilder model -> OrderByDirection -> QueryBuilder model) -> QueryBuilder model -> QueryBuilder model
-orderBy makeOrderBy queryBuilder = makeOrderBy (Proxy @OrderByTag) queryBuilder Asc
+orderBy :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
+orderBy name = OrderByQueryBuilder (name, Asc)
 
 data IncludeTag
-include :: (Proxy IncludeTag -> QueryBuilder model -> QueryBuilder model) -> QueryBuilder model -> QueryBuilder model
-include makeInclude queryBuilder = makeInclude (Proxy @IncludeTag) queryBuilder
-
-infixl 9 `isEq`
-a `isEq` b = filterWhere (a, b)
+include :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
+include name = IncludeQueryBuilder name
 
 
-findBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model)) => (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) -> value -> QueryBuilder model -> IO model
+-- findBy :: forall model name value. (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol name, ToField (ModelFieldValue model name), ToFilterValue value, ToFilterValueType value ~ ModelFieldValue model name) => Proxy name -> value -> QueryBuilder model -> IO model
 findBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOne
 
-findMaybeBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model)) => (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) -> value -> QueryBuilder model -> IO (Maybe model)
 findMaybeBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOneOrNothing
 
-findById :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> QueryBuilder model -> IO model
-findById value queryBuilder = queryBuilder |> filterWhere (#id, value) |> fetchOne
+--findById :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), HasField "id" value model, ToField value) => value -> QueryBuilder model -> IO model
+--findById :: (?modelContext :: ModelContext, PG.FromRow model, ToField value, KnownSymbol (GetTableName model), HasField "id" value model) => value -> QueryBuilder model -> IO model
+findById value queryBuilder = queryBuilder |> filterWhere (Proxy @"id", value) |> fetchOne
 
-findManyBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model)) => (Proxy FilterWhereTag -> QueryBuilder model -> value -> QueryBuilder model) -> value -> QueryBuilder model -> IO [model]
+--findManyBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol name, ToField value, HasField name value model) => Proxy name -> value -> QueryBuilder model -> IO [model]
 findManyBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetch
 -- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #templateId id
 
 queryUnion :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
 queryUnion = UnionQueryBuilder
 
+queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr a b queryBuilder = (a queryBuilder) `UnionQueryBuilder` (b queryBuilder)
