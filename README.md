@@ -195,9 +195,9 @@ instance CanSelect User where
     -- Here we specify that the <option>-value should contain a UserId
     type SelectValue User = UserId
     -- Here we specify how to transform the model into <option>-value
-    selectValue = getId
+    selectValue = get #id
     -- And here we specify the <option>-text
-    selectLabel = getName
+    selectLabel = get #name
 ```
 
 Given the above example, the rendered form will look like this:
