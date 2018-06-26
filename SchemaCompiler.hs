@@ -86,7 +86,6 @@ compileTable table@(Table name attributes) =
     <> section
     <> compileAttributeNames table
     <> section
-    -- <> compileAssign table
     <> section
     <> compileIdentity table
     <> section
@@ -508,15 +507,6 @@ compileFieldModel table@(Table tableName attributes) =
                     case attribute of
                         Field name _ -> name
                         HasMany {name} -> name
-
-compileAssign table@(Table tableName attributes) =
-        ""
-        --"assignField :: Field -> Text -> " <> tableNameToModelName tableName <> " -> " <> tableNameToModelName tableName <> "\n"
-        <> "assignField field value model = case field of \n" <> intercalate "\n" (map compileAssignField attributes) <> " \n"
-        <> "assign :: [(Field, Text)] -> " <> tableNameToModelName tableName <> " -> " <> tableNameToModelName tableName <> "\n"
-        <> "assign = error \"unreachable\""
-    where
-        compileAssignField (Field name _) = "   " <>  tableNameToModelName name <> " -> (model :: " <> tableNameToModelName tableName <> ") { " <> name <> " = value }"
 
 compileCombine table@(Table tableName attributes) =
         "combine (" <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToArgs "arg" attributes)) <> ") (" <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToArgs "f" attributes)) <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToApplications attributes))
