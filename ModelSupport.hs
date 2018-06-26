@@ -118,6 +118,7 @@ instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wra
         in
             (inputValue innerValue) :: Text
 
+
 --instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => FromField wrapperType where
 --    fromField value metaData = do
 --        fieldValue <- fromField value metaData

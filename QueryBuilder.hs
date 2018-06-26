@@ -1,6 +1,6 @@
-{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances #-}
+{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, FunctionalDependencies #-}
 
-module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn) where
+module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..)) where
 
 import Foundation.HaskellSupport
 import ClassyPrelude hiding (UTCTime, find)
@@ -98,25 +98,40 @@ buildQuery queryBuilder =
                 else
                     error "buildQuery: Union of complex queries not supported yet"
 
-fetch :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO [model]
-fetch queryBuilder = do
-    let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
-    putStrLn $ tshow (theQuery, theParameters)
-    Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
 
-fetchOneOrNothing :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
-fetchOneOrNothing queryBuilder = do
-    let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
-    putStrLn $ tshow (theQuery, theParameters)
-    results <- Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
-    return $ listToMaybe results
+class Fetchable fetchable model | fetchable -> model where
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO [model]
+    fetchOneOrNothing :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO (Maybe model)
+    fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO model
 
-fetchOne :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
-fetchOne queryBuilder = do
-    maybeModel <- fetchOneOrNothing queryBuilder
-    return $ case maybeModel of
-        Just model -> model
-        Nothing -> error "Cannot find model"
+
+instance Fetchable (QueryBuilder model) model where
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => QueryBuilder model -> IO [model]
+    fetch queryBuilder = do
+        let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
+        putStrLn $ tshow (theQuery, theParameters)
+        Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
+
+    fetchOneOrNothing :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
+    fetchOneOrNothing queryBuilder = do
+        let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
+        putStrLn $ tshow (theQuery, theParameters)
+        results <- Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
+        return $ listToMaybe results
+
+    fetchOne :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
+    fetchOne queryBuilder = do
+        maybeModel <- fetchOneOrNothing queryBuilder
+        return $ case maybeModel of
+            Just model -> model
+            Nothing -> error "Cannot find model"
+
+genericFetchId :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO [model]
+genericFetchId id = query @model |> filterWhere (#id, id) |> fetch
+genericfetchIdOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO (Maybe model)
+genericfetchIdOneOrNothing id = query @model |> filterWhere (#id, id) |> fetchOneOrNothing
+genericFetchIdOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO model
+genericFetchIdOne id = query @model |> filterWhere (#id, id) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
@@ -189,6 +204,7 @@ class PolymorphicValue model name poly where
 
 --instance ToField value => PolymorphicValue model name [value] where
 --polymorphicValueToField value = (Proxy @name, InOp, toField (In value))
+
 
 filterWhere :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name)) => (Proxy name, ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
 filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)

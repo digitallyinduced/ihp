@@ -12,7 +12,7 @@ Create a ghci instance with all files loaded. Useful to manually regenerate file
 ```
 make ghci
 ```
-Regenerate Nix-Environment 
+Regenerate Nix-Environment
 ```
 make -B .envrc
 ```
@@ -169,6 +169,21 @@ Just a shortcut for `filterWhere (#field, value) |> fetch`
 projects <- query @Project |> filterWhere (#userId, userId) |> fetch
 -- Shorter version
 projects <- query @Project |> findManyBy #userId userId
+```
+
+## `projectId |> fetch`
+Ids also have `fetch` implementations, that way you can just run:
+
+```
+let projectId :: ProjectId = ...
+project <- projectId |> fetch
+```
+
+For convience there is also a `fetch` implementation for `Maybe SomeId`:
+
+```
+let assignedUserId :: Maybe UserId = project |> get #assignedUserId
+assignedUser <- assignedUserId |> fetchOneOrNothing
 ```
 
 # Form
