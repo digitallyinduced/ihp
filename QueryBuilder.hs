@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies #-}
 
 module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..)) where
 
@@ -34,7 +34,7 @@ query = defaultScope NewQueryBuilder
 class DefaultScope model where
     defaultScope :: QueryBuilder model -> QueryBuilder model
 
-instance DefaultScope model where defaultScope queryBuilder = queryBuilder
+instance {-# OVERLAPPABLE #-} DefaultScope model where defaultScope queryBuilder = queryBuilder
 
 data FilterOperator = EqOp | InOp | IsOp deriving (Show, Eq)
 
@@ -126,11 +126,11 @@ instance Fetchable (QueryBuilder model) model where
             Just model -> model
             Nothing -> error "Cannot find model"
 
-genericFetchId :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO [model]
+genericFetchId :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO [model]
 genericFetchId id = query @model |> filterWhere (#id, id) |> fetch
-genericfetchIdOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO (Maybe model)
+genericfetchIdOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO (Maybe model)
 genericfetchIdOneOrNothing id = query @model |> filterWhere (#id, id) |> fetchOneOrNothing
-genericFetchIdOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO model
+genericFetchIdOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO model
 genericFetchIdOne id = query @model |> filterWhere (#id, id) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
@@ -183,13 +183,6 @@ compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
 
--- Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
-class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
-instance EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
-instance EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
-
-
-
 --filterBy :: forall model value fieldName field. (IsLabel (fieldName :: Symbol) field, value ~ ModelFieldValue model fieldName, ToField (ModelFieldValue model fieldName)) => (field, value) -> QueryBuilder model -> QueryBuilder model
 --filterBy :: forall name value model symbol. ((QueryBuilder model -> Proxy (ModelFieldValue model name) -> QueryBuilder model), ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
   -- FilterByQueryBuilder (Just criteria) queryBuilder
@@ -198,19 +191,19 @@ instance EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
 -- filterWhere (name, values) = FilterByQueryBuilder (name, InOp, toField (In values))
 --filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
 
-class PolymorphicValue model name poly where
-    type PolymorphicValueUnpacked poly :: GHC.Types.Type
-    polymorphicValueToField :: (KnownSymbol name) => Proxy model -> Proxy name -> poly -> (Proxy name, FilterOperator, Action)
-
 --instance ToField value => PolymorphicValue model name [value] where
 --polymorphicValueToField value = (Proxy @name, InOp, toField (In value))
 
+-- Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
+class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
+instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
+instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
 
-filterWhere :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name)) => (Proxy name, ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
+filterWhere :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), EqOrIsOperator (ModelFieldValue model name)) => (Proxy name, ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
 filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
 
 filterWhereIn :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name)) => (Proxy name, [ModelFieldValue model name]) -> QueryBuilder model -> QueryBuilder model
-filterWhereIn (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField $ In value)
+filterWhereIn (name, value) = FilterByQueryBuilder (name, InOp, toField $ In value)
 
 data FilterWhereTag
 
