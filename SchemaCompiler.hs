@@ -75,6 +75,7 @@ compileTable table@(Table name attributes) =
     <> "import GHC.OverloadedLabels\n"
     <> "import Data.Default\n"
     <> "import GHC.Records (getField)\n"
+    <> "import qualified Data.Proxy\n"
     <> section
     <> compileCreate table
     <> section
@@ -616,10 +617,15 @@ compileHasModelNameInstance table@(Table name attributes) = "instance HasModelNa
 compileHasTableNameInstance table@(Table name attributes) = "instance HasTableName (" <> compileNewOrSavedType table <> ") where getTableName _ = " <> tshow name <> "\ntype instance GetTableName (New" <> tableNameToModelName name <> ") = " <> tshow name <> "\n" <> "\ntype instance GetTableName (" <> tableNameToModelName name <> ") = " <> tshow name <> "\n"
 
 compileReadParams :: Table -> Text
-compileReadParams _ = "readParams = combine columnNames\n"
+compileReadParams (Table tableName _) = "readParams = combine (columnNames (Data.Proxy.Proxy @" <> tableNameToModelName tableName <> "))\n"
 
-compileColumnNames table@(Table tableName attributes) = "columnNames = " <> tableNameToModelName tableName <> " " <> compiledFields
+compileColumnNames table@(Table tableName attributes) = "instance ColumnNames " <> instanceHead <> " where " <> typeDef <> "; columnNames _ = " <> tableNameToModelName tableName <> " " <> compiledFields
     where
+        instanceHead = "(" <> tableNameToModelName tableName <> "' " <> intercalate " " (map toName attributes) <> ")"
+            where
+                toName (Field fieldName _) = fieldName
+                toName (HasMany {name}) = name
+        typeDef = "type ColumnNamesRecord " <> instanceHead <> " = " <> tableNameToModelName tableName <> "' " <> intercalate " " (map (const "ByteString") attributes)
         compiledFields = intercalate " " (map compileField attributes)
         compileField (Field fieldName _) = "(" <>tshow fieldName <> " :: ByteString)"
         compileField (HasMany {name}) = "(" <>tshow name <> " :: ByteString)"

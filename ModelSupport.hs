@@ -158,5 +158,9 @@ findMany ids = do
     let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
     sqlQuery (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id IN ?") (PG.Only $ PG.In ids)
 
-type family ModelFieldType model :: GHC.Types.*
+class ColumnNames model where
+    type ColumnNamesRecord model :: GHC.Types.Type
+    columnNames :: Proxy model -> ColumnNamesRecord model
+
+type family ModelFieldType model :: GHC.Types.Type
 type family ModelFieldValue model (field :: GHC.Types.Symbol) :: GHC.Types.Type

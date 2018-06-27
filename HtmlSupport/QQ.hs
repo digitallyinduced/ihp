@@ -90,6 +90,7 @@ patchExpr (TH.LetE a b) = TH.LetE a' (patchExpr b)
         patchDec (TH.ValD a (TH.NormalB b) c) = (TH.ValD a (TH.NormalB (patchExpr b)) c)
         patchDec a = a
 patchExpr (TH.CondE a b c) = TH.CondE (patchExpr a) (patchExpr b) (patchExpr c)
+patchExpr (TH.SigE a b) = TH.SigE (patchExpr a) b
 patchExpr e = e
 
 -- UInfixE (VarE get) (VarE #) (AppE (VarE id) (VarE step))

@@ -187,13 +187,13 @@ renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= di
 
 
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, IsLabel symbol (ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (ModelFieldType model) model, Foundation.ModelSupport.InputValue value ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
-    fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model, IsLabel symbol (ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (ModelFieldType model) model, Foundation.ModelSupport.InputValue value ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
+    fromLabel = \(formContext, viewContext, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType = TextInput,
-                        fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
-                        fieldLabel = fieldNameToFieldLabel fieldName,
+                        fieldName = cs columnName,
+                        fieldLabel = columnNameToFieldLabel columnName,
                         fieldValue =  let value :: value = getField @(symbol) (model formContext) in Foundation.ModelSupport.inputValue value,
-                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> columnName),
                         validatorResult = (validateModelField (model formContext) :: ModelFieldType model -> ValidatorResult) (fromLabel @symbol),
                         fieldClass = "",
                         labelClass = "",
@@ -208,13 +208,13 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         placeholder = ""
                     }
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model Bool) => IsLabel symbol ((FormContext model, ViewContext, Proxy Bool) -> FormField) where
-    fromLabel = \(formContext, viewContext, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model Bool, HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model) => IsLabel symbol ((FormContext model, ViewContext, Proxy Bool) -> FormField) where
+    fromLabel = \(formContext, viewContext, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType = CheckboxInput,
-                        fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
-                        fieldLabel = fieldNameToFieldLabel fieldName,
+                        fieldName = cs columnName,
+                        fieldLabel = columnNameToFieldLabel columnName,
                         fieldValue =  let value = getField @(symbol) (model formContext) in if value then "yes" else "no",
-                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> columnName),
                         validatorResult = Success,
                         fieldClass = "",
                         labelClass = "",
@@ -229,8 +229,8 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         placeholder = ""
                     }
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model ((SelectValue item)), CanSelect item, Foundation.ModelSupport.InputValue (SelectValue item)) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
-    fromLabel = \(formContext, viewContext, items, _) -> let fieldName = cs (symbolVal @symbol Proxy) in FormField {
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model ((SelectValue item)), CanSelect item, Foundation.ModelSupport.InputValue (SelectValue item), HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
+    fromLabel = \(formContext, viewContext, items, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType =
                             let
                                 itemToTuple :: item -> (Text, Text)
@@ -238,12 +238,12 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                             in
                                  SelectInput $ map itemToTuple items
                             ,
-                        fieldName = cs (Foundation.NameSupport.fieldNameToColumnName fieldName),
-                        fieldLabel = removeIdSuffix $ fieldNameToFieldLabel fieldName,
+                        fieldName = cs columnName,
+                        fieldLabel = removeIdSuffix $ columnNameToFieldLabel columnName,
                         fieldValue =
                             let value = ((getField @(symbol) (model formContext)) :: (SelectValue item))
                             in Foundation.ModelSupport.inputValue value,
-                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> Foundation.NameSupport.fieldNameToColumnName fieldName),
+                        fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> columnName),
                         validatorResult = Success,
                         fieldClass = "",
                         labelClass = "",
@@ -260,6 +260,9 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
 
 fieldNameToFieldLabel :: Text -> Text
 fieldNameToFieldLabel fieldName = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts)
+
+columnNameToFieldLabel :: Text -> Text
+columnNameToFieldLabel columnName = cs (let (Right parts) = Text.Inflections.parseSnakeCase [] columnName in Text.Inflections.titleize parts)
 
 removeIdSuffix :: Text -> Text
 removeIdSuffix text = fromMaybe text (Text.stripSuffix " Id" text)

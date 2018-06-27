@@ -1,7 +1,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE InstanceSigs              #-}
-{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
+{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses, ScopedTypeVariables, FunctionalDependencies #-}
 
 module Foundation.Router
     ( match
@@ -198,7 +198,7 @@ instance ToMaybeRouter (()) where toMaybeRouter _ = Nothing
 instance ToMaybeRouter Router where toMaybeRouter = Just
 instance ToMaybeRouter ControllerSupport.Action' where toMaybeRouter = Just . Action
 
-class ToMaybeRouterWithId value idType where toMaybeRouterWithId :: value -> Maybe (idType -> Router)
+class ToMaybeRouterWithId value idType | value -> idType where toMaybeRouterWithId :: value -> Maybe (idType -> Router)
 instance ToMaybeRouterWithId (idType -> Router) idType where toMaybeRouterWithId = Just
 instance ToMaybeRouterWithId ((idType -> ControllerSupport.Action')) idType where toMaybeRouterWithId action = Just $ \idType -> Action (action idType)
 
