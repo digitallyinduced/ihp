@@ -169,6 +169,8 @@ attributes =
         , "ontouchstart", "download"
         , "allowtransparency", "minlength", "maxlength", "property"
         , "role"
+        , "d", "viewBox", "fill", "cx", "cy", "r", "x", "y", "text-anchor", "alignment-baseline"
+        , "line-spacing", "letter-spacing"
         ]
 
 
@@ -185,6 +187,7 @@ parents =
         , "section", "select", "small", "span", "strong", "style", "sub"
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
         , "thead", "time", "title", "tr", "ul", "var", "video"
+        , "svg", "path", "text", "circle"
         ]
 
 leafs =

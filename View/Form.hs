@@ -132,7 +132,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                 Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
                     --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
                     let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
-                    (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") $ Html5.text ("Kein Team")
+                    (if isValueSelected then Html5.option else Html5.option ! A.selected "selected" ! A.disabled "disabled") $ Html5.text ("Please select")
                     forM_ (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
                 renderHelpText formField
                 if disableValidationResult then mempty else renderValidationResult formField
@@ -175,7 +175,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
                         Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
                             --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
                             let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
-                            (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") $ Html5.text ("Kein Team")
+                            (if isValueSelected then Html5.option else Html5.option ! A.selected "selected" ! A.disabled "disabled") $ Html5.text ("Please select")
                             forM_ (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
                         if disableValidationResult then mempty else renderValidationResult formField
                         renderHelpText formField
