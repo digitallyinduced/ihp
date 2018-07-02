@@ -617,7 +617,7 @@ compileHasModelNameInstance table@(Table name attributes) = "instance HasModelNa
 compileHasTableNameInstance table@(Table name attributes) = "instance HasTableName (" <> compileNewOrSavedType table <> ") where getTableName _ = " <> tshow name <> "\ntype instance GetTableName (New" <> tableNameToModelName name <> ") = " <> tshow name <> "\n" <> "\ntype instance GetTableName (" <> tableNameToModelName name <> ") = " <> tshow name <> "\n"
 
 compileReadParams :: Table -> Text
-compileReadParams (Table tableName _) = "readParams = combine (columnNames (Data.Proxy.Proxy @" <> tableNameToModelName tableName <> "))\n"
+compileReadParams (Table tableName _) = "readParams = combine (Foundation.ModelSupport.columnNames (Data.Proxy.Proxy @" <> tableNameToModelName tableName <> "))\n"
 
 compileColumnNames table@(Table tableName attributes) = "instance ColumnNames " <> instanceHead <> " where " <> typeDef <> "; columnNames _ = " <> tableNameToModelName tableName <> " " <> compiledFields
     where

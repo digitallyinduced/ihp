@@ -1,6 +1,26 @@
 .PHONY: run
 
-GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XDuplicateRecordFields -XFlexibleContexts -XTypeSynonymInstances -XFlexibleInstances -XQuasiQuotes -XScopedTypeVariables -XTypeFamilies -XRecordWildCards -XTypeApplications -XDataKinds -XOverloadedLabels -XInstanceSigs
+GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated
+GHC_OPTIONS+= -XOverloadedStrings
+GHC_OPTIONS+= -XNoImplicitPrelude
+GHC_OPTIONS+= -XImplicitParams
+GHC_OPTIONS+= -XRank2Types
+GHC_OPTIONS+= -XDisambiguateRecordFields
+GHC_OPTIONS+= -XNamedFieldPuns
+GHC_OPTIONS+= -XDuplicateRecordFields
+GHC_OPTIONS+= -XOverloadedLabels
+GHC_OPTIONS+= -XFlexibleContexts
+GHC_OPTIONS+= -XTypeSynonymInstances
+GHC_OPTIONS+= -XFlexibleInstances
+GHC_OPTIONS+= -XQuasiQuotes
+GHC_OPTIONS+= -XTypeFamilies
+GHC_OPTIONS+= -XPackageImports
+GHC_OPTIONS+= -XScopedTypeVariables
+GHC_OPTIONS+= -XRecordWildCards
+GHC_OPTIONS+= -XTypeApplications
+GHC_OPTIONS+= -XDataKinds
+GHC_OPTIONS+= -XInstanceSigs
+
 RUNGHC=runghc
 
 .envrc: default.nix src/Foundation/NixSupport/default.nix
@@ -33,7 +53,7 @@ dump_db:
 	pg_dump -a --inserts --disable-triggers -p 8001 app > src/Model/Fixtures.sql
 
 ghci:
-	ghci -threaded -isrc -isrc/Foundation -XOverloadedStrings -XNoImplicitPrelude -XImplicitParams -XRank2Types -XDisambiguateRecordFields -XNamedFieldPuns -XFlexibleContexts -XDuplicateRecordFields -fexternal-interpreter
+	ghci -threaded -isrc -isrc/Foundation -fexternal-interpreter
 
 bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs
 	mkdir -p bin
