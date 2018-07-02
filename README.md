@@ -186,6 +186,11 @@ let assignedUserId :: Maybe UserId = project |> get #assignedUserId
 assignedUser <- assignedUserId |> fetchOneOrNothing
 ```
 
+## Raw SQL Queries
+```
+result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+```
+
 # Form
 
 ```
