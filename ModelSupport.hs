@@ -64,8 +64,8 @@ instance InputValue Int where
     inputValue = tshow
 
 instance InputValue Bool where
-    inputValue True = "yes"
-    inputValue False = "no"
+    inputValue True = "on"
+    inputValue False = "off"
 
 instance InputValue Data.UUID.UUID where
     inputValue = Data.UUID.toText
