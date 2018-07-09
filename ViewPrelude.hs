@@ -46,7 +46,9 @@ module Foundation.ViewPrelude (
     module Data.List.Split,
     module Helper.View,
     isActivePathOrSub,
-    module View.Context
+    module View.Context,
+    plain,
+    preEscapedToHtml
 ) where
 
 import Model.Generated.Types
@@ -60,7 +62,7 @@ import           Foundation.ViewErrorMessages
 import           Foundation.ViewSupport
 import qualified Network.Wai
 import           Text.Blaze                   (Attribute, dataAttribute, preEscapedText, stringValue, text)
-import           Text.Blaze.Html5             (a, body, button, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img, input,
+import           Text.Blaze.Html5             (preEscapedToHtml, a, body, button, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img, input,
                                                label, li, link, meta, nav, ol, p, script, small, span, table, tbody, td, th, thead, title, tr, ul, pre, code, select, option)
 import           Text.Blaze.Html5             ((!))
 import qualified Text.Blaze.Html5             as Html5
@@ -86,6 +88,9 @@ import GHC.OverloadedLabels (fromLabel)
 import GHC.Records (HasField)
 import Data.List.Split (chunksOf)
 import Helper.View
+import qualified Data.String.Interpolate
+
+plain = Data.String.Interpolate.i
 
 onClick = onclick
 onLoad = onload
