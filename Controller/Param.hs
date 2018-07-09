@@ -78,7 +78,7 @@ instance FromParameter Text where
     fromParameter Nothing = Left "FromParameter Text: Parameter missing"
 
 instance FromParameter Bool where
-    fromParameter (Just "on") = pure True
+    fromParameter (Just on) | on == cs (ModelSupport.inputValue True) = pure True
     fromParameter _ = pure False
 
 instance FromParameter UUID where

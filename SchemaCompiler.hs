@@ -154,6 +154,8 @@ compileTypes' table@(Table name attributes) =
     <> compileIdNewType table
     <> section
     <> compileModelFieldValueTypeInstances table
+    <> section
+    <> compileInclude table
 
 
 compileValidators :: [Table] -> Text
@@ -614,10 +616,16 @@ compileIsNewInstance table@(Table name attributes) =
     <> "instance IsNew " <> tableNameToModelName name <> " where isNew _ = False\n"
 
 compileHasModelNameInstance table@(Table name attributes) = "instance HasModelName (" <> compileNewOrSavedType table <> ") where getModelName _ = " <> tshow (tableNameToModelName name) <> "\n"
-compileHasTableNameInstance table@(Table name attributes) = "instance HasTableName (" <> compileNewOrSavedType table <> ") where getTableName _ = " <> tshow name <> "\ntype instance GetTableName (New" <> tableNameToModelName name <> ") = " <> tshow name <> "\n" <> "\ntype instance GetTableName (" <> tableNameToModelName name <> ") = " <> tshow name <> "\n"
+compileHasTableNameInstance table@(Table name attributes) = "instance HasTableName (" <> compileNewOrSavedType table <> ") where getTableName _ = " <> tshow name <> "\n"
+        <> "\ntype instance GetTableName (" <> tableNameToModelName name <> "' " <> getTableNameTypeArgs <> " ) = " <> tshow name <> "\n"
+    where
+        getTableNameTypeArgs :: Text
+        getTableNameTypeArgs = intercalate " " $ map toArg attributes
+        toArg (Field fieldName _) = fieldName
+        toArg (HasMany {name}) =  name
 
 compileReadParams :: Table -> Text
-compileReadParams (Table tableName _) = "readParams = combine (columnNames (Data.Proxy.Proxy @" <> tableNameToModelName tableName <> "))\n"
+compileReadParams (Table tableName _) = "readParams = combine (Foundation.ModelSupport.columnNames (Data.Proxy.Proxy @" <> tableNameToModelName tableName <> "))\n"
 
 compileColumnNames table@(Table tableName attributes) = "instance ColumnNames " <> instanceHead <> " where " <> typeDef <> "; columnNames _ = " <> tableNameToModelName tableName <> " " <> compiledFields
     where
@@ -629,6 +637,24 @@ compileColumnNames table@(Table tableName attributes) = "instance ColumnNames " 
         compiledFields = intercalate " " (map compileField attributes)
         compileField (Field fieldName _) = "(" <>tshow fieldName <> " :: ByteString)"
         compileField (HasMany {name}) = "(" <>tshow name <> " :: ByteString)"
+
+compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compileInclude' attributes
+    where
+        compileInclude' :: Attribute -> Text
+        compileInclude' (Field fieldName _) = "type instance Include " <> tshow (columnNameToFieldName fieldName) <> " (" <> leftModelType <> ") = " <> rightModelType <> "\n"
+            where
+                leftModelType :: Text
+                leftModelType = intercalate " " $ (tableNameToModelName tableName <> "'"):(map compileTypeVariable attributes)
+                rightModelType :: Text
+                rightModelType = intercalate " " $ (tableNameToModelName tableName <> "'"):(map compileTypeVariable' attributes)
+                compileTypeVariable :: Attribute -> Text
+                compileTypeVariable (Field fieldName _) = fieldName
+                compileTypeVariable (HasMany {name}) = name
+                compileTypeVariable' :: Attribute -> Text
+                compileTypeVariable' (Field fieldName' _) | fieldName' == fieldName = "(GetModelById (ModelFieldValue (" <> leftModelType <> ") " <> tshow fieldName <> "))"
+                compileTypeVariable' otherwise = compileTypeVariable otherwise
+        compileInclude' (HasMany {}) = ""
+
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"

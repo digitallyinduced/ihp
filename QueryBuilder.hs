@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies #-}
 
-module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..)) where
+module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include) where
 
 import Foundation.HaskellSupport
 import ClassyPrelude hiding (UTCTime, find)
@@ -47,7 +47,7 @@ data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
     FilterByQueryBuilder :: (KnownSymbol field) => (Proxy field, FilterOperator, Action) -> QueryBuilder model -> QueryBuilder model
     OrderByQueryBuilder :: KnownSymbol field => (Proxy field, OrderByDirection) -> QueryBuilder model -> QueryBuilder model
-    IncludeQueryBuilder :: KnownSymbol field => (Proxy field) -> QueryBuilder model -> QueryBuilder model
+    IncludeQueryBuilder :: (KnownSymbol field, KnownSymbol (GetTableName model)) => (Proxy field, QueryBuilder relatedModel) -> QueryBuilder model -> QueryBuilder (Foundation.ModelSupport.Include field model)
     UnionQueryBuilder :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
 
 data Condition = VarCondition Text Action | OrCondition Condition Condition | AndCondition Condition Condition deriving (Show)
@@ -59,8 +59,7 @@ data SQLQuery = SQLQuery {
         selectFrom :: Text,
         whereCondition :: Maybe Condition,
         orderByClause :: Maybe (Text, OrderByDirection),
-        limitClause :: Maybe Text,
-        includes :: [Text]
+        limitClause :: Maybe Text
     }
 
 buildQuery :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> SQLQuery
@@ -68,7 +67,7 @@ buildQuery queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolVal @(GetTableName model) Proxy
-            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = Nothing, limitClause = Nothing, includes = [] }
+            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = Nothing, limitClause = Nothing }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = (buildQuery queryBuilder)
@@ -78,9 +77,7 @@ buildQuery queryBuilder =
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
             let query = (buildQuery queryBuilder)
             in query { orderByClause = Just (fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection) }
-        IncludeQueryBuilder (fieldProxy) queryBuilder ->
-            let query = (buildQuery queryBuilder)
-            in query { includes = (includes query) <> [fieldNameToColumnName . cs $ symbolVal fieldProxy] }
+        IncludeQueryBuilder include queryBuilder -> buildQuery queryBuilder
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
             let
                 firstQuery = buildQuery firstQueryBuilder
@@ -103,7 +100,6 @@ class Fetchable fetchable model | fetchable -> model where
     fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO [model]
     fetchOneOrNothing :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO (Maybe model)
     fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO model
-
 
 instance Fetchable (QueryBuilder model) model where
     fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => QueryBuilder model -> IO [model]
@@ -145,19 +141,10 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
             <> orderByClause' <> " "
             <> limitClause'
 
-        commaSep = intercalate ", "
         selectors :: Text
-        selectors = commaSep (rootTableSelector:joinedTableSelectors)
-            where
-                rootTableSelector :: Text
-                rootTableSelector = selectFrom <> ".*"
-                joinedTableSelectors :: [Text]
-                joinedTableSelectors = map (\tableName -> tableName <> ".*") (includes sqlQuery)
+        selectors = selectFrom <> ".*"
         fromClause :: Text
-        fromClause = commaSep (rootTableFromClause:joinedTableFromClauses)
-            where
-                rootTableFromClause = selectFrom
-                joinedTableFromClauses = includes sqlQuery
+        fromClause = selectFrom
         theParams =
             case whereCondition sqlQuery of
                 Just condition -> compileConditionArgs condition
@@ -212,8 +199,10 @@ orderBy :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder 
 orderBy name = OrderByQueryBuilder (name, Asc)
 
 data IncludeTag
-include :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
-include name = IncludeQueryBuilder name
+include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), fieldType ~ ModelFieldValue model name, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (Foundation.ModelSupport.Include name model)
+include name = IncludeQueryBuilder (name, relatedQueryBuilder)
+    where
+        relatedQueryBuilder = query @relatedModel
 
 
 -- findBy :: forall model name value. (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol name, ToField (ModelFieldValue model name), ToFilterValue value, ToFilterValueType value ~ ModelFieldValue model name) => Proxy name -> value -> QueryBuilder model -> IO model

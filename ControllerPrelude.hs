@@ -33,7 +33,7 @@ import           Model.Generated.Validators
 import           UrlGenerator
 import Foundation.HaskellSupport
 import Foundation.UrlGeneratorSupport (pathTo)
-import Foundation.ModelSupport (findMany, createRecord, deleteRecord)
+import Foundation.ModelSupport (findMany, createRecord, deleteRecord, Include)
 import Foundation.QueryBuilder
 import GHC.Records
 import Controller.Context

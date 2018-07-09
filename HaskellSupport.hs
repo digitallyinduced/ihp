@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
-module Foundation.HaskellSupport ((|>), isEmpty, whenEmpty, (==>), get, ifOrEmpty) where
+module Foundation.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, (==>), get, ifOrEmpty) where
 
 import ClassyPrelude
 import Control.Monad (when)
@@ -21,6 +21,7 @@ ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
 
 whenEmpty condition = when (isEmpty condition)
+whenNonEmpty condition = when (not (isEmpty condition))
 
 
 instance Data.Default.Default Data.UUID.UUID where
