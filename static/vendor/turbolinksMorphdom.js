@@ -6,7 +6,10 @@ Turbolinks.SnapshotRenderer.prototype.assignNewBody = function () {
         return;
     }
 
-    morphdom(document.body, this.newBody);
+    console.log('morph');
+    morphdom(document.body, this.newBody, {
+        childrenOnly: true,
+    });
     locked = true;
 
     setTimeout(function () {
