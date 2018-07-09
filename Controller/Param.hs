@@ -17,7 +17,7 @@ import qualified Data.UUID
 import Data.UUID (UUID)
 import qualified Foundation.ModelSupport as ModelSupport
 
-param :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> a
+param :: (?requestContext :: RequestContext) => (Show a, FromParameter a) => ByteString -> a
 param name = (fromParameterOrError name) (paramOrNothing name)
 
 hasParam :: (?requestContext :: RequestContext) => ByteString -> Bool
@@ -40,8 +40,8 @@ paramOrNothing' name = do
         allParams = concat [(map (\(a, b) -> (a, Just b)) bodyParams), (queryString request)]
     join (lookup name allParams)
 
-fromParameterOrError :: FromParameter a => ByteString -> Maybe ByteString -> a
-fromParameterOrError name value = Data.Either.fromRight (error $ "Invalid parameter " <> cs name <> ": " <> show value) (fromParameter value)
+fromParameterOrError :: (Show a, FromParameter a) => ByteString -> Maybe ByteString -> a
+fromParameterOrError name value = let param = fromParameter value in Data.Either.fromRight (error $ "fromParameterOrError: Invalid parameter " <> cs name <> " => " <> (let (Data.Either.Left errorMessage) = param in errorMessage)) param
 
 fromParameterOrNothing :: FromParameter a => ByteString -> Maybe ByteString -> Maybe a
 fromParameterOrNothing name value =
@@ -88,7 +88,7 @@ instance FromParameter UUID where
             Nothing -> Left "FromParamter UUID: Parse error"
     fromParameter Nothing = Left "FromParameter UUID: Parameter missing"
 
-instance {-# OVERLAPPABLE #-} (ModelSupport.NewTypeWrappedUUID idField) => FromParameter idField where
+instance {-# OVERLAPPABLE #-} (Show idField, ModelSupport.NewTypeWrappedUUID idField) => FromParameter idField where
     fromParameter maybeUUID =
         case (fromParameter maybeUUID) :: Either String UUID of
             Right uuid -> pure (ModelSupport.wrap uuid)
