@@ -12,6 +12,15 @@ document.addEventListener('turbolinks:load', function() {
     initBack();
     initToggle();
     initTime();
+
+    setTimeout(function () {
+        var elements = document.querySelectorAll('.js-scroll-into-view');
+        for (var i in elements) {
+            var element = elements[i];
+            if (element && element.scrollIntoView)
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, 1);
 });
 
 function initTime() {
@@ -49,7 +58,7 @@ function initDelete() {
         form.appendChild(methodInput);
 
         document.body.appendChild(form);
-        form.submit();
+        submitForm(form);
     }
 
     for (var i in elements) {
@@ -82,36 +91,65 @@ function initBack() {
 }
 
 function initDisableButtonsOnSubmit() {
-    function initForm(form) {
-        form.addEventListener('submit', function (e) {
-            var buttons = form.getElementsByTagName('button');
-            for (var j in buttons) {
-                var button = buttons[j];
-                if (button instanceof HTMLButtonElement) {
-                    // We cannot disable the button right now, as then it's value
-                    // is not sent to the server
-                    // See https://sarbbottam.github.io/blog/2015/08/21/multiple-submit-buttons-and-javascript
-                    setTimeout(function () { button.setAttribute('disabled', 'disabled'); }, 0);
-                }
-            }
+    if (window.initDisableButtonsOnSubmitRun) {
+        return;
+    }
+    window.initDisableButtonsOnSubmitRun = true;
 
-            var alerts = form.getElementsByClassName('alert');
-            for (var j in alerts) {
-                var alert = alerts[j];
-                if (alert instanceof HTMLDivElement) {
-                    alert.classList.add('dismiss');
-                }
-            }
-        })
+    document.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        var form = event.target;
+        submitForm(form);
+    });
+}
+
+function submitForm(form) {
+    var request = new XMLHttpRequest();
+    request.onload = function () {
+        var snapshot = Turbolinks.Snapshot.wrap(request.response);
+        Turbolinks.controller.cache.put(request.responseURL, snapshot);
+        Turbolinks.visit(request.responseURL, { action: 'restore' });
+        Turbolinks.clearCache();
+    };
+    request.open(form.method, form.action, true);
+    console.log(event);
+
+    var submit = document.activeElement;
+    var formData = new FormData(form);
+
+    if (submit instanceof HTMLInputElement || (submit instanceof HTMLButtonElement && submit.getAttribute('type') == 'submit')) {
+        formData.set(submit.getAttribute('name'), submit.getAttribute('value'));
     }
 
-    for (var i in document.forms) {
-        var form = document.forms[i];
-        if (!(form instanceof HTMLFormElement)) {
-            return;
-        }
+    var parameters = []
+    for (var pair of formData.entries()) {
+        parameters.push(
+            encodeURIComponent(pair[0]) + '=' +
+            encodeURIComponent(pair[1])
+        );
+    }
 
-        initForm(form);
+    request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    request.send(parameters.join('&'));
+
+    var buttons = form.getElementsByTagName('button');
+    for (var j in buttons) {
+        var button = buttons[j];
+        if (button instanceof HTMLButtonElement) {
+            // We cannot disable the button right now, as then it's value
+            // is not sent to the server
+            // See https://sarbbottam.github.io/blog/2015/08/21/multiple-submit-buttons-and-javascript
+            setTimeout(function () { this.setAttribute('disabled', 'disabled'); }.bind(button), 0);
+        }
+    }
+
+    var alerts = form.getElementsByClassName('alert');
+    for (var j in alerts) {
+        var alert = alerts[j];
+        if (alert instanceof HTMLDivElement) {
+            alert.classList.add('dismiss');
+        }
     }
 }
 
