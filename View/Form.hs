@@ -81,7 +81,7 @@ formFor' formContext url inner = form ! method "POST" ! action (cs url) $ do
 submitButton :: (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => SubmitButton
 submitButton = SubmitButton { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext), modelName = Foundation.ModelSupport.getModelName (model ?formContext), renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit }
 
-data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput | TextareaInput | SelectInput { options :: [(Text, Text)] }
+data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput | TextareaInput | DateInput | SelectInput { options :: [(Text, Text)] }
 
 renderHelpText (FormField { helpText }) =
     case helpText of
@@ -104,6 +104,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
         case fieldType of
             TextInput -> renderTextField "text" formField
             ColorInput -> renderTextField "color" formField
+            DateInput -> renderTextField "date" formField
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField { fieldInput = Html5.textarea (cs $ fieldValue formField) }
@@ -145,6 +146,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
         case fieldType of
             TextInput -> renderTextField "text" formField
             ColorInput -> renderTextField "color" formField
+            DateInput -> renderTextField "date" formField
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField { fieldInput = Html5.textarea (cs $ fieldValue formField) }
@@ -275,6 +277,9 @@ textareaField alpha = (textField alpha) { fieldType = TextareaInput }
 
 colorField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
 colorField alpha = (textField alpha) { fieldType = ColorInput }
+
+dateField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
+dateField alpha = (textField alpha) { fieldType = DateInput }
 
 hiddenField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 hiddenField alpha = (textField alpha) { fieldType = HiddenInput }
