@@ -6,7 +6,6 @@ Turbolinks.SnapshotRenderer.prototype.assignNewBody = function () {
         return;
     }
 
-    console.log('morph');
     morphdom(document.body, this.newBody, {
         childrenOnly: true,
     });

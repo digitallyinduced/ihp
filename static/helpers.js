@@ -115,11 +115,14 @@ function submitForm(form, possibleClickedButton) {
             console.error('Something went wrong, status code: ' + request.status);
             return;
         }
+        
         if (window.Turbolinks) {
-            var snapshot = Turbolinks.Snapshot.wrap(request.response);
-            Turbolinks.controller.cache.put(request.responseURL, snapshot);
-            Turbolinks.visit(request.responseURL, { action: 'restore' });
+            var snapshot = new Turbolinks.Snapshot(new Turbolinks.HeadDetails(request.response.head), request.response.body);
+            morphdom(document.body, request.response.body, {childrenOnly: true});
             Turbolinks.clearCache();
+            history.pushState({}, '', request.responseURL);
+            var turbolinkLoadEvent = new CustomEvent("turbolinks:load");
+            document.dispatchEvent(turbolinkLoadEvent);
         } else {
             morphdom(document.body, request.response.body, {childrenOnly: true});
             history.pushState({}, '', request.responseURL);
