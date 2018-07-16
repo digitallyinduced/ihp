@@ -6,9 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initTime();
 });
 
-document.addEventListener('turbolinks:load', function() {
-    initDelete();
-    initDisableButtonsOnSubmit();
+document.addEventListener('turbolinks:load', function () {
     initBack();
     initToggle();
     initTime();
@@ -35,36 +33,31 @@ function initTime() {
 }
 
 function initDelete() {
-    var elements = document.getElementsByClassName('js-delete');
+    document.addEventListener('click', handleClick);
 
     function handleClick(event) {
-        event.preventDefault();
+        if (event.target instanceof HTMLAnchorElement && event.target.classList.contains('js-delete')) {
+            event.preventDefault();
 
-        if (!event.currentTarget.classList.contains('js-delete-no-confirm')) {
-            if (!confirm('Are you sure you want to delete this?')) {
-                return;
+            if (!event.target.classList.contains('js-delete-no-confirm')) {
+                if (!confirm('Are you sure you want to delete this?')) {
+                    return;
+                }
             }
-        }
 
-        var form = document.createElement('form');
-        form.action = event.currentTarget.href;
-        form.method = 'POST';
+            var form = document.createElement('form');
+            form.action = event.target.href;
+            form.method = 'POST';
 
-        var methodInput = document.createElement('input');
-        methodInput.type = 'hidden';
-        methodInput.name = '_method';
-        methodInput.value = 'DELETE';
+            var methodInput = document.createElement('input');
+            methodInput.type = 'hidden';
+            methodInput.name = '_method';
+            methodInput.value = 'DELETE';
 
-        form.appendChild(methodInput);
+            form.appendChild(methodInput);
 
-        document.body.appendChild(form);
-        submitForm(form);
-    }
-
-    for (var i in elements) {
-        var element = elements[i];
-        if (element instanceof HTMLAnchorElement) {
-            element.addEventListener('click', handleClick);
+            document.body.appendChild(form);
+            submitForm(form);
         }
     }
 }
@@ -96,30 +89,56 @@ function initDisableButtonsOnSubmit() {
     }
     window.initDisableButtonsOnSubmitRun = true;
 
+
+    var lastClicked = null;
     document.addEventListener('submit', function (event) {
         event.preventDefault();
 
         var form = event.target;
-        submitForm(form);
+        submitForm(form, lastClicked);
+    });
+
+    document.addEventListener('mouseup', function (event) {
+        lastClicked = event.target;
     });
 }
 
-function submitForm(form) {
+function submitForm(form, possibleClickedButton) {
     var request = new XMLHttpRequest();
+    request.responseType = "document";
+    request.overrideMimeType('text/html');
     request.onload = function () {
-        var snapshot = Turbolinks.Snapshot.wrap(request.response);
-        Turbolinks.controller.cache.put(request.responseURL, snapshot);
-        Turbolinks.visit(request.responseURL, { action: 'restore' });
-        Turbolinks.clearCache();
+        if (request.readyState !== request.DONE) {
+            return;
+        }
+        if (request.status !== 200) {
+            console.error('Something went wrong, status code: ' + request.status);
+            return;
+        }
+        if (window.Turbolinks) {
+            var snapshot = Turbolinks.Snapshot.wrap(request.response);
+            Turbolinks.controller.cache.put(request.responseURL, snapshot);
+            Turbolinks.visit(request.responseURL, { action: 'restore' });
+            Turbolinks.clearCache();
+        } else {
+            morphdom(document.body, request.response.body, {childrenOnly: true});
+            history.pushState({}, '', request.responseURL);
+            var turbolinkLoadEvent = new CustomEvent("turbolinks:load");
+            document.dispatchEvent(turbolinkLoadEvent);
+        }
     };
     request.open(form.method, form.action, true);
-    console.log(event);
 
     var submit = document.activeElement;
-    var formData = new FormData(form);
+    if (!submit || submit instanceof HTMLBodyElement) {
+        submit = possibleClickedButton;
+    }
 
-    if (submit instanceof HTMLInputElement || (submit instanceof HTMLButtonElement && submit.getAttribute('type') == 'submit')) {
-        formData.set(submit.getAttribute('name'), submit.getAttribute('value'));
+    var formData = new FormData(form);
+    console.log(form, formData, submit);
+
+    if ((submit instanceof HTMLInputElement || (submit instanceof HTMLButtonElement && submit.getAttribute('type') == 'submit')) && submit.form == form) {
+        formData.set(submit.getAttribute('name'), submit.value);
     }
 
     var parameters = []
@@ -129,6 +148,7 @@ function submitForm(form) {
             encodeURIComponent(pair[1])
         );
     }
+
 
     request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     request.send(parameters.join('&'));
