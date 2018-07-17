@@ -13,7 +13,7 @@ function ensureDevStyleLoaded() {
 
 function refresh() {
     fetch(window.location.href, {credentials: 'include'})
-        .then(response => { if (response.ok) response.text(); else throw Error(response.statusText) })
+        .then(response => { if (response.ok) return response.text(); else throw Error(response.statusText) })
         .catch(error => {
             ensureDevStyleLoaded();
 
@@ -58,7 +58,6 @@ function refresh() {
                     } else if (el instanceof HTMLScriptElement) {
                         key = el.src;
                     }
-                    console.log('getNodeKey', key, el);
                     return key;
                 },
                 onElUpdated: function () {
@@ -66,7 +65,6 @@ function refresh() {
                     document.dispatchEvent(event);
                 },
                 onBeforeElChildrenUpdated: function(fromEl, toEl) {
-                    console.log('x');
                     if (fromEl.tagName === 'TEXTAREA' || fromEl.tagName === 'INPUT') {
                         toEl.checked = fromEl.checked;
                         toEl.value = fromEl.value;
@@ -83,7 +81,7 @@ if (window.liveReloadEnabled) {
 } else {
     window.liveReloadEnabled = true;
     document.addEventListener('DOMContentLoaded', function () {
-        var interval = parseInt(document.getElementById('livereload-script').getAttribute('data-interval') || 250);
+        var interval = parseInt(document.getElementById('livereload-script').getAttribute('data-interval') || 1000);
         setInterval(refresh, interval);
     });
 }
