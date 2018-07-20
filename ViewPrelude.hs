@@ -48,7 +48,9 @@ module Foundation.ViewPrelude (
     isActivePathOrSub,
     module View.Context,
     plain,
-    preEscapedToHtml
+    preEscapedToHtml,
+    module Foundation.View.Modal,
+    classes
 ) where
 
 import Model.Generated.Types
@@ -89,6 +91,7 @@ import GHC.Records (HasField)
 import Data.List.Split (chunksOf)
 import Helper.View
 import qualified Data.String.Interpolate
+import Foundation.View.Modal
 
 plain = Data.String.Interpolate.i
 

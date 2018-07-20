@@ -278,7 +278,7 @@ textareaField alpha = (textField alpha) { fieldType = TextareaInput }
 colorField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
 colorField alpha = (textField alpha) { fieldType = ColorInput }
 
-dateField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
+dateField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 dateField alpha = (textField alpha) { fieldType = DateInput }
 
 hiddenField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
