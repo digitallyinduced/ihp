@@ -58,4 +58,5 @@ class CanValidate model where
     isValid :: model -> Bool
 
 class CanValidateField model where
-    validateModelField :: (FormFieldValue (ModelFieldType model) model) => model -> ModelFieldType model -> ValidatorResult
+    type CanValidateFieldResult model :: *
+    validateModelField :: forall fieldName value. (KnownSymbol fieldName) => Proxy fieldName -> model -> CanValidateFieldResult model

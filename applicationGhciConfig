@@ -18,3 +18,4 @@
 :set -XTypeApplications
 :set -XDataKinds
 :set -XInstanceSigs
+:set -XDeriveGeneric

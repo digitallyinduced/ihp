@@ -1,7 +1,10 @@
-{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts #-}
 
-module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include) where
+module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include, fetchRelated) where
 
+import Control.Lens hiding ((|>))
+import Data.Generics.Product
+import GHC.Generics
 import Foundation.HaskellSupport
 import ClassyPrelude hiding (UTCTime, find)
 import qualified ClassyPrelude
@@ -18,7 +21,6 @@ import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import GHC.Records
 import GHC.OverloadedLabels
 import Data.String.Conversions (cs)
 import GHC.TypeLits
@@ -204,6 +206,20 @@ include name = IncludeQueryBuilder (name, relatedQueryBuilder)
     where
         relatedQueryBuilder = query @relatedModel
 
+fetchRelated :: forall relatedField model relatedFieldValue relatedModel. (
+        ?modelContext :: ModelContext,
+        KnownSymbol relatedField,
+        HasField' relatedField model relatedFieldValue,
+        HasField relatedField model (Foundation.ModelSupport.Include relatedField model) relatedFieldValue relatedModel,
+        Fetchable relatedFieldValue relatedModel,
+        KnownSymbol (GetTableName relatedModel),
+        PG.FromRow relatedModel,
+        relatedFieldValue ~ ModelFieldValue model relatedField
+    ) => Proxy relatedField -> model -> IO (Foundation.ModelSupport.Include relatedField model)
+fetchRelated relatedField model = do
+    relatedModel :: relatedModel <- fetchOne ((getField @relatedField model) :: relatedFieldValue)
+    let model' = model & field @relatedField .~ relatedModel
+    return model'
 
 -- findBy :: forall model name value. (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol name, ToField (ModelFieldValue model name), ToFilterValue value, ToFilterValueType value ~ ModelFieldValue model name) => Proxy name -> value -> QueryBuilder model -> IO model
 findBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOne

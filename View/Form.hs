@@ -189,14 +189,14 @@ renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= di
 
 
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model, IsLabel symbol (ModelFieldType model), CanValidateField model, Foundation.ModelSupport.FormFieldValue (ModelFieldType model) model, Foundation.ModelSupport.InputValue value ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
+instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model, IsLabel symbol (ModelFieldType model), CanValidateField model, Foundation.ModelSupport.InputValue value, (HasField symbol (CanValidateFieldResult model) ValidatorResult)) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
     fromLabel = \(formContext, viewContext, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType = TextInput,
                         fieldName = cs columnName,
                         fieldLabel = columnNameToFieldLabel columnName,
                         fieldValue =  let value :: value = getField @(symbol) (model formContext) in Foundation.ModelSupport.inputValue value,
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> columnName),
-                        validatorResult = (validateModelField (model formContext) :: ModelFieldType model -> ValidatorResult) (fromLabel @symbol),
+                        validatorResult = getField @symbol (validateModelField (Proxy @symbol) (model formContext)),
                         fieldClass = "",
                         labelClass = "",
                         disableLabel = False,

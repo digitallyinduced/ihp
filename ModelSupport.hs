@@ -96,6 +96,12 @@ toSQLCondition fieldName (Equal a) = (fieldName <> " = ?", Just a)
 class IsNew model where
     isNew :: model -> Bool
 
+class IsNewId id where
+    isNewId :: id -> Bool
+instance IsNewId () where isNewId _ = False
+instance IsNewId UUID where isNewId _ = True
+
+
 class HasModelName model where
     getModelName :: model -> Text
 

@@ -50,7 +50,8 @@ module Foundation.ViewPrelude (
     plain,
     preEscapedToHtml,
     module Foundation.View.Modal,
-    classes
+    classes,
+    module Foundation.ModelSupport
 ) where
 
 import Model.Generated.Types
@@ -60,6 +61,7 @@ import           Data.String.Conversions      (ConvertibleStrings (convertString
 import           Data.Text                    (Text, intercalate)
 import           Foundation.HaskellSupport
 import qualified Foundation.ModelSupport
+import Foundation.ModelSupport (Include)
 import           Foundation.ViewErrorMessages
 import           Foundation.ViewSupport
 import qualified Network.Wai
