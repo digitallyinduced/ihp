@@ -140,11 +140,12 @@ instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wra
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
 
-deleteRecord :: (?modelContext::ModelContext) => (HasTableName model, NewTypeWrappedUUID idType, HasField "id" model idType) => model -> IO ()
+deleteRecord :: (?modelContext::ModelContext, Show model) => (HasTableName model, NewTypeWrappedUUID idType, HasField "id" model idType) => model -> IO ()
 deleteRecord model = do
     let (ModelContext conn) = ?modelContext
     let id = getField @"id" model
     let tableName = getTableName model
+    putStrLn ("deleteRecord " <> tshow model)
     PG.execute conn (PG.Query . cs $ "DELETE FROM " <> tableName <> " WHERE id = ?") (PG.Only (unwrap id))
     return ()
 

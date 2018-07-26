@@ -1,7 +1,14 @@
-var oldAssignNewBody = Turbolinks.SnapshotRenderer.prototype.assignNewBody;
-
 var locked = false;
-Turbolinks.SnapshotRenderer.prototype.assignNewBody = function () {
+
+if (window.Turbolinks) {
+    var oldAssignNewBody = Turbolinks.SnapshotRenderer.prototype.assignNewBody;
+
+    Turbolinks.SnapshotRenderer.prototype.assignNewBody = function () {
+        transitionToNewPage(this.newBody);
+    };
+}
+
+window.transitionToNewPage = function (newBody) {
     if (locked) {
         return;
     }
@@ -13,8 +20,6 @@ Turbolinks.SnapshotRenderer.prototype.assignNewBody = function () {
         scrollPosition = $(window).scrollTop();;
 
     console.log(scrollPosition);
-
-    var newBody = this.newBody;
 
     var isModalOpen = document.body.classList.contains('modal-open');
     morphdom(document.body, newBody, {
@@ -35,6 +40,18 @@ Turbolinks.SnapshotRenderer.prototype.assignNewBody = function () {
             console.log('onBeforeElChildrenUpdated', from, to);
         },
         onBeforeNodeDiscarded: function (el) {
+            if (el.classList.contains('animate-delete')) {
+                el.style.height = window.getComputedStyle(el).height;
+                // el.style.height = window.getComputedStyle(el).height;
+
+                setTimeout(function (el) {
+                    el.classList.add('delete');
+                }, 0, el);
+                setTimeout(function (el) {
+                    el.parentNode.removeChild(el);
+                }, 300, el);
+                return false;
+            }
             console.log('onBeforeNodeDiscarded', el);
         },
         getNodeKey: function (el) {

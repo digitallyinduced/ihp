@@ -54,7 +54,7 @@ compileToHaskell (Children children) =
 compileToHaskell (TextNode value) = [| Html5.string value |]
 compileToHaskell (SplicedNode code) =
     case parseExp code of
-        Right expression -> let patched = Debug.Trace.traceShow (patchExpr expression)  (patchExpr expression) in [| toHtml $(return patched) |]
+        Right expression -> let patched = patchExpr expression in [| toHtml $(return patched) |]
         Left error -> fail ("compileToHaskell(" <> code <> "): " <> show error)
 
 patchExpr :: TH.Exp -> TH.Exp
@@ -109,7 +109,7 @@ toStringAttribute (name, ExpressionValue code) = do
     let nameWithSuffix = " " <> name <> "=\""
     if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
     case parseExp code of
-        Right expression -> let patched = Debug.Trace.traceShow (patchExpr expression) (patchExpr expression) in [| (attribute name nameWithSuffix) (cs $(return patched)) |]
+        Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(return patched)) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> code <> "): " <> show error)
 
 
