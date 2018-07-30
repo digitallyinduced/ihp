@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts #-}
 
-module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include, fetchRelated) where
+module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include, fetchRelated) where
 
 import Control.Lens hiding ((|>))
 import Data.Generics.Product
@@ -199,6 +199,9 @@ data FilterWhereTag
 data OrderByTag
 orderBy :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderBy name = OrderByQueryBuilder (name, Asc)
+
+orderByDesc :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
+orderByDesc name = OrderByQueryBuilder (name, Desc)
 
 data IncludeTag
 include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), fieldType ~ ModelFieldValue model name, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (Foundation.ModelSupport.Include name model)

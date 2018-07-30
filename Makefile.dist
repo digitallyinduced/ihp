@@ -20,6 +20,7 @@ GHC_OPTIONS+= -XRecordWildCards
 GHC_OPTIONS+= -XTypeApplications
 GHC_OPTIONS+= -XDataKinds
 GHC_OPTIONS+= -XInstanceSigs
+GHC_OPTIONS+= -XDeriveGeneric
 
 RUNGHC=runghc
 
