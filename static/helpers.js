@@ -108,6 +108,7 @@ function submitForm(form, possibleClickedButton) {
     request.responseType = "document";
     request.overrideMimeType('text/html');
     request.onload = function () {
+        console.info('AJAX', this.status, this.responseURL);
         if (request.readyState !== request.DONE) {
             return;
         }
@@ -115,6 +116,7 @@ function submitForm(form, possibleClickedButton) {
             console.error('Something went wrong, status code: ' + request.status);
             return;
         }
+
         if (window.Turbolinks) {
             var snapshot = new Turbolinks.Snapshot(new Turbolinks.HeadDetails(request.response.head), request.response.body);
             transitionToNewPage(request.response.body);
@@ -123,10 +125,23 @@ function submitForm(form, possibleClickedButton) {
             var turbolinkLoadEvent = new CustomEvent("turbolinks:load");
             document.dispatchEvent(turbolinkLoadEvent);
         } else {
-            transitionToNewPage(request.response.body);
+            window.liveReloadPaused = true;
+            console.log('Live Reload Paused');
             history.pushState({}, '', request.responseURL);
+
+            transitionToNewPage(request.response.body);
             var turbolinkLoadEvent = new CustomEvent("turbolinks:load");
             document.dispatchEvent(turbolinkLoadEvent);
+
+            var reenableLiveReload = function () {
+                window.liveReloadPaused = false;
+                console.log('Live Reload Re-Activated');
+
+                document.removeEventListener('turbolinks:load', reenableLiveReload);
+            };
+
+            document.addEventListener('turbolinks:load', reenableLiveReload);
+
         }
     };
     request.open(form.method, form.action, true);
