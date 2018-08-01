@@ -21,6 +21,7 @@ GHC_OPTIONS+= -XTypeApplications
 GHC_OPTIONS+= -XDataKinds
 GHC_OPTIONS+= -XInstanceSigs
 GHC_OPTIONS+= -XDeriveGeneric
+GHC_OPTIONS+= -XMultiParamTypeClasses
 
 RUNGHC=runghc
 
