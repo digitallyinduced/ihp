@@ -56,6 +56,9 @@ data Condition = VarCondition Text Action | OrCondition Condition Condition | An
 
 deriving instance Show (QueryBuilder a)
 
+-- This hack is to allow Eq instances for models with hasMany relations
+instance Eq (Foundation.QueryBuilder.QueryBuilder model) where a == b = True
+
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
         selectFrom :: Text,

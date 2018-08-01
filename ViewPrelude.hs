@@ -28,7 +28,6 @@ module Foundation.ViewPrelude (
 
     module UrlGenerator,
     module Foundation.View.Form,
-    module Model.Generated.Validators,
     viewContext,
     hsx,
     timeAgo,
@@ -51,7 +50,8 @@ module Foundation.ViewPrelude (
     preEscapedToHtml,
     module Foundation.View.Modal,
     classes,
-    module Foundation.ModelSupport
+    module Foundation.ModelSupport,
+    module Foundation.ValidationSupport
 ) where
 
 import Model.Generated.Types
@@ -77,7 +77,6 @@ import           UrlGenerator
 import View.Context
 import Foundation.View.Form
 import Foundation.View.ConvertibleStrings ()
-import Model.Generated.Validators
 import Foundation.HtmlSupport.QQ (hsx)
 import qualified Data.Time.Format
 import Data.Time.Clock (UTCTime)
@@ -94,6 +93,7 @@ import Data.List.Split (chunksOf)
 import Helper.View
 import qualified Data.String.Interpolate
 import Foundation.View.Modal
+import Foundation.ValidationSupport
 
 plain = Data.String.Interpolate.i
 

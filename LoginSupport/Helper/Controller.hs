@@ -8,7 +8,7 @@ import Data.Proxy (Proxy (Proxy))
 import ClassyPrelude
 import Foundation.LoginSupport.Types (throwNotLoggedIn, HasNewSessionUrl (newSessionUrl))
 
-currentUser :: forall controllerContext user. (?controllerContext :: controllerContext, HasField "user" controllerContext (Maybe user), HasNewSessionUrl user) => user
+currentUser :: forall user controllerContext. (?controllerContext :: controllerContext, HasField "user" controllerContext (Maybe user), HasNewSessionUrl user) => user
 currentUser = fromMaybe (throwNotLoggedIn (pure (newSessionUrl (Proxy @user)))) currentUserOrNothing
 
 currentUserOrNothing :: forall controllerContext user. (?controllerContext :: controllerContext, HasField "user" controllerContext (Maybe user), HasNewSessionUrl user) => (Maybe user)

@@ -10,7 +10,6 @@ import           ClassyPrelude                      hiding (div)
 import           Data.String.Conversions            (cs)
 import           Foundation.HaskellSupport
 import qualified Foundation.ModelSupport
-import Foundation.ModelSupport (ModelFieldType)
 import           Foundation.ValidationSupport
 import           Foundation.View.ConvertibleStrings ()
 import           Foundation.ViewErrorMessages
@@ -42,6 +41,13 @@ import qualified Data.Text
 import qualified Text.Inflections
 import GHC.Records
 import qualified Data.Text as Text
+import Control.Lens hiding ((|>))
+import Data.Generics.Product hiding (HasField, getField)
+import qualified Data.Generics.Product
+import GHC.Generics
+import Data.Default
+import Data.Dynamic
+import Data.Maybe (fromJust)
 
 data FormField = FormField {
         fieldType :: !InputType,
@@ -65,16 +71,28 @@ data FormField = FormField {
 
 data SubmitButton = SubmitButton { modelIsNew :: Bool, modelName :: Text, renderSubmit :: SubmitButton -> Html5.Html }
 
-data FormContext model = FormContext { model :: model, renderFormField :: FormField -> Html5.Html, renderSubmit :: SubmitButton -> Html5.Html }
+data FormContext model = FormContext { model :: model, validatorResult :: ValidatorResultFor model, renderFormField :: FormField -> Html5.Html, renderSubmit :: SubmitButton -> Html5.Html }
 
-formFor :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-formFor model = formFor' (FormContext { model, renderFormField = renderBootstrapFormField, renderSubmit = renderBootstrapSubmitButton })
+formFor :: forall model. (?viewContext :: ViewContext, Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model)) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor model = formFor' (FormContext { model, renderFormField = renderBootstrapFormField, renderSubmit = renderBootstrapSubmitButton, validatorResult = findValidatorResult ?viewContext model })
 
-horizontalFormFor :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-horizontalFormFor model = formFor' (FormContext { model, renderFormField = renderHorizontalBootstrapFormField, renderSubmit = renderHorizontalBootstrapSubmitButton })
+findValidatorResult :: forall model. (Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), Eq model) => ViewContext -> model -> ValidatorResultFor model
+findValidatorResult viewContext model =
+    let
+        ViewContext { validations } = viewContext
+        isValidationForModel :: Dynamic -> Bool
+        isValidationForModel dyn =
+            case (fromDynamic dyn) :: Maybe (model, ValidatorResultFor model) of
+                Nothing -> False
+                Just (model', errors) -> model' == model
+    in
+        maybe def (snd . fromJust . (fromDynamic @(model, ValidatorResultFor model) )) (find isValidationForModel validations)
+
+horizontalFormFor :: (?viewContext :: ViewContext, Typeable model, Eq model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model)) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+horizontalFormFor model = formFor' (FormContext { model, renderFormField = renderHorizontalBootstrapFormField, renderSubmit = renderHorizontalBootstrapSubmitButton, validatorResult = findValidatorResult ?viewContext model })
 
 formFor' :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => FormContext model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-formFor' formContext url inner = form ! method "POST" ! action (cs url) $ do
+formFor' formContext url inner = form ! method "POST" ! action (cs url) ! class_ (if Foundation.ModelSupport.isNew (model formContext) then "new-form" else "edit-form") $ do
     let ?formContext = formContext in inner
 
 
@@ -163,8 +181,8 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
         renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
-                    if disableLabel || fieldLabel == "" then return () else label ! A.class_ ("col-sm-2 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
-                    div ! class_ "col-sm-6" $ do
+                    if disableLabel || fieldLabel == "" then return () else label ! A.class_ ("col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
+                    div ! class_ "col-sm-8" $ do
                         fieldInput ! type_ inputType ! name fieldName ! A.placeholder (cs placeholder) ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
                         if disableValidationResult then mempty else renderValidationResult formField
                         renderHelpText formField
@@ -172,8 +190,8 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
         renderSelectField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
-                    if disableLabel || fieldLabel == "" then return () else label ! A.class_ ("col-sm-2 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
-                    div ! class_ "col-sm-6" $ do
+                    if disableLabel || fieldLabel == "" then return () else label ! A.class_ ("col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
+                    div ! class_ "col-sm-8" $ do
                         Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isSuccess validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
                             --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
                             let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
@@ -189,14 +207,25 @@ renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= di
 
 
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model value, HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model, IsLabel symbol (ModelFieldType model), CanValidateField model, Foundation.ModelSupport.InputValue value, (HasField symbol (CanValidateFieldResult model) ValidatorResult)) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
+instance (
+        KnownSymbol symbol
+        , Foundation.ModelSupport.IsNew model
+        , Foundation.ModelSupport.HasModelName model
+        , HasField symbol model value
+        , HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString
+        , Foundation.ModelSupport.ColumnNames model
+        , Foundation.ModelSupport.InputValue value
+        , (HasField' symbol (ValidatorResultFor model) ValidatorResult)
+        , (Data.Generics.Product.HasField' symbol (ValidatorResultFor model) ValidatorResult)
+        , (Generic (ValidatorResultFor model))
+    ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
     fromLabel = \(formContext, viewContext, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType = TextInput,
                         fieldName = cs columnName,
                         fieldLabel = columnNameToFieldLabel columnName,
                         fieldValue =  let value :: value = getField @(symbol) (model formContext) in Foundation.ModelSupport.inputValue value,
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> columnName),
-                        validatorResult = getField @symbol (validateModelField (Proxy @symbol) (model formContext)),
+                        validatorResult = (Data.Generics.Product.getField @symbol (let FormContext { validatorResult } = formContext in validatorResult)) :: ValidatorResult,
                         fieldClass = "",
                         labelClass = "",
                         disableLabel = False,
@@ -231,7 +260,18 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                         placeholder = ""
                     }
 
-instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model ((SelectValue item)), CanSelect item, Foundation.ModelSupport.InputValue (SelectValue item), HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
+instance (
+        KnownSymbol symbol
+        , Foundation.ModelSupport.IsNew model
+        , Foundation.ModelSupport.HasModelName model
+        , HasField symbol model ((SelectValue item))
+        , CanSelect item
+        , Foundation.ModelSupport.InputValue (SelectValue item)
+        , HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString
+        , Foundation.ModelSupport.ColumnNames model
+        , (Data.Generics.Product.HasField' symbol (ValidatorResultFor model) ValidatorResult)
+        , (Generic (ValidatorResultFor model))
+    ) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
     fromLabel = \(formContext, viewContext, items, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType =
                             let
@@ -246,7 +286,7 @@ instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.Mo
                             let value = ((getField @(symbol) (model formContext)) :: (SelectValue item))
                             in Foundation.ModelSupport.inputValue value,
                         fieldInputId = cs (Foundation.NameSupport.lcfirst (Foundation.ModelSupport.getModelName (model formContext)) <> "_" <> columnName),
-                        validatorResult = Success,
+                        validatorResult = (Data.Generics.Product.getField @symbol (let FormContext { validatorResult } = formContext in validatorResult)) :: ValidatorResult,
                         fieldClass = "",
                         labelClass = "",
                         disableLabel = False,

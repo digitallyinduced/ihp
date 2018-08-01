@@ -98,8 +98,8 @@ class IsNew model where
 
 class IsNewId id where
     isNewId :: id -> Bool
-instance IsNewId () where isNewId _ = False
-instance IsNewId UUID where isNewId _ = True
+instance IsNewId () where isNewId _ = True
+instance IsNewId UUID where isNewId _ = False
 
 
 class HasModelName model where
@@ -174,3 +174,5 @@ type family ModelFieldType model :: GHC.Types.Type
 type family ModelFieldValue model (field :: GHC.Types.Symbol) :: GHC.Types.Type
 
 type family Include (name :: GHC.Types.Symbol) model
+
+type family New model
