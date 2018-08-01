@@ -8,6 +8,7 @@ if (window.Turbolinks) {
     };
 }
 
+var debugMorphdom = false;
 window.transitionToNewPage = function (newBody) {
     if (locked) {
         return;
@@ -34,10 +35,12 @@ window.transitionToNewPage = function (newBody) {
                 return false;
             }
 
-            console.log('onBeforeElUpdated', from, to)
+            if (debugMorphdom)
+                console.log('onBeforeElUpdated', from, to)
         },
         onBeforeElChildrenUpdated: function (from, to) {
-            console.log('onBeforeElChildrenUpdated', from, to);
+            if (debugMorphdom)
+                console.log('onBeforeElChildrenUpdated', from, to);
         },
         onBeforeNodeDiscarded: function (el) {
             if (el.classList.contains('animate-delete')) {
@@ -52,7 +55,9 @@ window.transitionToNewPage = function (newBody) {
                 }, 300, el);
                 return false;
             }
-            console.log('onBeforeNodeDiscarded', el);
+
+            if (debugMorphdom)
+                console.log('onBeforeNodeDiscarded', el);
         },
         getNodeKey: function (el) {
             var key = el.id;
@@ -68,7 +73,8 @@ window.transitionToNewPage = function (newBody) {
             return key;
         },
         onBeforeNodeAdded: function (el) {
-            console.log('onBeforeNodeAdded', el);
+            if (debugMorphdom)
+                console.log('onBeforeNodeAdded', el);
         }
     });
     locked = true;

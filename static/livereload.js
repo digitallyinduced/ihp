@@ -12,6 +12,10 @@ function ensureDevStyleLoaded() {
 }
 
 function refresh() {
+    if (window.liveReloadPaused) {
+        return;
+    }
+    
     fetch(window.location.href, {credentials: 'include'})
         .then(response => { if (response.ok) return response.text(); else throw Error(response.statusText) })
         .catch(error => {
