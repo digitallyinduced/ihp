@@ -19,3 +19,4 @@
 :set -XDataKinds
 :set -XInstanceSigs
 :set -XDeriveGeneric
+:set -XMultiParamTypeClasses
