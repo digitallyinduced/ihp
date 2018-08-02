@@ -1,13 +1,15 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ViewSupport (ViewContext (ViewContext), Html, ToAttributeValue (toAttributeValue)) where
+module Foundation.ViewSupport (ViewContext (ViewContext), Html, Html', ToAttributeValue (toAttributeValue), classes) where
 
 import ClassyPrelude
 import qualified Text.Blaze
 import qualified Text.Blaze.Html5 as Html5
 import View.Context
+import Foundation.HaskellSupport
 
-type Html = (?viewContext :: ViewContext) => Html5.Html
+type Html = (?viewContext :: ViewContext) => Html'
+type Html' = Html5.Html
 
 class ToAttributeValue a where
     toAttributeValue :: a -> Html5.AttributeValue
@@ -17,3 +19,6 @@ instance ToAttributeValue Html5.AttributeValue where
 
 instance ToAttributeValue String where
     toAttributeValue = Html5.stringValue
+
+classes :: [(Text, Bool)] -> Text
+classes classNameBoolPairs = classNameBoolPairs |> filter snd |> map fst |> intercalate " "

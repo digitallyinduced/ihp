@@ -31,7 +31,6 @@ compile = do
     mapM_ writeTable compiled
     mapM_ writeStub compiledStubs
     writeTable (getTypesFilePath, compileTypes database)
-    writeTable (getValidatorsFilePath, compileValidators database)
     Foundation.SqlCompiler.main
 
 
@@ -85,7 +84,6 @@ compileTable table@(Table name attributes) =
     <> section
     <> compileBuild table
     <> section
-    <> compileAttributeNames table
     <> section
     <> section
     <> compileIdentity table
@@ -95,11 +93,6 @@ compileTable table@(Table name attributes) =
     <> section
     <> compileErrorHints table
     <> section
-    <> compileFieldModel table
-    <> section
-    <> compileBuildValidator table
-    <> section
-    <> compileColumnNames table
     <> section
     <> compileConst table
     <> section
@@ -116,7 +109,7 @@ compileTypes database =
     where
         prelude = "-- This file is auto generated and will be overriden regulary. Please edit `src/Model/Schema.hs` to customize the Types"
                   <> section
-                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds  #-}"
+                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, ImpredicativeTypes  #-}"
                   <> section
                   <> "module Model.Generated.Types where\n\n"
                   <> "import Foundation.HaskellSupport\n"
@@ -136,6 +129,7 @@ compileTypes database =
                   <> "import Foundation.UrlGeneratorSupport (UrlArgument (..))\n"
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
+                  <> "import qualified Foundation.ValidationSupport"
 
 compileTypes' table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
@@ -156,30 +150,13 @@ compileTypes' table@(Table name attributes) =
     <> compileModelFieldValueTypeInstances table
     <> section
     <> compileInclude table
-
-
-compileValidators :: [Table] -> Text
-compileValidators database = prelude <> "\n\n" <> intercalate "\n\n" (map compileCanValidate database)
-    where
-        prelude = "-- This file is auto generated and will be overriden regulary."
-                  <> section
-                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, ScopedTypeVariables, TypeFamilies  #-}"
-                  <> section
-                  <> "module Model.Generated.Validators where\n\n"
-                  <> "import Foundation.ValidationSupport\n\n"
-                  <> "import Model.Generated.Types\n\n"
-                  <> "import ClassyPrelude\n\n"
-                  <> "import Data.UUID (UUID)\n"
-                  <> "import GHC.Records\n"
-                  <> "import Data.Proxy\n"
-                  <> "import GHC.TypeLits (symbolVal, KnownSymbol)\n"
-                  <> "import Foundation.ModelSupport (ModelFieldType)\n"
-                  <> intercalate "\n" (map (\(Table name attributes) -> "import qualified Model." <> tableNameToModelName name <> " (validator, combine, fields, Field(..))\n") database)
-
+    <> compileCanValidate2 table
+    <> section
+    <> compileColumnNames table
 
 
 compileStub table@(Table name attributes) =
-    "module Model." <> tableNameToModelName name <> " (module Model.Generated." <> tableNameToModelName name <> ", validator) where\n\n"
+    "module Model." <> tableNameToModelName name <> " (module Model.Generated." <> tableNameToModelName name <> ") where\n\n"
     <> "import Foundation.ModelPrelude\n"
     <> "import Model.Generated." <> tableNameToModelName name <> "\n"
     <> section
@@ -244,6 +221,7 @@ compileTypeAlias table@(Table name attributes) =
 compileNewTypeAlias :: Table -> Text
 compileNewTypeAlias table@(Table name attributes) =
 		"type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> compileFields attributes <> "\n"
+		<> "type instance New " <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> compileFields attributes <> "\n"
         <> "type instance GetModelById " <> tableNameToModelName name <> "Id = " <> tableNameToModelName name <> "\n"
     where
         compileFields :: [Attribute] -> Text
@@ -271,6 +249,7 @@ compileNewOrSavedTypeAlias table@(Table name attributes) =
             getName (Field fieldName _) = fieldName
             getName (HasMany {name}) = name
             hasDefaultValue (Field fieldName fieldType) | isJust (defaultValue fieldType) = True
+            hasDefaultValue (Field _ (UUIDField { references = Just _ })) = True
             hasDefaultValue (HasMany {}) = True
             hasDefaultValue _ = False
 
@@ -283,8 +262,21 @@ compileNewOrSavedType table@(Table name attributes) =
         compileField :: Attribute -> Text
         compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
         compileField (HasMany {name}) = name
-        haskellType' fieldName fieldType | isJust (defaultValue fieldType) = fieldName
+        haskellType' fieldName fieldType | (isJust (defaultValue fieldType)) = fieldName
+        haskellType' fieldName (UUIDField { references = Just _ }) = fieldName
         haskellType' fieldName fieldType = haskellType table fieldName fieldType
+
+compileAnyType :: Table -> Text
+compileAnyType table@(Table name attributes) =
+		tableNameToModelName name <> "' " <> compileFields attributes
+    where
+        compileFields :: [Attribute] -> Text
+        compileFields attributes = intercalate " " $ map compileField attributes
+        compileField :: Attribute -> Text
+        compileField (Field fieldName fieldType) = haskellType' fieldName fieldType
+        compileField (HasMany {name}) = name
+        haskellType' fieldName fieldType = fieldName
+
 
 compileIdNewType :: Table -> Text
 compileIdNewType table@(Table name attributes) =
@@ -295,6 +287,7 @@ compileIdNewType table@(Table name attributes) =
     <> "instance UrlArgument " <> typeName <> " where toText = toText . unwrap\n"
     <> "instance Default " <> typeName <> " where def = wrap def\n"
     <> "instance ToField " <> typeName <> " where toField = toField . unwrap\n"
+    <> "instance IsNewId " <> typeName <> " where isNewId _ = False\n"
     <> "instance FromField " <> typeName <> " where fromField value metaData = do fieldValue <- fromField value metaData; return $ wrap fieldValue\n"
     <> "instance QueryBuilder.Fetchable " <> typeName <> " " <> tableNameToModelName name <> " where fetch = QueryBuilder.genericFetchId; fetchOneOrNothing = QueryBuilder.genericfetchIdOneOrNothing; fetchOne = QueryBuilder.genericFetchIdOne\n"
     <> "instance QueryBuilder.Fetchable (Maybe " <> typeName <> ") " <> tableNameToModelName name <> " where fetch (Just a) = QueryBuilder.genericFetchId a; fetchOneOrNothing Nothing = return Nothing; fetchOneOrNothing (Just a) = QueryBuilder.genericfetchIdOneOrNothing a; fetchOne (Just a) = QueryBuilder.genericFetchIdOne a\n"
@@ -307,7 +300,7 @@ primaryKeyTypeName' :: Text -> Text
 primaryKeyTypeName' name = tableNameToModelName name <> "Id"
 
 defaultDerivingClause :: Text
-defaultDerivingClause = "deriving (Eq, Show)"
+defaultDerivingClause = "deriving (Eq, Show, Generic)"
 
 compileGenericDataDefinition :: Table -> Text
 compileGenericDataDefinition table@(Table name attributes) =
@@ -483,38 +476,6 @@ compileIdentity table@(Table name attributes) =
 		compileField :: Attribute -> Text
 		compileField _ = "Data.Function.id"
 
-compileAttributeNames table@(Table tableName attributes) =
-        "data Field = " <> (intercalate " | " (map compileAttributeName attributes)) <> " deriving (Show)"
-        <> section
-        <> section
-        <> "instance ParamName Field where \n" <> (intercalate "\n" (map compileParamName $ fieldsOnly attributes)) <> "\n"
-        <> "instance FormField Field where \n" <> (intercalate "\n" (map compileFormFieldName $ fieldsOnly attributes))
-        <> section
-        <> "instance FormFieldValue Field " <> tableNameToModelName tableName <> " where \n" <> (intercalate "\n" (map compileFormFieldValue $ fieldsOnly attributes))
-        <> section
-        <> "instance FormFieldValue Field New" <> tableNameToModelName tableName <> " where \n" <> (intercalate "\n" (map compileFormFieldValue $ fieldsOnly attributes))
-        <> section
-        <> intercalate "\n" (map compileIsLabel $ fieldsOnly attributes)
-    where
-        moduleNamePrefix = "Model.Generated." <> tableNameToModelName tableName <> "."
-        compileAttributeName (Field name _) = tableNameToModelName name
-        compileAttributeName (HasMany {name}) = tableNameToModelName name
-        compileParamName (Field name _) = indent $ "paramName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
-        compileParamName (HasMany {name}) = indent $ "paramName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
-        compileFormFieldName (Field name _) = indent $ "formFieldName " <> moduleNamePrefix <> (tableNameToModelName name) <> " = \"" <> name <> "\""
-        compileFormFieldValue (Field name _) = indent $ "formFieldValue " <> moduleNamePrefix <> (tableNameToModelName name) <> " (" <> tableNameToModelName tableName <> " { " <> columnNameToFieldName name <> " }) = inputValue " <> columnNameToFieldName name
-        compileIsLabel (Field fieldName fieldType) = "instance IsLabel " <> tshow (columnNameToFieldName fieldName) <> " Field where fromLabel = " <> moduleNamePrefix <> tableNameToModelName fieldName
-
-compileFieldModel table@(Table tableName attributes) =
-        "fields = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttributeName attributes))
-    where
-        compileAttributeName attribute = "Model.Generated." <> tableNameToModelName tableName <> "." <> tableNameToModelName name
-            where
-                name =
-                    case attribute of
-                        Field name _ -> name
-                        HasMany {name} -> name
-
 compileCombine table@(Table tableName attributes) =
         "combine (" <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToArgs "arg" attributes)) <> ") (" <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToArgs "f" attributes)) <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (attributesToApplications attributes))
     where
@@ -561,65 +522,21 @@ compileErrorHints table@(Table tableName attributes) =
             in
                 "instance TypeError (GHC.TypeLits.Text \"Parameter `" <> name <> "` is missing\" ':$$: 'GHC.TypeLits.Text \"Add something like `" <> name <> " = ...`\") => (Foundation.ModelSupport.CanCreate (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ")) where type Created (" <> ((tableNameToModelName tableName) :: Text) <> "' " <> arguments <> ") = (); create = error \"Unreachable\";"
 
-compileBuildValidator :: Table -> Text
-compileBuildValidator table@(Table name attributes) =
-        compileTypeAlias
-        <> section
-        <> "buildValidator :: " <> tableNameToModelName name <> "' " <> compileTypes attributes <> "\n"
-        <> "buildValidator = " <> tableNameToModelName name <> " " <> compileFields attributes <> "\n"
+
+
+compileCanValidate2 :: Table -> Text
+compileCanValidate2 table@(Table name attributes) =
+        ""
+        <> "type instance Foundation.ValidationSupport.ValidatorResultFor (" <> compileNewOrSavedType table <> ") = " <> compileValidatorResultType <> "\n"
+        <> "instance Default (" <> compileValidatorResultType <> ") where def = " <> compileValidatorResultConstructor <> "\n"
     where
-		compileFields :: [Attribute] -> Text
-		compileFields attributes = intercalate " " $ map compileField attributes
-		compileField :: Attribute -> Text
-		compileField _ = "ValidatorIdentity"
-		compileTypeAlias = "type " <> tableNameToModelName name <> "ValidatorIdentity  = forall " <> intercalate " " (map (\(_, i) -> "a" <> tshow i) (zip attributes [0..])) <> ". " <> tableNameToModelName name <> "' " <> compileTypes attributes
-		compileTypes :: [Attribute] -> Text
-		compileTypes attributes = intercalate " " $ map compileType (zip attributes [0..])
-		compileType (_, i) = "(ValidatorIdentity a" <> tshow i <> ")"
-
-
-compileCanValidate :: Table -> Text
-compileCanValidate table@(Table name attributes) =
-        compileCanValidateInstance (tableNameToModelName name) False
-        <> compileCanValidateInstance (tableNameToModelName name) True
-        <> section
-        <> section
-        <> ("type instance ModelFieldType (" <> compileNewOrSavedType table <> ") = Model." <> tableNameToModelName name <> ".Field\n")
-        <> "instance CanValidateField (" <> compileNewOrSavedType table <> ") where\n"
-        <> indent compileValidateModelField
-    where
-        compileCanValidateInstance :: Text -> Bool -> Text
-        compileCanValidateInstance modelName isNew =
-            "instance CanValidate " <> (if isNew then "New" else "") <> modelName <> " where\n"
-                <> indent (
-                    compileValidateModelResult modelName isNew
-                    <> compileValidate modelName
-                    <> section
-                    <> compileIsValid modelName
-                    <> section
-                )
-            where
-        compileValidate :: Text -> Text
-        compileValidate modelName = "validate model = let combine = Model." <> modelName <> ".combine in combine model (combine Model." <> modelName <> ".fields (combine (Model." <> modelName <> ".validator) (" <> modelName <> " " <> intercalate " " (map compileAttribute attributes) <> ")))"
-            where
-                compileAttribute _ = "Foundation.ValidationSupport.validateField"
-
-        compileValidateModelResult modelName isNew = "type ValidateModelResult " <> (if isNew then "New" else "") <>  modelName <> " = " <> modelName <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
-            where
-                compileAttribute _ = "ValidatorResult"
-        compileCanValidateModelField = "type Model Model." <> tableNameToModelName name <> ".Field = Model." <> tableNameToModelName name <> ".Field\n"
-        compileIsValid :: Text -> Text
-        compileIsValid modelName = "isValid model = validate model == (" <> modelName <> " " <> intercalate " " (map (\_ -> "Success") attributes) <> ")"
-        compileValidateModelField = intercalate "\n" (map compileValidateModelField' $ fieldsOnly attributes)
-        compileValidateModelField' (Field fieldName fieldType) = "validateModelField model Model." <> tableNameToModelName name <> "." <> tableNameToModelName fieldName <> " = let " <> tableNameToModelName name <> "{" <> columnNameToFieldName fieldName <> "} = " <> ("let combine = Model." <> tableNameToModelName name <> ".combine in combine model (combine Model." <> tableNameToModelName name <> ".fields (combine (Model." <> tableNameToModelName name <> ".validator) (" <> tableNameToModelName name <> " " <> intercalate " " (map compileAttribute attributes) <> ")))") <> " in " <> columnNameToFieldName fieldName
-            where
-                compileAttribute _ = "Foundation.ValidationSupport.validateField"
+        compileValidatorResultType = tableNameToModelName name <> "' " <> intercalate " " (map (const "Foundation.ValidationSupport.ValidatorResult") attributes)
+        compileValidatorResultConstructor = tableNameToModelName name <> " " <> intercalate " " (map (const "Foundation.ValidationSupport.Success") attributes)
 
 compileIsNewInstance table@(Table name attributes) =
-    "instance IsNew New" <> tableNameToModelName name <> " where isNew _ = True\n"
-    <> "instance IsNew " <> tableNameToModelName name <> " where isNew _ = False\n"
+    "instance IsNewId id => IsNew (" <> compileAnyType table <> ") where isNew (" <> tableNameToModelName name <> " { id }) = isNewId id\n"
 
-compileHasModelNameInstance table@(Table name attributes) = "instance HasModelName (" <> compileNewOrSavedType table <> ") where getModelName _ = " <> tshow (tableNameToModelName name) <> "\n"
+compileHasModelNameInstance table@(Table name attributes) = "instance HasModelName (" <> compileAnyType table <> ") where getModelName _ = " <> tshow (tableNameToModelName name) <> "\n"
 compileHasTableNameInstance table@(Table name attributes) = "instance HasTableName (" <> compileNewOrSavedType table <> ") where getTableName _ = " <> tshow name <> "\n"
         <> "\ntype instance GetTableName (" <> tableNameToModelName name <> "' " <> getTableNameTypeArgs <> " ) = " <> tshow name <> "\n"
     where
@@ -655,7 +572,7 @@ compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compi
                 compileTypeVariable (Field fieldName _) = fieldName
                 compileTypeVariable (HasMany {name}) = name
                 compileTypeVariable' :: Attribute -> Text
-                compileTypeVariable' (Field fieldName' _) | fieldName' == fieldName = "(GetModelById (ModelFieldValue (" <> leftModelType <> ") " <> tshow fieldName <> "))"
+                compileTypeVariable' (Field fieldName' _) | fieldName' == fieldName = "(GetModelById (ModelFieldValue (" <> leftModelType <> ") " <> tshow (columnNameToFieldName fieldName) <> "))"
                 compileTypeVariable' otherwise = compileTypeVariable otherwise
         compileInclude' (HasMany {}) = ""
 

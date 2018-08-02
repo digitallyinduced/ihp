@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initBack();
     initToggle();
     initTime();
+    initDatePicker();
 });
 
 document.addEventListener('turbolinks:load', function () {
@@ -19,6 +20,8 @@ document.addEventListener('turbolinks:load', function () {
                 element.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }, 1);
+
+    initDatePicker();
 });
 
 function initTime() {
@@ -108,6 +111,7 @@ function submitForm(form, possibleClickedButton) {
     request.responseType = "document";
     request.overrideMimeType('text/html');
     request.onload = function () {
+        console.info('AJAX', this.status, this.responseURL);
         if (request.readyState !== request.DONE) {
             return;
         }
@@ -115,19 +119,32 @@ function submitForm(form, possibleClickedButton) {
             console.error('Something went wrong, status code: ' + request.status);
             return;
         }
-        
+
         if (window.Turbolinks) {
             var snapshot = new Turbolinks.Snapshot(new Turbolinks.HeadDetails(request.response.head), request.response.body);
-            morphdom(document.body, request.response.body, {childrenOnly: true});
+            transitionToNewPage(request.response.body);
             Turbolinks.clearCache();
             history.pushState({}, '', request.responseURL);
             var turbolinkLoadEvent = new CustomEvent("turbolinks:load");
             document.dispatchEvent(turbolinkLoadEvent);
         } else {
-            morphdom(document.body, request.response.body, {childrenOnly: true});
+            window.liveReloadPaused = true;
+            console.log('Live Reload Paused');
             history.pushState({}, '', request.responseURL);
+
+            transitionToNewPage(request.response.body);
             var turbolinkLoadEvent = new CustomEvent("turbolinks:load");
             document.dispatchEvent(turbolinkLoadEvent);
+
+            var reenableLiveReload = function () {
+                window.liveReloadPaused = false;
+                console.log('Live Reload Re-Activated');
+
+                document.removeEventListener('turbolinks:load', reenableLiveReload);
+            };
+
+            document.addEventListener('turbolinks:load', reenableLiveReload);
+
         }
     };
     request.open(form.method, form.action, true);
@@ -205,4 +222,8 @@ function initToggle() {
         element.addEventListener('change', handler);
         handler.call(element);
     }
+}
+
+function initDatePicker() {
+    flatpickr("input[type='date']", {});
 }

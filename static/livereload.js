@@ -12,8 +12,12 @@ function ensureDevStyleLoaded() {
 }
 
 function refresh() {
+    if (window.liveReloadPaused) {
+        return;
+    }
+    
     fetch(window.location.href, {credentials: 'include'})
-        .then(response => { if (response.ok) response.text(); else throw Error(response.statusText) })
+        .then(response => { if (response.ok) return response.text(); else throw Error(response.statusText) })
         .catch(error => {
             ensureDevStyleLoaded();
 
@@ -58,7 +62,6 @@ function refresh() {
                     } else if (el instanceof HTMLScriptElement) {
                         key = el.src;
                     }
-                    console.log('getNodeKey', key, el);
                     return key;
                 },
                 onElUpdated: function () {
@@ -66,7 +69,6 @@ function refresh() {
                     document.dispatchEvent(event);
                 },
                 onBeforeElChildrenUpdated: function(fromEl, toEl) {
-                    console.log('x');
                     if (fromEl.tagName === 'TEXTAREA' || fromEl.tagName === 'INPUT') {
                         toEl.checked = fromEl.checked;
                         toEl.value = fromEl.value;
