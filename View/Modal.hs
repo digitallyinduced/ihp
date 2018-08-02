@@ -1,4 +1,5 @@
 module Foundation.View.Modal (Modal (..)) where
+
 import ClassyPrelude
 import Foundation.HtmlSupport.ToHtml
 import Foundation.HtmlSupport.QQ

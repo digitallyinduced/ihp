@@ -13,12 +13,15 @@ import GHC.OverloadedLabels
 --(|>) :: a -> f -> f a
 infixl 8 |>
 a |> f = f a
+{-# INLINE (|>) #-}
 
 isEmpty :: (Eq a, Monoid a) => a -> Bool
 isEmpty value = value == mempty
+{-# INLINE isEmpty #-}
 
 ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
+{-# INLINE ifOrEmpty #-}
 
 whenEmpty condition = when (isEmpty condition)
 whenNonEmpty condition = when (not (isEmpty condition))
@@ -35,3 +38,4 @@ instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Pr
 
 get :: forall model name value. (KnownSymbol name, HasField name model value) => Proxy name -> model -> value
 get _ = getField @name
+{-# INLINE get #-}
