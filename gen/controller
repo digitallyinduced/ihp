@@ -61,13 +61,13 @@ update id = do
             title = param,
             body = param
         }
-    if isValid <?= $singularModelVariable ?> then do
-        <?= $singularModelVariable ?> <- <?= $model ?>.update <?= $singularModelVariable ?>
+    isValid <- validateRecord2 <?= $singularModelVariable ?>
 
-        setSuccessMessage "<?= $model ?> updated"
-        redirectTo (edit<?= ucfirst($pathGenerator) ?> <?= $singularModelVariable ?>)
-    else
-        renderHtml $ <?= $viewBaseModule ?>Edit.render <?= $singularModelVariable ?>
+        Left errors -> renderHtml $ <?= $viewBaseModule ?>Edit.render <?= $singularModelVariable ?>
+        Right <?= $singularModelVariable ?> -> do
+            <?= $singularModelVariable ?> <- <?= $model ?>.update <?= $singularModelVariable ?>
+            setSuccessMessage "<?= $model ?> updated"
+            redirectTo (edit<?= ucfirst($pathGenerator) ?> <?= $singularModelVariable ?>)
 
 
 create :: Action
@@ -76,13 +76,14 @@ create = do
             title = param,
             body = param
         }
-    if isValid <?= $singularModelVariable ?> then do
-        <?= $singularModelVariable ?> <- createRecord <?= $singularModelVariable ?>
+    isValid <- validateRecord2 <?= $singularModelVariable ?>
 
-        setSuccessMessage "<?= $model ?> created successfully"
-        redirectTo (<?= $pathGenerator ?> <?= $singularModelVariable ?>)
-    else
-        renderHtml $ <?= $viewBaseModule ?>New.render <?= $singularModelVariable ?>
+        Left errors -> renderHtml $ <?= $viewBaseModule ?>New.render <?= $singularModelVariable ?>
+        Right <?= $singularModelVariable ?> -> do
+            <?= $singularModelVariable ?> <- createRecord <?= $singularModelVariable ?>
+
+            setSuccessMessage "<?= $model ?> created successfully"
+            redirectTo (<?= $pathGenerator ?> <?= $singularModelVariable ?>)
 
 
 delete :: <?= $idType ?> -> Action
