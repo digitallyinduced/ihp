@@ -83,7 +83,7 @@ if (window.liveReloadEnabled) {
 } else {
     window.liveReloadEnabled = true;
     document.addEventListener('DOMContentLoaded', function () {
-        var interval = parseInt(document.getElementById('livereload-script').getAttribute('data-interval') || 250);
+        var interval = parseInt(document.getElementById('livereload-script').getAttribute('data-interval') || 1000);
         setInterval(refresh, interval);
     });
 }
