@@ -88,6 +88,10 @@ instance FromParameter UUID where
             Nothing -> Left "FromParamter UUID: Parse error"
     fromParameter Nothing = Left "FromParameter UUID: Parameter missing"
 
+instance FromParameter UTCTime where
+    fromParameter (Just byteString) = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" (cs byteString)
+    fromParameter Nothing = Left "FromParameter UTCTime: Parameter missing"
+
 instance {-# OVERLAPPABLE #-} (Show idField, ModelSupport.NewTypeWrappedUUID idField) => FromParameter idField where
     fromParameter maybeUUID =
         case (fromParameter maybeUUID) :: Either String UUID of

@@ -74,10 +74,10 @@ instance InputValue () where
     inputValue () = "error: inputValue(()) not supported"
 
 instance InputValue UTCTime where
-    inputValue time = cs (iso8601Show time)
+    inputValue time = take (length ("yyyy-mm-dd" :: Text)) $ cs (iso8601Show time)
 
 instance InputValue ClassyPrelude.UTCTime where
-    inputValue time = cs (iso8601Show ((unsafeCoerce time) :: UTCTime))
+    inputValue time = inputValue ((unsafeCoerce time) :: UTCTime)
 
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
