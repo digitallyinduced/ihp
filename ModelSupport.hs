@@ -33,6 +33,7 @@ type family GetTableName model :: Symbol
 class CanCreate a where
     type Created a :: Type
     create :: (?modelContext :: ModelContext) => a -> IO (Created a)
+    createMany :: (?modelContext :: ModelContext) => [a] -> IO [Created a]
 
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO (Created model)
 createRecord = create

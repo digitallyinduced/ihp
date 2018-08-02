@@ -379,8 +379,8 @@ compileCreate table@(Table name attributes) =
             case defaultValue fieldType of
                 Just (SqlDefaultValue _) -> Nothing
                 otherwise   -> Just ("let " <> modelName <> "{" <> columnNameToFieldName fieldName <> "} = model in " <> columnNameToFieldName fieldName)
-        bindings :: Text
-        bindings = let bindingValues = map fromJust $ filter isJust (map (toBinding modelName) $ fieldsOnly attributes) in compileToRowValues bindingValues
+        bindings :: [Text]
+        bindings = let bindingValues = map fromJust $ filter isJust (map (toBinding modelName) $ fieldsOnly attributes) in bindingValues
     in
         "instance CanCreate New" <> modelName <> " where\n"
         <> indent (
@@ -388,8 +388,12 @@ compileCreate table@(Table name attributes) =
                 <> "type Created New" <> modelName <> " = " <> modelName <> "\n"
                 <> "create model = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
-                    <> "result <- Database.PostgreSQL.Simple.query conn \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES (" <> values <> ") RETURNING *\" (" <> bindings <> ")\n"
+                    <> "result <- Database.PostgreSQL.Simple.query conn \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
                     <> "return (unsafeHead result)\n"
+                    )
+                <> "createMany models = do\n"
+                <> indent ("let (ModelContext conn) = ?modelContext\n"
+                    <> "Database.PostgreSQL.Simple.query conn (Query $ \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES \" <> (intercalate \", \" (map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") (concat $ map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)\n"
                     )
             )
 
