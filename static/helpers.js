@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initBack();
     initToggle();
     initTime();
+    initDatePicker();
 });
 
 document.addEventListener('turbolinks:load', function () {
@@ -19,6 +20,8 @@ document.addEventListener('turbolinks:load', function () {
                 element.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }, 1);
+
+    initDatePicker();
 });
 
 function initTime() {
@@ -219,4 +222,8 @@ function initToggle() {
         element.addEventListener('change', handler);
         handler.call(element);
     }
+}
+
+function initDatePicker() {
+    flatpickr("input[type='date']", {});
 }
