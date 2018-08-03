@@ -43,7 +43,7 @@ window.transitionToNewPage = function (newBody) {
                 console.log('onBeforeElChildrenUpdated', from, to);
         },
         onBeforeNodeDiscarded: function (el) {
-            if (el.classList.contains('animate-delete')) {
+            if (el && el.classList && el.classList.contains && el.classList.contains('animate-delete')) {
                 el.style.height = window.getComputedStyle(el).height;
                 // el.style.height = window.getComputedStyle(el).height;
 
