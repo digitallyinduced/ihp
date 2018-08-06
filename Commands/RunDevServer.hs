@@ -18,13 +18,15 @@ import qualified System.Directory as Directory
 import Data.Default (def)
 import Data.Maybe (fromJust)
 import qualified Control.Concurrent.Lock as Lock
+import qualified Foundation.DevelopmentSupport.LiveReloadNotificationServer as LiveReloadNotificationServer
 
 data DevServerState = DevServerState {
         postgresProcess :: IORef (Handle, Process.ProcessHandle),
         serverProcess :: IORef (Handle, Process.ProcessHandle),
         modelCompilerProcess :: IORef (Handle, Process.ProcessHandle),
         urlGeneratorCompilerProcess :: IORef (Handle, Process.ProcessHandle),
-        rebuildServerLock :: Lock.Lock
+        rebuildServerLock :: Lock.Lock,
+        liveReloadNotificationServerProcess :: IORef (Handle, Process.ProcessHandle)
     }
 
 initDevServerState = do
@@ -33,12 +35,19 @@ initDevServerState = do
     modelCompilerProcess <- startCompileGhci >>= newIORef
     urlGeneratorCompilerProcess <- startCompileGhci >>= newIORef
     rebuildServerLock <- Lock.new
-    return $ DevServerState { postgresProcess = postgresProcess, serverProcess = serverProcess, modelCompilerProcess = modelCompilerProcess, urlGeneratorCompilerProcess = urlGeneratorCompilerProcess, rebuildServerLock = rebuildServerLock }
+    liveReloadNotificationServerProcess <- startLiveReloadNotificationServer >>= newIORef
+    return $ DevServerState {
+            postgresProcess = postgresProcess,
+            serverProcess = serverProcess,
+            modelCompilerProcess = modelCompilerProcess,
+            urlGeneratorCompilerProcess = urlGeneratorCompilerProcess,
+            rebuildServerLock = rebuildServerLock,
+            liveReloadNotificationServerProcess = liveReloadNotificationServerProcess
+        }
 
 registerExitHandler handler = do
     threadId <- myThreadId
     installHandler keyboardSignal (Catch (do { handler; Exception.throwTo threadId ExitSuccess })) Nothing
-
 
 main = do
     state <- initDevServerState
@@ -53,14 +62,16 @@ main = do
 cleanup :: DevServerState -> IO ()
 cleanup state = do
     putStrLn "cleanup"
-    let DevServerState { serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess } = state
+    let DevServerState { serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess, liveReloadNotificationServerProcess } = state
     let processes = [serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess]
     let stopProcess process = do (_, p') <- readIORef serverProcess; Process.terminateProcess p'
     stopServer
     forM_ processes stopProcess
+    _ <- Process.system "lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -9"
+    return ()
 
 startPlainGhci = do
-    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j2", "-fomit-interface-pragmas", "-prof", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe }
+    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "-fomit-interface-pragmas", "-prof", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
     return (input, handle)
 
@@ -68,6 +79,12 @@ startCompileGhci = do
     let process = (Process.proc "ghci" ["-threaded", "-isrc", "-w", "-j2", "-fomit-interface-pragmas", "+RTS", "-A128m"]) { Process.std_in = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
     return (input, handle)
+
+startLiveReloadNotificationServer = do
+    let process = (Process.proc "bin/RunLiveReloadNotificationServer" []) { Process.std_in = Process.CreatePipe }
+    (Just input, _, _, handle) <- Process.createProcess process
+    return (input, handle)
+
 
 initServer ghci = do
     sendGhciCommand ghci (":script src/Foundation/startDevServerGhciScript")
@@ -114,7 +131,6 @@ rebuild serverProcess rebuildServerLock = do
         _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
         threadDelay 1000000
         sendGhciCommand ghci ":script src/Foundation/startDevServerGhciScriptRec"
-        putStrLn "Restarted server"
     return ()
 
 sendGhciCommand ghciProcess command = do

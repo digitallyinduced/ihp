@@ -27,6 +27,8 @@ import qualified Routes
 import qualified Config
 import qualified Foundation.LoginSupport.Middleware
 import Unsafe.Coerce
+import Foundation.Environment (isDevelopment)
+import qualified System.Process as Process
 
 defaultPort :: Int
 defaultPort = 8000
@@ -49,6 +51,9 @@ run = do
     let logMiddleware :: Middleware = logStdoutDev
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase "src/Foundation/static/")
     let frameworkMiddleware :: Middleware = Foundation.LoginSupport.Middleware.middleware applicationContext
+    if isDevelopment Config.environment
+        then pingDevServer
+        else return ()
     Warp.runEnv defaultPort $
             sessionMiddleware $
                 logMiddleware $
@@ -56,3 +61,8 @@ run = do
                          frameworkMiddleware $
                             methodOverridePost $
                                 application
+
+pingDevServer :: IO ()
+pingDevServer = do
+    _ <- Process.system "lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGINT"
+    return ()

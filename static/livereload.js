@@ -13,9 +13,10 @@ function ensureDevStyleLoaded() {
 
 function refresh() {
     if (window.liveReloadPaused) {
+        console.log('liveReloadPaused');
         return;
     }
-    
+
     fetch(window.location.href, {credentials: 'include'})
         .then(response => { if (response.ok) return response.text(); else throw Error(response.statusText) })
         .catch(error => {
@@ -49,6 +50,7 @@ function refresh() {
 
             var parser = new DOMParser();
             var dom = parser.parseFromString(html, 'text/html');
+            console.log('DOM UPDATE');
             morphdom(document.body, dom.body, {
                 getNodeKey: function (el) {
 
@@ -80,12 +82,19 @@ function refresh() {
         })
 }
 
+function startReloadListener() {
+    var notificationSocket = new WebSocket("ws://localhost:8002");
+    notificationSocket.onmessage = function (event) {
+        if (event.data === 'reload') {
+            refresh();
+            console.log('refresh');
+        }
+    }
+}
+
 if (window.liveReloadEnabled) {
 
 } else {
     window.liveReloadEnabled = true;
-    document.addEventListener('DOMContentLoaded', function () {
-        var interval = parseInt(document.getElementById('livereload-script').getAttribute('data-interval') || 1000);
-        setInterval(refresh, interval);
-    });
+    startReloadListener();
 }
