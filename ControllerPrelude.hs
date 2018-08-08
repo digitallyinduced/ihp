@@ -16,7 +16,8 @@ module Foundation.ControllerPrelude (
         module Foundation.QueryBuilder,
         module GHC.Records,
         module Controller.Context,
-        module Foundation.ViewSupport
+        module Foundation.ViewSupport,
+        module View.Context
     ) where
 import           ClassyPrelude
 import           Data.Default                  (def)
@@ -36,4 +37,5 @@ import Foundation.ModelSupport (findMany, createRecord, createMany, deleteRecord
 import Foundation.QueryBuilder
 import GHC.Records
 import Controller.Context
+import View.Context (ViewContext)
 import Foundation.ViewSupport (Html, Html')
