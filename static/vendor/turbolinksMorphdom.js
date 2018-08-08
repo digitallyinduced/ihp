@@ -6,6 +6,12 @@ if (window.Turbolinks) {
     Turbolinks.SnapshotRenderer.prototype.assignNewBody = function () {
         transitionToNewPage(this.newBody);
     };
+
+    var oldPerformScroll = Turbolinks.Visit.prototype.performScroll;
+    Turbolinks.Visit.prototype.performScroll = function () {
+        this.scrollToTop = function () { };
+        oldPerformScroll.call(this);
+    };
 }
 
 var debugMorphdom = false;
@@ -13,14 +19,6 @@ window.transitionToNewPage = function (newBody) {
     if (locked) {
         return;
     }
-
-    var keepScrollPosition = true;
-    var scrollPosition = null;
-
-    if (keepScrollPosition)
-        scrollPosition = $(window).scrollTop();;
-
-    console.log(scrollPosition);
 
     var isModalOpen = document.body.classList.contains('modal-open');
     morphdom(document.body, newBody, {
@@ -77,6 +75,7 @@ window.transitionToNewPage = function (newBody) {
                 console.log('onBeforeNodeAdded', el);
         }
     });
+
     locked = true;
 
     setTimeout(function () {
