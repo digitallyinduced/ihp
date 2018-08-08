@@ -64,5 +64,5 @@ run = do
 
 pingDevServer :: IO ()
 pingDevServer = do
-    _ <- Process.system "lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGINT"
+    _ <- Process.system "(lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGINT) || true"
     return ()
