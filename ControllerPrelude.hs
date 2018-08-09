@@ -17,7 +17,8 @@ module Foundation.ControllerPrelude (
         module GHC.Records,
         module Controller.Context,
         module Foundation.ViewSupport,
-        module View.Context
+        module View.Context,
+        module Foundation.FetchRelated
     ) where
 import           ClassyPrelude
 import           Data.Default                  (def)
@@ -33,8 +34,9 @@ import           Model.Generated.Types
 import           UrlGenerator
 import Foundation.HaskellSupport
 import Foundation.UrlGeneratorSupport (pathTo)
-import Foundation.ModelSupport (findMany, createRecord, createMany, deleteRecord, Include)
+import Foundation.ModelSupport (findMany, createRecord, createMany, deleteRecord, Include, wrap, unwrap)
 import Foundation.QueryBuilder
+import Foundation.FetchRelated
 import GHC.Records
 import Controller.Context
 import View.Context (ViewContext)
