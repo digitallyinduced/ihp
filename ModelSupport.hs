@@ -25,7 +25,7 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
 
-data ModelContext = ModelContext Connection
+data ModelContext = ModelContext {-# UNPACK #-} !Connection
 
 type family GetModelById id :: Type
 type family GetTableName model :: Symbol
@@ -35,6 +35,7 @@ class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO (Created a)
     createMany :: (?modelContext :: ModelContext) => [a] -> IO [Created a]
 
+{-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO (Created model)
 createRecord = create
 
@@ -85,14 +86,12 @@ instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue Nothing = ""
 
 instance Default Text where
+    {-# INLINE def #-}
     def = ""
 
 data QueryCondition a = NoCondition | Equal a
 
 type FieldName = ByteString
-toSQLCondition :: FieldName -> QueryCondition a -> (ByteString, Maybe a)
-toSQLCondition _ NoCondition = ("? IS NULL", Nothing)
-toSQLCondition fieldName (Equal a) = (fieldName <> " = ?", Just a)
 
 class IsNew model where
     isNew :: model -> Bool
@@ -138,6 +137,7 @@ instance {-# OVERLAPPABLE #-} (NewTypeWrappedUUID wrapperType) => InputValue wra
 --            value' = unwrap value
 --        in toField value'
 
+{-# INLINE sqlQuery #-}
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
 
@@ -155,17 +155,6 @@ findOrNothing id = do
     let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
     results <- sqlQuery (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id = ? LIMIT 1") [id]
     return $ headMay results
-
-findModel :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => id -> IO (GetModelById id)
-findModel id = do
-    result <- findOrNothing id
-    return (fromMaybe (error "Model cannot be found") result)
-
-findMany :: forall id model. (?modelContext :: ModelContext) => (NewTypeWrappedUUID id, ToField id, PG.FromRow (GetModelById id), KnownSymbol (GetTableName (GetModelById id))) => [id] -> IO [GetModelById id]
-findMany ids = do
-    let tableName = symbolVal @(GetTableName (GetModelById id)) Proxy
-    sqlQuery (PG.Query $ "SELECT * FROM " <> cs tableName <> " WHERE id IN ?") (PG.Only $ PG.In ids)
-
 
 class ColumnNames model where
     type ColumnNamesRecord model :: GHC.Types.Type

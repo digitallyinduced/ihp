@@ -22,6 +22,8 @@ GHC_OPTIONS+= -XDataKinds
 GHC_OPTIONS+= -XInstanceSigs
 GHC_OPTIONS+= -XDeriveGeneric
 GHC_OPTIONS+= -XMultiParamTypeClasses
+PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
+PROD_GHC_OPTIONS+= -optc-O3
 
 RUNGHC=runghc
 
@@ -75,7 +77,7 @@ src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
 
 bin/RunProdServer: src/Main.hs bin
-	ghc -O${GHC_OLEVEL} -fllvm ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} $< -o $@
+	ghc -O${GHC_OLEVEL} ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -ddump-simpl -fforce-recomp > core.txt
 	chmod +x $<
 
 install:

@@ -115,5 +115,6 @@ isActivePathOrSub path =
     in
         (cs path) `isPrefixOf` currentPath
 
+{-# INLINE viewContext #-}
 viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewContext
 viewContext = ?viewContext

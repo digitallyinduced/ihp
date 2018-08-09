@@ -34,7 +34,7 @@ import           Model.Generated.Types
 import           UrlGenerator
 import Foundation.HaskellSupport
 import Foundation.UrlGeneratorSupport (pathTo)
-import Foundation.ModelSupport (findMany, createRecord, createMany, deleteRecord, Include, wrap, unwrap)
+import Foundation.ModelSupport (createRecord, createMany, deleteRecord, Include, wrap, unwrap)
 import Foundation.QueryBuilder
 import Foundation.FetchRelated
 import GHC.Records

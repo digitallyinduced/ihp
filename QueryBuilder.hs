@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts #-}
 
-module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, fetch, fetchOne, fetchOneOrNothing, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include) where
+module Foundation.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne) where
 
 
 import Control.Lens hiding ((|>))
@@ -54,7 +54,7 @@ data QueryBuilder model where
     IncludeQueryBuilder :: (KnownSymbol field, KnownSymbol (GetTableName model)) => (Proxy field, QueryBuilder relatedModel) -> QueryBuilder model -> QueryBuilder (Foundation.ModelSupport.Include field model)
     UnionQueryBuilder :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
 
-data Condition = VarCondition Text Action | OrCondition Condition Condition | AndCondition Condition Condition deriving (Show)
+data Condition = VarCondition !Text !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show)
 
 deriving instance Show (QueryBuilder a)
 
@@ -63,12 +63,13 @@ instance Eq (Foundation.QueryBuilder.QueryBuilder model) where a == b = True
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
-        selectFrom :: Text,
-        whereCondition :: Maybe Condition,
-        orderByClause :: Maybe (Text, OrderByDirection),
-        limitClause :: Maybe Text
+        selectFrom :: !(Text),
+        whereCondition :: !(Maybe Condition),
+        orderByClause :: !(Maybe (Text, OrderByDirection)),
+        limitClause :: !(Maybe Text)
     }
 
+{-# INLINE buildQuery #-}
 buildQuery :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> SQLQuery
 buildQuery queryBuilder =
     case queryBuilder of
@@ -109,12 +110,14 @@ class Fetchable fetchable model | fetchable -> model where
     fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO model
 
 instance Fetchable (QueryBuilder model) model where
+    {-# INLINE fetch #-}
     fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => QueryBuilder model -> IO [model]
     fetch queryBuilder = do
         let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
         putStrLn $ tshow (theQuery, theParameters)
         Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
 
+    {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
     fetchOneOrNothing queryBuilder = do
         let (theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
@@ -122,6 +125,7 @@ instance Fetchable (QueryBuilder model) model where
         results <- Foundation.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
         return $ listToMaybe results
 
+    {-# INLINE fetchOne #-}
     fetchOne :: (?modelContext :: Foundation.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
     fetchOne queryBuilder = do
         maybeModel <- fetchOneOrNothing queryBuilder
@@ -129,12 +133,25 @@ instance Fetchable (QueryBuilder model) model where
             Just model -> model
             Nothing -> error "Cannot find model"
 
+{-# INLINE genericFetchId #-}
 genericFetchId :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO [model]
 genericFetchId id = query @model |> filterWhere (#id, id) |> fetch
+{-# INLINE genericfetchIdOneOrNothing #-}
 genericfetchIdOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO (Maybe model)
 genericfetchIdOneOrNothing id = query @model |> filterWhere (#id, id) |> fetchOneOrNothing
+{-# INLINE genericFetchIdOne #-}
 genericFetchIdOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO model
 genericFetchIdOne id = query @model |> filterWhere (#id, id) |> fetchOne
+
+{-# INLINE genericFetchIds #-}
+genericFetchIds :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => [ModelFieldValue model "id"] -> IO [model]
+genericFetchIds ids = query @model |> filterWhereIn (#id, ids) |> fetch
+{-# INLINE genericfetchIdsOneOrNothing #-}
+genericfetchIdsOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => [ModelFieldValue model "id"] -> IO (Maybe model)
+genericfetchIdsOneOrNothing ids = query @model |> filterWhereIn (#id, ids) |> fetchOneOrNothing
+{-# INLINE genericFetchIdsOne #-}
+genericFetchIdsOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => [ModelFieldValue model "id"] -> IO model
+genericFetchIdsOne ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)

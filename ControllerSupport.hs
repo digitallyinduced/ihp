@@ -45,21 +45,25 @@ type Action' = IO ResponseReceived
 --(|>) :: a -> f -> f a
 
 
+{-# INLINE redirectTo #-}
 redirectTo :: (?requestContext :: RequestContext) => Text -> IO ResponseReceived
 redirectTo url = do
     let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ fromJust $ Network.Wai.Util.redirect status302 [] (fromJust $ Network.URI.parseURI (cs $ Config.baseUrl <> url))
 
+{-# INLINE getRequestBody #-}
 getRequestBody :: (?requestContext :: RequestContext) => IO ByteString
 getRequestBody =
     let (RequestContext request _ _ _ _) = ?requestContext
     in Network.Wai.requestBody request
 
+{-# INLINE getRequestUrl #-}
 getRequestUrl :: (?requestContext :: RequestContext) => ByteString
 getRequestUrl =
     let (RequestContext request _ _ _ _) = ?requestContext
     in Network.Wai.rawPathInfo request
 
+{-# INLINE withContext #-}
 withContext :: ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => a) -> ApplicationContext -> Request -> Respond -> IO a
 withContext theAction (ApplicationContext modelContext session) request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request

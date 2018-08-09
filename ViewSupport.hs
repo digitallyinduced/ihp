@@ -15,9 +15,11 @@ class ToAttributeValue a where
     toAttributeValue :: a -> Html5.AttributeValue
 
 instance ToAttributeValue Html5.AttributeValue where
+    {-# INLINE toAttributeValue #-}
     toAttributeValue = id
 
 instance ToAttributeValue String where
+    {-# INLINE toAttributeValue #-}
     toAttributeValue = Html5.stringValue
 
 classes :: [(Text, Bool)] -> Text

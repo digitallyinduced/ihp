@@ -51,28 +51,29 @@ import Data.Maybe (fromJust)
 
 data FormField = FormField {
         fieldType :: !InputType,
-        fieldName :: Html5.AttributeValue,
-        fieldLabel :: Text,
-        fieldValue :: Text,
-        fieldInputId :: Text,
-        validatorResult :: ValidatorResult,
-        fieldInput :: Html5.Html,
-        fieldClass :: Html5.AttributeValue,
-        labelClass :: Html5.AttributeValue,
-        disableLabel :: Bool,
-        disableGroup :: Bool,
-        disableValidationResult :: Bool,
-        modelIsNew :: Bool,
-        formIsSubmitted :: Bool,
+        fieldName :: !Html5.AttributeValue,
+        fieldLabel :: !Text,
+        fieldValue :: !Text,
+        fieldInputId :: !Text,
+        validatorResult :: !ValidatorResult,
+        fieldInput :: !Html5.Html,
+        fieldClass :: !Html5.AttributeValue,
+        labelClass :: !Html5.AttributeValue,
+        disableLabel :: !Bool,
+        disableGroup :: !Bool,
+        disableValidationResult :: !Bool,
+        modelIsNew :: !Bool,
+        formIsSubmitted :: !Bool,
         renderFormField :: FormField -> Html5.Html,
-        helpText :: Text,
-        placeholder :: Text
+        helpText :: !Text,
+        placeholder :: !Text
     }
 
-data SubmitButton = SubmitButton { modelIsNew :: Bool, modelName :: Text, renderSubmit :: SubmitButton -> Html5.Html }
+data SubmitButton = SubmitButton { modelIsNew :: !Bool, modelName :: !Text, renderSubmit :: SubmitButton -> Html5.Html }
 
 data FormContext model = FormContext { model :: model, validatorResult :: ValidatorResultFor model, renderFormField :: FormField -> Html5.Html, renderSubmit :: SubmitButton -> Html5.Html }
 
+{-# INLINE formFor #-}
 formFor :: forall model. (?viewContext :: ViewContext, Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model)) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor model = formFor' (FormContext { model, renderFormField = renderBootstrapFormField, renderSubmit = renderBootstrapSubmitButton, validatorResult = findValidatorResult ?viewContext model })
 
@@ -91,25 +92,29 @@ findValidatorResult viewContext model =
 horizontalFormFor :: (?viewContext :: ViewContext, Typeable model, Eq model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model)) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 horizontalFormFor model = formFor' (FormContext { model, renderFormField = renderHorizontalBootstrapFormField, renderSubmit = renderHorizontalBootstrapSubmitButton, validatorResult = findValidatorResult ?viewContext model })
 
+{-# INLINE formFor' #-}
 formFor' :: (?viewContext :: ViewContext) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => FormContext model -> Text -> ((?viewContext :: ViewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor' formContext url inner = form ! method "POST" ! action (cs url) ! class_ (if Foundation.ModelSupport.isNew (model formContext) then "new-form" else "edit-form") $ do
     let ?formContext = formContext in inner
 
-
+{-# INLINE submitButton #-}
 submitButton :: (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => SubmitButton
 submitButton = SubmitButton { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext), modelName = Foundation.ModelSupport.getModelName (model ?formContext), renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit }
 
 data InputType = TextInput | CheckboxInput | ColorInput | HiddenInput | TextareaInput | DateInput | SelectInput { options :: [(Text, Text)] }
 
+{-# INLINE renderHelpText #-}
 renderHelpText (FormField { helpText }) =
     case helpText of
         "" -> mempty
         helpText -> small ! A.class_ "form-text text-muted" $ text helpText
 
+{-# INLINE renderValidationResult #-}
 renderValidationResult (FormField { modelIsNew, validatorResult }) = when modelIsNew $ case validatorResult of
                 Success         -> return ()
                 Failure message -> div ! class_ "invalid-feedback" $ cs message
 
+{-# INLINE isInvalid #-}
 isInvalid (FormField { modelIsNew, formIsSubmitted, validatorResult }) =
         if formIsSubmitted
             then case validatorResult of
@@ -117,6 +122,7 @@ isInvalid (FormField { modelIsNew, formIsSubmitted, validatorResult }) =
                     Failure _       -> True
             else False
 
+{-# INLINE renderBootstrapFormField #-}
 renderBootstrapFormField :: FormField -> Html5.Html
 renderBootstrapFormField formField@(FormField { fieldType }) =
         case fieldType of
@@ -156,9 +162,11 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                 renderHelpText formField
                 if disableValidationResult then mempty else renderValidationResult formField
 
+{-# INLINE renderBootstrapSubmitButton #-}
 renderBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= button ! class_ "btn btn-primary" $ (if modelIsNew then "Create " else "Save ") <> (cs $ modelName)
 
 
+{-# INLINE renderHorizontalBootstrapFormField #-}
 renderHorizontalBootstrapFormField :: FormField -> Html5.Html
 renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
         case fieldType of
@@ -200,6 +208,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
                         if disableValidationResult then mempty else renderValidationResult formField
                         renderHelpText formField
 
+{-# INLINE renderHorizontalBootstrapSubmitButton #-}
 renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName }= div ! class_ "form-group row" $ do
     div ! class_ "offset-sm-5 col-sm-3 text-left" $ do
         button ! class_ "btn btn-primary btn-lg pl-4 pr-4 w-100" $ (if modelIsNew then "Create " else "Save ") <> (cs $ modelName)
@@ -219,6 +228,7 @@ instance (
         , (Data.Generics.Product.HasField' symbol (ValidatorResultFor model) ValidatorResult)
         , (Generic (ValidatorResultFor model))
     ) => IsLabel symbol ((FormContext model, ViewContext, Proxy value) -> FormField) where
+    {-# INLINE fromLabel #-}
     fromLabel = \(formContext, viewContext, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType = TextInput,
                         fieldName = cs columnName,
@@ -240,6 +250,7 @@ instance (
                     }
 
 instance (KnownSymbol symbol, Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model, HasField symbol model Bool, HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString, Foundation.ModelSupport.ColumnNames model) => IsLabel symbol ((FormContext model, ViewContext, Proxy Bool) -> FormField) where
+    {-# INLINE fromLabel #-}
     fromLabel = \(formContext, viewContext, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType = CheckboxInput,
                         fieldName = cs columnName,
@@ -272,6 +283,7 @@ instance (
         , (Data.Generics.Product.HasField' symbol (ValidatorResultFor model) ValidatorResult)
         , (Generic (ValidatorResultFor model))
     ) => IsLabel symbol ((FormContext model, ViewContext, [item], Proxy value) -> FormField) where
+    {-# INLINE fromLabel #-}
     fromLabel = \(formContext, viewContext, items, _) -> let columnName = (cs $ getField @symbol (Foundation.ModelSupport.columnNames (Proxy @model))) in FormField {
                         fieldType =
                             let
@@ -309,24 +321,31 @@ columnNameToFieldLabel columnName = cs (let (Right parts) = Text.Inflections.par
 removeIdSuffix :: Text -> Text
 removeIdSuffix text = fromMaybe text (Text.stripSuffix " Id" text)
 
+{-# INLINE textField #-}
 textField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 textField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy value)
 
+{-# INLINE textareaField #-}
 textareaField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 textareaField alpha = (textField alpha) { fieldType = TextareaInput }
 
+{-# INLINE colorField #-}
 colorField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Text) -> FormField)) => alpha -> FormField
 colorField alpha = (textField alpha) { fieldType = ColorInput }
 
+{-# INLINE dateField #-}
 dateField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 dateField alpha = (textField alpha) { fieldType = DateInput }
 
+{-# INLINE hiddenField #-}
 hiddenField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 hiddenField alpha = (textField alpha) { fieldType = HiddenInput }
 
+{-# INLINE checkboxField #-}
 checkboxField :: forall alpha attributeName model. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy Bool) -> FormField)) => alpha -> FormField
 checkboxField alpha = alpha (?formContext, ?viewContext, Proxy :: Proxy Bool)
 
+{-# INLINE selectField #-}
 selectField :: forall alpha attributeName model value item. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, [item], Proxy value) -> FormField), CanSelect item) => alpha -> [item] -> FormField
 selectField alpha items = alpha (?formContext, ?viewContext, items, Proxy :: Proxy value)
 
@@ -336,10 +355,12 @@ class CanSelect model where
     selectValue :: model -> SelectValue model
 
 instance ToHtml FormField where
+    {-# INLINE toHtml #-}
     toHtml ::  FormField -> Html5.Html
     toHtml formField@(FormField { renderFormField }) = renderFormField formField
 
 instance ToHtml SubmitButton where
+    {-# INLINE toHtml #-}
     toHtml submitButton@(SubmitButton { renderSubmit }) = renderSubmit submitButton
 
 renderFlashMessages :: Html
@@ -351,5 +372,6 @@ renderFlashMessages =
                 Foundation.Controller.Session.SuccessFlashMessage message -> div ! class_ "alert alert-success" $ cs message
                 Foundation.Controller.Session.ErrorFlashMessage message -> div ! class_ "alert alert-danger" $ cs message
 
+{-# INLINE isSubmitted #-}
 isSubmitted :: (?viewContext :: ViewContext) => Bool
 isSubmitted = let ViewContext {request} = ?viewContext in requestMethod request == methodPost

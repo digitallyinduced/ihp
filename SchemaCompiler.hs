@@ -291,6 +291,7 @@ compileIdNewType table@(Table name attributes) =
     <> "instance FromField " <> typeName <> " where fromField value metaData = do fieldValue <- fromField value metaData; return $ wrap fieldValue\n"
     <> "instance QueryBuilder.Fetchable " <> typeName <> " " <> tableNameToModelName name <> " where fetch = QueryBuilder.genericFetchId; fetchOneOrNothing = QueryBuilder.genericfetchIdOneOrNothing; fetchOne = QueryBuilder.genericFetchIdOne\n"
     <> "instance QueryBuilder.Fetchable (Maybe " <> typeName <> ") " <> tableNameToModelName name <> " where fetch (Just a) = QueryBuilder.genericFetchId a; fetchOneOrNothing Nothing = return Nothing; fetchOneOrNothing (Just a) = QueryBuilder.genericfetchIdOneOrNothing a; fetchOne (Just a) = QueryBuilder.genericFetchIdOne a\n"
+    <> "instance QueryBuilder.Fetchable [" <> typeName <> "] " <> tableNameToModelName name <> " where fetch = QueryBuilder.genericFetchIds; fetchOneOrNothing = QueryBuilder.genericfetchIdsOneOrNothing; fetchOne = QueryBuilder.genericFetchIdsOne\n"
     where typeName = primaryKeyTypeName table
 
 primaryKeyTypeName :: Table -> Text

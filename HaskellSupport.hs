@@ -23,7 +23,10 @@ ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
 {-# INLINE ifOrEmpty #-}
 
+{-# INLINE whenEmpty #-}
 whenEmpty condition = when (isEmpty condition)
+
+{-# INLINE whenNonEmpty #-}
 whenNonEmpty condition = when (not (isEmpty condition))
 
 
