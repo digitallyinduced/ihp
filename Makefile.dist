@@ -77,7 +77,7 @@ src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
 
 bin/RunProdServer: src/Main.hs bin
-	ghc -O${GHC_OLEVEL} ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -ddump-simpl -fforce-recomp > core.txt
+	ghc -O${GHC_OLEVEL} ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@
 	chmod +x $<
 
 install:
