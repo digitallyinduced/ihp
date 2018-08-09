@@ -15,6 +15,8 @@ import qualified Data.Set
 import qualified Data.Text as Text
 import qualified Model.Schema
 import qualified Foundation.SchemaSupport
+import Foundation.Controller.RequestContext (RequestContext (..))
+
 c = compile
 main = c
 
@@ -22,7 +24,7 @@ compile :: IO ()
 compile = do
     let ?controllerContext = undefined
     let ?modelContext = undefined
-    let ?requestContext = undefined
+    let ?requestContext = RequestContext undefined (\x -> return (undefined)) [] [] undefined
     writeCompiledUrlGenerator (doCompile Routes.match)
 
 doCompile :: Router -> Text

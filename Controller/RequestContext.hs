@@ -30,5 +30,3 @@ import           Network.Wai.Session           (Session)
 type Respond = Response -> IO ResponseReceived
 
 data RequestContext = RequestContext Request Respond [WaiParse.Param] [WaiParse.File Data.ByteString.Lazy.ByteString] (Vault.Key (Session IO String String))
-
-
