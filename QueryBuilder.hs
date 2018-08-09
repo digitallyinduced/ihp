@@ -42,6 +42,7 @@ instance {-# OVERLAPPABLE #-} DefaultScope model where defaultScope queryBuilder
 data FilterOperator = EqOp | InOp | IsOp deriving (Show, Eq)
 
 
+{-# INLINE compileOperator #-}
 compileOperator _ EqOp = "="
 compileOperator _ InOp = "IN"
 compileOperator _ IsOp = "IS"
@@ -192,18 +193,24 @@ class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
 instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
 instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
 
+{-# INLINE filterWhere #-}
 filterWhere :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), EqOrIsOperator (ModelFieldValue model name)) => (Proxy name, ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
 filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
 
+
+{-# INLINE filterWhereIn #-}
 filterWhereIn :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name)) => (Proxy name, [ModelFieldValue model name]) -> QueryBuilder model -> QueryBuilder model
 filterWhereIn (name, value) = FilterByQueryBuilder (name, InOp, toField $ In value)
 
 data FilterWhereTag
 
 data OrderByTag
+
+{-# INLINE orderBy #-}
 orderBy :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderBy name = OrderByQueryBuilder (name, Asc)
 
+{-# INLINE orderByDesc #-}
 orderByDesc :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderByDesc name = OrderByQueryBuilder (name, Desc)
 
@@ -215,20 +222,26 @@ include name = IncludeQueryBuilder (name, relatedQueryBuilder)
 
 
 -- findBy :: forall model name value. (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol name, ToField (ModelFieldValue model name), ToFilterValue value, ToFilterValueType value ~ ModelFieldValue model name) => Proxy name -> value -> QueryBuilder model -> IO model
+{-# INLINE findBy #-}
 findBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOne
 
+{-# INLINE findMaybeBy #-}
 findMaybeBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOneOrNothing
 
 --findById :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), HasField "id" value model, ToField value) => value -> QueryBuilder model -> IO model
 --findById :: (?modelContext :: ModelContext, PG.FromRow model, ToField value, KnownSymbol (GetTableName model), HasField "id" value model) => value -> QueryBuilder model -> IO model
+{-# INLINE findById #-}
 findById value queryBuilder = queryBuilder |> filterWhere (Proxy @"id", value) |> fetchOne
 
 --findManyBy :: (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol name, ToField value, HasField name value model) => Proxy name -> value -> QueryBuilder model -> IO [model]
+{-# INLINE findManyBy #-}
 findManyBy field value queryBuilder = queryBuilder |> filterWhere (field, value) |> fetch
 -- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #templateId id
 
+{-# INLINE queryUnion #-}
 queryUnion :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
 queryUnion = UnionQueryBuilder
 
+{-# INLINE queryOr #-}
 queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr a b queryBuilder = (a queryBuilder) `UnionQueryBuilder` (b queryBuilder)
