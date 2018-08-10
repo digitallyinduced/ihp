@@ -27,6 +27,10 @@ PROD_GHC_OPTIONS+= -optc-O3
 
 RUNGHC=runghc
 
+run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs
+	bin/RunDevServer --root src
+
+
 .envrc: default.nix src/Foundation/NixSupport/default.nix
 	rm -f .envrc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
@@ -34,9 +38,6 @@ RUNGHC=runghc
 
 bin:
 	mkdir -p bin
-
-run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs
-	bin/RunDevServer --root src
 
 run-production: bin/RunProdServer src/Model/Generated
 
