@@ -32,6 +32,9 @@ RUNGHC=runghc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	direnv allow
 
+bin:
+	mkdir -p bin
+
 run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs
 	bin/RunDevServer --root src
 
