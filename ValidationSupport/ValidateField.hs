@@ -28,7 +28,7 @@ validateNothing :: forall model. (?model :: model) => StateT (ValidatorResultFor
 validateNothing = return ()
 
 nonEmpty :: Text -> ValidatorResult
-nonEmpty "" = Failure "cannot be empty"
+nonEmpty "" = Failure "This field cannot be empty"
 nonEmpty _ = Success
 
 isPhoneNumber :: Text -> ValidatorResult
