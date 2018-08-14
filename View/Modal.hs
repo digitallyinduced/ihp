@@ -41,7 +41,7 @@ renderModalHeader title closeUrl = [hsx|
     </div>
 |]
 
-emptyModal = Modal { modalContent = mempty, modalCloseUrl = mempty }
+emptyModal = Modal { modalContent = [hsx|<div></div>|], modalCloseUrl = mempty }
 
 instance ToHtml (Maybe Modal) where
     toHtml (Just modal) = renderModal modal True

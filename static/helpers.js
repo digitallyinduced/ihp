@@ -235,7 +235,6 @@ window.transitionToNewPage = function (newBody) {
         return;
     }
 
-    console.log(1, document.body)
     var isModalOpen = document.body.classList.contains('modal-open');
     morphdom(document.body, newBody, {
         childrenOnly: true,
