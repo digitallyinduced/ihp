@@ -19,13 +19,13 @@ data DefaultValue = SqlDefaultValue Text deriving (Show, Eq, Ord)
 data OnDelete = NoAction | Restrict | SetNull | Cascade deriving (Show, Eq, Ord)
 
 data FieldType =
-             SerialField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
-           | TextField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
-           | IntField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool }
-           | BoolField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
-           | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool }
-           | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete  }
-           | Timestamp { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
+             SerialField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | TextField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | IntField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | BoolField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
+           | Timestamp { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            deriving (Show, Eq, Ord)
 
 table :: Text -> Table
@@ -35,14 +35,14 @@ field = Field
 
 (Table name fields) + field = Table name (fields <> [field])
 
-serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), allowNull = False, isPrimaryKey = True }
-uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, onDelete = NoAction }
-primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()"), allowNull = False, isPrimaryKey = True }
-text = TextField { defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
-int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False }
-enum values = EnumField { defaultValue = Nothing, values, allowNull = False, isPrimaryKey = False }
-bool = BoolField { defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
-timestamp = Timestamp { defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
+serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), allowNull = False, isPrimaryKey = True, unique = False }
+uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, onDelete = NoAction, unique = False }
+primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()"), allowNull = False, isPrimaryKey = True, unique = False }
+text = TextField { defaultValue = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+enum values = EnumField { defaultValue = Nothing, values, allowNull = False, isPrimaryKey = False, unique = False }
+bool = BoolField { defaultValue = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+timestamp = Timestamp { defaultValue = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
 belongsTo = BelongsTo
 hasMany name = HasMany { name = name, inverseOf = Nothing }
