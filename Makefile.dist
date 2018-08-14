@@ -27,7 +27,7 @@ PROD_GHC_OPTIONS+= -optc-O3
 
 RUNGHC=runghc
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs static/prod.js static/prod.css
+run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs static/prod.js static/prod.css bin/RunLiveReloadNotificationServer
 	bin/RunDevServer --root src
 
 
