@@ -57,9 +57,13 @@ compileCreateEnum _ _ = ""
 compileConstraints table@(Table _ attributes) =
         lineSep $ map (compileConstraints' table) attributes
     where
-        compileConstraints' (Table tableName _) (Field name (UUIDField { references })) =
+        compileOnDelete NoAction = ""
+        compileOnDelete Restrict = " ON DELETE RESTRICT"
+        compileOnDelete SetNull = " ON DELETE SET NULL"
+        compileOnDelete SetNull = " ON DELETE CASCADE"
+        compileConstraints' (Table tableName _) (Field name (UUIDField { references, onDelete })) =
             case references of
-                Just refName -> "ALTER TABLE " <> tableName <> " ADD CONSTRAINT " <> tableName <> "_ref_" <> name <> " FOREIGN KEY (" <> name <> ") REFERENCES " <> refName <> " (id);"
+                Just refName -> "ALTER TABLE " <> tableName <> " ADD CONSTRAINT " <> tableName <> "_ref_" <> name <> " FOREIGN KEY (" <> name <> ") REFERENCES " <> refName <> " (id)" <> compileOnDelete onDelete <> ";"
                 Nothing -> ""
         compileConstraints' _ _ = ""
 

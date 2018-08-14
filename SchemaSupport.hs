@@ -16,13 +16,15 @@ type Name = Text
 
 data DefaultValue = SqlDefaultValue Text deriving (Show, Eq, Ord)
 
+data OnDelete = NoAction | Restrict | SetNull | Cascade deriving (Show, Eq, Ord)
+
 data FieldType =
              SerialField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
            | TextField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
            | IntField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool }
            | BoolField { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
            | EnumField { defaultValue :: Maybe DefaultValue,  values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool }
-           | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool  }
+           | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete  }
            | Timestamp { defaultValue :: Maybe DefaultValue, allowNull :: Bool, isPrimaryKey :: Bool }
            deriving (Show, Eq, Ord)
 
@@ -34,7 +36,7 @@ field = Field
 (Table name fields) + field = Table name (fields <> [field])
 
 serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), allowNull = False, isPrimaryKey = True }
-uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False }
+uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, onDelete = NoAction }
 primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()"), allowNull = False, isPrimaryKey = True }
 text = TextField { defaultValue = Nothing, allowNull = False, isPrimaryKey = False }
 int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False }
