@@ -27,6 +27,7 @@ ifOrEmpty bool a = if bool then a else mempty
 whenEmpty condition = when (isEmpty condition)
 
 {-# INLINE whenNonEmpty #-}
+whenNonEmpty :: (Monoid a, Eq a, Applicative f) => a -> f () -> f ()
 whenNonEmpty condition = when (not (isEmpty condition))
 
 

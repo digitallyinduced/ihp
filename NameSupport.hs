@@ -36,6 +36,7 @@ pluralToSingular w    | toLower w == "status"
 pluralToSingular word = fromMaybe word (stripSuffix "s" word)
 
 {-# INLINE humanize #-}
+humanize :: Text -> Text
 humanize text = unwrapEither text $ Inflector.toHumanized True text
 
 {-# INLINE applyFirst #-}
