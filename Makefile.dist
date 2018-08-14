@@ -27,7 +27,7 @@ PROD_GHC_OPTIONS+= -optc-O3
 
 RUNGHC=runghc
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs
+run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs static/prod.js static/prod.css
 	bin/RunDevServer --root src
 
 
@@ -80,7 +80,7 @@ src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
 src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
 
-bin/RunProdServer: src/Main.hs bin
+bin/RunProdServer: src/Main.hs bin static/prod.js static/prod.css
 	ghc -O${GHC_OLEVEL} ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@
 	chmod +x $<
 
@@ -101,3 +101,9 @@ del:
 
 gen:
 	ln -s src/Foundation/gen gen
+
+static/prod.js: $(JS_FILES)
+	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@
+
+static/prod.css: $(CSS_FILES)
+	cat $(CSS_FILES) > $@
