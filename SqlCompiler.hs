@@ -64,7 +64,7 @@ compileConstraints table@(Table _ attributes) =
         compileOnDelete NoAction = ""
         compileOnDelete Restrict = " ON DELETE RESTRICT"
         compileOnDelete SetNull = " ON DELETE SET NULL"
-        compileOnDelete SetNull = " ON DELETE CASCADE"
+        compileOnDelete Cascade = " ON DELETE CASCADE"
         compileConstraints' (Table tableName _) (Field name (UUIDField { references, onDelete })) =
             case references of
                 Just refName -> "ALTER TABLE " <> tableName <> " ADD CONSTRAINT " <> tableName <> "_ref_" <> name <> " FOREIGN KEY (" <> name <> ") REFERENCES " <> refName <> " (id)" <> compileOnDelete onDelete <> ";"
