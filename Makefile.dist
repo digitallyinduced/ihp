@@ -41,7 +41,7 @@ CSS_FILES += src/Foundation/static/vendor/flatpickr.min.css
 
 RUNGHC=runghc
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs static/prod.js static/prod.css
+run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs static/prod.js static/prod.css bin/RunLiveReloadNotificationServer
 	bin/RunDevServer --root src
 
 
