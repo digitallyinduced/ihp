@@ -1,5 +1,3 @@
-let lastHtml = null;
-
 function ensureDevStyleLoaded() {
     if (document.getElementById('framework-dev-style')) {
         return;
@@ -38,19 +36,9 @@ function refresh() {
                 warning.parentNode.removeChild(warning);
                 document.body.classList.remove('livereload-failure');
             }
-            if (html === lastHtml) {
-                return null;
-            }
-            if (lastHtml === null) {
-                lastHtml = html;
-                return;
-            } else {
-                lastHtml = html;
-            }
 
             var parser = new DOMParser();
             var dom = parser.parseFromString(html, 'text/html');
-            console.log('DOM UPDATE');
             morphdom(document.body, dom.body, {
                 getNodeKey: function (el) {
 
@@ -66,10 +54,6 @@ function refresh() {
                     }
                     return key;
                 },
-                onElUpdated: function () {
-                    var event = new CustomEvent('turbolinks:load', {});
-                    document.dispatchEvent(event);
-                },
                 onBeforeElChildrenUpdated: function(fromEl, toEl) {
                     if (fromEl.tagName === 'TEXTAREA' || fromEl.tagName === 'INPUT') {
                         toEl.checked = fromEl.checked;
@@ -79,7 +63,13 @@ function refresh() {
                     }
                 }
             });
-        })
+
+            window.clearAllIntervals();
+            window.clearAllTimeouts();
+            
+            var event = new CustomEvent('turbolinks:load', {});
+            document.dispatchEvent(event);
+        });
 }
 
 function startReloadListener() {
@@ -87,7 +77,6 @@ function startReloadListener() {
     notificationSocket.onmessage = function (event) {
         if (event.data === 'reload') {
             refresh();
-            console.log('refresh');
         }
     }
 }

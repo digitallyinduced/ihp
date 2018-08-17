@@ -129,7 +129,6 @@ function submitForm(form, possibleClickedButton) {
             document.dispatchEvent(turbolinkLoadEvent);
         } else {
             window.liveReloadPaused = true;
-            console.log('Live Reload Paused');
             history.pushState({}, '', request.responseURL);
 
             transitionToNewPage(request.response.body);
@@ -138,7 +137,6 @@ function submitForm(form, possibleClickedButton) {
 
             var reenableLiveReload = function () {
                 window.liveReloadPaused = false;
-                console.log('Live Reload Re-Activated');
 
                 document.removeEventListener('turbolinks:load', reenableLiveReload);
             };
@@ -291,9 +289,49 @@ window.transitionToNewPage = function (newBody) {
         }
     });
 
+    window.clearAllIntervals();
+    window.clearAllTimeouts();
+
     locked = true;
 
     setTimeout(function () {
         locked = false;
     }, 100);
 }
+
+window.allIntervals = [];
+window.allTimeouts = [];
+
+var oldSetInterval = window.setInterval;
+var oldSetTimeout = window.setTimeout;
+
+window.setInterval = function () {
+    var id = oldSetInterval.apply(window, arguments);
+    window.allIntervals.push(id);
+    return id;
+};
+
+window.setTimeout = function () {
+    var id = oldSetTimeout.apply(window, arguments);
+    window.allTimeouts.push(id);
+    return id;
+};
+
+window.clearAllIntervals = function () {
+    for (var i = 0; i < window.allIntervals.length; i++) {
+        clearInterval(window.allIntervals[i]);
+    }
+
+    var oldLength = window.allIntervals.length;
+    window.allIntervals = new Array(oldLength);
+};
+
+
+window.clearAllTimeouts = function () {
+    for (var i = 0; i < window.allTimeouts.length; i++) {
+        clearTimeout(window.allTimeouts[i]);
+    }
+
+    var oldLength = window.allTimeouts.length;
+    window.allTimeouts = new Array(oldLength);
+};

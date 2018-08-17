@@ -22,8 +22,20 @@ GHC_OPTIONS+= -XDataKinds
 GHC_OPTIONS+= -XInstanceSigs
 GHC_OPTIONS+= -XDeriveGeneric
 GHC_OPTIONS+= -XMultiParamTypeClasses
+GHC_OPTIONS+= -j2
+GHC_OPTIONS+= +RTS -A256m -n2m --RTS
+
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
 PROD_GHC_OPTIONS+= -optc-O3
+PROD_GHC_OPTIONS+= -funbox-strict-fields
+PROD_GHC_OPTIONS+= -fconstraint-solver-iterations=100
+PROD_GHC_OPTIONS+= -fexpose-all-unfoldings
+PROD_GHC_OPTIONS+= -flate-dmd-anal
+PROD_GHC_OPTIONS+= -fspec-constr-keen
+PROD_GHC_OPTIONS+= -fspecialise-aggressively
+PROD_GHC_OPTIONS+= -fstatic-argument-transformation
+PROD_GHC_OPTIONS+= -fmax-worker-args=200
+
 
 
 RUNGHC=runghc
@@ -81,9 +93,19 @@ src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
 src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
 
-bin/RunProdServer: src/Main.hs bin static/prod.js static/prod.css
-	ghc -O${GHC_OLEVEL} ${GHC_OPTIONS} ${GHC_EXTRA_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@
+bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
+	mkdir -p build/RunUnoptimizedProdServer
+	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<
+	rm -f bin/RunProdServer
+	ln -s `basename $@` bin/RunProdServer
+
+bin/RunOptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
+	mkdir -p build/RunOptimizedProdServer
+	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
+	chmod +x $<
+	rm -f bin/RunProdServer
+	ln -s `basename $@` bin/RunProdServer
 
 install:
 	brew install direnv
