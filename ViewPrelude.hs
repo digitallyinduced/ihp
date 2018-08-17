@@ -51,7 +51,9 @@ module Foundation.ViewPrelude (
     module Foundation.View.Modal,
     classes,
     module Foundation.ModelSupport,
-    module Foundation.ValidationSupport
+    module Foundation.ValidationSupport,
+    addStyle,
+    css
 ) where
 
 import Model.Generated.Types
@@ -96,6 +98,7 @@ import Foundation.View.Modal
 import Foundation.ValidationSupport
 
 plain = Data.String.Interpolate.i
+css = Data.String.Interpolate.i
 
 onClick = onclick
 onLoad = onload
@@ -118,3 +121,7 @@ isActivePathOrSub path =
 {-# INLINE viewContext #-}
 viewContext :: (?viewContext :: View.Context.ViewContext) => View.Context.ViewContext
 viewContext = ?viewContext
+
+{-# INLINE addStyle #-}
+addStyle :: (ConvertibleStrings string Text) => string -> Html5.Markup
+addStyle style = Html5.style $ (preEscapedText $ cs style)
