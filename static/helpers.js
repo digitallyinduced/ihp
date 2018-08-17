@@ -129,7 +129,6 @@ function submitForm(form, possibleClickedButton) {
             document.dispatchEvent(turbolinkLoadEvent);
         } else {
             window.liveReloadPaused = true;
-            console.log('Live Reload Paused');
             history.pushState({}, '', request.responseURL);
 
             transitionToNewPage(request.response.body);
@@ -138,7 +137,6 @@ function submitForm(form, possibleClickedButton) {
 
             var reenableLiveReload = function () {
                 window.liveReloadPaused = false;
-                console.log('Live Reload Re-Activated');
 
                 document.removeEventListener('turbolinks:load', reenableLiveReload);
             };
