@@ -60,7 +60,7 @@ function initDelete() {
             form.appendChild(methodInput);
 
             document.body.appendChild(form);
-            submitForm(form);
+            window.submitForm(form);
         }
     }
 }
@@ -98,7 +98,7 @@ function initDisableButtonsOnSubmit() {
         event.preventDefault();
 
         var form = event.target;
-        submitForm(form, lastClicked);
+        window.submitForm(form, lastClicked);
     });
 
     document.addEventListener('mouseup', function (event) {
@@ -106,7 +106,7 @@ function initDisableButtonsOnSubmit() {
     });
 }
 
-function submitForm(form, possibleClickedButton) {
+window.submitForm = function (form, possibleClickedButton) {
     var request = new XMLHttpRequest();
     request.responseType = "document";
     request.overrideMimeType('text/html');
