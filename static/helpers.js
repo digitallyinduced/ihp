@@ -12,7 +12,7 @@ document.addEventListener('turbolinks:load', function () {
     initToggle();
     initTime();
 
-    setTimeout(function () {
+    unsafeSetTimeout(function () {
         var elements = document.querySelectorAll('.js-scroll-into-view');
         for (var i in elements) {
             var element = elements[i];
@@ -178,7 +178,7 @@ window.submitForm = function (form, possibleClickedButton) {
             // We cannot disable the button right now, as then it's value
             // is not sent to the server
             // See https://sarbbottam.github.io/blog/2015/08/21/multiple-submit-buttons-and-javascript
-            setTimeout(function () { this.setAttribute('disabled', 'disabled'); }.bind(button), 0);
+            unsafeSetTimeout(function () { this.setAttribute('disabled', 'disabled'); }.bind(button), 0);
         }
     }
 
@@ -258,10 +258,12 @@ window.transitionToNewPage = function (newBody) {
                 el.style.height = window.getComputedStyle(el).height;
                 // el.style.height = window.getComputedStyle(el).height;
 
-                setTimeout(function (el) {
+                unsafeSetTimeout(function (el) {
+                    console.log('add .delete', el);
                     el.classList.add('delete');
                 }, 0, el);
-                setTimeout(function (el) {
+                unsafeSetTimeout(function (el) {
+                    console.log('remove node', el);
                     el.parentNode.removeChild(el);
                 }, 300, el);
                 return false;
@@ -302,17 +304,17 @@ window.transitionToNewPage = function (newBody) {
 window.allIntervals = [];
 window.allTimeouts = [];
 
-var oldSetInterval = window.setInterval;
-var oldSetTimeout = window.setTimeout;
+window.unsafeSetInterval = window.setInterval;
+window.unsafeSetTimeout = window.setTimeout;
 
 window.setInterval = function () {
-    var id = oldSetInterval.apply(window, arguments);
+    var id = unsafeSetInterval.apply(window, arguments);
     window.allIntervals.push(id);
     return id;
 };
 
 window.setTimeout = function () {
-    var id = oldSetTimeout.apply(window, arguments);
+    var id = unsafeSetTimeout.apply(window, arguments);
     window.allTimeouts.push(id);
     return id;
 };
