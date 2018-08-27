@@ -35,6 +35,9 @@ class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO (Created a)
     createMany :: (?modelContext :: ModelContext) => [a] -> IO [Created a]
 
+class CanUpdate a where
+    updateRecord :: (?modelContext :: ModelContext) => a -> IO a
+
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO (Created model)
 createRecord = create

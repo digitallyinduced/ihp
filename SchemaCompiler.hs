@@ -421,12 +421,13 @@ compileUpdate table@(Table name attributes) =
                 SerialField {} -> Nothing
                 otherwise -> Just $ fieldName <> " = ?"
     in
-        "update :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> " \n"
-        <> "update model = do\n"
-        <> indent ("let (ModelContext conn) = ?modelContext\n"
-            <> "result <- Database.PostgreSQL.Simple.query conn \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
-            <> "return (unsafeHead result)\n"
-        )
+        "instance CanUpdate " <> modelName <> " where\n"
+        <> indent ("updateRecord model = do\n"
+                <> indent ("let (ModelContext conn) = ?modelContext\n"
+                    <> "result <- Database.PostgreSQL.Simple.query conn \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
+                    <> "return (unsafeHead result)\n"
+                )
+            )
 
 compileFromRowInstance table@(Table name attributes) =
     defaultFromRow
