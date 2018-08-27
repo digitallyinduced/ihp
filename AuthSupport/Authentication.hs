@@ -1,4 +1,4 @@
-module Foundation.AuthSupport.Authentication (PasswordLogin (getPasswordHash), verifyPassword, hashPassword, generateAuthenticationToken) where
+module Foundation.AuthSupport.Authentication (PasswordLogin (getPasswordHash), verifyPassword, hashPassword, generateAuthenticationToken, Lockable (maxSignInAttemps)) where
 
 import ClassyPrelude
 import Data.String.Conversions (cs)
@@ -8,6 +8,9 @@ import qualified Test.RandomStrings
 
 class PasswordLogin entity where
     getPasswordHash :: entity -> Text
+
+class Lockable entity where
+	maxSignInAttemps :: entity -> Int
 
 passwordStrength :: Int
 passwordStrength = 17
