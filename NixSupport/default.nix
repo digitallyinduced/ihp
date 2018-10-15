@@ -25,8 +25,8 @@ let
     pkgs = import ((import <nixpkgs> { }).fetchFromGitHub {
       owner = "NixOS";
       repo = "nixpkgs";
-      rev = "d6c6c7fcec6dbd2b8ab14f0b35d56c7733872baa";
-      sha256 = "1bq59575b58lmh5w8bh7pwp17c3p2nm651bz1i3q224c4zsj9294";
+      rev = "d592f291ed2959a819e91c3da1f6d3bed62d4ff5";
+      sha256 = "1273vm8jwyrhnfcxcdzl404pbwm0njq8jl7d0kncixxkibap6nsx";
     }) { config = config; };
 
     ghc = pkgs.haskell.packages.${compiler};
