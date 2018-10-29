@@ -61,19 +61,15 @@ collectionFetchRelated relatedField model = do
         result = map assignRelated model
     return result
 
-fetchRelated :: forall model relatedField relatedFieldValue relatedModel. (
+fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
-        KnownSymbol relatedField,
-        HasField' relatedField model relatedFieldValue,
-        HasField relatedField model (Foundation.ModelSupport.Include relatedField model) relatedFieldValue relatedModel,
-        Fetchable relatedFieldValue relatedModel,
-        KnownSymbol (GetTableName relatedModel),
-        PG.FromRow relatedModel,
-        relatedFieldValue ~ ModelFieldValue model relatedField,
-        ToField relatedFieldValue,
-        ModelFieldValue relatedModel "id" ~ relatedFieldValue
-    ) => Proxy relatedField -> model -> IO (Foundation.ModelSupport.Include relatedField model)
+        HasField field model (Foundation.ModelSupport.Include field model) fieldValue (FetchResult fieldValue fetchModel),
+        HasField' field model fieldValue,
+        PG.FromRow fetchModel,
+        KnownSymbol (GetTableName fetchModel),
+        Fetchable fieldValue fetchModel
+    ) => Proxy field -> model -> IO (Foundation.ModelSupport.Include field model)
 fetchRelated relatedField model = do
-    relatedModel :: relatedModel <- fetchOne ((getField @relatedField model) :: relatedFieldValue)
-    let model' = model & field @relatedField .~ relatedModel
+    result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
+    let model' = model & field @field .~ result
     return model'

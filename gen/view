@@ -140,7 +140,7 @@ echo "+ $viewPath\n";
 if (file_exists($controllerPath)) {
     $content = file_get_contents($controllerPath);
     $lines = explode("\n", $content);
-    $importLine = "import qualified View.$controller." . ucfirst($action);
+    $importLine = "import qualified View.$controller." . ucfirst($action) . " as " . ucfirst($action);
     array_splice($lines, 2, 0, [$importLine]);
     $newContent = implode("\n", $lines);
     file_put_contents($controllerPath, $newContent);

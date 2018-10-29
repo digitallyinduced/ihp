@@ -92,6 +92,10 @@ instance Default Text where
     {-# INLINE def #-}
     def = ""
 
+instance Default Bool where
+    {-# INLINE def #-}
+    def = False
+
 data QueryCondition a = NoCondition | Equal a
 
 type FieldName = ByteString
@@ -169,3 +173,7 @@ type family ModelFieldValue model (field :: GHC.Types.Symbol) :: GHC.Types.Type
 type family Include (name :: GHC.Types.Symbol) model
 
 type family New model
+
+type family Include' (name :: [GHC.Types.Symbol]) model where
+    Include' '[] model = model
+    Include' (x:xs) model = Include' xs (Include x model)

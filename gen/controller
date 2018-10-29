@@ -33,25 +33,25 @@ import qualified Model.<?= $model ?> as <?= $model ?>
 index :: Action
 index = do
     <?= $modelVariable ?> <- query @<?= $model ?> |> fetch
-    renderHtml $ <?= $viewBaseModule ?>Index.render <?= $modelVariable ?>
+    renderHtml $ Index.render <?= $modelVariable ?>
 
 
 new :: Action
 new = do
     let <?= $singularModelVariable ?> = <?= $model?>.build
-    renderHtml $ <?= $viewBaseModule ?>New.render <?= $singularModelVariable ?>
+    renderHtml $ New.render <?= $singularModelVariable ?>
 
 
 show :: <?= $idType ?> -> Action
 show id = do
     <?= $singularModelVariable ?> <- query @<?= $model ?> |> findById id
-    renderHtml $ <?= $viewBaseModule ?>Show.render <?= $singularModelVariable ?>
+    renderHtml $ Show.render <?= $singularModelVariable ?>
 
 
 edit :: <?= $idType ?> -> Action
 edit id = do
     <?= $singularModelVariable ?> <- query @<?= $model ?> |> findById id
-    renderHtml $ <?= $viewBaseModule ?>Edit.render <?= $singularModelVariable ?>
+    renderHtml $ Edit.render <?= $singularModelVariable ?>
 
 
 update :: <?= $idType ?> -> Action
@@ -63,9 +63,12 @@ update id = do
         }
     isValid <- validateRecord2 <?= $singularModelVariable ?>
 
-        Left errors -> renderHtml $ <?= $viewBaseModule ?>Edit.render <?= $singularModelVariable ?>
+    case isValid of
+        Left errors -> renderHtml $ Edit.render <?= $singularModelVariable ?>
+
         Right <?= $singularModelVariable ?> -> do
-            <?= $singularModelVariable ?> <- <?= $model ?>.update <?= $singularModelVariable ?>
+            <?= $singularModelVariable ?> <- updateRecord <?= $singularModelVariable ?>
+
             setSuccessMessage "<?= $model ?> updated"
             redirectTo (edit<?= ucfirst($pathGenerator) ?> <?= $singularModelVariable ?>)
 
@@ -78,7 +81,9 @@ create = do
         }
     isValid <- validateRecord2 <?= $singularModelVariable ?>
 
-        Left errors -> renderHtml $ <?= $viewBaseModule ?>New.render <?= $singularModelVariable ?>
+    case isValid of
+        Left errors -> renderHtml $ New.render <?= $singularModelVariable ?>
+
         Right <?= $singularModelVariable ?> -> do
             <?= $singularModelVariable ?> <- createRecord <?= $singularModelVariable ?>
 

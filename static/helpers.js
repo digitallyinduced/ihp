@@ -276,10 +276,6 @@ window.transitionToNewPage = function (newBody) {
             var key = el.id;
             if (el.id) {
                 key = el.id;
-            } else if (el.form && el.name) {
-                key = el.name + "_" + el.form.action;
-            } else if (el instanceof HTMLFormElement) {
-                key = "form#" + el.action;
             } else if (el instanceof HTMLScriptElement) {
                 key = el.src;
             }

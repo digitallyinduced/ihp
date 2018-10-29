@@ -63,7 +63,7 @@ import           Data.String.Conversions      (ConvertibleStrings (convertString
 import           Data.Text                    (Text, intercalate)
 import           Foundation.HaskellSupport
 import qualified Foundation.ModelSupport
-import Foundation.ModelSupport (Include)
+import Foundation.ModelSupport (Include, Include')
 import           Foundation.ViewErrorMessages
 import           Foundation.ViewSupport
 import qualified Network.Wai

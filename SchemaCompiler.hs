@@ -160,7 +160,10 @@ compileStub table@(Table name attributes) =
     <> "import Foundation.ModelPrelude\n"
     <> "import Model.Generated." <> tableNameToModelName name <> "\n"
     <> section
-    <> "validator = buildValidator"
+    <> "instance ValidateRecord New" <> tableNameToModelName name <> " ControllerContext where\n"
+    <> "    validateRecord2 = validateRecord $ do\n"
+    <> "        validateNothing\n"
+
 
 getFilePath :: Table -> FilePath
 getFilePath (Table name attributes) = "src/Model/Generated/" <> (cs $ tableNameToModelName name) <> ".hs"
@@ -289,9 +292,9 @@ compileIdNewType table@(Table name attributes) =
     <> "instance ToField " <> typeName <> " where toField = toField . unwrap\n"
     <> "instance IsNewId " <> typeName <> " where isNewId _ = False\n"
     <> "instance FromField " <> typeName <> " where fromField value metaData = do fieldValue <- fromField value metaData; return $ wrap fieldValue\n"
-    <> "instance QueryBuilder.Fetchable " <> typeName <> " " <> tableNameToModelName name <> " where fetch = QueryBuilder.genericFetchId; fetchOneOrNothing = QueryBuilder.genericfetchIdOneOrNothing; fetchOne = QueryBuilder.genericFetchIdOne\n"
-    <> "instance QueryBuilder.Fetchable (Maybe " <> typeName <> ") " <> tableNameToModelName name <> " where fetch (Just a) = QueryBuilder.genericFetchId a; fetchOneOrNothing Nothing = return Nothing; fetchOneOrNothing (Just a) = QueryBuilder.genericfetchIdOneOrNothing a; fetchOne (Just a) = QueryBuilder.genericFetchIdOne a\n"
-    <> "instance QueryBuilder.Fetchable [" <> typeName <> "] " <> tableNameToModelName name <> " where fetch = QueryBuilder.genericFetchIds; fetchOneOrNothing = QueryBuilder.genericfetchIdsOneOrNothing; fetchOne = QueryBuilder.genericFetchIdsOne\n"
+    <> "instance QueryBuilder.Fetchable " <> typeName <> " " <> tableNameToModelName name <> " where type FetchResult " <> typeName <> " " <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "; fetch = QueryBuilder.genericFetchIdOne; fetchOneOrNothing = QueryBuilder.genericfetchIdOneOrNothing; fetchOne = QueryBuilder.genericFetchIdOne\n"
+    <> "instance QueryBuilder.Fetchable (Maybe " <> typeName <> ") " <> tableNameToModelName name <> " where type FetchResult (Maybe " <> typeName <> ") " <> tableNameToModelName name <> " = [" <> tableNameToModelName name <> "]; fetch (Just a) = QueryBuilder.genericFetchId a; fetchOneOrNothing Nothing = return Nothing; fetchOneOrNothing (Just a) = QueryBuilder.genericfetchIdOneOrNothing a; fetchOne (Just a) = QueryBuilder.genericFetchIdOne a\n"
+    <> "instance QueryBuilder.Fetchable [" <> typeName <> "] " <> tableNameToModelName name <> " where type FetchResult [" <> typeName <> "] " <> tableNameToModelName name <> " = [" <> tableNameToModelName name <> "]; fetch = QueryBuilder.genericFetchIds; fetchOneOrNothing = QueryBuilder.genericfetchIdsOneOrNothing; fetchOne = QueryBuilder.genericFetchIdsOne\n"
     where typeName = primaryKeyTypeName table
 
 primaryKeyTypeName :: Table -> Text
@@ -564,7 +567,7 @@ compileColumnNames table@(Table tableName attributes) = "instance ColumnNames " 
 compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compileInclude' attributes
     where
         compileInclude' :: Attribute -> Text
-        compileInclude' (Field fieldName _) = "type instance Include " <> tshow (columnNameToFieldName fieldName) <> " (" <> leftModelType <> ") = " <> rightModelType <> "\n"
+        compileInclude' attribute = "type instance Include " <> tshow (columnNameToFieldName fieldName) <> " (" <> leftModelType <> ") = " <> rightModelType <> "\n"
             where
                 leftModelType :: Text
                 leftModelType = intercalate " " $ (tableNameToModelName tableName <> "'"):(map compileTypeVariable attributes)
@@ -575,8 +578,12 @@ compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compi
                 compileTypeVariable (HasMany {name}) = name
                 compileTypeVariable' :: Attribute -> Text
                 compileTypeVariable' (Field fieldName' _) | fieldName' == fieldName = "(GetModelById (ModelFieldValue (" <> leftModelType <> ") " <> tshow (columnNameToFieldName fieldName) <> "))"
+                compileTypeVariable' (HasMany {name}) | name == fieldName = "[" <> tableNameToModelName (pluralToSingular name) <> "]"
                 compileTypeVariable' otherwise = compileTypeVariable otherwise
-        compileInclude' (HasMany {}) = ""
+                fieldName =
+                    case attribute of
+                        (Field fieldName _) -> fieldName
+                        (HasMany {name}) -> name 
 
 
 --compileAttributeBag :: Table -> Text

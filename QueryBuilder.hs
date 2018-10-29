@@ -105,11 +105,13 @@ buildQuery queryBuilder =
 
 
 class Fetchable fetchable model | fetchable -> model where
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO [model]
+    type FetchResult fetchable model
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO (FetchResult fetchable model)
     fetchOneOrNothing :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO (Maybe model)
     fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => fetchable -> IO model
 
 instance Fetchable (QueryBuilder model) model where
+    type FetchResult (QueryBuilder model) model = [model]
     {-# INLINE fetch #-}
     fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext) => QueryBuilder model -> IO [model]
     fetch queryBuilder = do
