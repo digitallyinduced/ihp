@@ -59,7 +59,13 @@ validateTable _ (Table name []) = pure $ "Table " <> name <> " needs to have atl
 validateTable database table@(Table name attributes) = catMaybes $ map (validateAttribute database table) attributes
 
 validateAttribute :: [Table] -> Table -> Attribute -> Maybe Text
-validateAttribute database table (Field fieldName (UUIDField { references })) =
+validateAttribute database table field = 
+    case validateReferences database table field of
+        Nothing -> validateOnDelete database table field
+        error -> error
+
+validateReferences :: [Table] -> Table -> Attribute -> Maybe Text
+validateReferences database table (Field fieldName (UUIDField { references })) =
     case references of
         Just tableName ->
             let
@@ -70,7 +76,11 @@ validateAttribute database table (Field fieldName (UUIDField { references })) =
                     Just _ -> Nothing
                     Nothing -> Just ("In the definition `+ field \"" <> fieldName <> "\" uuid { references = Just \"" <> tableName <> "\" }` the table named `" <> tableName <> "` could not be found in the Schema.hs")
         Nothing -> Nothing
-validateAttribute _ _ _ = Nothing
+validateReferences _ _ _ = Nothing
+
+validateOnDelete :: [Table] -> Table -> Attribute -> Maybe Text
+validateOnDelete database (Table tableName _) (Field fieldName (UUIDField { references = Just _, onDelete = NoAction })) = Just ("In the definition `+ field \"" <> fieldName <> "\" uuid { ... }` of table `" <> tableName <> "` the `onDelete = Cascade` or `onDelete = SetNull` was not specified in the Schema.hs")
+validateOnDelete _ _ _ = Nothing 
 
 
 fieldsOnly :: [Attribute] -> [Attribute]
