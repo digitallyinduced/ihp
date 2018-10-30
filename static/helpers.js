@@ -232,6 +232,7 @@ var locked = false;
 var debugMorphdom = false;
 window.transitionToNewPage = function (newBody) {
     if (locked) {
+        console.warn('transitionToNewPage: Did not execute transition due to lock');
         return;
     }
 
@@ -296,7 +297,7 @@ window.transitionToNewPage = function (newBody) {
 
     setTimeout(function () {
         locked = false;
-    }, 100);
+    }, 1);
 }
 
 window.allIntervals = [];
