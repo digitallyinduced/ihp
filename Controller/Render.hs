@@ -21,7 +21,7 @@ module Foundation.Controller.Render where
     import qualified Data.Aeson
     import qualified View.Context
     import Foundation.ControllerSupport (RequestContext (..))
-    import qualified Controller.Context
+    import qualified Apps.Web.Controller.Context as Controller.Context
     import qualified Network.HTTP.Media as Accept
     import qualified Data.List as List
 

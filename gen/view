@@ -3,6 +3,7 @@
 $basePath = realpath(__DIR__ . "../../..");
 $controller = ucfirst($argv[1]);
 $action = $argv[2];
+$appName = basename(getcwd());
 
 if ($argc < 3) {
     echo "Usage: gen/view CONTROLLER_NAME ACTION_NAME\n";
@@ -11,14 +12,14 @@ if ($argc < 3) {
 
 $isMailer = strpos($controller, 'Mailer') > 0;
 
-$controllerPath = ltrim("$basePath/src/Controller/$controller.hs", '/');
+$controllerPath = ltrim("$basePath/Controller/$controller.hs", '/');
 if (!file_exists($controllerPath) && $controller !== 'Layout' && !$isMailer) {
     echo "Controller not found: $controllerPath\n";
     exit(1);
 }
 
-$viewDirectory = ltrim("$basePath/src/View/$controller", '/');
-$viewPath = ltrim("$basePath/src/View/$controller/" . ucfirst($action) . ".hs", '/');
+$viewDirectory = ltrim("$basePath/View/$controller", '/');
+$viewPath = ltrim("$basePath/View/$controller/" . ucfirst($action) . ".hs", '/');
 if (file_exists($viewPath)) {
     echo "View already exists: $viewPath\n";
     exit(1);
@@ -32,14 +33,13 @@ $modelVariable = lcfirst($model);
 
 ob_start();
 ?>
-module View.<?= $controller ?>.<?= ucfirst($action) ?> (render) where
+module Apps.<?= $appName; ?>.View.<?= $controller ?>.<?= ucfirst($action) ?> (render) where
 <?php if (!$isMailer) { ?>
-import Foundation.ViewPrelude
-import qualified View.Layout.Default
+import Apps.<?php echo $appName; ?>.View.Prelude
 
 <?php if (strtolower($action) === 'new') { ?>
 render :: New<?php echo $model; ?> -> Html
-render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
+render <?php echo $modelVariable; ?> = defaultLayout [hsx|
 <nav>
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href={<?= lcfirst($model) ?>sPath}><?php echo $controller; ?></a></li>
@@ -57,7 +57,7 @@ renderForm <?php echo $modelVariable; ?> = formFor <?php echo $modelVariable; ?>
 
 <?php } elseif (strtolower($action) === 'edit') { ?>
 render :: <?php echo $model; ?> -> Html
-render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
+render <?php echo $modelVariable; ?> = defaultLayout [hsx|
 <nav>
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href={<?= lcfirst($model) ?>sPath}><?php echo $controller; ?></a></li>
@@ -75,7 +75,7 @@ renderForm <?php echo $modelVariable; ?> = formFor <?php echo $modelVariable; ?>
 
 <?php } elseif (strtolower($action) === 'index') { ?>
 render :: [<?php echo $model; ?>] -> Html
-render <?php echo $modelVariable; ?>s = View.Layout.Default.html [hsx|
+render <?php echo $modelVariable; ?>s = defaultLayout [hsx|
 <h1>
     <?= $controller ?>
 
@@ -105,7 +105,7 @@ render<?= $model ?> <?= lcfirst($model) ?> = [hsx|
 |]
 <?php } else { ?>
 render :: <?php echo $model; ?> -> Html
-render <?php echo $modelVariable; ?> = View.Layout.Default.html [hsx|
+render <?php echo $modelVariable; ?> = defaultLayout [hsx|
     <p>"Hello World from View.<?= $controller ?>.<?= ucfirst($action) ?>"</p>
 |]
 <?php } ?>
@@ -140,7 +140,7 @@ echo "+ $viewPath\n";
 if (file_exists($controllerPath)) {
     $content = file_get_contents($controllerPath);
     $lines = explode("\n", $content);
-    $importLine = "import qualified View.$controller." . ucfirst($action) . " as " . ucfirst($action);
+    $importLine = "import qualified Apps.$appName.View.$controller." . ucfirst($action) . " as " . ucfirst($action);
     array_splice($lines, 2, 0, [$importLine]);
     $newContent = implode("\n", $lines);
     file_put_contents($controllerPath, $newContent);

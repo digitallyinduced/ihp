@@ -39,7 +39,7 @@ validateFieldIO :: forall field model savedModel idType validationState fieldVal
     ) => Proxy field -> CustomIOValidation fieldValue ->  StateT (ValidatorResultFor model) IO ()
 validateFieldIO fieldProxy customValidation = do
     let value :: fieldValue = getField @field ?model
-    result <- liftIO $ customValidation value
+    result <- liftIO (customValidation value)
     case result of
         (Failure _) -> do
             validationState <- get

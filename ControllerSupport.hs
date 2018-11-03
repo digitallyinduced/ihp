@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ControllerSupport (withContext, Action, Action', cs, (|>), redirectTo, getRequestBody, getRequestUrl, RequestContext (..)) where
+module Foundation.ControllerSupport (withContext, Action, Action', cs, (|>), redirectTo, getRequestBody, getRequestUrl, RequestContext (..), ActionHelper) where
 import ClassyPrelude
 import Foundation.HaskellSupport
 import Data.String.Conversions (cs)
@@ -32,10 +32,12 @@ import Control.Monad.Reader
 
 import Network.Wai.Session (Session)
 import qualified Data.Vault.Lazy         as Vault
-import qualified Controller.Context
+import Apps.Web.Controller.Context (ControllerContext, createControllerContext)
 
-type Action = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => IO ResponseReceived)
+type Action = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: ControllerContext) => IO ResponseReceived)
 type Action' = IO ResponseReceived
+
+type ActionHelper return = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: ControllerContext) => return)
 
 --request :: StateT RequestContext IO ResponseReceived -> Request
 --request = do
@@ -64,11 +66,11 @@ getRequestUrl =
     in Network.Wai.rawPathInfo request
 
 {-# INLINE withContext #-}
-withContext :: ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => a) -> ApplicationContext -> Request -> Respond -> IO a
+withContext :: ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: ControllerContext) => a) -> ApplicationContext -> Request -> Respond -> IO a
 withContext theAction (ApplicationContext modelContext session) request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
     let ?requestContext = RequestContext request respond params files session
     let ?modelContext = modelContext
-    controllerContext <- Controller.Context.createControllerContext
+    controllerContext <- createControllerContext
     let ?controllerContext = controllerContext
     return $ theAction

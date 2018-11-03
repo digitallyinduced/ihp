@@ -26,6 +26,8 @@ module Foundation.Router
     , resource'
     , justAction
     , AppRouter
+    , toMatchable
+    , Matchable
     ) where
 
 import           ClassyPrelude                 hiding (index, delete, show)
@@ -40,7 +42,7 @@ import Data.UUID (UUID)
 import qualified Data.UUID
 import Foundation.ModelSupport (NewTypeWrappedUUID, wrap, unwrap)
 
-import qualified Controller.Context
+import qualified Apps.Web.Controller.Context as Controller.Context
 import qualified Foundation.ModelSupport
 import qualified Foundation.Controller.RequestContext
 

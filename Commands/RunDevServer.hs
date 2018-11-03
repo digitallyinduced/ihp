@@ -93,6 +93,7 @@ initServer ghci = do
 watch state@(DevServerState {serverProcess, rebuildServerLock}) = do
     "Model/Schema.hs" |> const (rebuildModels state)
     "Routes.hs" |> const (rebuildUrlGenerator state)
+    "*/*/Routes.hs" |> const (rebuildUrlGenerator state)
     "View/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
     "Model/Generated/*.hs" |> const (rebuild serverProcess rebuildServerLock)
     "UrlGenerator.hs" |> const (rebuild serverProcess rebuildServerLock)
@@ -101,6 +102,7 @@ watch state@(DevServerState {serverProcess, rebuildServerLock}) = do
     "*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
     "*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
     "*/*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
+    "*/*/*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
 
 
 rebuildModels (DevServerState {modelCompilerProcess}) = do

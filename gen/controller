@@ -7,8 +7,9 @@ if ($argc < 2) {
 $basePath = getcwd();
 
 $controller = ucfirst($argv[1]);
+$appName = basename($basePath);
 
-$controllerPath = "$basePath/src/Controller/$controller.hs";
+$controllerPath = "$basePath/Controller/$controller.hs";
 if (file_exists($controllerPath)) {
     echo "Controller already exists: $controllerPath\n";
     exit(1);
@@ -24,7 +25,7 @@ $idType = $model . "Id";
 
 ob_start();
 ?>
-module Controller.<?= $controller ?> where
+module Apps.<?= $appName; ?>.Controller.<?= $controller ?> where
 
 import Foundation.ControllerPrelude
 import qualified Model.<?= $model ?> as <?= $model ?>
@@ -106,13 +107,13 @@ $marker = '        -- Generator Marker';
 ?>
         , toRoutes $ resource {
             baseUrl = "<?= $controller ?>",
-            index = Controller.<?= $controller ?>.index,
-            new = Controller.<?= $controller ?>.new,
-            show = Controller.<?= $controller ?>.show,
-            edit = Controller.<?= $controller ?>.edit,
-            update = Controller.<?= $controller ?>.update,
-            create = Controller.<?= $controller ?>.create,
-            destroy = Controller.<?= $controller ?>.delete
+            index = <?= $controller ?>.index,
+            new = <?= $controller ?>.new,
+            show = <?= $controller ?>.show,
+            edit = <?= $controller ?>.edit,
+            update = <?= $controller ?>.update,
+            create = <?= $controller ?>.create,
+            destroy = <?= $controller ?>.delete
         }
 <?= $marker ?>
 <?php
@@ -122,9 +123,9 @@ file_put_contents($controllerPath, $body);
 echo "+ $controllerPath\n";
 
 // Add url generator stubs
-$urlGenerators = file_get_contents("$basePath/src/UrlGenerator.hs");
+$urlGenerators = file_get_contents("$basePath/../../UrlGenerator.hs");
 $urlGenerators .= "\n" . lcfirst($model) . "Path a = \"\" :: Text\n" . lcfirst($model) . "sPath = \"\" :: Text\nedit${model}Path a = \"\" :: Text\nnew${model}Path = \"\" :: Text";
-file_put_contents("$basePath/src/UrlGenerator.hs", $urlGenerators);
+file_put_contents("$basePath/../../UrlGenerator.hs", $urlGenerators);
 
 
 $actions = ['index', 'new', 'show', 'edit'];
@@ -132,7 +133,7 @@ foreach ($actions as $action) {
     system("gen/view $controller $action");
 }
 
-$routesHs = file_get_contents("$basePath/src/Routes.hs");
+$routesHs = file_get_contents("$basePath/Routes.hs");
 $routesHs = str_replace($marker, $routes, $routesHs);
-$routesHs = str_replace("-- Controller Imports\n", "-- Controller Imports\nimport qualified Controller.$controller\n", $routesHs);
-file_put_contents("$basePath/src/Routes.hs", $routesHs);
+$routesHs = str_replace("-- Controller Imports\n", "-- Controller Imports\nimport qualified Apps.$appName.Controller.$controller as $controller\n", $routesHs);
+file_put_contents("$basePath/Routes.hs", $routesHs);

@@ -91,7 +91,9 @@ src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/SchemaCompiler.hs"
 
 src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
+	cp src/UrlGenerator.hs src/UrlGenerator.hs.bak
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
+	rm src/UrlGenerator.hs.bak
 
 bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
 	mkdir -p build/RunUnoptimizedProdServer

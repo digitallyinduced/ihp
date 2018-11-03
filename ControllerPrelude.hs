@@ -15,7 +15,7 @@ module Foundation.ControllerPrelude (
         module Foundation.ModelSupport,
         module Foundation.QueryBuilder,
         module GHC.Records,
-        module Controller.Context,
+        module Apps.Web.Controller.Context,
         module Foundation.ViewSupport,
         module View.Context,
         module Foundation.FetchRelated
@@ -38,6 +38,6 @@ import Foundation.ModelSupport (createRecord, createMany, deleteRecord, Include,
 import Foundation.QueryBuilder
 import Foundation.FetchRelated
 import GHC.Records
-import Controller.Context
+import Apps.Web.Controller.Context
 import View.Context (ViewContext)
 import Foundation.ViewSupport (Html, Html')

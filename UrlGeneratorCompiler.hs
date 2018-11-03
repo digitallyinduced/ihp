@@ -51,6 +51,7 @@ writeCompiledUrlGenerator content = do
     writeFile (cs path) (cs content)
 
 
+generateUrlGeneratorCode (Just "", _) = ""
 generateUrlGeneratorCode (Just name, path) = typeDefinition <> "\n" <> implementation <> "\n" <> inlineAnnotation
     where
         functionName = (Foundation.NameSupport.lcfirst name) <> "Path\n"
@@ -62,6 +63,7 @@ generateUrlGeneratorCode (Just name, path) = typeDefinition <> "\n" <> implement
             then "(" <> (intercalate ", " $ map compilePathToTypeConstraint (zip (variablesOnly path) [0..])) <> ") => "
             else ""
         compilePath :: (UrlGeneratorPath, Int) -> Text
+        compilePath (Constant "", i)    = "\"\""
         compilePath (Constant value, i) = cs $ "\"/" <> value <> "\""
         compilePath (Variable x, i)     = cs $ "\"/\" <> toText arg" <> tshow i
         compileArgs = intercalate " " $ map fromJust $ filter isJust $ map compileArg $ zip path [0..]
