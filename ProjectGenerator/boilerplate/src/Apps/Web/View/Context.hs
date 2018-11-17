@@ -1,4 +1,4 @@
-module View.Context where
+module Apps.Web.View.Context where
 
 import           ClassyPrelude
 import           Controller.Context
