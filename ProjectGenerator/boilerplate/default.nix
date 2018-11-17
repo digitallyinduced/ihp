@@ -38,13 +38,16 @@ let
             parsec
             template-haskell
             haskell-src-meta
+            random-strings
             time_1_9_1
-            linklater
+            concurrent-extra
+            interpolate
+            uri-encode
+            generic-lens
+            websockets
+            wai-websockets
             mime-mail
             mime-mail-ses
-            interpolate
-            random-strings
-            concurrent-extra
         ];
     };
 in

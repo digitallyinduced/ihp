@@ -2,11 +2,11 @@ module Routes where
 import ClassyPrelude hiding (index, delete, show)
 import Foundation.Router
 
--- Controller Imports
-import qualified Foundation.Welcome.Controller
+-- Router Imports
+import qualified Apps.Web.Routes
 
 match :: AppRouter
-match = prefix "/" [
-        get $ action Foundation.Welcome.Controller.welcome
+match = prefix "" [
+        Apps.Web.Routes.match
         -- Generator Marker
     ]

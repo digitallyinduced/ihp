@@ -1,9 +1,7 @@
-module View.Layout.Default where
-import           ClassyPrelude               (isJust)
+module Apps.Web.View.Layout (defaultLayout) where
+
 import qualified Config
 import           Foundation.Environment
-import           Foundation.ViewPrelude hiding (id)
-import           Prelude                     (undefined)
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 

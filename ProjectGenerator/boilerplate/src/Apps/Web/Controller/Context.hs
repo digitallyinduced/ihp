@@ -1,4 +1,4 @@
-module Controller.Context where
+module Apps.Web.Controller.Context where
 
 import ClassyPrelude
 import Foundation.Controller.Session
