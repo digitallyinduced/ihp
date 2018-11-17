@@ -17,7 +17,7 @@ module Foundation.ControllerPrelude (
         module GHC.Records,
         module Apps.Web.Controller.Context,
         module Foundation.ViewSupport,
-        module View.Context,
+        module Apps.Web.View.Context,
         module Foundation.FetchRelated
     ) where
 import           ClassyPrelude
@@ -39,5 +39,5 @@ import Foundation.QueryBuilder
 import Foundation.FetchRelated
 import GHC.Records
 import Apps.Web.Controller.Context
-import View.Context (ViewContext)
+import Apps.Web.View.Context (ViewContext)
 import Foundation.ViewSupport (Html, Html')

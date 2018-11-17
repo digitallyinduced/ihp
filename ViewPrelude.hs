@@ -76,7 +76,7 @@ import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, 
                                                placeholder, rel, src, style, type_, value)
 import qualified Text.Blaze.Html5.Attributes  as A
 import           UrlGenerator
-import View.Context
+import Apps.Web.View.Context as View.Context
 import Foundation.View.Form
 import Foundation.View.ConvertibleStrings ()
 import Foundation.HtmlSupport.QQ (hsx)

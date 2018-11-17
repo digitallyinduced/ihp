@@ -29,7 +29,7 @@ import           Text.Blaze.Html5.Attributes        (action, autocomplete, autof
 import qualified Text.Blaze.Html5.Attributes        as A
 
 import           UrlGenerator
-import qualified View.Context
+import Apps.Web.View.Context as View.Context
 import qualified Text.Blaze.Internal
 import Foundation.HtmlSupport.ToHtml
 import qualified Foundation.Controller.Session

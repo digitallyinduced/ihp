@@ -19,7 +19,7 @@ module Foundation.Controller.Render where
     import qualified Data.Text.Encoding
     import qualified Data.Text
     import qualified Data.Aeson
-    import qualified View.Context
+    import Apps.Web.View.Context as View.Context
     import Foundation.ControllerSupport (RequestContext (..))
     import qualified Apps.Web.Controller.Context as Controller.Context
     import qualified Network.HTTP.Media as Accept
@@ -33,6 +33,7 @@ module Foundation.Controller.Render where
     import Database.PostgreSQL.Simple as PG
 
     import Control.Monad.Reader
+
 
     renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ResponseReceived
     renderPlain text = do

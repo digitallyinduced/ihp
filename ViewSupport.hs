@@ -5,7 +5,7 @@ module Foundation.ViewSupport (ViewContext (ViewContext), Html, Html', ToAttribu
 import ClassyPrelude
 import qualified Text.Blaze
 import qualified Text.Blaze.Html5 as Html5
-import View.Context
+import Apps.Web.View.Context
 import Foundation.HaskellSupport
 
 type Html = (?viewContext :: ViewContext) => Html'
