@@ -1,4 +1,4 @@
-{ compiler, haskellDeps ? (p: []) }:
+{ compiler, haskellDeps ? (p: []), otherDeps ? (p: []) }:
 
 let
     config = {
@@ -35,7 +35,7 @@ let
 
     ghc = pkgs.haskell.packages.${compiler};
     allHaskellPackages = ghc.ghcWithPackages (p: builtins.concatLists [(haskellDeps p) [pkgs.haskell.lib.doJailbreak p.ghc-mod p.hlint p.http-media]] );
-    allNativePackages = builtins.concatLists [ [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [pkgs.darwin.apple_sdk.frameworks.Cocoa pkgs.llvm_39] else [pkgs.llvm_39]) ];
+    allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [pkgs.darwin.apple_sdk.frameworks.Cocoa pkgs.llvm_39] else [pkgs.llvm_39]) ];
 in
     pkgs.stdenv.mkDerivation {
         name = "app";
