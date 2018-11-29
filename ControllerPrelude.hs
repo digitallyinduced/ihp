@@ -18,7 +18,9 @@ module Foundation.ControllerPrelude (
         module Apps.Web.Controller.Context,
         module Foundation.ViewSupport,
         module Apps.Web.View.Context,
-        module Foundation.FetchRelated
+        module Foundation.FetchRelated,
+        module Data.Aeson,
+        module Network.Wai.Parse
     ) where
 import           ClassyPrelude
 import           Data.Default                  (def)
@@ -34,10 +36,12 @@ import           Model.Generated.Types
 import           UrlGenerator
 import Foundation.HaskellSupport
 import Foundation.UrlGeneratorSupport (pathTo)
-import Foundation.ModelSupport (createRecord, createMany, deleteRecord, Include, wrap, unwrap, updateRecord)
+import Foundation.ModelSupport (ModelContext (), createRecord, createMany, deleteRecord, Include, wrap, unwrap, updateRecord)
 import Foundation.QueryBuilder
 import Foundation.FetchRelated
 import GHC.Records
 import Apps.Web.Controller.Context
 import Apps.Web.View.Context (ViewContext)
 import Foundation.ViewSupport (Html, Html')
+import Data.Aeson
+import Network.Wai.Parse (FileInfo, fileContent)

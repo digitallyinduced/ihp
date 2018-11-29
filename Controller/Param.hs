@@ -13,9 +13,16 @@ import           Foundation.Controller.RequestContext
 import           Foundation.HaskellSupport
 import qualified Network.URI
 import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
+import Network.Wai.Parse (FileInfo)
 import qualified Data.UUID
 import Data.UUID (UUID)
 import qualified Foundation.ModelSupport as ModelSupport
+
+{-# INLINE fileOrNothing #-}
+fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
+fileOrNothing name = lookup name files
+    where
+        (RequestContext _ _ _ files _) = ?requestContext
 
 {-# INLINE param #-}
 param :: (?requestContext :: RequestContext) => (Show a, FromParameter a) => ByteString -> a

@@ -1,7 +1,7 @@
 module Apps.Web.View.Context where
 
 import           ClassyPrelude
-import           Controller.Context
+import           Apps.Web.Controller.Context
 import qualified Foundation.Controller.Session
 import           Foundation.ControllerSupport  (RequestContext (RequestContext))
 import qualified Foundation.ControllerSupport

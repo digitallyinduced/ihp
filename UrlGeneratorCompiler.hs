@@ -38,7 +38,7 @@ doCompile router =
         <> "import Foundation.UrlGeneratorSupport\n"
         <> "import Model.Generated.Types\n"
         <> "\n\n"
-        <> (intercalate "\n\n" $ mkUniq $ map generateUrlGeneratorCode namePathPairs)
+        <> (intercalate "\n\n" $ mkUniq $ map generateUrlGeneratorCode (filter isValid namePathPairs))
         <> "\n\n"
         -- <> (intercalate "\n\n" $ mkUniq $ catMaybes $ map generatePathToCode namePathPairs)
 
@@ -130,3 +130,6 @@ simplify rest = rest
 
 mkUniq :: Ord a => [a] -> [a]
 mkUniq = Data.Set.toList . Data.Set.fromList
+
+isValid (Just name, path) | Text.count "/" name > 0 = False
+isValid _ = True

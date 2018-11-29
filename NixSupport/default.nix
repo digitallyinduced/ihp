@@ -14,7 +14,11 @@ let
                                 ghc-mod = pkgs.haskell.lib.dontCheck (pkgs.haskell.lib.doJailbreak (self.callPackage ./ghc-mod.nix { }));
                                 cabal-helper = pkgs.haskell.lib.dontCheck (self.callPackage ./cabal-helper.nix { });
                                 generic-lens = pkgs.haskell.lib.dontCheck (self.callPackage ./generic-lens.nix { });
+                                filesystem-conduit = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.dontCheck (self.callPackage ./filesystem-conduit.nix { }));
+                                hs-pkpass = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.dontCheck (self.callPackage ./hs-pkpass.nix { }));
                                 time_1_9_1 = pkgs.haskell.lib.dontCheck super.time_1_9_1;
+                                http2-client = pkgs.haskell.lib.dontCheck super.http2-client;
+                                push-notify-apn = pkgs.haskell.lib.dontCheck (pkgs.haskell.lib.doJailbreak (self.callPackage ./push-notify-apn.nix { }));
                             };
                         };
                     };

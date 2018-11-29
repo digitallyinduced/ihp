@@ -189,7 +189,7 @@ compileDataDefinition table@(Table name attributes) =
 haskellType :: Table -> Text -> FieldType -> Text
 haskellType table fieldName field =
     let
-        actualType =
+        atomicType = 
             case field of
                 SerialField {} -> "Int"
                 TextField {}   -> "Text"
@@ -197,13 +197,14 @@ haskellType table fieldName field =
                 EnumField {}   -> tableNameToModelName fieldName
                 BoolField {}   -> "Bool"
                 Timestamp {}   -> "UTCTime"
-                UUIDField {isPrimaryKey, references}   ->
-                    if isPrimaryKey
-                        then primaryKeyTypeName table
-                        else
-                            if isJust references
-                                then primaryKeyTypeName' (fromJust references)
-                                else "UUID"
+                UUIDField {}   -> "UUID"
+        actualType =
+            if isPrimaryKey field
+                then primaryKeyTypeName table
+                else
+                    if isJust (references field)
+                        then primaryKeyTypeName' (fromJust (references field))
+                        else atomicType
     in if allowNull field then "(Maybe " <> actualType <> ")" else actualType
 
 
@@ -463,13 +464,13 @@ compileUnit table@(Table name attributes) =
 
 compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
-        "build :: New" <> tableNameToModelName name <> "\n"
-		<> "build = " <> tableNameToModelName name <> " " <> compileFields attributes <> "\n"
+        --"build :: New" <> tableNameToModelName name <> "\n"
+		"build = " <> tableNameToModelName name <> " " <> compileFields attributes <> "\n"
     where
         compileFields :: [Attribute] -> Text
         compileFields attributes = intercalate " " $ map compileField attributes
         compileField :: Attribute -> Text
-        compileField (Field fieldName fieldType) | isJust (defaultValue fieldType) = "()"
+        compileField (Field fieldName fieldType) = "()"
         compileField _ = "def"
 
 compileIdentity :: Table -> Text

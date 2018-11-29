@@ -2,7 +2,7 @@ module Foundation.Controller.Render where
     import ClassyPrelude
     import Foundation.HaskellSupport
     import Data.String.Conversions (cs)
-    import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, responseBuilder)
+    import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, responseBuilder, responseFile)
     import qualified Network.Wai
     import Network.HTTP.Types (status200, status302, status406)
     import Network.HTTP.Types.Header
@@ -46,6 +46,11 @@ module Foundation.Controller.Render where
         viewContext <- View.Context.createViewContext request
         let boundHtml = let ?viewContext = viewContext in html
         respond $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder boundHtml)
+
+    renderFile :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => String -> ByteString -> IO ResponseReceived
+    renderFile filePath contentType = do
+        let (RequestContext request respond _ _ _) = ?requestContext
+        respond $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 
     renderJson :: (?requestContext :: RequestContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
     renderJson json = do

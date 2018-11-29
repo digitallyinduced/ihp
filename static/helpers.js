@@ -161,17 +161,22 @@ window.submitForm = function (form, possibleClickedButton) {
         formData.set(submit.getAttribute('name'), submit.value);
     }
 
-    var parameters = []
-    for (var pair of formData.entries()) {
-        parameters.push(
-            encodeURIComponent(pair[0]) + '=' +
-            encodeURIComponent(pair[1])
-        );
+    var hasFileInputs = form.querySelector('input[type="file"]');
+    if (hasFileInputs) {
+        request.send(formData);
+
+    } else {
+        var parameters = []
+        for (var pair of formData.entries()) {
+            parameters.push(
+                encodeURIComponent(pair[0]) + '=' +
+                encodeURIComponent(pair[1])
+            );
+        }
+
+        request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        request.send(parameters.join('&'));
     }
-
-
-    request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    request.send(parameters.join('&'));
 
     var buttons = form.getElementsByTagName('button');
     for (var j in buttons) {

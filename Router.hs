@@ -11,6 +11,7 @@ module Foundation.Router
     , prefix
     , Router (..)
     , arg
+    , argText
     , action, urlGenerators, UrlGenerator (..), UrlGeneratorPath (..)
     , resource
     , index
@@ -28,6 +29,7 @@ module Foundation.Router
     , AppRouter
     , toMatchable
     , Matchable
+    , wrap
     ) where
 
 import           ClassyPrelude                 hiding (index, delete, show)
@@ -49,6 +51,7 @@ import qualified Foundation.Controller.RequestContext
 data Router = MatchMethod !Method !Matchable
     | Prefix !ByteString !Matchable
     | Capture !(UUID -> Matchable) -- | Capture (Int -> ApplicationContext -> Application)
+    | CaptureText !(Text -> Matchable)
     | Action !ControllerSupport.Action'
 
 data UrlGenerator = UrlGenerator { path :: [UrlGeneratorPath] } deriving (Show)
@@ -81,6 +84,10 @@ prefix url matchable = Prefix url (toMatchable matchable)
 {-# INLINE arg #-}
 arg :: Match a => (UUID -> a) -> Router
 arg matchable = Capture (\value -> toMatchable (matchable value))
+
+{-# INLINE argText #-}
+argText :: Match a => (Text -> a) -> Router
+argText matchable = CaptureText (\value -> toMatchable (matchable value))
 
 {-# INLINE match #-}
 match :: Request -> Router -> Maybe ControllerSupport.Action'
@@ -123,6 +130,17 @@ instance Match Router where
                             in
                                 match' remainingUrl request (action parsed)
                         Nothing -> Nothing
+            CaptureText action ->
+                let
+                    token = headMay $ split '/' requestUrl
+                in
+                    case token of
+                        Just token ->
+                            let
+                                remainingUrl = fromMaybe mempty (stripPrefix (cs token) requestUrl)
+                            in
+                                match' remainingUrl request (action (cs token))
+                        Nothing -> Nothing
 
     urlGenerators router urlGenerator =
         case router of
@@ -130,6 +148,7 @@ instance Match Router where
             MatchMethod method next -> urlGenerators next urlGenerator
             Prefix prefix routes -> map (\urlGenerator -> (urlGenerator { path = (Constant prefix):(path urlGenerator) })) (urlGenerators routes urlGenerator)
             Capture next -> map (\urlGenerator -> (urlGenerator { path = (Variable "x"):(path urlGenerator) } )) $ urlGenerators (next Data.UUID.nil) urlGenerator
+            CaptureText next -> map (\urlGenerator -> (urlGenerator { path = (Variable "x"):(path urlGenerator) } )) $ urlGenerators (next mempty) urlGenerator
 
 
 

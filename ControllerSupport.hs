@@ -1,10 +1,10 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ControllerSupport (withContext, Action, Action', cs, (|>), redirectTo, getRequestBody, getRequestUrl, RequestContext (..), ActionHelper) where
+module Foundation.ControllerSupport (withContext, Action, Action', cs, (|>), redirectTo, getRequestBody, getRequestUrl, getHeader, RequestContext (..), ActionHelper, getRequest, requestHeaders, getFiles) where
 import ClassyPrelude
 import Foundation.HaskellSupport
 import Data.String.Conversions (cs)
-import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString)
+import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, requestHeaders)
 import qualified Network.Wai
 import Network.HTTP.Types (status200, status302)
 import Foundation.ModelSupport
@@ -20,6 +20,7 @@ import qualified Data.Text.Encoding
 import qualified Data.Text
 import qualified Data.Aeson
 import Foundation.Controller.RequestContext
+import qualified Data.CaseInsensitive
 
 import qualified Config
 
@@ -64,6 +65,24 @@ getRequestUrl :: (?requestContext :: RequestContext) => ByteString
 getRequestUrl =
     let (RequestContext request _ _ _ _) = ?requestContext
     in Network.Wai.rawPathInfo request
+
+{-# INLINE getHeader #-}
+getHeader :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
+getHeader name =
+    let (RequestContext request _ _ _ _) = ?requestContext
+    in lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
+
+{-# INLINE getRequest #-}
+getRequest :: (?requestContext :: RequestContext) => Network.Wai.Request
+getRequest =
+    let (RequestContext request _ _ _ _) = ?requestContext
+    in request
+
+{-# INLINE getFiles #-}
+getFiles :: (?requestContext :: RequestContext) => [File Data.ByteString.Lazy.ByteString]
+getFiles =
+    let (RequestContext _ _ _ files _) = ?requestContext
+    in files
 
 {-# INLINE withContext #-}
 withContext :: ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: ControllerContext) => a) -> ApplicationContext -> Request -> Respond -> IO a
