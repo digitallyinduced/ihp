@@ -5,8 +5,8 @@ import           Foundation.Environment
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 
-html :: Html -> Html
-html inner = H.docTypeHtml ! A.lang "en" $ [hsx|
+defaultLayout :: Html -> Html
+defaultLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
