@@ -38,7 +38,7 @@
           sed -i -e 's#(toTextIgnore $ passOut </> passFile)#(toTextIgnore $ passOut </> (LT.unpack passFile))#g' Passbook.hs
           sed -i -e 's#(passOut </> passFile)#(passOut </> (LT.unpack passFile))#g' Passbook.hs
           sed -i -e 's#(passOut </> LT.append lazyId ".pkpass")#(passOut </> LT.unpack (LT.append lazyId ".pkpass"))#g' Passbook.hs
-          sed -i -e 's#, "-signer", toTextIgnore cert#, "-signer", toTextIgnore cert, "-certfile", "/Users/marc/digitallyinduced/playground/PassManager/wwdr.pem"#g' Passbook.hs
+          sed -i -e 's#, "-signer", toTextIgnore cert#, "-signer", toTextIgnore cert, "-certfile", "../../../wwdr.pem"#g' Passbook.hs
           sed -i -e 's/NSDateFormatterNoStyle/PKDateStyleNone/g' Passbook/Types.hs
           sed -i -e 's/NSDateFormatterShortStyle/PKDateStyleShort/g' Passbook/Types.hs
           sed -i -e 's/NSDateFormatterMediumStyle/PKDateStyleMedium/g' Passbook/Types.hs
