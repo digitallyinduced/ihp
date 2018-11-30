@@ -260,7 +260,10 @@ function initDatePicker() {
     flatpickr("input[type='date']", {});
     flatpickr("input[type='datetime']", {
         enableTime: true,
-        time_24hr: true
+        time_24hr: true,
+        dateFormat: 'Z',
+        altInput: true,
+        altFormat: 'd.m.y\,\ H:i \\U\\h\\r'
     });
 }
 
@@ -292,9 +295,11 @@ window.transitionToNewPage = function (newBody) {
             } else if (from.parentNode && from.parentNode.tagName === 'svg') {
                 return false;
             } else if (from.classList.contains('flatpickr-input') && from._flatpickr) {
-                unsafeSetTimeout(function (from) {
-                    from.value = from.getAttribute('value');
-                }, 0, from);
+                unsafeSetTimeout(function (from, to) {
+                    console.log('FROM', from, to.getAttribute('value'), to.value);
+                    from.value = to.value;
+                    // from.setAttribute('value', to.getAttribute('value'));
+                }, 0, from, to);
                 
             }
 

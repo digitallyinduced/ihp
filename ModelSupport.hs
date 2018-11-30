@@ -81,7 +81,7 @@ instance InputValue () where
 instance InputValue UTCTime where
     inputValue time =
         let fullDateTime = cs (iso8601Show time)
-        in take (length ("yyyy-mm-dd" :: Text)) fullDateTime <> " " <> take (length ("hh-dd" :: Text)) (drop (length ("yyyy-mm-dd " :: Text)) fullDateTime)
+        in fullDateTime
 
 instance InputValue ClassyPrelude.UTCTime where
     inputValue time = inputValue ((unsafeCoerce time) :: UTCTime)

@@ -111,7 +111,7 @@ instance FromParameter UUID where
 instance FromParameter UTCTime where
     {-# INLINE fromParameter #-}
     fromParameter (Just "") = Left "FromParameter UTCTime: Parameter missing"
-    fromParameter (Just byteString) = parseTimeM True defaultTimeLocale "%Y-%-m-%-d %R" (cs byteString)
+    fromParameter (Just byteString) = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" (cs byteString)
     fromParameter Nothing = Left "FromParameter UTCTime: Parameter missing"
 
 instance {-# OVERLAPPABLE #-} (Show idField, ModelSupport.NewTypeWrappedUUID idField) => FromParameter idField where
