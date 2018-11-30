@@ -108,7 +108,7 @@ submitButton = SubmitButton
     , buttonClass = mempty
     }
 
-data InputType = TextInput | CheckboxInput | ColorInput | EmailInput | HiddenInput | TextareaInput | DateInput | SelectInput { options :: [(Text, Text)] }
+data InputType = TextInput | CheckboxInput | ColorInput | EmailInput | HiddenInput | TextareaInput | DateInput | DateTimeInput | SelectInput { options :: [(Text, Text)] }
 
 {-# INLINE renderHelpText #-}
 renderHelpText (FormField { helpText }) =
@@ -137,6 +137,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
             ColorInput -> renderTextField "color" formField
             EmailInput -> renderTextField "email" formField
             DateInput -> renderTextField "date" formField
+            DateTimeInput -> renderTextField "datetime" formField
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField
@@ -349,6 +350,10 @@ emailField alpha = (textField alpha) { fieldType = EmailInput }
 {-# INLINE dateField #-}
 dateField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
 dateField alpha = (textField alpha) { fieldType = DateInput }
+
+{-# INLINE dateTimeField #-}
+dateTimeField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField
+dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput }
 
 {-# INLINE hiddenField #-}
 hiddenField :: forall alpha attributeName model value. (?formContext :: FormContext model, ?viewContext :: ViewContext) => (alpha ~ ((FormContext model, ViewContext, Proxy value) -> FormField)) => alpha -> FormField

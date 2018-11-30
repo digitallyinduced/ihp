@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initToggle();
     initTime();
     initDatePicker();
+    initFileUploadPreview();
 });
 
 document.addEventListener('turbolinks:load', function () {
@@ -229,8 +230,46 @@ function initToggle() {
     }
 }
 
+function initFileUploadPreview() {
+    var elements = document.querySelectorAll('input[type="file"]');
+
+    function handler () {
+        var input = this;
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                document.querySelector(input.getAttribute('data-preview')).setAttribute('src', e.target.result);
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    };
+
+    for (var i in elements) {
+        var element = elements[i];
+        if (!(element instanceof HTMLInputElement))
+            continue;
+
+        if (element.getAttribute('data-preview'))
+            element.addEventListener('change', handler.bind(element));
+    }
+}
+
+
+var datePickers = [];
 function initDatePicker() {
     flatpickr("input[type='date']", {});
+    flatpickr("input[type='datetime']", {
+        enableTime: true,
+        time_24hr: true
+    });
+}
+
+function removeDatePickers() {
+    for (var i = 0; i < datePickers.length; i++) {
+        console.log(datePickers[i]);
+        datePickers[i].destroy();
+    }
+    datePickers = [];
 }
 
 var locked = false;
@@ -252,6 +291,11 @@ window.transitionToNewPage = function (newBody) {
                 return false;
             } else if (from.parentNode && from.parentNode.tagName === 'svg') {
                 return false;
+            } else if (from.classList.contains('flatpickr-input') && from._flatpickr) {
+                unsafeSetTimeout(function (from) {
+                    from.value = from.getAttribute('value');
+                }, 0, from);
+                
             }
 
             if (debugMorphdom)
