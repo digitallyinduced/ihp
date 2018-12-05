@@ -44,6 +44,9 @@
           sed -i -e 's/NSDateFormatterMediumStyle/PKDateStyleMedium/g' Passbook/Types.hs
           sed -i -e 's/NSDateFormatterLongStyle/PKDateStyleLong/g' Passbook/Types.hs
           sed -i -e 's/NSDateFormatterFullStyle/PKDateStyleFull/g' Passbook/Types.hs
+          sed -i -e 's#Pass {#Pass { expirationDate :: Maybe Text, voided :: Maybe Bool, #g' Passbook/Types.hs
+          sed -i -e 's#                  $ ("barcode" -: barcode)#                  $ ("barcode" -: barcode)\n                  $ ("expirationDate" -: expirationDate)\n                  $ ("voided" -: voided)#g' Passbook/Types.hs
+          cat Passbook/Types.hs
        '';
        description = "A library for Passbook pass creation & signing";
        license = stdenv.lib.licenses.bsd3;
