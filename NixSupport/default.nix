@@ -17,6 +17,7 @@ let
                                 filesystem-conduit = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.dontCheck (self.callPackage ./filesystem-conduit.nix { }));
                                 hs-pkpass = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.dontCheck (self.callPackage ./hs-pkpass.nix { }));
                                 time_1_9_1 = pkgs.haskell.lib.dontCheck super.time_1_9_1;
+                                tz = pkgs.haskell.lib.dontCheck super.tz;
                                 http2-client = pkgs.haskell.lib.dontCheck super.http2-client;
                                 push-notify-apn = pkgs.haskell.lib.dontCheck (pkgs.haskell.lib.doJailbreak (self.callPackage ./push-notify-apn.nix { }));
                             };
