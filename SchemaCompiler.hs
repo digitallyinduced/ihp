@@ -75,6 +75,7 @@ compileTable table@(Table name attributes) =
     <> "import Data.Default\n"
     <> "import GHC.Records (getField)\n"
     <> "import qualified Data.Proxy\n"
+    <> "import Foundation.QueryBuilder\n"
     <> section
     <> compileCreate table
     <> section
@@ -464,14 +465,20 @@ compileUnit table@(Table name attributes) =
 
 compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
-        --"build :: New" <> tableNameToModelName name <> "\n"
-		"build = " <> tableNameToModelName name <> " " <> compileFields attributes <> "\n"
+        "build :: " <> tableNameToModelName name <> "' " <> compileTypes attributes <> "\n"
+		<> "build = " <> tableNameToModelName name <> " " <> compileFields attributes <> "\n"
     where
         compileFields :: [Attribute] -> Text
         compileFields attributes = intercalate " " $ map compileField attributes
         compileField :: Attribute -> Text
-        compileField (Field fieldName fieldType) = "()"
-        compileField _ = "def"
+        compileField (HasMany {}) = "()"
+        compileField (Field {}) = "()"
+
+        compileTypes :: [Attribute] -> Text
+        compileTypes attributes = intercalate " " $ map compileType attributes
+        compileType :: Attribute -> Text
+        compileType (HasMany {name}) = "()"
+        compileType (Field {}) = "()"
 
 compileIdentity :: Table -> Text
 compileIdentity table@(Table name attributes) =

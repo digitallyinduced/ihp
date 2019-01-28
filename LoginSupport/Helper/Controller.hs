@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Foundation.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, HasNewSessionUrl) where
+module Foundation.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, ensureIsUser, HasNewSessionUrl) where
 
 import Foundation.HaskellSupport
 import Control.Lens hiding ((|>))
@@ -19,3 +19,9 @@ currentUserOrNothing = ?controllerContext |> get #user
 {-# INLINE currentUserId #-}
 currentUserId :: forall controllerContext user userId. (?controllerContext :: controllerContext, HasField' "user" controllerContext (Maybe user), HasNewSessionUrl user, HasField' "id" user userId, Generic user, Generic controllerContext) => userId
 currentUserId = currentUser |> get #id
+
+ensureIsUser :: forall controllerContext user userId. (?controllerContext :: controllerContext, HasField' "user" controllerContext (Maybe user), HasNewSessionUrl user, HasField' "id" user userId, Generic user, Generic controllerContext) => IO ()
+ensureIsUser =
+    case currentUserOrNothing of
+        Just _ -> return ()
+        Nothing -> Foundation.LoginSupport.Types.throwNotLoggedIn (Just (newSessionUrl (Proxy :: Proxy user)))
