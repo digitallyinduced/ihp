@@ -1,15 +1,16 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ViewSupport (ViewContext (ViewContext), Html, Html', ToAttributeValue (toAttributeValue), classes) where
+module Foundation.ViewSupport (HtmlWithContext, ToAttributeValue (toAttributeValue), classes, CreateViewContext (createViewContext)) where
 
 import ClassyPrelude
 import qualified Text.Blaze
 import qualified Text.Blaze.Html5 as Html5
-import Apps.Web.View.Context
 import Foundation.HaskellSupport
+import Foundation.ControllerSupport  (RequestContext (RequestContext))
+import Apps.Web.Controller.Context
+import Foundation.ModelSupport
 
-type Html = (?viewContext :: ViewContext) => Html'
-type Html' = Html5.Html
+type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 
 class ToAttributeValue a where
     toAttributeValue :: a -> Html5.AttributeValue
@@ -24,3 +25,6 @@ instance ToAttributeValue String where
 
 classes :: [(Text, Bool)] -> Text
 classes classNameBoolPairs = classNameBoolPairs |> filter snd |> map fst |> intercalate " "
+
+class CreateViewContext viewContext where
+	createViewContext :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext

@@ -16,7 +16,6 @@ module Foundation.ControllerPrelude (
         module Foundation.QueryBuilder,
         module GHC.Records,
         module Apps.Web.Controller.Context,
-        module Foundation.ViewSupport,
         module Apps.Web.View.Context,
         module Foundation.FetchRelated,
         module Data.Aeson,
@@ -42,6 +41,5 @@ import Foundation.FetchRelated
 import GHC.Records
 import Apps.Web.Controller.Context
 import Apps.Web.View.Context (ViewContext)
-import Foundation.ViewSupport (Html, Html')
 import Data.Aeson
 import Network.Wai.Parse (FileInfo, fileContent)

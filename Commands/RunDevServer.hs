@@ -71,7 +71,7 @@ cleanup state = do
     return ()
 
 startPlainGhci = do
-    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fprint-potential-instances", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "-fomit-interface-pragmas", "-prof", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe }
+    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "-fomit-interface-pragmas", "-prof", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
     return (input, handle)
 
