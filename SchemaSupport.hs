@@ -26,6 +26,7 @@ data FieldType =
            | EnumField { defaultValue :: Maybe DefaultValue,  references :: Maybe Text, values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
            | Timestamp { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | PointField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            deriving (Show, Eq, Ord)
 
 table :: Text -> Table
@@ -43,6 +44,7 @@ int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False
 enum values = EnumField { defaultValue = Nothing, references = Nothing, values, allowNull = False, isPrimaryKey = False, unique = False }
 bool = BoolField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 timestamp = Timestamp { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+point = PointField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
 belongsTo = BelongsTo
 hasMany name = HasMany { name = name, inverseOf = Nothing }

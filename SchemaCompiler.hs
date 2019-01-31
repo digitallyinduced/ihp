@@ -130,7 +130,8 @@ compileTypes database =
                   <> "import Foundation.UrlGeneratorSupport (UrlArgument (..))\n"
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
-                  <> "import qualified Foundation.ValidationSupport"
+                  <> "import qualified Foundation.ValidationSupport\n"
+                  <> "import Foundation.DatabaseSupport.Point\n"
 
 compileTypes' table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
@@ -199,6 +200,7 @@ haskellType table fieldName field =
                 BoolField {}   -> "Bool"
                 Timestamp {}   -> "UTCTime"
                 UUIDField {}   -> "UUID"
+                PointField {}  -> "Point"
         actualType =
             if isPrimaryKey field
                 then primaryKeyTypeName table

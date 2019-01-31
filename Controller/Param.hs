@@ -17,6 +17,9 @@ import Network.Wai.Parse (FileInfo)
 import qualified Data.UUID
 import Data.UUID (UUID)
 import qualified Foundation.ModelSupport as ModelSupport
+import Foundation.DatabaseSupport.Point
+import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Char8 as Char8
 
 {-# INLINE fileOrNothing #-}
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
@@ -113,6 +116,20 @@ instance FromParameter UTCTime where
     fromParameter (Just "") = Left "FromParameter UTCTime: Parameter missing"
     fromParameter (Just byteString) = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" (cs byteString)
     fromParameter Nothing = Left "FromParameter UTCTime: Parameter missing"
+
+instance FromParameter Point where
+    {-# INLINE fromParameter #-}
+    fromParameter (Just "") = Left "FromParameter Point: Parameter missing"
+    fromParameter (Just byteString) =
+        let [x, y] = Char8.split ',' byteString
+        in 
+            case (Data.Text.Read.rational $ cs $ x) of
+                Left error -> Left error
+                Right (x, _) ->
+                    case (Data.Text.Read.rational $ cs $ y) of
+                        Left error -> Left error
+                        Right (y, _) -> Right (Point x y)
+    fromParameter Nothing = Left "FromParameter Point: Parameter missing"
 
 instance {-# OVERLAPPABLE #-} (Show idField, ModelSupport.NewTypeWrappedUUID idField) => FromParameter idField where
     {-# INLINE fromParameter #-}

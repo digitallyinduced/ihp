@@ -9,7 +9,8 @@ module Foundation.ModelPrelude (
         module Data.UUID,
         module Database.PostgreSQL.Simple.SqlQQ,
         module Foundation.QueryBuilder,
-        module Apps.Web.Controller.Context
+        module Apps.Web.Controller.Context,
+        module Foundation.DatabaseSupport.Point
     ) where
 
 
@@ -26,3 +27,4 @@ import           Foundation.ValidationSupport
 import           Model.Generated.Types
 import Helper.Controller ()
 import Apps.Web.Controller.Context
+import Foundation.DatabaseSupport.Point

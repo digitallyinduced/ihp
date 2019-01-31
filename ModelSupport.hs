@@ -24,6 +24,7 @@ import Data.String.Conversions (cs)
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
+import Foundation.DatabaseSupport.Point
 
 data ModelContext = ModelContext {-# UNPACK #-} !Connection
 
@@ -97,6 +98,11 @@ instance Default Text where
 instance Default Bool where
     {-# INLINE def #-}
     def = False
+
+instance Default Point where
+    {-# INLINE def #-}
+    def = Point 0 0
+
 
 data QueryCondition a = NoCondition | Equal a
 
