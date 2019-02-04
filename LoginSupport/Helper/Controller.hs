@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Foundation.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, ensureIsUser, HasNewSessionUrl) where
+module Foundation.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, ensureIsUser, HasNewSessionUrl, currentAdmin, currentAdminOrNothing, currentAdminId, ensureIsAdmin) where
 
 import Foundation.HaskellSupport
 import Control.Lens hiding ((|>))
@@ -25,3 +25,20 @@ ensureIsUser =
     case currentUserOrNothing of
         Just _ -> return ()
         Nothing -> Foundation.LoginSupport.Types.throwNotLoggedIn (Just (newSessionUrl (Proxy :: Proxy user)))
+
+currentAdmin :: forall admin controllerContext. (?controllerContext :: controllerContext, HasField' "admin" controllerContext (Maybe admin), HasNewSessionUrl admin, Generic admin, Generic controllerContext) => admin
+currentAdmin = fromMaybe (throwNotLoggedIn (pure (newSessionUrl (Proxy @admin)))) currentAdminOrNothing
+
+{-# INLINE currentAdminOrNothing #-}
+currentAdminOrNothing :: forall controllerContext admin. (?controllerContext :: controllerContext, HasField' "admin" controllerContext (Maybe admin), HasNewSessionUrl admin, Generic controllerContext) => (Maybe admin)
+currentAdminOrNothing = ?controllerContext |> get #admin
+
+{-# INLINE currentAdminId #-}
+currentAdminId :: forall controllerContext admin adminId. (?controllerContext :: controllerContext, HasField' "admin" controllerContext (Maybe admin), HasNewSessionUrl admin, HasField' "id" admin adminId, Generic admin, Generic controllerContext) => adminId
+currentAdminId = currentAdmin |> get #id
+
+ensureIsAdmin :: forall controllerContext admin adminId. (?controllerContext :: controllerContext, HasField' "admin" controllerContext (Maybe admin), HasNewSessionUrl admin, HasField' "id" admin adminId, Generic admin, Generic controllerContext) => IO ()
+ensureIsAdmin =
+    case currentAdminOrNothing of
+        Just _ -> return ()
+        Nothing -> Foundation.LoginSupport.Types.throwNotLoggedIn (Just (newSessionUrl (Proxy :: Proxy admin)))
