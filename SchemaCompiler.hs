@@ -127,11 +127,11 @@ compileTypes database =
                   <> "import Data.UUID (UUID)\n"
                   <> "import Data.Default\n"
                   <> "import qualified Foundation.QueryBuilder as QueryBuilder\n"
-                  <> "import Foundation.UrlGeneratorSupport (UrlArgument (..))\n"
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
                   <> "import qualified Foundation.ValidationSupport\n"
                   <> "import Foundation.DatabaseSupport.Point\n"
+                  <> "import Data.Data\n"
 
 compileTypes' table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
@@ -287,11 +287,10 @@ compileAnyType table@(Table name attributes) =
 
 compileIdNewType :: Table -> Text
 compileIdNewType table@(Table name attributes) =
-	"newtype " <> typeName <> " = " <> typeName <> " UUID deriving (Eq)\n"
+	"newtype " <> typeName <> " = " <> typeName <> " UUID deriving (Eq, Data)\n"
 	<> "instance NewTypeWrappedUUID " <> typeName <> " where unwrap (" <> typeName <> " value) = value; wrap = "<> typeName <> "\n"
 	-- <> "instance HasId " <> typeName <> " where type IdType " <> typeName <> " = UUID; get #id (" <> typeName <> " value) = value\n"
 	<> "instance Show " <> typeName <> " where show id = show (unwrap id)\n"
-    <> "instance UrlArgument " <> typeName <> " where toText = toText . unwrap\n"
     <> "instance Default " <> typeName <> " where def = wrap def\n"
     <> "instance ToField " <> typeName <> " where toField = toField . unwrap\n"
     <> "instance IsNewId " <> typeName <> " where isNewId _ = False\n"

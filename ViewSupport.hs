@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ViewSupport (HtmlWithContext, ToAttributeValue (toAttributeValue), classes, CreateViewContext (createViewContext)) where
+module Foundation.ViewSupport (HtmlWithContext, ToAttributeValue (toAttributeValue), classes, CreateViewContext (createViewContext), Layout) where
 
 import ClassyPrelude
 import qualified Text.Blaze
@@ -11,6 +11,7 @@ import Apps.Web.Controller.Context
 import Foundation.ModelSupport
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
+type Layout = Html5.Html -> Html5.Html
 
 class ToAttributeValue a where
     toAttributeValue :: a -> Html5.AttributeValue

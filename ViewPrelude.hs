@@ -26,7 +26,6 @@ module Foundation.ViewPrelude (
     Maybe (..),
     Text,
 
-    module UrlGenerator,
     module Foundation.View.Form,
     viewContext,
     hsx,
@@ -38,7 +37,6 @@ module Foundation.ViewPrelude (
     Bool (..),
     (==),
     find, isJust,
-    module Foundation.UrlGeneratorSupport,
     module GHC.OverloadedLabels,
     module GHC.Records,
     module Data.List.Split,
@@ -51,7 +49,9 @@ module Foundation.ViewPrelude (
     module Foundation.ModelSupport,
     module Foundation.ValidationSupport,
     addStyle,
-    css
+    css,
+    pathTo,
+    (:>)(..)
 ) where
 
 import Model.Generated.Types
@@ -73,7 +73,6 @@ import qualified Text.Blaze.Html5             as Html5
 import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, charset, class_, selected, checked, content, href, httpEquiv, id, lang, method, name, onclick, onload,
                                                placeholder, rel, src, style, type_, value)
 import qualified Text.Blaze.Html5.Attributes  as A
-import           UrlGenerator
 import Foundation.View.Form
 import Foundation.View.ConvertibleStrings ()
 import Foundation.HtmlSupport.QQ (hsx)
@@ -85,7 +84,6 @@ import Foundation.HtmlSupport.ToHtml
 import Data.UUID (UUID)
 import Data.Default (def)
 import Foundation.View.TimeAgo
-import Foundation.UrlGeneratorSupport
 import GHC.OverloadedLabels (fromLabel)
 import GHC.Records (HasField, getField)
 import Data.List.Split (chunksOf)
@@ -94,6 +92,7 @@ import qualified Data.String.Interpolate
 import Foundation.View.Modal
 import Foundation.ValidationSupport
 import Foundation.Controller.RequestContext
+import Foundation.RouterSupport
 
 plain = Data.String.Interpolate.i
 css = Data.String.Interpolate.i
@@ -109,19 +108,19 @@ theRequest =
     in request
 
 
-isActivePath :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext) => Text -> ClassyPrelude.Bool
-isActivePath path =
+isActivePath :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, HasPath controller) => controller -> ClassyPrelude.Bool
+isActivePath route =
     let 
         currentPath = Network.Wai.rawPathInfo theRequest
     in
-        currentPath == (cs path)
+        currentPath == (cs $ pathTo route)
 
-isActivePathOrSub :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext) => Text -> ClassyPrelude.Bool
-isActivePathOrSub path =
+isActivePathOrSub :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, HasPath controller) => controller -> ClassyPrelude.Bool
+isActivePathOrSub route =
     let
         currentPath = Network.Wai.rawPathInfo theRequest
     in
-        (cs path) `isPrefixOf` currentPath
+        (cs $ pathTo route) `isPrefixOf` currentPath
 
 {-# INLINE viewContext #-}
 viewContext :: (?viewContext :: viewContext) => viewContext

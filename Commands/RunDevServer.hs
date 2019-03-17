@@ -24,7 +24,6 @@ data DevServerState = DevServerState {
         postgresProcess :: IORef (Handle, Process.ProcessHandle),
         serverProcess :: IORef (Handle, Process.ProcessHandle),
         modelCompilerProcess :: IORef (Handle, Process.ProcessHandle),
-        urlGeneratorCompilerProcess :: IORef (Handle, Process.ProcessHandle),
         rebuildServerLock :: Lock.Lock,
         liveReloadNotificationServerProcess :: IORef (Handle, Process.ProcessHandle)
     }
@@ -33,14 +32,12 @@ initDevServerState = do
     postgresProcess <- startPostgres >>= newIORef
     serverProcess <- startPlainGhci >>= initServer >>= newIORef
     modelCompilerProcess <- startCompileGhci >>= newIORef
-    urlGeneratorCompilerProcess <- startCompileGhci >>= newIORef
     rebuildServerLock <- Lock.new
     liveReloadNotificationServerProcess <- startLiveReloadNotificationServer >>= newIORef
     return $ DevServerState {
             postgresProcess = postgresProcess,
             serverProcess = serverProcess,
             modelCompilerProcess = modelCompilerProcess,
-            urlGeneratorCompilerProcess = urlGeneratorCompilerProcess,
             rebuildServerLock = rebuildServerLock,
             liveReloadNotificationServerProcess = liveReloadNotificationServerProcess
         }
@@ -62,8 +59,8 @@ main = do
 cleanup :: DevServerState -> IO ()
 cleanup state = do
     putStrLn "cleanup"
-    let DevServerState { serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess, liveReloadNotificationServerProcess } = state
-    let processes = [serverProcess, postgresProcess, modelCompilerProcess, urlGeneratorCompilerProcess]
+    let DevServerState { serverProcess, postgresProcess, modelCompilerProcess, liveReloadNotificationServerProcess } = state
+    let processes = [serverProcess, postgresProcess, modelCompilerProcess]
     let stopProcess process = do (_, p') <- readIORef serverProcess; Process.terminateProcess p'
     stopServer
     forM_ processes stopProcess
@@ -92,11 +89,8 @@ initServer ghci = do
 
 watch state@(DevServerState {serverProcess, rebuildServerLock}) = do
     "Model/Schema.hs" |> const (rebuildModels state)
-    "Routes.hs" |> const (rebuildUrlGenerator state)
-    "*/*/Routes.hs" |> const (rebuildUrlGenerator state)
     "View/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
     "Model/Generated/*.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "UrlGenerator.hs" |> const (rebuild serverProcess rebuildServerLock)
     "**.hs" |> const (rebuild serverProcess rebuildServerLock)
     "*.hs" |> const (rebuild serverProcess rebuildServerLock)
     "*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
@@ -112,13 +106,6 @@ rebuildModels (DevServerState {modelCompilerProcess}) = do
     sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
     sendGhciCommand ghci "c"
     putStrLn "rebuildModels => Finished"
-
-rebuildUrlGenerator (DevServerState {urlGeneratorCompilerProcess}) = do
-    putStrLn "rebuildUrlGenerator"
-    ghci@(input, process) <- readIORef urlGeneratorCompilerProcess
-    sendGhciCommand ghci ":l src/Foundation/UrlGeneratorCompiler.hs"
-    sendGhciCommand ghci "c"
-    putStrLn "rebuildUrlGenerator => Finished"
 
 sendGhciInterrupt ghci@(input, process) = do
     pid <- getPid process

@@ -22,6 +22,7 @@ GHC_OPTIONS+= -XDataKinds
 GHC_OPTIONS+= -XInstanceSigs
 GHC_OPTIONS+= -XDeriveGeneric
 GHC_OPTIONS+= -XMultiParamTypeClasses
+GHC_OPTIONS+= -XTypeOperators
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
 
@@ -40,7 +41,7 @@ PROD_GHC_OPTIONS+= -fmax-worker-args=200
 
 RUNGHC=runghc
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated src/UrlGenerator.hs static/prod.js static/prod.css bin/RunLiveReloadNotificationServer
+run: bin/RunDevServer .envrc db/state src/Model/Generated static/prod.js static/prod.css bin/RunLiveReloadNotificationServer
 	bin/RunDevServer --root src
 
 
@@ -89,11 +90,6 @@ bin/RunLiveReloadNotificationServer: src/Foundation/Commands/RunLiveReloadNotifi
 src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
 	rm -rf src/Model/Generated && mkdir -p src/Model/Generated
 	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/SchemaCompiler.hs"
-
-src/UrlGenerator.hs: src/Routes.hs src/Foundation/UrlGeneratorCompiler.hs
-	cp src/UrlGenerator.hs src/UrlGenerator.hs.bak
-	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/UrlGeneratorCompiler.hs"
-	rm src/UrlGenerator.hs.bak
 
 bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
 	mkdir -p build/RunUnoptimizedProdServer

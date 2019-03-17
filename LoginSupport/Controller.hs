@@ -9,5 +9,5 @@ notLoggedIn newSessionUrl = do
     setSuccessMessage "Please log in to access this page"
     setSession "Foundation.LoginSupport.redirectAfterLogin" (cs getRequestUrl)
     case newSessionUrl of
-        Just newSessionPath -> redirectTo newSessionPath
+        Just newSessionPath -> redirectToPath newSessionPath
         Nothing -> renderPlain "Please log in to access this page"

@@ -32,18 +32,21 @@ import Text.Blaze.Html (Html)
 import Database.PostgreSQL.Simple as PG
 
 import Control.Monad.Reader
-
+import Foundation.HaskellSupport
+import Control.Lens hiding ((|>))
+import Data.Generics.Product
 
 renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ResponseReceived
 renderPlain text = do
     let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseLBS status200 [] (cs text)
 
-renderHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext, CreateViewContext viewContext) => HtmlWithContext viewContext -> IO ResponseReceived
+renderHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext, CreateViewContext viewContext, HasField' "layout" viewContext Layout, Generic viewContext) => HtmlWithContext viewContext -> IO ResponseReceived
 renderHtml html = do
     let (RequestContext request respond _ _ _) = ?requestContext
     viewContext <- createViewContext
-    let boundHtml = let ?viewContext = viewContext in html
+    let layout = get #layout viewContext
+    let boundHtml = let ?viewContext = viewContext in (layout html)
     respond $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder boundHtml)
 
 renderFile :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => String -> ByteString -> IO ResponseReceived
@@ -98,3 +101,7 @@ renderPolymorphic PolymorphicRender { html, json } = do
     fromMaybe send406Error (Accept.mapAcceptMedia formats acceptHeader)
 
 polymorphicRender = PolymorphicRender () ()
+
+
+class View action where
+    renderView :: action -> (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => IO ResponseReceived

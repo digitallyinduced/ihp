@@ -2,7 +2,6 @@ module Foundation.Server (run) where
 import ClassyPrelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
-import Foundation.Router (AppRouter, match)
 
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
@@ -30,6 +29,8 @@ import Unsafe.Coerce
 import Foundation.Environment (isDevelopment)
 import qualified System.Process as Process
 
+import Foundation.RouterSupport (prepareWAIApp)
+
 defaultPort :: Int
 defaultPort = 8000
 
@@ -43,10 +44,8 @@ run = do
     store <- fmap clientsessionStore getDefaultKey
     let applicationContext = ApplicationContext (ModelContext conn) session
     let application :: Application = \request respond -> do
-            boundRouter <- ControllerSupport.withContext Routes.match applicationContext request respond
-            case match request boundRouter  of
-                Just application -> application
-                Nothing -> respond $ responseLBS status404 [] "Not found!"
+            theAction <- ControllerSupport.withContext (prepareWAIApp @Routes.RootApplication) applicationContext request respond
+            theAction
     let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
     let logMiddleware :: Middleware = logStdoutDev
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase "src/Foundation/static/")
@@ -55,12 +54,12 @@ run = do
         then pingDevServer
         else return ()
     Warp.runEnv defaultPort $
+        staticMiddleware $
             sessionMiddleware $
-                logMiddleware $
-                    staticMiddleware $
-                         frameworkMiddleware $
-                            methodOverridePost $
-                                application
+                logMiddleware $            
+                     frameworkMiddleware $
+                        methodOverridePost $
+                            application
 
 pingDevServer :: IO ()
 pingDevServer = do

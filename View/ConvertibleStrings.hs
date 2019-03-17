@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Foundation.View.ConvertibleStrings where
 import           ClassyPrelude
@@ -10,6 +11,7 @@ import           Data.String.Conversions (ConvertibleStrings (convertString), cs
 import           Text.Blaze.Html5
 import qualified Text.Blaze.Html5        as Html5
 import qualified Data.ByteString.Lazy as LBS
+import Foundation.RouterSupport (HasPath (..))
 
 instance ConvertibleStrings String Html5.AttributeValue where
     {-# INLINE convertString #-}
@@ -34,3 +36,6 @@ instance ConvertibleStrings LBS.ByteString Html5.AttributeValue where
 instance ConvertibleStrings Text Html5.Html where
     {-# INLINE convertString #-}
     convertString = Html5.text
+
+instance {-# OVERLAPPABLE #-} HasPath action => ConvertibleStrings action AttributeValue where
+    convertString action = textValue (pathTo action)

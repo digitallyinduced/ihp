@@ -28,7 +28,6 @@ import           Text.Blaze.Html5.Attributes        (action, autocomplete, autof
                                                      onclick, placeholder, rel, src, style, type_, value)
 import qualified Text.Blaze.Html5.Attributes        as A
 
-import           UrlGenerator
 import qualified Text.Blaze.Internal
 import Foundation.HtmlSupport.ToHtml
 import qualified Foundation.Controller.Session
@@ -49,6 +48,7 @@ import Data.Default
 import Data.Dynamic
 import Data.Maybe (fromJust)
 import Foundation.Controller.RequestContext
+import Foundation.RouterSupport
 
 data FormField = FormField {
         fieldType :: !InputType,
@@ -82,7 +82,7 @@ data FormContext model =
         }
 
 {-# INLINE formFor #-}
-formFor :: forall model viewContext. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model)) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor :: forall model viewContext controller parent. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor model = formFor' FormContext
         { model
         , renderFormField = renderBootstrapFormField
@@ -103,7 +103,7 @@ findValidatorResult viewContext model =
     in
         maybe def (snd . fromJust . (fromDynamic @(model, ValidatorResultFor model) )) (find isValidationForModel validations)
 
-horizontalFormFor :: forall model viewContext. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model)) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> Text -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+horizontalFormFor :: forall model viewContext controller parent. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 horizontalFormFor model = formFor' FormContext
         { model
         , renderFormField = renderHorizontalBootstrapFormField
@@ -113,8 +113,8 @@ horizontalFormFor model = formFor' FormContext
         }
 
 {-# INLINE formFor' #-}
-formFor' :: forall model viewContext. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic]) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => FormContext model -> Text -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-formFor' formContext url inner = form ! method "POST" ! action (cs url) ! A.id (if Foundation.ModelSupport.isNew (model formContext) then "" else cs url) ! class_ (if Foundation.ModelSupport.isNew (model formContext) then "new-form" else "edit-form") $ do
+formFor' :: forall model viewContext controller parent. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasPath controller) => (Foundation.ModelSupport.IsNew model, Foundation.ModelSupport.HasModelName model) => FormContext model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor' formContext controller inner = form ! method "POST" ! action (cs $ pathTo controller) ! A.id (if Foundation.ModelSupport.isNew (model formContext) then "" else cs (pathTo controller)) ! class_ (if Foundation.ModelSupport.isNew (model formContext) then "new-form" else "edit-form") $ do
     let ?formContext = formContext in inner
 
 {-# INLINE submitButton #-}

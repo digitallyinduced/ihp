@@ -1,18 +1,15 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module Foundation.ControllerSupport (withContext, Action, Action', cs, (|>), redirectTo, getRequestBody, getRequestUrl, getHeader, RequestContext (..), ActionHelper, getRequest, requestHeaders, getFiles) where
+module Foundation.ControllerSupport (withContext, Action, Action', cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), ActionHelper, getRequest, requestHeaders, getFiles, Controller (..), runAction) where
 import ClassyPrelude
 import Foundation.HaskellSupport
 import Data.String.Conversions (cs)
 import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, requestHeaders)
 import qualified Network.Wai
-import Network.HTTP.Types (status200, status302)
 import Foundation.ModelSupport
 import Foundation.ApplicationContext
 import Network.Wai.Parse as WaiParse
-import qualified Network.Wai.Util
 import qualified Data.ByteString.Lazy
-import qualified Network.URI
 import Data.Maybe (fromJust)
 import qualified Data.Text.Read
 import qualified Data.Either
@@ -47,12 +44,15 @@ type ActionHelper return = ((?requestContext :: RequestContext, ?modelContext ::
 
 --(|>) :: a -> f -> f a
 
+class Controller controller where
+    beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext) => controller -> IO ()
+    beforeAction _ = return ()
+    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ResponseReceived
 
-{-# INLINE redirectTo #-}
-redirectTo :: (?requestContext :: RequestContext) => Text -> IO ResponseReceived
-redirectTo url = do
-    let (RequestContext _ respond _ _ _) = ?requestContext
-    respond $ fromJust $ Network.Wai.Util.redirect status302 [] (fromJust $ Network.URI.parseURI (cs $ Config.baseUrl <> url))
+runAction :: (Controller controller, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
+runAction controller = let ?theAction = controller in (beforeAction controller >> action controller)
+
+
 
 {-# INLINE getRequestBody #-}
 getRequestBody :: (?requestContext :: RequestContext) => IO ByteString

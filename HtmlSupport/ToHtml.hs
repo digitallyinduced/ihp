@@ -26,3 +26,4 @@ instance ToHtml Data.ByteString.ByteString where
 instance Show a => ToHtml a where
     {-# INLINE toHtml #-}
     toHtml value = cs (show value)
+
