@@ -128,3 +128,6 @@ static/prod.js: $(JS_FILES)
 
 static/prod.css: $(CSS_FILES)
 	cat $(CSS_FILES) > $@
+
+print-ghc-options:
+	@echo ${GHC_OPTIONS}

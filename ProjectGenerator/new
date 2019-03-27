@@ -14,8 +14,10 @@ $boilerplatePath = "$basePath/ProjectGenerator/boilerplate";
 system("cp -r $boilerplatePath $projectName");
 chdir($projectName);
 system("cp -r $basePath src/Foundation");
-system("ln -s src/Foundation/gen gen");
-system("ln -s src/Foundation/del del");
+chdir("src/Apps/Web");
+system("ln -s ../../Foundation/gen gen");
+system("ln -s ../../Foundation/del del");
+chdir("../../../");
 system("make .envrc");
 echo "Project created, happy coding :)\n";
 // TODO: create static dir, bin dir

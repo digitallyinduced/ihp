@@ -16,5 +16,5 @@ data ControllerContext = ControllerContext {
 
 createControllerContext :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => IO ControllerContext
 createControllerContext = do
-	validations <- newIORef []
-    return $ ControllerContext { validations }
+    validations <- newIORef []
+    return ControllerContext { validations }

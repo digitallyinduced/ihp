@@ -1,12 +1,13 @@
 module Routes where
 import ClassyPrelude hiding (index, delete, show)
-import Foundation.Router
+import Foundation.RouterSupport
 
--- Router Imports
-import qualified Apps.Web.Routes
+import Apps.Web.App
+import Apps.Web.Types
 
-match :: AppRouter
-match = prefix "" [
-        Apps.Web.Routes.match
-        -- Generator Marker
-    ]
+data RootApplication = RootApplication deriving (Eq)
+
+instance HasPath RootApplication where
+	pathTo _ = ""
+instance CanRoute RootApplication () where
+    parseRoute = parseRoute @WebApplication
