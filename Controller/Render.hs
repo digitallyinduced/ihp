@@ -33,7 +33,7 @@ import Database.PostgreSQL.Simple as PG
 
 import Control.Monad.Reader
 import Foundation.HaskellSupport
-import Control.Lens hiding ((|>))
+import Control.Lens hiding ((|>), view)
 import Data.Generics.Product
 
 renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ResponseReceived
@@ -103,5 +103,8 @@ renderPolymorphic PolymorphicRender { html, json } = do
 polymorphicRender = PolymorphicRender () ()
 
 
-class View action where
-    renderView :: action -> (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => IO ResponseReceived
+class View controller where
+    view :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => controller -> IO ResponseReceived
+
+render :: (View controller, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: Controller.Context.ControllerContext) => IO ResponseReceived
+render = view ?theAction

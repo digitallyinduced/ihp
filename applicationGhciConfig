@@ -23,3 +23,4 @@
 :set -XTypeOperators
 :set -Wno-unsafe -Wno-name-shadowing -Wno-monomorphism-restriction -Wno-safe -Wno-missing-local-signatures -Wno-missing-home-modules
 :set -XDeriveDataTypeable
+:set -XDefaultSignatures

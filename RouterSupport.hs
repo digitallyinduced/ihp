@@ -12,6 +12,14 @@ module Foundation.RouterSupport (
     , withPrefix
     , parseUUID
     , parsePathArgument
+    , isIndexAction
+    , isShowAction
+    , isCreateAction
+    , isUpdateAction
+    , isDeleteAction
+    , isEditAction
+    , modelId
+    , Child
 ) where
 
 import ClassyPrelude hiding (index, delete, take)
@@ -119,7 +127,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
     customActions :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, HasTypes (Child controller) (RestfulControllerId controller)) => (Child controller) -> Parser controller
     customActions idContainer =
         let
-            id = unsafeHead (toListOf (types @(RestfulControllerId controller)) idContainer)
+            id = modelId @controller idContainer
             allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: Child controller))
             customConstructors = filter (not . isRestConstructor) allConstructors
             isRestConstructor constructor = (showConstr constructor) `elem` restConstructorNames
@@ -204,19 +212,14 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller,
 
 genericPathTo :: forall controller action id parent. (Eq action, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, HasTypes action id, RestfulController controller, Child controller ~ action) => action -> Text
 genericPathTo action 
-    | (isJust (indexAction @controller) && action == fromJust (indexAction @controller))
-        || (isJust (createAction @controller) && action == fromJust (createAction @controller))
+    | (isIndexAction @controller action) || (isCreateAction @controller action)
         = "/" <> cs (basePath @controller)
-    | (isJust (newAction @controller) && action == fromJust (newAction @controller))
+    | isNewAction @controller action
         = genericPathTo @controller (fromJust $ indexAction @controller) <> "/new"
-    | (isJust (editAction @controller) && toConstr action == toConstr (fromJust (editAction @controller) $ undefined))
+    | isEditAction @controller action
         = let id = unsafeHead (toListOf (types @id) action)
         in genericPathTo @controller (fromJust (showAction @controller) $ id) <> "/edit"
-    | toConstr action `elem` (map (\a -> toConstr (a undefined)) $ catMaybes
-            [ showAction @controller
-            , deleteAction @controller
-            , updateAction @controller
-        ])
+    | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
         = let id = unsafeHead (toListOf (types @id) action) in genericPathTo @controller (fromJust $ indexAction @controller) <> "/" <> tshow id
     | otherwise =
         let
@@ -228,6 +231,29 @@ genericPathTo action
         in
             genericPathTo @controller (fromJust $ indexAction @controller) <> "/" <> tshow id <> "/" <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
 
+isIndexAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
+isIndexAction action = (isJust (indexAction @controller) && action == fromJust (indexAction @controller))
+
+isCreateAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
+isCreateAction action = (isJust (createAction @controller) && action == fromJust (createAction @controller))
+
+isNewAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
+isNewAction action = (isJust (newAction @controller) && action == fromJust (newAction @controller))
+
+isEditAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
+isEditAction action = (isJust (editAction @controller) && toConstr action == toConstr (fromJust (editAction @controller) $ undefined))
+
+isShowAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
+isShowAction action = (isJust (showAction @controller) && toConstr action == toConstr (fromJust (showAction @controller) $ undefined))
+
+isDeleteAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
+isDeleteAction action = (isJust (deleteAction @controller) && toConstr action == toConstr (fromJust (deleteAction @controller) $ undefined))
+
+isUpdateAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
+isUpdateAction action = (isJust (updateAction @controller) && toConstr action == toConstr (fromJust (updateAction @controller) $ undefined))
+
+modelId :: forall controller. (RestfulController controller, HasTypes (Child controller) (RestfulControllerId controller)) => Child controller -> RestfulControllerId controller
+modelId action = unsafeHead (toListOf (types @(RestfulControllerId controller)) action)
 
 instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, CanRoute parent parentParent) => CanRoute (parent :> child) parent where
     --pathTo action | action == indexAction = "/Members"

@@ -90,3 +90,8 @@ fieldsOnly = filter isField
     where
         isField (Field _ _ ) = True
         isField otherwise = False
+
+fieldsWithoutDefaultValue :: [Attribute] -> [Attribute]
+fieldsWithoutDefaultValue = filter hasNoDefaultValue
+    where
+        hasNoDefaultValue (Field _ fieldType) = isNothing (defaultValue fieldType)
