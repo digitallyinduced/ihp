@@ -172,6 +172,7 @@ attributes =
         , "role"
         , "d", "viewBox", "fill", "cx", "cy", "r", "x", "y", "text-anchor", "alignment-baseline"
         , "line-spacing", "letter-spacing"
+        , "integrity", "crossorigin"
         ]
 
 
