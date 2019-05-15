@@ -39,7 +39,6 @@ let
             template-haskell
             haskell-src-meta
             random-strings
-            time_1_9_1
             concurrent-extra
             interpolate
             uri-encode

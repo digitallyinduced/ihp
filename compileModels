@@ -1,0 +1,3 @@
+import qualified Foundation.SchemaCompiler
+:l src/Model/Schema.hs
+Foundation.SchemaCompiler.compile database

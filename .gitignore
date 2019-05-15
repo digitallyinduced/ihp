@@ -5,3 +5,4 @@ build.js
 *.dyn_hi
 *.dyn_o
 .DS_Store
+dist

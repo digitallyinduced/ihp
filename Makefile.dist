@@ -23,6 +23,7 @@ GHC_OPTIONS+= -XInstanceSigs
 GHC_OPTIONS+= -XDeriveGeneric
 GHC_OPTIONS+= -XMultiParamTypeClasses
 GHC_OPTIONS+= -XTypeOperators
+GHC_OPTIONS+= -XDeriveDataTypeable
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
 
@@ -36,6 +37,7 @@ PROD_GHC_OPTIONS+= -fspec-constr-keen
 PROD_GHC_OPTIONS+= -fspecialise-aggressively
 PROD_GHC_OPTIONS+= -fstatic-argument-transformation
 PROD_GHC_OPTIONS+= -fmax-worker-args=200
+PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 
 
@@ -75,21 +77,21 @@ dump_db:
 	pg_dump -a --inserts --disable-triggers -p 8001 app > src/Model/Fixtures.sql
 
 ghci:
-	ghci -threaded -isrc -isrc/Foundation -fexternal-interpreter
+	ghci -threaded -isrc -isrc/Foundation/Foundation -fexternal-interpreter
 
 bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs
 	mkdir -p bin
-	nix-shell --command "cd db && make && cd .. && ghc -threaded -O0 -j4 ${GHC_OPTIONS} $< -o $@"
+	nix-shell --command "cd db && make && cd .. && ghc -threaded -O2 -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
 
 bin/RunLiveReloadNotificationServer: src/Foundation/Commands/RunLiveReloadNotificationServer.hs
 	mkdir -p bin
-	nix-shell --command "ghc -threaded -O0 -j4 ${GHC_OPTIONS} $< -o $@"
+	nix-shell --command "ghc -threaded -O2 -j4 ${GHC_OPTIONS} $< -o $@"
 	chmod +x $<
 
-src/Model/Generated: src/Model/Schema.hs src/Foundation/SchemaCompiler.hs
+src/Model/Generated: src/Model/Schema.hs src/Foundation/Foundation/SchemaCompiler.hs
 	rm -rf src/Model/Generated && mkdir -p src/Model/Generated
-	${RUNGHC} ${GHC_OPTIONS} "src/Foundation/SchemaCompiler.hs"
+	 ghci -e ':script src/Foundation/compileModels'
 
 bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
 	mkdir -p build/RunUnoptimizedProdServer
@@ -114,7 +116,7 @@ db/state:
 
 clean:
 	rm -rf bin/
-	rm -rf src/Foundation/static/node_modules
+	rm -rf src/Foundation/Foundation/static/node_modules
 	cd db && make clean
 
 del:

@@ -1,6 +1,6 @@
 module Main where
-    import ClassyPrelude
-    import Foundation.Server
+import ClassyPrelude
+import Foundation.Server
 
-    main :: IO ()
-    main = Foundation.Server.run
+main :: IO ()
+main = Foundation.Server.run

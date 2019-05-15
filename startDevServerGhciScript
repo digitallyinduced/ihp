@@ -1,3 +1,4 @@
 :script src/Foundation/applicationGhciConfig
-:load src/Foundation/Server.hs
-Foundation.Server.run
+:set -package diframework
+:l src/Main.hs
+main

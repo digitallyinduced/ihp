@@ -21,11 +21,11 @@ import qualified Control.Concurrent.Lock as Lock
 import qualified Foundation.DevelopmentSupport.LiveReloadNotificationServer as LiveReloadNotificationServer
 
 data DevServerState = DevServerState {
-        postgresProcess :: IORef (Handle, Process.ProcessHandle),
-        serverProcess :: IORef (Handle, Process.ProcessHandle),
-        modelCompilerProcess :: IORef (Handle, Process.ProcessHandle),
-        rebuildServerLock :: Lock.Lock,
-        liveReloadNotificationServerProcess :: IORef (Handle, Process.ProcessHandle)
+        postgresProcess :: !(IORef (Handle, Process.ProcessHandle)),
+        serverProcess :: !(IORef (Handle, Process.ProcessHandle)),
+        modelCompilerProcess :: !(IORef (Handle, Process.ProcessHandle)),
+        rebuildServerLock :: !Lock.Lock,
+        liveReloadNotificationServerProcess :: !(IORef (Handle, Process.ProcessHandle))
     }
 
 initDevServerState = do
@@ -52,7 +52,7 @@ main = do
     manager <- withCurrentDirectory "./src" $ do
         currentDir <- getCurrentDirectory
         dirs <- findAllDirectories
-        let config = def { logger = print, dirs = ".":dirs }
+        let config = def { logger = const (return ()), dirs = ".":dirs }
         Twitch.runWithConfig currentDir config (watch state)
     forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
 
@@ -68,17 +68,17 @@ cleanup state = do
     return ()
 
 startPlainGhci = do
-    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "-fomit-interface-pragmas", "-prof", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe }
+    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
     return (input, handle)
 
 startCompileGhci = do
-    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-w", "-j2", "-fomit-interface-pragmas", "+RTS", "-A128m"]) { Process.std_in = Process.CreatePipe }
+    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-w", "-j2", "-fobject-code", "-fomit-interface-pragmas", "+RTS", "-A128m"]) { Process.std_in = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
     return (input, handle)
 
 startLiveReloadNotificationServer = do
-    let process = (Process.proc "bin/RunLiveReloadNotificationServer" []) { Process.std_in = Process.CreatePipe }
+    let process = (Process.proc "bin/RunLiveReloadNotificationServer" []) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
     return (input, handle)
 
@@ -115,16 +115,16 @@ sendGhciInterrupt ghci@(input, process) = do
 
 rebuild serverProcess rebuildServerLock = do
     _ <- Lock.tryWith rebuildServerLock $ do
-        putStrLn "Rebuilding server"
         ghci <- readIORef serverProcess
         _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
-        threadDelay 1000000
+        --sendGhciInterrupt ghci
+        --threadDelay 1000
         sendGhciCommand ghci ":script src/Foundation/startDevServerGhciScriptRec"
     return ()
 
 sendGhciCommand ghciProcess command = do
     let (input, process) = ghciProcess
-    putStrLn $ "Sending to ghci: " <> cs command
+    -- putStrLn $ "Sending to ghci: " <> cs command
     Handle.hPutStr input (command <> "\n")
     Handle.hFlush input
 
@@ -138,7 +138,8 @@ stopPostgres = do
     return ()
 
 startPostgres = do
-    let process = (Process.proc "postgres" ["-D", "db/state", "-p", "8001"]) { Process.std_in = Process.CreatePipe }
+    currentDir <- getCurrentDirectory
+    let process = (Process.proc "postgres" ["-D", "db/state", "-k", currentDir <> "/db"]) { Process.std_in = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
 
     return (input, handle)

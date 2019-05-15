@@ -1,0 +1,146 @@
+name:                diframework
+version:             0.1.0.0
+synopsis: Digitally induced framework
+description: A haskell web framework for rapid application development
+license:             AllRightsReserved
+license-file:        LICENSE
+author:              Marc Scholten
+maintainer:          marc@digitallyinduced.com
+-- copyright:
+-- category:
+build-type:          Simple
+cabal-version:       >=1.10
+
+Library DigitallyInducedFramework
+    Exposed-modules:
+        Foundation.AuthSupport.Authentication
+        , Foundation.AuthSupport.Authorization
+        , Foundation.AuthSupport.Lockable
+        , Foundation.Controller.Context
+        , Foundation.Controller.Param
+        , Foundation.Controller.Redirect
+        , Foundation.Controller.Render
+        , Foundation.Controller.RequestContext
+        , Foundation.Controller.Session
+        , Foundation.DatabaseSupport.Point
+        , Foundation.HtmlSupport.Parser
+        , Foundation.HtmlSupport.QQ
+        , Foundation.HtmlSupport.ToHtml
+        , Foundation.LoginSupport.Helper.Controller
+        , Foundation.LoginSupport.Helper.View
+        , Foundation.LoginSupport.Controller
+        , Foundation.LoginSupport.Middleware
+        , Foundation.LoginSupport.Types
+        , Foundation.ValidationSupport.Types
+        , Foundation.ValidationSupport.ValidateCanView
+        , Foundation.ValidationSupport.ValidateField
+        , Foundation.ValidationSupport.ValidateFieldIO
+        , Foundation.ValidationSupport.ValidateIsUnique
+        , Foundation.View.ConvertibleStrings
+        , Foundation.View.Form
+        , Foundation.View.Modal
+        , Foundation.View.TimeAgo
+        , Foundation.Welcome.Controller
+        , Foundation.ApplicationContext
+        , Foundation.ControllerPrelude
+        , Foundation.ControllerSupport
+        , Foundation.Environment
+        , Foundation.FetchRelated
+        , Foundation.FrameworkConfig
+        , Foundation.HaskellSupport
+        , Foundation.ModelPrelude
+        , Foundation.ModelSupport
+        , Foundation.NameSupport
+        , Foundation.QueryBuilder
+        , Foundation.RouterPrelude
+        , Foundation.SchemaCompiler
+        , Foundation.SchemaSupport
+        , Foundation.Server
+        , Foundation.SqlCompiler
+        , Foundation.ValidationSupport
+        , Foundation.ViewErrorMessages
+        , Foundation.ViewPrelude
+        , Foundation.ViewSupport
+        , Foundation.RouterSupport
+        , Foundation.GenericController
+    build-depends:
+        base
+        , classy-prelude
+        , directory
+        , free
+        , string-conversions
+        , twitch
+        , warp
+        , wai
+        , mtl
+        , blaze-html
+        , blaze-markup
+        , wai-extra
+        , wai
+        , http-types
+        , blaze-html
+        , mtl
+        , inflections
+        , text
+        , postgresql-simple
+        , wai-middleware-static
+        , wai-util
+        , http-conduit
+        , tagsoup
+        , http-client
+        , bytestring
+        , network-uri
+        , aeson
+        , wai-session
+        , wai-session-clientsession
+        , clientsession
+        , pwstore-fast
+        , vault
+        , data-default
+        , random-strings
+        , uuid
+        , time
+        , parsec
+        , attoparsec
+        , lens
+        , generic-lens
+        , ghc-prim
+        , case-insensitive
+        , haskell-src-meta
+        , template-haskell
+        , haskell-src-exts
+        , interpolate
+        , split
+        , containers
+        , http-media
+        , cookie
+        , process
+        , newtype-generics
+    hs-source-dirs:      .
+    default-language:    Haskell2010
+    extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
