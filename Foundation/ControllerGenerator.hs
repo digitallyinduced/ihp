@@ -3,28 +3,30 @@ module Foundation.ControllerGenerator where
 
 import ClassyPrelude
 import Foundation.NameSupport
-import Model.Schema
 import Foundation.SchemaSupport
 import Data.String.Conversions (cs)
 import Data.Text.IO (appendFile)
+import qualified Data.Text as Text
+import qualified System.Directory as Directory
+import qualified System.Exit as Exit
+import Foundation.SchemaTypes
 
-main :: IO ()
-main = do
-    args <- getArgs
-    main' args
-
-main' :: [Text] -> IO ()
-main' args = do
+main' :: [Table] -> [Text] -> IO ()
+main' database args = do
     case headMay args of
         Just controllerName' -> do
             let controllerName = normalizeName controllerName'
             let generate =
-                    [ CreateFile { filePath = "src/Apps/Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController controllerName) }
+                    [ CreateFile { filePath = "src/Apps/Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database controllerName) }
                     , AppendToFile { filePath = "src/Apps/Web/Routes.hs", fileContent = (controllerInstance controllerName) }
                     , AppendToFile { filePath = "src/Apps/Web/Types.hs", fileContent = (generateControllerData controllerName) }
-                    , AppendImportToFile { filePath = "src/Apps/Web/App.hs", fileContent = ("import Apps.Web.Controller." <> controllerName) }
+                    , AppendToMarker { marker = "-- Controller Imports", filePath = "src/Apps/Web/App.hs", fileContent = ("import Apps.Web.Controller." <> controllerName) }
+                    , AppendToMarker { marker = "-- Generator Marker", filePath = "src/Apps/Web/App.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
                     ]
+                    <> generateViews database controllerName
+                    <> [generateValidateRecordInstance controllerName']
             evalActions generate
+            Exit.exitSuccess
         Nothing -> usage
 
 
@@ -40,21 +42,39 @@ controllerInstance name = "instance RestfulController " <> name <> "Controller\n
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }
     | AppendToFile { filePath :: Text, fileContent :: Text }
-    | AppendImportToFile { filePath :: Text, fileContent :: Text }
+    | AppendToMarker { marker :: Text, filePath :: Text, fileContent :: Text }
+    | EnsureDirectory { directory :: Text }
     deriving (Show, Eq)
 
 evalActions :: [GeneratorAction] -> IO ()
 evalActions actions = forM_ actions evalAction
     where
+        evalAction' CreateFile { filePath, fileContent } = do
+            putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
+            putStrLn fileContent
+            putStrLn "\n\n"
+        evalAction' AppendToFile { filePath, fileContent } = do
+            putStrLn (">>>>>>>>>>>> APPEND " <> filePath)
+            putStrLn fileContent
+            putStrLn "\n\n"
+        evalAction' AppendToMarker { marker, filePath, fileContent } = do
+            putStrLn (">>>>>>>>>>>> APPEND " <> marker <> " => " <> filePath)
+            putStrLn fileContent
+            putStrLn "\n\n"
+
         evalAction CreateFile { filePath, fileContent } = do
             writeFile (cs filePath) (cs fileContent)
             putStrLn ("+ " <> filePath)
         evalAction AppendToFile { filePath, fileContent } = do
             appendFile (cs filePath) fileContent
             putStrLn ("* " <> filePath)
-        evalAction AppendImportToFile { filePath, fileContent } = do
-            appendFile (cs filePath) fileContent
+        evalAction AppendToMarker { marker, filePath, fileContent } = do
+            content <- readFile (cs filePath)
+            let newContent = Text.replace marker (marker <> "\n" <> cs fileContent) (cs content)
+            writeFile (cs filePath) (cs newContent)
             putStrLn ("* " <> filePath <> " (import)")
+        evalAction EnsureDirectory { directory } = do
+            Directory.createDirectoryIfMissing True (cs directory)
 
 describePlan :: [GeneratorAction] -> Text
 describePlan actions = intercalate "\n" (map describePlan' actions)
@@ -62,14 +82,15 @@ describePlan actions = intercalate "\n" (map describePlan' actions)
 describePlan' :: GeneratorAction -> Text
 describePlan' CreateFile { filePath, fileContent } = "CREATE " <> filePath
 describePlan' AppendToFile { filePath, fileContent } = "APPEND " <> filePath <> ": " <> fileContent
-describePlan' AppendImportToFile { filePath, fileContent } = "IMPORT " <> filePath <> ": " <> fileContent
+describePlan' AppendToMarker { marker, filePath, fileContent } = "APPEND MARKER " <> marker <> " => " <> filePath <> ": " <> fileContent
+describePlan' EnsureDirectory { directory } = "DIRECTORY " <> directory
 
-getTable :: Text -> Maybe Table
-getTable name = find (\(Table n _) -> n == name) database
+getTable :: [Table] -> Text -> Maybe Table
+getTable database name = find (\(Table n _) -> n == name) database
 
-fieldsForTable :: Text -> [Text]
-fieldsForTable name =
-    case getTable name of
+fieldsForTable :: [Table] -> Text -> [Text]
+fieldsForTable database name =
+    case getTable database name of
         Just (Table _ attributes) -> map (\(Field name _) -> columnNameToFieldName name) (fieldsWithoutDefaultValue $ fieldsOnly attributes)
         Nothing -> []
 
@@ -82,19 +103,21 @@ generateControllerData name' =
         name = normalizeName name'
         singularName = pluralToSingular name
         idFieldName = lcfirst singularName <> "Id"
-        idType = singularName <> "Id"
+        idType = "Id " <> singularName
     in 
         "\n"
         <> "data " <> name <> "Controller\n"
         <> "    = " <> name <> "Action\n"
         <> "    | New" <> singularName <> "Action\n"
-        <> "    | Show" <> singularName <> "Action { " <> idFieldName <> " :: !" <> idType <> " }\n"
+        <> "    | Show" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    | Create" <> singularName <> "Action\n"
-        <> "    | Delete" <> singularName <> "Action { " <> idFieldName <> " :: !" <> idType <> " }\n"
+        <> "    | Edit" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
+        <> "    | Update" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
+        <> "    | Delete" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    deriving (Eq, Show, Generic, Data)\n"
 
-generateController :: Text -> Text
-generateController name' =
+generateController :: [Table] -> Text -> Text
+generateController database name' =
     let
         name = normalizeName name'
         singularName = pluralToSingular name
@@ -102,13 +125,11 @@ generateController name' =
         controllerName = name <> "Controller"
 
         importStatements =
-            [ "import Foundation.ControllerPrelude"
-            , "import Apps.Web.Types"
-            , "import qualified Apps.Web.View." <> name <> ".Index as Index"
-            , "import qualified Apps.Web.View." <> name <> ".New as New"
-            , "import qualified Apps.Web.View." <> name <> ".Edit as Edit"
-            , "import qualified Apps.Web.View." <> name <> ".Show as Show"
-            , "import qualified Model." <> singularName <> " as " <> singularName
+            [ "import Apps.Web.Controller.Prelude"
+            , "import Apps.Web.View." <> name <> ".Index"
+            , "import Apps.Web.View." <> name <> ".New"
+            , "import Apps.Web.View." <> name <> ".Edit"
+            , "import Apps.Web.View." <> name <> ".Show"
 
             ]
 
@@ -120,57 +141,47 @@ generateController name' =
             ""
             <> "    action " <> name <> "Action = do\n"
             <> "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
-            <> "        renderHtml $ Index.render " <> modelVariablePlural <> "\n"
+            <> "        render IndexView { .. }\n"
 
         newAction =
             ""
             <> "    action New" <> singularName <> "Action = do\n"
-            <> "        let " <> modelVariableSingular <> " :: New" <> model <> " = " <> model <> ".build {\n"
-            <> (intercalate ",\n" (map (\f -> "                " <> f <> " = def" ) modelFields)) <> "\n"
-            <> "            }\n"
-            <> "        renderHtml $ New.render " <> modelVariableSingular <> "\n"
+            <> "        let " <> modelVariableSingular <> " = newRecord\n"
+            <> "        render NewView { .. }\n"
 
         showAction =
             ""
             <> "    action Show" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        renderHtml $ Show.render " <> modelVariableSingular <> "\n"
+            <> "        render ShowView { .. }\n"
 
         editAction =
             ""
             <> "    action Edit" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        renderHtml $ Edit.render " <> modelVariableSingular <> "\n"
+            <> "        render EditView { .. }\n"
 
         modelFields :: [Text]
-        modelFields = fieldsForTable modelVariablePlural
+        modelFields = fieldsForTable database modelVariablePlural
 
         updateAction =
             ""
             <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-            <> "        " <> modelVariableSingular <> "' <- fetch " <> idFieldName <> "\n"
-            <> "        let " <> modelVariableSingular <> " :: " <> model <> " = " <> model <> ".readParams (" <> model <> ".const " <> modelVariableSingular <> "') {\n"
-            <> (intercalate ",\n" (map (\f -> "                " <> f <> " = param" ) modelFields)) <> "\n"
-            <> "            }\n"
-            <> "        isValid <- validateRecord2 " <> modelVariableSingular <> "\n"
-            <> "        case isValid of\n"
-            <> "            Left errors -> renderHtml $ Edit.render " <> modelVariableSingular <> "\n"
+            <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
+            <> "        fromParams' " <> modelVariableSingular <> " >>= \\case\n"
+            <> "            Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
             <> "            Right " <> modelVariableSingular <> " -> do\n"
-            <> "                " <> modelVariableSingular <> " <- createRecord " <> modelVariableSingular <> "\n"
+            <> "                " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
             <> "                setSuccessMessage \"" <> model <> " updated\"\n"
             <> "                redirectTo Edit" <> singularName <> "Action { .. }\n"
 
         createAction =
             ""
             <> "    action Create" <> singularName <> "Action = do\n"
-            <> "        let " <> modelVariableSingular <> " :: New" <> model <> " = " <> model <> ".readParams " <> model <> ".buildConst {\n"
-            <> (intercalate ",\n" (map (\f -> "                " <> f <> " = param" ) modelFields)) <> "\n"
-            <> "            }\n"
-            <> "        isValid <- validateRecord2 " <> modelVariableSingular <> "\n"
-            <> "        case isValid of\n"
-            <> "            Left errors -> renderHtml $ New.render " <> modelVariableSingular <> "\n"
+            <> "        fromParams @New" <> model <> " >>= \\case\n"
+            <> "            Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
             <> "            Right " <> modelVariableSingular <> " -> do\n"
-            <> "                " <> modelVariableSingular <> " <- updateRecord " <> modelVariableSingular <> "\n"
+            <> "                " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
             <> "                setSuccessMessage \"" <> model <> " created\"\n"
             <> "                redirectTo " <> name <> "Action\n"
 
@@ -187,7 +198,10 @@ generateController name' =
         <> "\n"
         <> intercalate "\n" importStatements
         <> "\n\n"
-        <> "instance Controller " <> controllerName <> " where\n"
+        <> "type instance ChangeSet " <> model <> " = " <> tshow modelFields <> "\n"
+        <> "type instance ChangeSet New" <> model <> " = ChangeSet " <> model <> "\n"
+        <> "\n\n"
+        <> "instance Controller " <> controllerName <> " ControllerContext where\n"
         <> indexAction
         <> "\n"
         <> newAction
@@ -201,3 +215,141 @@ generateController name' =
         <> createAction
         <> "\n"
         <> deleteAction
+
+
+generateViews :: [Table] -> Text -> [GeneratorAction]
+generateViews database name' =
+        let
+            name = normalizeName name'
+            singularName = pluralToSingular name
+            singularVariableName = lcfirst singularName
+            pluralVariableName = lcfirst name
+
+            viewHeader moduleName =
+                ""
+                <> "module Apps.Web.View." <> name <> "." <> moduleName <> " where\n"
+                <> "import Apps.Web.View.Prelude\n"
+                <> "\n"
+
+
+            indexAction = name <> "Action"
+
+            modelFields :: [Text]
+            modelFields = fieldsForTable database pluralVariableName
+
+            showView = 
+                viewHeader "Show"
+                <> "data ShowView = ShowView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
+                <> "\n"
+                <> "instance View ShowView where\n"
+                <> "    type ViewContextForView ShowView = ViewContext\n"
+                <> "    html ShowView { .. } = [hsx|\n"
+                <> "        <nav>\n"
+                <> "            <ol class=\"breadcrumb\">\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
+                <> "            </ol>\n"
+                <> "        </nav>\n"
+                <> "        <h1>Show " <> singularName <> "</h1>\n"
+                <> "    |]\n"
+
+            newView = 
+                viewHeader "New"
+                <> "data NewView = NewView { " <> singularVariableName <> " :: New" <> singularName <> " }\n"
+                <> "\n"
+                <> "instance View NewView where\n"
+                <> "    type ViewContextForView NewView = ViewContext\n"
+                <> "    html NewView { .. } = [hsx|\n"
+                <> "        <nav>\n"
+                <> "            <ol class=\"breadcrumb\">\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
+                <> "            </ol>\n"
+                <> "        </nav>\n"
+                <> "        <h1>New " <> singularName <> "</h1>\n"
+                <> "        {renderForm " <> singularVariableName <> "}\n"
+                <> "    |]\n"
+                <> "\n"
+                <> "renderForm :: New" <> singularName <> " -> Html\n"
+                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " Create" <> singularName <> "Action [hsx|\n"
+                <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
+                <> "    {submitButton}\n"
+                <> "|]\n"
+
+            editView = 
+                viewHeader "Edit"
+                <> "data EditView = EditView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
+                <> "\n"
+                <> "instance View EditView where\n"
+                <> "    type ViewContextForView EditView = ViewContext\n"
+                <> "    html EditView { .. } = [hsx|\n"
+                <> "        <nav>\n"
+                <> "            <ol class=\"breadcrumb\">\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
+                <> "            </ol>\n"
+                <> "        </nav>\n"
+                <> "        <h1>Edit " <> singularName <> "</h1>\n"
+                <> "        {renderForm " <> singularVariableName <> "}\n"
+                <> "    |]\n"
+                <> "\n"
+                <> "renderForm :: " <> singularName <> " -> Html\n"
+                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " (Update" <> singularName <> "Action (get #id " <> singularVariableName <> ")) [hsx|\n"
+                <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
+                <> "    {submitButton}\n"
+                <> "|]\n"
+
+            indexView = 
+                viewHeader "Index"
+                <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "] }\n"
+                <> "\n"
+                <> "instance View IndexView where\n"
+                <> "    type ViewContextForView IndexView = ViewContext\n"
+                <> "    html IndexView { .. } = [hsx|\n"
+                <> "        <nav>\n"
+                <> "            <ol class=\"breadcrumb\">\n"
+                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "            </ol>\n"
+                <> "        </nav>\n"
+                <> "        <h1>" <> name <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
+                <> "        <table class=\"table table-responsive\">\n"
+                <> "            <thead>\n"
+                <> "                <tr>\n"
+                <> "                    <th>" <> singularName <> "</th>\n"
+                <> "                    <th></th>\n"
+                <> "                </tr>\n"
+                <> "            </thead>\n"
+                <> "            <tbody>{forM_ " <> pluralVariableName <> " render" <> singularName <> "}</tbody>\n"
+                <> "        </table>\n"
+                <> "    |]\n"
+                <> "\n\n"
+                <> "render" <> singularName <> " " <> singularVariableName <> " = [hsx|\n"
+                <> "    <tr>\n"
+                <> "        <td>{" <> singularVariableName <> "}</td>\n"
+                <> "        <td><a href={Show" <> singularName <> "Action (get #id " <> singularVariableName <> ")}>Show</a></td>\n"
+                <> "        <td><a href={Edit" <> singularName <> "Action (get #id " <> singularVariableName <> ")} class=\"text-muted\">edit</a></td>\n"
+                <> "        <td><a href={Delete" <> singularName <> "Action (get #id " <> singularVariableName <> ")} class=\"js-delete text-muted\">Delete</a></td>\n"
+                <> "    </tr>\n"
+                <> "|]\n"
+        in
+            [ EnsureDirectory { directory = "src/Apps/Web/View/" <> name }
+            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/Show.hs", fileContent = showView }
+            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/New.hs", fileContent = newView }
+            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/Edit.hs", fileContent = editView }
+            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/Index.hs", fileContent = indexView }
+            ]
+
+
+generateValidateRecordInstance :: Text -> GeneratorAction
+generateValidateRecordInstance name' =
+    let
+        name = normalizeName name'
+        singularName = pluralToSingular name
+        theInstance =
+            "\n"
+            <> "instance ValidateRecord New" <> singularName <> " ControllerContext where\n"
+            <> "    validateRecord2 = do\n"
+            <> "        validateNothing\n"
+
+    in
+        AppendToFile { filePath = "src/Apps/Web/Validation.hs", fileContent = theInstance }

@@ -46,8 +46,8 @@ type Action' = IO ResponseReceived
 --(|>) :: a -> f -> f a
 
 class ControllerContext.Context context => Controller controller context | controller -> context where
-    beforeAction :: (?controllerContext :: context, ?modelContext :: ModelContext, ?requestContext :: RequestContext) => controller -> IO ()
-    beforeAction _ = return ()
+    beforeAction :: (?controllerContext :: context, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => IO ()
+    beforeAction = return ()
     action :: (?controllerContext :: context, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ResponseReceived
 
 runAction :: forall controller context. (Controller controller context, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
@@ -56,7 +56,7 @@ runAction controller = do
     controllerContext <- ControllerContext.createContext
     let ?theAction = controller
     let ?controllerContext = controllerContext
-    beforeAction controller >> action controller
+    beforeAction >> action controller
 
 
 

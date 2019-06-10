@@ -20,7 +20,6 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.Records
 import GHC.OverloadedLabels
-import Data.String.Conversions (cs)
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
@@ -28,11 +27,16 @@ import Foundation.DatabaseSupport.Point
 import GHC.Generics
 import Data.Data
 import qualified Control.Newtype.Generics as Newtype
+import Foundation.SchemaTypes
+import Control.Applicative (Const)
+import qualified GHC.Types as Type
 
 data ModelContext = ModelContext {-# UNPACK #-} !Connection
 
-type family GetModelById id :: Type
+type family GetModelById id :: Type where
+    GetModelById (Id' tableName) = GetModelByTableName tableName
 type family GetTableName model :: Symbol
+type family GetModelByTableName (tableName :: Symbol) :: Type
 
 class CanCreate a where
     type Created a :: Type
@@ -45,24 +49,6 @@ class CanUpdate a where
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO (Created model)
 createRecord = create
-
--- TODO: remove
-class FindWhere a where
-    type FindWhereResult a :: Type
-    findWhere :: (?modelContext :: ModelContext) => a -> IO [FindWhereResult a]
-    buildCriteria :: a
-
-class FormField field where
-    formFieldName :: field -> Text
-    formFieldLabel :: field -> Text
-    formFieldLabel field =
-        let
-            name = formFieldName field
-            (Right parts) = Text.Inflections.parseSnakeCase [] name
-        in Text.Inflections.titleize parts
-
-class FormFieldValue field model where
-    formFieldValue :: field -> model -> Text
 
 class InputValue a where
     inputValue :: a -> Text
@@ -112,13 +98,17 @@ instance Default Point where
 
 type FieldName = ByteString
 
-class IsNew model where
-    isNew :: model -> Bool
+isNew :: forall model id. (IsNewId id, HasField "id" model id) => model -> Bool
+isNew model =
+    model
+    |> getField @"id"
+    |> isNewId
 
 class IsNewId id where
     isNewId :: id -> Bool
 instance IsNewId () where isNewId _ = True
 instance IsNewId UUID where isNewId _ = False
+instance IsNewId (FieldWithDefault valueType) where isNewId _ = False
 
 type family GetModelName model :: Symbol where
     GetModelName (M1 D ('MetaData name _ _ _) f ()) = name
@@ -126,17 +116,14 @@ type family GetModelName model :: Symbol where
 
 {-# INLINE getModelName #-}
 getModelName :: forall model. KnownSymbol (GetModelName model) => Text
-getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
+getModelName = dropEnd 1 $ cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 
 newtype Id' table = Id UUID deriving (Eq, Data)
 
 -- We need to map the model to it's table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
 -- But `type Project = Project' { id :: Id "projects" }` will
-type Id model = Id' (New model)
-
-class HasTableName model where
-    getTableName :: model -> Text
+type Id model = Id' (GetTableName model)
 
 instance IsNewId (Id' model) where
     {-# INLINE isNewId #-}
@@ -151,7 +138,7 @@ instance FromField (Id' model) where
     {-# INLINE fromField #-}
     fromField value metaData = do
         fieldValue <- fromField value metaData
-        return $ ((Id fieldValue))
+        return (Id fieldValue)
 
 instance ToField (Id' model) where
     {-# INLINE toField #-}
@@ -170,35 +157,39 @@ instance Default (Id' model) where
     {-# INLINE def #-}
     def = Newtype.pack def
 
-
 {-# INLINE sqlQuery #-}
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
 
+{-# INLINE tableName #-}
+tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
+tableName = cs $! (symbolVal @(GetTableName model) Proxy)
+
 {-# INLINE deleteRecord #-}
-deleteRecord :: (?modelContext::ModelContext, Show model) => (HasTableName model, HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
+deleteRecord :: forall model id. (?modelContext::ModelContext, Show model, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
 deleteRecord model = do
     let (ModelContext conn) = ?modelContext
     let id = getField @"id" model
-    let tableName = getTableName model
     putStrLn ("deleteRecord " <> tshow model)
-    PG.execute conn (PG.Query . cs $! "DELETE FROM " <> tableName <> " WHERE id = ?") (PG.Only id)
+    PG.execute conn (PG.Query . cs $! "DELETE FROM " <> tableName @model <> " WHERE id = ?") (PG.Only id)
     return ()
-
-findOrNothing :: forall id model model'. (?modelContext :: ModelContext) => (ToField (Id model'), PG.FromRow (GetModelById (Id model')), KnownSymbol (GetTableName (GetModelById (Id model')))) => Id model' -> IO (Maybe (GetModelById (Id model')))
-findOrNothing id = do
-    let tableName = symbolVal @(GetTableName (GetModelById (Id model'))) Proxy
-    results <- sqlQuery (PG.Query $! "SELECT * FROM " <> cs tableName <> " WHERE id = ? LIMIT 1") [id]
-    return $ headMay results
 
 class ColumnNames model where
     type ColumnNamesRecord model :: GHC.Types.Type
     columnNames :: Proxy model -> ColumnNamesRecord model
 
-type family ModelFieldType model :: GHC.Types.Type
 type family ModelFieldValue model (field :: GHC.Types.Symbol) :: GHC.Types.Type
 
 type family Include (name :: GHC.Types.Symbol) model
+
+
+
+type family Eval (tableName :: Symbol) value
+type family Col f field (tableName :: Symbol) where
+    Col f field tableName = Eval tableName (f field)
+
+type instance Eval tableName (Const a _) = a
+
 
 type family New model
 
@@ -206,8 +197,15 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
 
--- data family Table model f
--- data instance Table User f = UserTable
---     { id :: f ('UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, onDelete = NoAction, unique = False })
---     }
---
+
+data ModelBuilder :: Attribute' Symbol -> Type
+
+data FieldWithDefault valueType = Default | NonDefault valueType deriving (Eq, Show, Generic)
+
+instance Default (FieldWithDefault valueType) where
+    def = Default
+
+class Record model where
+    newRecord :: model
+
+type family ChangeSet model :: [Type.Symbol]

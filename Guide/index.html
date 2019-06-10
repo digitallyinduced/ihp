@@ -10,13 +10,44 @@
 
     <title>Hello, world!</title>
   </head>
-  <body>
-    <h1>Hello, world!</h1>
+  <body style="max-width: 800px" class="mx-auto">
 
-    <!-- Optional JavaScript -->
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+    <div class="container mt-5">{{& output }}</div>
+
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+
+    <style>
+      .source-code {
+        background-color: #002b36;
+        
+        border-radius: 3px;
+      }
+      .language-haskell, .language-bash, .language-sql, .language-html {
+        color: #839496;
+        display: block;
+        padding: 1rem;
+      }
+
+      code {
+        background-color: rgba(0, 43, 54, 0.11);
+        color: #002b36;
+      }
+
+      code .cr {
+        color: #93a1a1
+        font-weight: bold;
+      }
+
+      code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
+      code.language-haskell .st { color: #2aa198; }
+    </style>
+
+    <script>
+        var tables = document.querySelectorAll('table');
+        for (let table of tables) {
+          table.classList.add('table');
+        }
+    </script>
   </body>
 </html>

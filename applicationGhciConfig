@@ -1,4 +1,4 @@
-:set -isrc/
+:set -isrc/ -iConfig/
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
 :set -XImplicitParams
@@ -21,8 +21,10 @@
 :set -XDeriveGeneric
 :set -XMultiParamTypeClasses
 :set -XTypeOperators
+:set -XUndecidableInstances
 :set -Wno-unsafe -Wno-name-shadowing -Wno-monomorphism-restriction -Wno-safe -Wno-missing-local-signatures -Wno-missing-home-modules
 :set -XDeriveDataTypeable
+:set -XLambdaCase
 :set -XDefaultSignatures
 :set -package diframework
 :set -fbyte-code

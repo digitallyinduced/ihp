@@ -29,8 +29,10 @@ import GHC.Types
 import Data.Proxy
 import Foundation.ModelSupport (ModelFieldValue, GetTableName, ModelContext, GetModelById)
 import qualified Foundation.ModelSupport
+import qualified Foundation.ModelSupport as ModelSupport
 import Foundation.NameSupport (fieldNameToColumnName)
 import Foundation.ModelSupport (Id, Id')
+import qualified Foundation.SchemaTypes as Schema
 
 query :: forall model. DefaultScope model => QueryBuilder model
 query = defaultScope NewQueryBuilder
@@ -39,6 +41,9 @@ class DefaultScope model where
     defaultScope :: QueryBuilder model -> QueryBuilder model
 
 instance {-# OVERLAPPABLE #-} DefaultScope model where defaultScope queryBuilder = queryBuilder
+
+instance Default (QueryBuilder model) where
+    def = NewQueryBuilder
 
 data FilterOperator = EqOp | InOp | IsOp deriving (Show, Eq)
 
@@ -137,23 +142,23 @@ instance Fetchable (QueryBuilder model) model where
             Nothing -> error "Cannot find model"
 
 {-# INLINE genericFetchId #-}
-genericFetchId :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO [model]
+genericFetchId :: forall model value. (Generic model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO [model]
 genericFetchId !id = query @model |> filterWhere (#id, id) |> fetch
 {-# INLINE genericfetchIdOneOrNothing #-}
-genericfetchIdOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO (Maybe model)
+genericfetchIdOneOrNothing :: forall model value. (Generic model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO (Maybe model)
 genericfetchIdOneOrNothing !id = query @model |> filterWhere (#id, id) |> fetchOneOrNothing
 {-# INLINE genericFetchIdOne #-}
-genericFetchIdOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => ModelFieldValue model "id" -> IO model
+genericFetchIdOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO model
 genericFetchIdOne !id = query @model |> filterWhere (#id, id) |> fetchOne
 
 {-# INLINE genericFetchIds #-}
-genericFetchIds :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => [ModelFieldValue model "id"] -> IO [model]
+genericFetchIds :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => [value] -> IO [model]
 genericFetchIds !ids = query @model |> filterWhereIn (#id, ids) |> fetch
 {-# INLINE genericfetchIdsOneOrNothing #-}
-genericfetchIdsOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => [ModelFieldValue model "id"] -> IO (Maybe model)
+genericfetchIdsOneOrNothing :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => [value] -> IO (Maybe model)
 genericfetchIdsOneOrNothing !ids = query @model |> filterWhereIn (#id, ids) |> fetchOneOrNothing
 {-# INLINE genericFetchIdsOne #-}
-genericFetchIdsOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField (ModelFieldValue model "id"), EqOrIsOperator (ModelFieldValue model "id")) => [ModelFieldValue model "id"] -> IO model
+genericFetchIdsOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: Foundation.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => [value] -> IO model
 genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
@@ -199,29 +204,18 @@ compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
 
---filterBy :: forall model value fieldName field. (IsLabel (fieldName :: Symbol) field, value ~ ModelFieldValue model fieldName, ToField (ModelFieldValue model fieldName)) => (field, value) -> QueryBuilder model -> QueryBuilder model
---filterBy :: forall name value model symbol. ((QueryBuilder model -> Proxy (ModelFieldValue model name) -> QueryBuilder model), ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
-  -- FilterByQueryBuilder (Just criteria) queryBuilder
---filterBy :: forall model name value makeCriteria. (value ~ ModelFieldValue model name, makeCriteria ~ (QueryBuilder model -> value -> QueryBuilder model)) => (makeCriteria, value) -> QueryBuilder model -> QueryBuilder model
-
--- filterWhere (name, values) = FilterByQueryBuilder (name, InOp, toField (In values))
---filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
-
---instance ToField value => PolymorphicValue model name [value] where
---polymorphicValueToField value = (Proxy @name, InOp, toField (In value))
-
 -- Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
 instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
 instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
 
 {-# INLINE filterWhere #-}
-filterWhere :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name), EqOrIsOperator (ModelFieldValue model name)) => (Proxy name, ModelFieldValue model name) -> QueryBuilder model -> QueryBuilder model
+filterWhere :: forall name model value. (KnownSymbol name, ToField value, HasField' name model value, EqOrIsOperator value) => (Proxy name, value) -> QueryBuilder model -> QueryBuilder model
 filterWhere !(name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
 
 
 {-# INLINE filterWhereIn #-}
-filterWhereIn :: forall name model value. (KnownSymbol name, ToField (ModelFieldValue model name)) => (Proxy name, [ModelFieldValue model name]) -> QueryBuilder model -> QueryBuilder model
+filterWhereIn :: forall name model value. (KnownSymbol name, ToField value, HasField' name model value) => (Proxy name, [value]) -> QueryBuilder model -> QueryBuilder model
 filterWhereIn !(name, value) = FilterByQueryBuilder (name, InOp, toField $ In value)
 
 data FilterWhereTag
@@ -268,20 +262,20 @@ queryUnion = UnionQueryBuilder
 queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr a b queryBuilder = (a queryBuilder) `UnionQueryBuilder` (b queryBuilder)
 
-instance (model ~ GetModelById (Id' model'), ModelFieldValue model "id" ~ Id' model') => Fetchable (Id' model') model where
+instance (Generic model, model ~ GetModelById (Id' model'), HasField' "id" model id, id ~ Id' model') => Fetchable (Id' model') model where
     type FetchResult (Id' model') model = model
     fetch = genericFetchIdOne
     fetchOneOrNothing = genericfetchIdOneOrNothing
     fetchOne = genericFetchIdOne
 
-instance (model ~ GetModelById (Id' model'), ModelFieldValue model "id" ~ Id' model') => Fetchable (Maybe (Id' model')) model where
+instance (Generic model, model ~ GetModelById (Id' model'), HasField' "id" model id, id ~ Id' model') => Fetchable (Maybe (Id' model')) model where
     type FetchResult (Maybe (Id' model')) model = [model]
     fetch (Just a) = genericFetchId a
     fetchOneOrNothing Nothing = return Nothing
     fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
     fetchOne (Just a) = genericFetchIdOne a
 
-instance (model ~ GetModelById (Id' model'), ModelFieldValue model "id" ~ Id' model') => Fetchable [Id' model'] model where
+instance (model ~ GetModelById (Id' model'), value ~ Id' model', HasField' "id" model value) => Fetchable [Id' model'] model where
     type FetchResult [Id' model'] model = [model]
     fetch = genericFetchIds
     fetchOneOrNothing = genericfetchIdsOneOrNothing

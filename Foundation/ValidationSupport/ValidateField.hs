@@ -16,15 +16,18 @@ validateField2 :: forall field validator model validationState fieldValue. (
         ?model :: model
         , KnownSymbol field
         , HasField' field model fieldValue
-        , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
+        -- , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
+        , Generic (ValidatorResultFor model)
+        , Generic model
+        , HasField' field (ValidatorResultFor model) ValidatorResult
     ) => Proxy field -> Validator2 fieldValue -> StateT (ValidatorResultFor model) IO ()
 validateField2 _ validator = do
     validationState :: ValidatorResultFor model <- get
     let value :: ValidatorResult = validator $ getField @field ?model
-    put (validationState & ((field @field) .~ value))
+    put (setField @field value validationState)
     return ()
 
-validateNothing :: forall model. (?model :: model) => StateT (ValidatorResultFor model) IO ()
+validateNothing :: forall s. StateT s IO ()
 validateNothing = return ()
 
 nonEmpty :: Text -> ValidatorResult

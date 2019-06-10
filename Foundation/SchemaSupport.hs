@@ -2,48 +2,41 @@ module Foundation.SchemaSupport where
 import ClassyPrelude hiding (length)
 import Data.Maybe (fromJust)
 import qualified Data.List as List
-
-data Table = Table Text [Attribute]
-           deriving (Show, Eq, Ord)
-
-data Attribute = Field Name FieldType
-               | BelongsTo Name
-               | HasMany { name :: Name, inverseOf :: Maybe Name }
-               deriving (Show, Eq, Ord)
-
-newtype SqlType = SqlType Text
-type Name = Text
-
-data DefaultValue = SqlDefaultValue Text deriving (Show, Eq, Ord)
-
-data OnDelete = NoAction | Restrict | SetNull | Cascade deriving (Show, Eq, Ord)
-
-data FieldType =
-             SerialField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | TextField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | IntField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | BoolField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | EnumField { defaultValue :: Maybe DefaultValue,  references :: Maybe Text, values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | UUIDField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
-           | Timestamp { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | PointField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           deriving (Show, Eq, Ord)
+import Foundation.SchemaTypes
 
 table :: Text -> Table
 table name = Table name []
 
+field :: Text -> FieldType Text -> Attribute' Text
 field = Field
 
 (Table name fields) + field = Table name (fields <> [field])
 
+serial :: FieldType Text
 serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), references = Nothing, allowNull = False, isPrimaryKey = True, unique = False }
+
+uuid :: FieldType Text
 uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, onDelete = NoAction, unique = False }
+
+primaryKey :: FieldType Text
 primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()"), references = Nothing, allowNull = False, isPrimaryKey = True, unique = False }
+
+text :: FieldType Text
 text = TextField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
+int :: FieldType Text
 int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
+enum :: [Text] -> FieldType Text
 enum values = EnumField { defaultValue = Nothing, references = Nothing, values, allowNull = False, isPrimaryKey = False, unique = False }
+
+bool :: FieldType Text
 bool = BoolField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
+timestamp :: FieldType Text
 timestamp = Timestamp { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
+point :: FieldType Text
 point = PointField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
 belongsTo = BelongsTo

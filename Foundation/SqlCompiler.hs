@@ -5,6 +5,7 @@ import qualified Data.Text                as Text
 import qualified Foundation.NameSupport
 import           Foundation.SchemaSupport
 import qualified System.Directory         as Directory
+import Foundation.SchemaTypes
 
 main :: [Table] -> IO ()
 main database = writeFileIfNecessary "src/Model/Schema.sql" (compileDatabase database)

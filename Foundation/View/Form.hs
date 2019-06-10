@@ -83,7 +83,7 @@ data FormContext model =
         }
 
 {-# INLINE formFor #-}
-formFor :: forall model viewContext controller parent. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (Foundation.ModelSupport.IsNew model) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor :: forall model viewContext controller parent id. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (HasField "id" model id, Foundation.ModelSupport.IsNewId id) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor model = formFor' FormContext
         { model
         , renderFormField = renderBootstrapFormField
@@ -104,7 +104,7 @@ findValidatorResult viewContext model =
     in
         maybe def (snd . fromJust . (fromDynamic @(model, ValidatorResultFor model) )) (find isValidationForModel validations)
 
-horizontalFormFor :: forall model viewContext controller parent. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (Foundation.ModelSupport.IsNew model) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+horizontalFormFor :: forall model viewContext controller parent id. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (HasField "id" model id, Foundation.ModelSupport.IsNewId id) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 horizontalFormFor model = formFor' FormContext
         { model
         , renderFormField = renderHorizontalBootstrapFormField
@@ -114,12 +114,12 @@ horizontalFormFor model = formFor' FormContext
         }
 
 {-# INLINE formFor' #-}
-formFor' :: forall model viewContext controller parent. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasPath controller) => (Foundation.ModelSupport.IsNew model) => FormContext model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor' :: forall model viewContext controller parent id. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasPath controller) => (HasField "id" model id, Foundation.ModelSupport.IsNewId id) => FormContext model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor' formContext controller inner = form ! method "POST" ! action (cs $ pathTo controller) ! A.id (if Foundation.ModelSupport.isNew (model formContext) then "" else cs (pathTo controller)) ! class_ (if Foundation.ModelSupport.isNew (model formContext) then "new-form" else "edit-form") $ do
     let ?formContext = formContext in inner
 
 {-# INLINE submitButton #-}
-submitButton :: forall model. (?formContext :: FormContext model, Foundation.ModelSupport.IsNew model, KnownSymbol (GetModelName model)) => SubmitButton
+submitButton :: forall model id. (?formContext :: FormContext model, HasField "id" model id, Foundation.ModelSupport.IsNewId id, KnownSymbol (GetModelName model)) => SubmitButton
 submitButton = let modelName = Foundation.ModelSupport.getModelName @model in SubmitButton
     { modelIsNew = Foundation.ModelSupport.isNew (model ?formContext)
     , modelName = modelName
@@ -137,7 +137,7 @@ renderHelpText (FormField { helpText }) =
         helpText -> small ! A.class_ "form-text text-muted" $ text helpText
 
 {-# INLINE renderValidationResult #-}
-renderValidationResult (FormField { modelIsNew, validatorResult }) = when modelIsNew $ case validatorResult of
+renderValidationResult (FormField { modelIsNew, validatorResult }) = case validatorResult of
                 Success         -> return ()
                 Failure message -> div ! class_ "invalid-feedback" $ cs message
 
@@ -249,7 +249,7 @@ data TextFieldTag
 
 instance (
         KnownSymbol symbol
-        , Foundation.ModelSupport.IsNew model
+        , HasField "id" model id, Foundation.ModelSupport.IsNewId id
         --, Foundation.ModelSupport.HasModelName model
         , HasField symbol model value
         , HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString
@@ -283,7 +283,7 @@ instance (
 
 instance (
         KnownSymbol symbol
-        , Foundation.ModelSupport.IsNew model
+        , HasField "id" model id, Foundation.ModelSupport.IsNewId id
         , HasField symbol model Bool
         , HasField symbol (Foundation.ModelSupport.ColumnNamesRecord model) ByteString
         , Foundation.ModelSupport.ColumnNames model
@@ -312,7 +312,7 @@ instance (
 
 instance (
         KnownSymbol symbol
-        , Foundation.ModelSupport.IsNew model
+        , HasField "id" model id, Foundation.ModelSupport.IsNewId id
         , HasField symbol model ((SelectValue item))
         , CanSelect item
         , Foundation.ModelSupport.InputValue (SelectValue item)

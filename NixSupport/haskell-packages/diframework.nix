@@ -33,7 +33,6 @@
 , template-haskell
 , haskell-src-meta
 , random-strings
-, concurrent-extra
 , interpolate
 , uri-encode
 , generic-lens
@@ -53,13 +52,16 @@
 , cookie
 , process
 , newtype-generics
+, unix
+, fsnotify
+, concurrent-extra
 }:
 mkDerivation {
   pname = "diframework";
-  version = "1.0.26";
+  version = "1.0.28";
   src = /Users/marc/digitallyinduced/playground/Membercard/src/Foundation;
   isLibrary = true;
-  isExecutable = false;
+  isExecutable = true;
   libraryHaskellDepends = [
     cabal-install
     base
@@ -114,6 +116,13 @@ mkDerivation {
     cookie
     process
     newtype-generics
+    unix
+    fsnotify
+    concurrent-extra
   ];
   license = stdenv.lib.licenses.bsd3;
+  postInstall = ''
+    mkdir -p $out/shared
+    cp Foundation/ControllerGenerator.hs $out/shared/ControllerGenerator.hs
+  '';
 }

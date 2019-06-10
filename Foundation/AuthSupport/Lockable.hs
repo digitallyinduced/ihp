@@ -12,7 +12,7 @@ lock :: forall user modelContext. (?modelContext :: ModelContext, CanUpdate user
 lock user = do
 	now <- getCurrentTime
 	let currentLockedAt :: Maybe UTCTime = user ^. field @"lockedAt"
-	let user' :: user = user & field @"lockedAt" .~ (Just now)
+	let user' :: user = user & field @"lockedAt" .~ Just now
 	updateRecord user'
 
 lockDuration :: Clock.NominalDiffTime

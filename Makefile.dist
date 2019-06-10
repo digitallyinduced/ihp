@@ -1,29 +1,32 @@
 .PHONY: run
 
-GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated
-GHC_OPTIONS+= -XOverloadedStrings
-GHC_OPTIONS+= -XNoImplicitPrelude
-GHC_OPTIONS+= -XImplicitParams
-GHC_OPTIONS+= -XRank2Types
-GHC_OPTIONS+= -XDisambiguateRecordFields
-GHC_OPTIONS+= -XNamedFieldPuns
-GHC_OPTIONS+= -XDuplicateRecordFields
-GHC_OPTIONS+= -XOverloadedLabels
-GHC_OPTIONS+= -XFlexibleContexts
-GHC_OPTIONS+= -XTypeSynonymInstances
-GHC_OPTIONS+= -XFlexibleInstances
-GHC_OPTIONS+= -XQuasiQuotes
-GHC_OPTIONS+= -XTypeFamilies
-GHC_OPTIONS+= -XPackageImports
-GHC_OPTIONS+= -XScopedTypeVariables
-GHC_OPTIONS+= -XRecordWildCards
-GHC_OPTIONS+= -XTypeApplications
-GHC_OPTIONS+= -XDataKinds
+GHC_EXTENSIONS=
+GHC_EXTENSIONS+= -XOverloadedStrings
+GHC_EXTENSIONS+= -XNoImplicitPrelude
+GHC_EXTENSIONS+= -XImplicitParams
+GHC_EXTENSIONS+= -XRank2Types
+GHC_EXTENSIONS+= -XDisambiguateRecordFields
+GHC_EXTENSIONS+= -XNamedFieldPuns
+GHC_EXTENSIONS+= -XDuplicateRecordFields
+GHC_EXTENSIONS+= -XOverloadedLabels
+GHC_EXTENSIONS+= -XFlexibleContexts
+GHC_EXTENSIONS+= -XTypeSynonymInstances
+GHC_EXTENSIONS+= -XFlexibleInstances
+GHC_EXTENSIONS+= -XQuasiQuotes
+GHC_EXTENSIONS+= -XTypeFamilies
+GHC_EXTENSIONS+= -XPackageImports
+GHC_EXTENSIONS+= -XScopedTypeVariables
+GHC_EXTENSIONS+= -XRecordWildCards
+GHC_EXTENSIONS+= -XTypeApplications
+GHC_EXTENSIONS+= -XDataKinds
 GHC_OPTIONS+= -XInstanceSigs
-GHC_OPTIONS+= -XDeriveGeneric
-GHC_OPTIONS+= -XMultiParamTypeClasses
-GHC_OPTIONS+= -XTypeOperators
-GHC_OPTIONS+= -XDeriveDataTypeable
+GHC_EXTENSIONS+= -XDeriveGeneric
+GHC_EXTENSIONS+= -XMultiParamTypeClasses
+GHC_EXTENSIONS+= -XTypeOperators
+GHC_EXTENSIONS+= -XDeriveDataTypeable
+
+GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated
+GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
 
@@ -43,8 +46,8 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 RUNGHC=runghc
 
-run: bin/RunDevServer .envrc db/state src/Model/Generated static/prod.js static/prod.css bin/RunLiveReloadNotificationServer
-	bin/RunDevServer --root src
+run: .envrc build/db/state src/Model/Generated static/prod.js static/prod.css
+	RunDevServer --root src
 
 
 .envrc: default.nix src/Foundation/NixSupport/default.nix
@@ -55,10 +58,11 @@ run: bin/RunDevServer .envrc db/state src/Model/Generated static/prod.js static/
 bin:
 	mkdir -p bin
 
-run-production: bin/RunProdServer src/Model/Generated
+run-production: build/bin/RunProdServer src/Model/Generated
+	build/bin/RunProdServer
 
 psql:
-	psql -p 8001 -d app
+	@psql -h $$PWD/build/db -d app
 
 src/Model/Schema.sql:
 	touch $@
@@ -68,56 +72,43 @@ src/Model/Fixtures.sql:
 
 initdb: db
 db: src/Model/Schema.sql src/Model/Fixtures.sql
-	echo "drop schema public cascade; create schema public;" | psql -p 8001 -d app
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Fixtures.sql
+	echo "drop schema public cascade; create schema public;" | psql -h $$PWD/build/db -d app
+	psql -h $$PWD/build/db -d app < src/Model/Schema.sql
+	psql -h $$PWD/build/db -d app < src/Model/Fixtures.sql
 
 dumpdb: dump_db
 dump_db:
-	pg_dump -a --inserts --disable-triggers -p 8001 app > src/Model/Fixtures.sql
+	pg_dump -a --inserts --disable-triggers -h $$PWD/build/db app > src/Model/Fixtures.sql
 
 ghci:
 	ghci -threaded -isrc -isrc/Foundation/Foundation -fexternal-interpreter
 
-bin/RunDevServer: src/Foundation/Commands/RunDevServer.hs
-	mkdir -p bin
-	nix-shell --command "cd db && make && cd .. && ghc -threaded -O2 -j4 ${GHC_OPTIONS} $< -o $@"
-	chmod +x $<
-
-bin/RunLiveReloadNotificationServer: src/Foundation/Commands/RunLiveReloadNotificationServer.hs
-	mkdir -p bin
-	nix-shell --command "ghc -threaded -O2 -j4 ${GHC_OPTIONS} $< -o $@"
-	chmod +x $<
-
 src/Model/Generated: src/Model/Schema.hs src/Foundation/Foundation/SchemaCompiler.hs
 	rm -rf src/Model/Generated && mkdir -p src/Model/Generated
-	 ghci -e ':script src/Foundation/compileModels'
+	ghci -e ':script src/Foundation/compileModels'
 
-bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
+build/bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
 	mkdir -p build/RunUnoptimizedProdServer
 	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<
-	rm -f bin/RunProdServer
-	ln -s `basename $@` bin/RunProdServer
+	rm -f build/bin/RunProdServer
+	ln -s `basename $@` build/bin/RunProdServer
 
-bin/RunOptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
+build/bin/RunOptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
 	mkdir -p build/RunOptimizedProdServer
 	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
 	chmod +x $<
-	rm -f bin/RunProdServer
-	ln -s `basename $@` bin/RunProdServer
+	rm -f build/bin/RunProdServer
+	ln -s `basename $@` build/bin/RunProdServer
 
 install:
 	brew install direnv
 	echo "https://github.com/direnv/direnv"
 
-db/state:
-	cd db && make
-
 clean:
-	rm -rf bin/
+	rm -rf build/bin
 	rm -rf src/Foundation/Foundation/static/node_modules
-	cd db && make clean
+	rm -rf build/db
 
 del:
 	ln -s src/Foundation/del del
@@ -133,3 +124,17 @@ static/prod.css: $(CSS_FILES)
 
 print-ghc-options:
 	@echo ${GHC_OPTIONS}
+
+print-ghc-extensions:
+	@echo ${GHC_EXTENSIONS}
+
+build/db/state:
+	mkdir -p build/db
+	cd build/db && initdb state
+	(postgres -D build/db/state -p 8001) & echo $$! > build/db/server.pid
+	sleep 4
+	createdb app -p 8001
+	psql -p 8001 -d app < src/Model/Schema.sql
+	psql -p 8001 -d app < src/Model/Fixtures.sql
+	kill `cat build/db/server.pid`
+	rm build/db/server.pid

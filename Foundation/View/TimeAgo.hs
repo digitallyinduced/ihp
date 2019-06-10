@@ -6,8 +6,7 @@ import           Data.String.Conversions            (cs)
 import           Data.Time.Clock                    (UTCTime)
 import           Data.Time.Format.ISO8601           (iso8601Show)
 import           Foundation.View.ConvertibleStrings ()
-import           Text.Blaze.Html5                   (Html)
-import           Text.Blaze.Html5                   ((!))
+import           Text.Blaze.Html5                   (Html, (!))
 import qualified Text.Blaze.Html5                   as H
 import qualified Text.Blaze.Html5.Attributes        as A
 import           Unsafe.Coerce

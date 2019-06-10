@@ -1,11 +1,13 @@
 module Apps.Web.Controller.Context where
 
-import ClassyPrelude
+import ClassyPrelude hiding (pack)
 import Foundation.Controller.Session
 import Foundation.Controller.RequestContext
 import Foundation.ModelSupport
 import Model.Generated.Types
 import Data.Dynamic
+import Foundation.Controller.Context
+import qualified Control.Newtype.Generics as Newtype
 
 data ControllerContext = ControllerContext {
         -- Here you can prepare data to be available in your controller actions
@@ -14,7 +16,8 @@ data ControllerContext = ControllerContext {
         validations :: IORef [Dynamic]
     } deriving (Generic)
 
-createControllerContext :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => IO ControllerContext
-createControllerContext = do
-    validations <- newIORef []
-    return ControllerContext { validations }
+instance Context ControllerContext where
+    createContext = do
+        validations <- newIORef []
+        return ControllerContext { .. }
+

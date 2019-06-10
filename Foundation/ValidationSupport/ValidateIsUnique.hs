@@ -29,7 +29,7 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , KnownSymbol field
         , HasField' field model fieldValue
         , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
-        , fieldValue ~ ModelFieldValue savedModel field
+        , HasField' field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
         , PG.ToField fieldValue
         , EqOrIsOperator fieldValue

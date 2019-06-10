@@ -21,6 +21,7 @@ module Foundation.ControllerPrelude
     , module Network.Wai.Parse
     , module Foundation.RouterSupport
     , module Control.Newtype.Generics
+    , module Data.Generics.Product
     ) where
 import           ClassyPrelude hiding (pack, unpack)
 import           Data.Default                  (def)
@@ -34,7 +35,7 @@ import           Foundation.ValidationSupport  (validateRecord2)
 -- import           Helper.Controller
 -- import           Model.Generated.Types
 import Foundation.HaskellSupport
-import Foundation.ModelSupport (ModelContext (), createRecord, createMany, deleteRecord, Include, updateRecord, Id, Id')
+import Foundation.ModelSupport
 import Foundation.QueryBuilder
 import Foundation.FetchRelated
 import GHC.Records
@@ -45,3 +46,6 @@ import Network.Wai.Parse (FileInfo, fileContent)
 import Foundation.RouterSupport hiding (get, post)
 import Foundation.Controller.Redirect
 import Control.Newtype.Generics
+
+import Control.Lens ()
+import Data.Generics.Product (setField)

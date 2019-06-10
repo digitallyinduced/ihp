@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType #-}
 
 module Foundation.Controller.Param where
 import           ClassyPrelude
@@ -20,6 +20,18 @@ import qualified Foundation.ModelSupport as ModelSupport
 import Foundation.DatabaseSupport.Point
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as Char8
+
+import qualified Control.Monad.State.Lazy as State
+import GHC.TypeLits
+import Control.Lens ()
+import qualified Control.Lens as Lens
+import qualified Data.Generics.Product as Record
+import Data.Proxy
+import qualified Control.Monad.State.Lazy as State
+import Foundation.ValidationSupport
+import Data.Default
+import qualified Data.Dynamic as Dynamic
+import qualified GHC.Records
 
 {-# INLINE fileOrNothing #-}
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
@@ -123,10 +135,10 @@ instance FromParameter Point where
     fromParameter (Just byteString) =
         let [x, y] = Char8.split ',' byteString
         in 
-            case (Data.Text.Read.rational $ cs $ x) of
+            case (Data.Text.Read.rational $ cs x) of
                 Left error -> Left error
                 Right (x, _) ->
-                    case (Data.Text.Read.rational $ cs $ y) of
+                    case (Data.Text.Read.rational $ cs y) of
                         Left error -> Left error
                         Right (y, _) -> Right (Point x y)
     fromParameter Nothing = Left "FromParameter Point: Parameter missing"
@@ -137,3 +149,60 @@ instance FromParameter (ModelSupport.Id' model') where
         case (fromParameter maybeUUID) :: Either String UUID of
             Right uuid -> pure (ModelSupport.Id uuid)
             Left error -> Left error
+
+class FillParams (params :: [Symbol]) record where
+    fill :: (?requestContext :: RequestContext) => record -> State.StateT (ValidatorResultFor record) IO record
+
+instance FillParams ('[]) record where
+    fill record = return record
+
+instance (FillParams rest record, KnownSymbol fieldName, Record.HasField' fieldName record fieldType, Record.HasField' fieldName (ValidatorResultFor record) ValidatorResult, Generic record, Show fieldType, FromParameter fieldType) => FillParams (fieldName:rest) record where
+    fill record = do
+        -- record <- State.get
+        let name :: ByteString = cs (symbolVal (Proxy @fieldName))
+        case (fromParameter (paramOrNothing name)) of
+            Left error -> do
+                validationState <- State.get
+                State.put $ Record.setField @fieldName (Failure (cs error)) validationState
+                fill @rest record
+            Right (value :: fieldType) -> fill @rest (Record.setField @fieldName value record)
+
+
+
+--class FromParams record where
+--    fromRequest :: (?requestContext :: RequestContext, ?controllerContext :: controllerContext) => State.StateT record IO record
+
+fromParams :: forall record controllerContext. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FillParams (ModelSupport.ChangeSet record) record, ModelSupport.Record record, Default (ValidatorResultFor record), Record.HasTypes (ValidatorResultFor record) ValidatorResult, ValidateRecord record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, Typeable (ValidatorResultFor record), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic])) => IO (Either record record)
+fromParams = fromParams' (ModelSupport.newRecord @record)
+
+fromParams' :: forall record controllerContext. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FillParams (ModelSupport.ChangeSet record) record, Default (ValidatorResultFor record), Record.HasTypes (ValidatorResultFor record) ValidatorResult, ValidateRecord record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, Typeable (ValidatorResultFor record), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic])) => record -> IO (Either record record)
+fromParams' record = fromRequest record
+
+--instance (FillParams (ModelSupport.ChangeSet model) model, ValidateRecord (ModelSupport.New model) controllerContext) => FromParams model where
+fromRequest :: forall model controllerContext. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FillParams (ModelSupport.ChangeSet model) model, Default (ValidatorResultFor model), Record.HasTypes (ValidatorResultFor model) ValidatorResult, ValidateRecord model controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, Typeable (ValidatorResultFor model), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic])) => model -> IO (Either model model)
+fromRequest model = do
+        result <- State.evalStateT inner (def :: ValidatorResultFor model)
+        return result
+    where
+        inner = do
+            model <- fill @(ModelSupport.ChangeSet model) model
+            let ?model = model
+            validateRecord2 @model
+            result <- State.get
+            let validationsHistory :: IORef [Dynamic.Dynamic] = (GHC.Records.getField @"validations" ?controllerContext)
+            modifyIORef validationsHistory (\validations -> (Dynamic.toDyn (model, result)):validations)
+            -- return (modelToEither $ fst result)
+            -- 
+            -- return model
+            
+            return (modelToEither result)
+
+        modelToEither :: forall model result. (?model :: model, Record.HasTypes result ValidatorResult) => result -> Either model model
+        modelToEither result =
+            let
+                validatorResults = Lens.toListOf (Record.types @ValidatorResult) result
+                failures = filter isFailure validatorResults
+            in
+                case failures of
+                    [] -> Right ?model
+                    _  -> Left ?model

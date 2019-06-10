@@ -10,38 +10,824 @@
 
     <title>Hello, world!</title>
   </head>
-  <body>
-    <div class="container mt-5">
-      <h1>Getting Started with DI Framework</h1>
-      <p class="lead">
-        This guide covers everything you need to ship software with DI framework.
-      </p>
-
-      <h4>Creating a new DI project</h4>
-      <hr/>
-      <h5>1. Nix Package Manager</h5>
-
-      <p>The framework uses the nix package manager to manage the whole set of dependencies of your application</p>
-
-      <p>
-        For example PostgreSQL and the Haskell Compiler are both dependencies of your app. As well as all the haskell or javascript packages you want to use. We use nix to make sure that these dependencies are available to the app - in development, as well as in production.
-      </p>
-
-      <p>That's why we first need to make sure that you have nix installed</p>
-
-      <h6>a) MacOS</h6>
-      <p>Install nix with ...</p>
-      <h6>b) Linux</h6>
-      <h6>c) Windows</h6>
-      <p>Sorry, we don't support Windows yet.</p>
+  <body style="max-width: 800px" class="mx-auto">
 
 
-    </div>
+    <div class="container mt-5"><h1 id="getting-started-with-interactive-lambda">Getting Started With Interactive Lambda</h1>
+<p>Interactive Lambda is a full stack framework focused on rapid application development while striving for robust code quality.</p>
+<p>This guide covers everything you need to ship software with interactive lambda.</p>
+<h5 id="feature-overview">Feature Overview</h5>
+<ul>
+<li>
+<strong>Fully managed dev environment:</strong> Works on any machine because all dependencies (even PostgreSQL) are managed using the nix package manager.
+</li>
+<li>
+<strong>Bootstrap 4 Out of the box:</strong> The default layout already integrates bootstrap 4.
+</li>
+<li>
+<strong>Auto live reload using virtual dom in dev mode:</strong> Each code change changes your local page to refresh. The refresh uses a diff based patch to avoid resetting the page state.
+</li>
+<li>
+<strong>Build robust applications:</strong> With the power of haskell your application are going to be a lot more robust. Pretty much no runtime errors in production.
+</li>
+<li>
+<strong>Fast dev enviroment:</strong> While we use a compiled language, the built-in dev server automatically reloads your code changes using the fastest way possible. Usually changes are reflected in less than 100ms (alot faster than your average webpack setup).
+</li>
+<li>
+<strong>Very fast production environment:</strong> Production response times around 30ms. Using <a href="http://instantclick.io/">instant click</a> it can be faster than your average SPA.
+</li>
+</ul>
+<ul>
+<li>
+<a href="#getting-started-with-interactive-lambda">Getting Started With Interactive Lambda</a>
+<ul>
+<li>
+<a href="#feature-overview">Feature Overview</a>
+</li>
+<li>
+<a href="#1-nix-package-manager">1. Nix Package Manager</a>
+<ul>
+<li>
+<a href="#macos">MacOS</a>
+</li>
+<li>
+<a href="#linux">Linux</a>
+</li>
+<li>
+<a href="#windows">Windows</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#2-installing-interactive-lambda">2. Installing Interactive Lambda</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#creating-your-first-project">Creating Your First Project</a>
+<ul>
+<li>
+<a href="#1-project-setup">1. Project Setup</a>
+</li>
+<li>
+<a href="#2-hello-world">2. Hello, World!</a>
+</li>
+<li>
+<a href="#3-data-structures-postgresql">3. Data Structures &amp; PostgreSQL</a>
+<ul>
+<li>
+<a href="#schema-modeling">Schema Modeling</a>
+</li>
+<li>
+<a href="#loading-the-schema">Loading the Schema</a>
+</li>
+<li>
+<a href="#record-types">Record Types</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#4-apps-controllers-views">4. Apps, Controllers, Views</a>
+<ul>
+<li>
+<a href="#new-types">New Types</a>
+</li>
+<li>
+<a href="#controller-implementation">Controller Implementation</a>
+<ul>
+<li>
+<a href="#imports">Imports</a>
+</li>
+<li>
+<a href="#changeset">ChangeSet</a>
+</li>
+<li>
+<a href="#instance">Instance</a>
+</li>
+<li>
+<a href="#index-action">Index Action</a>
+</li>
+<li>
+<a href="#new-action">New Action</a>
+</li>
+<li>
+<a href="#show-action">Show Action</a>
+</li>
+<li>
+<a href="#edit-action">Edit Action</a>
+</li>
+<li>
+<a href="#update-action">Update Action</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#routes">Routes</a>
+</li>
+<li>
+<a href="#views">Views</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#5-extending-the-blog">5. Extending the Blog</a>
+<ul>
+<li>
+<a href="#creating-a-post">Creating a Post</a>
+</li>
+<li>
+<a href="#displaying-a-post">Displaying a Post</a>
+</li>
+<li>
+<a href="#display-all-posts">Display all posts</a>
+</li>
+<li>
+<a href="#adding-validation">Adding Validation</a>
+</li>
+<li>
+<a href="#timestamps">Timestamps</a>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<a href="#querybuilder-reference">QueryBuilder Reference</a>
+<ul>
+<li>
+<a href="#creating-a-new-query">Creating a new query</a>
+</li>
+<li>
+<a href="#running-a-query">Running a query</a>
+<ul>
+<li>
+<a href="#many-rows-fetch">many rows: <code>fetch</code></a>
+</li>
+<li>
+<a href="#maybe-single-row-fetchoneornothing">maybe single row: <code>fetchOneOrNothing</code></a>
+</li>
+<li>
+<a href="#single-row-fetchone">single row: <code>fetchOne</code></a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#where-conditions">Where Conditions</a>
+</li>
+<li>
+<a href="#order-by">Order By</a>
+</li>
+<li>
+<a href="#or">Or</a>
+</li>
+<li>
+<a href="#union-merging-two-queries">Union / Merging two queries</a>
+</li>
+<li>
+<a href="#shortcuts">Shortcuts</a>
+<ul>
+<li>
+<a href="#findby-field-value"><code>findBy #field value</code></a>
+</li>
+<li>
+<a href="#findmaybeby-field-value"><code>findMaybeBy #field value</code></a>
+</li>
+<li>
+<a href="#findbyid-id"><code>findById id</code></a>
+</li>
+<li>
+<a href="#findmanyby-field-value"><code>findManyBy #field value</code></a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#projectid-fetch"><code>projectId |&gt; fetch</code></a>
+</li>
+<li>
+<a href="#raw-sql-queries">Raw SQL Queries</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#validation-reference">Validation Reference</a>
+<ul>
+<li>
+<a href="#pure-validations">Pure Validations</a>
+<ul>
+<li>
+<a href="#custom-validators">Custom Validators</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#uniqueness">Uniqueness</a>
+</li>
+<li>
+<a href="#validate-permissions">Validate Permissions</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#view-helper-reference">View Helper Reference</a>
+<ul>
+<li>
+<a href="#time">Time</a>
+<ul>
+<li>
+<a href="#timeago"><code>timeAgo</code></a>
+</li>
+<li>
+<a href="#datetime"><code>dateTime</code></a>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="1-nix-package-manager">1. Nix Package Manager</h3>
+<p>The framework uses the nix package manager to manage the whole set of dependencies of your application</p>
+<p>For example postgresql and the haskell compiler are both dependencies of your app. as well as all the haskell or javascript packages you want to use. we use nix to make sure that these dependencies are available to the app - in development, as well as in production.</p>
+<p>That’s why we first need to make sure that you have nix installed.</p>
+<h5 id="macos">MacOS</h5>
+<p>Install nix with …</p>
+<h5 id="linux">Linux</h5>
+<p>TODO</p>
+<h5 id="windows">Windows</h5>
+<p>Sorry, we don’t support windows yet.</p>
+<h3 id="2-installing-interactive-lambda">2. Installing Interactive Lambda</h3>
+<p>You can now install interactive lambda by running:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">nix-env</span><span> -i interactive-lambda</span>
+</code></pre></div>
+<h1 id="creating-your-first-project">Creating Your First Project</h1>
+<h3 id="1-project-setup">1. Project Setup</h3>
+<p>This guide will lead you to create a small blog application. To set up the project, open a terminal and type:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">interactive-lambda-new</span><span> blog</span>
+</code></pre></div>
+<p>The new <code>blog</code> directory now contains a couple of auto-generated files and directories that make up your app.</p>
+<p>Here is a short overview of the whole structure:</p>
+<table>
+<thead>
+<tr><th>File or Directory</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td>Config/</td><td></td></tr>
+<tr><td>Config/Config.hs</td><td>Configuration for the framework and your application</td></tr>
+<tr><td>Config/nix/nixpkgs-config.nix</td><td>Configuration for the nix package manager</td></tr>
+<tr><td>Config/nix/haskell-packages/</td><td>Custom haskell dependencies can be placed here</td></tr>
+<tr><td>src/</td><td>The main source code for your app</td></tr>
+<tr><td>src/Model/Schema.hs</td><td>Models and database tables are defined here</td></tr>
+<tr><td>src/Apps/Web/Controller</td><td>App controllers</td></tr>
+<tr><td>src/Apps/Web/View/</td><td>Html template files</td></tr>
+<tr><td>static/</td><td>Images, css and javascript files</td></tr>
+<tr><td>.ghci</td><td>Default config file for the haskell interpreter</td></tr>
+<tr><td>.gitignore</td><td>List of files to be ignored by git</td></tr>
+<tr><td>App.cabal, Setup.hs</td><td>Config for the cabal package manager (TODO: maybe move to Config/App.cabal)</td></tr>
+<tr><td>default.nix</td><td>Declares your app dependencies (like package.json or composer.json)</td></tr>
+<tr><td>Makefile</td><td>Default config file for the make build system</td></tr>
+</tbody>
+</table>
+<h3 id="2-hello-world">2. Hello, World!</h3>
+<p>You now already have a working haskell app ready to be started
+You can start the development server by running this in the <code>Blog</code> directory:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span>
+</code></pre></div>
+<p>Your app is now running at <a href="http://localhost:8000/">http://localhost:8000</a>.
+The server can be stopped by pressing CTRL+C.</p>
+<h3 id="3-data-structures-postgresql">3. Data Structures &amp; PostgreSQL</h3>
+<h5 id="schema-modeling">Schema Modeling</h5>
+<p>For our blog we’re going to deal with posts. A post has a title and a body. As we are dealing with a database we also need an id. We are using UUIDs instead of the typical numerics ids for this.</p>
+<p>A <code>posts</code> table in a PostgreSQL database could loke like this:</p>
+<table>
+<thead>
+<tr><th>id :: UUID</th><th>title :: Text</th><th>body :: Text</th></tr>
+</thead>
+<tbody>
+<tr><td>8d040c2d-0199-4695-ac13-c301970cff1d</td><td>My Experience With Nix On OS X</td><td>Some time ago, I’ve moved this jekyll-based blog …</td></tr>
+<tr><td>b739bc7c-5ed1-43f4-944c-385aea80f182</td><td>Deploying Private GitHub Repositories To NixOS Servers</td><td>In a previous post I’ve already shared a way to deploy private git repositories to a NixOS based server. While …</td></tr>
+</tbody>
+</table>
+<p>To work with posts in our application, we now have to declare this data schema.
+Open <code>src/Model/Schema.hs</code> and add the following code:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Model.Schema</span><span> </span><span class="kw">where</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">ClassyPrelude</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="sy">(</span><span class="op">&lt;&gt;</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="cr">Bool</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">)</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Foundation.SchemaSupport</span><span>
 
-    <!-- Optional JavaScript -->
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+</span><span class="va">database</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[</span><span>
+    </span><span class="va">table</span><span> </span><span class="st">&quot;posts&quot;</span><span>
+        </span><span class="op">+</span><span> </span><span class="va">field</span><span> </span><span class="st">&quot;id&quot;</span><span> </span><span class="va">primaryKey</span><span>
+        </span><span class="op">+</span><span> </span><span class="va">field</span><span> </span><span class="st">&quot;title&quot;</span><span> </span><span class="va">text</span><span>
+        </span><span class="op">+</span><span> </span><span class="va">field</span><span> </span><span class="st">&quot;body&quot;</span><span> </span><span class="va">text</span><span>
+    </span><span class="sy">]</span><span>
+</span></code></pre></div>
+<h5 id="loading-the-schema">Loading the Schema</h5>
+<p>Next we need to create the <code>posts</code> table in our local postgresql database.
+Don’t worry, the local development postgresql server is already running. The dev server has conveniently already started it.</p>
+<p>Take a look at <code>src/Model/Schema.sql</code>. The dev server has auto-generated a <code>CREATE TABLE</code>-statement for us:</p>
+<div class="source-code"><pre><code class="language-sql"><span class="kw">CREATE</span><span> EXTENSION </span><span class="cf">IF</span><span> </span><span class="kw">NOT</span><span> </span><span class="kw">EXISTS</span><span> </span><span class="ot">&quot;uuid-ossp&quot;</span><span>;</span>
+
+<span class="co">-- Please don&#39;t make any modifications to this file as it&#39;s auto generated. Use src/Model/Schema.hs to change the schema</span>
+<span class="kw">CREATE</span><span> </span><span class="kw">TABLE</span><span> posts (</span>
+<span>    </span><span class="kw">id</span><span> UUID </span><span class="kw">DEFAULT</span><span> uuid_generate_v4() </span><span class="kw">PRIMARY</span><span> </span><span class="kw">KEY</span><span> </span><span class="kw">NOT</span><span> </span><span class="kw">NULL</span><span>,</span>
+<span>    title TEXT </span><span class="kw">NOT</span><span> </span><span class="kw">NULL</span><span>,</span>
+<span>    </span><span class="kw">body</span><span> TEXT </span><span class="kw">NOT</span><span> </span><span class="kw">NULL</span>
+<span>);</span>
+</code></pre></div>
+<p>We just need to load this sql statement into our database. Open your terminal and run:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span><span> db</span>
+</code></pre></div>
+<p>The <code>posts</code> table has been created now. Let’s quickly connect to our database and see that everything is correct:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span><span> psql</span>
+
+<span class="ex">psql</span><span> (9.6.12)</span>
+<span class="ex">Type</span><span> </span><span class="st">&quot;help&quot;</span><span> for help.</span>
+
+<span class="ex">--</span><span> Let</span><span class="st">&#39;s do a query to check that the table is there</span>
+
+<span class="st">app=# select * from posts;</span>
+
+<span class="st"> id | title | body</span>
+<span class="st">----+-------+------</span>
+<span class="st">(0 rows)</span>
+
+<span class="st">-- Look&#39;</span><span>s alright! :)</span>
+
+
+
+<span class="ex">--</span><span> We can quit the postgresql console by typing \q</span>
+
+<span class="va">app=</span><span># \</span><span class="ex">q</span>
+</code></pre></div>
+<p>Now our database is ready to be consumed by our app.</p>
+<h5 id="record-types">Record Types</h5>
+<p>By specificing the above schema, the framework automatically provides several types for us. Here is a short overview:</p>
+<table>
+<thead>
+<tr><th style="text-align:right">Type</th><th><code>Post&#39; id title body</code></th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align:right">Definition</td><td><code>data Post&#39; id title body = Post {id :: id, title :: title, body :: body}</code></td></tr>
+<tr><td style="text-align:right">Description</td><td>A helper type used by all the “real” types. All the content is variable</td></tr>
+<tr><td style="text-align:right">Example</td><td><code>Post { id = (), title = &quot;Hello&quot;, body = () } :: Post&#39; () Text ()</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>Type</th><th><code>Post</code></th></tr>
+</thead>
+<tbody>
+<tr><td>Definition</td><td><code>type Post = Post&#39; (Id Post) Text Text</code></td></tr>
+<tr><td>Description</td><td>A Post record from the database</td></tr>
+<tr><td>Example</td><td><code>Post { id = cfefdc6c-c097-414c-91c0-cbc9a79fbe4f, title = &quot;Hello World&quot;, body = &quot;Some body text&quot; } :: Post</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>Type</th><th><code>NewPost</code></th></tr>
+</thead>
+<tbody>
+<tr><td>Definition</td><td><code>type NewPost = Post&#39; (FieldWithDefault (Id Post)) Text Text</code></td></tr>
+<tr><td>Description</td><td>Post which is not yet saved to the database</td></tr>
+<tr><td>Example</td><td><code>Post { id = Default, title = &quot;My new Post&quot;, body = &quot;Hello World&quot; } :: NewPost</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>Type</th><th><code>Id Post</code></th></tr>
+</thead>
+<tbody>
+<tr><td>Definition</td><td><code>newtype Id Post = Id UUID</code></td></tr>
+<tr><td>Description</td><td>Type for the <code>id</code> field</td></tr>
+<tr><td>Example</td><td><code>pack (read &quot;5a8d1be2-33e3-4d3f-9812-b16576fe6a38&quot; :: UUID) :: Id Post</code></td></tr>
+</tbody>
+</table>
+<h3 id="4-apps-controllers-views">4. Apps, Controllers, Views</h3>
+<p>Interactive Lambda uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.</p>
+<p>A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.</p>
+<p>First we need to go to the Web app directory:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="bu">cd</span><span> src/Apps/Web/</span>
+</code></pre></div>
+<p>Now we can run the code generator:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">gen/controller</span><span> Posts</span>
+
+<span class="ex">+</span><span> src/Apps/Web/Controller/Posts.hs</span>
+<span class="ex">*</span><span> src/Apps/Web/Routes.hs</span>
+<span class="ex">*</span><span> src/Apps/Web/Types.hs</span>
+<span class="ex">*</span><span> src/Apps/Web/App.hs (import)</span>
+<span class="ex">*</span><span> src/Apps/Web/App.hs (import)</span>
+<span class="ex">+</span><span> src/Apps/Web/View/Posts/Show.hs</span>
+<span class="ex">+</span><span> src/Apps/Web/View/Posts/New.hs</span>
+<span class="ex">+</span><span> src/Apps/Web/View/Posts/Edit.hs</span>
+<span class="ex">+</span><span> src/Apps/Web/View/Posts/Index.hs</span>
+</code></pre></div>
+<p>You can see that lot’s of files have been created and updated.</p>
+<p>Open your browser at <a href="http://localhost:8000/">http://localhost:8000/</a> to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.</p>
+<h5 id="new-types">New Types</h5>
+<p>Let’s first take a closer look at the changes in <code>src/Apps/Web/Types.hs</code>. Here a new data structures was created:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">data</span><span> </span><span class="cr">PostsController</span><span>
+    </span><span class="sy">=</span><span> </span><span class="cr">PostsAction</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">NewPostAction</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">ShowPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">::</span><span> </span><span class="sy">!</span><span class="sy">(</span><span class="cr">Id</span><span> </span><span class="cr">Post</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">CreatePostAction</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">::</span><span> </span><span class="sy">!</span><span class="sy">(</span><span class="cr">Id</span><span> </span><span class="cr">Post</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">UpdatePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">::</span><span> </span><span class="sy">!</span><span class="sy">(</span><span class="cr">Id</span><span> </span><span class="cr">Post</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">DeletePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">::</span><span> </span><span class="sy">!</span><span class="sy">(</span><span class="cr">Id</span><span> </span><span class="cr">Post</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
+    </span><span class="kw">deriving</span><span> </span><span class="sy">(</span><span class="cr">Eq</span><span class="sy">,</span><span> </span><span class="cr">Show</span><span class="sy">,</span><span> </span><span class="cr">Generic</span><span class="sy">,</span><span> </span><span class="cr">Data</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<p>We have one constructor for each possible action. Here you can see a short description for all the constructors:</p>
+<table>
+<thead>
+<tr><th>Action</th><th>Request</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>PostsAction</code></td><td><code>GET /Posts</code></td><td>Lists all posts</td></tr>
+<tr><td><code>NewPostAction</code></td><td><code>GET /Posts/new</code></td><td>Displays the form to create a post</td></tr>
+<tr><td><code>ShowPostAction { postId = someId }</code></td><td><code>GET /Posts/{someId}</code></td><td>Shows the posts with id $someId</td></tr>
+<tr><td><code>CreatePostAction</code></td><td><code>POST /Posts</code></td><td>Endpoint to create a Post</td></tr>
+<tr><td><code>EditPostAction { postId = someId }</code></td><td><code>GET /Posts/{someId}/edit</code></td><td>Displays the form to edit a post</td></tr>
+<tr><td><code>UpdatePostAction { postId = someId }</code></td><td><code>POST /Posts/{someId}</code></td><td>Endpoint to submit a post update</td></tr>
+<tr><td><code>DeletePostAction { postId = someId }</code></td><td><code>DELETE /Posts/{someId}</code></td><td>Deletes the post</td></tr>
+</tbody>
+</table>
+<p>A request like “Show me the post with id <code>e57cfb85-ad55-4d5c-b3b6-3affed9c662c</code>“ can be represented like <code>ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }</code>.</p>
+<p>The type <code>Id Post</code> is just a UUID, but wrapped within a newtype (<code>newtype Id model = Id UUID</code>).</p>
+<h5 id="controller-implementation">Controller Implementation</h5>
+<p>The actual code running, when an action is executed, is defined in <code>src/Apps/Web/Controller/Posts.hs</code>. Let’s take a look, step by step.</p>
+<h6 id="imports">Imports</h6>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Apps.Web.Controller.Posts</span><span> </span><span class="kw">where</span><span>
+
+</span><span class="kw">import</span><span> </span><span class="cr">Apps.Web.Controller.Prelude</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Apps.Web.View.Posts.Index</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Apps.Web.View.Posts.New</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Apps.Web.View.Posts.Edit</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Apps.Web.View.Posts.Show</span><span>
+</span></code></pre></div>
+<p>In the header we just see some imports. Controllers always import a special <code>Apps.Web.Controller.Prelude</code> module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just “normal” haskell modules.</p>
+<h6 id="changeset">ChangeSet</h6>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">type</span><span> </span><span class="kw">instance</span><span> </span><span class="cr">ChangeSet</span><span> </span><span class="cr">Post</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[</span><span class="st">&quot;title&quot;</span><span class="sy">,</span><span> </span><span class="st">&quot;body&quot;</span><span class="sy">]</span><span>
+</span><span class="kw">type</span><span> </span><span class="kw">instance</span><span> </span><span class="cr">ChangeSet</span><span> </span><span class="cr">NewPost</span><span> </span><span class="sy">=</span><span> </span><span class="cr">ChangeSet</span><span> </span><span class="cr">Post</span><span>
+</span></code></pre></div>
+<p>Here we can see the list of fields which can be modified or set by the controller. Sometimes you don’t want to allow specific fields to be changed by a controller (e.g. a <code>createdAt</code> field should not be set from the user).</p>
+<p>The second line specifies that when creating a new post (<code>NewPost</code>), the same attributes are allowed as when updating an existing post.</p>
+<h6 id="instance">Instance</h6>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">Controller</span><span> </span><span class="cr">PostsController</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+</span></code></pre></div>
+<p>The controller logic is specified by implementing an instance of the <code>Controller</code> type-class. Don’t worry about the <code>ControllerContext</code> parameter, we will get back to that later on.</p>
+<h6 id="index-action">Index Action</h6>
+<p>This is where the interesting part begins. As we will see below, the controller implementation is just an <code>action</code> function, pattern mattching over our <code>data PostsController</code> structure we defined in <code>src/Apps/Web/Types.hs</code>.</p>
+<div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">PostsAction</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">posts</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Post</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+        </span><span class="va">render</span><span> </span><span class="cr">IndexView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>This is the index action. It’s called when opening <code>/Posts</code>. First it fetches all the posts from the database and then passes it along to the view. The <code>IndexView { .. }</code> is just shorthand for <code>IndexView { posts = posts }</code>.</p>
+<h6 id="new-action">New Action</h6>
+<div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">NewPostAction</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="kw">let</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">newRecord</span><span>
+        </span><span class="va">render</span><span> </span><span class="cr">NewView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>This is our endpoint for <code>/Posts/new</code>. It just creates an empty new post and then passes it to the <code>NewView</code>. The <code>newRecord</code> is giving us an empty <code>Post</code> model. It’s equivalent to manually writing <code>Post { id = Default, title = &quot;&quot;, body = &quot;&quot; }</code>.</p>
+<h6 id="show-action">Show Action</h6>
+<div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">ShowPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
+        </span><span class="va">render</span><span> </span><span class="cr">ShowView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>This is our show action at <code>/Posts/{postId}</code>. Here we pattern match on the <code>postId</code> field of <code>ShowPostAction</code> to get post id of the given request. Then we just call <code>fetch</code> on that <code>postId</code> which gives us the specific <code>Post</code> record. Then we just pass that post to the view.</p>
+<h6 id="edit-action">Edit Action</h6>
+<div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
+        </span><span class="va">render</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>Our <code>/Posts/{postId}/edit</code> action. It’s pretty much the same as in the <code>action ShowPostAction</code>, just with a different view.</p>
+<h6 id="update-action">Update Action</h6>
+<div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">UpdatePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
+        </span><span class="va">fromParams&#39;</span><span> </span><span class="va">post</span><span> </span><span class="op">&gt;&gt;=</span><span> </span><span class="sy">\</span><span class="sy">case</span><span>
+            </span><span class="cr">Left</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+            </span><span class="cr">Right</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
+                </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">updateRecord</span><span> </span><span class="va">post</span><span>
+                </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post updated&quot;</span><span>
+                </span><span class="va">redirectTo</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>This action deals with update requests for a specific post. As usual we pattern match on the <code>postId</code> and fetch it.</p>
+<p>The interesting part is <code>fromParams&#39; post</code>. The <code>fromParams&#39;</code> function reads in the updated fields from the request and sets the value on the passed <code>post</code> record. It only passes the fields specified by <code>ChangeLog Post</code>, so only <code>title</code> and <code>body</code>. It also checks for validation errors after setting the attributes (we will learn more about this later).</p>
+<p><code>fromParams&#39; post</code> returns <code>Either Post Post</code>. <code>Left post</code> means that e.g. the <code>title</code> or <code>body</code> did not pass validation. <code>Right post</code> means that all parameters could be set on <code>post</code> without any errors.</p>
+<p>In the error case (<code>Left post -&gt;</code>) we just re-render the <code>EditView</code>. The <code>EditView</code> then tells the user about alidation errors.</p>
+<p>In the success case (<code>Right post -&gt;</code>) we save the updated post to the database (with <code>updateRecord</code>). Then we set a success message and redirect the user back to the edit view.</p>
+<div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">CreatePostAction</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">fromParams</span><span> </span><span class="sy">@</span><span class="cr">NewPost</span><span> </span><span class="op">&gt;&gt;=</span><span> </span><span class="sy">\</span><span class="sy">case</span><span>
+            </span><span class="cr">Left</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">NewView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span> 
+            </span><span class="cr">Right</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
+                </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">createRecord</span><span> </span><span class="va">post</span><span>
+                </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post created&quot;</span><span>
+                </span><span class="va">redirectTo</span><span> </span><span class="cr">PostsAction</span><span>
+</span></code></pre></div>
+<p>Our create action, dealing with <code>POST /Posts</code> requests.</p>
+<p>It’s pretty much like the update action. The <code>fromParams @NewPost</code> is just shorthand for <code>fromParams&#39; (newRecord @NewPost)</code>.</p>
+<div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">DeletePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
+        </span><span class="va">deleteRecord</span><span> </span><span class="va">post</span><span>
+        </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post deleted&quot;</span><span>
+        </span><span class="va">redirectTo</span><span> </span><span class="cr">PostsAction</span><span>
+</span></code></pre></div>
+<p>The last action is dealing with <code>DELETE /Posts/{postId}</code> requests. It’s pretty much like the other actions, we just call <code>deleteRecord</code> here.</p>
+<h5 id="routes">Routes</h5>
+<p>The router is configured in <code>src/Apps/Web/Routes.hs</code>. The generator just places a single line there:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">RestfulController</span><span> </span><span class="cr">PostsController</span><span>
+</span></code></pre></div>
+<p>This empty instance magically sets up the routing as you would have expected from a RESTful controller.</p>
+<h5 id="views">Views</h5>
+<p>We should also quickly take a look at our views.</p>
+<p>Let first look at the show view in <code>src/Apps/Web/View/Posts/Show.hs</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Apps.Web.View.Posts.Show</span><span> </span><span class="kw">where</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Apps.Web.View.Prelude</span><span>
+
+</span><span class="kw">data</span><span> </span><span class="cr">ShowView</span><span> </span><span class="sy">=</span><span> </span><span class="cr">ShowView</span><span> </span><span class="sy">{</span><span> </span><span class="va">post</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Post</span><span> </span><span class="sy">}</span><span>
+
+</span><span class="kw">instance</span><span> </span><span class="cr">View</span><span> </span><span class="cr">ShowView</span><span> </span><span class="kw">where</span><span>
+    </span><span class="kw">type</span><span> </span><span class="cr">ViewContextForView</span><span> </span><span class="cr">ShowView</span><span> </span><span class="sy">=</span><span> </span><span class="cr">ViewContext</span><span>
+    </span><span class="va">html</span><span> </span><span class="cr">ShowView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[hsx|
+        &lt;nav&gt;
+            &lt;ol class=&quot;breadcrumb&quot;&gt;
+                &lt;li class=&quot;breadcrumb-item&quot;&gt;&lt;a href={PostsAction}&gt;Posts&lt;/a&gt;&lt;/li&gt;
+                &lt;li class=&quot;breadcrumb-item active&quot;&gt;Show Post&lt;/li&gt;
+            &lt;/ol&gt;
+        &lt;/nav&gt;
+        &lt;h1&gt;Show Post&lt;/h1&gt;
+    |]</span><span>
+</span></code></pre></div>
+<p>We can see that the <code>ShowView</code> is just a data definition. There is also an <code>View ShowView</code> instance. The html-like syntax inside the <code>html</code> function is, what we call it, <code>hsx</code> code. It’s just like react’s jsx. You can write html code as usual there. Everything inside the <code>[hsx|my html|]</code> block is also type-checked and converted to haskell code at compile-time.</p>
+<p>Now that we have a rough overview of all the parts belonging to our <code>Post</code>, it’s time to do some coding ourselves.</p>
+<h3 id="5-extending-the-blog">5. Extending the Blog</h3>
+<p>The generated controller already feels close to a super simple blog. Now it’s time to make it more beautiful.</p>
+<h4 id="creating-a-post">Creating a Post</h4>
+<p>First we quickly need to create a new blog post. Open <a href="http://localhost:8000/Posts">http://localhost:8000/Posts</a> and click on “+ New”. Then enter <code>Hello World!</code> into the “Title” field and <code>Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam</code> into “Body”.</p>
+<p>Click “Save Post”. You should now see the new post listed on the index view.</p>
+<h4 id="displaying-a-post">Displaying a Post</h4>
+<p>Let’s first improve the show view. Right now the headline is “Show Post”, and the actual Post body is never shown.</p>
+<p>Open the <code>src/Apps/Web/View/Posts/Show.hs</code> and replace <code>&lt;h1&gt;Show Post&lt;/h1&gt;</code> with <code>&lt;h1&gt;{get #title post}&lt;/h1&gt;</code>. Also add a <code>&lt;div&gt;{get #body post}&lt;/div&gt;</code> below the <code>&lt;h1&gt;</code>.</p>
+<p>The hsx code should now look like this:</p>
+<div class="source-code"><pre><code class="language-html"><span class="kw">&lt;nav&gt;</span>
+<span>    </span><span class="kw">&lt;ol</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb&quot;</span><span class="kw">&gt;</span>
+<span>        </span><span class="kw">&lt;li</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb-item&quot;</span><span class="kw">&gt;&lt;a</span><span class="ot"> href=</span><span class="st">{PostsAction}</span><span class="kw">&gt;</span><span>Posts</span><span class="kw">&lt;/a&gt;&lt;/li&gt;</span>
+<span>        </span><span class="kw">&lt;li</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb-item active&quot;</span><span class="kw">&gt;</span><span>Show Post</span><span class="kw">&lt;/li&gt;</span>
+<span>    </span><span class="kw">&lt;/ol&gt;</span>
+<span class="kw">&lt;/nav&gt;</span>
+<span class="kw">&lt;h1&gt;</span><span>{get #title post}</span><span class="kw">&lt;/h1&gt;</span>
+<span class="kw">&lt;div&gt;</span><span>{get #body post}</span><span class="kw">&lt;/div&gt;</span>
+</code></pre></div>
+<p>After you saved the changes, you should see that the changes have been reflected in the browser already. In the background the page has been refreshed automatically (technically the page has been patched using a vdom library).</p>
+<h4 id="display-all-posts">Display all posts</h4>
+<p>After creating your post, you should have already seen that posts list is right now displaying all the post fields. Let’s change it to only display the post’s title.</p>
+<p>Open the <code>src/Apps/Web/View/Posts/Index.hs</code> and replace <code>&lt;td&gt;{post}&lt;/td&gt;</code> with <code>&lt;td&gt;{get #title post}&lt;/td&gt;</code>.</p>
+<p>Let’s also make it clickable by wrapping it in a link. We can just put a <code>&lt;a href={ShowPostAction (get #id post)}&gt;</code> around it. The line should now look like <code>&lt;td&gt;&lt;a href={ShowPostAction (get #id post)}&gt;{get #title post}&lt;/a&gt;&lt;/td&gt;</code>.</p>
+<p>Now we can also remove the “Show” link. We can do that by removing the next line <code>&lt;td&gt;&lt;a href={ShowPostAction (get #id post)}&gt;Show&lt;/a&gt;&lt;/td&gt;</code>.</p>
+<h4 id="adding-validation">Adding Validation</h4>
+<p>Let’s make sure that every post has atleast a title. Validations can be defined inside <code>src/Apps/Web/Validation.hs</code>.</p>
+<p>You should see an instance like this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateNothing</span><span>
+</span></code></pre></div>
+<p>Replace <code>validateNothing</code> with <code>validateField2 #title nonEmpty</code>.</p>
+<p>The instance should now look like this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateField2</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
+</span></code></pre></div>
+<p>Now open <a href="http://localhost:8000/Posts/new">http://localhost:8000/Posts/new</a> and click “Save Post” without filling the text fields. You will get a “This field cannot be empty”.</p>
+<p>That’s how easy it is, to validate your models with interactive lambda.</p>
+<h4 id="timestamps">Timestamps</h4>
+<p>It would be nice to always show the latest post on the index view. Let’s add a timestamp to do exactly that.</p>
+<p>Before we change our database schema, it’s time to quickly save our current database state. For that you can just run <code>make dump_db</code>:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span><span> dump_db</span>
+</code></pre></div>
+<p>Take a look at <code>src/Model/Fixtures.sql</code>, the file should look like this now:</p>
+<div class="source-code"><pre><code class="language-sql"><span class="co">-- .......</span>
+<span class="co">-- .......</span>
+
+<span class="kw">INSERT</span><span> </span><span class="kw">INTO</span><span> </span><span class="kw">public</span><span>.posts </span><span class="kw">VALUES</span><span> (</span><span class="st">&#39;fcbd2232-cdc2-4d0c-9312-1fd94448d90a&#39;</span><span>, </span><span class="st">&#39;Hello World!&#39;</span><span>, </span><span class="st">&#39;Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam&#39;</span><span>);</span>
+
+</code></pre></div>
+<p>All our existing posts are saved here. You can also commit this file to git to share your fixtures with your team mates. We will need the saved fixtures in a moment.</p>
+<p>Let’s add our timestamp column. Open <code>src/Model/Schema.hs</code> and add <code>+ field &quot;created_at&quot; timestamp { defaultValue = Just (SqlDefaultValue &quot;NOW()&quot;) }</code> to the <code>posts</code> table. We set the column value to <code>NOW()</code> by default, so the <code>created_at</code> field is automatically set to the current time.</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">table</span><span> </span><span class="st">&quot;posts&quot;</span><span>
+    </span><span class="op">+</span><span> </span><span class="va">field</span><span> </span><span class="st">&quot;id&quot;</span><span> </span><span class="va">primaryKey</span><span>
+    </span><span class="op">+</span><span> </span><span class="va">field</span><span> </span><span class="st">&quot;title&quot;</span><span> </span><span class="va">text</span><span>
+    </span><span class="op">+</span><span> </span><span class="va">field</span><span> </span><span class="st">&quot;body&quot;</span><span> </span><span class="va">text</span><span>
+    </span><span class="op">+</span><span> </span><span class="va">field</span><span> </span><span class="st">&quot;created_at&quot;</span><span> </span><span class="va">timestamp</span><span> </span><span class="sy">{</span><span> </span><span class="va">defaultValue</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Just</span><span> </span><span class="sy">(</span><span class="cr">SqlDefaultValue</span><span> </span><span class="st">&quot;NOW()&quot;</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>Now open the browser again. You will see <code>Something went wrong</code>. In the dev server console you will see something along <code>mismatch between number of columns to convert and number in target type</code>.</p>
+<p>The application now expects the <code>created_at</code> field to be set inside the database. Our <code>posts</code> table does not know about that column yet.</p>
+<p>Run the following command to fix that:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span><span> db</span>
+</code></pre></div>
+<p>This command will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to <code>src/Model/Fixtures.sql</code> a moment ago.</p>
+<p>You can open <a href="http://localhost:8000/Posts">http://localhost:8000/Posts</a> again. The error is gone now.</p>
+<p>Now we can order the posts by our new <code>created_at</code> field. Open <code>src/Apps/Web/Controller/Posts.hs</code> and add <code>orderByDesc #createdAt</code> like this inside the <code>action PostsAction</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">action</span><span> </span><span class="cr">PostsAction</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">posts</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Post</span><span>
+        </span><span class="op">|&gt;</span><span> </span><span class="va">orderByDesc</span><span> </span><span class="va">#createdAt</span><span>
+        </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+    </span><span class="va">render</span><span> </span><span class="cr">IndexView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>Let’s also show the creation time in the <code>ShowView</code> in <code>src/Apps/Web/View/Posts/Show.hs</code>. There we add <code>&lt;p&gt;{timeAgo (get #createdAt post)}&lt;/p&gt;</code> below the title:</p>
+<div class="source-code"><pre><code class="language-html"><span class="kw">&lt;nav&gt;</span>
+<span>    </span><span class="kw">&lt;ol</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb&quot;</span><span class="kw">&gt;</span>
+<span>        </span><span class="kw">&lt;li</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb-item&quot;</span><span class="kw">&gt;&lt;a</span><span class="ot"> href=</span><span class="st">{PostsAction}</span><span class="kw">&gt;</span><span>Posts</span><span class="kw">&lt;/a&gt;&lt;/li&gt;</span>
+<span>        </span><span class="kw">&lt;li</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb-item active&quot;</span><span class="kw">&gt;</span><span>Show Post</span><span class="kw">&lt;/li&gt;</span>
+<span>    </span><span class="kw">&lt;/ol&gt;</span>
+<span class="kw">&lt;/nav&gt;</span>
+<span class="kw">&lt;h1&gt;</span><span>{get #title post}</span><span class="kw">&lt;/h1&gt;</span>
+<span class="kw">&lt;p&gt;</span><span>{timeAgo (get #createdAt post)}</span><span class="kw">&lt;/p&gt;</span>
+<span class="kw">&lt;div&gt;</span><span>{get #body post}</span><span class="kw">&lt;/div&gt;</span>
+</code></pre></div>
+<p>Open the view to check that it’s working. If everything is fine, you will see something like <code>5 minutes ago</code> below the title. The <code>timeAgo</code> helper uses a bit of javascript to automatically displays the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like <code>10.6.2019, 15:58 Uhr</code>), just use <code>dateTime</code> instead of <code>timeAgo</code>.</p>
+<h1 id="querybuilder-reference">QueryBuilder Reference</h1>
+<p>You can compose database queries using the QueryBuilder module.</p>
+<h2 id="creating-a-new-query">Creating a new query</h2>
+<p>To query the database for some records, you first need to build a query.
+You can just use the <code>query</code> function for that.</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">myQueryBuilder</span><span> </span><span class="sy">=</span><span> </span><span class="va">query</span><span>
+</span></code></pre></div>
+<p>You can optionally specify the model you want to query:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">myProjectQueryBuilder</span><span> </span><span class="sy">=</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span>
+</span></code></pre></div>
+<h2 id="running-a-query">Running a query</h2>
+<p>You can run a query using <code>fetch</code>, <code>fetchOneOrNothing</code> or <code>fetchOne</code>:</p>
+<h3 id="many-rows-fetch">many rows: <code>fetch</code></h3>
+<p>To run a query which will return many rows use <code>fetch</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">example</span><span> </span><span class="sy">::</span><span> </span><span class="cr">IO</span><span> </span><span class="sy">[</span><span class="cr">Project</span><span class="sy">]</span><span>
+</span><span class="va">example</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+    </span><span class="co">-- Query: `SELECT * FROM projects`</span><span>
+    </span><span class="va">return</span><span> </span><span class="va">projects</span><span>
+</span></code></pre></div>
+<h3 id="maybe-single-row-fetchoneornothing">maybe single row: <code>fetchOneOrNothing</code></h3>
+<p>To run a query which will maybe return a single row use <code>fetchOneOrNothing</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">example</span><span> </span><span class="sy">::</span><span> </span><span class="cr">IO</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="cr">Project</span><span class="sy">)</span><span>
+</span><span class="va">example</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOneOrNothing</span><span>
+    </span><span class="co">-- Query: `SELECT * FROM projects LIMIT 1`</span><span>
+    </span><span class="va">return</span><span> </span><span class="va">project</span><span>
+</span></code></pre></div>
+<h3 id="single-row-fetchone">single row: <code>fetchOne</code></h3>
+<p>To run a query which will return a single and <strong>throws an error if no record is found</strong> row use <code>fetchOne</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">example</span><span> </span><span class="sy">::</span><span> </span><span class="cr">IO</span><span> </span><span class="cr">Project</span><span>
+</span><span class="va">example</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOne</span><span>
+    </span><span class="co">-- Query: `SELECT * FROM projects LIMIT 1`</span><span>
+    </span><span class="va">return</span><span> </span><span class="va">project</span><span>
+</span></code></pre></div>
+<h2 id="where-conditions">Where Conditions</h2>
+<p>To specify <code>WHERE</code> conditions, you can use <code>filterWhere</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">projectsByUser</span><span> </span><span class="sy">::</span><span> </span><span class="cr">UserId</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">IO</span><span> </span><span class="sy">[</span><span class="cr">Project</span><span class="sy">]</span><span>
+</span><span class="va">projectsByUser</span><span> </span><span class="va">userId</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span>
+            </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span>
+            </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">deleted</span><span class="sy">,</span><span> </span><span class="cr">False</span><span class="sy">)</span><span>
+            </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+    </span><span class="co">-- Query: `SELECT * FROM projects WHERE user_id = &lt;userId&gt; AND deleted = false`</span><span>
+    </span><span class="va">return</span><span> </span><span class="va">projects</span><span>
+</span></code></pre></div>
+<h2 id="order-by">Order By</h2>
+<p>You can just use <code>orderBy #field</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span>
+        </span><span class="op">|&gt;</span><span> </span><span class="va">orderBy</span><span> </span><span class="va">#createdAt</span><span>
+        </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+</span><span class="co">-- Query: `SELECT * FROM projects ORDER BY created_at`</span><span>
+</span></code></pre></div>
+<h2 id="or">Or</h2>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span>
+         </span><span class="op">|&gt;</span><span> </span><span class="va">queryOr</span><span>
+            </span><span class="sy">(</span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span class="sy">)</span><span> </span><span class="sy">(</span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">teamId</span><span class="sy">,</span><span> </span><span class="va">teamId</span><span class="sy">)</span><span class="sy">)</span><span>
+        </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+</span><span class="co">-- Query: `SELECT * FROM projects WHERE (user_id = ?) OR (team_id = ?)`</span><span>
+</span></code></pre></div>
+<h2 id="union-merging-two-queries">Union / Merging two queries</h2>
+<p>Two query builders of the same type can be merged like this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="co">-- SELECT * FROM projects WHERE team_id = ?</span><span>
+</span><span class="kw">let</span><span> </span><span class="va">teamProjects</span><span> </span><span class="sy">::</span><span> </span><span class="cr">QueryBuilder</span><span> </span><span class="cr">Project</span><span> </span><span class="sy">=</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">teamId</span><span class="sy">,</span><span> </span><span class="va">teamId</span><span class="sy">)</span><span>
+
+</span><span class="co">-- SELECT * FROM projects WHERE team_id IS NULL AND created_by = ?</span><span>
+</span><span class="kw">let</span><span> </span><span class="va">personalProjects</span><span> </span><span class="sy">::</span><span> </span><span class="cr">QueryBuilder</span><span> </span><span class="cr">Project</span><span> </span><span class="sy">=</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">teamId</span><span class="sy">,</span><span> </span><span class="cr">Nothing</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">createdBy</span><span class="sy">,</span><span> </span><span class="va">currentUserId</span><span class="sy">)</span><span>
+
+</span><span class="co">-- SELECT * FROM projects WHERE (team_id = ?) OR (team_id IS NULL AND created_by = ?)</span><span>
+</span><span class="kw">let</span><span> </span><span class="va">projects</span><span> </span><span class="sy">::</span><span> </span><span class="cr">QueryBuilder</span><span> </span><span class="cr">Project</span><span> </span><span class="sy">=</span><span> </span><span class="va">queryUnion</span><span> </span><span class="va">teamProjects</span><span> </span><span class="va">personalProjects</span><span>
+</span></code></pre></div>
+<h2 id="shortcuts">Shortcuts</h2>
+<h3 id="findby-field-value"><code>findBy #field value</code></h3>
+<p>Just a shortcut for <code>filterWhere (#field, value) |&gt; fetchOne</code></p>
+<div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
+</span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOne</span><span>
+</span><span class="co">-- Shorter version</span><span>
+</span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findBy</span><span> </span><span class="va">#userId</span><span> </span><span class="va">userId</span><span>
+</span></code></pre></div>
+<h3 id="findmaybeby-field-value"><code>findMaybeBy #field value</code></h3>
+<p>Just a shortcut for <code>filterWhere (#field, value) |&gt; fetchOneOrNothing</code></p>
+<div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
+</span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOneOrNothing</span><span>
+</span><span class="co">-- Shorter version</span><span>
+</span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findMaybeBy</span><span> </span><span class="va">#userId</span><span> </span><span class="va">userId</span><span>
+</span></code></pre></div>
+<h3 id="findbyid-id"><code>findById id</code></h3>
+<p>Just a shortcut for <code>filterWhere (#id, id) |&gt; fetchOne</code></p>
+<div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
+</span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">id</span><span class="sy">,</span><span> </span><span class="va">id</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOne</span><span>
+</span><span class="co">-- Shorter version</span><span>
+</span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findOneById</span><span> </span><span class="va">#id</span><span> </span><span class="va">id</span><span>
+</span></code></pre></div>
+<h3 id="findmanyby-field-value"><code>findManyBy #field value</code></h3>
+<p>Just a shortcut for <code>filterWhere (#field, value) |&gt; fetch</code></p>
+<div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
+</span><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+</span><span class="co">-- Shorter version</span><span>
+</span><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findManyBy</span><span> </span><span class="va">#userId</span><span> </span><span class="va">userId</span><span>
+</span></code></pre></div>
+<h2 id="projectid-fetch"><code>projectId |&gt; fetch</code></h2>
+<p>Ids also have <code>fetch</code> implementations, that way you can just run:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">projectId</span><span> </span><span class="sy">::</span><span> </span><span class="cr">ProjectId</span><span> </span><span class="sy">=</span><span> </span><span class="op">...</span><span>
+</span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">projectId</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
+</span></code></pre></div>
+<p>For convience there is also a <code>fetch</code> implementation for <code>Maybe SomeId</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">assignedUserId</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Maybe</span><span> </span><span class="cr">UserId</span><span> </span><span class="sy">=</span><span> </span><span class="va">project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">get</span><span> </span><span class="va">#assignedUserId</span><span>
+</span><span class="va">assignedUser</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">assignedUserId</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOneOrNothing</span><span>
+</span></code></pre></div>
+<h2 id="raw-sql-queries">Raw SQL Queries</h2>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">result</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">sqlQuery</span><span> </span><span class="st">&quot;SELECT * FROM projects WHERE id = ?&quot;</span><span> </span><span class="sy">(</span><span class="cr">Only</span><span> </span><span class="va">id</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<h1 id="validation-reference">Validation Reference</h1>
+<h2 id="pure-validations">Pure Validations</h2>
+<p>With <code>validateField2</code> you can do simple, pure validations.</p>
+<p>Here are some examples:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateField2</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
+        </span><span class="va">validateField2</span><span> </span><span class="va">#phone</span><span> </span><span class="va">isPhoneNumber</span><span>
+        </span><span class="va">validateField2</span><span> </span><span class="va">#email</span><span> </span><span class="va">isEmail</span><span>
+        </span><span class="kw">let</span><span> </span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span> </span><span class="kw">in</span><span> </span><span class="va">validateField2</span><span> </span><span class="va">#age</span><span> </span><span class="va">isAge</span><span>
+</span></code></pre></div>
+<h3 id="custom-validators">Custom Validators</h3>
+<p>If needed you can just write your own constraint, e.g. like this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">nonEmpty</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Text</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
+</span><span class="va">nonEmpty</span><span> </span><span class="st">&quot;&quot;</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Failure</span><span> </span><span class="st">&quot;This field cannot be empty&quot;</span><span>
+</span><span class="va">nonEmpty</span><span> </span><span class="sy">_</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Success</span><span>
+
+</span><span class="va">isAge</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Int</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
+</span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<h2 id="uniqueness">Uniqueness</h2>
+<p>The function <code>validateIsUnique</code> is usually used to make sure that e.g. a user’s email is unique. Of course it will also work with other model fields.</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateIsUnique</span><span> </span><span class="va">#email</span><span>
+</span></code></pre></div>
+<h2 id="validate-permissions">Validate Permissions</h2>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateCanView</span><span> </span><span class="va">currentUser</span><span>
+</span></code></pre></div>
+<h1 id="view-helper-reference">View Helper Reference</h1>
+<h2 id="time">Time</h2>
+<h3 id="timeago"><code>timeAgo</code></h3>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">timeAgo</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#createdAt</span><span> </span><span class="va">post</span><span class="sy">)</span><span> </span><span class="co">-- &quot;1 minute ago&quot;</span><span>
+</span></code></pre></div>
+<h3 id="datetime"><code>dateTime</code></h3>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">dateTime</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#createdAt</span><span> </span><span class="va">post</span><span class="sy">)</span><span> </span><span class="co">-- &quot;10.6.2019, 15:58 Uhr&quot;</span><span>
+</span></code></pre></div>
+</div>
+
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+
+    <style>
+      .source-code {
+        background-color: #002b36;
+        
+        border-radius: 3px;
+      }
+      .language-haskell, .language-bash, .language-sql, .language-html {
+        color: #839496;
+        display: block;
+        padding: 1rem;
+      }
+
+      code {
+        background-color: rgba(0, 43, 54, 0.11);
+        color: #002b36;
+      }
+
+      code .cr {
+        color: #93a1a1
+        font-weight: bold;
+      }
+
+      code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
+      code.language-haskell .st { color: #2aa198; }
+    </style>
+
+    <script>
+        var tables = document.querySelectorAll('table');
+        for (let table of tables) {
+          table.classList.add('table');
+        }
+    </script>
   </body>
 </html>

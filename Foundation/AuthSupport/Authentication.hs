@@ -3,7 +3,6 @@ module Foundation.AuthSupport.Authentication (verifyPassword, hashPassword, gene
 import ClassyPrelude
 import Data.String.Conversions (cs)
 import qualified Crypto.PasswordStore
-import Data.String.Conversions (cs)
 import qualified Test.RandomStrings
 import GHC.Records
 

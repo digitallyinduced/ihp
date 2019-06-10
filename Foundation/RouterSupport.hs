@@ -167,7 +167,7 @@ class PathArgument a where
 instance PathArgument () where
     parsePathArgument = string "current" >> return ()
 
-instance PathArgument (ModelSupport.Id' model) where
+instance PathArgument (ModelSupport.Id' (model :: Symbol)) where
     parsePathArgument = parseUUID >>= return . Newtype.pack
 
 instance PathArgument Text where

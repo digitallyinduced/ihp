@@ -9,7 +9,7 @@ import Network.Wai.Middleware.Static
 import Network.HTTP.Types.Status (status404)
 import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
-import Web.ClientSession (getDefaultKey)
+import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
 import Data.Default (def)
 import Network.Wai.Session.Map (mapStore_)
@@ -45,11 +45,11 @@ defaultPort = 8000
 run :: (FrameworkConfig, HasPath FrameworkConfig.RootApplication, CanRoute FrameworkConfig.RootApplication ()) => IO ()
 run = do
     currentDirectory <- getCurrentDirectory
-    let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/db"
+    let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     databaseUrl <- (Environment.lookupEnv "DATABASE_URL") >>= (return . fromMaybe defaultDatabaseUrl . fmap cs )
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
-    store <- fmap clientsessionStore getDefaultKey
+    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let applicationContext = ApplicationContext { modelContext = (ModelContext conn), session }
     let application :: Application = \request respond -> do
             let ?applicationContext = applicationContext

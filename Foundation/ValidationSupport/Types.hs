@@ -63,15 +63,17 @@ validateRecord arg model = do
     return (modelToEither $ fst result)
 
 class ValidateRecord record controllerContext where
-    validateRecord2 :: (?modelContext :: ModelContext, ?controllerContext :: controllerContext) => record -> IO (Either (ValidatorResultFor record) record)
+    validateRecord2 :: (?modelContext :: ModelContext, ?controllerContext :: controllerContext, ?model :: record) => StateT (ValidatorResultFor record) IO ()
 
 
-instance  {-# OVERLAPPABLE #-} (ValidateRecord (New model) controllerContext, ValidatorResultFor model ~ ValidatorResultFor (New model)) => ValidateRecord model controllerContext where
-    validateRecord2 checklist = do
-            result  <- validateRecord2 newChecklist
-            case result of
-                Left errors -> return (Left errors)
-                Right model -> return (Right checklist)
-        where
-            newChecklist :: New model
-            newChecklist = unsafeCoerce checklist
+--instance  {-# OVERLAPPABLE #-} (ValidateRecord (New record) controllerContext, ValidatorResultFor record ~ ValidatorResultFor (New record)) => ValidateRecord record controllerContext where
+--    validateRecord2 checklist = validateRecord2 newChecklist
+--        where
+--            newChecklist :: New record
+--            newChecklist = unsafeCoerce checklist
+
+--instance {-# OVERLAPPABLE #-} ValidateRecord model context where
+--    validateRecord2 = return ()
+
+instance {-# OVERLAPPABLE #-} ValidateRecord otherwise ControllerContext where
+    validateRecord2 = return ()

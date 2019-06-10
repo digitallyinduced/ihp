@@ -15,7 +15,6 @@ import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
-import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime)
 import Unsafe.Coerce
 import Data.UUID
@@ -28,6 +27,7 @@ import GHC.Types
 import Data.Proxy
 import Foundation.ModelSupport (ModelFieldValue, GetTableName, ModelContext, GetModelById)
 import qualified Foundation.ModelSupport
+import Foundation.ModelSupport (Include)
 import Foundation.NameSupport (fieldNameToColumnName)
 import Foundation.QueryBuilder
 
@@ -39,11 +39,11 @@ collectionFetchRelated :: forall model relatedField relatedFieldValue relatedMod
         Fetchable relatedFieldValue relatedModel,
         KnownSymbol (GetTableName relatedModel),
         PG.FromRow relatedModel,
-        relatedFieldValue ~ ModelFieldValue model relatedField,
+        HasField' relatedField model relatedFieldValue,
         Eq relatedFieldValue,
         ToField relatedFieldValue,
         KnownSymbol relatedField,
-        ModelFieldValue relatedModel "id" ~ relatedFieldValue
+        HasField' "id" relatedModel relatedFieldValue
     ) => Proxy relatedField -> [model] -> IO [Foundation.ModelSupport.Include relatedField model]
 collectionFetchRelated relatedField model = do
     relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, map (getField @relatedField) model) |> fetch
@@ -63,12 +63,12 @@ collectionFetchRelated relatedField model = do
 
 fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
-        HasField field model (Foundation.ModelSupport.Include field model) fieldValue (FetchResult fieldValue fetchModel),
+        HasField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
         HasField' field model fieldValue,
         PG.FromRow fetchModel,
         KnownSymbol (GetTableName fetchModel),
         Fetchable fieldValue fetchModel
-    ) => Proxy field -> model -> IO (Foundation.ModelSupport.Include field model)
+    ) => Proxy field -> model -> IO (Include field model)
 fetchRelated relatedField model = do
     result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
     let model' = model & field @field .~ result

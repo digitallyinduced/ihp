@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <title>Hello, world!</title>
+  </head>
+  <body style="max-width: 800px;" class="mx-auto">
+    <div class="container mt-5">
+      <h1 style="font-weight: 800; font-size: 3rem">Getting Started With Interactive Lambda</h1>
+      <p class="lead mb-5">
+        This guide covers everything you need to ship software with interactive lambda.
+      </p>
+
+      <h3 style="font-weight: 700">Installing Interactive Lambda</h3>
+      <hr/>
+
+      <div class="mb-5">
+          <h5>1. Nix Package Manager</h5>
+
+          <p>The framework uses the nix package manager to manage the whole set of dependencies of your application</p>
+
+          <p>
+            for example postgresql and the haskell compiler are both dependencies of your app. as well as all the haskell or javascript packages you want to use. we use nix to make sure that these dependencies are available to the app - in development, as well as in production.
+          </p>
+
+          <p>that's why we first need to make sure that you have nix installed</p>
+
+          <h6>a) macos</h6>
+          <p>install nix with ...</p>
+          <h6>b) linux</h6>
+          <h6>c) windows</h6>
+          <p>sorry, we don't support windows yet.</p>
+
+          <h5>2. Installing Interactive Lambda</h5>
+
+          <p>You can now install interactive lambda by running:</p>
+          <pre class="bg-dark text-light p-4 rounded">$ nix-env -i interactive-lambda</pre>
+      </div>
+
+      <h3 style="font-weight: 700">Creating Your First Project</h3>
+      <hr/>
+
+      <h5>1. Project Setup</h5>
+
+      <p>
+        This guide will lead you to create a small blog application. To set up the project, open a terminal and type:</p>
+
+      <pre class="bg-dark text-light p-4 rounded">$ interactive-lambda-new blog</pre>
+
+      <p>The new <code>blog</code> directory now contains a couple of auto-generated files and directories that make up your app.</p>
+
+      <p>Here is a short overview of the whole structure:</p>
+
+      <table class="table table-striped table-bordered">
+        <caption>Overview of the project structure</caption>
+          <thead>
+            <tr>
+                <th>File or Directory</th>
+                <th>Purpose</th>
+            </tr>
+          </thead>
+
+          <tbody>
+              <tr>
+                <td><pre>Config/</pre></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><pre>Config/Config.hs</pre></td>
+                <td>Configuration for the framework and your application</td>
+              </tr>
+              <tr>
+                <td><pre>Config/nix/nixpkgs-config.nix</pre></td>
+                <td>Configuration for the nix package manager</td>
+              </tr>
+              <tr>
+                <td><pre>Config/nix/haskell-packages/</pre></td>
+                <td>Custom haskell dependencies can be placed here</td>
+              </tr>
+              <tr>
+                <td><pre>src/</pre></td>
+                <td>The main source code for your app</td>
+              </tr>
+              <tr>
+                <td><pre>src/Model/Schema.hs</pre></td>
+                <td>Models and database tables are defined here</td>
+              </tr>
+              <tr>
+                <td><pre>src/Apps/Web/Controller</pre></td>
+                <td>App controllers</td>
+              </tr>
+              <tr>
+                <td><pre>src/Apps/Web/View/</pre></td>
+                <td>Html template files</td>
+              </tr>
+              <tr>
+                <td><pre>static/</pre></td>
+                <td>Images, css and javascript files</td>
+              </tr>
+              <tr>
+                <td><pre>.ghci</pre></td>
+                <td>Default config file for the haskell interpreter</td>
+              </tr>
+              <tr>
+                <td><pre>.gitignore</pre></td>
+                <td>List of files to be ignored by git</td>
+              </tr>
+              <tr>
+                <td><pre>App.cabal</pre><pre>Setup.hs</pre></td>
+                <td>Config for the cabal package manager (TODO: maybe move to Config/App.cabal)</td>
+              </tr>
+              <tr>
+                <td><pre>default.nix</pre></td>
+                <td>Declares your app dependencies (like <code>package.json</code> or <code>composer.json</code>)</td>
+              </tr>
+              <tr>
+                <td><pre>Makefile</pre></td>
+                <td>Default config file for the make build system</td>
+              </tr>
+          </tbody>
+      </table>
+
+      <h5>2. Hello, World!</h5>
+
+      <p>You now already have a working haskell app ready to be started</p>
+      <p>You can start the development server by running this in the <code>Blog</code> directory:</p>
+      <pre class="bg-dark text-light p-4 rounded">$ make</pre>
+
+      <p>
+        Your app is now running at <a href="http://localhost:8000" target="_blank">http://localhost:8000</a>.
+        The server can be stopped by pressing CTRL+C.
+      </p>
+
+      <h5>3. Data Structures & PostgreSQL</h5>
+
+      <p>
+        For our blog we're going to deal with posts. A post has a title and a body. As we are dealing with a database we also need an id. We are using UUIDs instead of the typical numerics ids for this.
+      </p>
+
+      <p>
+        A <code>posts</code> table in a PostgreSQL database could loke like this:
+      </p>
+
+      <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+                <th>id :: UUID</th>
+                <th>title :: Text</th>
+                <th>body :: Text</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>8d040c2d-0199-4695-ac13-c301970cff1d</td>
+              <td>My Experience With Nix On OS X</td>
+              <td>Some time ago, I’ve moved this jekyll-based blog ...</td>
+            </tr>
+            <tr>
+              <td>b739bc7c-5ed1-43f4-944c-385aea80f182</td>
+              <td>Deploying Private GitHub Repositories To NixOS Servers</td>
+              <td>In a previous post I’ve already shared a way to deploy private git repositories to a NixOS based server. While ...</td>
+            </tr>
+          </tbody>
+      </table>
+
+      <p>
+        To work with posts in our application, we now have to declare this data schema.
+        Open <code>src/Model/Schema.hs</code> and add the following code:
+      </p>
+
+<div class="bg-dark  p-4 rounded mb-4">
+<pre class="text-light" style="opacity: 0.3">
+module Model.Schema where
+import ClassyPrelude (Maybe (..), (<>), Bool (..))
+import Foundation.SchemaSupport
+
+database = [
+</pre>
+<pre class="text-light">
+    table "posts"
+        + field "id" primaryKey
+        + field "title" text
+        + field "body" text
+</pre>
+<pre class="text-light" style="opacity: 0.3">
+    ]
+</pre>
+</div>
+        
+        <p>
+            Next we need to create the <code>posts</code> table in our local postgresql database.
+            Don't worry, the local development postgresql server is already running. The dev server has conveniently already started it.
+        </p>
+
+        <p>
+            Take a look at <code>src/Model/Schema.sql</code>. The dev server has auto-generated a <code>CREATE TABLE</code>-statement for us:
+        </p>
+
+<pre class="bg-dark p-4 rounded text-light">
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Please don't make any modifications to this file as it's auto generated. Use src/Model/Schema.hs to change the schema
+CREATE TABLE posts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL
+);
+</pre>
+        <p>
+            We just need to load this sql statement into our database. Open your terminal and run:
+        </p>
+<pre class="bg-dark p-4 rounded text-light">
+$ make db
+</pre>
+
+        <p>The <code>posts</code> table has been created now. Let's quickly connect to our database and see that everything is correct:</p>
+
+<pre class="bg-dark p-4 rounded text-light">
+$ make psql
+
+psql (9.6.12)
+Type "help" for help.
+
+-- Let's do a query to check that the table is there
+
+app=# select * from posts;
+
+ id | title | body
+----+-------+------
+(0 rows)
+
+-- Look's alright! :)
+
+
+
+-- We can quit the postgresql console by typing \q
+
+app=# \q
+</pre>
+
+        <p>Now our database is ready to be consumed by our app.</p>
+
+
+        <h5>4. Data Structures & PostgreSQL</h5>
+
+        
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+  </body>
+</html>

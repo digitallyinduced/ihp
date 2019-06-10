@@ -1,7 +1,7 @@
 { compiler, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./. }:
 
 let
-    pkgs = import "${projectPath}/operations/nix/nixpkgs-config.nix";
+    pkgs = import "${projectPath}/Config/nix/nixpkgs-config.nix";
 
     ghc = pkgs.haskell.packages.${compiler};
     allHaskellPackages = ghc.ghcWithPackages (p: haskellDeps p);

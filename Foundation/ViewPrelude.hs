@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
 
 module Foundation.ViewPrelude (
     HtmlWithContext,
@@ -13,18 +12,12 @@ module Foundation.ViewPrelude (
     module ClassyPrelude,
     module Foundation.View.TimeAgo,
     (<>),
-    Show (show),
     stringValue,
 
     cs,
 
     isActivePath,
     when,
-    Int,
-
-    Maybe (..),
-    Text,
-
     module Foundation.View.Form,
     viewContext,
     hsx,
@@ -33,9 +26,7 @@ module Foundation.ViewPrelude (
     tshow,
     UUID,
     def,
-    Bool (..),
-    (==),
-    find, isJust,
+    find,
     module GHC.OverloadedLabels,
     module GHC.Records,
     module Data.List.Split,
@@ -44,13 +35,13 @@ module Foundation.ViewPrelude (
     preEscapedToHtml,
     module Foundation.View.Modal,
     classes,
-    module Foundation.ModelSupport,
     module Foundation.ValidationSupport,
     addStyle,
     css,
     pathTo,
     (:>)(..),
-    module Foundation.ViewSupport
+    module Foundation.ViewSupport,
+    module Foundation.ModelSupport
 ) where
 
 import ClassyPrelude
@@ -90,6 +81,7 @@ import Foundation.View.Modal
 import Foundation.ValidationSupport
 import Foundation.Controller.RequestContext
 import Foundation.RouterSupport
+import Foundation.ModelSupport
 
 plain = Data.String.Interpolate.i
 css = Data.String.Interpolate.i
@@ -111,7 +103,7 @@ isActivePath route =
     let 
         currentPath = Network.Wai.rawPathInfo theRequest
     in
-        currentPath == (cs $ pathTo route)
+        currentPath == cs (pathTo route)
 
 isActivePathOrSub :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, HasPath controller) => controller -> ClassyPrelude.Bool
 isActivePathOrSub route =
@@ -126,4 +118,4 @@ viewContext = ?viewContext
 
 {-# INLINE addStyle #-}
 addStyle :: (ConvertibleStrings string Text) => string -> Html5.Markup
-addStyle style = Html5.style $ (preEscapedText $ cs style)
+addStyle style = Html5.style $ preEscapedText (cs style)

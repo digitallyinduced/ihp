@@ -18,7 +18,45 @@ executable App
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       base, classy-prelude, directory, free, string-conversions, twitch, warp, wai, mtl, blaze-html, blaze-markup, wai-extra, wai, http-types, blaze-html, mtl, inflections, text, postgresql-simple, wai-middleware-static, wai-util, http-conduit, tagsoup, http-client, bytestring, network-uri, aeson, wai-session, wai-session-clientsession, clientsession, pwstore-fast, vault, data-default, linklater, random-strings, uuid, time, parsec
+  build-depends:
+  	diframework
+  	base,
+  	classy-prelude,
+  	directory,
+  	free,
+  	string-conversions,
+  	twitch,
+  	warp,
+  	wai,
+  	mtl,
+  	blaze-html,
+  	blaze-markup,
+  	wai-extra,
+  	wai,
+  	http-types,
+  	blaze-html,
+  	mtl,
+  	inflections,
+  	text,
+  	postgresql-simple,
+  	wai-middleware-static,
+  	wai-util, http-conduit,
+  	tagsoup,
+  	http-client,
+  	bytestring,
+  	network-uri,
+  	aeson,
+  	wai-session,
+  	wai-session-clientsession,
+  	clientsession,
+  	pwstore-fast,
+  	vault,
+  	data-default,
+  	linklater,
+  	random-strings,
+  	uuid,
+  	time,
+  	parsec
   hs-source-dirs:      src
   default-language:    Haskell2010
   extensions: OverloadedStrings, NoImplicitPrelude, ImplicitParams, Rank2Types, NamedFieldPuns, TypeSynonymInstances, FlexibleInstances, DisambiguateRecordFields, DuplicateRecordFields, OverloadedLabels, FlexibleContexts, DataKinds

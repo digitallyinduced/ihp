@@ -7,6 +7,8 @@ if [ ! -f App.hs ]; then
 	exit 1
 fi
 
+FRAMEWORKDIR=$(dirname $(readlink $(which RunDevServer)))/../
+
 # Switch to project root
 cd ../../../
-ghci -threaded -isrc -fexternal-interpreter -fomit-interface-pragmas +RTS -A128m -RTS -ghci-script <(echo ":script src/Foundation/applicationGhciConfig"; echo ":load src/Foundation/ControllerGenerator.hs"; echo ":main $@"; echo ":quit")
+ghci -threaded -isrc -fexternal-interpreter -fomit-interface-pragmas +RTS -A128m -RTS -ghci-script <(echo ":script src/Foundation/applicationGhciConfig"; echo "import Foundation.ControllerGenerator";  echo ":l src/Model/Schema.hs"; echo "main' database [\"$@\"]"; echo ":quit")

@@ -11,7 +11,7 @@ import qualified Control.Exception as Exception
 import qualified GHC.IO.Handle as Handle
 import System.Process.Internals
 import Data.String.Conversions (cs)
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (threadDelay, myThreadId)
 import qualified System.FSNotify as FS
 import System.Directory (getCurrentDirectory, withCurrentDirectory)
 import qualified System.Directory as Directory
@@ -78,7 +78,7 @@ startCompileGhci = do
     return (input, handle)
 
 startLiveReloadNotificationServer = do
-    let process = (Process.proc "bin/RunLiveReloadNotificationServer" []) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
+    let process = (Process.proc "RunLiveReloadNotificationServer" []) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
     return (input, handle)
 
@@ -103,8 +103,7 @@ rebuildModels (DevServerState {modelCompilerProcess}) = do
     putStrLn "rebuildModels"
     ghci@(input, process) <- readIORef modelCompilerProcess
     sendGhciCommand ghci ":!clear"
-    sendGhciCommand ghci ":l src/Foundation/SchemaCompiler.hs"
-    sendGhciCommand ghci "c"
+    sendGhciCommand ghci ":script src/Foundation/compileModels"
     putStrLn "rebuildModels => Finished"
 
 sendGhciInterrupt ghci@(input, process) = do
@@ -139,7 +138,7 @@ stopPostgres = do
 
 startPostgres = do
     currentDir <- getCurrentDirectory
-    let process = (Process.proc "postgres" ["-D", "db/state", "-k", currentDir <> "/db"]) { Process.std_in = Process.CreatePipe }
+    let process = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db"]) { Process.std_in = Process.CreatePipe }
     (Just input, _, _, handle) <- Process.createProcess process
 
     return (input, handle)
@@ -152,17 +151,17 @@ getPid ph = withProcessHandle ph go
 
 findAllDirectories :: IO [FilePath]
 findAllDirectories = do
-    let findDirs base = do
-        all' <- Directory.listDirectory base
-        let all = map (base </>) $ filter (\file -> (unsafeHead file /= '.') && (file /= "node_modules") ) all'
-        filterM (Directory.doesDirectoryExist) all
-    dirs <- findDirs "."
-    let doRecurse dirs = do
-        result <- forM dirs $ \directory -> do
-            dirs <- findDirs directory
-            inner <- doRecurse dirs
-            return $ concat [(directory:dirs), inner]
-        return $ join result
-
-    allDirectories <- doRecurse dirs
-    return $ map (fromJust . stripPrefix "./") allDirectories
+        dirs <- findDirs "."
+        allDirectories <- doRecurse dirs
+        return $ map (fromJust . stripPrefix "./") allDirectories
+    where
+        doRecurse dirs = do
+            result <- forM dirs $ \directory -> do
+                dirs <- findDirs directory
+                inner <- doRecurse dirs
+                return $ concat [(directory:dirs), inner]
+            return $ join result
+        findDirs base = do
+            all' <- Directory.listDirectory base
+            let all = map (base </>) $ filter (\file -> (unsafeHead file /= '.') && (file /= "node_modules") && (file /= "build") ) all'
+            filterM (Directory.doesDirectoryExist) all

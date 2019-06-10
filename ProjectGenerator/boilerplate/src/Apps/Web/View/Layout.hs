@@ -1,19 +1,20 @@
-module Apps.Web.View.Layout (defaultLayout) where
+module Apps.Web.View.Layout (defaultLayout, Html) where
 
-import qualified Config
-import           Foundation.Environment
+import Foundation.ViewPrelude
+import Foundation.Environment
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
+import Apps.Web.Types
+import Apps.Web.Routes
+import qualified Foundation.FrameworkConfig as FrameworkConfig
+import Config ()
+
+type Html = HtmlWithContext ViewContext
 
 defaultLayout :: Html -> Html
 defaultLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
-    <meta property="og:title" content="App"/>
-    <meta property="og:type" content="website"/>
-    <meta property="og:url" content="TODO"/>
-    <meta property="og:description" content="TODO"/>
+    {metaTags}
 
     <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
     <link rel="stylesheet" href="/app.css"/>
@@ -31,17 +32,28 @@ defaultLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 |]
 
 scripts = do
-    when (isDevelopment Config.environment) [hsx|<script id="livereload-script" src="/build.js"></script>|]
+    when (isDevelopment FrameworkConfig.environment) [hsx|<script id="livereload-script" src="/livereload.js"></script>|]
     [hsx|
+        <script src="/vendor/morphdom-umd.min.js"></script>
         <script src="/vendor/jquery-3.2.1.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
         <script src="/vendor/popper.min.js"></script>
         <script src="/vendor/bootstrap.min.js"></script>
         <script src="/helpers.js"></script>
     |]
-    when (isProduction Config.environment) [hsx|
+    when (isProduction FrameworkConfig.environment) [hsx|
             <script src="/vendor/turbolinks.js"></script>
             <script src="/vendor/morphdom-umd.min.js"></script>
             <script src="/vendor/turbolinksMorphdom.js"></script>
             <script src="/vendor/turbolinksInstantClick.js"></script>
         |]
+
+
+metaTags = [hsx|
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    <meta property="og:title" content="App"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:url" content="TODO"/>
+    <meta property="og:description" content="TODO"/>
+|]
