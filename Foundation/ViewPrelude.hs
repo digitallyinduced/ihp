@@ -6,12 +6,9 @@
 module Foundation.ViewPrelude (
     HtmlWithContext,
 
-    ($), (!), forM_, mempty,
-
     module Foundation.HaskellSupport,
     module ClassyPrelude,
     module Foundation.View.TimeAgo,
-    (<>),
     stringValue,
 
     cs,
@@ -26,7 +23,6 @@ module Foundation.ViewPrelude (
     tshow,
     UUID,
     def,
-    find,
     module GHC.OverloadedLabels,
     module GHC.Records,
     module Data.List.Split,

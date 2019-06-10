@@ -46,8 +46,6 @@ compile database = do
             error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors)
         else
             return ()
-    let compiledStubs = map (\table -> (getStubFilePath table, compileStub table)) database
-    --mapM_ writeStub compiledStubs
     writeTable (getTypesFilePath, compileTypes database)
     Foundation.SqlCompiler.main database
 
@@ -127,16 +125,6 @@ compileTypes' table@(Table name attributes) =
     <> section
     <> compileBuild table
     <> section
-
-
-compileStub table@(Table name attributes) =
-    "module Model." <> tableNameToModelName name <> " (module Model.Generated." <> tableNameToModelName name <> ") where\n\n"
-    <> "import Foundation.ModelPrelude\n"
-    <> "import Model.Generated." <> tableNameToModelName name <> "\n"
-    <> section
-    -- <> "instance ValidateRecord New" <> tableNameToModelName name <> " ControllerContext where\n"
-    -- <> "    validateRecord2 = validateRecord $ do\n"
-    -- <> "        validateNothing\n"
 
 
 getFilePath :: Table -> FilePath

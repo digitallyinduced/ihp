@@ -484,18 +484,18 @@ You should see an instance like this:
 
 ```haskell
 instance ValidateRecord NewPost ControllerContext where
-    validateRecord2 = do
+    validateRecord = do
         validateNothing
 ```
 
-Replace `validateNothing` with `validateField2 #title nonEmpty`.
+Replace `validateNothing` with `validateField #title nonEmpty`.
 
 The instance should now look like this:
 
 ```haskell
 instance ValidateRecord NewPost ControllerContext where
-    validateRecord2 = do
-        validateField2 #title nonEmpty
+    validateRecord = do
+        validateField #title nonEmpty
 ```
 
 Now open [http://localhost:8000/Posts/new](http://localhost:8000/Posts/new) and click "Save Post" without filling the text fields. You will get a "This field cannot be empty".
@@ -740,18 +740,18 @@ result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 
 ## Pure Validations
 
-With `validateField2` you can do simple, pure validations.
+With `validateField` you can do simple, pure validations.
 
 
 Here are some examples:
 
 ```haskell
 instance ValidateRecord NewPost ControllerContext where
-    validateRecord2 = do
-        validateField2 #title nonEmpty
-        validateField2 #phone isPhoneNumber
-        validateField2 #email isEmail
-        let isAge = isInRange (0, 100) in validateField2 #age isAge
+    validateRecord = do
+        validateField #title nonEmpty
+        validateField #phone isPhoneNumber
+        validateField #email isEmail
+        let isAge = isInRange (0, 100) in validateField #age isAge
 ````
 
 ### Custom Validators
@@ -773,7 +773,7 @@ The function `validateIsUnique` is usually used to make sure that e.g. a user's 
 
 ```haskell
 instance ValidateRecord NewPost ControllerContext where
-    validateRecord2 = do
+    validateRecord = do
         validateIsUnique #email
 ````
 
@@ -781,7 +781,7 @@ instance ValidateRecord NewPost ControllerContext where
 
 ```haskell
 instance ValidateRecord NewPost ControllerContext where
-    validateRecord2 = do
+    validateRecord = do
         validateCanView currentUser
 ````
 

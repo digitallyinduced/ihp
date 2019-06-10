@@ -584,14 +584,14 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>Let’s make sure that every post has atleast a title. Validations can be defined inside <code>src/Apps/Web/Validation.hs</code>.</p>
 <p>You should see an instance like this:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">validateNothing</span><span>
 </span></code></pre></div>
-<p>Replace <code>validateNothing</code> with <code>validateField2 #title nonEmpty</code>.</p>
+<p>Replace <code>validateNothing</code> with <code>validateField #title nonEmpty</code>.</p>
 <p>The instance should now look like this:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateField2</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
+    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
 </span></code></pre></div>
 <p>Now open <a href="http://localhost:8000/Posts/new">http://localhost:8000/Posts/new</a> and click “Save Post” without filling the text fields. You will get a “This field cannot be empty”.</p>
 <p>That’s how easy it is, to validate your models with interactive lambda.</p>
@@ -756,14 +756,14 @@ You can just use the <code>query</code> function for that.</p>
 </span></code></pre></div>
 <h1 id="validation-reference">Validation Reference</h1>
 <h2 id="pure-validations">Pure Validations</h2>
-<p>With <code>validateField2</code> you can do simple, pure validations.</p>
+<p>With <code>validateField</code> you can do simple, pure validations.</p>
 <p>Here are some examples:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateField2</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
-        </span><span class="va">validateField2</span><span> </span><span class="va">#phone</span><span> </span><span class="va">isPhoneNumber</span><span>
-        </span><span class="va">validateField2</span><span> </span><span class="va">#email</span><span> </span><span class="va">isEmail</span><span>
-        </span><span class="kw">let</span><span> </span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span> </span><span class="kw">in</span><span> </span><span class="va">validateField2</span><span> </span><span class="va">#age</span><span> </span><span class="va">isAge</span><span>
+    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
+        </span><span class="va">validateField</span><span> </span><span class="va">#phone</span><span> </span><span class="va">isPhoneNumber</span><span>
+        </span><span class="va">validateField</span><span> </span><span class="va">#email</span><span> </span><span class="va">isEmail</span><span>
+        </span><span class="kw">let</span><span> </span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span> </span><span class="kw">in</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#age</span><span> </span><span class="va">isAge</span><span>
 </span></code></pre></div>
 <h3 id="custom-validators">Custom Validators</h3>
 <p>If needed you can just write your own constraint, e.g. like this:</p>
@@ -777,12 +777,12 @@ You can just use the <code>query</code> function for that.</p>
 <h2 id="uniqueness">Uniqueness</h2>
 <p>The function <code>validateIsUnique</code> is usually used to make sure that e.g. a user’s email is unique. Of course it will also work with other model fields.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">validateIsUnique</span><span> </span><span class="va">#email</span><span>
 </span></code></pre></div>
 <h2 id="validate-permissions">Validate Permissions</h2>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord2</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">validateCanView</span><span> </span><span class="va">currentUser</span><span>
 </span></code></pre></div>
 <h1 id="view-helper-reference">View Helper Reference</h1>

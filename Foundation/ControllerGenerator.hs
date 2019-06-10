@@ -348,7 +348,7 @@ generateValidateRecordInstance name' =
         theInstance =
             "\n"
             <> "instance ValidateRecord New" <> singularName <> " ControllerContext where\n"
-            <> "    validateRecord2 = do\n"
+            <> "    validateRecord = do\n"
             <> "        validateNothing\n"
 
     in

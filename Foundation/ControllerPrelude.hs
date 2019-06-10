@@ -31,7 +31,7 @@ import           Foundation.Controller.Param
 import           Foundation.Controller.Render
 import           Foundation.Controller.Session
 import           Foundation.ControllerSupport
-import           Foundation.ValidationSupport  (validateRecord2)
+import           Foundation.ValidationSupport (validateRecord)
 -- import           Helper.Controller
 -- import           Model.Generated.Types
 import Foundation.HaskellSupport

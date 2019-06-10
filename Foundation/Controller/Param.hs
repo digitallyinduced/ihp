@@ -187,7 +187,7 @@ fromRequest model = do
         inner = do
             model <- fill @(ModelSupport.ChangeSet model) model
             let ?model = model
-            validateRecord2 @model
+            validateRecord @model
             result <- State.get
             let validationsHistory :: IORef [Dynamic.Dynamic] = (GHC.Records.getField @"validations" ?controllerContext)
             modifyIORef validationsHistory (\validations -> (Dynamic.toDyn (model, result)):validations)

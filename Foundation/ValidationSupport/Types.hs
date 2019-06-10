@@ -48,7 +48,7 @@ isFailure otherwise  = False
 type family ValidatorResultFor model
 
 type ValidationMonad model = (?model :: model) => StateT (ValidatorResultFor model) IO ()
-validateRecord :: forall model controllerContext. (
+validateRecord' :: forall model controllerContext. (
         ?controllerContext :: controllerContext
         , Default (ValidatorResultFor model)
         , Data.Generics.Product.Types.HasTypes (ValidatorResultFor model) ValidatorResult
@@ -56,24 +56,24 @@ validateRecord :: forall model controllerContext. (
         , Typeable (ValidatorResultFor model)
         , HasField "validations" controllerContext (IORef [Dynamic])
     ) => ValidationMonad model -> model -> IO (Either (ValidatorResultFor model) model)
-validateRecord arg model = do
+validateRecord' arg model = do
     let ?model = model
     result <- runStateT (do arg; state <- get; return state) (def :: ValidatorResultFor model)
     modifyIORef (getField @"validations" ?controllerContext) (\validations -> (toDyn (model, fst result)):validations)
     return (modelToEither $ fst result)
 
 class ValidateRecord record controllerContext where
-    validateRecord2 :: (?modelContext :: ModelContext, ?controllerContext :: controllerContext, ?model :: record) => StateT (ValidatorResultFor record) IO ()
+    validateRecord :: (?modelContext :: ModelContext, ?controllerContext :: controllerContext, ?model :: record) => StateT (ValidatorResultFor record) IO ()
 
 
 --instance  {-# OVERLAPPABLE #-} (ValidateRecord (New record) controllerContext, ValidatorResultFor record ~ ValidatorResultFor (New record)) => ValidateRecord record controllerContext where
---    validateRecord2 checklist = validateRecord2 newChecklist
+--    validateRecord checklist = validateRecord newChecklist
 --        where
 --            newChecklist :: New record
 --            newChecklist = unsafeCoerce checklist
 
 --instance {-# OVERLAPPABLE #-} ValidateRecord model context where
---    validateRecord2 = return ()
+--    validateRecord = return ()
 
 instance {-# OVERLAPPABLE #-} ValidateRecord otherwise controllerContext where
-    validateRecord2 = return ()
+    validateRecord = return ()

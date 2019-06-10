@@ -7,6 +7,6 @@ import Model.Generated.Types
 -- Here you can place validation logic for your models
 -- 
 -- instance ValidateRecord NewProject ControllerContext where
---     validateRecord2 = validateRecord $ do
+--     validateRecord = do
 --         validateField #name nonEmpty
 
