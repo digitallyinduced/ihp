@@ -75,5 +75,5 @@ class ValidateRecord record controllerContext where
 --instance {-# OVERLAPPABLE #-} ValidateRecord model context where
 --    validateRecord2 = return ()
 
-instance {-# OVERLAPPABLE #-} ValidateRecord otherwise ControllerContext where
+instance {-# OVERLAPPABLE #-} ValidateRecord otherwise controllerContext where
     validateRecord2 = return ()

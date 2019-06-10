@@ -12,7 +12,6 @@ let
       "ghc-mod"
       "filesystem-conduit"
       "diframework"
-      "twitch"
     ];
 
     dontHaddockPackages = [

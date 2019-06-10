@@ -6,7 +6,6 @@
 , directory
 , free
 , string-conversions
-, twitch
 , warp
 , wai
 , mtl
@@ -69,7 +68,6 @@ mkDerivation {
     directory
     free
     string-conversions
-    twitch
     warp
     wai
     mtl

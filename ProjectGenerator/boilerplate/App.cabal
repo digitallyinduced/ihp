@@ -25,7 +25,6 @@ executable App
   	directory,
   	free,
   	string-conversions,
-  	twitch,
   	warp,
   	wai,
   	mtl,

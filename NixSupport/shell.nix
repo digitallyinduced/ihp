@@ -8,7 +8,7 @@ let
 	    directory
 	    free
 	    string-conversions
-	    twitch
+	    fsnotify
 	    warp
 	    wai
 	    mtl

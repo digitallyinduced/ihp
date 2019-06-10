@@ -14,7 +14,6 @@ let
       "filesystem-conduit"
       "push-notify-apn"
       "diframework"
-      "twitch"
     ];
 
     dontHaddockPackages = [

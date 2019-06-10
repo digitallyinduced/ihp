@@ -3,8 +3,6 @@
 module Main where
 import ClassyPrelude hiding (threadDelay)
 import qualified System.Process as Process
-import Twitch
-import qualified Twitch
 import System.Exit
 import System.Posix.Signals
 import qualified Control.Exception as Exception
@@ -46,15 +44,28 @@ registerExitHandler handler = do
     threadId <- myThreadId
     installHandler keyboardSignal (Catch (do { handler; Exception.throwTo threadId ExitSuccess })) Nothing
 
+main :: IO ()
 main = do
     state <- initDevServerState
     registerExitHandler (cleanup state)
-    manager <- withCurrentDirectory "./src" $ do
-        currentDir <- getCurrentDirectory
-        dirs <- findAllDirectories
-        let config = def { logger = const (return ()), dirs = ".":dirs }
-        Twitch.runWithConfig currentDir config (watch state)
-    forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
+
+    currentDir <- getCurrentDirectory
+
+    FS.withManager $ \manager -> do
+        FS.watchTree manager "." shouldActOnFileChange (watch state)
+        forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
+
+shouldActOnFileChange :: FS.ActionPredicate
+shouldActOnFileChange event = isSuffixOf ".hs" (getEventFilePath event)
+
+getEventFilePath :: FS.Event -> FilePath
+getEventFilePath event =
+    case event of
+        FS.Added filePath _ _ -> filePath
+        FS.Modified filePath _ _ -> filePath
+        FS.Removed filePath _ _ -> filePath
+        FS.Unknown filePath _ _ -> filePath
+
 
 cleanup :: DevServerState -> IO ()
 cleanup state = do
@@ -87,16 +98,14 @@ initServer ghci = do
     sendGhciCommand ghci (":script src/Foundation/startDevServerGhciScript")
     return ghci
 
-watch state@(DevServerState {serverProcess, rebuildServerLock}) = do
-    "Model/Schema.hs" |> const (rebuildModels state)
-    "View/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "Model/Generated/*.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "**.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "*.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "*/*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
-    "*/*/*/*/*.hs" |> const (rebuild serverProcess rebuildServerLock)
+watch :: DevServerState -> FS.Event -> IO ()
+watch state@(DevServerState {serverProcess, rebuildServerLock}) event =
+    let
+        filePath = getEventFilePath event
+    in
+        if isSuffixOf "Model/Schema.hs" filePath 
+            then rebuildModels state
+            else rebuild serverProcess rebuildServerLock
 
 
 rebuildModels (DevServerState {modelCompilerProcess}) = do
@@ -116,8 +125,6 @@ rebuild serverProcess rebuildServerLock = do
     _ <- Lock.tryWith rebuildServerLock $ do
         ghci <- readIORef serverProcess
         _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
-        --sendGhciInterrupt ghci
-        --threadDelay 1000
         sendGhciCommand ghci ":script src/Foundation/startDevServerGhciScriptRec"
     return ()
 
@@ -149,19 +156,3 @@ getPid ph = withProcessHandle ph go
             OpenHandle x   -> return $ Just x
             ClosedHandle _ -> return Nothing
 
-findAllDirectories :: IO [FilePath]
-findAllDirectories = do
-        dirs <- findDirs "."
-        allDirectories <- doRecurse dirs
-        return $ map (fromJust . stripPrefix "./") allDirectories
-    where
-        doRecurse dirs = do
-            result <- forM dirs $ \directory -> do
-                dirs <- findDirs directory
-                inner <- doRecurse dirs
-                return $ concat [(directory:dirs), inner]
-            return $ join result
-        findDirs base = do
-            all' <- Directory.listDirectory base
-            let all = map (base </>) $ filter (\file -> (unsafeHead file /= '.') && (file /= "node_modules") && (file /= "build") ) all'
-            filterM (Directory.doesDirectoryExist) all
