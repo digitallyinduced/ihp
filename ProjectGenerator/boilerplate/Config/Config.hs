@@ -1,8 +1,8 @@
 module Config where
 
 import ClassyPrelude
-import Foundation.Environment
-import Foundation.FrameworkConfig
+import TurboHaskell.Environment
+import TurboHaskell.FrameworkConfig
 
 instance FrameworkConfig where 
 	environment = Development

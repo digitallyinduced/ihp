@@ -19,7 +19,7 @@ executable App
   -- other-modules:
   -- other-extensions:
   build-depends:
-  	diframework
+  	turbohaskell
   	base,
   	classy-prelude,
   	directory,

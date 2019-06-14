@@ -2,11 +2,11 @@ module Main where
 import ClassyPrelude
 
 import Config
-import qualified Foundation.Server
-import Foundation.RouterSupport
+import qualified TurboHaskell.Server
+import TurboHaskell.RouterSupport
 import Apps.Web.App
 import Apps.Web.Types
-import Foundation.FrameworkConfig
+import TurboHaskell.FrameworkConfig
 
 instance HasPath RootApplication where
 	pathTo _ = ""
@@ -14,4 +14,4 @@ instance CanRoute RootApplication () where
     parseRoute = parseRoute @WebApplication
 
 main :: IO ()
-main = Foundation.Server.run
+main = TurboHaskell.Server.run

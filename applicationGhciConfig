@@ -26,5 +26,5 @@
 :set -XDeriveDataTypeable
 :set -XLambdaCase
 :set -XDefaultSignatures
-:set -package diframework
+:set -package turbohaskell
 :set -fbyte-code

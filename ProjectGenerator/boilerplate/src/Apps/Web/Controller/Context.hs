@@ -1,12 +1,12 @@
 module Apps.Web.Controller.Context where
 
 import ClassyPrelude hiding (pack)
-import Foundation.Controller.Session
-import Foundation.Controller.RequestContext
-import Foundation.ModelSupport
+import TurboHaskell.Controller.Session
+import TurboHaskell.Controller.RequestContext
+import TurboHaskell.ModelSupport
 import Model.Generated.Types
 import Data.Dynamic
-import Foundation.Controller.Context
+import TurboHaskell.Controller.Context
 import qualified Control.Newtype.Generics as Newtype
 
 data ControllerContext = ControllerContext {

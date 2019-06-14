@@ -1,5 +1,5 @@
 module Apps.Web.Routes where
-import Foundation.RouterPrelude
+import TurboHaskell.RouterPrelude
 import Apps.Web.Types
 
 -- Generator Marker

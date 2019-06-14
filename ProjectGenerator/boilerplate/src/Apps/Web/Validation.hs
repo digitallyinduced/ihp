@@ -1,6 +1,6 @@
 module Apps.Web.Validation where
 
-import Foundation.ModelPrelude
+import TurboHaskell.ModelPrelude
 import Apps.Web.Controller.Context
 import Model.Generated.Types
 

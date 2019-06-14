@@ -1,6 +1,6 @@
 #!/usr/bin/env php
 <?php
-$basePath = realpath(__DIR__ . "/../../../src/Foundation");
+$basePath = realpath(__DIR__ . "/../../../src/TurboHaskell");
 
 if ($argc < 2) {
     echo "Usage: new PROJECT_NAME\n";
@@ -13,10 +13,10 @@ $boilerplatePath = "$basePath/ProjectGenerator/boilerplate";
 
 system("cp -r $boilerplatePath $projectName");
 chdir($projectName);
-system("cp -r $basePath src/Foundation");
+system("cp -r $basePath src/TurboHaskell");
 chdir("src/Apps/Web");
-system("ln -s ../../Foundation/gen gen");
-system("ln -s ../../Foundation/del del");
+system("ln -s ../../TurboHaskell/gen gen");
+system("ln -s ../../TurboHaskell/del del");
 chdir("../../../");
 system("make .envrc");
 echo "Project created, happy coding :)\n";

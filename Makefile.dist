@@ -50,7 +50,7 @@ run: .envrc build/db/state src/Model/Generated static/prod.js static/prod.css
 	RunDevServer --root src
 
 
-.envrc: default.nix src/Foundation/NixSupport/default.nix
+.envrc: default.nix src/TurboHaskell/NixSupport/default.nix
 	rm -f .envrc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	direnv allow
@@ -81,11 +81,11 @@ dump_db:
 	pg_dump -a --inserts --disable-triggers -h $$PWD/build/db app > src/Model/Fixtures.sql
 
 ghci:
-	ghci -threaded -isrc -isrc/Foundation/Foundation -fexternal-interpreter
+	ghci -threaded -isrc -isrc/TurboHaskell/TurboHaskell -fexternal-interpreter
 
-src/Model/Generated: src/Model/Schema.hs src/Foundation/Foundation/SchemaCompiler.hs
+src/Model/Generated: src/Model/Schema.hs src/TurboHaskell/TurboHaskell/SchemaCompiler.hs
 	rm -rf src/Model/Generated && mkdir -p src/Model/Generated
-	ghci -e ':script src/Foundation/compileModels'
+	ghci -e ':script src/TurboHaskell/compileModels'
 
 build/bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
 	mkdir -p build/RunUnoptimizedProdServer
@@ -107,14 +107,14 @@ install:
 
 clean:
 	rm -rf build/bin
-	rm -rf src/Foundation/Foundation/static/node_modules
+	rm -rf src/TurboHaskell/TurboHaskell/static/node_modules
 	rm -rf build/db
 
 del:
-	ln -s src/Foundation/del del
+	ln -s src/TurboHaskell/del del
 
 gen:
-	ln -s src/Foundation/gen gen
+	ln -s src/TurboHaskell/gen gen
 
 static/prod.js: $(JS_FILES)
 	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@

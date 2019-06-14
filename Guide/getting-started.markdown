@@ -1,5 +1,5 @@
-# Getting Started With Interactive Lambda
-Interactive Lambda is a full stack framework focused on rapid application development while striving for robust code quality.
+# Getting Started With Turbo Haskell
+Turbo Haskell is a full stack framework focused on rapid application development while striving for robust code quality.
 
 This guide covers everything you need to ship software with interactive lambda. 
 
@@ -38,7 +38,7 @@ Sorry, we don't support windows yet.
 You can now install interactive lambda by running:
 
 ```bash
-$ nix-env -i interactive-lambda
+$ nix-env -f <(curl https://turbohaskell.digitallyinduced.com/turbohaskell-new.nix) -i turbohaskell-new
 ```
 
 
@@ -48,7 +48,7 @@ $ nix-env -i interactive-lambda
 This guide will lead you to create a small blog application. To set up the project, open a terminal and type:
 
 ```bash
-$ interactive-lambda-new blog
+$ turbohaskell-new blog
 ```
 
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
@@ -108,7 +108,7 @@ Open `src/Model/Schema.hs` and add the following code:
 ```haskell
 module Model.Schema where
 import ClassyPrelude (Maybe (..), (<>), Bool (..))
-import Foundation.SchemaSupport
+import TurboHaskell.SchemaSupport
 
 database = [
     table "posts"

@@ -1,9 +1,9 @@
 module Apps.Web.App where
-import Foundation.RouterPrelude
+import TurboHaskell.RouterPrelude
 import Apps.Web.Types
 
 -- Controller Imports
-import Foundation.Welcome.Controller
+import TurboHaskell.Welcome.Controller
 
 instance HasPath WebApplication where
 	pathTo WebApplication = ""

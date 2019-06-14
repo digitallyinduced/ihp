@@ -1,6 +1,6 @@
 module Main where
 import ClassyPrelude
-import Foundation.Server
+import TurboHaskell.Server
 
 main :: IO ()
-main = Foundation.Server.run
+main = TurboHaskell.Server.run

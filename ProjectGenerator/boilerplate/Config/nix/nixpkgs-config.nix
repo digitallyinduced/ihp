@@ -13,7 +13,7 @@ let
       "ghc-mod"
       "filesystem-conduit"
       "push-notify-apn"
-      "diframework"
+      "turbohaskell"
     ];
 
     dontHaddockPackages = [
@@ -33,7 +33,7 @@ let
               };
               makePackageSet = dir: pkgs.lib.mapAttrs' (toPackage dir) (builtins.readDir dir);
             in
-              (makePackageSet ./haskell-packages/.) // (makePackageSet ./../../src/Foundation/NixSupport/haskell-packages/.);
+              (makePackageSet ./haskell-packages/.) // (makePackageSet ./../../src/TurboHaskell/NixSupport/haskell-packages/.);
 
           makeOverrides =
             function: names: haskellPackagesNew: haskellPackagesOld:
@@ -52,7 +52,7 @@ let
 
           # More exotic overrides go here
           manualOverrides = haskellPackagesNew: haskellPackagesOld: {
-            diframework =  pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.allowInconsistentDependencies haskellPackagesOld.diframework);
+            turbohaskell =  pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.allowInconsistentDependencies haskellPackagesOld.turbohaskell);
             time_1_9_2 = pkgs.haskell.lib.dontCheck haskellPackagesOld.time_1_9_2;
           };
 

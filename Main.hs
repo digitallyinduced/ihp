@@ -1,12 +1,12 @@
 module Main where
 
 import ClassyPrelude
-import Foundation.Environment
-import Foundation.FrameworkConfig
-import qualified Foundation.Server
-import Foundation.RouterSupport
-import Foundation.ControllerPrelude
-import Foundation.GenericController
+import TurboHaskell.Environment
+import TurboHaskell.FrameworkConfig
+import qualified TurboHaskell.Server
+import TurboHaskell.RouterSupport
+import TurboHaskell.ControllerPrelude
+import TurboHaskell.GenericController
 
 data DemoController = DemoAction deriving (Eq, Show, Generic)
 
@@ -25,4 +25,4 @@ instance FrameworkConfig where
 	baseUrl = "http://localhost:8000"
 
 main :: IO ()
-main = Foundation.Server.run
+main = TurboHaskell.Server.run

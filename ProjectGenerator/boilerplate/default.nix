@@ -1,5 +1,5 @@
 let
-    haskellEnv = import ./src/Foundation/NixSupport/default.nix {
+    haskellEnv = import ./src/TurboHaskell/NixSupport/default.nix {
         compiler = "ghc844";
         haskellDeps = p: with p; [
             cabal-install
@@ -26,7 +26,7 @@ let
             uri-encode
             generic-lens
             tz
-            diframework
+            turbohaskell
         ];
         otherDeps = p: with p; [
             imagemagick

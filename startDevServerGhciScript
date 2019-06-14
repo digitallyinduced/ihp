@@ -1,4 +1,4 @@
-:script src/Foundation/applicationGhciConfig
-:set -package diframework
+:script src/TurboHaskell/applicationGhciConfig
+:set -package turbohaskell
 :l src/Main.hs
 main

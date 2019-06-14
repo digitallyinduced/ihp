@@ -13,8 +13,8 @@
   <body style="max-width: 800px" class="mx-auto">
 
 
-    <div class="container mt-5"><h1 id="getting-started-with-interactive-lambda">Getting Started With Interactive Lambda</h1>
-<p>Interactive Lambda is a full stack framework focused on rapid application development while striving for robust code quality.</p>
+    <div class="container mt-5"><h1 id="getting-started-with-turbo-haskell">Getting Started With Turbo Haskell</h1>
+<p>Turbo Haskell is a full stack framework focused on rapid application development while striving for robust code quality.</p>
 <p>This guide covers everything you need to ship software with interactive lambda.</p>
 <h5 id="feature-overview">Feature Overview</h5>
 <ul>
@@ -39,7 +39,7 @@
 </ul>
 <ul>
 <li>
-<a href="#getting-started-with-interactive-lambda">Getting Started With Interactive Lambda</a>
+<a href="#getting-started-with-turbo-haskell">Getting Started With Turbo Haskell</a>
 <ul>
 <li>
 <a href="#feature-overview">Feature Overview</a>
@@ -256,12 +256,12 @@
 <p>Sorry, we don’t support windows yet.</p>
 <h3 id="2-installing-interactive-lambda">2. Installing Interactive Lambda</h3>
 <p>You can now install interactive lambda by running:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">nix-env</span><span> -i interactive-lambda</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">nix-env</span><span> -f </span><span class="op">&lt;(</span><span class="ex">curl</span><span> https://turbohaskell.digitallyinduced.com/turbohaskell-new.nix</span><span class="op">)</span><span> -i turbohaskell-new</span>
 </code></pre></div>
 <h1 id="creating-your-first-project">Creating Your First Project</h1>
 <h3 id="1-project-setup">1. Project Setup</h3>
 <p>This guide will lead you to create a small blog application. To set up the project, open a terminal and type:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">interactive-lambda-new</span><span> blog</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">turbohaskell-new</span><span> blog</span>
 </code></pre></div>
 <p>The new <code>blog</code> directory now contains a couple of auto-generated files and directories that make up your app.</p>
 <p>Here is a short overview of the whole structure:</p>
@@ -310,7 +310,7 @@ The server can be stopped by pressing CTRL+C.</p>
 Open <code>src/Model/Schema.hs</code> and add the following code:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Model.Schema</span><span> </span><span class="kw">where</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">ClassyPrelude</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="sy">(</span><span class="op">&lt;&gt;</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="cr">Bool</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">)</span><span>
-</span><span class="kw">import</span><span> </span><span class="cr">Foundation.SchemaSupport</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">TurboHaskell.SchemaSupport</span><span>
 
 </span><span class="va">database</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[</span><span>
     </span><span class="va">table</span><span> </span><span class="st">&quot;posts&quot;</span><span>

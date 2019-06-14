@@ -16,7 +16,7 @@ import qualified System.Directory as Directory
 import Data.Default (def)
 import Data.Maybe (fromJust)
 import qualified Control.Concurrent.Lock as Lock
-import qualified Foundation.DevelopmentSupport.LiveReloadNotificationServer as LiveReloadNotificationServer
+import qualified TurboHaskell.DevelopmentSupport.LiveReloadNotificationServer as LiveReloadNotificationServer
 
 data DevServerState = DevServerState {
         postgresProcess :: !(IORef (Handle, Process.ProcessHandle)),
@@ -95,7 +95,7 @@ startLiveReloadNotificationServer = do
 
 
 initServer ghci = do
-    sendGhciCommand ghci (":script src/Foundation/startDevServerGhciScript")
+    sendGhciCommand ghci (":script src/TurboHaskell/startDevServerGhciScript")
     return ghci
 
 watch :: DevServerState -> FS.Event -> IO ()
@@ -112,7 +112,7 @@ rebuildModels (DevServerState {modelCompilerProcess}) = do
     putStrLn "rebuildModels"
     ghci@(input, process) <- readIORef modelCompilerProcess
     sendGhciCommand ghci ":!clear"
-    sendGhciCommand ghci ":script src/Foundation/compileModels"
+    sendGhciCommand ghci ":script src/TurboHaskell/compileModels"
     putStrLn "rebuildModels => Finished"
 
 sendGhciInterrupt ghci@(input, process) = do
@@ -125,7 +125,7 @@ rebuild serverProcess rebuildServerLock = do
     _ <- Lock.tryWith rebuildServerLock $ do
         ghci <- readIORef serverProcess
         _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
-        sendGhciCommand ghci ":script src/Foundation/startDevServerGhciScriptRec"
+        sendGhciCommand ghci ":script src/TurboHaskell/startDevServerGhciScriptRec"
     return ()
 
 sendGhciCommand ghciProcess command = do
