@@ -37,7 +37,8 @@ module Foundation.ViewPrelude (
     pathTo,
     (:>)(..),
     module Foundation.ViewSupport,
-    module Foundation.ModelSupport
+    module Foundation.ModelSupport,
+    (!)
 ) where
 
 import ClassyPrelude
