@@ -64,16 +64,5 @@ validateRecord' arg model = do
 
 class ValidateRecord record controllerContext where
     validateRecord :: (?modelContext :: ModelContext, ?controllerContext :: controllerContext, ?model :: record) => StateT (ValidatorResultFor record) IO ()
-
-
---instance  {-# OVERLAPPABLE #-} (ValidateRecord (New record) controllerContext, ValidatorResultFor record ~ ValidatorResultFor (New record)) => ValidateRecord record controllerContext where
---    validateRecord checklist = validateRecord newChecklist
---        where
---            newChecklist :: New record
---            newChecklist = unsafeCoerce checklist
-
---instance {-# OVERLAPPABLE #-} ValidateRecord model context where
---    validateRecord = return ()
-
-instance {-# OVERLAPPABLE #-} ValidateRecord otherwise controllerContext where
     validateRecord = return ()
+

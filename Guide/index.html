@@ -5,17 +5,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <title>TurboHaskell Guide</title>
 
-    <title>Hello, world!</title>
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
   </head>
-  <body style="max-width: 800px" class="mx-auto">
+  <body style="max-width: 800px; margin-left: auto; margin-right: auto; margin-top: 3rem">
 
 
     <div class="container mt-5">{{& output }}</div>
 
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+    
 
     <style>
       .source-code {
@@ -23,7 +22,7 @@
         
         border-radius: 3px;
       }
-      .language-haskell, .language-bash, .language-sql, .language-html {
+      .language-haskell, .language-bash, .language-sql, .language-html, .language-nix {
         color: #839496;
         display: block;
         padding: 1rem;
@@ -41,6 +40,10 @@
 
       code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
       code.language-haskell .st { color: #2aa198; }
+
+      pre { overflow: scroll; }
+
+      img { width: 100%; }
     </style>
 
     <script>

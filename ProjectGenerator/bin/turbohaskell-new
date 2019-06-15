@@ -2,7 +2,6 @@
 echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
-BOILERPLATE_DIR="$LIB_DIR/boilerplate"
 
 BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/haskellframework-boilerplate.git"
 FRAMEWORK_GIT_URL="git@github.com:digitallyinduced/haskellframework.git"
@@ -18,10 +17,30 @@ if [ -d "$PROJECT_NAME" ]; then
 	exit 1
 fi
 
-if [ ! -d "$BOILERPLATE_DIR" ]; then 
-	echo "Could not find boilerplate directory \"$BOILERPLATE_DIR\"";
-	exit;
+if ! [ -x "$(command -v direnv)" ]; then
+	echo -e "\e[1m\e[35mDIRENV MISSING\e[0m"
+	echo -e "TurboHaskell uses direnv to manage env variables.";
+	echo -e "Learn more about direnv here: \e[4mhttps://direnv.net/\e[0m"
+	echo ""
+	echo ""
+	echo -e "\e[1mWe will install direnv for you now. Continue? (Type y to proceed) \e[0m"
+	read -n1 choice
+	echo ""
+	case "$choice" in 
+	  y|Y ) nix-env -i direnv;;
+	  * ) echo -e "\e[31mPlease install direnv manually and then re-run this program.\e[0m"; exit 1;;
+	esac
+	echo -e "\e[1mDirenv needs to be hooked into your shell. Please follow the steps below:\e[0m"
+	echo "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
+	echo "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
+	echo "Other shells: See https://direnv.net/#README"
+	read -p "Have you done this step?" -n1 choice
+	case "$choice" in 
+	  y|Y ) echo "Great!";;
+	  * ) echo -e "\e[31mPlease make sure direnv is set up correctly and then re-run this program. See https://direnv.net/#README for help.\e[0m"; exit 1;;
+	esac
 fi
+
 
 git clone --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
 cd "$PROJECT_NAME"
@@ -33,5 +52,6 @@ ln -s ../../TurboHaskell/del del
 cd ../../../
 make .envrc
 echo "Project created, happy coding :)"
-
-# Then: use git clone to clone TurboHaskell
+echo "You can start the server by running:"
+echo "cd $PROJECT_NAME"
+echo "make"

@@ -18,6 +18,8 @@ This guide covers everything you need to ship software with interactive lambda.
 
 
 
+## Dependencies
+
 ### 1. Nix Package Manager
 
 The framework uses the nix package manager to manage the whole set of dependencies of your application
@@ -26,19 +28,58 @@ For example postgresql and the haskell compiler are both dependencies of your ap
 
 That's why we first need to make sure that you have nix installed.
 
-##### MacOS
-Install nix with ...
-##### Linux
-TODO
+##### MacOS, Linux
+
+Install nix by running the following command in your shell and follow the instructions on the screen:
+
+```bash
+curl https://nixos.org/nix/install | sh
+```
+
+There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
+
+
 ##### Windows
 Sorry, we don't support windows yet.
+
+### 2. Direnv
+
+TurboHaskell uses `direnv` to speed up the development shell. As it needs to be hooked into your shell, it needs to be installed manually.
+
+Install it via nix:
+
+```bash
+nix-env -i direnv
+```
+
+**After that you also need to hook it into your shell:**
+
+##### Bash
+
+If you use bash, add the following line at the end of the `~/.bashrc` file:
+
+```bash
+eval "$(direnv hook bash)"
+```
+
+##### ZSH
+
+If you use zsh, add the following line at the end of the `~/.zshrc` file:
+
+```bash
+eval "$(direnv hook zsh)"
+```
+
+##### Other shell
+
+For other shells, [take a look at the direnv documentation](https://direnv.net/#README).
 
 ### 2. Installing Interactive Lambda
 
 You can now install interactive lambda by running:
 
 ```bash
-$ nix-env -f <(curl https://turbohaskell.digitallyinduced.com/turbohaskell-new.nix) -i turbohaskell-new
+$ nix-env -f https://turbohaskell.digitallyinduced.com/turbohaskell-new.tar.gz -i turbohaskell-new
 ```
 
 
@@ -232,7 +273,11 @@ $ gen/controller Posts
 
 You can see that lot's of files have been created and updated.
 
-Open your browser at [http://localhost:8000/](http://localhost:8000/) to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.
+Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.
+
+Here's how the new controller looks like:
+
+![Screenshot of the /Posts view](images/Posts.png)
 
 ##### New Types
 
@@ -572,6 +617,141 @@ Let's also show the creation time in the `ShowView` in `src/Apps/Web/View/Posts/
 ```
 
 Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of javascript to automatically displays the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58 Uhr`), just use `dateTime` instead of `timeAgo`.
+
+#### Markdown
+
+Right now our posts can only be plain text. Let's make it more powerful by adding support for markdown.
+
+##### Adding a Markdown Library
+
+To deal with markdown, instead of implementing our own markdown parser, let's just use an existing package. There's the excellt `mmark` package we can use.
+
+To install this package, open the `default.nix` file and append `mmark` to the `haskellDeps` list. The file will now look like this:
+
+```nix
+let
+    haskellEnv = import ./src/TurboHaskell/NixSupport/default.nix {
+        compiler = "ghc844";
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            classy-prelude
+            directory
+            free
+            string-conversions
+            wai
+            mtl
+            blaze-html
+            blaze-markup
+            wai
+            mtl
+            text
+            postgresql-simple
+            wai-util
+            aeson
+            uuid
+            hlint
+            parsec
+            template-haskell
+            interpolate
+            uri-encode
+            generic-lens
+            tz
+            turbohaskell
+            mmark
+        ];
+        otherDeps = p: with p; [
+            imagemagick
+        ];
+        projectPath = ./.;
+    };
+in
+    haskellEnv
+```
+
+Now restart the development server by pressing CTRL+C and then typing `make` again. We will see that mmark is going to be installed.
+
+##### Markdown Rendering
+
+Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: Add `import qualified Text.MMark as MMark` to the top of `src/Apps/Web/View/Posts/Show.hs`.
+
+Next change `{get #body post}` to `{get #body post |> renderMarkdown}`. This pipes the body field through a function `renderMarkdown`. Of course we also have to define the function now.
+
+Add the following to the bottom of the show view:
+```haskell
+renderMarkdown text = text
+```
+
+This function now does nothing except return it's input text. Our markdown package provides two functions, `MMark.parse` and `MMark.render` to deal with the markdown. Let's first deal with parsing:
+
+```haskell
+renderMarkdown text = text |> MMark.parse ""
+```
+The empty string we pass to `MMark.parse` is usually the file name of the `.markdown` file, as we don't have any markdown file, we just pass an empty string.
+
+Now open the web app and take a look at a blog post. You will see something like this:
+
+```
+Right MMark {..}
+```
+
+This is the parsed representation of the markdown. Of course that's not very helpful. We also have to connect it with `MMark.render` to get html code for our markdown. Replace the `renderMarkdown` with the following code:
+
+```haskell
+renderMarkdown text =
+    case text |> MMark.parse "" of
+        Left error -> "Something went wrong"
+        Right markdown -> MMark.render markdown |> tshow |> preEscapedToHtml
+```
+
+The show view will now show real formatted text, as we would have expected.
+
+##### Forms & Validation
+
+Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a textarea to support multi line text.
+
+Open `src/Apps/Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use markdown here"} }`.
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formFor post (UpdatePostAction (get #id post)) [hsx|
+    {textField #title}
+    {(textareaField #body) { helpText = "You can use markdown here"} }
+    {submitButton}
+|]
+```
+
+After that, do the same in `src/Apps/Web/View/Posts/New.hs`.
+
+We can also add an error message when the user tries to save invalid markdown. We can quickly write a custom validator for that:
+
+Open `src/Apps/Web/validation.hs` and import `MMark` at the top `import qualified Text.MMark as MMark`.
+
+Then add this custom validator to the bottom of the file:
+
+```haskell
+isMarkdown :: Text -> ValidatorResult
+isMarkdown text =
+    case MMark.parse "" text of
+        Left _ -> Failure "Please provide valid markdown"
+        Right _ -> Success
+```
+
+We can use the validator by adding a new `validateField #body isMarkdown` line to the `ValidateRecord` instance of the post:
+
+```haskell
+instance ValidateRecord NewPost ControllerContext where
+    validateRecord = do
+        validateField #title nonEmpty
+        validateField #body nonEmpty
+        validateField #body isMarkdown
+```
+
+Create a new post with just `#` (a headline without any text) as the content to see our new error message.
+
+#### Form Customization
+
+#### Login & Logout
 
 # QueryBuilder Reference
 

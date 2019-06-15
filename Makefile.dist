@@ -55,8 +55,8 @@ run: .envrc build/db/state src/Model/Generated static/prod.js static/prod.css
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	direnv allow
 
-bin:
-	mkdir -p bin
+build/bin:
+	mkdir -p build/bin
 
 run-production: build/bin/RunProdServer src/Model/Generated
 	build/bin/RunProdServer
@@ -87,28 +87,25 @@ src/Model/Generated: src/Model/Schema.hs src/TurboHaskell/TurboHaskell/SchemaCom
 	rm -rf src/Model/Generated && mkdir -p src/Model/Generated
 	ghci -e ':script src/TurboHaskell/compileModels'
 
-build/bin/RunUnoptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
+build/bin/RunUnoptimizedProdServer: src/Main.hs build/bin static/prod.js static/prod.css
 	mkdir -p build/RunUnoptimizedProdServer
 	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<
 	rm -f build/bin/RunProdServer
 	ln -s `basename $@` build/bin/RunProdServer
 
-build/bin/RunOptimizedProdServer: src/Main.hs bin static/prod.js static/prod.css
+build/bin/RunOptimizedProdServer: src/Main.hs build/bin static/prod.js static/prod.css
 	mkdir -p build/RunOptimizedProdServer
 	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
 	chmod +x $<
 	rm -f build/bin/RunProdServer
 	ln -s `basename $@` build/bin/RunProdServer
 
-install:
-	brew install direnv
-	echo "https://github.com/direnv/direnv"
-
 clean:
 	rm -rf build/bin
 	rm -rf src/TurboHaskell/TurboHaskell/static/node_modules
 	rm -rf build/db
+	rm -f .envrc
 
 del:
 	ln -s src/TurboHaskell/del del

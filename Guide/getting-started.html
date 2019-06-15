@@ -5,12 +5,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <title>TurboHaskell Guide</title>
 
-    <title>Hello, world!</title>
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
   </head>
-  <body style="max-width: 800px" class="mx-auto">
+  <body style="max-width: 800px; margin-left: auto; margin-right: auto; margin-top: 3rem">
 
 
     <div class="container mt-5"><h1 id="getting-started-with-turbo-haskell">Getting Started With Turbo Haskell</h1>
@@ -45,13 +44,13 @@
 <a href="#feature-overview">Feature Overview</a>
 </li>
 <li>
+<a href="#dependencies">Dependencies</a>
+<ul>
+<li>
 <a href="#1-nix-package-manager">1. Nix Package Manager</a>
 <ul>
 <li>
-<a href="#macos">MacOS</a>
-</li>
-<li>
-<a href="#linux">Linux</a>
+<a href="#macos-linux">MacOS, Linux</a>
 </li>
 <li>
 <a href="#windows">Windows</a>
@@ -59,7 +58,23 @@
 </ul>
 </li>
 <li>
+<a href="#2-direnv">2. Direnv</a>
+<ul>
+<li>
+<a href="#bash">Bash</a>
+</li>
+<li>
+<a href="#zsh">ZSH</a>
+</li>
+<li>
+<a href="#other-shell">Other shell</a>
+</li>
+</ul>
+</li>
+<li>
 <a href="#2-installing-interactive-lambda">2. Installing Interactive Lambda</a>
+</li>
+</ul>
 </li>
 </ul>
 </li>
@@ -146,6 +161,26 @@
 </li>
 <li>
 <a href="#timestamps">Timestamps</a>
+</li>
+<li>
+<a href="#markdown">Markdown</a>
+<ul>
+<li>
+<a href="#adding-a-markdown-library">Adding a Markdown Library</a>
+</li>
+<li>
+<a href="#markdown-rendering">Markdown Rendering</a>
+</li>
+<li>
+<a href="#forms-validation">Forms &amp; Validation</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#form-customization">Form Customization</a>
+</li>
+<li>
+<a href="#login-logout">Login &amp; Logout</a>
 </li>
 </ul>
 </li>
@@ -244,19 +279,37 @@
 </ul>
 </li>
 </ul>
+<h2 id="dependencies">Dependencies</h2>
 <h3 id="1-nix-package-manager">1. Nix Package Manager</h3>
 <p>The framework uses the nix package manager to manage the whole set of dependencies of your application</p>
 <p>For example postgresql and the haskell compiler are both dependencies of your app. as well as all the haskell or javascript packages you want to use. we use nix to make sure that these dependencies are available to the app - in development, as well as in production.</p>
 <p>That’s why we first need to make sure that you have nix installed.</p>
-<h5 id="macos">MacOS</h5>
-<p>Install nix with …</p>
-<h5 id="linux">Linux</h5>
-<p>TODO</p>
+<h5 id="macos-linux">MacOS, Linux</h5>
+<p>Install nix by running the following command in your shell and follow the instructions on the screen:</p>
+<div class="source-code"><pre><code class="language-bash"><span class="ex">curl</span><span> https://nixos.org/nix/install </span><span class="kw">|</span><span> </span><span class="fu">sh</span>
+</code></pre></div>
+<p>There are also other ways to install nix, <a href="https://nixos.org/nix/download.html">take a look at the documentation</a>.</p>
 <h5 id="windows">Windows</h5>
 <p>Sorry, we don’t support windows yet.</p>
+<h3 id="2-direnv">2. Direnv</h3>
+<p>TurboHaskell uses <code>direnv</code> to speed up the development shell. As it needs to be hooked into your shell, it needs to be installed manually.</p>
+<p>Install it via nix:</p>
+<div class="source-code"><pre><code class="language-bash"><span class="ex">nix-env</span><span> -i direnv</span>
+</code></pre></div>
+<p><strong>After that you also need to hook it into your shell:</strong></p>
+<h5 id="bash">Bash</h5>
+<p>If you use bash, add the following line at the end of the <code>~/.bashrc</code> file:</p>
+<div class="source-code"><pre><code class="language-bash"><span class="bu">eval</span><span> </span><span class="st">&quot;</span><span class="va">$(</span><span class="ex">direnv</span><span> hook bash</span><span class="va">)</span><span class="st">&quot;</span>
+</code></pre></div>
+<h5 id="zsh">ZSH</h5>
+<p>If you use zsh, add the following line at the end of the <code>~/.zshrc</code> file:</p>
+<div class="source-code"><pre><code class="language-bash"><span class="bu">eval</span><span> </span><span class="st">&quot;</span><span class="va">$(</span><span class="ex">direnv</span><span> hook zsh</span><span class="va">)</span><span class="st">&quot;</span>
+</code></pre></div>
+<h5 id="other-shell">Other shell</h5>
+<p>For other shells, <a href="https://direnv.net/#README">take a look at the direnv documentation</a>.</p>
 <h3 id="2-installing-interactive-lambda">2. Installing Interactive Lambda</h3>
 <p>You can now install interactive lambda by running:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">nix-env</span><span> -f </span><span class="op">&lt;(</span><span class="ex">curl</span><span> https://turbohaskell.digitallyinduced.com/turbohaskell-new.nix</span><span class="op">)</span><span> -i turbohaskell-new</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">nix-env</span><span> -f https://turbohaskell.digitallyinduced.com/turbohaskell-new.tar.gz -i turbohaskell-new</span>
 </code></pre></div>
 <h1 id="creating-your-first-project">Creating Your First Project</h1>
 <h3 id="1-project-setup">1. Project Setup</h3>
@@ -420,7 +473,9 @@ Don’t worry, the local development postgresql server is already running. The d
 <span class="ex">+</span><span> src/Apps/Web/View/Posts/Index.hs</span>
 </code></pre></div>
 <p>You can see that lot’s of files have been created and updated.</p>
-<p>Open your browser at <a href="http://localhost:8000/">http://localhost:8000/</a> to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.</p>
+<p>Open your browser at <a href="http://localhost:8000/Posts">http://localhost:8000/Posts</a> to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.</p>
+<p>Here’s how the new controller looks like:</p>
+<p><img src="images/Posts.png" alt="Screenshot of the /Posts view"></p>
 <h5 id="new-types">New Types</h5>
 <p>Let’s first take a closer look at the changes in <code>src/Apps/Web/Types.hs</code>. Here a new data structures was created:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">data</span><span> </span><span class="cr">PostsController</span><span>
@@ -641,6 +696,101 @@ Don’t worry, the local development postgresql server is already running. The d
 <span class="kw">&lt;div&gt;</span><span>{get #body post}</span><span class="kw">&lt;/div&gt;</span>
 </code></pre></div>
 <p>Open the view to check that it’s working. If everything is fine, you will see something like <code>5 minutes ago</code> below the title. The <code>timeAgo</code> helper uses a bit of javascript to automatically displays the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like <code>10.6.2019, 15:58 Uhr</code>), just use <code>dateTime</code> instead of <code>timeAgo</code>.</p>
+<h4 id="markdown">Markdown</h4>
+<p>Right now our posts can only be plain text. Let’s make it more powerful by adding support for markdown.</p>
+<h5 id="adding-a-markdown-library">Adding a Markdown Library</h5>
+<p>To deal with markdown, instead of implementing our own markdown parser, let’s just use an existing package. There’s the excellt <code>mmark</code> package we can use.</p>
+<p>To install this package, open the <code>default.nix</code> file and append <code>mmark</code> to the <code>haskellDeps</code> list. The file will now look like this:</p>
+<div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import ./src/TurboHaskell/NixSupport/default.nix {</span>
+<span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc844&quot;</span><span class="kw">;</span>
+<span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
+<span>            cabal-install</span>
+<span>            base</span>
+<span>            classy-prelude</span>
+<span>            directory</span>
+<span>            free</span>
+<span>            string-conversions</span>
+<span>            wai</span>
+<span>            mtl</span>
+<span>            blaze-html</span>
+<span>            blaze-markup</span>
+<span>            wai</span>
+<span>            mtl</span>
+<span>            text</span>
+<span>            postgresql-simple</span>
+<span>            wai-util</span>
+<span>            aeson</span>
+<span>            uuid</span>
+<span>            hlint</span>
+<span>            parsec</span>
+<span>            template-haskell</span>
+<span>            interpolate</span>
+<span>            uri-encode</span>
+<span>            generic-lens</span>
+<span>            tz</span>
+<span>            turbohaskell</span>
+<span>            mmark</span>
+<span>        ];</span>
+<span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
+<span>            imagemagick</span>
+<span>        ];</span>
+<span>        projectPath </span><span class="ot">=</span><span> ./.;</span>
+<span>    };</span>
+<span>in</span>
+<span>    haskellEnv</span>
+</code></pre></div>
+<p>Now restart the development server by pressing CTRL+C and then typing <code>make</code> again. We will see that mmark is going to be installed.</p>
+<h5 id="markdown-rendering">Markdown Rendering</h5>
+<p>Now that we have <code>mmark</code> installed, we need to integrate it into our <code>ShowView</code>. First we need to import it: Add <code>import qualified Text.MMark as MMark</code> to the top of <code>src/Apps/Web/View/Posts/Show.hs</code>.</p>
+<p>Next change <code>{get #body post}</code> to <code>{get #body post |&gt; renderMarkdown}</code>. This pipes the body field through a function <code>renderMarkdown</code>. Of course we also have to define the function now.</p>
+<p>Add the following to the bottom of the show view:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">renderMarkdown</span><span> </span><span class="va">text</span><span> </span><span class="sy">=</span><span> </span><span class="va">text</span><span>
+</span></code></pre></div>
+<p>This function now does nothing except return it’s input text. Our markdown package provides two functions, <code>MMark.parse</code> and <code>MMark.render</code> to deal with the markdown. Let’s first deal with parsing:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">renderMarkdown</span><span> </span><span class="va">text</span><span> </span><span class="sy">=</span><span> </span><span class="va">text</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">MMark.parse</span><span> </span><span class="st">&quot;&quot;</span><span>
+</span></code></pre></div>
+<p>The empty string we pass to <code>MMark.parse</code> is usually the file name of the <code>.markdown</code> file, as we don’t have any markdown file, we just pass an empty string.</p>
+<p>Now open the web app and take a look at a blog post. You will see something like this:</p>
+<pre><code>Right MMark {..}
+</code></pre>
+<p>This is the parsed representation of the markdown. Of course that’s not very helpful. We also have to connect it with <code>MMark.render</code> to get html code for our markdown. Replace the <code>renderMarkdown</code> with the following code:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">renderMarkdown</span><span> </span><span class="va">text</span><span> </span><span class="sy">=</span><span>
+    </span><span class="kw">case</span><span> </span><span class="va">text</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">MMark.parse</span><span> </span><span class="st">&quot;&quot;</span><span> </span><span class="kw">of</span><span>
+        </span><span class="cr">Left</span><span> </span><span class="va">error</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="st">&quot;Something went wrong&quot;</span><span>
+        </span><span class="cr">Right</span><span> </span><span class="va">markdown</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">MMark.render</span><span> </span><span class="va">markdown</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">tshow</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">preEscapedToHtml</span><span>
+</span></code></pre></div>
+<p>The show view will now show real formatted text, as we would have expected.</p>
+<h5 id="forms-validation">Forms &amp; Validation</h5>
+<p>Let’s also quickly update our form. Right now we have a one-line text field there. We can replace it with a textarea to support multi line text.</p>
+<p>Open <code>src/Apps/Web/View/Posts/Edit.hs</code> and change <code>{textField #body}</code> to <code>{textareaField #body}</code>. We can also add a short hint that the text area supports markdown: Replace <code>{textareaField #body}</code> with <code>{(textareaField #body) { helpText = &quot;You can use markdown here&quot;} }</code>.</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">renderForm</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">Html</span><span>
+</span><span class="va">renderForm</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">formFor</span><span> </span><span class="va">post</span><span> </span><span class="sy">(</span><span class="cr">UpdatePostAction</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#id</span><span> </span><span class="va">post</span><span class="sy">)</span><span class="sy">)</span><span> </span><span class="sy">[hsx|
+    {textField #title}
+    {(textareaField #body) { helpText = &quot;You can use markdown here&quot;} }
+    {submitButton}
+|]</span><span>
+</span></code></pre></div>
+<p>After that, do the same in <code>src/Apps/Web/View/Posts/New.hs</code>.</p>
+<p>We can also add an error message when the user tries to save invalid markdown. We can quickly write a custom validator for that:</p>
+<p>Open <code>src/Apps/Web/validation.hs</code> and import <code>MMark</code> at the top <code>import qualified Text.MMark as MMark</code>.</p>
+<p>Then add this custom validator to the bottom of the file:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">isMarkdown</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Text</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
+</span><span class="va">isMarkdown</span><span> </span><span class="va">text</span><span> </span><span class="sy">=</span><span>
+    </span><span class="kw">case</span><span> </span><span class="va">MMark.parse</span><span> </span><span class="st">&quot;&quot;</span><span> </span><span class="va">text</span><span> </span><span class="kw">of</span><span>
+        </span><span class="cr">Left</span><span> </span><span class="sy">_</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">Failure</span><span> </span><span class="st">&quot;Please provide valid markdown&quot;</span><span>
+        </span><span class="cr">Right</span><span> </span><span class="sy">_</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">Success</span><span>
+</span></code></pre></div>
+<p>We can use the validator by adding a new <code>validateField #body isMarkdown</code> line to the <code>ValidateRecord</code> instance of the post:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+        </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
+        </span><span class="va">validateField</span><span> </span><span class="va">#body</span><span> </span><span class="va">nonEmpty</span><span>
+        </span><span class="va">validateField</span><span> </span><span class="va">#body</span><span> </span><span class="va">isMarkdown</span><span>
+</span></code></pre></div>
+<p>Create a new post with just <code>#</code> (a headline without any text) as the content to see our new error message.</p>
+<h4 id="form-customization">Form Customization</h4>
+<h4 id="login-logout">Login &amp; Logout</h4>
 <h1 id="querybuilder-reference">QueryBuilder Reference</h1>
 <p>You can compose database queries using the QueryBuilder module.</p>
 <h2 id="creating-a-new-query">Creating a new query</h2>
@@ -795,7 +945,7 @@ You can just use the <code>query</code> function for that.</p>
 </span></code></pre></div>
 </div>
 
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+    
 
     <style>
       .source-code {
@@ -803,7 +953,7 @@ You can just use the <code>query</code> function for that.</p>
         
         border-radius: 3px;
       }
-      .language-haskell, .language-bash, .language-sql, .language-html {
+      .language-haskell, .language-bash, .language-sql, .language-html, .language-nix {
         color: #839496;
         display: block;
         padding: 1rem;
@@ -821,6 +971,10 @@ You can just use the <code>query</code> function for that.</p>
 
       code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
       code.language-haskell .st { color: #2aa198; }
+
+      pre { overflow: scroll; }
+
+      img { width: 100%; }
     </style>
 
     <script>
