@@ -1,0 +1,37 @@
+#!/bin/bash -e
+echo "$(readlink "$(which "$0")")"
+BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
+LIB_DIR="$BIN_DIR/../lib"
+BOILERPLATE_DIR="$LIB_DIR/boilerplate"
+
+BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/haskellframework-boilerplate.git"
+FRAMEWORK_GIT_URL="git@github.com:digitallyinduced/haskellframework.git"
+
+if [ "$#" -ne "1" ]; then
+	echo "Usage: turbohaskell-new PROJECT_NAME\n"
+	exit 1
+fi
+
+PROJECT_NAME=$1
+if [ -d "$PROJECT_NAME" ]; then
+	echo "Directory \"$PROJECT_NAME\" already exists. Please remove the directory and re-run the generator";
+	exit 1
+fi
+
+if [ ! -d "$BOILERPLATE_DIR" ]; then 
+	echo "Could not find boilerplate directory \"$BOILERPLATE_DIR\"";
+	exit;
+fi
+
+git clone --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
+cd "$PROJECT_NAME"
+rm -rf ".git"
+git clone "$FRAMEWORK_GIT_URL" src/TurboHaskell
+cd src/Apps/Web
+ln -s ../../TurboHaskell/gen gen
+ln -s ../../TurboHaskell/del del
+cd ../../../
+make .envrc
+echo "Project created, happy coding :)"
+
+# Then: use git clone to clone TurboHaskell

@@ -1,0 +1,3 @@
+.animate-delete { transition: all 0.15s; transition-timing-function: ease-out; }
+.animate-delete.delete { height: 0 !important; padding: 0 !important; margin: 0 !important; overflow-y: hidden; }
+.form-control.flatpickr-input[readonly] { background-color: white }

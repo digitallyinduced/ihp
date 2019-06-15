@@ -1,3 +1,0 @@
-import Prelude
-:def source readFile
-:source src/TurboHaskell/applicationGHciConfig

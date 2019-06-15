@@ -1,0 +1,328 @@
+name:                turbohaskell
+version:             0.1.0.0
+synopsis: Haskell Web Framework
+description: Turbo Haskell is a full stack framework focused on rapid application development while striving for robust code quality.
+license:             AllRightsReserved
+license-file:        LICENSE
+author:              Marc Scholten
+maintainer:          marc@digitallyinduced.com
+-- copyright:
+-- category:
+build-type:          Simple
+cabal-version:       >=1.10
+
+Library TurboHaskellFramework
+    Exposed-modules:
+        TurboHaskell.AuthSupport.Authentication
+        , TurboHaskell.AuthSupport.Authorization
+        , TurboHaskell.AuthSupport.Lockable
+        , TurboHaskell.Controller.Context
+        , TurboHaskell.Controller.Param
+        , TurboHaskell.Controller.Redirect
+        , TurboHaskell.Controller.Render
+        , TurboHaskell.Controller.RequestContext
+        , TurboHaskell.Controller.Session
+        , TurboHaskell.DatabaseSupport.Point
+        , TurboHaskell.HtmlSupport.Parser
+        , TurboHaskell.HtmlSupport.QQ
+        , TurboHaskell.HtmlSupport.ToHtml
+        , TurboHaskell.LoginSupport.Helper.Controller
+        , TurboHaskell.LoginSupport.Helper.View
+        , TurboHaskell.LoginSupport.Controller
+        , TurboHaskell.LoginSupport.Middleware
+        , TurboHaskell.LoginSupport.Types
+        , TurboHaskell.ValidationSupport.Types
+        , TurboHaskell.ValidationSupport.ValidateCanView
+        , TurboHaskell.ValidationSupport.ValidateField
+        , TurboHaskell.ValidationSupport.ValidateFieldIO
+        , TurboHaskell.ValidationSupport.ValidateIsUnique
+        , TurboHaskell.View.ConvertibleStrings
+        , TurboHaskell.View.Form
+        , TurboHaskell.View.Modal
+        , TurboHaskell.View.TimeAgo
+        , TurboHaskell.Welcome.Controller
+        , TurboHaskell.ApplicationContext
+        , TurboHaskell.ControllerPrelude
+        , TurboHaskell.ControllerSupport
+        , TurboHaskell.Environment
+        , TurboHaskell.FetchRelated
+        , TurboHaskell.FrameworkConfig
+        , TurboHaskell.HaskellSupport
+        , TurboHaskell.ModelPrelude
+        , TurboHaskell.ModelSupport
+        , TurboHaskell.NameSupport
+        , TurboHaskell.QueryBuilder
+        , TurboHaskell.RouterPrelude
+        , TurboHaskell.SchemaCompiler
+        , TurboHaskell.SchemaSupport
+        , TurboHaskell.Server
+        , TurboHaskell.SqlCompiler
+        , TurboHaskell.ValidationSupport
+        , TurboHaskell.ViewErrorMessages
+        , TurboHaskell.ViewPrelude
+        , TurboHaskell.ViewSupport
+        , TurboHaskell.RouterSupport
+        , TurboHaskell.GenericController
+        , TurboHaskell.ControllerGenerator
+        , TurboHaskell.SchemaTypes
+        , TurboHaskell.AppPrelude
+    build-depends:
+        base
+        , classy-prelude
+        , directory
+        , free
+        , string-conversions
+        , warp
+        , wai
+        , mtl
+        , blaze-html
+        , blaze-markup
+        , wai-extra
+        , wai
+        , http-types
+        , blaze-html
+        , mtl
+        , inflections
+        , text
+        , postgresql-simple
+        , wai-middleware-static
+        , wai-util
+        , http-conduit
+        , tagsoup
+        , http-client
+        , bytestring
+        , network-uri
+        , aeson
+        , wai-session
+        , wai-session-clientsession
+        , clientsession
+        , pwstore-fast
+        , vault
+        , data-default
+        , random-strings
+        , uuid
+        , time
+        , parsec
+        , attoparsec
+        , lens
+        , generic-lens
+        , ghc-prim
+        , case-insensitive
+        , haskell-src-meta
+        , template-haskell
+        , haskell-src-exts
+        , interpolate
+        , split
+        , containers
+        , http-media
+        , cookie
+        , process
+        , newtype-generics
+    hs-source-dirs:      .
+    default-language:    Haskell2010
+    extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+    Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200
+
+
+Executable RunDevServer
+    Main-is: Commands/RunDevServer.hs
+    build-depends:
+        base
+        , classy-prelude
+        , directory
+        , free
+        , string-conversions
+        , warp
+        , wai
+        , mtl
+        , blaze-html
+        , blaze-markup
+        , wai-extra
+        , wai
+        , http-types
+        , blaze-html
+        , mtl
+        , inflections
+        , text
+        , postgresql-simple
+        , wai-middleware-static
+        , wai-util
+        , http-conduit
+        , tagsoup
+        , http-client
+        , bytestring
+        , network-uri
+        , aeson
+        , wai-session
+        , wai-session-clientsession
+        , clientsession
+        , pwstore-fast
+        , vault
+        , data-default
+        , random-strings
+        , uuid
+        , time
+        , parsec
+        , attoparsec
+        , lens
+        , generic-lens
+        , ghc-prim
+        , case-insensitive
+        , haskell-src-meta
+        , template-haskell
+        , haskell-src-exts
+        , interpolate
+        , split
+        , containers
+        , http-media
+        , cookie
+        , process
+        , newtype-generics
+        , unix
+        , fsnotify
+        , concurrent-extra
+        , wai-websockets
+        , websockets
+    hs-source-dirs: .
+    default-language: Haskell2010
+    extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+    Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 "-with-rtsopts=-A512m -n4m"
+
+Executable RunLiveReloadNotificationServer
+    Main-is: Commands/RunLiveReloadNotificationServer.hs
+    build-depends:
+        base
+        , classy-prelude
+        , directory
+        , free
+        , string-conversions
+        , warp
+        , wai
+        , mtl
+        , blaze-html
+        , blaze-markup
+        , wai-extra
+        , wai
+        , http-types
+        , blaze-html
+        , mtl
+        , inflections
+        , text
+        , postgresql-simple
+        , wai-middleware-static
+        , wai-util
+        , http-conduit
+        , tagsoup
+        , http-client
+        , bytestring
+        , network-uri
+        , aeson
+        , wai-session
+        , wai-session-clientsession
+        , clientsession
+        , pwstore-fast
+        , vault
+        , data-default
+        , random-strings
+        , uuid
+        , time
+        , parsec
+        , attoparsec
+        , lens
+        , generic-lens
+        , ghc-prim
+        , case-insensitive
+        , haskell-src-meta
+        , template-haskell
+        , haskell-src-exts
+        , interpolate
+        , split
+        , containers
+        , http-media
+        , cookie
+        , process
+        , newtype-generics
+        , unix
+        , fsnotify
+        , concurrent-extra
+        , wai-websockets
+        , websockets
+    hs-source-dirs: .
+    default-language: Haskell2010
+    extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+    Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 "-with-rtsopts=-A512m -n4m"
