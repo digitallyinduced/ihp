@@ -47,6 +47,7 @@ registerExitHandler handler = do
 main :: IO ()
 main = do
     state <- initDevServerState
+    rebuildModels state
     registerExitHandler (cleanup state)
 
     currentDir <- getCurrentDirectory
