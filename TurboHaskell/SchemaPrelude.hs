@@ -3,5 +3,5 @@ module TurboHaskell.SchemaPrelude
 , module TurboHaskell.SchemaSupport
 ) where
 
-import ClassyPrelude hiding ((+))
+import ClassyPrelude hiding ((+), point, bool)
 import TurboHaskell.SchemaSupport
