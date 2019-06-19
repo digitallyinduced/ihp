@@ -25,7 +25,7 @@ GHC_EXTENSIONS+= -XMultiParamTypeClasses
 GHC_EXTENSIONS+= -XTypeOperators
 GHC_EXTENSIONS+= -XDeriveDataTypeable
 
-GHC_OPTIONS=-threaded -isrc -ibuild
+GHC_OPTIONS=-threaded -i. -ibuild
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
@@ -47,7 +47,7 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 RUNGHC=runghc
 
 run: .envrc build/db/state build/Generated static/prod.js static/prod.css
-	RunDevServer --root src
+	RunDevServer
 
 
 .envrc: default.nix src/TurboHaskell/NixSupport/default.nix
@@ -64,37 +64,37 @@ run-production: build/bin/RunProdServer build/Generated
 psql:
 	@psql -h $$PWD/build/db -d app
 
-src/Model/Schema.sql:
+Application/Schema.sql:
 	touch $@
 
-src/Model/Fixtures.sql:
+Application/Fixtures.sql:
 	touch $@
 
 initdb: db
-db: src/Model/Schema.sql src/Model/Fixtures.sql
+db: Application/Schema.sql Application/Fixtures.sql
 	echo "drop schema public cascade; create schema public;" | psql -h $$PWD/build/db -d app
-	psql -h $$PWD/build/db -d app < src/Model/Schema.sql
-	psql -h $$PWD/build/db -d app < src/Model/Fixtures.sql
+	psql -h $$PWD/build/db -d app < Application/Schema.sql
+	psql -h $$PWD/build/db -d app < Application/Fixtures.sql
 
 dumpdb: dump_db
 dump_db:
-	pg_dump -a --inserts --disable-triggers -h $$PWD/build/db app > src/Model/Fixtures.sql
+	pg_dump -a --inserts --disable-triggers -h $$PWD/build/db app > Application/Fixtures.sql
 
 ghci:
-	ghci -threaded -isrc -isrc/TurboHaskell/TurboHaskell -fexternal-interpreter
+	ghci -threaded -i. -isrc/TurboHaskell/TurboHaskell -fexternal-interpreter
 
-build/Generated: src/Model/Schema.hs src/TurboHaskell/TurboHaskell/SchemaCompiler.hs
+build/Generated: Application/Schema.hs src/TurboHaskell/TurboHaskell/SchemaCompiler.hs
 	rm -rf build/Generated && mkdir -p build/Generated
 	ghci -e ':script src/TurboHaskell/compileModels'
 
-build/bin/RunUnoptimizedProdServer: src/Main.hs build/bin static/prod.js static/prod.css
+build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css
 	mkdir -p build/RunUnoptimizedProdServer
 	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<
 	rm -f build/bin/RunProdServer
 	ln -s `basename $@` build/bin/RunProdServer
 
-build/bin/RunOptimizedProdServer: src/Main.hs build/bin static/prod.js static/prod.css
+build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css
 	mkdir -p build/RunOptimizedProdServer
 	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
 	chmod +x $<
@@ -131,7 +131,7 @@ build/db/state:
 	(postgres -D build/db/state -p 8001) & echo $$! > build/db/server.pid
 	sleep 4
 	createdb app -p 8001
-	psql -p 8001 -d app < src/Model/Schema.sql
-	psql -p 8001 -d app < src/Model/Fixtures.sql
+	psql -p 8001 -d app < Application/Schema.sql
+	psql -p 8001 -d app < Application/Fixtures.sql
 	kill `cat build/db/server.pid`
 	rm build/db/server.pid

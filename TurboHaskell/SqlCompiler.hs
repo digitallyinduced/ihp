@@ -8,7 +8,7 @@ import qualified System.Directory         as Directory
 import TurboHaskell.SchemaTypes
 
 main :: [Table] -> IO ()
-main database = writeFileIfNecessary "src/Model/Schema.sql" (compileDatabase database)
+main database = writeFileIfNecessary "Application/Schema.sql" (compileDatabase database)
 
 writeFileIfNecessary :: FilePath -> Text -> IO ()
 writeFileIfNecessary path content = do
@@ -21,7 +21,7 @@ writeFileIfNecessary path content = do
 compileDatabase database = "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n\n" <>(lineSep $ map compileTable database) <> "\n" <> (lineSep $ map compileConstraints database)
 
 compileTable table@(Table name attributes) =
-    "-- Please don't make any modifications to this file as it's auto generated. Use src/Model/Schema.hs to change the schema\n"
+    "-- Please don't make any modifications to this file as it's auto generated. Use Application/Schema.hs to change the schema\n"
     <> (lineSep (map (compileCreateEnum table) $ fieldsOnly attributes))
     <> "CREATE TABLE " <> name <> " (\n" <> indent (intercalate ",\n" $ map (compileAttribute table) $ fieldsOnly attributes) <> "\n);"
 

@@ -88,7 +88,7 @@
                 <td>The main source code for your app</td>
               </tr>
               <tr>
-                <td><pre>src/Model/Schema.hs</pre></td>
+                <td><pre>Application/Schema.hs</pre></td>
                 <td>Models and database tables are defined here</td>
               </tr>
               <tr>
@@ -172,7 +172,7 @@
 
       <p>
         To work with posts in our application, we now have to declare this data schema.
-        Open <code>src/Model/Schema.hs</code> and add the following code:
+        Open <code>Application/Schema.hs</code> and add the following code:
       </p>
 
 <div class="bg-dark  p-4 rounded mb-4">
@@ -200,13 +200,13 @@ database = [
         </p>
 
         <p>
-            Take a look at <code>src/Model/Schema.sql</code>. The dev server has auto-generated a <code>CREATE TABLE</code>-statement for us:
+            Take a look at <code>Application/Schema.sql</code>. The dev server has auto-generated a <code>CREATE TABLE</code>-statement for us:
         </p>
 
 <pre class="bg-dark p-4 rounded text-light">
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Please don't make any modifications to this file as it's auto generated. Use src/Model/Schema.hs to change the schema
+-- Please don't make any modifications to this file as it's auto generated. Use Application/Schema.hs to change the schema
 CREATE TABLE posts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     title TEXT NOT NULL,

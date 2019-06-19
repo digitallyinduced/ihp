@@ -103,7 +103,7 @@ Here is a short overview of the whole structure:
 | Config/nix/nixpkgs-config.nix | Configuration for the nix package manager                                   |
 | Config/nix/haskell-packages/  | Custom haskell dependencies can be placed here                              |
 | src/                          | The main source code for your app                                           |
-| src/Model/Schema.hs           | Models and database tables are defined here                                 |
+| Application/Schema.hs           | Models and database tables are defined here                                 |
 | src/Apps/Web/Controller       | App controllers                                                             |
 | src/Apps/Web/View/            | Html template files                                                         |
 | static/                       | Images, css and javascript files                                            |
@@ -143,7 +143,7 @@ A `posts` table in a PostgreSQL database could loke like this:
 
 
 To work with posts in our application, we now have to declare this data schema.
-Open `src/Model/Schema.hs` and add the following code:
+Open `Application/Schema.hs` and add the following code:
 
 
 ```haskell
@@ -165,12 +165,12 @@ database = [
 Next we need to create the `posts` table in our local postgresql database.
 Don't worry, the local development postgresql server is already running. The dev server has conveniently already started it.
 
-Take a look at `src/Model/Schema.sql`. The dev server has auto-generated a `CREATE TABLE`-statement for us:
+Take a look at `Application/Schema.sql`. The dev server has auto-generated a `CREATE TABLE`-statement for us:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Please don't make any modifications to this file as it's auto generated. Use src/Model/Schema.hs to change the schema
+-- Please don't make any modifications to this file as it's auto generated. Use Application/Schema.hs to change the schema
 CREATE TABLE posts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     title TEXT NOT NULL,
@@ -321,16 +321,16 @@ The actual code running, when an action is executed, is defined in `src/Apps/Web
 ###### Imports
 
 ```haskell
-module Apps.Web.Controller.Posts where
+module Web.Controller.Posts where
 
-import Apps.Web.Controller.Prelude
-import Apps.Web.View.Posts.Index
-import Apps.Web.View.Posts.New
-import Apps.Web.View.Posts.Edit
-import Apps.Web.View.Posts.Show
+import Web.Controller.Prelude
+import Web.View.Posts.Index
+import Web.View.Posts.New
+import Web.View.Posts.Edit
+import Web.View.Posts.Show
 ```
 
-In the header we just see some imports. Controllers always import a special `Apps.Web.Controller.Prelude` module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just "normal" haskell modules.
+In the header we just see some imports. Controllers always import a special `Web.Controller.Prelude` module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just "normal" haskell modules.
 
 ###### ChangeSet
 
@@ -458,8 +458,8 @@ We should also quickly take a look at our views.
 Let first look at the show view in `src/Apps/Web/View/Posts/Show.hs`:
 
 ```haskell
-module Apps.Web.View.Posts.Show where
-import Apps.Web.View.Prelude
+module Web.View.Posts.Show where
+import Web.View.Prelude
 
 data ShowView = ShowView { post :: Post }
 
@@ -569,7 +569,7 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 All our existing posts are saved here. You can also commit this file to git to share your fixtures with your team mates. We will need the saved fixtures in a moment.
 
-Let's add our timestamp column. Open `src/Model/Schema.hs` and add `+ field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }` to the `posts` table. We set the column value to `NOW()` by default, so the `created_at` field is automatically set to the current time.
+Let's add our timestamp column. Open `Application/Schema.hs` and add `+ field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }` to the `posts` table. We set the column value to `NOW()` by default, so the `created_at` field is automatically set to the current time.
 
 ```haskell
 table "posts"
@@ -765,7 +765,7 @@ table "comments"
 
 The `uuid { references = Just "posts", onDelete = Cascade }` column type specifies that we have a uuid column including a foreign key constraint to the `posts` table. The `onDelete` option is set to cascade to tell our database to delete the comments when the post is removed.
 
-The `src/Model/Schema.hs` will now look like this:
+The `Application/Schema.hs` will now look like this:
 
 
 ```haskell

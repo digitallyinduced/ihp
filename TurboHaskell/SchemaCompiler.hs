@@ -73,7 +73,7 @@ compileTypes database =
         <> intercalate "\n\n" (map compileTypes' database)
         <> section
     where
-        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `src/Model/Schema.hs` to customize the Types"
+        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.hs` to customize the Types"
                   <> section
                   <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, ImpredicativeTypes, StandaloneDeriving  #-}"
                   <> section

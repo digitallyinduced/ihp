@@ -30,7 +30,7 @@ import Control.Monad.Reader
 import Network.Wai.Session (Session)
 import qualified Data.Vault.Lazy         as Vault
 import qualified TurboHaskell.Controller.Context as ControllerContext
--- import Apps.Web.Controller.Context (ControllerContext, createControllerContext)
+-- import Web.Controller.Context (ControllerContext, createControllerContext)
 
 type Action controllerContext = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: controllerContext) => IO ResponseReceived)
 type SimpleAction = Action ()

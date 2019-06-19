@@ -20,7 +20,7 @@ main' database args = do
                     [ CreateFile { filePath = "src/Apps/Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database controllerName) }
                     , AppendToFile { filePath = "src/Apps/Web/Routes.hs", fileContent = (controllerInstance controllerName) }
                     , AppendToFile { filePath = "src/Apps/Web/Types.hs", fileContent = (generateControllerData controllerName) }
-                    , AppendToMarker { marker = "-- Controller Imports", filePath = "src/Apps/Web/App.hs", fileContent = ("import Apps.Web.Controller." <> controllerName) }
+                    , AppendToMarker { marker = "-- Controller Imports", filePath = "src/Apps/Web/App.hs", fileContent = ("import Web.Controller." <> controllerName) }
                     , AppendToMarker { marker = "-- Generator Marker", filePath = "src/Apps/Web/App.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
                     ]
                     <> generateViews database controllerName
@@ -121,15 +121,15 @@ generateController database name' =
     let
         name = normalizeName name'
         singularName = pluralToSingular name
-        moduleName = "Apps.Web.Controller." <> name
+        moduleName = "Web.Controller." <> name
         controllerName = name <> "Controller"
 
         importStatements =
-            [ "import Apps.Web.Controller.Prelude"
-            , "import Apps.Web.View." <> name <> ".Index"
-            , "import Apps.Web.View." <> name <> ".New"
-            , "import Apps.Web.View." <> name <> ".Edit"
-            , "import Apps.Web.View." <> name <> ".Show"
+            [ "import Web.Controller.Prelude"
+            , "import Web.View." <> name <> ".Index"
+            , "import Web.View." <> name <> ".New"
+            , "import Web.View." <> name <> ".Edit"
+            , "import Web.View." <> name <> ".Show"
 
             ]
 
@@ -227,8 +227,8 @@ generateViews database name' =
 
             viewHeader moduleName =
                 ""
-                <> "module Apps.Web.View." <> name <> "." <> moduleName <> " where\n"
-                <> "import Apps.Web.View.Prelude\n"
+                <> "module Web.View." <> name <> "." <> moduleName <> " where\n"
+                <> "import Web.View.Prelude\n"
                 <> "\n"
 
 
