@@ -74,7 +74,7 @@ eval "$(direnv hook zsh)"
 
 For other shells, [take a look at the direnv documentation](https://direnv.net/#README).
 
-### 2. Installing Interactive Lambda
+### 2. Installing TurboHaskell
 
 You can now install interactive lambda by running:
 
@@ -245,7 +245,7 @@ By specificing the above schema, the framework automatically provides several ty
 
 ### 4. Apps, Controllers, Views
 
-Interactive Lambda uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.
+TurboHaskell uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.
 
 A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
@@ -749,9 +749,99 @@ instance ValidateRecord NewPost ControllerContext where
 
 Create a new post with just `#` (a headline without any text) as the content to see our new error message.
 
-#### Form Customization
+### 6. A Second Model
 
-#### Login & Logout
+#### 6.1 Schema Modeling
+
+It's time to add comments to our blog. For that open the `Schema.hs` and add a new table `comments` with the fields `id`, `post_id`, `author` and `body`:
+
+```haskell
+table "comments"
+    + field "id" primaryKey
+    + field "post_id" uuid { references = Just "posts", onDelete = Cascade }
+    + field "author" text
+    + field "body" text
+```
+
+The `uuid { references = Just "posts", onDelete = Cascade }` column type specifies that we have a uuid column including a foreign key constraint to the `posts` table. The `onDelete` option is set to cascade to tell our database to delete the comments when the post is removed.
+
+The `src/Model/Schema.hs` will now look like this:
+
+
+```haskell
+module Model.Schema where
+import ClassyPrelude (Maybe (..), (<>), Bool (..))
+import TurboHaskell.SchemaSupport
+
+database = [
+    table "posts"
+        + field "id" primaryKey
+        + field "title" text
+        + field "body" text
+        + field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }
+        ,
+    table "comments"
+        + field "id" primaryKey
+        + field "post_id" uuid { references = Just "posts", onDelete = Cascade }
+        + field "author" text
+        + field "body" text
+    ]
+```
+
+#### 6.2 Loading the Schema
+
+Run `make dump_db` and `make db` to save our current posts to `src/Model/Fixtures.sql` and to rebuild the database to add our new `comments` table.
+
+
+#### 6.3 The Controller
+
+It's time to also add a new controller for our comments. For that call the controller generator like this:
+
+```bash
+$ cd src/Apps/Web
+$ gen/controller comments
+```
+
+This will generate a new working controller for us. We now need to do some adjustments to better integrate the comments into the posts.
+
+---
+
+Right now the comments are available at `/Comments`. As they are always connected to a post, we want to have them as a subresource of a post, e.g. like `/Posts/{postId}/Comments`.
+
+Open `src/Apps/Web/Routes.hs` and change the `instance RestfulController CommentsController` like this:
+
+```haskell
+instance RestfulController (PostsController :> CommentsController)
+```
+
+The `:>` is a combinator to describe nested resource. In this case `PostsController` is the parent controller and `CommentsController` is the child controller.
+
+---
+
+After this change, the dev server will show some errors like this:
+
+```haskell
+src/Apps/Web/View/Comments/Show.hs:8:33: error:
+    • Could not deduce (TurboHaskell.RouterSupport.RestfulController CommentsController)
+```
+
+E.g. in the `Show.hs` the error is triggered by this line:
+```html
+<li class="breadcrumb-item"><a href={CommentsAction}>Comments</a></li>
+```
+
+The `CommentsAction` (inside the `href`) is of type `CommentsController`. Because this controller is now a child controller of `PostsController`, we have to write `ShowPostAction { id = thePostId } :> CommentsAction`. This expression is now of type `PostsController :> CommentsController`.
+
+Once fixed, the line needs to look like this:
+```html
+<li class="breadcrumb-item"><a href={ShowPostAction { id = postId } :> CommentsAction}>Comments</a></li>
+```
+
+Of course now we also have to pass the `postId` to that view.
+
+### Form Customization
+
+### Login & Logout
 
 # QueryBuilder Reference
 
@@ -980,3 +1070,19 @@ timeAgo (get #createdAt post) -- "1 minute ago"
 ```haskell
 dateTime (get #createdAt post) -- "10.6.2019, 15:58 Uhr"
 ```
+
+# Command Line Reference
+| Command                                 | Description                                                             |
+|-----------------------------------------|-------------------------------------------------------------------------|
+| make                                    | Starts the dev server                                                   |
+| make db                                 | Creates a new database with the current Schema and imports Fixtures.sql |
+| make dumpdb                             | Saves the current database state into the Fixtures.sql                  |
+| make psql                               | Connects to the running postgresql server                               |
+| ghci                                    | Opens a new ghci session with the project and framework already loaded  |
+| make clean                              | Resets all build and temporary files                                    |
+| make print-ghc-extensions               | Prints all used ghc extensions. Useful for scripting                    |
+| make print-ghc-options                  | Prints all used ghc options. Useful for scripting                       |
+| make build/bin/RunUnoptimizedProdServer | Quickly does a production build (all compiler optimizations disabled)   |
+| make build/bin/RunOptimizedProdServer   | Full production build with all ghc optimizations (takes a while)        |
+| make static/prod.js                     | Builds the production js bundle                                         |
+| make static/prod.css                    | Builds the production css bundle                                        |
