@@ -58,7 +58,7 @@
 mkDerivation {
   pname = "turbohaskell";
   version = "1.0.28";
-  src = /Users/marc/digitallyinduced/playground/Membercard/src/TurboHaskell;
+  src = /Users/marc/digitallyinduced/playground/Membercard/TurboHaskell;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

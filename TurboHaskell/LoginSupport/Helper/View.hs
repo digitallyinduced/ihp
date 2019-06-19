@@ -1,4 +1,4 @@
-module TurboHaskell.LoginSupport.Application.Helper.View where
+module TurboHaskell.LoginSupport.Helper.View where
 
 import GHC.Records
 import ClassyPrelude

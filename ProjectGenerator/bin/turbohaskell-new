@@ -45,7 +45,7 @@ fi
 git clone --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 rm -rf ".git"
-git clone "$FRAMEWORK_GIT_URL" src/TurboHaskell
+git clone "$FRAMEWORK_GIT_URL" TurboHaskell
 cd src/Apps/Web
 ln -s ../../TurboHaskell/gen gen
 ln -s ../../TurboHaskell/del del

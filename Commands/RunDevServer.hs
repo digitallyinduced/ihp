@@ -96,7 +96,7 @@ startLiveReloadNotificationServer = do
 
 
 initServer ghci = do
-    sendGhciCommand ghci (":script src/TurboHaskell/startDevServerGhciScript")
+    sendGhciCommand ghci (":script TurboHaskell/startDevServerGhciScript")
     return ghci
 
 watch :: DevServerState -> FS.Event -> IO ()
@@ -113,7 +113,7 @@ rebuildModels (DevServerState {modelCompilerProcess}) = do
     putStrLn "rebuildModels"
     ghci@(input, process) <- readIORef modelCompilerProcess
     sendGhciCommand ghci ":!clear"
-    sendGhciCommand ghci ":script src/TurboHaskell/compileModels"
+    sendGhciCommand ghci ":script TurboHaskell/compileModels"
     putStrLn "rebuildModels => Finished"
 
 sendGhciInterrupt ghci@(input, process) = do
@@ -126,7 +126,7 @@ rebuild serverProcess rebuildServerLock = do
     _ <- Lock.tryWith rebuildServerLock $ do
         ghci <- readIORef serverProcess
         _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
-        sendGhciCommand ghci ":script src/TurboHaskell/startDevServerGhciScriptRec"
+        sendGhciCommand ghci ":script TurboHaskell/startDevServerGhciScriptRec"
     return ()
 
 sendGhciCommand ghciProcess command = do

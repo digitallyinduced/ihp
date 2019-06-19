@@ -1,4 +1,4 @@
-:script src/TurboHaskell/applicationGhciConfig
+:script TurboHaskell/applicationGhciConfig
 :set -package turbohaskell
 :l Main.hs
 main

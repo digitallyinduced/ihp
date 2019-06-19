@@ -630,7 +630,7 @@ To install this package, open the `default.nix` file and append `mmark` to the `
 
 ```nix
 let
-    haskellEnv = import ./src/TurboHaskell/NixSupport/default.nix {
+    haskellEnv = import ./TurboHaskell/NixSupport/default.nix {
         compiler = "ghc844";
         haskellDeps = p: with p; [
             cabal-install

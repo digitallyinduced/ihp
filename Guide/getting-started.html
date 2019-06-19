@@ -719,7 +719,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>To deal with markdown, instead of implementing our own markdown parser, let’s just use an existing package. There’s the excellt <code>mmark</code> package we can use.</p>
 <p>To install this package, open the <code>default.nix</code> file and append <code>mmark</code> to the <code>haskellDeps</code> list. The file will now look like this:</p>
 <div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
-<span>    </span><span class="ex">haskellEnv</span><span> = import ./src/TurboHaskell/NixSupport/default.nix {</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import ./TurboHaskell/NixSupport/default.nix {</span>
 <span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc844&quot;</span><span class="kw">;</span>
 <span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
 <span>            cabal-install</span>
