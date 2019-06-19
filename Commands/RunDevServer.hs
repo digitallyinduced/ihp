@@ -140,10 +140,6 @@ stopServer = do
     _ <- Process.system "(lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -9) || true"
     return ()
 
-stopPostgres = do
-    _ <- Process.system "(lsof -i tcp:8001 | grep postgres | awk 'NR!=1 {print $2}' | xargs kill) || true"
-    return ()
-
 startPostgres = do
     currentDir <- getCurrentDirectory
     let process = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db"]) { Process.std_in = Process.CreatePipe }

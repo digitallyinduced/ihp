@@ -77,7 +77,7 @@ compileTypes database =
                   <> section
                   <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, ImpredicativeTypes, StandaloneDeriving  #-}"
                   <> section
-                  <> "module Model.Generated.Types where\n\n"
+                  <> "module Generated.Types where\n\n"
                   <> "import TurboHaskell.HaskellSupport\n"
                   <> "import TurboHaskell.ModelSupport\n"
                   <> "import TurboHaskell.SchemaTypes\n"
@@ -127,17 +127,8 @@ compileTypes' table@(Table name attributes) =
     <> section
 
 
-getFilePath :: Table -> FilePath
-getFilePath (Table name attributes) = "src/Model/Generated/" <> (cs $ tableNameToModelName name) <> ".hs"
-
-getStubFilePath :: Table -> FilePath
-getStubFilePath (Table name attributes) = "src/Model/" <> (cs $ tableNameToModelName name) <> ".hs"
-
 getTypesFilePath :: FilePath
-getTypesFilePath = "src/Model/Generated/Types.hs"
-
-getValidatorsFilePath :: FilePath
-getValidatorsFilePath = "src/Model/Generated/Validators.hs"
+getTypesFilePath = "build/Generated/Types.hs"
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =

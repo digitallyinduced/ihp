@@ -6,7 +6,7 @@ module TurboHaskell.ControllerPrelude
     , module TurboHaskell.Controller.Session
     , module TurboHaskell.Controller.Redirect
     -- , module Helper.Controller
-    -- , module Model.Generated.Types
+    -- , module Generated.Types
     , module TurboHaskell.ValidationSupport
     , module Data.UUID
     , module Data.Default
@@ -33,7 +33,7 @@ import           TurboHaskell.Controller.Session
 import           TurboHaskell.ControllerSupport
 import           TurboHaskell.ValidationSupport (validateRecord)
 -- import           Helper.Controller
--- import           Model.Generated.Types
+-- import           Generated.Types
 import TurboHaskell.HaskellSupport
 import TurboHaskell.ModelSupport
 import TurboHaskell.QueryBuilder

@@ -1,4 +1,4 @@
-:set -isrc/ -iConfig/
+:set -isrc/ -iConfig/ -ibuild/
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
 :set -XImplicitParams

@@ -25,7 +25,7 @@ GHC_EXTENSIONS+= -XMultiParamTypeClasses
 GHC_EXTENSIONS+= -XTypeOperators
 GHC_EXTENSIONS+= -XDeriveDataTypeable
 
-GHC_OPTIONS=-threaded -isrc -isrc/Controller -isrc/Model -isrc/Generated
+GHC_OPTIONS=-threaded -isrc -ibuild
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
@@ -46,7 +46,7 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 RUNGHC=runghc
 
-run: .envrc build/db/state src/Model/Generated static/prod.js static/prod.css
+run: .envrc build/db/state build/Generated static/prod.js static/prod.css
 	RunDevServer --root src
 
 
@@ -58,7 +58,7 @@ run: .envrc build/db/state src/Model/Generated static/prod.js static/prod.css
 build/bin:
 	mkdir -p build/bin
 
-run-production: build/bin/RunProdServer src/Model/Generated
+run-production: build/bin/RunProdServer build/Generated
 	build/bin/RunProdServer
 
 psql:
@@ -83,8 +83,8 @@ dump_db:
 ghci:
 	ghci -threaded -isrc -isrc/TurboHaskell/TurboHaskell -fexternal-interpreter
 
-src/Model/Generated: src/Model/Schema.hs src/TurboHaskell/TurboHaskell/SchemaCompiler.hs
-	rm -rf src/Model/Generated && mkdir -p src/Model/Generated
+build/Generated: src/Model/Schema.hs src/TurboHaskell/TurboHaskell/SchemaCompiler.hs
+	rm -rf build/Generated && mkdir -p build/Generated
 	ghci -e ':script src/TurboHaskell/compileModels'
 
 build/bin/RunUnoptimizedProdServer: src/Main.hs build/bin static/prod.js static/prod.css
