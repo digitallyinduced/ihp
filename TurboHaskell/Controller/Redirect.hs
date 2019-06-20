@@ -20,8 +20,11 @@ import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 -- ```
 --
 -- Use `redirectToPath` if you want to redirect to a non-action url
+{-# INLINE redirectTo #-}
 redirectTo :: (?requestContext :: RequestContext, FrameworkConfig, HasPath action) => action -> IO Wai.ResponseReceived
 redirectTo action = redirectToPath (pathTo action)
+
+-- TODO: redirectTo user
 
 -- Redirects to a path (given as a string)
 -- Example:
@@ -30,7 +33,14 @@ redirectTo action = redirectToPath (pathTo action)
 -- ```
 --
 -- Use `redirectTo` if you want to redirect to a controller action
+{-# INLINE redirectToPath #-}
 redirectToPath :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO Wai.ResponseReceived
 redirectToPath url = do
     let (RequestContext _ respond _ _ _) = ?requestContext
-    respond $! fromJust $ Network.Wai.Util.redirect status302 [] (fromJust $ parseURI (cs $ FrameworkConfig.baseUrl <> url))
+    let !parsedUrl = case parseURI (cs $ FrameworkConfig.baseUrl <> url) of
+    		Just url -> url
+    		Nothing -> error "redirectToPath: Unable to parse url"
+    let !redirectResponse = case Network.Wai.Util.redirect status302 [] parsedUrl of
+    		Just response -> response
+    		Nothing -> error "redirectToPath: Unable to construct redirect response"
+    respond redirectResponse

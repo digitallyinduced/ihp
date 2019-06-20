@@ -160,12 +160,15 @@ instance (FillParams rest record, KnownSymbol fieldName, Record.HasField' fieldN
     fill record = do
         -- record <- State.get
         let name :: ByteString = cs (symbolVal (Proxy @fieldName))
-        case (fromParameter (paramOrNothing name)) of
-            Left error -> do
-                validationState <- State.get
-                State.put $ Record.setField @fieldName (Failure (cs error)) validationState
-                fill @rest record
-            Right (value :: fieldType) -> fill @rest (Record.setField @fieldName value record)
+        case paramOrNothing name of
+            value@(Just paramValue) ->
+                case fromParameter value of
+                    Left error -> do
+                        validationState <- State.get
+                        State.put $ Record.setField @fieldName (Failure (cs error)) validationState
+                        fill @rest record
+                    Right (value :: fieldType) -> fill @rest (Record.setField @fieldName value record)
+            Nothing -> fill @rest record
 
 
 

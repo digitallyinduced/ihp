@@ -1,4 +1,4 @@
-:set -isrc/ -iConfig/ -ibuild/
+:set -isrc/ -iConfig/ -ibuild/ -iTurboHaskell
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
 :set -XImplicitParams

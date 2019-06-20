@@ -69,8 +69,12 @@ renderNotFound = renderPlain "Not Found"
 
 data PolymorphicRender htmlType jsonType = PolymorphicRender { html :: htmlType, json :: jsonType }
 class MaybeRender a where maybeRenderToMaybe :: a -> Maybe (IO ResponseReceived)
-instance MaybeRender () where maybeRenderToMaybe _ = Nothing
-instance MaybeRender (IO ResponseReceived) where maybeRenderToMaybe response = Just response
+instance MaybeRender () where
+    {-# INLINE maybeRenderToMaybe #-}
+    maybeRenderToMaybe _ = Nothing
+instance MaybeRender (IO ResponseReceived) where
+    {-# INLINE maybeRenderToMaybe #-}
+    maybeRenderToMaybe response = Just response
 
 -- Can be used to render different responses for html, json, etc. requests based on `Accept` header
 -- Example:
@@ -83,6 +87,7 @@ instance MaybeRender (IO ResponseReceived) where maybeRenderToMaybe response = J
 --     }
 --
 -- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
+{-# INLINE renderPolymorphic #-}
 renderPolymorphic :: forall viewContext jsonType htmlType. (?requestContext :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ResponseReceived
 renderPolymorphic PolymorphicRender { html, json } = do
     let RequestContext request respond _ _ _ = ?requestContext

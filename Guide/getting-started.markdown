@@ -714,7 +714,7 @@ Open `src/Apps/Web/View/Posts/Edit.hs` and change `{textField #body}` to `{texta
 
 ```haskell
 renderForm :: Post -> Html
-renderForm post = formFor post (UpdatePostAction (get #id post)) [hsx|
+renderForm post = formFor post [hsx|
     {textField #title}
     {(textareaField #body) { helpText = "You can use markdown here"} }
     {submitButton}

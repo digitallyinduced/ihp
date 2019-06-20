@@ -81,7 +81,7 @@ dump_db:
 	pg_dump -a --inserts --disable-triggers -h $$PWD/build/db app > Application/Fixtures.sql
 
 ghci:
-	ghci -threaded -i. -iTurboHaskell/TurboHaskell -fexternal-interpreter
+	ghci -threaded -i. -iTurboHaskell -fexternal-interpreter
 
 build/Generated: Application/Schema.hs TurboHaskell/TurboHaskell/SchemaCompiler.hs
 	rm -rf build/Generated && mkdir -p build/Generated

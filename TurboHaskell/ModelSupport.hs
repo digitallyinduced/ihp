@@ -116,7 +116,7 @@ type family GetModelName model :: Symbol where
 
 {-# INLINE getModelName #-}
 getModelName :: forall model. KnownSymbol (GetModelName model) => Text
-getModelName = dropEnd 1 $ cs $! symbolVal (Proxy :: Proxy (GetModelName model))
+getModelName = dropEnd 1 (cs $! symbolVal (Proxy :: Proxy (GetModelName model)))
 
 newtype Id' table = Id UUID deriving (Eq, Data)
 
@@ -209,3 +209,9 @@ class Record model where
     newRecord :: model
 
 type family ChangeSet model :: [Type.Symbol]
+
+-- Helper type to deal with models where relations are included or that are only partially fetched
+-- Examples:
+-- NormalizeModel (Include "author_id" Post) = Post
+-- NormalizeModel NewPost = Post
+type NormalizeModel model = GetModelByTableName (GetTableName model)

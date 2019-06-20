@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeSynonymInstances, StandaloneDeriving,InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
 
 module TurboHaskell.View.Form where
@@ -24,7 +25,7 @@ import           Text.Blaze.Html5                   (a, body, button, code, div,
 import           Text.Blaze.Html5                   ((!))
 import qualified Text.Blaze.Html5                   as H
 import qualified Text.Blaze.Html5                   as Html5
-import           Text.Blaze.Html5.Attributes        (action, autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
+import           Text.Blaze.Html5.Attributes        (autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
                                                      onclick, placeholder, rel, src, style, type_, value)
 import qualified Text.Blaze.Html5.Attributes        as A
 
@@ -40,7 +41,7 @@ import qualified Data.Text
 import qualified Text.Inflections
 import GHC.Records
 import qualified Data.Text as Text
-import Control.Lens hiding ((|>))
+import Control.Lens hiding ((|>), (:>))
 import Data.Generics.Product hiding (HasField, getField)
 import qualified Data.Generics.Product
 import GHC.Generics
@@ -49,7 +50,65 @@ import Data.Dynamic
 import Data.Maybe (fromJust)
 import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport
-import TurboHaskell.ModelSupport (getModelName, GetModelName)
+import TurboHaskell.ModelSupport (getModelName, GetModelName, Id', FieldWithDefault, NormalizeModel)
+
+import TurboHaskell.RouterSupport (RestfulController (..), RestfulControllerId, Child, HasPath, PathArgument, Child, Parent)
+import GHC.Records
+
+
+class ModelFormAction controllerContext formObject where
+    modelFormAction :: formObject -> Text
+
+
+
+instance ModelFormAction controllerContext (parent, child) where
+    {-# INLINE modelFormAction #-}
+    modelFormAction (parent, child) = undefined
+
+
+-- modelFormAction (user :: User) or modelFormAction (newUser :: New User)
+instance (
+        HasField "id" formObject id
+        , controller ~ ModelControllerMap controllerContext (NormalizeModel formObject)
+        , Child controller ~ controller
+        , HasPath controller
+        , RestfulController controller
+        , ModelFormActionTopLevelResource controller id
+        ) => ModelFormAction controllerContext formObject where
+    {-# INLINE modelFormAction #-}
+    modelFormAction formObject = modelFormActionTopLevelResource (Proxy @controller) (getField @"id" formObject)
+
+
+class ModelFormActionTopLevelResource controller id where
+    modelFormActionTopLevelResource :: Proxy controller -> id -> Text
+
+instance (
+        Child controller ~ controller
+        , HasPath controller
+        , RestfulController controller
+        ) => ModelFormActionTopLevelResource controller (FieldWithDefault id') where
+    {-# INLINE modelFormActionTopLevelResource #-}
+    modelFormActionTopLevelResource _ _ = pathTo (fromJust (createAction @controller))
+
+instance (
+        RestfulControllerId controller ~ Id' table
+        , Child controller ~ controller
+        , HasPath controller
+        , RestfulController controller
+        , HasPath controller
+        ) => ModelFormActionTopLevelResource controller (Id' (table :: Symbol)) where
+    {-# INLINE modelFormActionTopLevelResource #-}
+    modelFormActionTopLevelResource _ id = pathTo ((fromJust (updateAction @controller)) id)
+
+
+-- modelFormAction (newUser :: New User)
+
+
+
+
+--instance {-# OVERLAPPABLE #-} TypeError (GHC.TypeLits.Text "formfor could not find a ModelFormAction instance for your form. Please write one manually, e.g. " :$$: GHC.TypeLits.Text "instance ModelFormAction Project where" :$$: GHC.TypeLits.Text "    modelFormAction = \"/Projects\" ")
+--    => ModelFormAction catchAll where
+--    modelFormAction = undefined
 
 data FormField = FormField {
         fieldType :: !InputType,
@@ -80,18 +139,102 @@ data FormContext model =
         , renderFormField :: FormField -> Html5.Html
         , renderSubmit :: SubmitButton -> Html5.Html
         , request :: Network.Wai.Request
+        , formAction :: !Text
         }
 
 {-# INLINE formFor #-}
-formFor :: forall model viewContext controller parent id. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-formFor model = formFor' FormContext
+formFor :: forall model viewContext parent id formObject controllerContext. (
+        ?viewContext :: viewContext
+        , HasField "validations" viewContext [Dynamic]
+        , HasField "requestContext" viewContext RequestContext
+        , Eq model
+        , Typeable model
+        , Typeable (ValidatorResultFor model)
+        , Default (ValidatorResultFor model)
+        , ModelFormAction controllerContext formObject
+        , HasField "id" model id
+        , TurboHaskell.ModelSupport.IsNewId id
+        , FormObject formObject
+        , model ~ FormObjectModel formObject
+        , HasPath (ModelControllerMap controllerContext (NormalizeFormObject formObject))
+        , controllerContext ~ ControllerContext viewContext
+        ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor formObject = formFor' (createFormContext formObject)
+
+
+{-# INLINE horizontalFormFor #-}
+horizontalFormFor :: forall model viewContext parent id formObject controllerContext. (
+        ?viewContext :: viewContext
+        , HasField "validations" viewContext [Dynamic]
+        , HasField "requestContext" viewContext RequestContext
+        , Eq model
+        , Typeable model
+        , Typeable (ValidatorResultFor model)
+        , Default (ValidatorResultFor model)
+        , ModelFormAction controllerContext formObject
+        , HasField "id" model id
+        , TurboHaskell.ModelSupport.IsNewId id
+        , FormObject formObject
+        , model ~ FormObjectModel formObject
+        , HasPath (Child (ModelControllerMap controllerContext formObject))
+        , controllerContext ~ ControllerContext viewContext
+        ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+horizontalFormFor formObject = formFor' (createFormContext formObject)
+        { renderFormField = renderHorizontalBootstrapFormField
+        , renderSubmit = renderHorizontalBootstrapSubmitButton
+        }
+
+{-# INLINE createFormContext #-}
+createFormContext :: forall model viewContext parent id formObject controllerContext. (
+        ?viewContext :: viewContext
+        , HasField "validations" viewContext [Dynamic]
+        , HasField "requestContext" viewContext RequestContext
+        , Eq model
+        , Typeable model
+        , Typeable (ValidatorResultFor model)
+        , Default (ValidatorResultFor model)
+        , ModelFormAction controllerContext formObject
+        , HasField "id" model id
+        , TurboHaskell.ModelSupport.IsNewId id
+        , FormObject formObject
+        , model ~ FormObjectModel formObject
+        , controllerContext ~ ControllerContext viewContext
+        ) => formObject -> FormContext model
+createFormContext formObject = 
+    FormContext
         { model
         , renderFormField = renderBootstrapFormField
         , renderSubmit = renderBootstrapSubmitButton
         , validatorResult = findValidatorResult ?viewContext model
         , request = getField @"request" (getField @"requestContext" ?viewContext)
+        , formAction = (modelFormAction @controllerContext) formObject
         }
+            where
+                model = getModel formObject
 
+-- We have to deal with different kind of models passed into the formFor helper.
+-- E.g.
+-- formFor user
+-- formFor (user, post)
+-- formFor (user, post, comment)
+class FormObject object where
+    getModel :: object -> FormObjectModel object
+
+type family FormObjectModel object where
+    FormObjectModel (parent, model) = model
+    FormObjectModel model = model
+
+type family NormalizeFormObject object where
+    NormalizeFormObject (a, b) = (NormalizeModel a, NormalizeModel b)
+    NormalizeFormObject a = NormalizeModel a
+
+instance FormObject (parent, model) where
+    getModel (_, model) = model
+
+instance (FormObjectModel model ~ model) => FormObject model where
+    getModel model = model
+
+{-# INLINE findValidatorResult #-}
 findValidatorResult :: forall model viewContext. (Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), Eq model, ?viewContext :: viewContext, HasField "validations" viewContext [Dynamic]) => viewContext -> model -> ValidatorResultFor model
 findValidatorResult viewContext model =
     let
@@ -104,27 +247,32 @@ findValidatorResult viewContext model =
     in
         maybe def (snd . fromJust . (fromDynamic @(model, ValidatorResultFor model) )) (find isValidationForModel validations)
 
-horizontalFormFor :: forall model viewContext controller parent id. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasField "requestContext" viewContext RequestContext,  Eq model, Typeable model, Typeable (ValidatorResultFor model), Default (ValidatorResultFor model), HasPath controller) => (HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id) => model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-horizontalFormFor model = formFor' FormContext
-        { model
-        , renderFormField = renderHorizontalBootstrapFormField
-        , renderSubmit = renderHorizontalBootstrapSubmitButton
-        , validatorResult = findValidatorResult ?viewContext model
-        , request = getField @"request" (getField @"requestContext" ?viewContext)
-        }
+
 
 {-# INLINE formFor' #-}
-formFor' :: forall model viewContext controller parent id. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic], HasPath controller) => (HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id) => FormContext model -> controller -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-formFor' formContext controller inner = form ! method "POST" ! action (cs $ pathTo controller) ! A.id (if TurboHaskell.ModelSupport.isNew (model formContext) then "" else cs (pathTo controller)) ! class_ (if TurboHaskell.ModelSupport.isNew (model formContext) then "new-form" else "edit-form") $ do
-    let ?formContext = formContext in inner
+formFor' :: forall model viewContext parent id. (?viewContext :: viewContext, HasField "validations" viewContext [Dynamic]) => (HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id) => FormContext model -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor' formContext inner =
+    let
+        theModel = model formContext
+        action = cs $ (formAction formContext)
+        isNewRecord = TurboHaskell.ModelSupport.isNew theModel
+        formId = if isNewRecord then "" else cs (formAction formContext)
+        formClass = if isNewRecord then "new-form" else "edit-form"
+    in
+        form ! A.method "POST" ! A.action action ! A.id formId ! A.class_ formClass $ do
+            let ?formContext = formContext in inner
 
 {-# INLINE submitButton #-}
 submitButton :: forall model id. (?formContext :: FormContext model, HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id, KnownSymbol (GetModelName model)) => SubmitButton
-submitButton = let modelName = TurboHaskell.ModelSupport.getModelName @model in SubmitButton
-    { modelIsNew = TurboHaskell.ModelSupport.isNew (model ?formContext)
+submitButton =
+    let
+        modelName = TurboHaskell.ModelSupport.getModelName @model
+        isNew = TurboHaskell.ModelSupport.isNew (model ?formContext)
+    in SubmitButton
+    { modelIsNew = isNew
     , modelName = modelName
     , renderSubmit = let FormContext { renderSubmit } = ?formContext in renderSubmit
-    , label = cs $ (if TurboHaskell.ModelSupport.isNew (model ?formContext) then "Create " else "Save ") <> modelName
+    , label = cs $ (if isNew then "Create " else "Save ") <> modelName
     , buttonClass = mempty
     }
 
@@ -142,6 +290,7 @@ renderValidationResult (FormField { modelIsNew, validatorResult }) = case valida
                 Failure message -> div ! class_ "invalid-feedback" $ cs message
 
 {-# INLINE isInvalid #-}
+isInvalid :: FormField -> Bool
 isInvalid (FormField { modelIsNew, formIsSubmitted, validatorResult }) =
         if formIsSubmitted
             then case validatorResult of
@@ -351,12 +500,15 @@ instance (
                         placeholder = ""
                     }
 
+{-# INLINE fieldNameToFieldLabel #-}
 fieldNameToFieldLabel :: Text -> Text
 fieldNameToFieldLabel fieldName = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts)
 
+{-# INLINE columnNameToFieldLabel #-}
 columnNameToFieldLabel :: Text -> Text
 columnNameToFieldLabel columnName = cs (let (Right parts) = Text.Inflections.parseSnakeCase [] columnName in Text.Inflections.titleize parts)
 
+{-# INLINE removeIdSuffix #-}
 removeIdSuffix :: Text -> Text
 removeIdSuffix text = fromMaybe text (Text.stripSuffix " Id" text)
 

@@ -20,7 +20,9 @@ module TurboHaskell.RouterSupport (
     , isEditAction
     , modelId
     , Child
+    , Parent
     , PathArgument (..)
+    , ModelControllerMap
 ) where
 
 import ClassyPrelude hiding (index, delete, take)
@@ -67,6 +69,7 @@ class HasPath controller => CanRoute controller parent | controller -> parent wh
     parseRoute :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived)
     parseRoute' :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
 
+{-# INLINE parseUUID #-}
 parseUUID :: Parser UUID
 parseUUID = do
         uuid <- take 36
@@ -98,6 +101,10 @@ type family Concat a b where
     Concat a (x ': xs) = Concat (x ': a) xs
 
 
+-- Maps models to their restful controllers
+-- E.g. ModelControllerMap ControllerContext User = UsersController
+type family ModelControllerMap controllerContext model
+
 {-# INLINE getConstructorByName #-}
 getConstructorByName :: forall theType. Data theType => String -> Maybe Constr
 getConstructorByName name = readConstr (dataTypeOf (ClassyPrelude.undefined :: theType)) name
@@ -115,20 +122,28 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
     basePath =
         let controllerName = cs . tshow $ typeRep (Proxy :: Proxy (Child controller))
         in controllerNameToPathName controllerName
+    {-# INLINE indexAction #-}
     indexAction :: Maybe (Child controller)
     indexAction = fromConstr <$> getConstructorByName @(Child controller) (cs (basePath @controller <> "Action"))
+    {-# INLINE newAction #-}
     newAction :: Maybe (Child controller)
     newAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("New" <> (pluralToSingular $ cs (basePath @controller)) <> "Action"))
+    {-# INLINE createAction #-}
     createAction :: Maybe (Child controller)
     createAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("Create" <> (pluralToSingular $ cs (basePath @controller)) <> "Action"))
+    {-# INLINE showAction #-}
     showAction :: Maybe (RestfulControllerId controller -> Child controller)
     showAction = constructorWithId @controller "Show"
+    {-# INLINE editAction #-}
     editAction :: Maybe (RestfulControllerId controller -> Child controller)
     editAction = constructorWithId @controller "Edit"
+    {-# INLINE updateAction #-}
     updateAction :: Maybe (RestfulControllerId controller -> Child controller)
     updateAction = constructorWithId @controller "Update"
+    {-# INLINE deleteAction #-}
     deleteAction :: Maybe (RestfulControllerId controller -> Child controller)
     deleteAction = constructorWithId @controller "Delete"
+    {-# INLINE customActions #-}
     customActions :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, HasTypes (Child controller) (RestfulControllerId controller)) => (Child controller) -> Parser controller
     customActions idContainer =
         let
@@ -158,6 +173,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
             
 
 -- controllerNameToPathName "XController" = "X"
+{-# INLINE controllerNameToPathName #-}
 controllerNameToPathName :: ByteString -> ByteString
 controllerNameToPathName controllerName = fromMaybe controllerName (stripSuffix "Controller" controllerName)
 
@@ -165,12 +181,15 @@ class PathArgument a where
     parsePathArgument :: Parser a
 
 instance PathArgument () where
+    {-# INLINE parsePathArgument #-}
     parsePathArgument = string "current" >> return ()
 
 instance PathArgument (ModelSupport.Id' (model :: Symbol)) where
+    {-# INLINE parsePathArgument #-}
     parsePathArgument = parseUUID >>= return . Newtype.pack
 
 instance PathArgument Text where
+    {-# INLINE parsePathArgument #-}
     parsePathArgument = takeTill ((==) '/') >>= return . cs
 
 
@@ -181,7 +200,9 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
     --pathTo action = error "TODO"
         --let id = unsafeHead (toListOf (types @id) action)
         --in pathTo (showAction @controller id) <> "/" <> tshow id <> (if editAction id == action then "/edit" else "")
+    {-# INLINE parseRoute #-}
     parseRoute = parseRoute' @controller >>= return . runAction
+    {-# INLINE parseRoute' #-}
     parseRoute' =
         let
             indexAction' = fromJust (indexAction @controller)
@@ -207,14 +228,17 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
 
 
 instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, Default id) => HasPath (parent :> child) where
+    {-# INLINE pathTo #-}
     pathTo (parent :> child) = pathTo parent <> genericPathTo @controller child
 
 
 
 
 instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Child controller ~ controller, HasTypes controller id, Default id) => HasPath controller where
+    {-# INLINE pathTo #-}
     pathTo = genericPathTo @controller
 
+{-# INLINE genericPathTo #-}
 genericPathTo :: forall controller action id parent. (Eq action, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, HasTypes action id, RestfulController controller, Child controller ~ action, Default id) => action -> Text
 genericPathTo action 
     | (isIndexAction @controller action) || (isCreateAction @controller action)

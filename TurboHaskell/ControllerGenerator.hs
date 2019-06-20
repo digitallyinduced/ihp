@@ -37,7 +37,9 @@ usage :: IO ()
 usage = putStrLn "Usage: gen/controller RESOURCE_NAME"
 
 controllerInstance :: Text -> Text
-controllerInstance name = "instance RestfulController " <> name <> "Controller\n"
+controllerInstance name =
+    "instance RestfulController " <> name <> "Controller\n"
+    <> "type instance ModelControllerMap ControllerContext " <> pluralToSingular name <> " = " <> name <> "Controller\n\n"
 
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }

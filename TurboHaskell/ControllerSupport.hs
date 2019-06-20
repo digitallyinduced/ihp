@@ -50,6 +50,7 @@ class ControllerContext.Context context => Controller controller context | contr
     beforeAction = return ()
     action :: (?controllerContext :: context, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ResponseReceived
 
+{-# INLINE runAction #-}
 runAction :: forall controller context. (Controller controller context, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
@@ -90,6 +91,7 @@ getFiles =
     let (RequestContext _ _ _ files _) = ?requestContext
     in files
 
+{-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
 createRequestContext ApplicationContext { session } request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request

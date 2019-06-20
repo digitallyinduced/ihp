@@ -24,6 +24,7 @@ instance ToAttributeValue String where
     {-# INLINE toAttributeValue #-}
     toAttributeValue = Html5.stringValue
 
+{-# INLINE classes #-}
 classes :: [(Text, Bool)] -> Text
 classes classNameBoolPairs =
     classNameBoolPairs
