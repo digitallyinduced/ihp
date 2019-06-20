@@ -782,7 +782,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>Let’s also quickly update our form. Right now we have a one-line text field there. We can replace it with a textarea to support multi line text.</p>
 <p>Open <code>src/Apps/Web/View/Posts/Edit.hs</code> and change <code>{textField #body}</code> to <code>{textareaField #body}</code>. We can also add a short hint that the text area supports markdown: Replace <code>{textareaField #body}</code> with <code>{(textareaField #body) { helpText = &quot;You can use markdown here&quot;} }</code>.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">renderForm</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">Html</span><span>
-</span><span class="va">renderForm</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">formFor</span><span> </span><span class="va">post</span><span> </span><span class="sy">(</span><span class="cr">UpdatePostAction</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#id</span><span> </span><span class="va">post</span><span class="sy">)</span><span class="sy">)</span><span> </span><span class="sy">[hsx|
+</span><span class="va">renderForm</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">formFor</span><span> </span><span class="va">post</span><span> </span><span class="sy">[hsx|
     {textField #title}
     {(textareaField #body) { helpText = &quot;You can use markdown here&quot;} }
     {submitButton}
