@@ -17,11 +17,11 @@ main' database args = do
         Just controllerName' -> do
             let controllerName = normalizeName controllerName'
             let generate =
-                    [ CreateFile { filePath = "src/Apps/Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database controllerName) }
-                    , AppendToFile { filePath = "src/Apps/Web/Routes.hs", fileContent = (controllerInstance controllerName) }
-                    , AppendToFile { filePath = "src/Apps/Web/Types.hs", fileContent = (generateControllerData controllerName) }
-                    , AppendToMarker { marker = "-- Controller Imports", filePath = "src/Apps/Web/App.hs", fileContent = ("import Web.Controller." <> controllerName) }
-                    , AppendToMarker { marker = "-- Generator Marker", filePath = "src/Apps/Web/App.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
+                    [ CreateFile { filePath = "Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database controllerName) }
+                    , AppendToFile { filePath = "Web/Routes.hs", fileContent = (controllerInstance controllerName) }
+                    , AppendToFile { filePath = "Web/Types.hs", fileContent = (generateControllerData controllerName) }
+                    , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/App.hs", fileContent = ("import Web.Controller." <> controllerName) }
+                    , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/App.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
                     ]
                     <> generateViews database controllerName
                     <> [generateValidateRecordInstance controllerName']
@@ -334,11 +334,11 @@ generateViews database name' =
                 <> "    </tr>\n"
                 <> "|]\n"
         in
-            [ EnsureDirectory { directory = "src/Apps/Web/View/" <> name }
-            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/Show.hs", fileContent = showView }
-            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/New.hs", fileContent = newView }
-            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/Edit.hs", fileContent = editView }
-            , CreateFile { filePath = "src/Apps/Web/View/" <> name <> "/Index.hs", fileContent = indexView }
+            [ EnsureDirectory { directory = "Web/View/" <> name }
+            , CreateFile { filePath = "Web/View/" <> name <> "/Show.hs", fileContent = showView }
+            , CreateFile { filePath = "Web/View/" <> name <> "/New.hs", fileContent = newView }
+            , CreateFile { filePath = "Web/View/" <> name <> "/Edit.hs", fileContent = editView }
+            , CreateFile { filePath = "Web/View/" <> name <> "/Index.hs", fileContent = indexView }
             ]
 
 
@@ -349,9 +349,9 @@ generateValidateRecordInstance name' =
         singularName = pluralToSingular name
         theInstance =
             "\n"
-            <> "instance ValidateRecord New" <> singularName <> " ControllerContext where\n"
+            <> "instance ValidateRecord New" <> singularName <> " controllerContext where\n"
             <> "    validateRecord = do\n"
             <> "        validateNothing\n"
 
     in
-        AppendToFile { filePath = "src/Apps/Web/Validation.hs", fileContent = theInstance }
+        AppendToFile { filePath = "Application/Validation.hs", fileContent = theInstance }
