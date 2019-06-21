@@ -17,13 +17,19 @@ if [ -d TurboHaskell ]; then
 fi
 
 GHCI_SCRIPT="$(mktemp)"
+trap "rm $GHCI_SCRIPT" EXIT
 
 echo ":script $FRAMEWORKDIR/applicationGhciConfig" > "$GHCI_SCRIPT"
-echo "import TurboHaskell.ControllerGenerator" >> "$GHCI_SCRIPT"
-echo ":l Application/Schema.hs" >> "$GHCI_SCRIPT"
-echo "main' database [\"$@\"]" >> "$GHCI_SCRIPT"
+
+if [ -d TurboHaskell ]; then
+	echo ":l TurboHaskell/TurboHaskell/ControllerGenerator.hs Application/Schema.hs" >> "$GHCI_SCRIPT"
+else
+	echo "import TurboHaskell.ControllerGenerator" >> "$GHCI_SCRIPT"
+	echo ":l Application/Schema.hs" >> "$GHCI_SCRIPT"
+fi
+
+echo "TurboHaskell.ControllerGenerator.main' Model.Schema.database [\"$@\"]" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
-ghci -threaded -i. -iTurboHaskell -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
+ghci -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
 
-rm "$GHCI_SCRIPT"

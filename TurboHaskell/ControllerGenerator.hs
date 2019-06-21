@@ -26,7 +26,6 @@ main' database args = do
                     <> generateViews database controllerName
                     <> [generateValidateRecordInstance controllerName']
             evalActions generate
-            Exit.exitSuccess
         Nothing -> usage
 
 
