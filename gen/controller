@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # Ensure we are in an app dir
@@ -9,6 +9,17 @@ fi
 
 FRAMEWORKDIR=$(dirname $(readlink $(which RunDevServer)))/../
 
+GHCI_SCRIPT="$(mktemp)"
+
+echo ":script TurboHaskell/applicationGhciConfig" > "$GHCI_SCRIPT"
+echo ":quit" >> "$GHCI_SCRIPT"
+echo "import TurboHaskell.ControllerGenerator" >> "$GHCI_SCRIPT"
+echo ":l Application/Schema.hs" >> "$GHCI_SCRIPT"
+echo "main' database [\"$@\"]" >> "$GHCI_SCRIPT"
+echo ":quit" >> "$GHCI_SCRIPT"
+
 # Switch to project root
-cd ../../../
-ghci -threaded -isrc -fexternal-interpreter -fomit-interface-pragmas +RTS -A128m -RTS -ghci-script <(echo ":script TurboHaskell/applicationGhciConfig"; echo "import TurboHaskell.ControllerGenerator";  echo ":l Application/Schema.hs"; echo "main' database [\"$@\"]"; echo ":quit")
+cd ..
+
+ghci -threaded -i. -iTurboHaskell -fomit-interface-pragmas +RTS -A128m -RTS < $GHCI_SCRIPT
+rm "$GHCI_SCRIPT"
