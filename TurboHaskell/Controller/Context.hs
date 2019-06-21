@@ -8,5 +8,5 @@ class Context context where
     createContext :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => IO context
 
 instance Context () where
-	{-# INLINE createContext #-}
-	createContext = return ()
+    {-# INLINE createContext #-}
+    createContext = return ()

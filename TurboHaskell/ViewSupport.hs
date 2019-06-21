@@ -30,7 +30,7 @@ classes classNameBoolPairs =
     classNameBoolPairs
     |> filter snd
     |> map fst
-    |> intercalate " "
+    |> unwords
 
 class CreateViewContext viewContext where
     type ControllerContext viewContext :: *

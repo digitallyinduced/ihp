@@ -11,17 +11,17 @@ import TurboHaskell.ViewSupport
 import TurboHaskell.Controller.Context ()
 
 instance {-# OVERLAPPABLE #-} (RestfulController controller, Router.Child controller ~ controller, Eq controller, model ~ GetModelById (RestfulControllerId controller), KnownSymbol (GetTableName model), FromRow model, Show model, Generic model, HasField "id" model id, Show id) => Controller controller () where
-	action theAction | isIndexAction @controller theAction = do
-		models <- query @model |> fetch
-		renderHtml (indexView models)
+    action theAction | isIndexAction @controller theAction = do
+        models <- query @model |> fetch
+        renderHtml (indexView models)
 
-	action otherwise = renderPlain "unsupported action"
+    action otherwise = renderPlain "unsupported action"
 
 
 data GenericControllerViewContext = GenericControllerViewContext
-	{ layout :: Layout
-	}
-	deriving (Generic)
+    { layout :: Layout
+    }
+    deriving (Generic)
 
 type Html' = HtmlWithContext GenericControllerViewContext
 
@@ -43,33 +43,33 @@ renderLayout view = [hsx|
 
 
 instance CreateViewContext GenericControllerViewContext where
-	type ControllerContext GenericControllerViewContext = ()
-	createViewContext = return GenericControllerViewContext { layout = renderLayout }
+    type ControllerContext GenericControllerViewContext = ()
+    createViewContext = return GenericControllerViewContext { layout = renderLayout }
 
 indexView :: forall idType model. (Generic model, HasField "id" model idType, Show idType, Show model) => [model] -> Html'
 indexView models = [hsx|
-	<div class="container">
-		<h1>Models</h1>
+    <div class="container">
+        <h1>Models</h1>
 
-		<table class="table">
-			<thead>
-				<tr>
-					<th>Id</th>
-					<th>Model</th>
-				</tr>
-			</thead>
-			<tbody>
-				{forM_ models renderRow}
-			</tbody>
-		</table>
-	</div>
-	|]
-		where
-			renderRow model = [hsx|
-				<tr>
-					<td>{tshow idField}</td>
-					<td><code>{tshow model}</code></td>
-				</tr>
-			|]
-				where
-					idField :: idType = getField @"id" model
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Model</th>
+                </tr>
+            </thead>
+            <tbody>
+                {forM_ models renderRow}
+            </tbody>
+        </table>
+    </div>
+    |]
+        where
+            renderRow model = [hsx|
+                <tr>
+                    <td>{tshow idField}</td>
+                    <td><code>{tshow model}</code></td>
+                </tr>
+            |]
+                where
+                    idField :: idType = getField @"id" model

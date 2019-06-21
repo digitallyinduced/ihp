@@ -30,7 +30,6 @@ import Text.Blaze.Html (Html)
 import Database.PostgreSQL.Simple as PG
 
 import Control.Monad.Reader
-import TurboHaskell.HaskellSupport
 import Control.Lens hiding ((|>), view)
 import Data.Generics.Product
 
@@ -46,7 +45,7 @@ renderHtml html = do
     let (RequestContext request respond _ _ _) = ?requestContext
     viewContext <- ViewSupport.createViewContext
     let layout = get #layout viewContext
-    let boundHtml = let ?viewContext = viewContext in (layout html)
+    let boundHtml = let ?viewContext = viewContext in layout html
     respond $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder boundHtml)
 
 renderFile :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ResponseReceived

@@ -115,8 +115,8 @@ toStringAttribute (name, ExpressionValue code) = do
 
 {-# INLINE applyAttributes #-}
 applyAttributes :: Html5.Html -> [Html5.Attribute] -> Html5.Html
-applyAttributes !el ![] = el
-applyAttributes !el !(x:xs) = applyAttributes (el ! x) xs
+applyAttributes !el [] = el
+applyAttributes !el (x:xs) = applyAttributes (el ! x) xs
 
 {-# INLINE makeElement #-}
 makeElement :: String -> [Html] -> Html
@@ -137,7 +137,7 @@ makeElement !name !children =
             if name `elem` leafs then
                 leaf ()
             else
-                error ("makeElement: Unknown tag ")
+                error "makeElement: Unknown tag "
 
 attributes =
         [ "accept", "accept-charset", "accesskey", "action", "alt", "async"

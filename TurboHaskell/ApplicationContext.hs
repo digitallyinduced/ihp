@@ -6,6 +6,6 @@ import qualified Data.Vault.Lazy         as Vault
 import           TurboHaskell.ModelSupport (ModelContext)
 
 data ApplicationContext = ApplicationContext
-	{ modelContext :: !ModelContext
-	, session :: Vault.Key (Session IO String String)
-	}
+    { modelContext :: !ModelContext
+    , session :: Vault.Key (Session IO String String)
+    }

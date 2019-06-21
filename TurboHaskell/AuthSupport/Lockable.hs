@@ -10,10 +10,10 @@ import Unsafe.Coerce
 
 lock :: forall user modelContext. (?modelContext :: ModelContext, CanUpdate user, HasField "lockedAt" user user (Maybe UTCTime) (Maybe UTCTime), Generic user) => user -> IO user
 lock user = do
-	now <- getCurrentTime
-	let currentLockedAt :: Maybe UTCTime = user ^. field @"lockedAt"
-	let user' :: user = user & field @"lockedAt" .~ Just now
-	updateRecord user'
+    now <- getCurrentTime
+    let currentLockedAt :: Maybe UTCTime = user ^. field @"lockedAt"
+    let user' :: user = user & field @"lockedAt" .~ Just now
+    updateRecord user'
 
 lockDuration :: Clock.NominalDiffTime
 lockDuration = let timeInSecs = 60 * 60 in Clock.secondsToNominalDiffTime timeInSecs

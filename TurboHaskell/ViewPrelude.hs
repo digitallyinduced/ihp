@@ -4,8 +4,6 @@
 {-# LANGUAGE TypeFamilies          #-}
 
 module TurboHaskell.ViewPrelude (
-    HtmlWithContext,
-
     module TurboHaskell.HaskellSupport,
     module ClassyPrelude,
     module TurboHaskell.View.TimeAgo,
@@ -14,13 +12,10 @@ module TurboHaskell.ViewPrelude (
     cs,
 
     isActivePath,
-    when,
     module TurboHaskell.View.Form,
     viewContext,
     hsx,
-    timeAgo,
     toHtml,
-    tshow,
     UUID,
     def,
     module GHC.OverloadedLabels,
@@ -42,7 +37,6 @@ module TurboHaskell.ViewPrelude (
 ) where
 
 import ClassyPrelude
-import           Control.Monad                (when)
 import           Data.String.Conversions      (ConvertibleStrings (convertString), cs)
 import           Data.Text                    (Text, intercalate)
 import           TurboHaskell.HaskellSupport

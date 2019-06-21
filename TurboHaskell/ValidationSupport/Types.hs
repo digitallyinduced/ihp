@@ -23,7 +23,6 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.UUID
 import Data.Default
 import Control.Monad.State
-import Data.Default
 import Unsafe.Coerce
 import Data.Dynamic (Dynamic, toDyn)
 
@@ -43,7 +42,7 @@ modelToEither result =
             _  -> Left result
 
 isFailure Failure {} = True
-isFailure otherwise  = False
+isFailure _  = False
 
 type family ValidatorResultFor model
 
@@ -58,7 +57,7 @@ validateRecord' :: forall model controllerContext. (
     ) => ValidationMonad model -> model -> IO (Either (ValidatorResultFor model) model)
 validateRecord' arg model = do
     let ?model = model
-    result <- runStateT (do arg; state <- get; return state) (def :: ValidatorResultFor model)
+    result <- runStateT (do arg; get) (def :: ValidatorResultFor model)
     modifyIORef (getField @"validations" ?controllerContext) (\validations -> (toDyn (model, fst result)):validations)
     return (modelToEither $ fst result)
 

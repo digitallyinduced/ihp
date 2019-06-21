@@ -77,7 +77,7 @@ enumTypeName :: Table -> Attribute -> Text
 enumTypeName (Table tableName _) (Field fieldName _) = toUpper (TurboHaskell.NameSupport.pluralToSingular tableName) <> "_" <> toUpper fieldName
 
 compileTokens :: [Text] -> Text
-compileTokens tokens = intercalate " " $ filter (\token -> token /= "") tokens
+compileTokens tokens = unwords $ filter (\token -> token /= "") tokens
 
 lineSep values = intercalate "\n" $ filter (\line -> line /= "") values
 

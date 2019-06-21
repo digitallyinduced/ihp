@@ -10,9 +10,9 @@ import TurboHaskell.ApplicationContext
 import TurboHaskell.FrameworkConfig
 
 instance FrameworkConfig => Controller AuthenticationController () where
-	action NotLoggedInAction { newSessionUrl } = do
-	    setSuccessMessage "Please log in to access this page"
-	    setSession "TurboHaskell.LoginSupport.redirectAfterLogin" (cs getRequestUrl)
-	    case newSessionUrl of
-	        Just newSessionPath -> redirectToPath newSessionPath
-	        Nothing -> renderPlain "Please log in to access this page"
+    action NotLoggedInAction { newSessionUrl } = do
+        setSuccessMessage "Please log in to access this page"
+        setSession "TurboHaskell.LoginSupport.redirectAfterLogin" (cs getRequestUrl)
+        case newSessionUrl of
+            Just newSessionPath -> redirectToPath newSessionPath
+            Nothing -> renderPlain "Please log in to access this page"

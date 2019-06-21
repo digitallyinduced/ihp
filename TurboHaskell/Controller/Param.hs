@@ -21,7 +21,6 @@ import TurboHaskell.DatabaseSupport.Point
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as Char8
 
-import qualified Control.Monad.State.Lazy as State
 import GHC.TypeLits
 import Control.Lens ()
 import qualified Control.Lens as Lens
@@ -100,7 +99,7 @@ instance FromParameter ByteString where
 instance FromParameter Int where
     {-# INLINE fromParameter #-}
     fromParameter (Just byteString) =
-        case (Data.Text.Read.decimal $ cs $ byteString) of
+        case (Data.Text.Read.decimal $ cs byteString) of
             Left error -> Left error
             Right (value, _) -> Right value
     fromParameter Nothing = Left "FromParameter Int: Parameter missing"
@@ -184,8 +183,7 @@ fromParams' record = fromRequest record
 --instance (FillParams (ModelSupport.ChangeSet model) model, ValidateRecord (ModelSupport.New model) controllerContext) => FromParams model where
 fromRequest :: forall model controllerContext. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FillParams (ModelSupport.ChangeSet model) model, Default (ValidatorResultFor model), Record.HasTypes (ValidatorResultFor model) ValidatorResult, ValidateRecord model controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, Typeable (ValidatorResultFor model), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic])) => model -> IO (Either model model)
 fromRequest model = do
-        result <- State.evalStateT inner (def :: ValidatorResultFor model)
-        return result
+        State.evalStateT inner (def :: ValidatorResultFor model)
     where
         inner = do
             model <- fill @(ModelSupport.ChangeSet model) model

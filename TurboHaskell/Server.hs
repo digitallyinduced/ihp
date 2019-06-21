@@ -27,7 +27,6 @@ import qualified TurboHaskell.LoginSupport.Middleware
 import Unsafe.Coerce
 import TurboHaskell.Environment (isDevelopment)
 import qualified System.Process as Process
-import TurboHaskell.RouterSupport (prepareWAIApp)
 import TurboHaskell.HaskellSupport
 import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
@@ -35,7 +34,7 @@ import Data.String.Conversions (cs)
 
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 import TurboHaskell.FrameworkConfig (FrameworkConfig)
-import TurboHaskell.RouterSupport (HasPath, CanRoute)
+import TurboHaskell.RouterSupport (prepareWAIApp, HasPath, CanRoute)
 
 defaultPort :: Int
 defaultPort = 8000
@@ -46,7 +45,7 @@ run :: (FrameworkConfig, HasPath FrameworkConfig.RootApplication, CanRoute Frame
 run = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
-    databaseUrl <- (Environment.lookupEnv "DATABASE_URL") >>= (return . fromMaybe defaultDatabaseUrl . fmap cs )
+    databaseUrl <- (Environment.lookupEnv "DATABASE_URL") >>= (return . maybe defaultDatabaseUrl cs )
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")

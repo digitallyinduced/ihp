@@ -37,10 +37,10 @@ redirectTo action = redirectToPath (pathTo action)
 redirectToPath :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO Wai.ResponseReceived
 redirectToPath url = do
     let (RequestContext _ respond _ _ _) = ?requestContext
-    let !parsedUrl = case parseURI (cs $ FrameworkConfig.baseUrl <> url) of
-    		Just url -> url
-    		Nothing -> error "redirectToPath: Unable to parse url"
-    let !redirectResponse = case Network.Wai.Util.redirect status302 [] parsedUrl of
-    		Just response -> response
-    		Nothing -> error "redirectToPath: Unable to construct redirect response"
+    let !parsedUrl = fromMaybe 
+            (error "redirectToPath: Unable to parse url")
+            (parseURI (cs $ FrameworkConfig.baseUrl <> url))
+    let !redirectResponse = fromMaybe
+            (error "redirectToPath: Unable to construct redirect response")
+            (Network.Wai.Util.redirect status302 [] parsedUrl)
     respond redirectResponse

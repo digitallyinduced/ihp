@@ -12,7 +12,6 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import           TurboHaskell.AuthSupport.Authorization
 import           TurboHaskell.ModelSupport
 import           TurboHaskell.NameSupport               (humanize)
-import           TurboHaskell.QueryBuilder              (Fetchable, fetchOneOrNothing)
 import           TurboHaskell.ValidationSupport.Types
 import           GHC.Generics
 import           GHC.Records                          hiding (HasField, getField)

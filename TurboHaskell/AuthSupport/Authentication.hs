@@ -13,7 +13,7 @@ passwordStrength :: Int
 passwordStrength = 17
 
 hashPassword :: ByteString -> IO Text
-hashPassword plainText = (Crypto.PasswordStore.makePassword plainText passwordStrength) >>= return . cs
+hashPassword plainText = cs <$> Crypto.PasswordStore.makePassword plainText passwordStrength
 
 verifyPassword :: HasField "passwordHash" entity Text => entity -> Text -> Bool
 verifyPassword entity plainText = Crypto.PasswordStore.verifyPassword (cs plainText) (cs passwordHash)
