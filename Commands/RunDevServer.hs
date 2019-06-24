@@ -80,12 +80,12 @@ initErrorWatcher state = do
     errorServerRef <- newIORef Nothing
     lock <- Lock.new
     let stopServer = do
-        server <- readIORef errorServerRef
-        case server of
-            Just server -> do
-                cancel server
-                writeIORef errorServerRef Nothing
-            Nothing -> return ()
+            server <- readIORef errorServerRef
+            case server of
+                Just server -> do
+                    cancel server
+                    writeIORef errorServerRef Nothing
+                Nothing -> return ()
     let getLastErrors server = do
         let ManagedProcess { errorHandle } = server
         ByteString.hGetNonBlocking errorHandle (10 * 1024)
