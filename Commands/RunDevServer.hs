@@ -87,8 +87,8 @@ initErrorWatcher state = do
                     writeIORef errorServerRef Nothing
                 Nothing -> return ()
     let getLastErrors server = do
-        let ManagedProcess { errorHandle } = server
-        ByteString.hGetNonBlocking errorHandle (10 * 1024)
+            let ManagedProcess { errorHandle } = server
+            ByteString.hGetNonBlocking errorHandle (10 * 1024)
 
     errorLogRef <- newIORef ""
     let onGhciStateChange state = Lock.with lock $ case state of
@@ -101,8 +101,8 @@ initErrorWatcher state = do
                     then return ()
                     else do
                         let errorApp req respond = do
-                            errorLog <- readIORef errorLogRef
-                            respond $ Wai.responseBuilder HTTP.status200 [(HTTP.hContentType, "text/html")] (Blaze.renderHtmlBuilder $ renderErrorView errorLog)
+                                errorLog <- readIORef errorLogRef
+                                respond $ Wai.responseBuilder HTTP.status200 [(HTTP.hContentType, "text/html")] (Blaze.renderHtmlBuilder $ renderErrorView errorLog)
                         let port = 8000
                         errorServer <- async $ Warp.run port errorApp
                         writeIORef errorServerRef (Just errorServer)
@@ -113,10 +113,8 @@ initErrorWatcher state = do
 registerExitHandler handler = do
     threadId <- myThreadId
     let catchHandler = do
-        catchAny handler $ \e -> do
-            putStrLn ("Caught exception while exiting: " <> tshow e)
+            catchAny handler (const $ Exception.throwTo threadId ExitSuccess)
             Exception.throwTo threadId ExitSuccess
-        Exception.throwTo threadId ExitSuccess
     installHandler keyboardSignal (Catch catchHandler) Nothing
 
 main :: IO ()
@@ -129,8 +127,8 @@ main = do
     currentDir <- getCurrentDirectory
 
     FS.withManager $ \manager -> do
-        FS.watchTree manager "." shouldActOnFileChange (watch state)
-        forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
+            FS.watchTree manager "." shouldActOnFileChange (watch state)
+            forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
 
 shouldActOnFileChange :: FS.ActionPredicate
 shouldActOnFileChange event = isSuffixOf ".hs" (getEventFilePath event)
@@ -222,16 +220,11 @@ watchGhciProcessState ghciRef onStateChange = do
     ghci <- readIORef ghciRef
     let ManagedProcess { outputHandle, errorHandle } = ghci
     async $ forever $ do
-        line <- ByteString.hGetLine outputHandle
-        ByteString.putStrLn line
-        case readGhciState line of
-            Just state -> onStateChange state
-            Nothing -> return ()
-    --async $ do
-    --    forever $ do
-    --        output <- ByteString.hGetLine errorHandle
-    --        putStrLn $ "error: " <> cs output
-    --        return ghci
+            line <- ByteString.hGetLine outputHandle
+            ByteString.putStrLn line
+            case readGhciState line of
+                Just state -> onStateChange state
+                Nothing -> return ()
     return ()
 
 
