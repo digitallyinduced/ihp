@@ -88,7 +88,6 @@ Library TurboHaskellFramework
         , wai-middleware-static
         , wai-util
         , http-conduit
-        , tagsoup
         , http-client
         , bytestring
         , network-uri
@@ -172,7 +171,6 @@ Executable RunDevServer
         , wai-middleware-static
         , wai-util
         , http-conduit
-        , tagsoup
         , http-client
         , bytestring
         , network-uri
@@ -244,7 +242,6 @@ Executable RunLiveReloadNotificationServer
         base
         , classy-prelude
         , directory
-        , free
         , string-conversions
         , warp
         , wai
@@ -262,7 +259,6 @@ Executable RunLiveReloadNotificationServer
         , wai-middleware-static
         , wai-util
         , http-conduit
-        , tagsoup
         , http-client
         , bytestring
         , network-uri

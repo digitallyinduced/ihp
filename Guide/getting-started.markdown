@@ -637,7 +637,6 @@ let
             base
             classy-prelude
             directory
-            free
             string-conversions
             wai
             mtl

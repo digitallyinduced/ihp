@@ -6,7 +6,6 @@
 , base
 , classy-prelude
 , directory
-, free
 , string-conversions
 , warp
 , wai
@@ -21,11 +20,9 @@
 , wai-middleware-static
 , wai-util
 , http-conduit
-, tagsoup
 , http-client
 , aeson
 , uuid
-, jose
 , wai-session
 , wai-session-clientsession
 , clientsession
@@ -77,7 +74,6 @@ mkDerivation {
     base
     classy-prelude
     directory
-    free
     string-conversions
     warp
     wai
@@ -92,11 +88,9 @@ mkDerivation {
     wai-middleware-static
     wai-util
     http-conduit
-    tagsoup
     http-client
     aeson
     uuid
-    jose
     wai-session
     wai-session-clientsession
     clientsession

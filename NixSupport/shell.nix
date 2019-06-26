@@ -6,7 +6,6 @@ let
 	    base
 	    classy-prelude
 	    directory
-	    free
 	    string-conversions
 	    fsnotify
 	    warp
@@ -22,11 +21,9 @@ let
 	    wai-middleware-static
 	    wai-util
 	    http-conduit
-	    tagsoup
 	    http-client
 	    aeson
 	    uuid
-	    jose
 	    wai-session
 	    wai-session-clientsession
 	    clientsession
