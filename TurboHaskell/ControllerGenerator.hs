@@ -349,7 +349,7 @@ generateValidateRecordInstance database name' =
         name = normalizeName name'
         singularName = pluralToSingular name
         instanceHeadArgs = 
-            case getTable database name of
+            case getTable database (lcfirst name) of
                 Just (Table _ attributes) ->
                     attributes
                     |> fieldsOnly
@@ -357,7 +357,7 @@ generateValidateRecordInstance database name' =
                     |> map (\(Field fieldName _) -> columnNameToFieldName name)
                     |> Text.unwords
                 Nothing -> ""
-        instanceHead = "NewOrSaved " <> singularName <> " " <> instanceHeadArgs
+        instanceHead = "NewOrSaved" <> singularName <> " " <> instanceHeadArgs
         theInstance =
             "\n"
             <> "instance ValidateRecord (" <> instanceHead <> ") controllerContext where\n"
