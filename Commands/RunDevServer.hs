@@ -155,13 +155,13 @@ cleanup state = do
 
 startPlainGhci :: IO ManagedProcess
 startPlainGhci = do
-    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
+    let process = (Process.proc "ghci" ["-threaded", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
     return ManagedProcess { .. }
 
 startCompileGhci :: IO ManagedProcess
 startCompileGhci = do
-    let process = (Process.proc "ghci" ["-threaded", "-isrc", "-w", "-j2", "-fobject-code", "-fomit-interface-pragmas", "+RTS", "-A128m"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
+    let process = (Process.proc "ghci" ["-threaded", "-w", "-j2", "-fobject-code", "-fomit-interface-pragmas", "+RTS", "-A128m"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
     return ManagedProcess { .. }
 
