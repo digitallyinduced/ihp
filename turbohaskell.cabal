@@ -67,22 +67,6 @@ Library TurboHaskellFramework
         , TurboHaskell.SchemaTypes
         , TurboHaskell.AppPrelude
         , TurboHaskell.SchemaPrelude
-    Other-modules:
-        TurboHaskell.ApplicationContext
-        , TurboHaskell.Controller.Context
-        , TurboHaskell.Controller.RequestContext
-        , TurboHaskell.ControllerSupport
-        , TurboHaskell.DatabaseSupport.Point
-        , TurboHaskell.DevelopmentSupport.LiveReloadNotificationServer
-        , TurboHaskell.HaskellSupport
-        , TurboHaskell.HtmlSupport.Parser
-        , TurboHaskell.HtmlSupport.QQ
-        , TurboHaskell.HtmlSupport.ToHtml
-        , TurboHaskell.ModelSupport
-        , TurboHaskell.NameSupport
-        , TurboHaskell.RouterSupport
-        , TurboHaskell.SchemaTypes
-        , TurboHaskell.View.ConvertibleStrings
     build-depends:
         base
         , classy-prelude
