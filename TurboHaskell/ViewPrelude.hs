@@ -25,7 +25,6 @@ module TurboHaskell.ViewPrelude (
     plain,
     preEscapedToHtml,
     module TurboHaskell.View.Modal,
-    classes,
     module TurboHaskell.ValidationSupport,
     addStyle,
     css,

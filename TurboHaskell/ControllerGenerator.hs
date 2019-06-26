@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
+{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
 module TurboHaskell.ControllerGenerator where
 
 import ClassyPrelude
@@ -10,6 +11,7 @@ import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import qualified System.Exit as Exit
 import TurboHaskell.SchemaTypes
+import TurboHaskell.HaskellSupport
 
 main' :: [Table] -> [Text] -> IO ()
 main' database args = do
@@ -24,7 +26,7 @@ main' database args = do
                     , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/App.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
                     ]
                     <> generateViews database controllerName
-                    <> [generateValidateRecordInstance controllerName']
+                    <> [generateValidateRecordInstance database controllerName']
             evalActions generate
         Nothing -> usage
 
@@ -272,7 +274,7 @@ generateViews database name' =
                 <> "    |]\n"
                 <> "\n"
                 <> "renderForm :: New" <> singularName <> " -> Html\n"
-                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
+                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " Create" <> singularName <> "Action [hsx|\n"
                 <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
@@ -295,7 +297,7 @@ generateViews database name' =
                 <> "    |]\n"
                 <> "\n"
                 <> "renderForm :: " <> singularName <> " -> Html\n"
-                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
+                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " (Update" <> singularName <> "Action (get #id " <> singularVariableName <> ")) [hsx|\n"
                 <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
@@ -341,14 +343,24 @@ generateViews database name' =
             ]
 
 
-generateValidateRecordInstance :: Text -> GeneratorAction
-generateValidateRecordInstance name' =
+generateValidateRecordInstance :: [Table] -> Text -> GeneratorAction
+generateValidateRecordInstance database name' =
     let
         name = normalizeName name'
         singularName = pluralToSingular name
+        instanceHeadArgs = 
+            case getTable database name of
+                Just (Table _ attributes) ->
+                    attributes
+                    |> fieldsOnly
+                    |> fieldsWithDefaultValue
+                    |> map (\(Field fieldName _) -> columnNameToFieldName name)
+                    |> Text.unwords
+                Nothing -> ""
+        instanceHead = "NewOrSaved " <> singularName <> " " <> instanceHeadArgs
         theInstance =
             "\n"
-            <> "instance ValidateRecord New" <> singularName <> " controllerContext where\n"
+            <> "instance ValidateRecord (" <> instanceHead <> ") controllerContext where\n"
             <> "    validateRecord = do\n"
             <> "        validateNothing\n"
 

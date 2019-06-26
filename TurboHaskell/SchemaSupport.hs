@@ -88,3 +88,6 @@ fieldsWithoutDefaultValue :: [Attribute] -> [Attribute]
 fieldsWithoutDefaultValue = filter hasNoDefaultValue
     where
         hasNoDefaultValue (Field _ fieldType) = isNothing (defaultValue fieldType)
+
+fieldsWithDefaultValue :: [Attribute] -> [Attribute]
+fieldsWithDefaultValue = filter (\(Field _ fieldType) -> isJust (defaultValue fieldType))

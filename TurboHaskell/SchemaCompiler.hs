@@ -11,6 +11,7 @@ import Data.List ((!!), (\\))
 import Data.List.Split
 import qualified TurboHaskell.SqlCompiler
 import TurboHaskell.SchemaTypes
+import TurboHaskell.HaskellSupport
 
 
 -- USE LINE PRAGMA IN OUTPUT
@@ -139,11 +140,25 @@ compileTypeAlias table@(Table name attributes) =
 compileNewTypeAlias :: Table -> Text
 compileNewTypeAlias table@(Table name attributes) =
         "type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
+        <> "type NewOrSaved" <> tableNameToModelName name <> " " <> newOrSavedArgs <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map compileNewOrSavedAttribute attributes) <> "\n"
         <> "type instance New (" <> compileTypePattern table <> ") = New" <> tableNameToModelName name <> "\n"
         <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
     where
         compileAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = "(FieldWithDefault " <> haskellType table field <> ")"
         compileAttribute field = haskellType table field
+
+        compileNewOrSavedAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = fieldName
+        compileNewOrSavedAttribute field = haskellType table field
+
+        newOrSavedArgs :: Text
+        newOrSavedArgs =
+            attributes
+            |> filter hasDefaultValue
+            |> map (\(Field fieldName _) -> fieldName)
+            |> unwords 
+
+        hasDefaultValue (Field _ fieldType) | isJust (defaultValue fieldType) = True
+        hasDefaultValue _ = False
 
 
 compileNewOrSavedType :: Table -> Text
