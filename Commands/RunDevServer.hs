@@ -182,7 +182,7 @@ watch state@(DevServerState {serverProcess, rebuildServerLock}) event =
     let
         filePath = getEventFilePath event
     in
-        if isSuffixOf "Model/Schema.hs" filePath 
+        if isSuffixOf "Application/Schema.hs" filePath 
             then rebuildModels state
             else rebuild serverProcess rebuildServerLock
 
