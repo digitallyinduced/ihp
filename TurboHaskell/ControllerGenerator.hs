@@ -274,7 +274,7 @@ generateViews database name' =
                 <> "    |]\n"
                 <> "\n"
                 <> "renderForm :: New" <> singularName <> " -> Html\n"
-                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " Create" <> singularName <> "Action [hsx|\n"
+                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
                 <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
@@ -297,7 +297,7 @@ generateViews database name' =
                 <> "    |]\n"
                 <> "\n"
                 <> "renderForm :: " <> singularName <> " -> Html\n"
-                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " (Update" <> singularName <> "Action (get #id " <> singularVariableName <> ")) [hsx|\n"
+                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
                 <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
@@ -354,7 +354,7 @@ generateValidateRecordInstance database name' =
                     attributes
                     |> fieldsOnly
                     |> fieldsWithDefaultValue
-                    |> map (\(Field fieldName _) -> columnNameToFieldName name)
+                    |> map (\(Field fieldName _) -> columnNameToFieldName fieldName)
                     |> Text.unwords
                 Nothing -> ""
         instanceHead = "NewOrSaved" <> singularName <> " " <> instanceHeadArgs
