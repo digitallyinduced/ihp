@@ -1,4 +1,6 @@
 { mkDerivation
+, callPackage
+, fetchFromGitHub
 , stdenv
 , cabal-install
 , base
@@ -58,7 +60,16 @@
 mkDerivation {
   pname = "turbohaskell";
   version = "1.0.28";
-  src = ./../..;
+  src =
+    let
+        gitignore = callPackage (fetchFromGitHub {
+            owner = "siers";
+            repo = "nix-gitignore";
+            rev = "d69e4f620ec9d35ddb125ee495f6a5dee519c905";
+            sha256 = "0x55qgirpkzm0yagyqqxi8l7yc3g20bx42iayz124n09cz7sp7mp";
+        }) {};
+    in
+        gitignore.gitignoreSource [] ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
