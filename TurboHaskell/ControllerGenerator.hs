@@ -22,8 +22,8 @@ main' database args = do
                     [ CreateFile { filePath = "Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database controllerName) }
                     , AppendToFile { filePath = "Web/Routes.hs", fileContent = (controllerInstance controllerName) }
                     , AppendToFile { filePath = "Web/Types.hs", fileContent = (generateControllerData controllerName) }
-                    , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/App.hs", fileContent = ("import Web.Controller." <> controllerName) }
-                    , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/App.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
+                    , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = ("import Web.Controller." <> controllerName) }
+                    , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
                     ]
                     <> generateViews database controllerName
                     <> [generateValidateRecordInstance database controllerName']
