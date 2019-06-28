@@ -6,7 +6,6 @@ import TurboHaskell.RouterPrelude
 data WelcomeController = WelcomeAction
 
 instance CanRoute WelcomeController () where
-    parseRoute = runAction <$> parseRoute' @WelcomeController
     parseRoute' = (string "/" <|> string "") *> endOfInput *> return WelcomeAction
 
 instance HasPath WelcomeController where

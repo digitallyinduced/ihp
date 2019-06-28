@@ -28,5 +28,6 @@
 :set -XDeriveDataTypeable
 :set -XLambdaCase
 :set -XDefaultSignatures
+:set -XEmptyDataDeriving
 :set -package turbohaskell
 :set -fbyte-code

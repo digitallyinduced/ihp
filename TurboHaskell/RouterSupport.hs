@@ -7,7 +7,7 @@ module TurboHaskell.RouterSupport (
     , runAction
     , get
     , post
-    , prepareWAIApp
+    , frontControllerToWAIApp
     , RestfulControllerId
     , withPrefix
     , parseUUID
@@ -23,6 +23,9 @@ module TurboHaskell.RouterSupport (
     , Parent
     , PathArgument (..)
     , ModelControllerMap
+    , FrontController (..)
+    , parseRoute 
+    , catchAll
 ) where
 
 import ClassyPrelude hiding (index, delete, take)
@@ -61,12 +64,15 @@ type family Child controller where
 
 data (parent :> child) = parent :> child deriving (Generic, Eq, Data, Show)
 
+class FrontController application where
+    prefix :: ByteString
+    prefix = "/"
+    controllers :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
 
 class HasPath controller where
     pathTo :: controller -> Text    
 
 class HasPath controller => CanRoute controller parent | controller -> parent where
-    parseRoute :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived)
     parseRoute' :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
 
 {-# INLINE parseUUID #-}
@@ -200,8 +206,6 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
     --pathTo action = error "TODO"
         --let id = unsafeHead (toListOf (types @id) action)
         --in pathTo (showAction @controller id) <> "/" <> tshow id <> (if editAction id == action then "/edit" else "")
-    {-# INLINE parseRoute #-}
-    parseRoute = parseRoute' @controller >>= return . runAction
     {-# INLINE parseRoute' #-}
     parseRoute' =
         let
@@ -299,7 +303,6 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent con
     --pathTo action = error "TODO"
         --let id = unsafeHead (toListOf (types @id) action)
         --in pathTo (showAction @controller id) <> "/" <> tshow id <> (if editAction id == action then "/edit" else "")
-    parseRoute = parseRoute' @controller >>= return . runAction
     parseRoute' = do
         parent <- parseRoute' @parent
         string "/"
@@ -375,6 +378,15 @@ runApp routes = let path = (rawPathInfo (getField @"request" ?requestContext)) i
             Left message -> error ("Failed to route `" <> cs path <> "`: " <> message)
             Right action -> action
 
-{-# INLINE prepareWAIApp #-}
-prepareWAIApp :: forall app parent config. (Eq app, parent ~ (), CanRoute app parent, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => IO ResponseReceived
-prepareWAIApp = runApp (parseRoute @app)
+{-# INLINE frontControllerToWAIApp #-}
+frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => IO ResponseReceived
+frontControllerToWAIApp = runApp (withPrefix (prefix @app) (controllers @app))
+
+
+{-# INLINE parseRoute #-}
+parseRoute :: forall controller context parent. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller context, CanRoute controller parent) => Parser (IO ResponseReceived)
+parseRoute = parseRoute' @controller >>= return . runAction
+
+{-# INLINE catchAll #-}
+catchAll :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action context) => action -> Parser (IO ResponseReceived)
+catchAll action = return (runAction action)

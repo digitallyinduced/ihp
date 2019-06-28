@@ -34,14 +34,14 @@ import Data.String.Conversions (cs)
 
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 import TurboHaskell.FrameworkConfig (FrameworkConfig)
-import TurboHaskell.RouterSupport (prepareWAIApp, HasPath, CanRoute)
+import TurboHaskell.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
 
 defaultPort :: Int
 defaultPort = 8000
 
 
 
-run :: (FrameworkConfig, HasPath FrameworkConfig.RootApplication, CanRoute FrameworkConfig.RootApplication ()) => IO ()
+run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
 run = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
@@ -54,7 +54,7 @@ run = do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?requestContext = requestContext
-            prepareWAIApp @FrameworkConfig.RootApplication
+            frontControllerToWAIApp @FrameworkConfig.RootApplication
             
     let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
     let logMiddleware :: Middleware = logStdoutDev
