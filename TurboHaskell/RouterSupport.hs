@@ -382,6 +382,8 @@ runApp routes = let path = (rawPathInfo (getField @"request" ?requestContext)) i
 frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => IO ResponseReceived
 frontControllerToWAIApp = runApp (withPrefix (prefix @app) (controllers @app))
 
+mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => Parser (IO ResponseReceived)
+mountFrontController = withPrefix (prefix @frontController) (controllers @frontController)
 
 {-# INLINE parseRoute #-}
 parseRoute :: forall controller context parent. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller context, CanRoute controller parent) => Parser (IO ResponseReceived)

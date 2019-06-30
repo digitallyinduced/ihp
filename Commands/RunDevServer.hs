@@ -40,6 +40,7 @@ data ManagedProcess = ManagedProcess
     , outputHandle :: !Handle
     , errorHandle :: !Handle
     , processHandle :: !ProcessHandle
+    , errorLog :: Maybe (IORef ByteString)
     }
 
 data GhciState = Ok | Failed | Pending deriving (Eq, Show)
@@ -88,8 +89,9 @@ initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
                     writeIORef errorServerRef Nothing
                 Nothing -> return ()
     let getLastErrors server = do
-            let ManagedProcess { errorHandle } = server
-            ByteString.hGetNonBlocking errorHandle (10 * 1024)
+            let ManagedProcess { errorLog } = server
+            -- ByteString.hGetNonBlocking errorHandle (10 * 1024)
+            readIORef (fromJust errorLog)
 
     errorLogRef <- newIORef ""
     let onGhciStateChange state = Lock.with lock $ case state of
@@ -167,18 +169,21 @@ startPlainGhci :: IO ManagedProcess
 startPlainGhci = do
     let process = (Process.proc "ghci" ["-threaded", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j4", "+RTS", "-A512m", "-n2m"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
+    errorLog <- Just <$> newIORef ""
     return ManagedProcess { .. }
 
 startCompileGhci :: IO ManagedProcess
 startCompileGhci = do
     let process = (Process.proc "ghci" ["-threaded", "-w", "-j2", "-fobject-code", "-fomit-interface-pragmas", "+RTS", "-A128m"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
+    errorLog <- Just <$> newIORef ""
     return ManagedProcess { .. }
 
 startLiveReloadNotificationServer :: IO ManagedProcess
 startLiveReloadNotificationServer = do
     let process = (Process.proc "RunLiveReloadNotificationServer" []) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
+    let errorLog = Nothing
     return ManagedProcess { .. }
 
 
@@ -234,12 +239,18 @@ readGhciState _ = Nothing
 watchGhciProcessState :: IORef ManagedProcess -> (GhciState -> IO ()) -> IO ()
 watchGhciProcessState ghciRef onStateChange = do
     ghci <- readIORef ghciRef
-    let ManagedProcess { outputHandle, errorHandle } = ghci
+    let ManagedProcess { outputHandle, errorHandle, errorLog } = ghci
     async $ forever $ do
             line <- ByteString.hGetLine outputHandle
             ByteString.putStrLn line
             case readGhciState line of
                 Just state -> onStateChange state
+                Nothing -> return ()
+    async $ forever $ do
+            line <- ByteString.hGetLine errorHandle
+            ByteString.putStrLn line
+            case errorLog of
+                Just errorLog -> modifyIORef errorLog (\log -> log <> line)
                 Nothing -> return ()
     return ()
 
@@ -262,6 +273,7 @@ startPostgres = do
     currentDir <- getCurrentDirectory
     let process = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
+    let errorLog = Nothing
     return ManagedProcess { .. }
 
 getPid ph = withProcessHandle ph go
