@@ -75,8 +75,8 @@ renderErrorView code = [hsx|
         </html>
     |]
 
-initErrorWatcher state = do
-    let DevServerState { serverProcess } = state
+initErrorWatcher :: IORef ManagedProcess -> IO () -> IO () -> IO ()
+initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
     errorServerRef <- newIORef Nothing
     lock <- Lock.new
     let stopServer = do
@@ -84,6 +84,7 @@ initErrorWatcher state = do
             case server of
                 Just server -> do
                     cancel server
+                    didStopErrorServer
                     writeIORef errorServerRef Nothing
                 Nothing -> return ()
     let getLastErrors server = do
@@ -104,6 +105,7 @@ initErrorWatcher state = do
                                 errorLog <- readIORef errorLogRef
                                 respond $ Wai.responseBuilder HTTP.status200 [(HTTP.hContentType, "text/html")] (Blaze.renderHtmlBuilder $ renderErrorView errorLog)
                         let port = 8000
+                        willStartErrorServer
                         errorServer <- async $ Warp.run port errorApp
                         writeIORef errorServerRef (Just errorServer)
             Pending -> return ()
@@ -120,7 +122,8 @@ registerExitHandler handler = do
 main :: IO ()
 main = do
     state <- initDevServerState
-    initErrorWatcher state
+    initServerProcessWatcher state
+    initModelCompilerProcessWatcher state
     rebuildModels state
     registerExitHandler (cleanup state)
 
@@ -129,6 +132,13 @@ main = do
     FS.withManager $ \manager -> do
             FS.watchTree manager "." shouldActOnFileChange (watch state)
             forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
+
+initServerProcessWatcher DevServerState { serverProcess } = do
+    initErrorWatcher serverProcess (return ()) (return ())
+
+initModelCompilerProcessWatcher :: DevServerState -> IO ()
+initModelCompilerProcessWatcher DevServerState { serverProcess, modelCompilerProcess } = do
+    initErrorWatcher modelCompilerProcess pauseRunningApp (continueRunningApp serverProcess)
 
 shouldActOnFileChange :: FS.ActionPredicate
 shouldActOnFileChange event = isSuffixOf ".hs" (getEventFilePath event)
@@ -188,11 +198,9 @@ watch state@(DevServerState {serverProcess, rebuildServerLock}) event =
 
 
 rebuildModels (DevServerState {modelCompilerProcess}) = do
-    putStrLn "rebuildModels"
     ghci <- readIORef modelCompilerProcess
     sendGhciCommand ghci ":!clear"
     sendGhciCommand ghci ":script TurboHaskell/compileModels"
-    putStrLn "rebuildModels => Finished"
 
 sendGhciInterrupt :: ManagedProcess -> IO ()
 sendGhciInterrupt ghci@(ManagedProcess { processHandle }) = do
@@ -204,11 +212,19 @@ sendGhciInterrupt ghci@(ManagedProcess { processHandle }) = do
 rebuild :: IORef ManagedProcess -> Lock.Lock -> IO ()
 rebuild serverProcess rebuildServerLock = do
     _ <- Lock.tryWith rebuildServerLock $ do
-        ghci <- readIORef serverProcess
-        _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
-        sendGhciCommand ghci ":script TurboHaskell/startDevServerGhciScriptRec"
+        pauseRunningApp
+        continueRunningApp serverProcess
     return ()
 
+pauseRunningApp :: IO ()
+pauseRunningApp = do
+    _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
+    return ()
+
+continueRunningApp :: IORef ManagedProcess -> IO ()
+continueRunningApp serverProcess = do
+    ghci <- readIORef serverProcess
+    sendGhciCommand ghci ":script TurboHaskell/startDevServerGhciScriptRec"
 
 readGhciState :: ByteString -> Maybe GhciState
 readGhciState line | "Ok," `isPrefixOf` line = Just Ok
