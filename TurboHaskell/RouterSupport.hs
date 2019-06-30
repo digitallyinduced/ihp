@@ -26,6 +26,7 @@ module TurboHaskell.RouterSupport (
     , FrontController (..)
     , parseRoute 
     , catchAll
+    , mountFrontController
 ) where
 
 import ClassyPrelude hiding (index, delete, take)
@@ -382,6 +383,7 @@ runApp routes = let path = (rawPathInfo (getField @"request" ?requestContext)) i
 frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => IO ResponseReceived
 frontControllerToWAIApp = runApp (withPrefix (prefix @app) (controllers @app))
 
+{-# INLINE mountFrontController #-}
 mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => Parser (IO ResponseReceived)
 mountFrontController = withPrefix (prefix @frontController) (controllers @frontController)
 
