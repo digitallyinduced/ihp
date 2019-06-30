@@ -26,6 +26,7 @@ import TurboHaskell.HtmlSupport.QQ (hsx)
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Network.HTTP.Types.Header as HTTP
 import qualified Text.Blaze.Html5 as Html5
+import GHC.Records
 
 data DevServerState = DevServerState
     { postgresProcess :: !(IORef ManagedProcess)
@@ -86,25 +87,22 @@ initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
                 Just server -> do
                     cancel server
                     didStopErrorServer
+                    clearErrorLog serverProcess
                     writeIORef errorServerRef Nothing
                 Nothing -> return ()
-    let getLastErrors server = do
-            let ManagedProcess { errorLog } = server
-            -- ByteString.hGetNonBlocking errorHandle (10 * 1024)
-            readIORef (fromJust errorLog)
+    let getLastErrors (ManagedProcess { errorLog }) = readIORef (fromJust errorLog)
 
-    errorLogRef <- newIORef ""
     let onGhciStateChange state = Lock.with lock $ case state of
             Ok -> stopServer
             Failed -> do
                 server <- readIORef errorServerRef
-                errorLog <- readIORef serverProcess >>= getLastErrors
-                writeIORef errorLogRef errorLog
                 if isJust server
                     then return ()
                     else do
                         let errorApp req respond = do
-                                errorLog <- readIORef errorLogRef
+                                errorLog <- readIORef serverProcess
+                                        >>= return . fromJust . getField @"errorLog"
+                                        >>= readIORef
                                 respond $ Wai.responseBuilder HTTP.status200 [(HTTP.hContentType, "text/html")] (Blaze.renderHtmlBuilder $ renderErrorView errorLog)
                         let port = 8000
                         willStartErrorServer
@@ -217,6 +215,7 @@ sendGhciInterrupt ghci@(ManagedProcess { processHandle }) = do
 rebuild :: IORef ManagedProcess -> Lock.Lock -> IO ()
 rebuild serverProcess rebuildServerLock = do
     _ <- Lock.tryWith rebuildServerLock $ do
+        clearErrorLog serverProcess
         pauseRunningApp
         continueRunningApp serverProcess
     return ()
@@ -250,7 +249,7 @@ watchGhciProcessState ghciRef onStateChange = do
             line <- ByteString.hGetLine errorHandle
             ByteString.putStrLn line
             case errorLog of
-                Just errorLog -> modifyIORef errorLog (\log -> log <> line)
+                Just errorLog -> modifyIORef errorLog (\log -> log <> "\n" <> line)
                 Nothing -> return ()
     return ()
 
@@ -281,4 +280,9 @@ getPid ph = withProcessHandle ph go
         go ph_ = case ph_ of
             OpenHandle x   -> return $ Just x
             ClosedHandle _ -> return Nothing
+
+clearErrorLog :: IORef ManagedProcess -> IO ()
+clearErrorLog serverProcess = do
+    ManagedProcess { errorLog } <- readIORef serverProcess
+    writeIORef (fromJust errorLog) ""
 
