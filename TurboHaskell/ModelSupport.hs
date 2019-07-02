@@ -108,7 +108,7 @@ class IsNewId id where
     isNewId :: id -> Bool
 instance IsNewId () where isNewId _ = True
 instance IsNewId UUID where isNewId _ = False
-instance IsNewId (FieldWithDefault valueType) where isNewId _ = False
+instance IsNewId (FieldWithDefault valueType) where isNewId _ = True
 
 type family GetModelName model :: Symbol where
     GetModelName (M1 D ('MetaData name _ _ _) f ()) = name
@@ -207,8 +207,6 @@ instance Default (FieldWithDefault valueType) where
 
 class Record model where
     newRecord :: model
-
-type family ChangeSet model :: [Type.Symbol]
 
 -- Helper type to deal with models where relations are included or that are only partially fetched
 -- Examples:
