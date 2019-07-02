@@ -1,10 +1,11 @@
-module TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName, pluralToSingular, humanize, ucfirst, lcfirst, fieldNameToColumnName) where
+module TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName, pluralToSingular, humanize, ucfirst, lcfirst, fieldNameToColumnName, singularToPlural) where
 
 import           ClassyPrelude
 import           Data.String.Conversions (cs)
 import qualified Text.Inflections        as Inflector
 import qualified Data.Text
 import qualified Data.Maybe as Maybe
+import qualified Text.Countable as Countable
 
 -- `users` => `User`
 -- `projects` => `Project`
@@ -30,12 +31,10 @@ fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUndersc
 
 {-# INLINE pluralToSingular #-}
 pluralToSingular :: Text -> Text
-pluralToSingular w    | toLower w == "status"
-                      || toLower w == "inprogress"
-                      || toLower w == "in_progress"
-                      = w
-pluralToSingular w | toLower w == "companies" = Maybe.fromJust (stripSuffix "ies" w) <> "y"
-pluralToSingular word = fromMaybe word (stripSuffix "s" word)
+pluralToSingular = Countable.singularize
+{-# INLINE singularToPlural #-}
+singularToPlural :: Text -> Text
+singularToPlural = Countable.pluralize
 
 {-# INLINE humanize #-}
 humanize :: Text -> Text

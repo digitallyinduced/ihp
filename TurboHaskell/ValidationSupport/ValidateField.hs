@@ -15,19 +15,18 @@ type Validator2 value = value -> ValidatorResult
 
 {-# INLINE validateField #-}
 validateField :: forall field validator model validationState fieldValue. (
-        ?model :: model
-        , KnownSymbol field
+        KnownSymbol field
         , HasField' field model fieldValue
         -- , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
         , Generic (ValidatorResultFor model)
         , Generic model
-        , HasField' field (ValidatorResultFor model) ValidatorResult
-    ) => Proxy field -> Validator2 fieldValue -> StateT (ValidatorResultFor model) IO ()
-validateField _ validator = do
+        , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
+    ) => Proxy field -> Validator2 fieldValue -> model -> StateT (ValidatorResultFor model) IO model
+validateField field validator model = do
     validationState :: ValidatorResultFor model <- get
-    let value :: ValidatorResult = validator $ getField @field ?model
-    put (setField @field value validationState)
-    return ()
+    let value :: ValidatorResult = validator (getField @field model)
+    attachValidatorResult field value
+    return model
 
 {-# INLINE validateNothing #-}
 validateNothing :: forall s. StateT s IO ()

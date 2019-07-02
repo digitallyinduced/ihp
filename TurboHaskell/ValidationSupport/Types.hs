@@ -12,19 +12,20 @@ import           TurboHaskell.QueryBuilder (fetchOneOrNothing, Fetchable)
 import TurboHaskell.AuthSupport.Authorization
 import qualified Data.Text as Text
 import TurboHaskell.NameSupport (humanize)
-import GHC.Records
+import qualified GHC.Records as Records
 import Data.Proxy
 import GHC.TypeLits (KnownSymbol, Symbol)
 import Control.Lens hiding ((|>))
 import Data.Generics.Product hiding (getField, HasField)
 import Data.Generics.Product.Types
-import GHC.Generics
+import GHC.Generics 
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.UUID
 import Data.Default
 import Control.Monad.State
 import Unsafe.Coerce
 import Data.Dynamic (Dynamic, toDyn)
+import Data.Generics.Product
 
 data ValidatorResult = Success | Failure Text deriving (Show, Eq, Generic)
 
@@ -53,15 +54,20 @@ validateRecord' :: forall model controllerContext. (
         , Data.Generics.Product.Types.HasTypes (ValidatorResultFor model) ValidatorResult
         , Typeable model
         , Typeable (ValidatorResultFor model)
-        , HasField "validations" controllerContext (IORef [Dynamic])
+        , Records.HasField "validations" controllerContext (IORef [Dynamic])
     ) => ValidationMonad model -> model -> IO (Either (ValidatorResultFor model) model)
 validateRecord' arg model = do
     let ?model = model
     result <- runStateT (do arg; get) (def :: ValidatorResultFor model)
-    modifyIORef (getField @"validations" ?controllerContext) (\validations -> (toDyn (model, fst result)):validations)
+    modifyIORef (Records.getField @"validations" ?controllerContext) (\validations -> (toDyn (model, fst result)):validations)
     return (modelToEither $ fst result)
 
-class ValidateRecord record controllerContext where
-    validateRecord :: (?modelContext :: ModelContext, ?controllerContext :: controllerContext, ?model :: record) => StateT (ValidatorResultFor record) IO ()
-    validateRecord = return ()
+{-# INLINE attachFailure #-}
+attachFailure :: forall validationState field. (KnownSymbol field, HasField field validationState validationState ValidatorResult ValidatorResult) => Proxy field -> Text -> StateT validationState IO ()
+attachFailure field message = attachValidatorResult field (Failure message)
 
+{-# INLINE attachValidatorResult #-}
+attachValidatorResult :: forall validationState field. (KnownSymbol field, HasField field validationState validationState ValidatorResult ValidatorResult) => Proxy field -> ValidatorResult -> StateT validationState IO ()
+attachValidatorResult _ validatorResult = do
+    validationState <- get
+    put (validationState & ((field @field) .~ validatorResult))

@@ -22,6 +22,7 @@ import TurboHaskell.QueryBuilder
 
 type CustomIOValidation value = value -> IO ValidatorResult
 
+{-# INLINE validateFieldIO #-}
 validateFieldIO :: forall field model savedModel idType validationState fieldValue validationStateValue fetchedModel. (
         ?model :: model
         , savedModel ~ GetModelById (ModelFieldValue model "id")
@@ -39,8 +40,4 @@ validateFieldIO :: forall field model savedModel idType validationState fieldVal
 validateFieldIO fieldProxy customValidation = do
     let value :: fieldValue = getField @field ?model
     result <- liftIO (customValidation value)
-    case result of
-        (Failure _) -> do
-            validationState <- get
-            put $ validationState & ((field @field) .~ result)
-        _ -> return ()
+    attachValidatorResult fieldProxy result

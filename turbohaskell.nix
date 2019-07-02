@@ -53,6 +53,7 @@
 , unix
 , fsnotify
 , concurrent-extra
+, countable-inflections
 }:
 mkDerivation {
   pname = "turbohaskell";
@@ -122,6 +123,7 @@ mkDerivation {
     unix
     fsnotify
     concurrent-extra
+    countable-inflections
   ];
   license = stdenv.lib.licenses.bsd3;
   postInstall = ''

@@ -20,9 +20,9 @@ import Control.Monad.State
 import TurboHaskell.HaskellSupport hiding (get)
 import TurboHaskell.QueryBuilder
 
+{-# INLINE validateIsUnique #-}
 validateIsUnique :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel. (
-        ?model :: model
-        , savedModel ~ GetModelById (ModelFieldValue model "id")
+        savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , PG.FromRow savedModel
         , KnownSymbol field
@@ -32,13 +32,15 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , KnownSymbol (GetTableName savedModel)
         , PG.ToField fieldValue
         , EqOrIsOperator fieldValue
-    ) => Proxy field ->  StateT (ValidatorResultFor model) IO ()
-validateIsUnique fieldProxy = do
-    let value = getField @field ?model
-    result <- liftIO $ query @savedModel |> filterWhere (fieldProxy, value) |> fetchOneOrNothing
+    ) => Proxy field -> model -> StateT (ValidatorResultFor model) IO model
+validateIsUnique fieldProxy model = do
+    let value = getField @field model
+    result <- query @savedModel
+        |> filterWhere (fieldProxy, value)
+        |> fetchOneOrNothing
+        |> liftIO
     case result of
         Just _ -> do
-            let validatorResult :: ValidatorResult = Failure "This is already in use"
-            validationState <- get
-            put $ validationState & ((field @field) .~ validatorResult)
-        Nothing -> return ()
+            attachFailure (Proxy @field) "This is already in use"
+            return model
+        Nothing -> return model

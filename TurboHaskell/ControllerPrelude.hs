@@ -22,6 +22,7 @@ module TurboHaskell.ControllerPrelude
     , module TurboHaskell.RouterSupport
     , module Control.Newtype.Generics
     , module Data.Generics.Product
+    , module TurboHaskell.ValidationSupport
     ) where
 import           ClassyPrelude hiding (pack, unpack)
 import           Data.Default                  (def)
@@ -31,7 +32,7 @@ import           TurboHaskell.Controller.Param
 import           TurboHaskell.Controller.Render
 import           TurboHaskell.Controller.Session
 import           TurboHaskell.ControllerSupport
-import           TurboHaskell.ValidationSupport (validateRecord)
+import           TurboHaskell.ValidationSupport hiding (Success)
 -- import           Application.Helper.Controller
 -- import           Generated.Types
 import TurboHaskell.HaskellSupport
