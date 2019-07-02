@@ -4,6 +4,7 @@ import           ClassyPrelude
 import           Data.String.Conversions (cs)
 import qualified Text.Inflections        as Inflector
 import qualified Data.Text
+import qualified Data.Maybe as Maybe
 
 -- `users` => `User`
 -- `projects` => `Project`
@@ -33,6 +34,7 @@ pluralToSingular w    | toLower w == "status"
                       || toLower w == "inprogress"
                       || toLower w == "in_progress"
                       = w
+pluralToSingular w | toLower w == "companies" = Maybe.fromJust (stripSuffix "ies" w) <> "y"
 pluralToSingular word = fromMaybe word (stripSuffix "s" word)
 
 {-# INLINE humanize #-}
