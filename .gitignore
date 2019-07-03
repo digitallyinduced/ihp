@@ -6,3 +6,4 @@ build.js
 *.dyn_o
 .DS_Store
 dist
+build

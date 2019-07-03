@@ -26,7 +26,6 @@ main' database args = do
                     , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
                     ]
                     <> generateViews database controllerName
-                    <> [generateValidateRecordInstance database controllerName']
             evalActions generate
         Nothing -> usage
 
@@ -97,7 +96,7 @@ fieldsForTable database name =
         Just (Table _ attributes) -> map (\(Field name _) -> columnNameToFieldName name) (fieldsWithoutDefaultValue $ fieldsOnly attributes)
         Nothing -> []
 
-normalizeName name = ucfirst name
+normalizeName name = tableNameToModelName name
 
 
 generateControllerData :: Text -> Text
@@ -123,7 +122,7 @@ generateController :: [Table] -> Text -> Text
 generateController database name' =
     let
         name = normalizeName name'
-        singularName = pluralToSingular name
+        singularName = tableNameToModelName name
         moduleName = "Web.Controller." <> name
         controllerName = name <> "Controller"
 
@@ -195,14 +194,29 @@ generateController database name' =
             <> "        deleteRecord " <> modelVariableSingular <> "\n"
             <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
             <> "        redirectTo " <> name <> "Action\n"
+
+        fromParams =
+            ""
+            <> "instance FromParams (" <> fromParamsInstanceHead <> ") ControllerContext where\n"
+            <> "    build " <> modelVariableSingular <> " =\n"
+            <> "        return " <> modelVariableSingular <> "\n"
+            <> "        >>= fill @" <> tshow modelFields <> "\n"
+
+        fromParamsInstanceHeadArgs = 
+            case getTable database (lcfirst name) of
+                Just (Table _ attributes) ->
+                    attributes
+                    |> fieldsOnly
+                    |> fieldsWithDefaultValue
+                    |> map (\(Field fieldName _) -> columnNameToFieldName fieldName)
+                    |> Text.unwords
+                Nothing -> ""
+        fromParamsInstanceHead = "NewOrSaved" <> singularName <> " " <> fromParamsInstanceHeadArgs 
     in
         ""
         <> "module " <> moduleName <> " where" <> "\n"
         <> "\n"
         <> intercalate "\n" importStatements
-        <> "\n\n"
-        <> "type instance ChangeSet " <> model <> " = " <> tshow modelFields <> "\n"
-        <> "type instance ChangeSet New" <> model <> " = ChangeSet " <> model <> "\n"
         <> "\n\n"
         <> "instance Controller " <> controllerName <> " ControllerContext where\n"
         <> indexAction
@@ -218,6 +232,8 @@ generateController database name' =
         <> createAction
         <> "\n"
         <> deleteAction
+        <> "\n"
+        <> fromParams
 
 
 generateViews :: [Table] -> Text -> [GeneratorAction]
