@@ -32,6 +32,7 @@ import Data.Default
 import qualified Data.Dynamic as Dynamic
 import qualified GHC.Records
 import Control.Monad.State
+import qualified TurboHaskell.NameSupport as NameSupport
 
 {-# INLINE fileOrNothing #-}
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
@@ -166,7 +167,7 @@ instance (FillParams rest record
     ) => FillParams (fieldName:rest) record where
     fill record = do
         -- record <- State.get
-        let name :: ByteString = cs (symbolVal (Proxy @fieldName))
+        let name :: ByteString = cs $ NameSupport.fieldNameToColumnName $ cs (symbolVal (Proxy @fieldName))
         case paramOrNothing name of
             value@(Just paramValue) ->
                 case fromParameter value of

@@ -249,12 +249,12 @@ genericPathTo action
     | (isIndexAction @controller action) || (isCreateAction @controller action)
         = "/" <> cs (basePath @controller)
     | isNewAction @controller action
-        = genericPathTo @controller (fromJust $ indexAction @controller) <> "/new"
+        = maybe ("/" <> cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller) <> "/new"
     | isEditAction @controller action
         = let id = unsafeHead (toListOf (types @id) action)
         in genericPathTo @controller (fromJust (showAction @controller) $ id) <> "/edit"
     | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
-        = let id = unsafeHead (toListOf (types @id) action) in genericPathTo @controller (fromJust $ indexAction @controller) <> "/" <> tshow id
+        = let id = unsafeHead (toListOf (types @id) action) in maybe ("/" <> cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction <> "/" <> tshow id) (indexAction @controller)
     | otherwise =
         let
             id = unsafeHead (toListOf (types @id) action)
