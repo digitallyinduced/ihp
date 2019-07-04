@@ -107,12 +107,6 @@ clean:
 	rm -rf build/db
 	rm -f .envrc
 
-del:
-	ln -s TurboHaskell/del del
-
-gen:
-	ln -s TurboHaskell/gen gen
-
 static/prod.js: $(JS_FILES)
 	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@
 
