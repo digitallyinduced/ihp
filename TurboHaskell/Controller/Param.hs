@@ -41,7 +41,7 @@ fileOrNothing name = lookup name files
         (RequestContext _ _ _ files _) = ?requestContext
 
 {-# INLINE param #-}
-param :: (?requestContext :: RequestContext) => (Show a, FromParameter a) => ByteString -> a
+param :: (?requestContext :: RequestContext) => (FromParameter a) => ByteString -> a
 param name = (fromParameterOrError name) (paramOrNothing name)
 
 {-# INLINE hasParam #-}
@@ -69,7 +69,7 @@ paramOrNothing' name = do
     join (lookup name allParams)
 
 {-# INLINE fromParameterOrError #-}
-fromParameterOrError :: (Show a, FromParameter a) => ByteString -> Maybe ByteString -> a
+fromParameterOrError :: (FromParameter a) => ByteString -> Maybe ByteString -> a
 fromParameterOrError name value = let param = fromParameter value in Data.Either.fromRight (error $ "fromParameterOrError: Invalid parameter " <> cs name <> " => " <> (let (Data.Either.Left errorMessage) = param in errorMessage)) param
 
 {-# INLINE fromParameterOrNothing #-}
@@ -151,6 +151,11 @@ instance FromParameter (ModelSupport.Id' model') where
             Right uuid -> pure (ModelSupport.Id uuid)
             Left error -> Left error
 
+instance FromParameter param => FromParameter (ModelSupport.FieldWithDefault param) where
+    {-# INLINE fromParameter #-}
+    fromParameter param | isJust param = fromParameter param
+    fromParameter Nothing              = Right ModelSupport.Default
+
 class FillParams (params :: [Symbol]) record where
     fill :: (?requestContext :: RequestContext) => record -> State.StateT (ValidatorResultFor record) IO record
 
@@ -162,7 +167,6 @@ instance (FillParams rest record
     , Record.HasField' fieldName record fieldType
     , Record.HasField fieldName (ValidatorResultFor record) (ValidatorResultFor record) ValidatorResult ValidatorResult
     , Generic record
-    , Show fieldType
     , FromParameter fieldType
     ) => FillParams (fieldName:rest) record where
     fill record = do
