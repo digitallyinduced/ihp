@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module TurboHaskell.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, ensureIsUser, HasNewSessionUrl, currentAdmin, currentAdminOrNothing, currentAdminId, ensureIsAdmin, login, sessionKey) where
+module TurboHaskell.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, ensureIsUser, HasNewSessionUrl, currentAdmin, currentAdminOrNothing, currentAdminId, ensureIsAdmin, login, sessionKey, logout) where
 
 import TurboHaskell.HaskellSupport
 import Control.Lens hiding ((|>))
@@ -60,6 +60,11 @@ ensureIsAdmin =
 {-# INLINE login #-}
 login :: forall user controllerContext id. (?controllerContext :: controllerContext, ?requestContext :: RequestContext, KnownSymbol (ModelSupport.GetModelName user), HasField' "id" user id, Generic user, Show id) => user -> IO ()
 login user = Session.setSession (sessionKey @user) (tshow (get #id user))
+
+-- Log's out an entity
+{-# INLINE logout #-}
+logout :: forall user controllerContext id. (?controllerContext :: controllerContext, ?requestContext :: RequestContext, KnownSymbol (ModelSupport.GetModelName user), HasField' "id" user id, Generic user, Show id) => user -> IO ()
+logout user = Session.setSession (sessionKey @user) ""
 
 sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Text
 sessionKey = "login." <> ModelSupport.getModelName @user
