@@ -20,7 +20,7 @@ main' database args = do
         Just appAndControllerName -> do
 
             case Text.splitOn "." appAndControllerName of
-                [applicationName, controllerName'] -> gen database applicationName controllerName'
+                [applicationName, controllerName'] -> gen database (ucfirst applicationName) controllerName'
                 [controllerName'] -> gen database "Web" controllerName'
                 [] -> usage
         Nothing -> usage
@@ -30,11 +30,11 @@ gen database applicationName controllerName' = do
     let controllerName = tableNameToModelName controllerName'
     let config = ControllerConfig { controllerName, applicationName }
     let generate =
-            [ CreateFile { filePath = "Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
-            , AppendToFile { filePath = "Web/Routes.hs", fileContent = (controllerInstance config) }
-            , AppendToFile { filePath = "Web/Types.hs", fileContent = (generateControllerData config) }
-            , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = ("import Web.Controller." <> controllerName) }
-            , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
+            [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
+            , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
+            , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
+            , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
+            , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
             ]
             <> generateViews database config
     evalActions generate
@@ -62,7 +62,7 @@ data GeneratorAction
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
 evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction'
+evalActions actions = forM_ actions evalAction
     where
         evalAction' CreateFile { filePath, fileContent } = do
             putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
@@ -134,17 +134,18 @@ generateControllerData config =
 generateController :: [Table] -> ControllerConfig -> Text
 generateController database config =
     let
+        applicationName = get #applicationName config
         name = config |> get #controllerName
         singularName = tableNameToModelName name
-        moduleName = "Web.Controller." <> name
+        moduleName =  applicationName <> ".Controller." <> name
         controllerName = name <> "Controller"
 
         importStatements =
-            [ "import Web.Controller.Prelude"
-            , "import Web.View." <> name <> ".Index"
-            , "import Web.View." <> name <> ".New"
-            , "import Web.View." <> name <> ".Edit"
-            , "import Web.View." <> name <> ".Show"
+            [ "import " <> applicationName <> ".Controller.Prelude"
+            , "import " <> qualifiedViewModuleName config "Index"
+            , "import " <> qualifiedViewModuleName config "New"
+            , "import " <> qualifiedViewModuleName config "Edit"
+            , "import " <> qualifiedViewModuleName config "Show"
 
             ]
 
@@ -267,7 +268,7 @@ generateViews database config =
             viewHeader moduleName =
                 ""
                 <> "module " <> qualifiedViewModuleName config moduleName <> " where\n"
-                <> "import Web.View.Prelude\n"
+                <> "import " <> get #applicationName config <> ".View.Prelude\n"
                 <> "\n"
 
 
@@ -371,9 +372,9 @@ generateViews database config =
                 <> "    </tr>\n"
                 <> "|]\n"
         in
-            [ EnsureDirectory { directory = "Web/View/" <> name }
-            , CreateFile { filePath = "Web/View/" <> name <> "/Show.hs", fileContent = showView }
-            , CreateFile { filePath = "Web/View/" <> name <> "/New.hs", fileContent = newView }
-            , CreateFile { filePath = "Web/View/" <> name <> "/Edit.hs", fileContent = editView }
-            , CreateFile { filePath = "Web/View/" <> name <> "/Index.hs", fileContent = indexView }
+            [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> name }
+            , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Show.hs", fileContent = showView }
+            , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/New.hs", fileContent = newView }
+            , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Edit.hs", fileContent = editView }
+            , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Index.hs", fileContent = indexView }
             ]
