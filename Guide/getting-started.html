@@ -344,10 +344,11 @@
 <tr><td>Config/Config.hs</td><td>Configuration for the framework and your application</td></tr>
 <tr><td>Config/nix/nixpkgs-config.nix</td><td>Configuration for the nix package manager</td></tr>
 <tr><td>Config/nix/haskell-packages/</td><td>Custom haskell dependencies can be placed here</td></tr>
-<tr><td>src/</td><td>The main source code for your app</td></tr>
+<tr><td>Application/</td><td>Your domain logic lives here</td></tr>
 <tr><td>Application/Schema.hs</td><td>Models and database tables are defined here</td></tr>
-<tr><td>src/Apps/Web/Controller</td><td>App controllers</td></tr>
-<tr><td>src/Apps/Web/View/</td><td>Html template files</td></tr>
+<tr><td>Web/Controller</td><td>Web application controllers</td></tr>
+<tr><td>Web/View/</td><td>Web application html template files</td></tr>
+<tr><td>Web/Types.hs</td><td>Central place for all web application types</td></tr>
 <tr><td>static/</td><td>Images, css and javascript files</td></tr>
 <tr><td>.ghci</td><td>Default config file for the haskell interpreter</td></tr>
 <tr><td>.gitignore</td><td>List of files to be ignored by git</td></tr>
@@ -474,7 +475,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>TurboHaskell uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.</p>
 <p>A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.</p>
 <p>First we need to go to the Web app directory:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="bu">cd</span><span> src/Apps/Web/</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="bu">cd</span><span> Web</span>
 </code></pre></div>
 <p>Now we can run the code generator:</p>
 <div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">gen/controller</span><span> Posts</span>

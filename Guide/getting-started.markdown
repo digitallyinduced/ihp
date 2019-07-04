@@ -102,10 +102,11 @@ Here is a short overview of the whole structure:
 | Config/Config.hs              | Configuration for the framework and your application                        |
 | Config/nix/nixpkgs-config.nix | Configuration for the nix package manager                                   |
 | Config/nix/haskell-packages/  | Custom haskell dependencies can be placed here                              |
-| src/                          | The main source code for your app                                           |
+| Application/                          | Your domain logic lives here                                           |
 | Application/Schema.hs           | Models and database tables are defined here                                 |
-| src/Apps/Web/Controller       | App controllers                                                             |
-| src/Apps/Web/View/            | Html template files                                                         |
+| Web/Controller       | Web application controllers                                                             |
+| Web/View/            | Web application html template files                                                         |
+| Web/Types.hs            | Central place for all web application types                                                         |
 | static/                       | Images, css and javascript files                                            |
 | .ghci                         | Default config file for the haskell interpreter                             |
 | .gitignore                    | List of files to be ignored by git                                          |
@@ -252,7 +253,7 @@ A controller belongs to an application. Your whole project can consistent of mul
 First we need to go to the Web app directory:
 
 ```bash
-$ cd src/Apps/Web/
+$ cd Web
 ```
 
 Now we can run the code generator:

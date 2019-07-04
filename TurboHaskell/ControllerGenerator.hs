@@ -18,24 +18,26 @@ main' :: [Table] -> [Text] -> IO ()
 main' database args = do
     case headMay args of
         Just appAndControllerName -> do
-            let doGen applicationName controllerName' = do
-                let controllerName = tableNameToModelName controllerName'
-                let config = ControllerConfig { controllerName, applicationName }
-                let generate =
-                        [ CreateFile { filePath = "Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
-                        , AppendToFile { filePath = "Web/Routes.hs", fileContent = (controllerInstance config) }
-                        , AppendToFile { filePath = "Web/Types.hs", fileContent = (generateControllerData config) }
-                        , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = ("import Web.Controller." <> controllerName) }
-                        , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
-                        ]
-                        <> generateViews database config
-                evalActions generate
+
             case Text.splitOn "." appAndControllerName of
-                [applicationName, controllerName'] -> doGen applicationName controllerName'
-                [controllerName'] -> doGen "Web" controllerName'
+                [applicationName, controllerName'] -> gen database applicationName controllerName'
+                [controllerName'] -> gen database "Web" controllerName'
                 [] -> usage
         Nothing -> usage
 
+
+gen database applicationName controllerName' = do
+    let controllerName = tableNameToModelName controllerName'
+    let config = ControllerConfig { controllerName, applicationName }
+    let generate =
+            [ CreateFile { filePath = "Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
+            , AppendToFile { filePath = "Web/Routes.hs", fileContent = (controllerInstance config) }
+            , AppendToFile { filePath = "Web/Types.hs", fileContent = (generateControllerData config) }
+            , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = ("import Web.Controller." <> controllerName) }
+            , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
+            ]
+            <> generateViews database config
+    evalActions generate
 
 data ControllerConfig = ControllerConfig
     { controllerName :: Text 
