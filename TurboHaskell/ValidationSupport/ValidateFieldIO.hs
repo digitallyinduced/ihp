@@ -25,13 +25,12 @@ type CustomIOValidation value = value -> IO ValidatorResult
 {-# INLINE validateFieldIO #-}
 validateFieldIO :: forall field model savedModel idType validationState fieldValue validationStateValue fetchedModel. (
         ?model :: model
-        , savedModel ~ GetModelById (ModelFieldValue model "id")
+        , savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , PG.FromRow savedModel
         , KnownSymbol field
         , HasField' field model fieldValue
         , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
-        , fieldValue ~ ModelFieldValue savedModel field
         , KnownSymbol (GetTableName savedModel)
         , PG.ToField fieldValue
         , EqOrIsOperator fieldValue

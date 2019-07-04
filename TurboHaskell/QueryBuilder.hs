@@ -27,7 +27,7 @@ import Data.String.Conversions (cs)
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
-import TurboHaskell.ModelSupport (ModelFieldValue, GetTableName, ModelContext, GetModelById)
+import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById)
 import qualified TurboHaskell.ModelSupport
 import qualified TurboHaskell.ModelSupport as ModelSupport
 import TurboHaskell.NameSupport (fieldNameToColumnName)
@@ -231,13 +231,11 @@ orderByDesc :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuil
 orderByDesc !name = OrderByQueryBuilder (name, Desc)
 
 data IncludeTag
-include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), fieldType ~ ModelFieldValue model name, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (TurboHaskell.ModelSupport.Include name model)
+include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField' name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (TurboHaskell.ModelSupport.Include name model)
 include !name = IncludeQueryBuilder (name, relatedQueryBuilder)
     where
         relatedQueryBuilder = query @relatedModel
 
-
--- findBy :: forall model name value. (?modelContext :: ModelContext, PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol name, ToField (ModelFieldValue model name), ToFilterValue value, ToFilterValueType value ~ ModelFieldValue model name) => Proxy name -> value -> QueryBuilder model -> IO model
 {-# INLINE findBy #-}
 findBy !field !value !queryBuilder = queryBuilder |> filterWhere (field, value) |> fetchOne
 

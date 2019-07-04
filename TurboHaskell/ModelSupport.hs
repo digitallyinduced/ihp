@@ -30,6 +30,7 @@ import qualified Control.Newtype.Generics as Newtype
 import TurboHaskell.SchemaTypes
 import Control.Applicative (Const)
 import qualified GHC.Types as Type
+import qualified Data.Text as Text
 
 data ModelContext = ModelContext {-# UNPACK #-} !Connection
 
@@ -163,7 +164,7 @@ sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
 
 {-# INLINE tableName #-}
 tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
-tableName = cs $! (symbolVal @(GetTableName model) Proxy)
+tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
 
 {-# INLINE deleteRecord #-}
 deleteRecord :: forall model id. (?modelContext::ModelContext, Show model, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
@@ -177,8 +178,6 @@ deleteRecord model = do
 class ColumnNames model where
     type ColumnNamesRecord model :: GHC.Types.Type
     columnNames :: Proxy model -> ColumnNamesRecord model
-
-type family ModelFieldValue model (field :: GHC.Types.Symbol) :: GHC.Types.Type
 
 type family Include (name :: GHC.Types.Symbol) model
 

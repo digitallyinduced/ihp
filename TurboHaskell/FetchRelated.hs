@@ -25,7 +25,7 @@ import Data.String.Conversions (cs)
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
-import TurboHaskell.ModelSupport (ModelFieldValue, GetTableName, ModelContext, GetModelById)
+import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById)
 import qualified TurboHaskell.ModelSupport
 import TurboHaskell.ModelSupport (Include)
 import TurboHaskell.NameSupport (fieldNameToColumnName)
