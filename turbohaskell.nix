@@ -129,5 +129,6 @@ mkDerivation {
   postInstall = ''
     mkdir -p $out/shared
     cp TurboHaskell/ControllerGenerator.hs $out/shared/ControllerGenerator.hs
+    cp gen/controller $out/bin/new-controller
   '';
 }

@@ -478,7 +478,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="bu">cd</span><span> Web</span>
 </code></pre></div>
 <p>Now we can run the code generator:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">gen/controller</span><span> Posts</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">new-controller</span><span> Posts</span>
 
 <span class="ex">+</span><span> src/Apps/Web/Controller/Posts.hs</span>
 <span class="ex">*</span><span> src/Apps/Web/Routes.hs</span>
@@ -840,7 +840,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <h4 id="63-the-controller">6.3 The Controller</h4>
 <p>It’s time to also add a new controller for our comments. For that call the controller generator like this:</p>
 <div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="bu">cd</span><span> src/Apps/Web</span>
-<span>$ </span><span class="ex">gen/controller</span><span> comments</span>
+<span>$ </span><span class="ex">new-controller</span><span> comments</span>
 </code></pre></div>
 <p>This will generate a new working controller for us. We now need to do some adjustments to better integrate the comments into the posts.</p>
 <hr>

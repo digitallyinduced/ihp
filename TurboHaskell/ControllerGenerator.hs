@@ -17,6 +17,7 @@ import qualified Data.Text as Text
 main' :: [Table] -> [Text] -> IO ()
 main' database args = do
     case headMay args of
+        Just "" -> usage
         Just appAndControllerName -> do
 
             case Text.splitOn "." appAndControllerName of
@@ -47,7 +48,7 @@ data ControllerConfig = ControllerConfig
     } deriving (Eq, Show, Generic)
 
 usage :: IO ()
-usage = putStrLn "Usage: gen/controller RESOURCE_NAME"
+usage = putStrLn "Usage: new-controller RESOURCE_NAME"
 
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName } =

@@ -3,7 +3,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # Ensure we are in an app dir
 if [ ! -f FrontController.hs ]; then
-    echo "You have to be in a app dir (e.g. src/Apps/Web) to run the generator"
+    echo "You have to be in a app dir (e.g. Web) to run the generator"
 	exit 1
 fi
 

@@ -259,7 +259,7 @@ $ cd Web
 Now we can run the code generator:
 
 ```bash
-$ gen/controller Posts
+$ new-controller Posts
 
 + src/Apps/Web/Controller/Posts.hs
 * src/Apps/Web/Routes.hs
@@ -799,7 +799,7 @@ It's time to also add a new controller for our comments. For that call the contr
 
 ```bash
 $ cd src/Apps/Web
-$ gen/controller comments
+$ new-controller comments
 ```
 
 This will generate a new working controller for us. We now need to do some adjustments to better integrate the comments into the posts.
