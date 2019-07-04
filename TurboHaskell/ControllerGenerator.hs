@@ -12,34 +12,43 @@ import qualified System.Directory as Directory
 import qualified System.Exit as Exit
 import TurboHaskell.SchemaTypes
 import TurboHaskell.HaskellSupport
+import qualified Data.Text as Text
 
 main' :: [Table] -> [Text] -> IO ()
 main' database args = do
     case headMay args of
-        Just controllerName' -> do
-            let controllerName = normalizeName controllerName'
-            let generate =
-                    [ CreateFile { filePath = "Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database controllerName) }
-                    , AppendToFile { filePath = "Web/Routes.hs", fileContent = (controllerInstance controllerName) }
-                    , AppendToFile { filePath = "Web/Types.hs", fileContent = (generateControllerData controllerName) }
-                    , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = ("import Web.Controller." <> controllerName) }
-                    , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
-                    ]
-                    <> generateViews database controllerName
-            evalActions generate
+        Just appAndControllerName -> do
+            let doGen applicationName controllerName' = do
+                let controllerName = tableNameToModelName controllerName'
+                let config = ControllerConfig { controllerName, applicationName }
+                let generate =
+                        [ CreateFile { filePath = "Web/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
+                        , AppendToFile { filePath = "Web/Routes.hs", fileContent = (controllerInstance config) }
+                        , AppendToFile { filePath = "Web/Types.hs", fileContent = (generateControllerData config) }
+                        , AppendToMarker { marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = ("import Web.Controller." <> controllerName) }
+                        , AppendToMarker { marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
+                        ]
+                        <> generateViews database config
+                evalActions generate
+            case Text.splitOn "." appAndControllerName of
+                [applicationName, controllerName'] -> doGen applicationName controllerName'
+                [controllerName'] -> doGen "Web" controllerName'
+                [] -> usage
         Nothing -> usage
 
 
-
-
+data ControllerConfig = ControllerConfig
+    { controllerName :: Text 
+    , applicationName :: Text
+    } deriving (Eq, Show, Generic)
 
 usage :: IO ()
 usage = putStrLn "Usage: gen/controller RESOURCE_NAME"
 
-controllerInstance :: Text -> Text
-controllerInstance name =
-    "instance RestfulController " <> name <> "Controller\n"
-    <> "type instance ModelControllerMap ControllerContext " <> pluralToSingular name <> " = " <> name <> "Controller\n\n"
+controllerInstance :: ControllerConfig -> Text
+controllerInstance ControllerConfig { controllerName } =
+    "instance RestfulController " <> controllerName <> "Controller\n"
+    <> "type instance ModelControllerMap ControllerContext " <> controllerName <> " = " <> controllerName <> "Controller\n\n"
 
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }
@@ -48,8 +57,10 @@ data GeneratorAction
     | EnsureDirectory { directory :: Text }
     deriving (Show, Eq)
 
+data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
+
 evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction
+evalActions actions = forM_ actions evalAction'
     where
         evalAction' CreateFile { filePath, fileContent } = do
             putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
@@ -63,6 +74,8 @@ evalActions actions = forM_ actions evalAction
             putStrLn (">>>>>>>>>>>> APPEND " <> marker <> " => " <> filePath)
             putStrLn fileContent
             putStrLn "\n\n"
+        evalAction' otherwise = do
+            putStrLn $ ">>>>>>>>>>>>" <> tshow otherwise
 
         evalAction CreateFile { filePath, fileContent } = do
             writeFile (cs filePath) (cs fileContent)
@@ -96,13 +109,11 @@ fieldsForTable database name =
         Just (Table _ attributes) -> map (\(Field name _) -> columnNameToFieldName name) (fieldsWithoutDefaultValue $ fieldsOnly attributes)
         Nothing -> []
 
-normalizeName name = tableNameToModelName name
 
-
-generateControllerData :: Text -> Text
-generateControllerData name' =
+generateControllerData :: ControllerConfig -> Text
+generateControllerData config =
     let
-        name = normalizeName name'
+        name = get #controllerName config
         singularName = pluralToSingular name
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
@@ -118,10 +129,10 @@ generateControllerData name' =
         <> "    | Delete" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    deriving (Eq, Show, Generic, Data)\n"
 
-generateController :: [Table] -> Text -> Text
-generateController database name' =
+generateController :: [Table] -> ControllerConfig -> Text
+generateController database config =
     let
-        name = normalizeName name'
+        name = config |> get #controllerName
         singularName = tableNameToModelName name
         moduleName = "Web.Controller." <> name
         controllerName = name <> "Controller"
@@ -235,23 +246,30 @@ generateController database name' =
         <> "\n"
         <> fromParams
 
+-- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
+qualifiedViewModuleName :: ControllerConfig -> Text -> Text
+qualifiedViewModuleName config viewName =
+    get #applicationName config <> ".View." <> singularToPlural (get #controllerName config) <> "." <> viewName
 
-generateViews :: [Table] -> Text -> [GeneratorAction]
-generateViews database name' =
+pathToModuleName :: Text -> Text
+pathToModuleName moduleName = Text.replace "." "/" moduleName
+
+generateViews :: [Table] -> ControllerConfig -> [GeneratorAction]
+generateViews database config =
         let
-            name = normalizeName name'
+            name = config |> get #controllerName
             singularName = pluralToSingular name
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst name
 
             viewHeader moduleName =
                 ""
-                <> "module Web.View." <> name <> "." <> moduleName <> " where\n"
+                <> "module " <> qualifiedViewModuleName config moduleName <> " where\n"
                 <> "import Web.View.Prelude\n"
                 <> "\n"
 
 
-            indexAction = name <> "Action"
+            indexAction = singularToPlural name <> "Action"
 
             modelFields :: [Text]
             modelFields = fieldsForTable database pluralVariableName
@@ -265,7 +283,7 @@ generateViews database name' =
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -281,7 +299,7 @@ generateViews database name' =
                 <> "    html NewView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -304,7 +322,7 @@ generateViews database name' =
                 <> "    html EditView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -327,7 +345,7 @@ generateViews database name' =
                 <> "    html IndexView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
                 <> "        <h1>" <> name <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
@@ -357,28 +375,3 @@ generateViews database name' =
             , CreateFile { filePath = "Web/View/" <> name <> "/Edit.hs", fileContent = editView }
             , CreateFile { filePath = "Web/View/" <> name <> "/Index.hs", fileContent = indexView }
             ]
-
-
-generateValidateRecordInstance :: [Table] -> Text -> GeneratorAction
-generateValidateRecordInstance database name' =
-    let
-        name = normalizeName name'
-        singularName = pluralToSingular name
-        instanceHeadArgs = 
-            case getTable database (lcfirst name) of
-                Just (Table _ attributes) ->
-                    attributes
-                    |> fieldsOnly
-                    |> fieldsWithDefaultValue
-                    |> map (\(Field fieldName _) -> columnNameToFieldName fieldName)
-                    |> Text.unwords
-                Nothing -> ""
-        instanceHead = "NewOrSaved" <> singularName <> " " <> instanceHeadArgs
-        theInstance =
-            "\n"
-            <> "instance ValidateRecord (" <> instanceHead <> ") controllerContext where\n"
-            <> "    validateRecord = do\n"
-            <> "        validateNothing\n"
-
-    in
-        AppendToFile { filePath = "Application/Validation.hs", fileContent = theInstance }
