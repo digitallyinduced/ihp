@@ -27,8 +27,9 @@ main' database args = do
 
 
 gen database applicationName controllerName' = do
-    let controllerName = tableNameToModelName controllerName'
-    let config = ControllerConfig { controllerName, applicationName }
+    let modelName = tableNameToModelName controllerName'
+    let controllerName = singularToPlural modelName
+    let config = ControllerConfig { modelName, controllerName, applicationName }
     let generate =
             [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
             , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
@@ -42,15 +43,16 @@ gen database applicationName controllerName' = do
 data ControllerConfig = ControllerConfig
     { controllerName :: Text 
     , applicationName :: Text
+    , modelName :: Text
     } deriving (Eq, Show, Generic)
 
 usage :: IO ()
 usage = putStrLn "Usage: gen/controller RESOURCE_NAME"
 
 controllerInstance :: ControllerConfig -> Text
-controllerInstance ControllerConfig { controllerName } =
+controllerInstance ControllerConfig { controllerName, modelName } =
     "instance RestfulController " <> controllerName <> "Controller\n"
-    <> "type instance ModelControllerMap ControllerContext " <> controllerName <> " = " <> controllerName <> "Controller\n\n"
+    <> "type instance ModelControllerMap ControllerContext " <> modelName <> " = " <> controllerName <> "Controller\n\n"
 
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }
