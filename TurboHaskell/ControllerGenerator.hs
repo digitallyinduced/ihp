@@ -19,7 +19,6 @@ main' database args = do
     case headMay args of
         Just "" -> usage
         Just appAndControllerName -> do
-
             case Text.splitOn "." appAndControllerName of
                 [applicationName, controllerName'] -> gen database (ucfirst applicationName) controllerName'
                 [controllerName'] -> gen database "Web" controllerName'
@@ -65,7 +64,7 @@ data GeneratorAction
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
 evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction
+evalActions actions = forM_ actions evalAction'
     where
         evalAction' CreateFile { filePath, fileContent } = do
             putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
@@ -214,10 +213,22 @@ generateController database config =
 
         fromParams =
             ""
-            <> "instance FromParams (" <> fromParamsInstanceHead <> ") ControllerContext where\n"
+            <> "instance FromParams New" <> singularName <> " ControllerContext where\n"
             <> "    build " <> modelVariableSingular <> " =\n"
             <> "        return " <> modelVariableSingular <> "\n"
-            <> "        >>= fill @" <> tshow modelFields <> "\n"
+            <> "        >>= fill " <> toTypeLevelList modelFields <> "\n"
+            <> "        >>= validate\n"
+            <> "\n"
+            <> "instance FromParams " <> singularName <> " ControllerContext where\n"
+            <> "    build " <> modelVariableSingular <> " =\n"
+            <> "        return " <> modelVariableSingular <> "\n"
+            <> "        >>= fill " <> toTypeLevelList modelFields <> "\n"
+            <> "        >>= validate\n"
+            <> "\n"
+            <> "validate " <> modelVariableSingular <> " = return " <> modelVariableSingular <> "\n"
+
+        toTypeLevelList values = "@" <> (if length values < 2 then "'" else "") <> tshow values
+
 
         fromParamsInstanceHeadArgs = 
             case getTable database (lcfirst name) of
