@@ -130,10 +130,12 @@ window.submitForm = function (form, possibleClickedButton) {
             document.dispatchEvent(turbolinkLoadEvent);
         } else {
             window.liveReloadPaused = true;
-            history.pushState({}, '', request.responseURL);
 
-            window.onpopstate = function (event) { window.location.reload(); };
-
+            if (request.responseURL !== form.action) {
+                history.pushState({}, '', request.responseURL);
+                window.onpopstate = function (event) { window.location.reload(); };
+            }
+            
             transitionToNewPage(request.response.body);
             var turbolinkLoadEvent = new CustomEvent("turbolinks:load");
             document.dispatchEvent(turbolinkLoadEvent);
