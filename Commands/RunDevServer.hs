@@ -95,6 +95,7 @@ initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
     let onGhciStateChange state = Lock.with lock $ case state of
             Ok -> stopServer
             Failed -> do
+                pingDevServer
                 server <- readIORef errorServerRef
                 if isJust server
                     then return ()
@@ -285,4 +286,9 @@ clearErrorLog :: IORef ManagedProcess -> IO ()
 clearErrorLog serverProcess = do
     ManagedProcess { errorLog } <- readIORef serverProcess
     writeIORef (fromJust errorLog) ""
+
+pingDevServer :: IO ()
+pingDevServer = do
+    _ <- Process.system "(lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGINT) || true"
+    return ()
 
