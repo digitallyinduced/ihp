@@ -64,7 +64,7 @@ data GeneratorAction
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
 evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction'
+evalActions actions = forM_ actions evalAction
     where
         evalAction' CreateFile { filePath, fileContent } = do
             putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
@@ -118,7 +118,7 @@ generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
         name = get #controllerName config
-        singularName = pluralToSingular name
+        singularName = tableNameToModelName name
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
     in 
@@ -275,7 +275,7 @@ generateViews :: [Table] -> ControllerConfig -> [GeneratorAction]
 generateViews database config =
         let
             name = config |> get #controllerName
-            singularName = pluralToSingular name
+            singularName = tableNameToModelName name
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst name
 
@@ -286,7 +286,7 @@ generateViews database config =
                 <> "\n"
 
 
-            indexAction = singularToPlural name <> "Action"
+            indexAction = singularToPlural (tableNameToModelName name) <> "Action"
 
             modelFields :: [Text]
             modelFields = fieldsForTable database pluralVariableName
