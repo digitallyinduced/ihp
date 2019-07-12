@@ -47,12 +47,22 @@ function refresh() {
         });
 }
 
+function refreshAssets() {
+    var stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+    for (const stylesheet of stylesheets) {
+        if (!stylesheet.dataset.originalHref)
+            stylesheet.dataset.originalHref = stylesheet.href
+        stylesheet.href = stylesheet.dataset.originalHref + '?refresh=' + (+new Date());
+    }
+}
+
 function startReloadListener() {
     var notificationSocket = new WebSocket("ws://localhost:8002");
     notificationSocket.onmessage = function (event) {
         if (event.data === 'reload') {
             refresh();
-        }
+        } else if (event.data === 'reload_assets')
+            refreshAssets();
     }
 }
 

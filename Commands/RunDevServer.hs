@@ -142,7 +142,12 @@ initModelCompilerProcessWatcher DevServerState { serverProcess, modelCompilerPro
     initErrorWatcher modelCompilerProcess pauseRunningApp (continueRunningApp serverProcess)
 
 shouldActOnFileChange :: FS.ActionPredicate
-shouldActOnFileChange event = isSuffixOf ".hs" (getEventFilePath event)
+shouldActOnFileChange event =
+    let path = getEventFilePath event
+    in isHaskellFile path || isAssetFile path
+
+isHaskellFile = isSuffixOf ".hs"
+isAssetFile = isSuffixOf ".css"
 
 getEventFilePath :: FS.Event -> FilePath
 getEventFilePath event =
@@ -198,7 +203,10 @@ watch state@(DevServerState {serverProcess, rebuildServerLock}) event =
     in
         if isSuffixOf "Application/Schema.hs" filePath 
             then rebuildModels state
-            else rebuild serverProcess rebuildServerLock
+            else
+                if isAssetFile filePath
+                    then triggerAssetReload 
+                    else rebuild serverProcess rebuildServerLock
 
 
 rebuildModels (DevServerState {modelCompilerProcess}) = do
@@ -206,12 +214,10 @@ rebuildModels (DevServerState {modelCompilerProcess}) = do
     sendGhciCommand ghci ":!clear"
     sendGhciCommand ghci ":script TurboHaskell/compileModels"
 
-sendGhciInterrupt :: ManagedProcess -> IO ()
-sendGhciInterrupt ghci@(ManagedProcess { processHandle }) = do
-    pid <- getPid processHandle
-    case pid of
-        Just pid -> signalProcess sigINT pid
-        Nothing -> putStrLn "sendGhciInterrupt: failed, pid not found"
+triggerAssetReload :: IO ()
+triggerAssetReload = do
+    _ <- Process.system "(lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGUSR1) || true"
+    return ()
 
 rebuild :: IORef ManagedProcess -> Lock.Lock -> IO ()
 rebuild serverProcess rebuildServerLock = do

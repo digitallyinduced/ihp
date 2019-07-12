@@ -12,7 +12,8 @@ import qualified System.Posix.Signals as Signals
 main :: IO ()
 main = do
     state <- newMVar []
-    Signals.installHandler Signals.keyboardSignal (Signals.Catch (notify state)) Nothing
+    Signals.installHandler Signals.keyboardSignal (Signals.Catch (notifyReload state)) Nothing
+    Signals.installHandler Signals.sigUSR1 (Signals.Catch (notifyAssetChange state)) Nothing
     Warp.run 8002 $ Websocket.websocketsOr
         Websocket.defaultConnectionOptions
         (app state)
@@ -50,10 +51,15 @@ broadcast clientId stateRef message = do
     let otherClients = withoutClient clientId clients
     forM_ otherClients $ \(_, connection) -> Websocket.sendTextData connection message
 
-notify :: Concurrent.MVar State -> IO ()
-notify stateRef = do
+notifyReload :: Concurrent.MVar State -> IO ()
+notifyReload stateRef = do
     clients <- Concurrent.readMVar stateRef
     forM_ clients $ \(_, connection) -> Websocket.sendTextData connection ("reload" :: Text)
+
+notifyAssetChange :: Concurrent.MVar State -> IO ()
+notifyAssetChange stateRef = do
+    clients <- Concurrent.readMVar stateRef
+    forM_ clients $ \(_, connection) -> Websocket.sendTextData connection ("reload_assets" :: Text)
 
 app :: Concurrent.MVar State -> Websocket.ServerApp
 app stateRef pendingConnection = do
