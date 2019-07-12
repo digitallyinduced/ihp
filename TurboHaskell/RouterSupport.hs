@@ -54,6 +54,8 @@ import Data.Default
 import Data.Generics.Product hiding (getField)
 import Data.Maybe (fromJust)
 import qualified Control.Newtype.Generics as Newtype
+import qualified Text.Inflections as Inflections
+import qualified Data.Either as Either
 
 type family Parent controller where
     Parent (parent :> child) = parent
@@ -119,25 +121,32 @@ getConstructorByName name = readConstr (dataTypeOf (ClassyPrelude.undefined :: t
 {-# INLINE constructorWithId #-}
 constructorWithId :: forall controller. (RestfulController controller, Data (Child controller), Data (RestfulControllerId controller)) => Text -> Maybe (RestfulControllerId controller -> Child controller)
 constructorWithId name =
-    case getConstructorByName @(Child controller) (cs (name <> (pluralToSingular $ cs (basePath @controller)) <> "Action")) of
+    case getConstructorByName @(Child controller) (cs (name <> (pluralToSingular $ cs (strippedControllerName @controller)) <> "Action")) of
         Just constructor -> Just (\id -> fromJust $ fromConstrM (cast id :: forall d. Data d => Maybe d) constructor)
         Nothing -> Nothing
+
+
+{-# INLINE strippedControllerName #-}
+strippedControllerName :: forall controller. Typeable (Child controller) => Text
+strippedControllerName = fromMaybe controllerName (stripSuffix "Controller" controllerName)
+    where
+        controllerName = tshow (typeRep (Proxy :: Proxy (Child controller)))
 
 class (Typeable controller, Generic controller, Data controller, Data (Child controller), Data (RestfulControllerId controller)) => RestfulController controller where
     {-# INLINE basePath #-}
     basePath :: ByteString
     basePath =
-        let controllerName = cs . tshow $ typeRep (Proxy :: Proxy (Child controller))
+        let controllerName = tshow $ typeRep (Proxy :: Proxy (Child controller))
         in controllerNameToPathName controllerName
     {-# INLINE indexAction #-}
     indexAction :: Maybe (Child controller)
-    indexAction = fromConstr <$> getConstructorByName @(Child controller) (cs (basePath @controller <> "Action"))
+    indexAction = fromConstr <$> getConstructorByName @(Child controller) (cs (strippedControllerName @controller <> "Action"))
     {-# INLINE newAction #-}
     newAction :: Maybe (Child controller)
-    newAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("New" <> (pluralToSingular $ cs (basePath @controller)) <> "Action"))
+    newAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("New" <> (pluralToSingular $ cs (strippedControllerName @controller)) <> "Action"))
     {-# INLINE createAction #-}
     createAction :: Maybe (Child controller)
-    createAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("Create" <> (pluralToSingular $ cs (basePath @controller)) <> "Action"))
+    createAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("Create" <> (pluralToSingular $ cs (strippedControllerName @controller)) <> "Action"))
     {-# INLINE showAction #-}
     showAction :: Maybe (RestfulControllerId controller -> Child controller)
     showAction = constructorWithId @controller "Show"
@@ -157,23 +166,24 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
             id = modelId @controller idContainer
             allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: Child controller))
             customConstructors = filter (not . isRestConstructor) allConstructors
-            isRestConstructor constructor = (showConstr constructor) `elem` restConstructorNames
+            isRestConstructor constructor = (cs (showConstr constructor)) `elem` restConstructorNames
+            controllerName = strippedControllerName @controller
             restConstructorNames =
-                    [ cs (basePath @controller <> "Action")
-                    , cs ("New" <> (pluralToSingular $ cs (basePath @controller)) <> "Action")
-                    , cs ("Create" <> (pluralToSingular $ cs (basePath @controller)) <> "Action")
-                    , cs ("Show" <> (pluralToSingular $ cs (basePath @controller)) <> "Action")
-                    , cs ("Edit" <> (pluralToSingular $ cs (basePath @controller)) <> "Action")
-                    , cs ("Update" <> (pluralToSingular $ cs (basePath @controller)) <> "Action")
-                    , cs ("Delete" <> (pluralToSingular $ cs (basePath @controller)) <> "Action")
+                    [ controllerName <> "Action"
+                    , "New" <> (pluralToSingular controllerName) <> "Action"
+                    , "Create" <> (pluralToSingular controllerName) <> "Action"
+                    , "Show" <> (pluralToSingular controllerName) <> "Action"
+                    , "Edit" <> (pluralToSingular controllerName) <> "Action"
+                    , "Update" <> (pluralToSingular controllerName) <> "Action"
+                    , "Delete" <> (pluralToSingular controllerName) <> "Action"
                     ]
             parseCustomAction action' = (string actionPath >> post action)
                 where
                     action = initiateAction action' id
-                    initiateAction constructor id = fromJust $ fromConstrM (cast id :: forall d. Data d => Maybe d) constructor
+                    initiateAction constructor id = fromMaybe (error $ "Could not find constructor " <> show constructor) $ fromConstrM (cast id :: forall d. Data d => Maybe d) constructor
                     actionName = showConstr action'
                     withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
-                    modelName = cs $ pluralToSingular $ cs (basePath @controller)
+                    modelName = cs $ pluralToSingular $ cs (strippedControllerName @controller)
                     withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
                     actionPath = cs withoutModelPrefix
         in choice (map parseCustomAction customConstructors)
@@ -181,8 +191,10 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
 
 -- controllerNameToPathName "XController" = "X"
 {-# INLINE controllerNameToPathName #-}
-controllerNameToPathName :: ByteString -> ByteString
-controllerNameToPathName controllerName = fromMaybe controllerName (stripSuffix "Controller" controllerName)
+controllerNameToPathName :: Text -> ByteString
+controllerNameToPathName controllerName = cs (Either.fromRight baseName (Inflections.toDashed baseName))
+    where
+        baseName = (fromMaybe controllerName (stripSuffix "Controller" controllerName))
 
 class PathArgument a where
     parsePathArgument :: Parser a
@@ -210,9 +222,9 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
     {-# INLINE parseRoute' #-}
     parseRoute' =
         let
-            indexAction' = fromJust (indexAction @controller)
-            newAction' = fromJust (newAction @controller)
-            createAction' = fromJust (createAction @controller)
+            indexAction' = fromMaybe (error "parseRoute': Failed to locate index action") (indexAction @controller)
+            newAction' = fromMaybe (error "parseRoute': Failed to locate new action") (newAction @controller)
+            createAction' = (error "parseRoute': Failed to locate create action") (createAction @controller)
             showAction' :: RestfulControllerId controller -> Child controller
             showAction' memberId = fromJust (showAction @controller) $ memberId
             updateAction' :: RestfulControllerId controller -> Child controller
@@ -260,7 +272,7 @@ genericPathTo action
             id = unsafeHead (toListOf (types @id) action)
             actionName = showConstr (toConstr action)
             withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
-            modelName = cs $ pluralToSingular $ cs (basePath @controller)
+            modelName = cs $ pluralToSingular $ cs (strippedControllerName @controller)
             withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
         in
             genericPathTo @controller (fromJust $ indexAction @controller) <> "/" <> tshow id <> "/" <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
