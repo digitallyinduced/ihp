@@ -2,14 +2,10 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # Ensure we are in an app dir
-if [ ! -f FrontController.hs ]; then
-    echo "You have to be in a app dir (e.g. Web) to run the generator"
+if [ ! -f Main.hs ]; then
+    echo "You have to be in a project directory to run the generator"
 	exit 1
 fi
-
-# Switch to project root
-cd ..
-
 
 FRAMEWORKDIR=$(dirname $(readlink $(which RunDevServer)))/../
 if [ -d TurboHaskell ]; then

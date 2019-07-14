@@ -250,16 +250,10 @@ TurboHaskell uses controllers to deal with incoming requests. We can use the bui
 
 A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
-First we need to go to the Web app directory:
+We can run the code generator like this:
 
 ```bash
-$ cd Web
-```
-
-Now we can run the code generator:
-
-```bash
-$ new-controller Posts
+$ new-controller posts
 
 + src/Apps/Web/Controller/Posts.hs
 * src/Apps/Web/Routes.hs
