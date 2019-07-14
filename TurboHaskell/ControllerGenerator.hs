@@ -35,7 +35,7 @@ gen database applicationName controllerName' = do
             , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
             , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
             , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
-            , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("               , parseRoute @" <> controllerName <> "Controller\n") }
+            , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller\n") }
             ]
             <> generateViews database config
     evalActions generate
