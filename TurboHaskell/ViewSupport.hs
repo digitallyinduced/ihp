@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies #-}
 
-module TurboHaskell.ViewSupport (HtmlWithContext, ToAttributeValue (toAttributeValue), classes, CreateViewContext (createViewContext, ControllerContext), Layout, View (..)) where
+module TurboHaskell.ViewSupport (HtmlWithContext, classes, CreateViewContext (createViewContext, ControllerContext), Layout, View (..)) where
 
 import ClassyPrelude
 import qualified Text.Blaze
@@ -12,17 +12,6 @@ import qualified Data.Aeson as JSON
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 type Layout = Html5.Html -> Html5.Html
-
-class ToAttributeValue a where
-    toAttributeValue :: a -> Html5.AttributeValue
-
-instance ToAttributeValue Html5.AttributeValue where
-    {-# INLINE toAttributeValue #-}
-    toAttributeValue = id
-
-instance ToAttributeValue String where
-    {-# INLINE toAttributeValue #-}
-    toAttributeValue = Html5.stringValue
 
 {-# INLINE classes #-}
 classes :: [(Text, Bool)] -> Text

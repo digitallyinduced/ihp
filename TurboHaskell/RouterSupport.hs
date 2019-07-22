@@ -177,7 +177,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
                     , "Update" <> (pluralToSingular controllerName) <> "Action"
                     , "Delete" <> (pluralToSingular controllerName) <> "Action"
                     ]
-            parseCustomAction action' = (string actionPath >> post action)
+            parseCustomAction action' = (string actionPath >> onGetOrPost action action)
                 where
                     action = initiateAction action' id
                     initiateAction constructor id = fromMaybe (error $ "Could not find constructor " <> show constructor) $ fromConstrM (cast id :: forall d. Data d => Maybe d) constructor
@@ -185,7 +185,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
                     withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
                     modelName = cs $ pluralToSingular $ cs (strippedControllerName @controller)
                     withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
-                    actionPath = cs withoutModelPrefix
+                    actionPath = controllerNameToPathName (cs withoutModelPrefix)
         in choice (map parseCustomAction customConstructors)
             
 
@@ -224,7 +224,7 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
         let
             indexAction' = fromMaybe (error "parseRoute': Failed to locate index action") (indexAction @controller)
             newAction' = fromMaybe (error "parseRoute': Failed to locate new action") (newAction @controller)
-            createAction' = (error "parseRoute': Failed to locate create action") (createAction @controller)
+            createAction' = fromMaybe (error "parseRoute': Failed to locate create action") (createAction @controller)
             showAction' :: RestfulControllerId controller -> Child controller
             showAction' memberId = fromJust (showAction @controller) $ memberId
             updateAction' :: RestfulControllerId controller -> Child controller

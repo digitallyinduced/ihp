@@ -156,6 +156,16 @@ instance FromParameter param => FromParameter (ModelSupport.FieldWithDefault par
     fromParameter param | isJust param = fromParameter param
     fromParameter Nothing              = Right ModelSupport.Default
 
+instance (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
+    fromParameter (Just string) =
+            case find (\value -> ModelSupport.inputValue value == string') allValues of
+                Just value -> Right value
+                Nothing -> Left "Invalid value"
+        where
+            string' = cs string
+            allValues = enumFrom (toEnum 0) :: [parameter]
+    fromParameter _ = Left "FromParameter Enum: Parameter missing"
+
 class FillParams (params :: [Symbol]) record where
     fill :: (?requestContext :: RequestContext) => record -> State.StateT (ValidatorResultFor record) IO record
 
@@ -194,11 +204,14 @@ class FromParams record context where
     build :: ParamPipeline record context
 
 fromRequest :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, Default (ValidatorResultFor model), Record.HasTypes (ValidatorResultFor model) ValidatorResult, FromParams model controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, Typeable (ValidatorResultFor model), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> IO (Either model model)
-fromRequest model = do
+fromRequest model = runPipeline model build
+
+runPipeline :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, Default (ValidatorResultFor model), Record.HasTypes (ValidatorResultFor model) ValidatorResult, ?modelContext :: ModelSupport.ModelContext, Typeable model, Typeable (ValidatorResultFor model), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model controllerContext -> IO (Either model model)
+runPipeline model pipeline = do
         State.evalStateT inner (def :: ValidatorResultFor model)
     where
         inner = do
-            model <- build model
+            model <- pipeline model
             result <- State.get
             let validationsHistory :: IORef [Dynamic.Dynamic] = (GHC.Records.getField @"validations" ?controllerContext)
             modifyIORef validationsHistory (\validations -> (Dynamic.toDyn (model, result)):validations)

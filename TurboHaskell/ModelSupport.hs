@@ -82,6 +82,13 @@ instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
 
+instance (HasField "id" entity id, InputValue id) => InputValue entity where
+    {-# INLINE inputValue #-}
+    inputValue entity =
+        entity
+        |> getField @"id"
+        |> inputValue
+
 instance Default Text where
     {-# INLINE def #-}
     def = ""

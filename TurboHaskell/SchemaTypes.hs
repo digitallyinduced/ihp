@@ -36,7 +36,7 @@ data FieldType stringType =
            | TextField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            | IntField    { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            | BoolField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | EnumField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | EnumField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, values :: [stringType], allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            | UUIDField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
            | Timestamp   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            | PointField  { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
@@ -50,4 +50,5 @@ instance (Show stringType) => Show (FieldType stringType) where
     show UUIDField { defaultValue, references, allowNull, isPrimaryKey, onDelete, unique } = "UUIDField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show onDelete <> " " <> show unique
     show Timestamp { defaultValue, references, allowNull, isPrimaryKey, unique } = "Timestamp (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
     show PointField { defaultValue, references, allowNull, isPrimaryKey, unique } = "PointField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
+    show EnumField { values, defaultValue, references, allowNull, isPrimaryKey, unique } = "EnumField (" <> show defaultValue <> ") (" <> show references <> ") (" <> show values <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
 
