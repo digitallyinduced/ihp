@@ -47,8 +47,7 @@ cd "$PROJECT_NAME"
 rm -rf ".git"
 git clone "$FRAMEWORK_GIT_URL" TurboHaskell
 make .envrc
-direnv reload
-new-application Web
+nix-shell --run 'new-application Web'
 echo "Project created, happy coding :)"
 echo "You can start the server by running:"
 echo "cd $PROJECT_NAME"
