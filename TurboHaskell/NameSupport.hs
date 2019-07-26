@@ -1,4 +1,4 @@
-module TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName, pluralToSingular, humanize, ucfirst, lcfirst, fieldNameToColumnName, singularToPlural) where
+module TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName) where
 
 import           ClassyPrelude
 import           Data.String.Conversions (cs)
@@ -11,7 +11,7 @@ import qualified Text.Countable as Countable
 -- `projects` => `Project`
 {-# INLINE tableNameToModelName #-}
 tableNameToModelName :: Text -> Text
-tableNameToModelName tableName = unwrapEither tableName $ Inflector.toCamelCased True $ cs (pluralToSingular tableName)
+tableNameToModelName tableName = unwrapEither tableName $ Inflector.toCamelCased True $ cs (Countable.singularize tableName)
 
 -- `email` => `email`
 -- `project_id` => `projectId`
@@ -28,13 +28,6 @@ unwrapEither input (Left value) = error "TurboHaskell.NameSupport: " <> tshow va
 {-# INLINE fieldNameToColumnName #-}
 fieldNameToColumnName :: Text -> Text
 fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUnderscore columnName
-
-{-# INLINE pluralToSingular #-}
-pluralToSingular :: Text -> Text
-pluralToSingular = Countable.singularize
-{-# INLINE singularToPlural #-}
-singularToPlural :: Text -> Text
-singularToPlural = Countable.pluralize
 
 {-# INLINE humanize #-}
 humanize :: Text -> Text

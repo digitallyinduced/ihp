@@ -2,7 +2,7 @@ module TurboHaskell.SchemaCompiler where
 import ClassyPrelude
 import Data.String.Conversions (cs)
 import TurboHaskell.SchemaSupport
-import TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName, pluralToSingular)
+import TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
@@ -12,6 +12,7 @@ import Data.List.Split
 import qualified TurboHaskell.SqlCompiler
 import TurboHaskell.SchemaTypes
 import TurboHaskell.HaskellSupport
+import qualified Text.Countable as Countable
 
 
 -- USE LINE PRAGMA IN OUTPUT
@@ -320,8 +321,8 @@ compileFromRowInstance table@(Table name attributes) =
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
         compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow (compileInverseOf inverseOf <> "Id") <> ", " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
             where
-                compileInverseOf Nothing = columnNameToFieldName (pluralToSingular name)
-                compileInverseOf (Just name) = columnNameToFieldName (pluralToSingular name)
+                compileInverseOf Nothing = columnNameToFieldName (Countable.singularize name)
+                compileInverseOf (Just name) = columnNameToFieldName (Countable.singularize name)
 
 compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
@@ -385,7 +386,7 @@ compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compi
                 compileTypeVariable (HasMany {name}) = name
                 compileTypeVariable' :: Attribute -> Text
                 compileTypeVariable' (Field fieldName' _) | fieldName' == fieldName = "(GetModelById " <> fieldName' <> ")"
-                compileTypeVariable' (HasMany {name}) | name == fieldName = "[" <> tableNameToModelName (pluralToSingular name) <> "]"
+                compileTypeVariable' (HasMany {name}) | name == fieldName = "[" <> tableNameToModelName (Countable.singularize name) <> "]"
                 compileTypeVariable' otherwise = compileTypeVariable otherwise
                 fieldName =
                     case attribute of

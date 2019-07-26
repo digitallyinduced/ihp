@@ -6,6 +6,7 @@ import qualified TurboHaskell.NameSupport
 import           TurboHaskell.SchemaSupport
 import qualified System.Directory         as Directory
 import TurboHaskell.SchemaTypes
+import qualified Text.Countable as Countable
 
 main :: [Table] -> IO ()
 main database = writeFileIfNecessary "Application/Schema.sql" (compileDatabase database)
@@ -74,7 +75,7 @@ compileConstraints table@(Table _ attributes) =
 
 
 enumTypeName :: Table -> Attribute -> Text
-enumTypeName (Table tableName _) (Field fieldName _) = toUpper (TurboHaskell.NameSupport.pluralToSingular tableName) <> "_" <> toUpper fieldName
+enumTypeName (Table tableName _) (Field fieldName _) = toUpper (Countable.singularize tableName) <> "_" <> toUpper fieldName
 
 compileTokens :: [Text] -> Text
 compileTokens tokens = unwords $ filter (\token -> token /= "") tokens

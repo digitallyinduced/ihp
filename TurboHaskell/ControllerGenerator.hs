@@ -13,6 +13,7 @@ import qualified System.Exit as Exit
 import TurboHaskell.SchemaTypes
 import TurboHaskell.HaskellSupport
 import qualified Data.Text as Text
+import qualified Text.Countable as Countable
 
 main' :: [Table] -> [Text] -> IO ()
 main' database args = do
@@ -28,7 +29,7 @@ main' database args = do
 
 gen database applicationName controllerName' = do
     let modelName = tableNameToModelName controllerName'
-    let controllerName = singularToPlural modelName
+    let controllerName = Countable.pluralize modelName
     let config = ControllerConfig { modelName, controllerName, applicationName }
     let generate =
             [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
@@ -266,7 +267,7 @@ generateController database config =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ControllerConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    get #applicationName config <> ".View." <> singularToPlural (get #controllerName config) <> "." <> viewName
+    get #applicationName config <> ".View." <> Countable.pluralize (get #controllerName config) <> "." <> viewName
 
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
@@ -286,7 +287,7 @@ generateViews database config =
                 <> "\n"
 
 
-            indexAction = singularToPlural (tableNameToModelName name) <> "Action"
+            indexAction = Countable.pluralize (tableNameToModelName name) <> "Action"
 
             modelFields :: [Text]
             modelFields = fieldsForTable database pluralVariableName
@@ -300,7 +301,7 @@ generateViews database config =
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -316,7 +317,7 @@ generateViews database config =
                 <> "    html NewView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -339,7 +340,7 @@ generateViews database config =
                 <> "    html EditView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -362,7 +363,7 @@ generateViews database config =
                 <> "    html IndexView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> singularToPlural name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
                 <> "        <h1>" <> name <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
