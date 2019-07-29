@@ -320,7 +320,11 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent con
         --let id = unsafeHead (toListOf (types @id) action)
         --in pathTo (showAction @controller id) <> "/" <> tshow id <> (if editAction id == action then "/edit" else "")
     parseRoute' = do
-        parent <- parseRoute' @parent
+        -- We temporary change the request method to GET while parsing the parent route
+        -- This is equivalent to the following transformation:
+        -- `UpdateProjectAction { .. } :> UpdateTaskAction { .. }` => `ShowProjectAction { .. } :> UpdateTaskAction { .. }`
+        let requestContextWithGetMethod = withMethod GET
+        parent <- let ?requestContext = requestContextWithGetMethod in parseRoute' @parent
         string "/"
         let
             indexAction' = parent :> (fromJust $ indexAction @controller)
@@ -350,6 +354,11 @@ getMethod =
         case methodOrError of
             Left error -> fail (cs error)
             Right method -> return method
+
+withMethod :: (?requestContext :: RequestContext) => StdMethod -> RequestContext
+withMethod requestMethod = (?requestContext) { request = newRequest }
+    where
+        newRequest = (TurboHaskell.Controller.RequestContext.request ?requestContext) { requestMethod = renderStdMethod requestMethod }
 
 {-# INLINE post #-}
 post action = do
