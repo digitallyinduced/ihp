@@ -7,3 +7,4 @@ build.js
 .DS_Store
 dist
 build
+*.dump-simpl
