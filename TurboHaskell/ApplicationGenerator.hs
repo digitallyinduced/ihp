@@ -6,6 +6,7 @@ import System.Directory (createDirectory)
 import Data.String.Conversions (cs)
 import Data.ByteString (writeFile)
 import TurboHaskell.HaskellSupport
+import qualified Data.Text as Text
 
 main :: IO ()
 main = do
@@ -250,7 +251,15 @@ addImport' :: Text -> [Text] -> Maybe Text
 addImport' file = appendLineAfter file ("import" `isPrefixOf`)
 
 addMountControllerStatement' :: Text -> Text -> Maybe Text
-addMountControllerStatement' applicationName file = appendLineAfter file ("mountFrontController" `isInfixOf`) ["        , mountFrontController @" <> applicationName <> "Application"]
+addMountControllerStatement' applicationName file =
+    let withMaybeMountedFrontController = appendLineAfter file ("mountFrontController" `isInfixOf`) ["        , mountFrontController @" <> applicationName <> "Application"]
+    in
+        case withMaybeMountedFrontController of
+            Just result -> Just result
+            Nothing -> Just (Text.replace needle replacement file)
+                where
+                    needle =  "    controllers = []"
+                    replacement = "    controllers = [\n        mountFrontController @" <> applicationName <> "Application" <> "\n    ]"
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =
