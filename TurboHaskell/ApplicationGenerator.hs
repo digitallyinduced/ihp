@@ -259,7 +259,7 @@ addMountControllerStatement' applicationName file =
             Nothing -> Just (Text.replace needle replacement file)
                 where
                     needle =  "    controllers = []"
-                    replacement = "    controllers = [\n        mountFrontController @" <> applicationName <> "Application" <> "\n    ]"
+                    replacement = "    controllers = [\n            mountFrontController @" <> applicationName <> "Application" <> "\n        ]"
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =
