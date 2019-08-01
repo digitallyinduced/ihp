@@ -295,6 +295,14 @@
 <li>
 <a href="#command-line-reference">Command Line Reference</a>
 </li>
+<li>
+<a href="#form-reference">Form Reference</a>
+<ul>
+<li>
+<a href="#select-inputs">Select Inputs</a>
+</li>
+</ul>
+</li>
 </ul>
 <h2 id="dependencies">Dependencies</h2>
 <h3 id="1-nix-package-manager">1. Nix Package Manager</h3>
@@ -1033,6 +1041,32 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make static/prod.css</td><td>Builds the production css bundle</td></tr>
 </tbody>
 </table>
+<h1 id="form-reference">Form Reference</h1>
+<h2 id="select-inputs">Select Inputs</h2>
+<p>You can use the <code>selectField</code> helper for select inputs:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">formFor</span><span> </span><span class="va">project</span><span> </span><span class="sy">[hsx|
+    {selectField #userId users}
+|]</span><span>
+</span></code></pre></div>
+<p>In the example above the variable <code>users</code> contains all the possible option values for the select.</p>
+<p>You also need to define a instance <code>CanSelect User</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">CanSelect</span><span> </span><span class="cr">User</span><span> </span><span class="kw">where</span><span>
+    </span><span class="co">-- Here we specify that the &lt;option&gt;-value should contain a UserId</span><span>
+    </span><span class="kw">type</span><span> </span><span class="cr">SelectValue</span><span> </span><span class="cr">User</span><span> </span><span class="sy">=</span><span> </span><span class="cr">UserId</span><span>
+    </span><span class="co">-- Here we specify how to transform the model into &lt;option&gt;-value</span><span>
+    </span><span class="va">selectValue</span><span> </span><span class="sy">=</span><span> </span><span class="va">get</span><span> </span><span class="va">#id</span><span>
+    </span><span class="co">-- And here we specify the &lt;option&gt;-text</span><span>
+    </span><span class="va">selectLabel</span><span> </span><span class="sy">=</span><span> </span><span class="va">get</span><span> </span><span class="va">#name</span><span>
+</span></code></pre></div>
+<p>Given the above example, the rendered form will look like this:</p>
+<div class="source-code"><pre><code class="language-html"><span>-- Assuming: users = [User { id = 1, name = &quot;Marc&quot; }, User { id = 2, name = &quot;Andreas&quot; }]</span>
+<span class="kw">&lt;form</span><span> </span><span class="er">...</span><span class="kw">&gt;</span>
+<span>    </span><span class="kw">&lt;select</span><span class="ot"> name=</span><span class="st">&quot;user_id&quot;</span><span class="kw">&gt;</span>
+<span>        </span><span class="kw">&lt;option</span><span class="ot"> value=</span><span class="st">&quot;1&quot;</span><span class="kw">&gt;</span><span>Marc</span><span class="kw">&lt;/option&gt;</span>
+<span>        </span><span class="kw">&lt;option</span><span class="ot"> value=</span><span class="st">&quot;2&quot;</span><span class="kw">&gt;</span><span>Andreas</span><span class="kw">&lt;/option&gt;</span>
+<span>    </span><span class="kw">&lt;/select&gt;</span>
+<span class="kw">&lt;/form&gt;</span>
+</code></pre></div>
 </div>
 
     
