@@ -21,7 +21,7 @@ columnNameToFieldName columnName = unwrapEither columnName $ Inflector.toCamelCa
 
 {-# INLINE unwrapEither #-}
 unwrapEither _ (Right value) = value
-unwrapEither input (Left value) = error "TurboHaskell.NameSupport: " <> tshow value <> " (value to be transformed: " <>  tshow input <> ")"
+unwrapEither input (Left value) = error ("TurboHaskell.NameSupport: " <> show value <> " (value to be transformed: " <>  show input <> ")")
 
 -- `email` => `email`
 -- `projectId` => `project_id`
