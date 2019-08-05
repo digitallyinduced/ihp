@@ -14,6 +14,7 @@ import TurboHaskell.SchemaTypes
 import TurboHaskell.HaskellSupport
 import qualified Data.Text as Text
 import qualified Text.Countable as Countable
+import qualified Data.Char as Char
 
 main' :: [Table] -> [Text] -> IO ()
 main' database args = do
@@ -21,11 +22,21 @@ main' database args = do
         Just "" -> usage
         Just appAndControllerName -> do
             case Text.splitOn "." appAndControllerName of
-                [applicationName, controllerName'] -> gen database (ucfirst applicationName) controllerName'
-                [controllerName'] -> gen database "Web" controllerName'
+                [applicationName, controllerName'] -> do
+                    if isAlphaOnly applicationName
+                        then if isAlphaOnly controllerName'
+                            then gen database (ucfirst applicationName) controllerName'
+                            else putStrLn ("Invalid controller name: " <> tshow controllerName')
+                        else putStrLn ("Invalid application name: " <> tshow applicationName)
+                [controllerName'] -> if isAlphaOnly controllerName'
+                        then gen database "Web" controllerName'
+                        else putStrLn ("Invalid controller name: " <> tshow controllerName')
                 [] -> usage
         Nothing -> usage
 
+
+isAlphaOnly :: Text -> Bool
+isAlphaOnly text = Text.all Char.isAlpha text
 
 gen database applicationName controllerName' = do
     let modelName = tableNameToModelName controllerName'
