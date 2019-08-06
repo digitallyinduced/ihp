@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 module TurboHaskell.Welcome.Controller where
 
 import TurboHaskell.ControllerPrelude
@@ -10,13 +11,13 @@ data WelcomeController = WelcomeAction
 data ViewContext = ViewContext { layout :: Layout } deriving (Generic)
 type Html = HtmlWithContext ViewContext
 
-instance CanRoute WelcomeController () where
+instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => CanRoute WelcomeController () where
     parseRoute' = (string "/" <|> string "") *> endOfInput *> return WelcomeAction
 
-instance HasPath WelcomeController where
+instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => HasPath WelcomeController where
     pathTo WelcomeAction = "/"
 
-instance Controller WelcomeController () where
+instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => Controller WelcomeController () where
     action WelcomeAction = renderHtml view
 
 view :: Html

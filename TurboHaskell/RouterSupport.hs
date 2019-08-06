@@ -24,6 +24,8 @@ module TurboHaskell.RouterSupport (
     , PathArgument (..)
     , ModelControllerMap
     , FrontController (..)
+    , FrontControllerPrefix (..)
+    , ControllerApplicationMap
     , parseRoute 
     , catchAll
     , mountFrontController
@@ -68,12 +70,14 @@ type family Child controller where
 
 data (parent :> child) = parent :> child deriving (Generic, Eq, Data, Show)
 
-class FrontController application where
+class FrontControllerPrefix application where
     prefix :: ByteString
     prefix = "/"
+
+class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
 
-class HasPath controller where
+class (FrontControllerPrefix (ControllerApplicationMap controller)) => HasPath controller where
     pathTo :: controller -> Text    
 
 class HasPath controller => CanRoute controller parent | controller -> parent where
@@ -114,6 +118,7 @@ type family Concat a b where
 -- Maps models to their restful controllers
 -- E.g. ModelControllerMap ControllerContext User = UsersController
 type family ModelControllerMap controllerContext model
+type family ControllerApplicationMap contorller
 
 {-# INLINE getConstructorByName #-}
 getConstructorByName :: forall theType. Data theType => String -> Maybe Constr
@@ -215,7 +220,7 @@ instance PathArgument Text where
     parsePathArgument = takeTill ((==) '/') >>= return . cs
 
 
-instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq controller, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ (), Child controller ~ controller, HasTypes controller id, Default id) => CanRoute controller parent where
+instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq controller, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ (), Child controller ~ controller, HasTypes controller id, Default id, FrontControllerPrefix (ControllerApplicationMap controller)) => CanRoute controller parent where
     --pathTo action | action == indexAction = "/Members"
     --pathTo action | action == newAction = pathTo (indexAction @controller) <> "/new"
     --pathTo action | action == createAction = pathTo (indexAction @controller)
@@ -247,29 +252,29 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
             <|> onGetOrPost (indexAction') (createAction')
 
 
-instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, Default id) => HasPath (parent :> child) where
+instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap controller)) => HasPath (parent :> child) where
     {-# INLINE pathTo #-}
     pathTo (parent :> child) = pathTo parent <> genericPathTo @controller child
 
 
 
 
-instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Child controller ~ controller, HasTypes controller id, Default id) => HasPath controller where
+instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Child controller ~ controller, HasTypes controller id, Default id, FrontControllerPrefix (ControllerApplicationMap controller)) => HasPath controller where
     {-# INLINE pathTo #-}
-    pathTo = genericPathTo @controller
+    pathTo action = (cs (prefix @(ControllerApplicationMap controller))) <> genericPathTo @controller action
 
 {-# INLINE genericPathTo #-}
-genericPathTo :: forall controller action id parent. (Eq action, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, HasTypes action id, RestfulController controller, Child controller ~ action, Default id) => action -> Text
+genericPathTo :: forall controller action id parent frontController. (Eq action, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, HasTypes action id, RestfulController controller, Child controller ~ action, Default id) => action -> Text
 genericPathTo action 
     | (isIndexAction @controller action) || (isCreateAction @controller action)
-        = "/" <> cs (basePath @controller)
+        = cs (basePath @controller)
     | isNewAction @controller action
-        = maybe ("/" <> cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller) <> "/new"
+        = maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller) <> "/new"
     | isEditAction @controller action
         = let id = unsafeHead (toListOf (types @id) action)
         in genericPathTo @controller (fromJust (showAction @controller) $ id) <> "/edit"
     | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
-        = let id = unsafeHead (toListOf (types @id) action) in maybe ("/" <> cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction <> "/" <> tshow id) (indexAction @controller)
+        = let id = unsafeHead (toListOf (types @id) action) in maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction <> "/" <> tshow id) (indexAction @controller)
     | otherwise =
         let
             id = unsafeHead (toListOf (types @id) action)
@@ -312,7 +317,7 @@ isUpdateAction action = (isJust (updateAction @controller) && toConstr action ==
 modelId :: forall controller. (RestfulController controller, HasTypes (Child controller) (RestfulControllerId controller)) => Child controller -> RestfulControllerId controller
 modelId action = unsafeHead (toListOf (types @(RestfulControllerId controller)) action)
 
-instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent context. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, CanRoute parent parentParent, Default id) => CanRoute (parent :> child) parent where
+instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent context. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, CanRoute parent parentParent, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap (parent :> child))) => CanRoute (parent :> child) parent where
     --pathTo action | action == indexAction = "/Members"
     --pathTo action | action == newAction = pathTo (indexAction @controller) <> "/new"
     --pathTo action | action == createAction = pathTo (indexAction @controller)
@@ -404,11 +409,11 @@ runApp routes = let path = (rawPathInfo (getField @"request" ?requestContext)) i
             Right action -> action
 
 {-# INLINE frontControllerToWAIApp #-}
-frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => IO ResponseReceived
+frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app, FrontControllerPrefix app) => IO ResponseReceived
 frontControllerToWAIApp = runApp (withPrefix (prefix @app) (controllers @app))
 
 {-# INLINE mountFrontController #-}
-mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => Parser (IO ResponseReceived)
+mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController, FrontControllerPrefix frontController) => Parser (IO ResponseReceived)
 mountFrontController = withPrefix (prefix @frontController) (controllers @frontController)
 
 {-# INLINE parseRoute #-}

@@ -3,7 +3,7 @@ import ClassyPrelude
 import qualified Network.Wai.Util 
 import Network.URI (parseURI)
 import TurboHaskell.Controller.RequestContext
-import TurboHaskell.RouterSupport (HasPath (pathTo))
+import TurboHaskell.RouterSupport (HasPath (pathTo), FrontControllerPrefix, ControllerApplicationMap)
 import qualified Network.Wai as Wai
 import Data.String.Conversions (cs)
 import Data.Maybe (fromJust)
@@ -21,7 +21,7 @@ import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 --
 -- Use `redirectToPath` if you want to redirect to a non-action url
 {-# INLINE redirectTo #-}
-redirectTo :: (?requestContext :: RequestContext, FrameworkConfig, HasPath action) => action -> IO Wai.ResponseReceived
+redirectTo :: (?requestContext :: RequestContext, FrameworkConfig, HasPath action, FrontControllerPrefix (ControllerApplicationMap action)) => action -> IO Wai.ResponseReceived
 redirectTo action = redirectToPath (pathTo action)
 
 -- TODO: redirectTo user

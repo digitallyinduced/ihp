@@ -10,7 +10,7 @@ import           Data.String.Conversions (ConvertibleStrings (convertString), cs
 import           Text.Blaze.Html5
 import qualified Text.Blaze.Html5        as Html5
 import qualified Data.ByteString.Lazy as LBS
-import TurboHaskell.RouterSupport (HasPath (..))
+import TurboHaskell.RouterSupport (HasPath (..), FrontControllerPrefix, ControllerApplicationMap)
 
 instance ConvertibleStrings String Html5.AttributeValue where
     {-# INLINE convertString #-}
@@ -36,5 +36,5 @@ instance ConvertibleStrings Text Html5.Html where
     {-# INLINE convertString #-}
     convertString = Html5.text
 
-instance {-# OVERLAPPABLE #-} HasPath action => ConvertibleStrings action AttributeValue where
+instance {-# OVERLAPPABLE #-} (HasPath action, FrontControllerPrefix (ControllerApplicationMap action)) => ConvertibleStrings action AttributeValue where
     convertString action = textValue (pathTo action)
