@@ -167,7 +167,7 @@ instance (Enum parameter, ModelSupport.InputValue parameter) => FromParameter pa
     fromParameter _ = Left "FromParameter Enum: Parameter missing"
 
 class FillParams (params :: [Symbol]) record where
-    fill :: (?requestContext :: RequestContext) => record -> State.StateT (ValidatorResultFor record) IO record
+    fill :: (?requestContext :: RequestContext) => record -> State.StateT [(Text, Text)] IO record
 
 instance FillParams ('[]) record where
     fill record = return record
@@ -175,12 +175,9 @@ instance FillParams ('[]) record where
 instance (FillParams rest record
     , KnownSymbol fieldName
     , Record.HasField' fieldName record fieldType
-    , Record.HasField fieldName (ValidatorResultFor record) (ValidatorResultFor record) ValidatorResult ValidatorResult
-    , Generic record
     , FromParameter fieldType
     ) => FillParams (fieldName:rest) record where
     fill record = do
-        -- record <- State.get
         let name :: ByteString = cs $ NameSupport.fieldNameToColumnName $ cs (symbolVal (Proxy @fieldName))
         case paramOrNothing name of
             value@(Just paramValue) ->
@@ -193,39 +190,29 @@ instance (FillParams rest record
 
 
 
-fromParams :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ModelSupport.Record record, Default (ValidatorResultFor record), Record.HasTypes (ValidatorResultFor record) ValidatorResult, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, Typeable (ValidatorResultFor record), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => IO (Either record record)
+fromParams :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ModelSupport.Record record, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => IO (Either record record)
 fromParams = fromParams' (ModelSupport.newRecord @record)
 
-fromParams' :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, Default (ValidatorResultFor record), Record.HasTypes (ValidatorResultFor record) ValidatorResult, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, Typeable (ValidatorResultFor record), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> IO (Either record record)
+fromParams' :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> IO (Either record record)
 fromParams' record = fromRequest record
 
-type ParamPipeline record context = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: context, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> StateT (ValidatorResultFor record) IO record
+type ParamPipeline record context = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: context, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> StateT [(Text, Text)] IO record
 class FromParams record context where
     build :: ParamPipeline record context
 
-fromRequest :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, Default (ValidatorResultFor model), Record.HasTypes (ValidatorResultFor model) ValidatorResult, FromParams model controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, Typeable (ValidatorResultFor model), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> IO (Either model model)
+fromRequest :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FromParams model controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> IO (Either model model)
 fromRequest model = runPipeline model build
 
-runPipeline :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, Default (ValidatorResultFor model), Record.HasTypes (ValidatorResultFor model) ValidatorResult, ?modelContext :: ModelSupport.ModelContext, Typeable model, Typeable (ValidatorResultFor model), GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model controllerContext -> IO (Either model model)
+runPipeline :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model controllerContext -> IO (Either model model)
 runPipeline model pipeline = do
-        State.evalStateT inner (def :: ValidatorResultFor model)
+        State.evalStateT inner ([] :: [(Text, Text)])
     where
         inner = do
             model <- pipeline model
             result <- State.get
             let validationsHistory :: IORef [Dynamic.Dynamic] = (GHC.Records.getField @"validations" ?controllerContext)
             modifyIORef validationsHistory (\validations -> (Dynamic.toDyn (model, result)):validations)
-            return (modelToEither model result)
+            return (if null result then Right model else Left model)
 
-        modelToEither :: forall model result. (Record.HasTypes result ValidatorResult) => model -> result -> Either model model
-        modelToEither model result =
-            let
-                validatorResults = Lens.toListOf (Record.types @ValidatorResult) result
-                failures = filter isFailure validatorResults
-            in
-                case failures of
-                    [] -> Right model
-                    _  -> Left model
-
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> StateT (ValidatorResultFor record) IO record) -> record -> StateT (ValidatorResultFor record) IO record
+ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> StateT [(Text, Text)] IO record) -> record -> StateT [(Text, Text)] IO record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else return record

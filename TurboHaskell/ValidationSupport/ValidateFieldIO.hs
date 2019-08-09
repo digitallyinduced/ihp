@@ -1,9 +1,6 @@
 module TurboHaskell.ValidationSupport.ValidateFieldIO (validateFieldIO) where
 
 import           ClassyPrelude
-import           Control.Lens                         hiding ((|>))
-import           Data.Generics.Product
-import           Data.Generics.Product.Types
 import           Data.Proxy
 import qualified Data.Text                            as Text
 import qualified Data.UUID
@@ -14,7 +11,7 @@ import           TurboHaskell.ModelSupport
 import           TurboHaskell.NameSupport               (humanize)
 import           TurboHaskell.ValidationSupport.Types
 import           GHC.Generics
-import           GHC.Records                          hiding (HasField, getField)
+import           GHC.Records
 import           GHC.TypeLits                         (KnownSymbol, Symbol)
 import Control.Monad.State
 import TurboHaskell.HaskellSupport hiding (get)
@@ -29,14 +26,14 @@ validateFieldIO :: forall field model savedModel idType validationState fieldVal
         , ?modelContext :: ModelContext
         , PG.FromRow savedModel
         , KnownSymbol field
-        , HasField' field model fieldValue
-        , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
+        , HasField field model fieldValue
         , KnownSymbol (GetTableName savedModel)
         , PG.ToField fieldValue
         , EqOrIsOperator fieldValue
-        , Generic model
-    ) => Proxy field -> CustomIOValidation fieldValue ->  StateT (ValidatorResultFor model) IO ()
+    ) => Proxy field -> CustomIOValidation fieldValue ->  StateT [(Text, Text)] IO ()
 validateFieldIO fieldProxy customValidation = do
     let value :: fieldValue = getField @field ?model
     result <- liftIO (customValidation value)
-    attachValidatorResult fieldProxy result
+    case result of
+        Success -> return ()
+        Failure message -> attachFailure fieldProxy message

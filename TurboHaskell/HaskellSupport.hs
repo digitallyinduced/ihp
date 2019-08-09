@@ -43,11 +43,11 @@ instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Pr
 
 {-# INLINE get #-}
 get :: forall model name value. (KnownSymbol name, HasField' name model value, Generic model) => Proxy name -> model -> value
-get _ = getField @name
+get _ record = getField @name record
 
 {-# INLINE set #-}
 set :: forall model name value. (KnownSymbol name, HasField' name model value, Generic model) => Proxy name -> value -> model -> model
-set _ = setField @name
+set name value record = setField @name value record
 
 {-# INLINE modify #-}
 modify :: forall model name value updateFunction. (KnownSymbol name, HasField' name model value) => Proxy name -> (value -> value) -> model -> model
