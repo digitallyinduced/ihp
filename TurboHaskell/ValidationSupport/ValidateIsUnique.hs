@@ -27,12 +27,11 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , PG.FromRow savedModel
         , KnownSymbol field
         , HasField' field model fieldValue
-        , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
         , HasField' field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
         , PG.ToField fieldValue
         , EqOrIsOperator fieldValue
-    ) => Proxy field -> model -> StateT (ValidatorResultFor model) IO model
+    ) => Proxy field -> model -> StateT [(Text, Text)] IO model
 validateIsUnique fieldProxy model = do
     let value = getField @field model
     result <- query @savedModel
