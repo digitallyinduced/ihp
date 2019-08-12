@@ -114,6 +114,7 @@ compileTypes' table@(Table name attributes) =
     <> section
     <> compileHasTableNameInstance table
     <> section
+    <> compileGetModelName table
     <> section
     <> section
     <> compileInclude table
@@ -126,6 +127,10 @@ compileTypes' table@(Table name attributes) =
     <> compileUpdate table
     <> section
     <> compileBuild table
+    <> section
+    <> compileSetFieldInstances table
+    <> section
+    <> compileUpdateFieldInstances table
     <> section
 
 
@@ -178,7 +183,7 @@ primaryKeyTypeName' name = "Id' " <> tshow name <> ""
 
 compileGeneric2DataDefinition :: Table -> Text
 compileGeneric2DataDefinition table@(Table name attributes) =
-        "data " <> tableNameToModelName name <> "' " <> typeArguments <> " = " <> tableNameToModelName name <> " {" <> compileFields attributes <> "} deriving (Eq, Show, Generic)\n"
+        "data " <> tableNameToModelName name <> "' " <> typeArguments <> " = " <> tableNameToModelName name <> " {" <> compileFields attributes <> "} deriving (Eq, Show)\n"
         <> "type " <> tableNameToModelName name <> "Functor f = " <> tableNameToModelName name <> "' " <> compileFunctorFields attributes <> "\n"
     where
         typeArguments :: Text
@@ -342,6 +347,8 @@ compileCanValidate2 table@(Table name attributes) =
 
 compileHasTableNameInstance table@(Table name attributes) = "\ntype instance GetTableName (" <> tableNameToModelName name <> "' " <> intercalate " " (map (const "_") attributes) <>  ") = " <> tshow name <> "\n"
 
+compileGetModelName table@(Table name attributes) = "\ntype instance GetModelName (" <> tableNameToModelName name <> "' " <> intercalate " " (map (const "_") attributes) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
+
 compileDataTypePattern :: Table -> Text
 compileDataTypePattern table@(Table name attributes) = tableNameToModelName name <> " " <> intercalate " " (map compileAttribute attributes)
     where
@@ -393,6 +400,35 @@ compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compi
                         (Field fieldName _) -> fieldName
                         (HasMany {name}) -> name 
 
+
+compileSetFieldInstances :: Table -> Text
+compileSetFieldInstances table@(Table tableName attributes) = intercalate "\n" (map compileSetField' attributes)
+    where
+        compileSetField' (Field fieldName _) = compileSetField fieldName
+        compileSetField' (HasMany fieldName _) = compileSetField fieldName
+        compileSetField fieldName = "instance SetField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") " <> fieldName <> " where setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
+            where
+                compileAttribute :: Attribute -> Text
+                compileAttribute (Field name _) = if fieldName == name then "newValue" else name
+                compileAttribute (HasMany {name}) = name
+
+compileUpdateFieldInstances :: Table -> Text
+compileUpdateFieldInstances table@(Table tableName attributes) = intercalate "\n" (map compileSetField' attributes)
+    where
+        compileSetField' (Field fieldName _) = compileSetField fieldName
+        compileSetField' (HasMany fieldName _) = compileSetField fieldName
+        compileSetField fieldName = "instance UpdateField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' table fieldName  <> ") " <> fieldName <> " " <> fieldName <> "' where updateField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
+            where
+                compileAttribute :: Attribute -> Text
+                compileAttribute (Field name _) = if fieldName == name then "newValue" else name
+                compileAttribute (HasMany {name}) = if fieldName == name then "newValue" else name
+
+                compileTypePattern' :: Table -> Text -> Text
+                compileTypePattern' table@(Table name attributes) fieldName = tableNameToModelName name <> "' " <> intercalate " " (map (\f -> if f == fieldName then fieldName <> "'" else f) (map compileAttribute' attributes))
+                    where
+                        compileAttribute' :: Attribute -> Text
+                        compileAttribute' (Field name _) = name
+                        compileAttribute' (HasMany {name}) = name
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"

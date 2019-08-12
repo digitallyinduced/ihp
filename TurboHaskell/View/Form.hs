@@ -41,8 +41,6 @@ import qualified Data.Text
 import qualified Text.Inflections
 import GHC.Records
 import qualified Data.Text as Text
-import qualified Data.Generics.Product
-import GHC.Generics
 import Data.Default
 import Data.Dynamic
 import Data.Maybe (fromJust)
@@ -548,7 +546,7 @@ selectField :: forall alpha attributeName model value item. (?formContext :: For
 selectField alpha items = alpha (?formContext, items, Proxy :: Proxy value)
 
 class CanSelect model where
-    type SelectValue model :: GHC.Types.*
+    type SelectValue model :: GHC.Types.Type
     selectLabel :: model -> Text
     selectValue :: model -> SelectValue model
 

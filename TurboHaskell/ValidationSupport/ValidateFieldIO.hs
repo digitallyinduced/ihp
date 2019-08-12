@@ -10,7 +10,6 @@ import           TurboHaskell.AuthSupport.Authorization
 import           TurboHaskell.ModelSupport
 import           TurboHaskell.NameSupport               (humanize)
 import           TurboHaskell.ValidationSupport.Types
-import           GHC.Generics
 import           GHC.Records
 import           GHC.TypeLits                         (KnownSymbol, Symbol)
 import Control.Monad.State

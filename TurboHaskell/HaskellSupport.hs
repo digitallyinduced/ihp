@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
-module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, (==>), get, set, ifOrEmpty, modify) where
+module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, (==>), get, set, ifOrEmpty, modify, SetField (..), UpdateField (..)) where
 
 import ClassyPrelude
 import Control.Monad (when)
@@ -8,8 +8,7 @@ import qualified Data.UUID
 import Data.Proxy
 import GHC.TypeLits
 import GHC.OverloadedLabels
-import Control.Lens hiding ((|>), set)
-import Data.Generics.Product
+import qualified GHC.Records as Record
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
@@ -35,20 +34,27 @@ whenNonEmpty condition = when (not (isEmpty condition))
 instance Data.Default.Default Data.UUID.UUID where
     def = Data.UUID.nil
 
-(==>) :: forall model attribute value. (KnownSymbol attribute, HasField' attribute model value) => model -> Proxy attribute -> value
-(==>) struct _ = getField @attribute struct
+(==>) :: forall model attribute value. (KnownSymbol attribute, Record.HasField attribute model value) => model -> Proxy attribute -> value
+(==>) struct _ = Record.getField @attribute struct
 
 instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
     fromLabel = Proxy @name'
 
 {-# INLINE get #-}
-get :: forall model name value. (KnownSymbol name, HasField' name model value, Generic model) => Proxy name -> model -> value
-get _ record = getField @name record
+get :: forall model name value. (KnownSymbol name, Record.HasField name model value) => Proxy name -> model -> value
+get _ record = Record.getField @name record
 
 {-# INLINE set #-}
-set :: forall model name value. (KnownSymbol name, HasField' name model value, Generic model) => Proxy name -> value -> model -> model
+set :: forall model name value. (KnownSymbol name, SetField name model value) => Proxy name -> value -> model -> model
 set name value record = setField @name value record
 
 {-# INLINE modify #-}
-modify :: forall model name value updateFunction. (KnownSymbol name, HasField' name model value) => Proxy name -> (value -> value) -> model -> model
-modify _ updateFunction model = let value = getField @name model in setField @name (updateFunction value) model
+modify :: forall model name value updateFunction. (KnownSymbol name, Record.HasField name model value, SetField name model value) => Proxy name -> (value -> value) -> model -> model
+modify _ updateFunction model = let value = Record.getField @name model in setField @name (updateFunction value) model
+
+-- UpdateField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
+class SetField (field :: GHC.TypeLits.Symbol) model value | field model -> value where
+    setField :: value -> model -> model
+
+class UpdateField (field :: GHC.TypeLits.Symbol) model model' value value' | model model' value' -> value where
+    updateField :: value' -> model -> model'

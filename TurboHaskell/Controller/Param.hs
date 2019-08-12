@@ -23,8 +23,6 @@ import qualified Data.ByteString.Char8 as Char8
 
 import GHC.TypeLits
 import Control.Lens ()
-import qualified Control.Lens as Lens
-import qualified Data.Generics.Product as Record
 import Data.Proxy
 import qualified Control.Monad.State.Lazy as State
 import TurboHaskell.ValidationSupport
@@ -33,6 +31,7 @@ import qualified Data.Dynamic as Dynamic
 import qualified GHC.Records
 import Control.Monad.State
 import qualified TurboHaskell.NameSupport as NameSupport
+import TurboHaskell.HaskellSupport
 
 {-# INLINE fileOrNothing #-}
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
@@ -174,7 +173,7 @@ instance FillParams ('[]) record where
 
 instance (FillParams rest record
     , KnownSymbol fieldName
-    , Record.HasField' fieldName record fieldType
+    , SetField fieldName record fieldType
     , FromParameter fieldType
     ) => FillParams (fieldName:rest) record where
     fill record = do
@@ -185,7 +184,7 @@ instance (FillParams rest record
                     Left error -> do
                         attachFailure (Proxy @fieldName) (cs error)
                         fill @rest record
-                    Right (value :: fieldType) -> fill @rest (Record.setField @fieldName value record)
+                    Right (value :: fieldType) -> fill @rest (setField @fieldName value record)
             Nothing -> fill @rest record
 
 

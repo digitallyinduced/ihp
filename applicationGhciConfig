@@ -29,5 +29,6 @@
 :set -XLambdaCase
 :set -XDefaultSignatures
 :set -XEmptyDataDeriving
+:set -XBangPatterns
 :set -package turbohaskell
 :set -fbyte-code

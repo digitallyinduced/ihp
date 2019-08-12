@@ -16,7 +16,6 @@ module TurboHaskell.ControllerPrelude
     , module Network.Wai.Parse
     , module TurboHaskell.RouterSupport
     , module Control.Newtype.Generics
-    , module Data.Generics.Product
     , module TurboHaskell.ValidationSupport
     ) where
 import           ClassyPrelude hiding (pack, unpack)
@@ -38,6 +37,3 @@ import Network.Wai.Parse (FileInfo, fileContent)
 import TurboHaskell.RouterSupport hiding (get, post)
 import TurboHaskell.Controller.Redirect
 import Control.Newtype.Generics
-
-import Control.Lens ()
-import Data.Generics.Product (setField)

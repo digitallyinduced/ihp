@@ -24,7 +24,6 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
 import TurboHaskell.DatabaseSupport.Point
-import GHC.Generics
 import Data.Data
 import qualified Control.Newtype.Generics as Newtype
 import TurboHaskell.SchemaTypes
@@ -118,9 +117,7 @@ instance IsNewId () where isNewId _ = True
 instance IsNewId UUID where isNewId _ = False
 instance IsNewId (FieldWithDefault valueType) where isNewId _ = True
 
-type family GetModelName model :: Symbol where
-    GetModelName (M1 D ('MetaData name _ _ _) f ()) = name
-    GetModelName a = GetModelName (Rep a ())
+type family GetModelName model :: Symbol
 
 {-# INLINE getModelName #-}
 getModelName :: forall model. KnownSymbol (GetModelName model) => Text
@@ -206,7 +203,7 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
 
 data ModelBuilder :: Attribute' Symbol -> Type
 
-data FieldWithDefault valueType = Default | NonDefault valueType deriving (Eq, Show, Generic)
+data FieldWithDefault valueType = Default | NonDefault valueType deriving (Eq, Show)
 
 instance Default (FieldWithDefault valueType) where
     def = Default
