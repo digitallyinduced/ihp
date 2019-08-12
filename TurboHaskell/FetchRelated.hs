@@ -2,9 +2,6 @@
 
 module TurboHaskell.FetchRelated (fetchRelated, collectionFetchRelated) where
 
-import Control.Lens hiding ((|>))
-import Data.Generics.Product
-import GHC.Generics
 import TurboHaskell.HaskellSupport
 import ClassyPrelude hiding (UTCTime, find)
 import qualified ClassyPrelude
@@ -24,6 +21,7 @@ import GHC.OverloadedLabels
 import Data.String.Conversions (cs)
 import GHC.TypeLits
 import GHC.Types
+import GHC.Records
 import Data.Proxy
 import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById)
 import qualified TurboHaskell.ModelSupport
@@ -33,17 +31,17 @@ import TurboHaskell.QueryBuilder
 
 collectionFetchRelated :: forall model relatedField relatedFieldValue relatedModel. (
         ?modelContext :: ModelContext,
-        HasField' relatedField model relatedFieldValue,
-        HasField' "id" relatedModel relatedFieldValue,
-        HasField relatedField model (TurboHaskell.ModelSupport.Include relatedField model) relatedFieldValue relatedModel,
+        HasField relatedField model relatedFieldValue,
+        HasField "id" relatedModel relatedFieldValue,
+        UpdateField relatedField model (TurboHaskell.ModelSupport.Include relatedField model) relatedFieldValue relatedModel,
         Fetchable relatedFieldValue relatedModel,
         KnownSymbol (GetTableName relatedModel),
         PG.FromRow relatedModel,
-        HasField' relatedField model relatedFieldValue,
+        HasField relatedField model relatedFieldValue,
         Eq relatedFieldValue,
         ToField relatedFieldValue,
         KnownSymbol relatedField,
-        HasField' "id" relatedModel relatedFieldValue
+        HasField "id" relatedModel relatedFieldValue
     ) => Proxy relatedField -> [model] -> IO [TurboHaskell.ModelSupport.Include relatedField model]
 collectionFetchRelated relatedField model = do
     relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, map (getField @relatedField) model) |> fetch
@@ -54,7 +52,7 @@ collectionFetchRelated relatedField model = do
                 relatedModel :: relatedModel
                 (Just relatedModel) = ClassyPrelude.find (\r -> (getField @"id" r :: relatedFieldValue) == (getField @relatedField model :: relatedFieldValue)) relatedModels
             in
-                model & field @relatedField .~ relatedModel
+                updateField @relatedField relatedModel model
 
     let
         result :: [TurboHaskell.ModelSupport.Include relatedField model]
@@ -63,13 +61,13 @@ collectionFetchRelated relatedField model = do
 
 fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
-        HasField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
-        HasField' field model fieldValue,
+        UpdateField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
+        HasField field model fieldValue,
         PG.FromRow fetchModel,
         KnownSymbol (GetTableName fetchModel),
         Fetchable fieldValue fetchModel
     ) => Proxy field -> model -> IO (Include field model)
 fetchRelated relatedField model = do
     result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
-    let model' = model & field @field .~ result
+    let model' = updateField @field result model
     return model'

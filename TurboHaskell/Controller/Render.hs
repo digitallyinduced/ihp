@@ -30,8 +30,7 @@ import Text.Blaze.Html (Html)
 import Database.PostgreSQL.Simple as PG
 
 import Control.Monad.Reader
-import Control.Lens hiding ((|>), view)
-import Data.Generics.Product
+import GHC.Records
 
 {-# INLINE renderPlain #-}
 renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ResponseReceived
@@ -40,11 +39,11 @@ renderPlain text = do
     respond $ responseLBS status200 [] (cs text)
 
 {-# INLINE renderHtml #-}
-renderHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField' "layout" viewContext ViewSupport.Layout, Generic viewContext, ?controllerContext :: ViewSupport.ControllerContext viewContext) => ViewSupport.HtmlWithContext viewContext -> IO ResponseReceived
+renderHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ViewSupport.ControllerContext viewContext) => ViewSupport.HtmlWithContext viewContext -> IO ResponseReceived
 renderHtml html = do
     let (RequestContext request respond _ _ _) = ?requestContext
     viewContext <- ViewSupport.createViewContext
-    let layout = get #layout viewContext
+    let layout = getField @"layout" viewContext
     let boundHtml = let ?viewContext = viewContext in layout html
     respond $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder boundHtml)
 
@@ -110,7 +109,7 @@ polymorphicRender = PolymorphicRender () ()
 
 
 {-# INLINE render #-}
-render :: (ViewSupport.View view, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, viewContext ~ ViewSupport.ViewContextForView view, Generic viewContext, HasField' "layout" viewContext ViewSupport.Layout, ?controllerContext :: ViewSupport.ControllerContext viewContext) => view -> IO ResponseReceived
+render :: (ViewSupport.View view, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, viewContext ~ ViewSupport.ViewContextForView view, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ViewSupport.ControllerContext viewContext) => view -> IO ResponseReceived
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = renderHtml (ViewSupport.html view)

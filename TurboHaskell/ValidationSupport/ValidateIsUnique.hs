@@ -1,9 +1,6 @@
 module TurboHaskell.ValidationSupport.ValidateIsUnique (validateIsUnique) where
 
 import           ClassyPrelude
-import           Control.Lens                         hiding ((|>))
-import           Data.Generics.Product
-import           Data.Generics.Product.Types
 import           Data.Proxy
 import qualified Data.Text                            as Text
 import qualified Data.UUID
@@ -14,7 +11,7 @@ import           TurboHaskell.ModelSupport
 import           TurboHaskell.NameSupport               (humanize)
 import           TurboHaskell.ValidationSupport.Types
 import           GHC.Generics
-import           GHC.Records                          hiding (HasField, getField)
+import           GHC.Records
 import           GHC.TypeLits                         (KnownSymbol, Symbol)
 import Control.Monad.State
 import TurboHaskell.HaskellSupport hiding (get)
@@ -26,13 +23,12 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , ?modelContext :: ModelContext
         , PG.FromRow savedModel
         , KnownSymbol field
-        , HasField' field model fieldValue
-        , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
-        , HasField' field savedModel fieldValue
+        , HasField field model fieldValue
+        , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
         , PG.ToField fieldValue
         , EqOrIsOperator fieldValue
-    ) => Proxy field -> model -> StateT (ValidatorResultFor model) IO model
+    ) => Proxy field -> model -> StateT [(Text, Text)] IO model
 validateIsUnique fieldProxy model = do
     let value = getField @field model
     result <- query @savedModel

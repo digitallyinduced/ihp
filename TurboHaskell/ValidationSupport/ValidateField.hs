@@ -1,14 +1,11 @@
 module TurboHaskell.ValidationSupport.ValidateField where
 
 import           ClassyPrelude
-import           Control.Lens                         hiding ((|>))
-import           Data.Generics.Product
-import           Data.Generics.Product.Types
 import           Data.Proxy
 import           TurboHaskell.NameSupport               (humanize)
 import           TurboHaskell.ValidationSupport.Types
-import           GHC.Generics
 import           GHC.TypeLits                         (KnownSymbol, Symbol)
+import GHC.Records
 import Control.Monad.State
 
 type Validator2 value = value -> ValidatorResult
@@ -16,17 +13,13 @@ type Validator2 value = value -> ValidatorResult
 {-# INLINE validateField #-}
 validateField :: forall field validator model validationState fieldValue. (
         KnownSymbol field
-        , HasField' field model fieldValue
-        -- , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
-        , Generic (ValidatorResultFor model)
-        , Generic model
-        , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
-    ) => Proxy field -> Validator2 fieldValue -> model -> StateT (ValidatorResultFor model) IO model
+        , HasField field model fieldValue
+    ) => Proxy field -> Validator2 fieldValue -> model -> StateT [(Text, Text)] IO model
 validateField field validator model = do
-    validationState :: ValidatorResultFor model <- get
-    let value :: ValidatorResult = validator (getField @field model)
-    attachValidatorResult field value
-    return model
+    validationState <- get
+    case validator (getField @field model) of
+        Failure message -> do attachFailure field message; return model
+        Success -> return model
 
 {-# INLINE validateNothing #-}
 validateNothing :: forall s. StateT s IO ()
