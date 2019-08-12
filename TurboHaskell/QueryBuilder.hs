@@ -142,10 +142,10 @@ instance Fetchable (QueryBuilder model) model where
             Nothing -> error "Cannot find model"
 
 {-# INLINE genericFetchId #-}
-genericFetchId :: forall model value. (Generic model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO [model]
+genericFetchId :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO [model]
 genericFetchId !id = query @model |> filterWhere (#id, id) |> fetch
 {-# INLINE genericfetchIdOneOrNothing #-}
-genericfetchIdOneOrNothing :: forall model value. (Generic model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO (Maybe model)
+genericfetchIdOneOrNothing :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO (Maybe model)
 genericfetchIdOneOrNothing !id = query @model |> filterWhere (#id, id) |> fetchOneOrNothing
 {-# INLINE genericFetchIdOne #-}
 genericFetchIdOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField' "id" model value) => value -> IO model
@@ -260,13 +260,13 @@ queryUnion = UnionQueryBuilder
 queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr a b queryBuilder = (a queryBuilder) `UnionQueryBuilder` (b queryBuilder)
 
-instance (Generic model, model ~ GetModelById (Id' model'), HasField' "id" model id, id ~ Id' model') => Fetchable (Id' model') model where
+instance (model ~ GetModelById (Id' model'), HasField' "id" model id, id ~ Id' model') => Fetchable (Id' model') model where
     type FetchResult (Id' model') model = model
     fetch = genericFetchIdOne
     fetchOneOrNothing = genericfetchIdOneOrNothing
     fetchOne = genericFetchIdOne
 
-instance (Generic model, model ~ GetModelById (Id' model'), HasField' "id" model id, id ~ Id' model') => Fetchable (Maybe (Id' model')) model where
+instance (model ~ GetModelById (Id' model'), HasField' "id" model id, id ~ Id' model') => Fetchable (Maybe (Id' model')) model where
     type FetchResult (Maybe (Id' model')) model = [model]
     fetch (Just a) = genericFetchId a
     fetchOneOrNothing Nothing = return Nothing

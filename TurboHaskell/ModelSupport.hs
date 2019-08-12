@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, FunctionalDependencies #-}
 
 module TurboHaskell.ModelSupport where
 
@@ -198,6 +198,8 @@ type instance Eval tableName (Const a _) = a
 
 
 type family New model
+type family Curry x f
+type family Apply x f
 
 type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
@@ -219,3 +221,43 @@ class Record model where
 -- NormalizeModel (Include "author_id" Post) = Post
 -- NormalizeModel NewPost = Post
 type NormalizeModel model = GetModelByTableName (GetTableName model)
+
+class ApplyRecord f x where
+    applyRecord :: f -> x -> Apply x f
+
+class ValuesOf record where
+    type ValuesOfType record :: GHC.Types.Type
+    valuesOf :: record -> [ValuesOfType record]
+
+class Build record buildType | record -> buildType where
+    build :: buildType
+
+class EitherRecord record where
+    type EitherRecordLeft record :: GHC.Types.Type
+    type EitherRecordFromRight record :: GHC.Types.Type
+    recordLefts :: record -> [EitherRecordLeft record]
+    recordFromRight :: record -> EitherRecordFromRight record
+
+applyColumnNames :: forall curriedRecord appliedRecord. (ColumnNames curriedRecord, ApplyRecord curriedRecord (ColumnNamesRecord curriedRecord)) => curriedRecord -> Apply (ColumnNamesRecord curriedRecord) curriedRecord
+applyColumnNames curriedRecord = applyRecord curriedRecord (columnNames (Proxy @curriedRecord))
+
+type family RecordReader record
+
+
+fromReq :: forall appliedRecord curriedRecord record newRecord.
+    ( ColumnNames curriedRecord
+    , ApplyRecord curriedRecord (ColumnNamesRecord curriedRecord)
+    , newRecord ~ (New (NormalizeModel curriedRecord))
+    , newRecord ~ EitherRecordFromRight (Apply (ColumnNamesRecord curriedRecord) curriedRecord)
+    , EitherRecord (Apply (ColumnNamesRecord curriedRecord) curriedRecord)
+    , curriedRecord ~ RecordReader (New (NormalizeModel curriedRecord))
+    ) => curriedRecord -> Either newRecord newRecord
+fromReq record = let
+        appliedRecord = applyColumnNames record
+        -- eithers :: [ValuesOfType appliedRecord] = valuesOf appliedRecord
+        -- (lefts, rigths) = partitionEithers eithers
+        lefts = recordLefts appliedRecord
+    in
+        if ClassyPrelude.null lefts
+            then Right (recordFromRight appliedRecord)
+            else Left (recordFromRight appliedRecord)

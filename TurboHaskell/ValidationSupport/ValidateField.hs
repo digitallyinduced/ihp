@@ -9,40 +9,22 @@ import           GHC.TypeLits                         (KnownSymbol, Symbol)
 import GHC.Records
 import Control.Monad.State
 
-type Validator2 value = value -> ValidatorResult
-
-{-# INLINE validateField #-}
-validateField :: forall field validator model validationState fieldValue. (
-        KnownSymbol field
-        , HasField field model fieldValue
-        , Generic model
-    ) => Proxy field -> Validator2 fieldValue -> model -> StateT [(Text, Text)] IO model
-validateField field validator model = do
-    validationState <- get
-    case validator (getField @field model) of
-        Failure message -> do attachFailure field message; return model
-        Success -> return model
-
-{-# INLINE validateNothing #-}
-validateNothing :: forall s. StateT s IO ()
-validateNothing = return ()
-
 {-# INLINE nonEmpty #-}
-nonEmpty :: Text -> ValidatorResult
-nonEmpty "" = Failure "This field cannot be empty"
-nonEmpty _ = Success
+nonEmpty :: Text -> Either Text Text
+nonEmpty "" = Left "This field cannot be empty"
+nonEmpty value = Right value
 
 {-# INLINE isPhoneNumber #-}
-isPhoneNumber :: Text -> ValidatorResult
-isPhoneNumber text | "+" `isPrefixOf` text && length text > 5 = Success
-isPhoneNumber text = Failure "is not a valid phone number (has to start with +, at least 5 characters)"
+isPhoneNumber :: Text -> Either Text Text
+isPhoneNumber text | "+" `isPrefixOf` text && length text > 5 = Right text
+isPhoneNumber text = Left "is not a valid phone number (has to start with +, at least 5 characters)"
 
 {-# INLINE isEmail #-}
-isEmail :: Text -> ValidatorResult
-isEmail text | "@" `isInfixOf` text = Success
-isEmail text = Failure "is not a valid email"
+isEmail :: Text -> Either Text Text
+isEmail text | "@" `isInfixOf` text = Right text
+isEmail text = Left "is not a valid email"
 
 {-# INLINE isInRange #-}
-isInRange :: (Show value, Ord value) => (value, value) -> value -> ValidatorResult
-isInRange (min, max) value | value >= min && value <= max = Success
-isInRange (min, max) value = Failure (" has to be between " <> tshow min <> " and " <> tshow max)
+isInRange :: (Show value, Ord value) => (value, value) -> value -> Either Text value
+isInRange (min, max) value | value >= min && value <= max = Right value
+isInRange (min, max) value = Left (" has to be between " <> tshow min <> " and " <> tshow max)

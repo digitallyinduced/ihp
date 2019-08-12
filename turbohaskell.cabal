@@ -146,6 +146,7 @@ Library TurboHaskellFramework
         , TypeOperators
         , DeriveDataTypeable
         , DefaultSignatures
+        , BangPatterns
     Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200
 
 
@@ -236,6 +237,7 @@ Executable RunDevServer
         , DeriveDataTypeable
         , DefaultSignatures
         , LambdaCase
+        , BangPatterns
     Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 "-with-rtsopts=-A512m -n4m"
 
 Executable RunLiveReloadNotificationServer
@@ -324,6 +326,7 @@ Executable RunLiveReloadNotificationServer
         , TypeOperators
         , DeriveDataTypeable
         , DefaultSignatures
+        , BangPatterns
     Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 "-with-rtsopts=-A512m -n4m"
 
 
@@ -415,4 +418,5 @@ Executable new-application
         , DeriveDataTypeable
         , DefaultSignatures
         , LambdaCase
+        , BangPatterns
     Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 "-with-rtsopts=-A512m -n4m"

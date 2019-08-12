@@ -548,7 +548,7 @@ selectField :: forall alpha attributeName model value item. (?formContext :: For
 selectField alpha items = alpha (?formContext, items, Proxy :: Proxy value)
 
 class CanSelect model where
-    type SelectValue model :: GHC.Types.*
+    type SelectValue model :: GHC.Types.Type
     selectLabel :: model -> Text
     selectValue :: model -> SelectValue model
 

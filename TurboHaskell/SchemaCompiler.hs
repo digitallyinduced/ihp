@@ -110,7 +110,7 @@ compileTypes' table@(Table name attributes) =
     <> section
     <> compileFromRowInstance table
     <> section
-
+    <> compileApplyRecord table
     <> section
     <> compileHasTableNameInstance table
     <> section
@@ -126,6 +126,14 @@ compileTypes' table@(Table name attributes) =
     <> compileUpdate table
     <> section
     <> compileBuild table
+    <> section
+    <> compileBuild2 table
+    <> section
+    <> compileValuesOf table
+    <> section
+    <> compileEitherRecord table 
+    <> section
+    <> compileRecordReader table
     <> section
 
 
@@ -144,6 +152,8 @@ compileNewTypeAlias table@(Table name attributes) =
         <> "type NewOrSaved" <> tableNameToModelName name <> " " <> newOrSavedArgs <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map compileNewOrSavedAttribute attributes) <> "\n"
         <> "type instance New (" <> compileTypePattern table <> ") = New" <> tableNameToModelName name <> "\n"
         <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
+        <> "type instance Curry x (" <> compileTypePattern table <> ") = " <> tableNameToModelName name <> "' " <> unwords (map (\arg -> "(x -> " <> arg <> ")") $ getTypeArgs table) <> "\n"
+        <> "type instance Apply (" <> tableNameToModelName name <> "' " <> unwords (map (const "x") (getTypeArgs table)) <> ") (" <> tableNameToModelName name <> "' " <> unwords (map (\arg -> "(x -> " <> arg <> ")") $ getTypeArgs table) <> ") = " <> tableNameToModelName name <> "' " <> unwords (map (\arg -> "(" <> arg <> ")") $ getTypeArgs table) <> "\n"
     where
         compileAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = "(FieldWithDefault " <> haskellType table field <> ")"
         compileAttribute field = haskellType table field
@@ -330,6 +340,20 @@ compileBuild table@(Table name attributes) =
         <> "    newRecord = " <> tableNameToModelName name <> " " <> intercalate " " (map (const "def") attributes) <> "\n"
 
 
+compileBuild2 :: Table -> Text
+compileBuild2 table@(Table name attributes) =
+            "instance Build New" <> tableNameToModelName name <> " " <> resultType <> " where\n"
+            <> "    build = " <> tableNameToModelName name <> " " <> unwords (map compileAttribute attributes) <> "\n"
+        where
+            compileAttribute (Field fieldName fieldType) | isJust (defaultValue fieldType) = "(const (Right Default))"
+            compileAttribute (HasMany {}) = "(const (Right QueryBuilder.query))"
+            compileAttribute _ = "(const (Right ()))"
+
+            compileType field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = "(ByteString -> Either Text (FieldWithDefault " <> haskellType table field <> "))"
+            compileType attribute@(HasMany hasManyName inverseOf) = "(ByteString -> Either Text (" <> haskellType table attribute <> "))"
+            compileType (Field fieldName _) = "(ByteString -> Either Text ())"
+
+            resultType = "(" <> tableNameToModelName name <> "' " <> unwords (map compileType attributes) <> ")"
 
 compileCanValidate2 :: Table -> Text
 compileCanValidate2 table@(Table name attributes) =
@@ -351,7 +375,10 @@ compileDataTypePattern table@(Table name attributes) = tableNameToModelName name
 
 
 compileTypePattern :: Table -> Text
-compileTypePattern table@(Table name attributes) = tableNameToModelName name <> "' " <> intercalate " " (map compileAttribute attributes)
+compileTypePattern table@(Table name attributes) = tableNameToModelName name <> "' " <> intercalate " " (getTypeArgs table)
+
+getTypeArgs :: Table -> [Text]
+getTypeArgs table@(Table name attributes) = map compileAttribute attributes
     where
         compileAttribute :: Attribute -> Text
         compileAttribute (Field name _) = name
@@ -393,6 +420,58 @@ compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compi
                         (Field fieldName _) -> fieldName
                         (HasMany {name}) -> name 
 
+compileApplyRecord :: Table -> Text
+compileApplyRecord table@(Table tableName attributes) =
+    "instance ApplyRecord (" <> typeLevelFunctionPattern <> ") (" <> typeLevelArgPattern <> ") where applyRecord (" <> functionPattern <> ") (" <> argumentPattern <> ") = " <> application
+    where
+        typeLevelFunctionPattern :: Text
+        typeLevelFunctionPattern = (tableNameToModelName tableName) <> "' " <> unwords (map (\arg -> "(x -> v_" <> arg <> ")") (getTypeArgs table))
+        typeLevelArgPattern :: Text
+        typeLevelArgPattern = (tableNameToModelName tableName) <> "' " <> unwords (map (const "x") (getTypeArgs table))
+
+        application :: Text
+        application = (tableNameToModelName tableName) <> " " <> unwords (map (\arg -> "(f_" <> arg <> " x_" <> arg <> ")") (getTypeArgs table))
+
+        functionPattern :: Text
+        functionPattern = (tableNameToModelName tableName) <> " " <> unwords (map (\arg -> "f_" <> arg) (getTypeArgs table))
+
+        argumentPattern :: Text
+        argumentPattern = (tableNameToModelName tableName) <> " " <> unwords (map (\arg -> "x_" <> arg) (getTypeArgs table))
+
+compileValuesOf :: Table -> Text
+compileValuesOf table@(Table tableName attributes) =
+    "instance ValuesOf (" <> typeLevelFunctionPattern <> ") where\n"
+    <> "    type ValuesOfType (" <> typeLevelFunctionPattern <> ") = v\n"
+    <> "    valuesOf (" <> functionPattern <> ") = " <> result
+    where
+        typeLevelFunctionPattern :: Text
+        typeLevelFunctionPattern = (tableNameToModelName tableName) <> "' " <> unwords (map (const "v") (getTypeArgs table))
+
+        functionPattern :: Text
+        functionPattern = (tableNameToModelName tableName) <> " " <> unwords patterns
+
+        result :: Text
+        result = "[" <> (intercalate ", " patterns) <> "]"
+        
+        patterns = getTypeArgs table
+            |> zip [1..]
+            |> map (\(i, _) -> "v" <> tshow i)
+
+
+compileEitherRecord :: Table -> Text
+compileEitherRecord table@(Table tableName attributes) =
+        "instance EitherRecord (" <> typeLevelPattern <> ") where\n"
+        <> "    type EitherRecordLeft (" <> typeLevelPattern <> ") = left\n"
+        <> "    type EitherRecordFromRight (" <> typeLevelPattern <> ") = " <> fromRightType <> "\n"
+        <> "    recordLefts " <> tableNameToModelName tableName <> " {" <> intercalate ", " (map columnNameToFieldName (getTypeArgs table)) <> "} = " <> "catMaybes [" <> intercalate ", " (map (\f -> "(case " <> columnNameToFieldName f <> " of {Left l -> Just l; Right _ -> Nothing})") (getTypeArgs table)) <> "]\n"
+        <> "    recordFromRight " <> tableNameToModelName tableName <> " {" <> intercalate ", " (map columnNameToFieldName (getTypeArgs table)) <> "} = " <> tableNameToModelName tableName <> unwords (map (\f -> "(case " <> columnNameToFieldName f <> " of {Left _ -> error \"recordFromRight: failed\"; Right r -> r})") (getTypeArgs table)) <> "\n"
+    where
+        typeLevelPattern = tableNameToModelName tableName <> "' " <> unwords (map compileTypePattern (getTypeArgs table))
+        compileTypePattern attributeName = "(Either left " <> attributeName <> ")"
+        fromRightType = tableNameToModelName tableName <> "' " <> unwords (getTypeArgs table)
+
+compileRecordReader :: Table -> Text
+compileRecordReader table@(Table tableName attributes) = "type instance RecordReader (" <> compileTypePattern table <> ") = " <> tableNameToModelName tableName <> "' "  <> unwords (map (\f -> "(ByteString -> Either Text " <> f <> ")") (getTypeArgs table))
 
 --compileAttributeBag :: Table -> Text
 --compileAttributeBag table@(Table name attributes) = "class To" <> tableNameToModelName name <> "Attributes where\n    to"
@@ -402,4 +481,3 @@ indent code =
     where
         indentLine ""   = ""
         indentLine line = "    " <> line
-

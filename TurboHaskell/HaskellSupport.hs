@@ -10,6 +10,7 @@ import GHC.TypeLits
 import GHC.OverloadedLabels
 import Control.Lens hiding ((|>), set)
 import Data.Generics.Product
+import qualified GHC.Records
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
@@ -42,8 +43,8 @@ instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Pr
     fromLabel = Proxy @name'
 
 {-# INLINE get #-}
-get :: forall model name value. (KnownSymbol name, HasField' name model value, Generic model) => Proxy name -> model -> value
-get _ record = getField @name record
+get :: forall model name value. (KnownSymbol name, GHC.Records.HasField name model value) => Proxy name -> model -> value
+get _ record = GHC.Records.getField @name record
 
 {-# INLINE set #-}
 set :: forall model name value. (KnownSymbol name, HasField' name model value, Generic model) => Proxy name -> value -> model -> model
