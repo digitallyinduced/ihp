@@ -235,7 +235,7 @@ uploadFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol).
     ) => Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
 uploadFile _ user =
     let
-        fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
+        fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
         imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture.png"
