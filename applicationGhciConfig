@@ -30,5 +30,6 @@
 :set -XDefaultSignatures
 :set -XEmptyDataDeriving
 :set -XBangPatterns
+:set -XBlockArguments
 :set -package turbohaskell
 :set -fbyte-code
