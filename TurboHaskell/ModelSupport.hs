@@ -121,8 +121,7 @@ type family GetModelName model :: Symbol
 
 {-# INLINE getModelName #-}
 getModelName :: forall model. KnownSymbol (GetModelName model) => Text
-getModelName = dropEnd 1 (cs $! symbolVal (Proxy :: Proxy (GetModelName model)))
-
+getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 newtype Id' table = Id UUID deriving (Eq, Data)
 
 -- We need to map the model to it's table name to prevent infinite recursion in the model data definition
