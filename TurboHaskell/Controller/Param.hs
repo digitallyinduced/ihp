@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType, BlockArguments #-}
 
 module TurboHaskell.Controller.Param where
 import           ClassyPrelude
@@ -13,7 +13,7 @@ import           TurboHaskell.Controller.RequestContext
 import           TurboHaskell.HaskellSupport
 import qualified Network.URI
 import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
-import Network.Wai.Parse (FileInfo)
+import Network.Wai.Parse (FileInfo, fileContent)
 import qualified Data.UUID
 import Data.UUID (UUID)
 import qualified TurboHaskell.ModelSupport as ModelSupport
@@ -28,10 +28,15 @@ import qualified Control.Monad.State.Lazy as State
 import TurboHaskell.ValidationSupport
 import Data.Default
 import qualified Data.Dynamic as Dynamic
-import qualified GHC.Records
+import GHC.Records
 import Control.Monad.State
 import qualified TurboHaskell.NameSupport as NameSupport
 import TurboHaskell.HaskellSupport
+import qualified Data.ByteString.Lazy as LBS
+import qualified System.Process as Process
+import qualified Control.Monad.State.Lazy as State
+import GHC.TypeLits
+import Data.Proxy
 
 {-# INLINE fileOrNothing #-}
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
@@ -215,3 +220,30 @@ runPipeline model pipeline = do
 
 ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> StateT [(Text, Text)] IO record) -> record -> StateT [(Text, Text)] IO record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else return record
+
+
+
+uploadFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+        ?requestContext :: RequestContext
+        , ?modelContext :: ModelSupport.ModelContext
+        , ?controllerContext :: context
+        , SetField fieldName record (Maybe Text)
+        , KnownSymbol fieldName
+        , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
+        , tableName ~ ModelSupport.GetTableName record
+        , KnownSymbol tableName
+    ) => Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
+uploadFile _ user =
+    let
+        fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
+        tableName :: Text = cs (symbolVal (Proxy @tableName))
+        uploadDir :: Text = "static"
+        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture.png"
+    in case fileOrNothing fieldName of
+        Just file | fileContent file /= "" -> liftIO do
+            _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")
+            (fileContent file) |> LBS.writeFile (cs $ uploadDir <> imagePath)
+            user
+                |> setField @fieldName (Just (cs imagePath :: Text))
+                |> return
+        Nothing -> return user
