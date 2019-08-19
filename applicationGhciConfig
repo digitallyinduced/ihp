@@ -31,5 +31,6 @@
 :set -XEmptyDataDeriving
 :set -XBangPatterns
 :set -XBlockArguments
+:set -XFunctionalDependencies
 :set -package turbohaskell
 :set -fbyte-code

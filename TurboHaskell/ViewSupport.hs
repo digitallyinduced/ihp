@@ -27,8 +27,10 @@ class CreateViewContext viewContext where
 
 
 
-class View theView where
-    type ViewContextForView theView :: *
-    html :: (?viewContext :: ViewContextForView theView) => theView -> Html5.Html
+class View theView viewContext | theView -> viewContext where
+    beforeRender :: (?viewContext :: viewContext) => (viewContext, theView) -> (viewContext, theView)
+    {-# INLINE beforeRender #-}
+    beforeRender view = view
+    html :: (?viewContext :: viewContext) => theView -> Html5.Html
     json :: theView -> JSON.Value
     json = error "Not implemented"

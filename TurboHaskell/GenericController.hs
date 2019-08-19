@@ -9,11 +9,12 @@ import Database.PostgreSQL.Simple.FromRow
 import TurboHaskell.ViewPrelude
 import TurboHaskell.ViewSupport
 import TurboHaskell.Controller.Context ()
+import qualified Text.Blaze.Html5 as Html5
 
 instance {-# OVERLAPPABLE #-} (RestfulController controller, Router.Child controller ~ controller, Eq controller, model ~ GetModelById (RestfulControllerId controller), KnownSymbol (GetTableName model), FromRow model, Show model, Generic model, HasField "id" model id, Show id) => Controller controller () where
     action theAction | isIndexAction @controller theAction = do
         models <- query @model |> fetch
-        renderHtml (indexView models)
+        renderHtml (renderLayout (indexView models))
 
     action otherwise = renderPlain "unsupported action"
 
@@ -22,8 +23,6 @@ data GenericControllerViewContext = GenericControllerViewContext
     { layout :: Layout
     }
     deriving (Generic)
-
-type Html' = HtmlWithContext GenericControllerViewContext
 
 renderLayout :: Layout
 renderLayout view = [hsx|
@@ -42,11 +41,7 @@ renderLayout view = [hsx|
 |]
 
 
-instance CreateViewContext GenericControllerViewContext where
-    type ControllerContext GenericControllerViewContext = ()
-    createViewContext = return GenericControllerViewContext { layout = renderLayout }
-
-indexView :: forall idType model. (Generic model, HasField "id" model idType, Show idType, Show model) => [model] -> Html'
+indexView :: forall idType model. (Generic model, HasField "id" model idType, Show idType, Show model) => [model] -> Html5.Html
 indexView models = [hsx|
     <div class="container">
         <h1>Models</h1>
