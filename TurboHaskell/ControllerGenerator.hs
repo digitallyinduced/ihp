@@ -36,7 +36,7 @@ main' database args = do
 
 
 isAlphaOnly :: Text -> Bool
-isAlphaOnly text = Text.all Char.isAlpha text
+isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
 gen database applicationName controllerName' = do
     let modelName = tableNameToModelName controllerName'

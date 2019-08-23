@@ -242,12 +242,14 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
             editAction' :: RestfulControllerId controller -> Child controller
             editAction' memberId = fromJust (editAction @controller) $ memberId
         in (string (basePath @controller)) >> (
-            string "/" >> (string "new" >> get (newAction'))
+            string "/" >> ((string "new" >> get (newAction'))
                 <|> (do
                     memberId <- parsePathArgument
-                    (string "/" >> ((string "edit" >> get (editAction' memberId)) <|> (customActions ((showAction' memberId)) >>= return ) ))
+                    let edit = (string "edit" >> get (editAction' memberId))
+                    let custom = (customActions ((showAction' memberId)) >>= return )
+                    (string "/" >> (custom <|> edit))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
-                )
+                ))
             )
             <|> onGetOrPost (indexAction') (createAction')
 
