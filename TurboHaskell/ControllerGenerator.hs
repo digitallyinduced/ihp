@@ -130,7 +130,7 @@ generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
         name = get #controllerName config
-        singularName = tableNameToModelName name
+        singularName = get #modelName config
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
     in 

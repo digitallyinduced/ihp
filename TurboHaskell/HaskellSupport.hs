@@ -56,5 +56,5 @@ modify _ updateFunction model = let value = Record.getField @name model in setFi
 class SetField (field :: GHC.TypeLits.Symbol) model value | field model -> value where
     setField :: value -> model -> model
 
-class UpdateField (field :: GHC.TypeLits.Symbol) model model' value value' | model model' value' -> value where
+class Record.HasField field model value => UpdateField (field :: GHC.TypeLits.Symbol) model model' value value' | model model' value' -> value where
     updateField :: value' -> model -> model'
