@@ -246,4 +246,4 @@ uploadFile _ user =
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
                 |> return
-        Nothing -> return user
+        _ -> return user
