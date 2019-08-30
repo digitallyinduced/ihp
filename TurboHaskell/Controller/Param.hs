@@ -131,7 +131,16 @@ instance FromParameter UUID where
 instance FromParameter UTCTime where
     {-# INLINE fromParameter #-}
     fromParameter (Just "") = Left "FromParameter UTCTime: Parameter missing"
-    fromParameter (Just byteString) = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" (cs byteString)
+    fromParameter (Just byteString) =
+        let
+            input = (cs byteString)
+            dateTime = parseTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
+            date = parseTime defaultTimeLocale "%Y-%-m-%d" input
+        in case dateTime of
+            Nothing -> case date of
+                Just value -> Right value
+                Nothing -> Left "FromParameter UTCTime: Failed parsing"
+            Just value -> Right value
     fromParameter Nothing = Left "FromParameter UTCTime: Parameter missing"
 
 instance FromParameter Point where

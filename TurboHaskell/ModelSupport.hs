@@ -77,6 +77,9 @@ instance InputValue UTCTime where
 instance InputValue ClassyPrelude.UTCTime where
     inputValue time = inputValue ((unsafeCoerce time) :: UTCTime)
 
+instance Default ClassyPrelude.UTCTime where
+    def = ClassyPrelude.UTCTime (unsafeCoerce 0) 0
+
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
