@@ -38,6 +38,8 @@ query = defaultScope NewQueryBuilder
 class DefaultScope model where
     defaultScope :: QueryBuilder model -> QueryBuilder model
 
+type instance ModelSupport.RecordDefaultValue (QueryBuilder a) = QueryBuilder a
+
 instance {-# OVERLAPPABLE #-} DefaultScope model where defaultScope queryBuilder = queryBuilder
 
 instance Default (QueryBuilder model) where

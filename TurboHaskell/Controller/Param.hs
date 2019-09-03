@@ -201,14 +201,6 @@ instance (FillParams rest record
                     Right (value :: fieldType) -> fill @rest (setField @fieldName value record)
             Nothing -> fill @rest record
 
-
-
-fromParams :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ModelSupport.Record record, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => IO (Either record record)
-fromParams = fromParams' (ModelSupport.newRecord @record)
-
-fromParams' :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> IO (Either record record)
-fromParams' record = fromRequest record
-
 type ParamPipeline record context = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: context, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> StateT [(Text, Text)] IO record
 class FromParams record context where
     build :: ParamPipeline record context
