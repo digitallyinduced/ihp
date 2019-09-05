@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
-module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, (==>), get, set, ifOrEmpty, modify, SetField (..), UpdateField (..)) where
+module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, (==>), get, set, ifOrEmpty, modify, SetField (..), UpdateField (..), incrementField, decrementField) where
 
 import ClassyPrelude
 import Control.Monad (when)
@@ -51,6 +51,14 @@ set name value record = setField @name value record
 {-# INLINE modify #-}
 modify :: forall model name value updateFunction. (KnownSymbol name, Record.HasField name model value, SetField name model value) => Proxy name -> (value -> value) -> model -> model
 modify _ updateFunction model = let value = Record.getField @name model in setField @name (updateFunction value) model
+
+{-# INLINE incrementField #-}
+incrementField :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value, Num value) => Proxy name -> model -> model
+incrementField _ model = let value = Record.getField @name model in setField @name (value + 1) model
+
+{-# INLINE decrementField #-}
+decrementField :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value, Num value) => Proxy name -> model -> model
+decrementField _ model = let value = Record.getField @name model in setField @name (value - 1) model
 
 -- UpdateField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
 class SetField (field :: GHC.TypeLits.Symbol) model value | field model -> value where
