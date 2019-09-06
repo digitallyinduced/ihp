@@ -9,6 +9,7 @@ import TurboHaskell.HaskellSupport
 import TurboHaskell.ControllerSupport  (RequestContext (RequestContext))
 import TurboHaskell.ModelSupport
 import qualified Data.Aeson as JSON
+import qualified Data.Text as Text
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 type Layout = Html5.Html -> Html5.Html
@@ -31,6 +32,9 @@ class View theView viewContext | theView -> viewContext where
     beforeRender :: (?viewContext :: viewContext) => (viewContext, theView) -> (viewContext, theView)
     {-# INLINE beforeRender #-}
     beforeRender view = view
-    html :: (?viewContext :: viewContext) => theView -> Html5.Html
+    html :: (?viewContext :: viewContext, ?view :: theView) => theView -> Html5.Html
     json :: theView -> JSON.Value
     json = error "Not implemented"
+
+currentViewId :: (?view :: view, Show view) => Text
+currentViewId = fst (Text.breakOn " " (tshow ?view))
