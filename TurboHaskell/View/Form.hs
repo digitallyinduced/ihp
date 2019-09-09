@@ -548,7 +548,11 @@ selectField alpha items = alpha (?formContext, items, Proxy :: Proxy value)
 class CanSelect model where
     type SelectValue model :: GHC.Types.Type
     selectLabel :: model -> Text
+    default selectLabel :: Show model => model -> Text
+    selectLabel = tshow
     selectValue :: model -> SelectValue model
+    default selectValue :: HasField "id" model (SelectValue model) => model -> SelectValue model
+    selectValue = getField @"id"
 
 instance ToHtml FormField where
     {-# INLINE toHtml #-}
