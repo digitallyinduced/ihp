@@ -103,7 +103,10 @@ toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
 toStringAttribute (name, TextValue value) = do
     let nameWithSuffix = " " <> name <> "=\""
     if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
-    [| (attribute name nameWithSuffix) value |]
+
+    if null value
+        then [| (attribute name nameWithSuffix) mempty |]
+        else [| (attribute name nameWithSuffix) (value :: Html5.AttributeValue) |]
 
 toStringAttribute (name, ExpressionValue code) = do
     let nameWithSuffix = " " <> name <> "=\""
