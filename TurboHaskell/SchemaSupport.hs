@@ -27,6 +27,9 @@ text = TextField { defaultValue = Nothing, references = Nothing, allowNull = Fal
 int :: FieldType Text
 int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
+integer :: FieldType Text
+integer = int
+
 enum :: [Text] -> FieldType Text
 enum values = EnumField { defaultValue = Nothing, references = Nothing, values, allowNull = False, isPrimaryKey = False, unique = False }
 
