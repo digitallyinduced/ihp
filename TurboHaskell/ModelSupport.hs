@@ -217,3 +217,6 @@ class Record model where
 -- NormalizeModel (Include "author_id" Post) = Post
 -- NormalizeModel NewPost = Post
 type NormalizeModel model = GetModelByTableName (GetTableName model)
+
+ids :: (HasField "id" record id) => [record] -> [id]
+ids records = map (getField @"id") records
