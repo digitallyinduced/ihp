@@ -429,8 +429,9 @@ compileSetFieldInstances table@(Table tableName attributes) = intercalate "\n" (
         compileSetField fieldName = "instance SetField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") " <> fieldName <> " where setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
             where
                 compileAttribute :: Attribute -> Text
-                compileAttribute (Field name _) = if fieldName == name then "newValue" else name
-                compileAttribute (HasMany {name}) = name
+                compileAttribute (Field name _) = compileAttribute' name
+                compileAttribute (HasMany {name}) = compileAttribute' name
+                compileAttribute' name = if fieldName == name then "newValue" else name
 
 compileUpdateFieldInstances :: Table -> Text
 compileUpdateFieldInstances table@(Table tableName attributes) = intercalate "\n" (map compileSetField' attributes)
