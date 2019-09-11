@@ -41,11 +41,6 @@ haskellType table (Field fieldName field) =
     in if allowNull field then "(Maybe " <> actualType <> ")" else actualType
 haskellType table (HasMany {name}) = "(QueryBuilder.QueryBuilder " <> tableNameToModelName name <> ")"
 
-
-haskellTypeWithDefault :: Table -> Attribute -> Text
-haskellTypeWithDefault table field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = "(FieldWithDefault " <> haskellType table field <> ")"
-haskellTypeWithDefault table field = haskellType table field
-
 compile :: [Table] -> IO ()
 compile database = do
     let validationErrors = validate database
@@ -150,11 +145,14 @@ compileTypeAlias table@(Table name attributes) =
 
 compileNewTypeAlias :: Table -> Text
 compileNewTypeAlias table@(Table name attributes) =
-        "type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map (haskellTypeWithDefault table) attributes) <> "\n"
+        "type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
         <> "type NewOrSaved" <> tableNameToModelName name <> " " <> newOrSavedArgs <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map compileNewOrSavedAttribute attributes) <> "\n"
         <> "type instance New (" <> compileTypePattern table <> ") = New" <> tableNameToModelName name <> "\n"
         <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
     where
+        compileAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = "(FieldWithDefault " <> haskellType table field <> ")"
+        compileAttribute field = haskellType table field
+
         compileNewOrSavedAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = fieldName
         compileNewOrSavedAttribute field = haskellType table field
 
@@ -227,9 +225,7 @@ compileEnumDataDefinitions table@(Table name attributes) =
         compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = return " <> tableNameToModelName value
         compileFromFieldInstanceForError = "fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
         compileFromFieldInstanceForNull = "fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\""
-        compileDefaultInstance (Field fieldName (EnumField {values})) =
-            "instance Default " <> tableNameToModelName fieldName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
-            <> "type instance RecordDefaultValue " <> tableNameToModelName fieldName <> " = " <> tableNameToModelName fieldName <> "\n"
+        compileDefaultInstance (Field fieldName (EnumField {values})) = "instance Default " <> tableNameToModelName fieldName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
 
         compileToFieldInstance (Field fieldName (EnumField { values })) = "instance ToField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" (map compileToFieldInstanceForValue values))
         compileToFieldInstanceForValue value = "toField " <> tableNameToModelName value <> " = toField (" <> tshow value <> " :: Text)"
@@ -336,14 +332,7 @@ compileFromRowInstance table@(Table name attributes) =
 compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
         "instance Record New" <> tableNameToModelName name <> " where\n"
-        <> "    type IncompleteNewRecord New" <> tableNameToModelName name <> " = " <> newRecordType <> "\n"
         <> "    newRecord = " <> tableNameToModelName name <> " " <> intercalate " " (map (const "def") attributes) <> "\n"
-
-    where
-        newRecordType :: Text
-        newRecordType = tableNameToModelName name <> "' " <> unwords (map compileAttribute attributes)
-            where
-                compileAttribute field = "(RecordDefaultValue (" <> haskellTypeWithDefault table field <> "))"
 
 
 

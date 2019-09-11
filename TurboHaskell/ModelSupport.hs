@@ -84,9 +84,12 @@ instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
 
-instance (HasField "id" entity Data.UUID.UUID) => InputValue entity where
+instance (HasField "id" entity id, InputValue id) => InputValue entity where
     {-# INLINE inputValue #-}
-    inputValue entity = Data.UUID.toText (getField @"id" entity)
+    inputValue entity =
+        entity
+        |> getField @"id"
+        |> inputValue
 
 instance Default Text where
     {-# INLINE def #-}
@@ -100,15 +103,8 @@ instance Default Point where
     {-# INLINE def #-}
     def = Point 0 0
 
-type family RecordDefaultValue field
-type instance RecordDefaultValue Text = Text
-type instance RecordDefaultValue Int = Int
-type instance RecordDefaultValue (Id' _) = ()
-type instance RecordDefaultValue UTCTime = ()
-type instance RecordDefaultValue ClassyPrelude.UTCTime = ()
-type instance RecordDefaultValue Bool = ()
-type instance RecordDefaultValue (Maybe a) = Maybe a
-type instance RecordDefaultValue (FieldWithDefault a) = FieldWithDefault a
+
+
 
 type FieldName = ByteString
 
@@ -215,8 +211,7 @@ instance Default (FieldWithDefault valueType) where
     def = Default
 
 class Record model where
-    type IncompleteNewRecord model :: Type
-    newRecord :: IncompleteNewRecord model
+    newRecord :: model
 
 -- Helper type to deal with models where relations are included or that are only partially fetched
 -- Examples:
