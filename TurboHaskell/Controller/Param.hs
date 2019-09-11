@@ -169,6 +169,14 @@ instance FromParameter param => FromParameter (ModelSupport.FieldWithDefault par
     fromParameter param | isJust param = fromParameter param
     fromParameter Nothing              = Right ModelSupport.Default
 
+instance FromParameter param => FromParameter (Maybe param) where
+    {-# INLINE fromParameter #-}
+    fromParameter param | isJust param =
+        case (fromParameter param) :: Either String param of
+            Right value -> Right (Just value)
+            Left error -> Left error
+    fromParameter Nothing = Right Nothing
+
 instance (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
     fromParameter (Just string) =
             case find (\value -> ModelSupport.inputValue value == string') allValues of

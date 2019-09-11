@@ -114,6 +114,7 @@ render !view = do
                 let ?viewContext = context'
                 let (context, view') = ViewSupport.beforeRender (context', view)
                 let layout = getField @"layout" context
+                let ?view = view'
                 let boundHtml = let ?viewContext = context in layout (ViewSupport.html view')
                 renderHtml (boundHtml)
             , json = renderJson (ViewSupport.json view)

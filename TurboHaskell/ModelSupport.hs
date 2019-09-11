@@ -84,13 +84,6 @@ instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
 
-instance (HasField "id" entity id, InputValue id) => InputValue entity where
-    {-# INLINE inputValue #-}
-    inputValue entity =
-        entity
-        |> getField @"id"
-        |> inputValue
-
 instance Default Text where
     {-# INLINE def #-}
     def = ""
@@ -140,6 +133,12 @@ instance InputValue (Id' model') where
     {-# INLINE inputValue #-}
     inputValue = inputValue . Newtype.unpack
 
+instance {-# OVERLAPPABLE #-} (HasField "id" entity (Id entity)) => InputValue entity where
+    {-# INLINE inputValue #-}
+    inputValue entity =
+        getField @"id" entity
+        |> Newtype.unpack
+        |> Data.UUID.toText
 
 instance FromField (Id' model) where
     {-# INLINE fromField #-}
@@ -218,3 +217,6 @@ class Record model where
 -- NormalizeModel (Include "author_id" Post) = Post
 -- NormalizeModel NewPost = Post
 type NormalizeModel model = GetModelByTableName (GetTableName model)
+
+ids :: (HasField "id" record id) => [record] -> [id]
+ids records = map (getField @"id") records

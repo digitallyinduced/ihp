@@ -47,7 +47,7 @@ gen database applicationName controllerName' = do
             , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
             , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
             , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
-            , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller\n") }
+            , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller") }
             ]
             <> generateViews database config
     evalActions generate
@@ -150,7 +150,7 @@ generateController database config =
     let
         applicationName = get #applicationName config
         name = config |> get #controllerName
-        singularName = tableNameToModelName name
+        singularName = config |> get #modelName
         moduleName =  applicationName <> ".Controller." <> name
         controllerName = name <> "Controller"
 
@@ -287,7 +287,7 @@ generateViews :: [Table] -> ControllerConfig -> [GeneratorAction]
 generateViews database config =
         let
             name = config |> get #controllerName
-            singularName = tableNameToModelName name
+            singularName = config |> get #modelName
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst name
 
@@ -298,7 +298,7 @@ generateViews database config =
                 <> "\n"
 
 
-            indexAction = Countable.pluralize (tableNameToModelName name) <> "Action"
+            indexAction = Countable.pluralize singularName <> "Action"
 
             modelFields :: [Text]
             modelFields = fieldsForTable database pluralVariableName

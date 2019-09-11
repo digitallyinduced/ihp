@@ -72,7 +72,7 @@ compileTypes database =
         prelude
         <> "\n\n"
         <> intercalate "\n\n" (map compileGeneric2DataDefinition database)
-        <> intercalate "\n\n" (map compileTypes' database)
+        <> intercalate "\n\n" (map (compileTypes' database) database)
         <> section
     where
         prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.hs` to customize the Types"
@@ -102,13 +102,13 @@ compileTypes database =
                   <> "import qualified Control.Applicative\n"
                   <> "import Database.PostgreSQL.Simple.Types (Query (Query))\n"
 
-compileTypes' table@(Table name attributes) =
+compileTypes' database table@(Table name attributes) =
     "-- Types for " <> cs name <> "\n\n"
     <> compileTypeAlias table
     <> compileNewTypeAlias table
     <> compileEnumDataDefinitions table
     <> section
-    <> compileFromRowInstance table
+    <> compileFromRowInstance table database
     <> section
 
     <> section
@@ -310,7 +310,7 @@ compileUpdate table@(Table name attributes) =
             )
 
 
-compileFromRowInstance table@(Table name attributes) =
+compileFromRowInstance table@(Table name attributes) database =
     defaultFromRow
     -- <> "instance FromRow " <> tableNameToModelName name <> " where "<> (indent "fromRow = " <> tableNameToModelName name <> " <$> " <>  (intercalate " <*> " $ map (const "field") $ fieldsOnly attributes))
     where
@@ -324,10 +324,30 @@ compileFromRowInstance table@(Table name attributes) =
         compileValue (HasMany {}) = "()"
 
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
-        compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow (compileInverseOf inverseOf <> "Id") <> ", " <> (fromJust $ toBinding (tableNameToModelName name) (Field "id" (UUIDField {})) ) <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
+        compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow relatedFieldName <> ", " <> (fromJust $ toBinding' (tableNameToModelName name) relatedIdField)  <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
             where
                 compileInverseOf Nothing = columnNameToFieldName (Countable.singularize name)
                 compileInverseOf (Just name) = columnNameToFieldName (Countable.singularize name)
+                relatedFieldName = compileInverseOf inverseOf <> "Id"
+                relatedIdField = relatedField "id"
+                relatedForeignKeyField = relatedField relatedFieldName
+
+                relatedField :: Text -> Attribute' Text
+                relatedField relatedFieldName =
+                    let
+                        isFieldName name (Field fieldName _) = (columnNameToFieldName fieldName) == name
+                        (Table _ attributes) = relatedTable
+                    in case find (isFieldName relatedFieldName) (fieldsOnly attributes) of
+                        Just a -> a
+                        Nothing -> error ("Could not find field " <> show relatedFieldName <> " in table " <> (show $ fieldsOnly attributes))
+                relatedTable = case find (\(Table tableName _) -> tableName == hasManyName) database of
+                    Just t -> t
+                    Nothing -> error ("Could not find table " <> show hasManyName)
+
+                toBinding' modelName attributes =
+                    case relatedForeignKeyField of
+                        Field _ fieldType | allowNull fieldType -> Just $ "Just (" <> fromJust (toBinding modelName attributes) <> ")"
+                        otherwise -> toBinding modelName attributes
 
 compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
@@ -409,8 +429,9 @@ compileSetFieldInstances table@(Table tableName attributes) = intercalate "\n" (
         compileSetField fieldName = "instance SetField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") " <> fieldName <> " where setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
             where
                 compileAttribute :: Attribute -> Text
-                compileAttribute (Field name _) = if fieldName == name then "newValue" else name
-                compileAttribute (HasMany {name}) = name
+                compileAttribute (Field name _) = compileAttribute' name
+                compileAttribute (HasMany {name}) = compileAttribute' name
+                compileAttribute' name = if fieldName == name then "newValue" else name
 
 compileUpdateFieldInstances :: Table -> Text
 compileUpdateFieldInstances table@(Table tableName attributes) = intercalate "\n" (map compileSetField' attributes)

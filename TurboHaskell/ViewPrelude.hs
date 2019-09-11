@@ -32,7 +32,8 @@ module TurboHaskell.ViewPrelude (
     (:>)(..),
     module TurboHaskell.ViewSupport,
     module TurboHaskell.ModelSupport,
-    (!)
+    (!),
+    module Data.Data
 ) where
 
 import ClassyPrelude
@@ -72,6 +73,7 @@ import TurboHaskell.ValidationSupport
 import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport
 import TurboHaskell.ModelSupport
+import Data.Data
 
 plain = Data.String.Interpolate.i
 css = Data.String.Interpolate.i
