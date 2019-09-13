@@ -177,15 +177,15 @@ instance FromParameter param => FromParameter (Maybe param) where
             Left error -> Left error
     fromParameter Nothing = Right Nothing
 
-instance (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
-    fromParameter (Just string) =
-            case find (\value -> ModelSupport.inputValue value == string') allValues of
-                Just value -> Right value
-                Nothing -> Left "Invalid value"
-        where
-            string' = cs string
-            allValues = enumFrom (toEnum 0) :: [parameter]
-    fromParameter _ = Left "FromParameter Enum: Parameter missing"
+--instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
+--    fromParameter (Just string) =
+--            case find (\value -> ModelSupport.inputValue value == string') allValues of
+--                Just value -> Right value
+--                Nothing -> Left "Invalid value"
+--        where
+--            string' = cs string
+--            allValues = enumFrom (toEnum 0) :: [parameter]
+--    fromParameter _ = Left "FromParameter Enum: Parameter missing"
 
 class FillParams (params :: [Symbol]) record where
     fill :: (?requestContext :: RequestContext) => record -> State.StateT [(Text, Text)] IO record
@@ -210,6 +210,7 @@ instance (FillParams rest record
             Nothing -> fill @rest record
 
 
+type RecordReader r = r -> StateT [(Text, Text)] IO r
 
 fromParams :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ModelSupport.Record record, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => IO (Either record record)
 fromParams = fromParams' (ModelSupport.newRecord @record)
