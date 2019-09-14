@@ -256,7 +256,7 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
 
 instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap controller)) => HasPath (parent :> child) where
     {-# INLINE pathTo #-}
-    pathTo (parent :> child) = pathTo parent <> genericPathTo @controller child
+    pathTo (parent :> child) = pathTo parent <> "/" <> genericPathTo @controller child
 
 
 
