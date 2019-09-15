@@ -34,3 +34,4 @@
 :set -XFunctionalDependencies
 :set -package turbohaskell
 :set -fbyte-code
+:set -XPartialTypeSignatures
