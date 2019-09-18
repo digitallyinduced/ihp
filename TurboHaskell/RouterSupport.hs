@@ -267,28 +267,33 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller,
 
 {-# INLINE genericPathTo #-}
 genericPathTo :: forall controller action id parent frontController. (Eq action, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, HasTypes action id, RestfulController controller, Child controller ~ action, Default id) => action -> Text
-genericPathTo action 
-    | (isIndexAction @controller action) || (isCreateAction @controller action)
-        = cs (basePath @controller)
-    | isNewAction @controller action
-        = maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller) <> "/new"
-    | isEditAction @controller action
-        = let id = unsafeHead (toListOf (types @id) action)
-        in genericPathTo @controller (fromJust (showAction @controller) $ id) <> "/edit"
-    | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
-        = let
-            id = unsafeHead (toListOf (types @id) action)
-        in
-            (maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller)) <> "/" <> tshow id
-    | otherwise =
-        let
-            id = unsafeHead (toListOf (types @id) action)
-            actionName = showConstr (toConstr action)
-            withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
-            modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
-            withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
-        in
-            genericPathTo @controller (fromJust $ indexAction @controller) <> "/" <> tshow id <> "/" <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
+genericPathTo action = genericPathTo' action
+    where
+        indexBasePath = (maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller))
+        genericPathTo' action
+            | (isIndexAction @controller action) || (isCreateAction @controller action)
+                = cs (basePath @controller)
+            | isNewAction @controller action
+                = indexBasePath <> "/new"
+            | isEditAction @controller action
+                = let id = unsafeHead (toListOf (types @id) action)
+                in
+                    (maybe (indexBasePath <> "/edit") (\showAction -> genericPathTo @controller (showAction id)) (showAction @controller)) <> "/edit"
+                    
+            | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
+                = let
+                    id = unsafeHead (toListOf (types @id) action)
+                in
+                    indexBasePath <> "/" <> tshow id
+            | otherwise =
+                let
+                    id = unsafeHead (toListOf (types @id) action)
+                    actionName = showConstr (toConstr action)
+                    withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
+                    modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
+                    withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
+                in
+                    indexBasePath <> "/" <> tshow id <> "/" <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
 
 {-# INLINE isIndexAction #-}
 isIndexAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
