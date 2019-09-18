@@ -61,8 +61,8 @@ run = do
     let runServer = if isDevelopment FrameworkConfig.environment
             then
                 let settings = Warp.defaultSettings
-                    |> Warp.setBeforeMainLoop pingDevServer
-                    |> Warp.setPort defaultPort
+                        |> Warp.setBeforeMainLoop pingDevServer
+                        |> Warp.setPort defaultPort
                 in Warp.runSettings settings
             else Warp.runEnv defaultPort
     runServer $
