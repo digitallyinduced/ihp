@@ -62,7 +62,7 @@ run = do
     let frameworkMiddleware :: Middleware = TurboHaskell.LoginSupport.Middleware.middleware applicationContext
     let runServer = if isDevelopment FrameworkConfig.environment
             then
-                let settings = Warp.defaultSettings |> Warp.setBeforeMainLoop pingDevServer |> Warp.setPort defaultPort
+                let settings = Warp.defaultSettings |> Warp.setBeforeMainLoop pingDevServer
                 in Warp.runSettings settings
             else Warp.runEnv defaultPort
     runServer $
