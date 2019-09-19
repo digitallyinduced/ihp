@@ -166,10 +166,10 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
     deleteAction :: Maybe (RestfulControllerId controller -> Child controller)
     deleteAction = constructorWithId @controller "Delete"
     {-# INLINE customActions #-}
-    customActions :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, HasTypes (Child controller) (RestfulControllerId controller)) => (Child controller) -> Parser controller
+    customActions :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, HasTypes (Child controller) (RestfulControllerId controller)) => Maybe (Child controller) -> Parser controller
     customActions idContainer =
         let
-            id = modelId @controller idContainer
+            id = fmap (modelId @controller) idContainer
             allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: Child controller))
             customConstructors = filter (not . isRestConstructor) allConstructors
             isRestConstructor constructor = (cs (showConstr constructor)) `elem` restConstructorNames
@@ -246,11 +246,12 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
                 <|> (do
                     memberId <- parsePathArgument
                     let edit = (string "edit" >> get (editAction' memberId))
-                    let custom = (customActions ((showAction' memberId)) >>= return )
+                    let custom = (customActions (Just (showAction' memberId)) >>= return )
                     (string "/" >> (custom <|> edit))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
                 ))
             )
+            <|> (string "/" >> customActions Nothing)
             <|> onGetOrPost (indexAction') (createAction')
 
 
@@ -354,10 +355,11 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent con
             string "/" >> (string "new" >> get (newAction'))
                 <|> (do
                     memberId <- parsePathArgument
-                    (string "/" >> ((string "edit" >> get (editAction' memberId)) <|> (customActions (showActionWithoutParent memberId) >>= return ) ))
+                    (string "/" >> ((string "edit" >> get (editAction' memberId)) <|> (customActions (Just (showActionWithoutParent memberId)) >>= return ) ))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
                 )
             )
+            <|> (string "/" >> customActions Nothing)
             <|> onGetOrPost indexAction' createAction'
 
 
