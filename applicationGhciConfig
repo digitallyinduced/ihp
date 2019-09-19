@@ -34,5 +34,6 @@
 :set -XFunctionalDependencies
 :set -package turbohaskell
 :set -fbyte-code
+:set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
 :set -Werror=missing-fields
