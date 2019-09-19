@@ -157,7 +157,7 @@ instance FromParameter Point where
                         Right (y, _) -> Right (Point x y)
     fromParameter Nothing = Left "FromParameter Point: Parameter missing"
 
-instance FromParameter (ModelSupport.Id' model') where
+instance {-# OVERLAPS #-} FromParameter (ModelSupport.Id' model') where
     {-# INLINE fromParameter #-}
     fromParameter maybeUUID =
         case (fromParameter maybeUUID) :: Either String UUID of
@@ -177,15 +177,15 @@ instance FromParameter param => FromParameter (Maybe param) where
             Left error -> Left error
     fromParameter Nothing = Right Nothing
 
---instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
---    fromParameter (Just string) =
---            case find (\value -> ModelSupport.inputValue value == string') allValues of
---                Just value -> Right value
---                Nothing -> Left "Invalid value"
---        where
---            string' = cs string
---            allValues = enumFrom (toEnum 0) :: [parameter]
---    fromParameter _ = Left "FromParameter Enum: Parameter missing"
+instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
+    fromParameter (Just string) =
+            case find (\value -> ModelSupport.inputValue value == string') allValues of
+                Just value -> Right value
+                Nothing -> Left "Invalid value"
+        where
+            string' = cs string
+            allValues = enumFrom (toEnum 0) :: [parameter]
+    fromParameter _ = Left "FromParameter Enum: Parameter missing"
 
 class FillParams (params :: [Symbol]) record where
     fill :: (?requestContext :: RequestContext) => record -> State.StateT [(Text, Text)] IO record
@@ -212,18 +212,7 @@ instance (FillParams rest record
 
 type RecordReader r = r -> StateT [(Text, Text)] IO r
 
-fromParams :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ModelSupport.Record record, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => IO (Either record record)
-fromParams = fromParams' (ModelSupport.newRecord @record)
-
-fromParams' :: forall record controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FromParams record controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable record, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> IO (Either record record)
-fromParams' record = fromRequest record
-
 type ParamPipeline record context = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: context, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> StateT [(Text, Text)] IO record
-class FromParams record context where
-    build :: ParamPipeline record context
-
-fromRequest :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, FromParams model controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> IO (Either model model)
-fromRequest model = runPipeline model build
 
 runPipeline :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model controllerContext -> IO (Either model model)
 runPipeline model pipeline = do
