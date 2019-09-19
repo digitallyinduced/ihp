@@ -87,7 +87,7 @@ build/Generated: Application/Schema.hs TurboHaskell/TurboHaskell/SchemaCompiler.
 	rm -rf build/Generated && mkdir -p build/Generated
 	ghci -e ':script TurboHaskell/compileModels'
 
-build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css
+build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated
 	mkdir -p build/RunUnoptimizedProdServer
 	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<

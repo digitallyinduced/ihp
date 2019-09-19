@@ -52,8 +52,8 @@ validateNothing :: forall s. StateT s IO ()
 validateNothing = return ()
 
 {-# INLINE nonEmpty #-}
-nonEmpty :: Text -> ValidatorResult
-nonEmpty "" = Failure "This field cannot be empty"
+nonEmpty :: MonoFoldable value => value -> ValidatorResult
+nonEmpty value | null value = Failure "This field cannot be empty"
 nonEmpty _ = Success
 
 {-# INLINE isPhoneNumber #-}

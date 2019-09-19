@@ -166,10 +166,10 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
     deleteAction :: Maybe (RestfulControllerId controller -> Child controller)
     deleteAction = constructorWithId @controller "Delete"
     {-# INLINE customActions #-}
-    customActions :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, HasTypes (Child controller) (RestfulControllerId controller)) => (Child controller) -> Parser controller
+    customActions :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, HasTypes (Child controller) (RestfulControllerId controller)) => Maybe (Child controller) -> Parser controller
     customActions idContainer =
         let
-            id = modelId @controller idContainer
+            id = fmap (modelId @controller) idContainer
             allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: Child controller))
             customConstructors = filter (not . isRestConstructor) allConstructors
             isRestConstructor constructor = (cs (showConstr constructor)) `elem` restConstructorNames
@@ -246,17 +246,18 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq con
                 <|> (do
                     memberId <- parsePathArgument
                     let edit = (string "edit" >> get (editAction' memberId))
-                    let custom = (customActions ((showAction' memberId)) >>= return )
+                    let custom = (customActions (Just (showAction' memberId)) >>= return )
                     (string "/" >> (custom <|> edit))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
                 ))
             )
+            <|> (string "/" >> customActions Nothing)
             <|> onGetOrPost (indexAction') (createAction')
 
 
 instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap controller)) => HasPath (parent :> child) where
     {-# INLINE pathTo #-}
-    pathTo (parent :> child) = pathTo parent <> genericPathTo @controller child
+    pathTo (parent :> child) = pathTo parent <> "/" <> genericPathTo @controller child
 
 
 
@@ -267,28 +268,33 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller,
 
 {-# INLINE genericPathTo #-}
 genericPathTo :: forall controller action id parent frontController. (Eq action, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, HasTypes action id, RestfulController controller, Child controller ~ action, Default id) => action -> Text
-genericPathTo action 
-    | (isIndexAction @controller action) || (isCreateAction @controller action)
-        = cs (basePath @controller)
-    | isNewAction @controller action
-        = maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller) <> "/new"
-    | isEditAction @controller action
-        = let id = unsafeHead (toListOf (types @id) action)
-        in genericPathTo @controller (fromJust (showAction @controller) $ id) <> "/edit"
-    | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
-        = let
-            id = unsafeHead (toListOf (types @id) action)
-        in
-            (maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller)) <> "/" <> tshow id
-    | otherwise =
-        let
-            id = unsafeHead (toListOf (types @id) action)
-            actionName = showConstr (toConstr action)
-            withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
-            modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
-            withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
-        in
-            genericPathTo @controller (fromJust $ indexAction @controller) <> "/" <> tshow id <> "/" <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
+genericPathTo action = genericPathTo' action
+    where
+        indexBasePath = (maybe (cs (basePath @controller)) (\indexAction -> genericPathTo @controller indexAction) (indexAction @controller))
+        genericPathTo' action
+            | (isIndexAction @controller action) || (isCreateAction @controller action)
+                = cs (basePath @controller)
+            | isNewAction @controller action
+                = indexBasePath <> "/new"
+            | isEditAction @controller action
+                = let id = unsafeHead (toListOf (types @id) action)
+                in
+                    (maybe (indexBasePath <> "/edit") (\showAction -> genericPathTo @controller (showAction id)) (showAction @controller)) <> "/edit"
+                    
+            | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
+                = let
+                    id = headMay (toListOf (types @id) action)
+                in
+                    indexBasePath <> "/" <> maybe "current" tshow id
+            | otherwise =
+                let
+                    id = headMay (toListOf (types @id) action)
+                    actionName = showConstr (toConstr action)
+                    withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
+                    modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
+                    withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
+                in
+                    indexBasePath <> "/" <> maybe "" (\id -> tshow id <> "/") id <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
 
 {-# INLINE isIndexAction #-}
 isIndexAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
@@ -319,8 +325,8 @@ isUpdateAction :: forall controller. (RestfulController controller, Eq (Child co
 isUpdateAction action = (isJust (updateAction @controller) && toConstr action == toConstr (fromJust (updateAction @controller) $ def))
 
 {-# INLINE modelId #-}
-modelId :: forall controller. (RestfulController controller, HasTypes (Child controller) (RestfulControllerId controller)) => Child controller -> RestfulControllerId controller
-modelId action = unsafeHead (toListOf (types @(RestfulControllerId controller)) action)
+modelId :: forall controller. (RestfulController controller, HasTypes (Child controller) (RestfulControllerId controller)) => Child controller -> Maybe (RestfulControllerId controller)
+modelId action = headMay (toListOf (types @(RestfulControllerId controller)) action)
 
 instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent context. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, CanRoute parent parentParent, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap (parent :> child))) => CanRoute (parent :> child) parent where
     --pathTo action | action == indexAction = "/Members"
@@ -349,10 +355,11 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent con
             string "/" >> (string "new" >> get (newAction'))
                 <|> (do
                     memberId <- parsePathArgument
-                    (string "/" >> ((string "edit" >> get (editAction' memberId)) <|> (customActions (showActionWithoutParent memberId) >>= return ) ))
+                    (string "/" >> ((string "edit" >> get (editAction' memberId)) <|> (customActions (Just (showActionWithoutParent memberId)) >>= return ) ))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
                 )
             )
+            <|> (string "/" >> customActions Nothing)
             <|> onGetOrPost indexAction' createAction'
 
 
