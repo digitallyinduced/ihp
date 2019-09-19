@@ -282,18 +282,18 @@ genericPathTo action = genericPathTo' action
                     
             | (isShowAction @controller action) || (isDeleteAction @controller action) || (isUpdateAction @controller action)
                 = let
-                    id = unsafeHead (toListOf (types @id) action)
+                    id = headMay (toListOf (types @id) action)
                 in
-                    indexBasePath <> "/" <> tshow id
+                    indexBasePath <> "/" <> maybe "current" tshow id
             | otherwise =
                 let
-                    id = unsafeHead (toListOf (types @id) action)
+                    id = headMay (toListOf (types @id) action)
                     actionName = showConstr (toConstr action)
                     withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
                     modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
                     withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
                 in
-                    indexBasePath <> "/" <> tshow id <> "/" <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
+                    indexBasePath <> "/" <> maybe "" (\id -> tshow id <> "/") id <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
 
 {-# INLINE isIndexAction #-}
 isIndexAction :: forall controller. (RestfulController controller, Eq (Child controller)) => Child controller -> Bool
@@ -324,8 +324,8 @@ isUpdateAction :: forall controller. (RestfulController controller, Eq (Child co
 isUpdateAction action = (isJust (updateAction @controller) && toConstr action == toConstr (fromJust (updateAction @controller) $ def))
 
 {-# INLINE modelId #-}
-modelId :: forall controller. (RestfulController controller, HasTypes (Child controller) (RestfulControllerId controller)) => Child controller -> RestfulControllerId controller
-modelId action = unsafeHead (toListOf (types @(RestfulControllerId controller)) action)
+modelId :: forall controller. (RestfulController controller, HasTypes (Child controller) (RestfulControllerId controller)) => Child controller -> Maybe (RestfulControllerId controller)
+modelId action = headMay (toListOf (types @(RestfulControllerId controller)) action)
 
 instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent context. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, CanRoute parent parentParent, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap (parent :> child))) => CanRoute (parent :> child) parent where
     --pathTo action | action == indexAction = "/Members"
