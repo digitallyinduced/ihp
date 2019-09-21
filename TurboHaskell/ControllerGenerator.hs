@@ -198,7 +198,7 @@ generateController database config =
             ""
             <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        fromParams' " <> modelVariableSingular <> " >>= \\case\n"
+            <> "        runPipeline " <> modelVariableSingular <> " build" <> singularName <> " >>= \\case\n"
             <> "            Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
             <> "            Right " <> modelVariableSingular <> " -> do\n"
             <> "                " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
@@ -208,7 +208,8 @@ generateController database config =
         createAction =
             ""
             <> "    action Create" <> singularName <> "Action = do\n"
-            <> "        fromParams @New" <> model <> " >>= \\case\n"
+            <> "        let " <> modelVariableSingular <> " = newRecord @New"  <> model <> "\n"
+            <> "        runPipeline " <> modelVariableSingular <> " build" <> singularName <> " >>= \\case\n"
             <> "            Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
             <> "            Right " <> modelVariableSingular <> " -> do\n"
             <> "                " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
@@ -225,19 +226,8 @@ generateController database config =
 
         fromParams =
             ""
-            <> "instance FromParams New" <> singularName <> " ControllerContext where\n"
-            <> "    build " <> modelVariableSingular <> " =\n"
-            <> "        return " <> modelVariableSingular <> "\n"
-            <> "        >>= fill " <> toTypeLevelList modelFields <> "\n"
-            <> "        >>= validate\n"
-            <> "\n"
-            <> "instance FromParams " <> singularName <> " ControllerContext where\n"
-            <> "    build " <> modelVariableSingular <> " =\n"
-            <> "        return " <> modelVariableSingular <> "\n"
-            <> "        >>= fill " <> toTypeLevelList modelFields <> "\n"
-            <> "        >>= validate\n"
-            <> "\n"
-            <> "validate " <> modelVariableSingular <> " = return " <> modelVariableSingular <> "\n"
+            <> "build" <> singularName <> " :: _ => RecordReader " <> modelVariableSingular <> "\n"
+            <> "build" <> singularName <> " = fill " <> toTypeLevelList modelFields <> "\n"
 
         toTypeLevelList values = "@" <> (if length values < 2 then "'" else "") <> tshow values
 
