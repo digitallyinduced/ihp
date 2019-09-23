@@ -122,3 +122,6 @@ setHasManyRelations tables = map setHasManyRelations' tables
                 getReferenceField :: Attribute -> Maybe Text
                 getReferenceField (Field _ fieldType) = references fieldType
                 getReferenceField _ = Nothing
+
+schema :: [Table] -> [Table]
+schema database = setHasManyRelations database
