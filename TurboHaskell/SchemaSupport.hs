@@ -3,6 +3,7 @@ import ClassyPrelude hiding (length)
 import Data.Maybe (fromJust)
 import qualified Data.List as List
 import TurboHaskell.SchemaTypes
+import TurboHaskell.HaskellSupport
 
 table :: Text -> Table
 table name = Table name []
@@ -13,7 +14,7 @@ field = Field
 (Table name fields) + field = Table name (fields <> [field])
 
 serial :: FieldType Text
-serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), references = Nothing, allowNull = False, isPrimaryKey = True, unique = False }
+serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), references = Nothing, allowNull = False, isPrimaryKey = True, unique = False, onDelete = NoAction }
 
 uuid :: FieldType Text
 uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, onDelete = NoAction, unique = False }
@@ -94,3 +95,33 @@ fieldsWithoutDefaultValue = filter hasNoDefaultValue
 
 fieldsWithDefaultValue :: [Attribute] -> [Attribute]
 fieldsWithDefaultValue = filter (\(Field _ fieldType) -> isJust (defaultValue fieldType))
+
+setHasManyRelations :: [Table] -> [Table]
+setHasManyRelations tables = map setHasManyRelations' tables
+    where
+        setHasManyRelations' :: Table -> Table
+        setHasManyRelations' table@(Table tableName _) = foldl' (\b a -> (TurboHaskell.SchemaSupport.+) b a) table hasManyStatements
+            where
+                hasManyStatements :: [Attribute]
+                hasManyStatements = foreignKeyColumns
+                    |> map (\(tableName, field) -> HasMany { name = tableName, inverseOf = Nothing })
+                    |> reverse . List.nub . reverse
+
+                fieldName :: Attribute -> Text
+                fieldName (Field fieldName _) = fieldName
+
+                foreignKeyColumns :: [(Text, Attribute)]
+                foreignKeyColumns = join (map tableToForeignColumns tables)
+
+                tableToForeignColumns :: Table -> [(Text, Attribute)]
+                tableToForeignColumns (Table tableName' fields) =
+                    fields
+                    |> filter (\f -> getReferenceField f == Just tableName)
+                    |> map (\f -> (tableName', f))
+
+                getReferenceField :: Attribute -> Maybe Text
+                getReferenceField (Field _ fieldType) = references fieldType
+                getReferenceField _ = Nothing
+
+schema :: [Table] -> [Table]
+schema database = setHasManyRelations database
