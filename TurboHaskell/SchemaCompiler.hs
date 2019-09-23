@@ -326,9 +326,9 @@ compileFromRowInstance table@(Table name attributes) database =
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
         compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow relatedFieldName <> ", " <> (fromJust $ toBinding' (tableNameToModelName name) relatedIdField)  <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
             where
-                compileInverseOf Nothing = columnNameToFieldName (Countable.singularize name)
+                compileInverseOf Nothing = columnNameToFieldName (Countable.singularize name) <> "Id"
                 compileInverseOf (Just name) = columnNameToFieldName (Countable.singularize name)
-                relatedFieldName = compileInverseOf inverseOf <> "Id"
+                relatedFieldName = compileInverseOf inverseOf
                 relatedIdField = relatedField "id"
                 relatedForeignKeyField = relatedField relatedFieldName
 
@@ -339,7 +339,9 @@ compileFromRowInstance table@(Table name attributes) database =
                         (Table _ attributes) = relatedTable
                     in case find (isFieldName relatedFieldName) (fieldsOnly attributes) of
                         Just a -> a
-                        Nothing -> error ("Could not find field " <> show relatedFieldName <> " in table " <> (show $ fieldsOnly attributes))
+                        Nothing ->
+                            let (Table tableName _) = table
+                            in error ("Could not find field " <> show relatedFieldName <> " in table " <> cs tableName <> " " <> (show $ fieldsOnly attributes))
                 relatedTable = case find (\(Table tableName _) -> tableName == hasManyName) database of
                     Just t -> t
                     Nothing -> error ("Could not find table " <> show hasManyName)
