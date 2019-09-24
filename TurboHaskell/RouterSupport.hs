@@ -169,7 +169,10 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
     customActions :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, HasTypes (Child controller) (RestfulControllerId controller)) => Maybe (Child controller) -> Parser controller
     customActions idContainer =
         let
-            id = fmap (modelId @controller) idContainer
+            id :: Maybe (RestfulControllerId controller)
+            id = case idContainer of
+                Just id -> modelId @controller id
+                Nothing -> Nothing
             allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: Child controller))
             customConstructors = filter (not . isRestConstructor) allConstructors
             isRestConstructor constructor = (cs (showConstr constructor)) `elem` restConstructorNames
@@ -188,7 +191,10 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
             parseCustomAction action' = (string actionPath >> onGetOrPost action action)
                 where
                     action = initiateAction action' id
-                    initiateAction constructor id = fromMaybe (error $ "Could not find constructor " <> show constructor) $ fromConstrM (cast id :: forall d. Data d => Maybe d) constructor
+                    initiateAction constructor id = 
+                        case id of
+                            Just id -> fromMaybe (error $ "Could not find constructor " <> show constructor) $ fromConstrM (cast id :: forall d. Data d => Maybe d) constructor
+                            Nothing -> fromConstr constructor
                     actionName = showConstr action'
                     withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
                     modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
