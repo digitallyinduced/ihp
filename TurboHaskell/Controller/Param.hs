@@ -37,6 +37,7 @@ import qualified System.Process as Process
 import qualified Control.Monad.State.Lazy as State
 import GHC.TypeLits
 import Data.Proxy
+import TurboHaskell.ControllerSupport
 
 {-# INLINE fileOrNothing #-}
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
@@ -212,17 +213,17 @@ instance (FillParams rest record
 
 type RecordReader r = r -> StateT [(Text, Text)] IO r
 
-type ParamPipeline record context = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: context, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> StateT [(Text, Text)] IO record
+type ParamPipeline record = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: ControllerContext, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> StateT [(Text, Text)] IO record
 
-runPipeline :: forall model controllerContext id. (?requestContext :: RequestContext, ?controllerContext :: controllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, GHC.Records.HasField "validations" controllerContext (IORef [Dynamic.Dynamic]), ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model controllerContext -> IO (Either model model)
+runPipeline :: forall model id. (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model -> IO (Either model model)
 runPipeline model pipeline = do
         State.evalStateT inner ([] :: [(Text, Text)])
     where
         inner = do
             model <- pipeline model
             result <- State.get
-            let validationsHistory :: IORef [Dynamic.Dynamic] = (GHC.Records.getField @"validations" ?controllerContext)
-            modifyIORef validationsHistory (\validations -> (Dynamic.toDyn (model, result)):validations)
+            fromControllerContext @ValidationResults
+                    |> (\(ValidationResults results) -> modifyIORef results (\validations -> (Dynamic.toDyn (model, result)):validations))
             return (if null result then Right model else Left model)
 
 ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> StateT [(Text, Text)] IO record) -> record -> StateT [(Text, Text)] IO record

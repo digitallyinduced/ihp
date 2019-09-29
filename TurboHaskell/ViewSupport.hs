@@ -1,12 +1,12 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies #-}
 
-module TurboHaskell.ViewSupport (HtmlWithContext, classes, CreateViewContext (createViewContext, ControllerContext), Layout, View (..)) where
+module TurboHaskell.ViewSupport (HtmlWithContext, classes, CreateViewContext (..), Layout, View (..)) where
 
 import ClassyPrelude
 import qualified Text.Blaze
 import qualified Text.Blaze.Html5 as Html5
 import TurboHaskell.HaskellSupport
-import TurboHaskell.ControllerSupport  (RequestContext (RequestContext))
+import TurboHaskell.ControllerSupport
 import TurboHaskell.ModelSupport
 import qualified Data.Aeson as JSON
 import qualified Data.Text as Text
@@ -23,8 +23,8 @@ classes classNameBoolPairs =
     |> unwords
 
 class CreateViewContext viewContext where
-    type ControllerContext viewContext :: *
-    createViewContext :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext viewContext, ?modelContext :: ModelContext) => IO viewContext
+    type ViewApp viewContext
+    createViewContext :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext
 
 
 

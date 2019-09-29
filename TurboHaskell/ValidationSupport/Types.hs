@@ -39,3 +39,5 @@ attachFailure :: (KnownSymbol field) => Proxy field -> Text -> StateT [(Text, Te
 attachFailure field message = do
     validationState <- get
     put ((Text.pack (symbolVal field), message):validationState)
+
+newtype ValidationResults = ValidationResults (IORef [Dynamic])

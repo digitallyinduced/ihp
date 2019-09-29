@@ -16,7 +16,6 @@ Library TurboHaskellFramework
         TurboHaskell.AuthSupport.Authentication
         , TurboHaskell.AuthSupport.Authorization
         , TurboHaskell.AuthSupport.Lockable
-        , TurboHaskell.Controller.Context
         , TurboHaskell.Controller.Param
         , TurboHaskell.Controller.Redirect
         , TurboHaskell.Controller.Render
@@ -118,6 +117,7 @@ Library TurboHaskellFramework
         , process
         , newtype-generics
         , countable-inflections
+        , typerep-map
     hs-source-dirs:      .
     default-language:    Haskell2010
     extensions:
@@ -209,6 +209,7 @@ Executable RunDevServer
         , wai-websockets
         , websockets
         , countable-inflections
+        , typerep-map
     hs-source-dirs: .
     default-language: Haskell2010
     extensions:
@@ -300,6 +301,7 @@ Executable RunLiveReloadNotificationServer
         , wai-websockets
         , websockets
         , countable-inflections
+        , typerep-map
     hs-source-dirs: .
     default-language: Haskell2010
     extensions:
@@ -392,6 +394,7 @@ Executable new-application
         , wai-websockets
         , websockets
         , countable-inflections
+        , typerep-map
     hs-source-dirs: .
     default-language: Haskell2010
     extensions:

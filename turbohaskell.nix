@@ -54,6 +54,7 @@
 , fsnotify
 , concurrent-extra
 , countable-inflections
+, typerep-map
 }:
 mkDerivation {
   pname = "turbohaskell";
@@ -124,6 +125,7 @@ mkDerivation {
     fsnotify
     concurrent-extra
     countable-inflections
+    typerep-map
   ];
   license = stdenv.lib.licenses.bsd3;
   postInstall = ''

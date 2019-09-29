@@ -1,6 +1,6 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes #-}
 
-module TurboHaskell.ControllerSupport (Action, Action', SimpleAction, cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext) where
+module TurboHaskell.ControllerSupport (Action, Action', SimpleAction, cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), ControllerApplicationMap, runActionWithNewContext, emptyControllerContext) where
 import ClassyPrelude
 import TurboHaskell.HaskellSupport
 import Data.String.Conversions (cs)
@@ -29,8 +29,7 @@ import Control.Monad.Reader
 
 import Network.Wai.Session (Session)
 import qualified Data.Vault.Lazy         as Vault
-import qualified TurboHaskell.Controller.Context as ControllerContext
--- import Web.Controller.Context (ControllerContext, createControllerContext)
+import qualified Data.TMap as TypeMap
 
 type Action controllerContext = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: controllerContext) => IO ResponseReceived)
 type SimpleAction = Action ()
@@ -45,20 +44,47 @@ type Action' = IO ResponseReceived
 
 --(|>) :: a -> f -> f a
 
-class ControllerContext.Context context => Controller controller context | controller -> context where
-    beforeAction :: (?controllerContext :: context, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => IO ()
+newtype ControllerContext = ControllerContext TypeMap.TMap
+type family ControllerApplicationMap controller
+
+{-# INLINE fromControllerContext #-}
+fromControllerContext :: forall a. (?controllerContext :: ControllerContext, Typeable a) => a
+fromControllerContext =
+    let
+        (ControllerContext context) = ?controllerContext
+        notFoundMessage = ("Unable to find value in controller context: " <> show context)
+    in
+        fromMaybe (error notFoundMessage) (maybeFromControllerContext @a)
+
+{-# INLINE maybeFromControllerContext #-}
+maybeFromControllerContext :: forall a. (?controllerContext :: ControllerContext, Typeable a) => Maybe a
+maybeFromControllerContext = let (ControllerContext context) = ?controllerContext in TypeMap.lookup @a context
+
+{-# INLINE emptyControllerContext #-}
+emptyControllerContext :: ControllerContext
+emptyControllerContext = ControllerContext TypeMap.empty
+
+class Controller controller where
+    beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => IO ()
     beforeAction = return ()
-    action :: (?controllerContext :: context, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ResponseReceived
+    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ResponseReceived
+
+class InitControllerContext application where
+    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext) => TypeMap.TMap -> IO TypeMap.TMap
 
 {-# INLINE runAction #-}
-runAction :: forall controller context. (Controller controller context, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
-    let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    controllerContext <- ControllerContext.createContext
     let ?theAction = controller
-    let ?controllerContext = controllerContext
     beforeAction >> action controller
 
+{-# INLINE runActionWithNewContext #-}
+runActionWithNewContext :: forall controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext (ControllerApplicationMap controller)) => controller -> IO ResponseReceived
+runActionWithNewContext controller = do
+    let ?modelContext = ApplicationContext.modelContext ?applicationContext
+    context <- initContext @(ControllerApplicationMap controller) TypeMap.empty
+    let ?controllerContext = ControllerContext context
+    runAction controller
 
 
 {-# INLINE getRequestBody #-}

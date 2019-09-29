@@ -93,7 +93,6 @@ filesToCreate applicationName =
             <> "import TurboHaskell.ModelSupport\n"
             <> "import Generated.Types\n"
             <> "import Data.Dynamic\n"
-            <> "import TurboHaskell.Controller.Context\n"
             <> "import qualified Control.Newtype.Generics as Newtype\n\n"
             <> "data ControllerContext = ControllerContext {\n"
             <> "        -- Here you can prepare data to be available in your controller actions\n"

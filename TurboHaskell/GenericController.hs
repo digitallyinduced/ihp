@@ -8,10 +8,9 @@ import GHC.TypeLits
 import Database.PostgreSQL.Simple.FromRow
 import TurboHaskell.ViewPrelude
 import TurboHaskell.ViewSupport
-import TurboHaskell.Controller.Context ()
 import qualified Text.Blaze.Html5 as Html5
 
-instance {-# OVERLAPPABLE #-} (RestfulController controller, Router.Child controller ~ controller, Eq controller, model ~ GetModelById (RestfulControllerId controller), KnownSymbol (GetTableName model), FromRow model, Show model, Generic model, HasField "id" model id, Show id) => Controller controller () where
+instance {-# OVERLAPPABLE #-} (RestfulController controller, Router.Child controller ~ controller, Eq controller, model ~ GetModelById (RestfulControllerId controller), KnownSymbol (GetTableName model), FromRow model, Show model, Generic model, HasField "id" model id, Show id) => Controller controller where
     action theAction | isIndexAction @controller theAction = do
         models <- query @model |> fetch
         renderHtml (renderLayout (indexView models))

@@ -20,7 +20,7 @@ import qualified Data.Either
 import qualified Data.Text.Encoding
 import qualified Data.Text
 import qualified Data.Aeson
-import TurboHaskell.ControllerSupport (RequestContext (..))
+import TurboHaskell.ControllerSupport
 import qualified Network.HTTP.Media as Accept
 import qualified Data.List as List
 
@@ -106,7 +106,7 @@ polymorphicRender = PolymorphicRender () ()
 
 
 {-# INLINE render #-}
-render :: forall view viewContext controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ViewSupport.ControllerContext viewContext) => view -> IO ResponseReceived
+render :: forall view viewContext controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO ResponseReceived
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = do

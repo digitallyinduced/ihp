@@ -12,7 +12,7 @@ class FrameworkConfig where
 
 data RootApplication = RootApplication deriving (Eq)
 
-instance Controller RootApplication () where
+instance Controller RootApplication where
 
 instance FrontControllerPrefix RootApplication where
     prefix = ""

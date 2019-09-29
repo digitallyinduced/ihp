@@ -52,12 +52,12 @@ import TurboHaskell.RouterSupport (RestfulController (..), RestfulControllerId, 
 import GHC.Records
 
 
-class ModelFormAction controllerContext formObject where
+class ModelFormAction application formObject where
     modelFormAction :: formObject -> Text
 
 
 
-instance ModelFormAction controllerContext (parent, child) where
+instance ModelFormAction application (parent, child) where
     {-# INLINE modelFormAction #-}
     modelFormAction (parent, child) = undefined
 
@@ -65,13 +65,13 @@ instance ModelFormAction controllerContext (parent, child) where
 -- modelFormAction (user :: User) or modelFormAction (newUser :: New User)
 instance (
         HasField "id" formObject id
-        , controller ~ ModelControllerMap controllerContext (NormalizeModel formObject)
+        , controller ~ ModelControllerMap application (NormalizeModel formObject)
         , Child controller ~ controller
         , HasPath controller
         , RestfulController controller
         , ModelFormActionTopLevelResource controller id
         , FrontControllerPrefix (ControllerApplicationMap controller)
-        ) => ModelFormAction controllerContext formObject where
+        ) => ModelFormAction application formObject where
     {-# INLINE modelFormAction #-}
     modelFormAction formObject = modelFormActionTopLevelResource (Proxy @controller) (getField @"id" formObject)
 
@@ -142,7 +142,7 @@ data FormContext model =
         }
 
 {-# INLINE formFor #-}
-formFor :: forall model viewContext parent id formObject controllerContext. (
+formFor :: forall model viewContext parent id formObject application. (
         ?viewContext :: viewContext
         , HasField "validations" viewContext [Dynamic]
         , HasField "requestContext" viewContext RequestContext
@@ -150,19 +150,19 @@ formFor :: forall model viewContext parent id formObject controllerContext. (
         , Typeable model
         , Typeable (ValidatorResultFor model)
         , Default (ValidatorResultFor model)
-        , ModelFormAction controllerContext formObject
+        , ModelFormAction application formObject
         , HasField "id" model id
         , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
-        , HasPath (ModelControllerMap controllerContext (NormalizeFormObject formObject))
-        , controllerContext ~ ControllerContext viewContext
+        , HasPath (ModelControllerMap application (NormalizeFormObject formObject))
+        , application ~ ViewApp viewContext
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor formObject = formFor' (createFormContext formObject)
 
 
 {-# INLINE horizontalFormFor #-}
-horizontalFormFor :: forall model viewContext parent id formObject controllerContext. (
+horizontalFormFor :: forall model viewContext parent id formObject application. (
         ?viewContext :: viewContext
         , HasField "validations" viewContext [Dynamic]
         , HasField "requestContext" viewContext RequestContext
@@ -170,13 +170,13 @@ horizontalFormFor :: forall model viewContext parent id formObject controllerCon
         , Typeable model
         , Typeable (ValidatorResultFor model)
         , Default (ValidatorResultFor model)
-        , ModelFormAction controllerContext formObject
+        , ModelFormAction application formObject
         , HasField "id" model id
         , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
-        , HasPath (Child (ModelControllerMap controllerContext formObject))
-        , controllerContext ~ ControllerContext viewContext
+        , HasPath (Child (ModelControllerMap application formObject))
+        , application ~ ViewApp viewContext
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 horizontalFormFor formObject = formFor' (createFormContext formObject)
         { renderFormField = renderHorizontalBootstrapFormField
@@ -184,7 +184,7 @@ horizontalFormFor formObject = formFor' (createFormContext formObject)
         }
 
 {-# INLINE createFormContext #-}
-createFormContext :: forall model viewContext parent id formObject controllerContext. (
+createFormContext :: forall model viewContext parent id formObject application. (
         ?viewContext :: viewContext
         , HasField "validations" viewContext [Dynamic]
         , HasField "requestContext" viewContext RequestContext
@@ -192,12 +192,12 @@ createFormContext :: forall model viewContext parent id formObject controllerCon
         , Typeable model
         , Typeable (ValidatorResultFor model)
         , Default (ValidatorResultFor model)
-        , ModelFormAction controllerContext formObject
+        , ModelFormAction application formObject
         , HasField "id" model id
         , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
-        , controllerContext ~ ControllerContext viewContext
+        , application ~ ViewApp viewContext
         ) => formObject -> FormContext model
 createFormContext formObject = 
     FormContext
@@ -206,7 +206,7 @@ createFormContext formObject =
         , renderSubmit = renderBootstrapSubmitButton
         , validatorResult = findValidatorResult ?viewContext model
         , request = getField @"request" (getField @"requestContext" ?viewContext)
-        , formAction = (modelFormAction @controllerContext) formObject
+        , formAction = (modelFormAction @application) formObject
         }
             where
                 model = getModel formObject

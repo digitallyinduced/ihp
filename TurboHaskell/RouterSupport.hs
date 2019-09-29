@@ -118,7 +118,6 @@ type family Concat a b where
 -- Maps models to their restful controllers
 -- E.g. ModelControllerMap ControllerContext User = UsersController
 type family ModelControllerMap controllerContext model
-type family ControllerApplicationMap contorller
 
 {-# INLINE getConstructorByName #-}
 getConstructorByName :: forall theType. Data theType => String -> Maybe Constr
@@ -226,7 +225,7 @@ instance PathArgument Text where
     parsePathArgument = takeTill ((==) '/') >>= return . cs
 
 
-instance {-# OVERLAPPABLE #-} forall id controller parent child context. (Eq controller, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ (), Child controller ~ controller, HasTypes controller id, Default id, FrontControllerPrefix (ControllerApplicationMap controller)) => CanRoute controller parent where
+instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller, Generic controller, Show id, Show controller, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller, parent ~ (), Child controller ~ controller, HasTypes controller id, Default id, FrontControllerPrefix (ControllerApplicationMap controller)) => CanRoute controller parent where
     --pathTo action | action == indexAction = "/Members"
     --pathTo action | action == newAction = pathTo (indexAction @controller) <> "/new"
     --pathTo action | action == createAction = pathTo (indexAction @controller)
@@ -334,7 +333,7 @@ isUpdateAction action = (isJust (updateAction @controller) && toConstr action ==
 modelId :: forall controller. (RestfulController controller, HasTypes (Child controller) (RestfulControllerId controller)) => Child controller -> Maybe (RestfulControllerId controller)
 modelId action = headMay (toListOf (types @(RestfulControllerId controller)) action)
 
-instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent context. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller context, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, CanRoute parent parentParent, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap (parent :> child))) => CanRoute (parent :> child) parent where
+instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent. (Eq controller, Eq child, Generic controller, Show id, PathArgument id, RestfulController controller, RestfulControllerId controller ~ id, Controller controller, parent ~ Parent controller, controller ~ (parent :> Child controller), child ~ Child controller, HasPath parent, HasTypes child id, Child child ~ child, Show child, Show controller, CanRoute parent parentParent, Default id, FrontControllerPrefix (ControllerApplicationMap parent), FrontControllerPrefix (ControllerApplicationMap (parent :> child))) => CanRoute (parent :> child) parent where
     --pathTo action | action == indexAction = "/Members"
     --pathTo action | action == newAction = pathTo (indexAction @controller) <> "/new"
     --pathTo action | action == createAction = pathTo (indexAction @controller)
@@ -435,9 +434,9 @@ mountFrontController :: forall frontController. (?applicationContext :: Applicat
 mountFrontController = withPrefix (prefix @frontController) (controllers @frontController)
 
 {-# INLINE parseRoute #-}
-parseRoute :: forall controller context parent. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller context, CanRoute controller parent) => Parser (IO ResponseReceived)
-parseRoute = parseRoute' @controller >>= return . runAction
+parseRoute :: forall controller parent. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller parent, InitControllerContext (ControllerApplicationMap controller)) => Parser (IO ResponseReceived)
+parseRoute = parseRoute' @controller >>= return . runActionWithNewContext
 
 {-# INLINE catchAll #-}
-catchAll :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action context) => action -> Parser (IO ResponseReceived)
-catchAll action = return (runAction action)
+catchAll :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext (ControllerApplicationMap action)) => action -> Parser (IO ResponseReceived)
+catchAll action = return (runActionWithNewContext action)

@@ -101,17 +101,21 @@ instance Default Point where
 
 type FieldName = ByteString
 
+{-# INLINE isNew #-}
 isNew :: forall model id. (IsNewId id, HasField "id" model id) => model -> Bool
-isNew model =
-    model
-    |> getField @"id"
-    |> isNewId
+isNew model = isNewId (getField @"id" model)
 
 class IsNewId id where
     isNewId :: id -> Bool
-instance IsNewId () where isNewId _ = True
-instance IsNewId UUID where isNewId _ = False
-instance IsNewId (FieldWithDefault valueType) where isNewId _ = True
+instance IsNewId () where
+    {-# INLINE isNewId #-}
+    isNewId _ = True
+instance IsNewId UUID where
+    {-# INLINE isNewId #-}
+    isNewId _ = False
+instance IsNewId (FieldWithDefault valueType) where
+    {-# INLINE isNewId #-}
+    isNewId _ = True
 
 type family GetModelName model :: Symbol
 
@@ -218,5 +222,6 @@ class Record model where
 -- NormalizeModel NewPost = Post
 type NormalizeModel model = GetModelByTableName (GetTableName model)
 
+{-# INLINE ids #-}
 ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (getField @"id") records

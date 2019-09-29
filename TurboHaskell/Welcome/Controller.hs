@@ -15,7 +15,7 @@ instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) =>
 instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => HasPath WelcomeController where
     pathTo WelcomeAction = "/"
 
-instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => Controller WelcomeController () where
+instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => Controller WelcomeController where
     action WelcomeAction = renderHtml (renderLayout view)
 
 view :: H.Html
