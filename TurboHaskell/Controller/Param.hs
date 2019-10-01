@@ -229,9 +229,14 @@ runPipeline model pipeline = do
 ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> StateT [(Text, Text)] IO record) -> record -> StateT [(Text, Text)] IO record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else return record
 
+-- TODO: Rename to `uploadPng`
+uploadFile :: _ => Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
+uploadFile field user = uploadImageFile "png" field user
 
+uploadSVG :: _ => Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
+uploadSVG = uploadImageFile "svg"
 
-uploadFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
         ?requestContext :: RequestContext
         , ?modelContext :: ModelSupport.ModelContext
         , ?controllerContext :: context
@@ -240,13 +245,13 @@ uploadFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol).
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
-    ) => Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
-uploadFile _ user =
+    ) => Text -> Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
+uploadImageFile ext _ user =
     let
         fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
-        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture.png"
+        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture." <> ext
     in case fileOrNothing fieldName of
         Just file | fileContent file /= "" -> liftIO do
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")
