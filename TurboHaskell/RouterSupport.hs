@@ -29,6 +29,7 @@ module TurboHaskell.RouterSupport (
     , parseRoute 
     , catchAll
     , mountFrontController
+    , strippedControllerName
 ) where
 
 import ClassyPrelude hiding (index, delete, take)
@@ -187,7 +188,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
                     ]
                         where
                             singularControllerName = Countable.singularize controllerName
-            parseCustomAction action' = (string actionPath >> onGetOrPost action action)
+            parseCustomAction action' = (string actionPath <* endOfInput >> onGetOrPost action action)
                 where
                     action = initiateAction action' id
                     initiateAction constructor id = 
@@ -196,7 +197,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
                             Nothing -> fromConstr constructor
                     actionName = showConstr action'
                     withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
-                    modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
+                    modelName = cs $ Countable.singularize $ cs controllerName
                     withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
                     actionPath = controllerNameToPathName (cs withoutModelPrefix)
         in choice (map parseCustomAction customConstructors)
@@ -239,7 +240,7 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller,
             newAction' = fromMaybe (error "parseRoute': Failed to locate new action") (newAction @controller)
             createAction' = fromMaybe (error "parseRoute': Failed to locate create action") (createAction @controller)
             showAction' :: RestfulControllerId controller -> Child controller
-            showAction' memberId = fromJust (showAction @controller) $ memberId
+            showAction' memberId = fromMaybe (error "parseRoute': Failed to locate show action") (showAction @controller) memberId
             updateAction' :: RestfulControllerId controller -> Child controller
             updateAction' memberId = fromJust (updateAction @controller) $ memberId
             deleteAction' :: RestfulControllerId controller -> Child controller
@@ -250,9 +251,9 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller,
             string "/" >> ((string "new" >> get (newAction'))
                 <|> (do
                     memberId <- parsePathArgument
-                    let edit = (string "edit" >> get (editAction' memberId))
-                    let custom = (customActions (Just (showAction' memberId)) >>= return )
-                    (string "/" >> (custom <|> edit))
+                    let edit = string "edit" >> get (editAction' memberId)
+                    let custom = customActions (Just (showAction' memberId))
+                    (string "/" >> (custom))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
                 ))
             )
@@ -360,7 +361,9 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent. (E
             string "/" >> (string "new" >> get (newAction'))
                 <|> (do
                     memberId <- parsePathArgument
-                    (string "/" >> ((string "edit" >> get (editAction' memberId)) <|> (customActions (Just (showActionWithoutParent memberId)) >>= return ) ))
+                    let custom = (customActions (Just (showActionWithoutParent memberId)) >>= return )
+                    let edit = (string "edit" >> get (editAction' memberId))
+                    (string "/" >> (custom <|> edit))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
                 )
             )
