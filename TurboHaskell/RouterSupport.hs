@@ -253,7 +253,7 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller,
                     memberId <- parsePathArgument
                     let edit = string "edit" >> get (editAction' memberId)
                     let custom = customActions (Just (showAction' memberId))
-                    (string "/" >> (custom))
+                    (string "/" >> (custom <|> edit))
                         <|> (onGetOrPostOrDelete (showAction' memberId) (updateAction' memberId) (deleteAction' memberId))
                 ))
             )
