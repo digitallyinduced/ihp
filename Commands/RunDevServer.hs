@@ -17,7 +17,7 @@ import Data.Default (def)
 import Data.Maybe (fromJust)
 import qualified Control.Concurrent.Lock as Lock
 import qualified TurboHaskell.DevelopmentSupport.LiveReloadNotificationServer as LiveReloadNotificationServer
-import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Char8 as ByteString
 
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai as Wai
@@ -27,6 +27,7 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Network.HTTP.Types.Header as HTTP
 import qualified Text.Blaze.Html5 as Html5
 import GHC.Records
+import Data.String.Interpolate (i)
 
 data DevServerState = DevServerState
     { postgresProcess :: !(IORef ManagedProcess)
@@ -60,26 +61,29 @@ initDevServerState = do
             liveReloadNotificationServerProcess = liveReloadNotificationServerProcess
         }
 
-renderErrorView :: ByteString -> Html5.Html
-renderErrorView code = [hsx|
+renderErrorView :: ByteString -> Bool -> Html5.Html
+renderErrorView code isCompiling = [hsx|
         <html lang="en">
           <head>
             <meta charset="utf-8"/>
+            <meta http-equiv="refresh" content="0.5"/>
             <title>Compilation Error</title>
             <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous"/>
           </head>
           <body style="background-color: #002b36; color: #839496">
-            <div class="m-2">
-                <h1>Error while compiling</h1>
-                <pre style="color: #839496">{code}</pre>
-            </div>
+            <div class="m-2">{inner}</div>
           </body>
         </html>
     |]
+        where
+            inner = if isCompiling
+                then [hsx|<h1>Is compiling</h1><pre style="color: #839496">{code}</pre>|]
+                else [hsx|<h1>Error while compiling</h1><pre style="color: #839496">{code}</pre>|]
 
 initErrorWatcher :: IORef ManagedProcess -> IO () -> IO () -> IO ()
 initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
     errorServerRef <- newIORef Nothing
+    isCompiling <- newIORef True
     lock <- Lock.new
     let stopServer = do
             server <- readIORef errorServerRef
@@ -92,24 +96,32 @@ initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
                 Nothing -> return ()
     let getLastErrors (ManagedProcess { errorLog }) = readIORef (fromJust errorLog)
 
+    let startErrorServer = do
+            server <- readIORef errorServerRef
+            when (isNothing server) do
+                    let errorApp req respond = do
+                            isCompiling' <- readIORef isCompiling
+                            errorLog <- readIORef serverProcess
+                                    >>= return . fromJust . getField @"errorLog"
+                                    >>= readIORef
+                            respond $ Wai.responseBuilder HTTP.status200 [(HTTP.hContentType, "text/html")] (Blaze.renderHtmlBuilder $ renderErrorView errorLog isCompiling')
+                    let port = 8000
+                    willStartErrorServer
+                    errorServer <- async $ Warp.run port errorApp
+                    writeIORef errorServerRef (Just errorServer)
+
     let onGhciStateChange state = Lock.with lock $ case state of
-            Ok -> stopServer
+            Ok -> do
+                writeIORef isCompiling False
+                stopServer
             Failed -> do
                 pingDevServer
-                server <- readIORef errorServerRef
-                if isJust server
-                    then return ()
-                    else do
-                        let errorApp req respond = do
-                                errorLog <- readIORef serverProcess
-                                        >>= return . fromJust . getField @"errorLog"
-                                        >>= readIORef
-                                respond $ Wai.responseBuilder HTTP.status200 [(HTTP.hContentType, "text/html")] (Blaze.renderHtmlBuilder $ renderErrorView errorLog)
-                        let port = 8000
-                        willStartErrorServer
-                        errorServer <- async $ Warp.run port errorApp
-                        writeIORef errorServerRef (Just errorServer)
-            Pending -> return ()
+                writeIORef isCompiling False
+                startErrorServer
+                
+            Pending -> do
+                writeIORef isCompiling True
+                startErrorServer
     watchGhciProcessState serverProcess onGhciStateChange
 
 
@@ -237,26 +249,38 @@ continueRunningApp serverProcess = do
     ghci <- readIORef serverProcess
     sendGhciCommand ghci ":script TurboHaskell/startDevServerGhciScriptRec"
 
-readGhciState :: ByteString -> Maybe GhciState
-readGhciState line | "Ok," `isPrefixOf` line = Just Ok
-readGhciState line | "Failed," `isPrefixOf` line = Just Failed
-readGhciState _ = Nothing
+readGhciState :: GhciState -> ByteString -> Maybe GhciState
+readGhciState _ line | "Ok," `isPrefixOf` line = Just Ok
+readGhciState _ line | "Failed," `isPrefixOf` line = Just Failed
+readGhciState prevState _ | prevState == Failed || prevState == Pending = Just Pending
+readGhciState _ _ = Nothing
 
 watchGhciProcessState :: IORef ManagedProcess -> (GhciState -> IO ()) -> IO ()
 watchGhciProcessState ghciRef onStateChange = do
     ghci <- readIORef ghciRef
+    stateRef <- newIORef Pending
     let ManagedProcess { outputHandle, errorHandle, errorLog } = ghci
     async $ forever $ do
             line <- ByteString.hGetLine outputHandle
             ByteString.putStrLn line
-            case readGhciState line of
-                Just state -> onStateChange state
+            prevState <- readIORef stateRef
+            case readGhciState prevState line of
+                Just state -> do
+                    writeIORef stateRef state
+                    onStateChange state
+                    case errorLog of
+                        Just errorLog -> do
+                            modifyIORef errorLog (\log -> log <> "\n" <> line)
+                            pingDevServer
+                        Nothing -> return ()
                 Nothing -> return ()
     async $ forever $ do
             line <- ByteString.hGetLine errorHandle
             ByteString.putStrLn line
             case errorLog of
-                Just errorLog -> modifyIORef errorLog (\log -> log <> "\n" <> line)
+                Just errorLog -> do
+                    modifyIORef errorLog (\log -> log <> "\n" <> line)
+                    pingDevServer
                 Nothing -> return ()
     return ()
 
