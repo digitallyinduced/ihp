@@ -10,7 +10,7 @@ class FrameworkConfig where
     environment :: Environment
 
 
-data RootApplication = RootApplication deriving (Eq)
+data RootApplication = RootApplication deriving (Eq, Show)
 
 instance Controller RootApplication where
 

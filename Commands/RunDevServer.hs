@@ -270,7 +270,8 @@ watchGhciProcessState ghciRef onStateChange = do
                     case errorLog of
                         Just errorLog -> do
                             modifyIORef errorLog (\log -> log <> "\n" <> line)
-                            pingDevServer
+                            _ <- async pingDevServer
+                            return ()
                         Nothing -> return ()
                 Nothing -> return ()
     async $ forever $ do
@@ -279,7 +280,8 @@ watchGhciProcessState ghciRef onStateChange = do
             case errorLog of
                 Just errorLog -> do
                     modifyIORef errorLog (\log -> log <> "\n" <> line)
-                    pingDevServer
+                    _ <- async pingDevServer
+                    return ()
                 Nothing -> return ()
     return ()
 

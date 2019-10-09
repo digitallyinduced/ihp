@@ -66,6 +66,7 @@ Library TurboHaskellFramework
         , TurboHaskell.SchemaTypes
         , TurboHaskell.AppPrelude
         , TurboHaskell.SchemaPrelude
+        , TurboHaskell.ErrorController
     build-depends:
         base
         , classy-prelude

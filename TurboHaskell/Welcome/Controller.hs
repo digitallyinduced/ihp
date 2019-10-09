@@ -7,7 +7,7 @@ import TurboHaskell.ViewPrelude
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 
-data WelcomeController = WelcomeAction
+data WelcomeController = WelcomeAction deriving (Eq, Show)
 
 instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => CanRoute WelcomeController () where
     parseRoute' = (string "/" <|> string "") *> endOfInput *> return WelcomeAction

@@ -16,6 +16,7 @@ data NotLoggedIn = NotLoggedIn { newSessionUrl :: Maybe Text } deriving Show
 
 data AuthenticationController
     = NotLoggedInAction { newSessionUrl :: Maybe Text }
+    deriving (Eq, Show)
 
 throwNotLoggedIn newSessionUrl = Exception.throw (TurboHaskell.LoginSupport.Types.NotLoggedIn newSessionUrl)
 
