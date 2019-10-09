@@ -33,7 +33,8 @@ module TurboHaskell.ViewPrelude (
     module TurboHaskell.ViewSupport,
     module TurboHaskell.ModelSupport,
     (!),
-    module Data.Data
+    module Data.Data,
+    param
 ) where
 
 import ClassyPrelude
@@ -74,6 +75,7 @@ import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport
 import TurboHaskell.ModelSupport
 import Data.Data
+import GHC.TypeLits as T
 
 plain = Data.String.Interpolate.i
 css = Data.String.Interpolate.i
@@ -111,3 +113,6 @@ viewContext = ?viewContext
 {-# INLINE addStyle #-}
 addStyle :: (ConvertibleStrings string Text) => string -> Html5.Markup
 addStyle style = Html5.style $ preEscapedText (cs style)
+
+class ViewParamHelpMessage where param :: a
+instance (T.TypeError (T.Text "‘param‘ can only be used inside your controller actions.\nYou have to run the ‘param \"my_param\"‘ call inside your controller and then pass the resulting value to your view.\n\nController Example:\n\n    module Web.Controller.Projects\n\n    instance Controller ProjectsController where\n        action ProjectsAction = do\n            let showDetails = param \"showDetails\"\n            render ProjectsView { showDetails }\n\nView Example:\n\n    module Web.View.Projects.Index\n\n    data ProjectsView = ProjectsView { showDetails :: Bool }\n    instance View ProjectsView ViewContext where\n        html ProjectsView { .. } = [hsx|Show details: {showDetails}|]\n\n")) => ViewParamHelpMessage where
