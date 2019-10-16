@@ -1,11 +1,14 @@
-module TurboHaskell.View.Modal (Modal (..), withModal, renderModalHeader) where
+module TurboHaskell.View.Modal (Modal (..), setModal, renderModalHeader, initModal, renderCurrentModal, getCurrentModal) where
 
 import ClassyPrelude
 import TurboHaskell.HtmlSupport.ToHtml
 import TurboHaskell.HtmlSupport.QQ
 import Text.Blaze.Html5 (Html, preEscapedText)
 import Control.Lens hiding ((|>))
-import Data.Generics.Product
+import TurboHaskell.ControllerSupport
+import GHC.Records
+
+import qualified Data.TMap as TypeMap
 
 data Modal = Modal { modalContent :: Html, modalFooter :: Html, modalCloseUrl :: Text, modalTitle :: Text }
 
@@ -50,5 +53,25 @@ instance ToHtml (Maybe Modal) where
 onClick :: Text
 onClick = "if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()"
 
-withModal :: (?viewContext :: viewContext, HasField' "modal" viewContext (Maybe Modal)) => Modal -> ((?viewContext :: viewContext) => Html) -> Html
-withModal modal expr = let viewContext' = ?viewContext in let ?viewContext = setField @"modal" (Just modal) viewContext' in expr
+setModal :: (?controllerContext :: ControllerContext) => Html -> IO ()
+setModal modal = do
+    let (ModalContainer ref) = fromControllerContext @ModalContainer
+    writeIORef ref (Just modal)
+    return ()
+
+getCurrentModal :: (?controllerContext :: ControllerContext) => IO (Maybe Html)
+getCurrentModal = do
+    let (ModalContainer ref) = fromControllerContext @ModalContainer
+    readIORef ref
+
+newtype ModalContainer = ModalContainer (IORef (Maybe Html))
+initModal context = do 
+    modalContainer <- newIORef Nothing >>= return . ModalContainer
+    return (TypeMap.insert @ModalContainer modalContainer context)
+
+renderCurrentModal :: (?viewContext :: viewContext, HasField "modal" viewContext (Maybe Html)) => Html
+renderCurrentModal = 
+    let controllerContext :: (Maybe Html) = getField @"modal" ?viewContext
+    in case controllerContext of
+        Just html -> html
+        Nothing -> mempty

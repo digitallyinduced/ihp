@@ -16,7 +16,7 @@ instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) =>
     pathTo WelcomeAction = "/"
 
 instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => Controller WelcomeController where
-    action WelcomeAction = renderHtml (renderLayout view)
+    action WelcomeAction = respondHtml (renderLayout view)
 
 view :: H.Html
 view = [hsx|

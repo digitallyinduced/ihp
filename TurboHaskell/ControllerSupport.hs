@@ -75,7 +75,7 @@ class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext) => TypeMap.TMap -> IO TypeMap.TMap
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let handlePatternMatchFailure (e :: Exception.PatternMatchFail) = ErrorController.handlePatternMatchFailure e controller

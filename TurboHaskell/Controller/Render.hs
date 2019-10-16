@@ -38,11 +38,23 @@ renderPlain text = do
     let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseLBS status200 [] (cs text)
 
-{-# INLINE renderHtml #-}
-renderHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => Html -> IO ResponseReceived
-renderHtml html = do
+{-# INLINE respondHtml #-}
+respondHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => Html -> IO ResponseReceived
+respondHtml html = do
     let (RequestContext request respond _ _ _) = ?requestContext
     respond $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+
+
+{-# INLINE renderHtml #-}
+renderHtml :: forall viewContext view controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO Html
+renderHtml !view = do
+    context' <- ViewSupport.createViewContext @viewContext
+    let ?viewContext = context'
+    let (context, view') = ViewSupport.beforeRender (context', view)
+    let layout = getField @"layout" context
+    let ?view = view'
+    let boundHtml = let ?viewContext = context in layout (ViewSupport.html view')
+    return boundHtml
 
 renderFile :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ResponseReceived
 renderFile filePath contentType = do
@@ -109,14 +121,7 @@ polymorphicRender = PolymorphicRender () ()
 render :: forall view viewContext controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO ResponseReceived
 render !view = do
     renderPolymorphic PolymorphicRender
-            { html = do
-                context' <- ViewSupport.createViewContext @viewContext
-                let ?viewContext = context'
-                let (context, view') = ViewSupport.beforeRender (context', view)
-                let layout = getField @"layout" context
-                let ?view = view'
-                let boundHtml = let ?viewContext = context in layout (ViewSupport.html view')
-                renderHtml (boundHtml)
+            { html = (renderHtml @viewContext view) >>= respondHtml
             , json = renderJson (ViewSupport.json view)
             }
     
