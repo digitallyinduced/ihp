@@ -94,20 +94,28 @@ theRequest =
         request = getField @"request" requestContext
     in request
 
+class PathString a where
+    pathToString :: a -> Text
 
-isActivePath :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, HasPath controller) => controller -> ClassyPrelude.Bool
+instance PathString Text where
+    pathToString path = path
+
+instance {-# OVERLAPPABLE #-} HasPath action => PathString action where
+    pathToString = pathTo
+
+isActivePath :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> ClassyPrelude.Bool
 isActivePath route =
     let 
         currentPath = Network.Wai.rawPathInfo theRequest
     in
-        currentPath == cs (pathTo route)
+        currentPath == cs (pathToString route)
 
-isActivePathOrSub :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, HasPath controller) => controller -> ClassyPrelude.Bool
+isActivePathOrSub :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> ClassyPrelude.Bool
 isActivePathOrSub route =
     let
         currentPath = Network.Wai.rawPathInfo theRequest
     in
-        (cs $ pathTo route) `isPrefixOf` currentPath
+        (cs $ pathToString route) `isPrefixOf` currentPath
 
 {-# INLINE viewContext #-}
 viewContext :: (?viewContext :: viewContext) => viewContext
