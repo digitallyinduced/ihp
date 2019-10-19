@@ -12,13 +12,11 @@ import qualified Control.Exception as Exception
 import Data.Proxy (Proxy (Proxy))
 import TurboHaskell.FrameworkConfig
 
-data NotLoggedIn = NotLoggedIn { newSessionUrl :: Maybe Text } deriving Show
+data NotLoggedIn = NotLoggedIn { newSessionPath :: Maybe Text } deriving Show
 
-data AuthenticationController
-    = NotLoggedInAction { newSessionUrl :: Maybe Text }
-    deriving (Eq, Show)
+data AuthenticationController = NotLoggedInAction { newSessionPath :: Maybe Text } deriving (Eq, Show)
 
-throwNotLoggedIn newSessionUrl = Exception.throw (TurboHaskell.LoginSupport.Types.NotLoggedIn newSessionUrl)
+throwNotLoggedIn newSessionPath = Exception.throw (TurboHaskell.LoginSupport.Types.NotLoggedIn newSessionPath)
 
 instance Exception NotLoggedIn
 

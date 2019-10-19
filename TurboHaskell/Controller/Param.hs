@@ -2,17 +2,12 @@
 
 module TurboHaskell.Controller.Param where
 import           ClassyPrelude
-import qualified Data.ByteString.Lazy
-import qualified Data.Either
-import           Data.Maybe                           (fromJust)
+import qualified Data.Either as Either
 import           Data.String.Conversions              (cs)
-import qualified Data.Text
-import qualified Data.Text.Encoding
 import qualified Data.Text.Read
 import           TurboHaskell.Controller.RequestContext
 import           TurboHaskell.HaskellSupport
-import qualified Network.URI
-import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
+import qualified Network.Wai as Wai
 import Network.Wai.Parse (FileInfo, fileContent)
 import qualified Data.UUID
 import Data.UUID (UUID)
@@ -24,7 +19,7 @@ import qualified Data.ByteString.Char8 as Char8
 import GHC.TypeLits
 import Control.Lens ()
 import Data.Proxy
-import qualified Control.Monad.State.Lazy as State
+import qualified Control.Monad.State.Strict as State
 import TurboHaskell.ValidationSupport
 import Data.Default
 import qualified Data.Dynamic as Dynamic
@@ -34,20 +29,27 @@ import qualified TurboHaskell.NameSupport as NameSupport
 import TurboHaskell.HaskellSupport
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Process as Process
-import qualified Control.Monad.State.Lazy as State
+
 import GHC.TypeLits
 import Data.Proxy
 import TurboHaskell.ControllerSupport
+import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
+import qualified Data.Maybe as Maybe
 
 {-# INLINE fileOrNothing #-}
-fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo Data.ByteString.Lazy.ByteString)
-fileOrNothing name = lookup name files
-    where
-        (RequestContext _ _ _ files _) = ?requestContext
+fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
+fileOrNothing !name = ?requestContext |> getField @"files" |> lookup name
 
 {-# INLINE param #-}
 param :: (?requestContext :: RequestContext) => (FromParameter a) => ByteString -> a
-param name = (fromParameterOrError name) (paramOrNothing name)
+param !name =
+    let
+        notFoundMessage = "param: Parameter '" <> cs name <> "' not found"
+        parserErrorMessage = "param: Parameter '" <> cs name <> "' is invalid"
+    in case paramOrNothing name of
+        Just value -> Either.fromRight (error parserErrorMessage) (fromParameter value)
+        Nothing -> error notFoundMessage
+            
 
 {-# INLINE hasParam #-}
 hasParam :: (?requestContext :: RequestContext) => ByteString -> Bool
@@ -55,34 +57,24 @@ hasParam = isJust . paramOrNothing'
 
 {-# INLINE paramOrDefault #-}
 paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => a -> ByteString -> a
-paramOrDefault defaultValue name =
-    case fromParameter (paramOrNothing name) of
-        Left _ -> defaultValue
-        Right value -> value
+paramOrDefault !defaultValue = Maybe.fromMaybe defaultValue . paramOrNothing
 
 {-# INLINE paramOrNothing #-}
 paramOrNothing :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> Maybe a
-paramOrNothing name = fromParameterOrNothing name (paramOrNothing' name)
+paramOrNothing !name = case paramOrNothing' name of
+    Just value -> case fromParameter value of
+        Left error -> Nothing
+        Right value -> Just value
+    Nothing -> Nothing
 
 {-# INLINE paramOrNothing' #-}
 paramOrNothing' :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
-paramOrNothing' name = do
-    let (RequestContext request _ bodyParams _ _) = ?requestContext
+paramOrNothing' !name = do
+    let (RequestContext { request, params }) = ?requestContext
     let
         allParams :: [(ByteString, Maybe ByteString)]
-        allParams = concat [(map (\(a, b) -> (a, Just b)) bodyParams), (queryString request)]
+        allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
     join (lookup name allParams)
-
-{-# INLINE fromParameterOrError #-}
-fromParameterOrError :: (FromParameter a) => ByteString -> Maybe ByteString -> a
-fromParameterOrError name value = let param = fromParameter value in Data.Either.fromRight (error $ "fromParameterOrError: Invalid parameter " <> cs name <> " => " <> (let (Data.Either.Left errorMessage) = param in errorMessage)) param
-
-{-# INLINE fromParameterOrNothing #-}
-fromParameterOrNothing :: FromParameter a => ByteString -> Maybe ByteString -> Maybe a
-fromParameterOrNothing name value =
-    case fromParameter value of
-        Left _ -> Nothing
-        Right value -> Just value
 
 class ParamName a where
     paramName :: a -> ByteString
@@ -96,43 +88,39 @@ params = map (\name -> (name, param $ paramName name))
 
 
 class FromParameter a where
-    fromParameter :: Maybe ByteString -> Either String a
+    fromParameter :: ByteString -> Either ByteString a
 
 instance FromParameter ByteString where
     {-# INLINE fromParameter #-}
-    fromParameter (Just byteString) = pure byteString
-    fromParameter Nothing = Left "FromParameter ByteString: Parameter missing"
+    fromParameter byteString = pure byteString
 
 instance FromParameter Int where
     {-# INLINE fromParameter #-}
-    fromParameter (Just byteString) =
-        case (Data.Text.Read.decimal $ cs byteString) of
-            Left error -> Left error
-            Right (value, _) -> Right value
-    fromParameter Nothing = Left "FromParameter Int: Parameter missing"
+    fromParameter byteString =
+        case Attoparsec.eitherResult (Attoparsec.parse Attoparsec.decimal byteString) of
+            Right value -> Right value
+            Left error -> Left ("FromParameter Int: " <> cs error)
 
 instance FromParameter Text where
     {-# INLINE fromParameter #-}
-    fromParameter (Just byteString) = pure $ cs byteString
-    fromParameter Nothing = Left "FromParameter Text: Parameter missing"
+    fromParameter byteString = pure (cs byteString)
 
 instance FromParameter Bool where
     {-# INLINE fromParameter #-}
-    fromParameter (Just on) | on == cs (ModelSupport.inputValue True) = pure True
+    fromParameter on | on == cs (ModelSupport.inputValue True) = pure True
     fromParameter _ = pure False
 
 instance FromParameter UUID where
     {-# INLINE fromParameter #-}
-    fromParameter (Just byteString) =
-        case Data.UUID.fromASCIIBytes (byteString) of
+    fromParameter byteString =
+        case Data.UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
             Nothing -> Left "FromParamter UUID: Parse error"
-    fromParameter Nothing = Left "FromParameter UUID: Parameter missing"
 
 instance FromParameter UTCTime where
     {-# INLINE fromParameter #-}
-    fromParameter (Just "") = Left "FromParameter UTCTime: Parameter missing"
-    fromParameter (Just byteString) =
+    fromParameter "" = Left "FromParameter UTCTime: Parameter missing"
+    fromParameter byteString =
         let
             input = (cs byteString)
             dateTime = parseTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
@@ -142,51 +130,46 @@ instance FromParameter UTCTime where
                 Just value -> Right value
                 Nothing -> Left "FromParameter UTCTime: Failed parsing"
             Just value -> Right value
-    fromParameter Nothing = Left "FromParameter UTCTime: Parameter missing"
 
 instance FromParameter Point where
     {-# INLINE fromParameter #-}
-    fromParameter (Just "") = Left "FromParameter Point: Parameter missing"
-    fromParameter (Just byteString) =
+    fromParameter "" = Left "FromParameter Point: Parameter missing"
+    fromParameter byteString =
         let [x, y] = Char8.split ',' byteString
         in 
             case (Data.Text.Read.rational $ cs x) of
-                Left error -> Left error
+                Left error -> Left (cs error)
                 Right (x, _) ->
                     case (Data.Text.Read.rational $ cs y) of
-                        Left error -> Left error
+                        Left error -> Left (cs error)
                         Right (y, _) -> Right (Point x y)
-    fromParameter Nothing = Left "FromParameter Point: Parameter missing"
 
 instance {-# OVERLAPS #-} FromParameter (ModelSupport.Id' model') where
     {-# INLINE fromParameter #-}
-    fromParameter maybeUUID =
-        case (fromParameter maybeUUID) :: Either String UUID of
+    fromParameter uuid =
+        case (fromParameter uuid) :: Either ByteString UUID of
             Right uuid -> pure (ModelSupport.Id uuid)
             Left error -> Left error
 
 instance FromParameter param => FromParameter (ModelSupport.FieldWithDefault param) where
     {-# INLINE fromParameter #-}
-    fromParameter param | isJust param = fromParameter param
-    fromParameter Nothing              = Right ModelSupport.Default
+    fromParameter param = fromParameter param
 
 instance FromParameter param => FromParameter (Maybe param) where
     {-# INLINE fromParameter #-}
-    fromParameter param | isJust param =
-        case (fromParameter param) :: Either String param of
+    fromParameter param =
+        case (fromParameter param) :: Either ByteString param of
             Right value -> Right (Just value)
             Left error -> Left error
-    fromParameter Nothing = Right Nothing
 
 instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
-    fromParameter (Just string) =
+    fromParameter string =
             case find (\value -> ModelSupport.inputValue value == string') allValues of
                 Just value -> Right value
                 Nothing -> Left "Invalid value"
         where
             string' = cs string
             allValues = enumFrom (toEnum 0) :: [parameter]
-    fromParameter _ = Left "FromParameter Enum: Parameter missing"
 
 class FillParams (params :: [Symbol]) record where
     fill :: (?requestContext :: RequestContext) => record -> State.StateT [(Text, Text)] IO record
@@ -199,11 +182,11 @@ instance (FillParams rest record
     , SetField fieldName record fieldType
     , FromParameter fieldType
     ) => FillParams (fieldName:rest) record where
-    fill record = do
+    fill !record = do
         let name :: ByteString = cs $ NameSupport.fieldNameToColumnName $ cs (symbolVal (Proxy @fieldName))
         case paramOrNothing name of
-            value@(Just paramValue) ->
-                case fromParameter value of
+            Just !paramValue ->
+                case fromParameter paramValue of
                     Left error -> do
                         attachFailure (Proxy @fieldName) (cs error)
                         fill @rest record
@@ -211,9 +194,9 @@ instance (FillParams rest record
             Nothing -> fill @rest record
 
 
-type RecordReader r = r -> StateT [(Text, Text)] IO r
+type RecordReader r = r -> State.StateT [(Text, Text)] IO r
 
-type ParamPipeline record = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: ControllerContext, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> StateT [(Text, Text)] IO record
+type ParamPipeline record = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: ControllerContext, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> State.StateT [(Text, Text)] IO record
 
 runPipeline :: forall model id. (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model -> IO (Either model model)
 runPipeline model pipeline = do
@@ -226,7 +209,7 @@ runPipeline model pipeline = do
                     |> (\(ValidationResults results) -> modifyIORef results (\validations -> (Dynamic.toDyn (model, result)):validations))
             return (if null result then Right model else Left model)
 
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> StateT [(Text, Text)] IO record) -> record -> StateT [(Text, Text)] IO record
+ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> State.StateT [(Text, Text)] IO record) -> record -> State.StateT [(Text, Text)] IO record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else return record
 
 -- TODO: Rename to `uploadPng`

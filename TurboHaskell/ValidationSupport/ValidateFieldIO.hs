@@ -12,7 +12,7 @@ import           TurboHaskell.NameSupport               (humanize)
 import           TurboHaskell.ValidationSupport.Types
 import           GHC.Records
 import           GHC.TypeLits                         (KnownSymbol, Symbol)
-import Control.Monad.State
+import Control.Monad.State.Strict
 import TurboHaskell.HaskellSupport hiding (get)
 import TurboHaskell.QueryBuilder
 

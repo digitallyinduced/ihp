@@ -32,15 +32,19 @@ import TurboHaskell.ModelSupport (Id, Id')
 import qualified TurboHaskell.SchemaTypes as Schema
 import GHC.Records
 
+{-# INLINE query #-}
 query :: forall model. DefaultScope model => QueryBuilder model
 query = defaultScope NewQueryBuilder
 
 class DefaultScope model where
     defaultScope :: QueryBuilder model -> QueryBuilder model
 
-instance {-# OVERLAPPABLE #-} DefaultScope model where defaultScope queryBuilder = queryBuilder
+instance {-# OVERLAPPABLE #-} DefaultScope model where
+    {-# INLINE defaultScope #-}
+    defaultScope queryBuilder = queryBuilder
 
 instance Default (QueryBuilder model) where
+    {-# INLINE def #-}
     def = NewQueryBuilder
 
 data FilterOperator = EqOp | InOp | IsOp deriving (Show, Eq)
@@ -260,19 +264,28 @@ queryOr a b queryBuilder = (a queryBuilder) `UnionQueryBuilder` (b queryBuilder)
 
 instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model') => Fetchable (Id' model') model where
     type FetchResult (Id' model') model = model
+    {-# INLINE fetch #-}
     fetch = genericFetchIdOne
+    {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing = genericfetchIdOneOrNothing
+    {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdOne
 
 instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model') => Fetchable (Maybe (Id' model')) model where
     type FetchResult (Maybe (Id' model')) model = [model]
+    {-# INLINE fetch #-}
     fetch (Just a) = genericFetchId a
+    {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing Nothing = return Nothing
     fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
+    {-# INLINE fetchOne #-}
     fetchOne (Just a) = genericFetchIdOne a
 
 instance (model ~ GetModelById (Id' model'), value ~ Id' model', HasField "id" model value) => Fetchable [Id' model'] model where
     type FetchResult [Id' model'] model = [model]
+    {-# INLINE fetch #-}
     fetch = genericFetchIds
+    {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing = genericfetchIdsOneOrNothing
+    {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne

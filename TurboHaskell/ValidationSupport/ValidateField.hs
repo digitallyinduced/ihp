@@ -6,7 +6,7 @@ import           TurboHaskell.NameSupport               (humanize)
 import           TurboHaskell.ValidationSupport.Types
 import           GHC.TypeLits                         (KnownSymbol, Symbol)
 import GHC.Records
-import Control.Monad.State
+import Control.Monad.State.Strict
 import TurboHaskell.ModelSupport
 
 type Validator2 value = ValidateFieldInner value -> ValidatorResult

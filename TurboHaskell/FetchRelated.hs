@@ -41,7 +41,8 @@ collectionFetchRelated :: forall model relatedField relatedFieldValue relatedMod
         Eq relatedFieldValue,
         ToField relatedFieldValue,
         KnownSymbol relatedField,
-        HasField "id" relatedModel relatedFieldValue
+        HasField "id" relatedModel relatedFieldValue,
+        Show relatedFieldValue
     ) => Proxy relatedField -> [model] -> IO [TurboHaskell.ModelSupport.Include relatedField model]
 collectionFetchRelated relatedField model = do
     relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, map (getField @relatedField) model) |> fetch
@@ -50,7 +51,10 @@ collectionFetchRelated relatedField model = do
         assignRelated model =
             let
                 relatedModel :: relatedModel
-                (Just relatedModel) = ClassyPrelude.find (\r -> (getField @"id" r :: relatedFieldValue) == (getField @relatedField model :: relatedFieldValue)) relatedModels
+                relatedModel = case ClassyPrelude.find (\r -> (getField @"id" r :: relatedFieldValue) == targetForeignKey) relatedModels of
+                        Just m -> m
+                        Nothing -> error ("Could not find record with id = " <> show targetForeignKey <> " in result set. Looks like the foreign key is pointing to a non existing record")
+                targetForeignKey = (getField @relatedField model :: relatedFieldValue)
             in
                 updateField @relatedField relatedModel model
 

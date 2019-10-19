@@ -362,6 +362,7 @@ compileFromRowInstance table@(Table name attributes) database =
 compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
         "instance Record New" <> tableNameToModelName name <> " where\n"
+        <> "    {-# INLINE newRecord #-}\n"
         <> "    newRecord = " <> tableNameToModelName name <> " " <> intercalate " " (map (const "def") attributes) <> "\n"
 
 
@@ -436,7 +437,7 @@ compileSetFieldInstances table@(Table tableName attributes) = intercalate "\n" (
     where
         compileSetField' (Field fieldName _) = compileSetField fieldName
         compileSetField' (HasMany fieldName _) = compileSetField fieldName
-        compileSetField fieldName = "instance SetField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") " <> fieldName <> " where setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
+        compileSetField fieldName = "instance SetField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") " <> fieldName <> " where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
             where
                 compileAttribute :: Attribute -> Text
                 compileAttribute (Field name _) = compileAttribute' name
@@ -448,7 +449,7 @@ compileUpdateFieldInstances table@(Table tableName attributes) = intercalate "\n
     where
         compileSetField' (Field fieldName _) = compileSetField fieldName
         compileSetField' (HasMany fieldName _) = compileSetField fieldName
-        compileSetField fieldName = "instance UpdateField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' table fieldName  <> ") " <> fieldName <> " " <> fieldName <> "' where updateField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
+        compileSetField fieldName = "instance UpdateField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' table fieldName  <> ") " <> fieldName <> " " <> fieldName <> "' where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes))
             where
                 compileAttribute :: Attribute -> Text
                 compileAttribute (Field name _) = if fieldName == name then "newValue" else name

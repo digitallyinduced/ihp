@@ -1,6 +1,6 @@
 module TurboHaskell.ApplicationContext where
 
-import ClassyPrelude (String, IO)
+import ClassyPrelude
 import Network.Wai.Session (Session)
 import qualified Data.Vault.Lazy         as Vault
 import           TurboHaskell.ModelSupport (ModelContext)

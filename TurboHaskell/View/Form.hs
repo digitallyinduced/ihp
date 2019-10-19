@@ -360,6 +360,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
             (if disableLabel then div else H.label ! class_ "form-check-label") $ do
                 let theInput = input ! type_ "checkbox" ! name fieldName ! class_ ("form-check-input " <> (if not formIsSubmitted || isNothing validatorResult then "" else "is-invalid") <> " " <> fieldClass)
                 if fieldValue == "yes" then theInput ! A.checked "checked" else theInput
+                input ! type_ "hidden" ! name fieldName ! A.value (cs $ TurboHaskell.ModelSupport.inputValue False)
                 Html5.text fieldLabel
                 if disableValidationResult then mempty else renderValidationResult formField
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html

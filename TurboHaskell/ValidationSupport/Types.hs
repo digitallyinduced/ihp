@@ -15,16 +15,14 @@ import TurboHaskell.NameSupport (humanize)
 import qualified GHC.Records as Records
 import Data.Proxy
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
-import GHC.Generics 
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.UUID
 import Data.Default
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Unsafe.Coerce
 import Data.Dynamic (Dynamic, toDyn)
-import Data.Generics.Product
 
-data ValidatorResult = Success | Failure Text deriving (Show, Eq, Generic)
+data ValidatorResult = Success | Failure Text deriving (Show, Eq)
 
 isSuccess Success = True
 isSuccess _       = False
