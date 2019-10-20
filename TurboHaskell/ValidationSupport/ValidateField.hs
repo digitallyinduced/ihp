@@ -1,13 +1,12 @@
 module TurboHaskell.ValidationSupport.ValidateField where
 
-import           ClassyPrelude
-import           Data.Proxy
-import           TurboHaskell.NameSupport               (humanize)
-import           TurboHaskell.ValidationSupport.Types
-import           GHC.TypeLits                         (KnownSymbol, Symbol)
+import ClassyPrelude
+import Data.Proxy
+import TurboHaskell.ValidationSupport.Types
+import GHC.TypeLits (KnownSymbol, Symbol)
 import GHC.Records
-import Control.Monad.State.Strict
 import TurboHaskell.ModelSupport
+import TurboHaskell.HaskellSupport
 
 type Validator2 value = ValidateFieldInner value -> ValidatorResult
 
@@ -19,37 +18,32 @@ class ValidateField fieldValue where
     validateField :: forall field validator model validationState. (
             KnownSymbol field
             , HasField field model fieldValue
-        ) => Proxy field -> Validator2 fieldValue -> model -> StateT [(Text, Text)] IO model
+            , HasField "meta" model MetaBag
+            , SetField "meta" model MetaBag
+        ) => Proxy field -> Validator2 fieldValue -> model -> model
 
 instance ValidateField (FieldWithDefault inner) where
     {-# INLINE validateField #-}
     validateField :: forall field validator model validationState. (
             KnownSymbol field
             , HasField field model (FieldWithDefault inner)
-        ) => Proxy field -> Validator2 (FieldWithDefault inner) -> model -> StateT [(Text, Text)] IO model
+            , HasField "meta" model MetaBag
+            , SetField "meta" model MetaBag
+        ) => Proxy field -> Validator2 (FieldWithDefault inner) -> model -> model
     validateField field validator model = do
         case (getField @field model) :: FieldWithDefault inner of
-            Default -> return model
-            NonDefault value -> do
-                case validator value of
-                    Failure message -> do attachFailure field message; return model
-                    Success -> return model
+            Default -> model
+            NonDefault value -> attachValidatorResult field (validator value) model
 
 instance {-# OVERLAPPABLE #-} (ValidateFieldInner fieldValue ~ fieldValue) => ValidateField fieldValue where
     {-# INLINE validateField #-}
     validateField :: forall field validator model validationState. (
             KnownSymbol field
             , HasField field model fieldValue
-        ) => Proxy field -> Validator2 fieldValue -> model -> StateT [(Text, Text)] IO model
-    validateField field validator model = do
-        validationState <- get
-        case validator (getField @field model) of
-            Failure message -> do attachFailure field message; return model
-            Success -> return model
-
-{-# INLINE validateNothing #-}
-validateNothing :: forall s. StateT s IO ()
-validateNothing = return ()
+            , HasField "meta" model MetaBag
+            , SetField "meta" model MetaBag
+        ) => Proxy field -> Validator2 fieldValue -> model -> model
+    validateField field validator model = attachValidatorResult field (validator (getField @field model)) model
 
 {-# INLINE nonEmpty #-}
 nonEmpty :: MonoFoldable value => value -> ValidatorResult

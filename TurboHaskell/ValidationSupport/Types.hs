@@ -1,41 +1,32 @@
-{-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE UndecidableInstances  #-}
-
 module TurboHaskell.ValidationSupport.Types where
 
-import           ClassyPrelude
-import           TurboHaskell.ModelSupport
-
-import           TurboHaskell.QueryBuilder (fetchOneOrNothing, Fetchable)
-import TurboHaskell.AuthSupport.Authorization
+import ClassyPrelude
+import TurboHaskell.ModelSupport
+import TurboHaskell.HaskellSupport
 import qualified Data.Text as Text
-import TurboHaskell.NameSupport (humanize)
 import qualified GHC.Records as Records
 import Data.Proxy
-import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Data.UUID
-import Data.Default
-import Control.Monad.State.Strict
-import Unsafe.Coerce
-import Data.Dynamic (Dynamic, toDyn)
+import GHC.TypeLits
 
-data ValidatorResult = Success | Failure Text deriving (Show, Eq)
+data ValidatorResult = Success | Failure !Text deriving (Show, Eq)
 
+{-# INLINE isSuccess #-}
 isSuccess Success = True
 isSuccess _       = False
 
+{-# INLINE isFailure #-}
 isFailure Failure {} = True
 isFailure _  = False
 
-type family ValidatorResultFor model
+{-# INLINE attachValidatorResult #-}
+attachValidatorResult :: (KnownSymbol field, Records.HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> ValidatorResult -> model -> model
+attachValidatorResult field Success record = record
+attachValidatorResult field (Failure message) record = attachFailure field message record
 
 {-# INLINE attachFailure #-}
-attachFailure :: (KnownSymbol field) => Proxy field -> Text -> StateT [(Text, Text)] IO ()
-attachFailure field message = do
-    validationState <- get
-    put ((Text.pack (symbolVal field), message):validationState)
-
-newtype ValidationResults = ValidationResults (IORef [Dynamic])
+attachFailure :: (KnownSymbol field, Records.HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> Text -> model -> model
+attachFailure field !message = modify #meta prependAnnotation
+    where
+        prependAnnotation :: MetaBag -> MetaBag
+        prependAnnotation = modify #annotations (\a -> annotation:a)
+        annotation = (Text.pack (symbolVal field), message)

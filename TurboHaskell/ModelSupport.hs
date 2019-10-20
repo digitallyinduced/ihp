@@ -225,3 +225,11 @@ type NormalizeModel model = GetModelByTableName (GetTableName model)
 {-# INLINE ids #-}
 ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (getField @"id") records
+
+data MetaBag = MetaBag { annotations :: [(Text, Text)] } deriving (Eq, Show)
+
+instance Default MetaBag where
+    def = MetaBag { annotations = [] }
+
+instance SetField "annotations" MetaBag [(Text, Text)] where
+    setField value meta = meta { annotations = value }

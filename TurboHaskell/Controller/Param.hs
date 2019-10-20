@@ -97,7 +97,7 @@ instance FromParameter ByteString where
 instance FromParameter Int where
     {-# INLINE fromParameter #-}
     fromParameter byteString =
-        case Attoparsec.eitherResult (Attoparsec.parse Attoparsec.decimal byteString) of
+        case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
             Left error -> Left ("FromParameter Int: " <> cs error)
 
@@ -172,51 +172,47 @@ instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter
             allValues = enumFrom (toEnum 0) :: [parameter]
 
 class FillParams (params :: [Symbol]) record where
-    fill :: (?requestContext :: RequestContext) => record -> State.StateT [(Text, Text)] IO record
+    fill :: (
+        ?requestContext :: RequestContext
+        , HasField "meta" record ModelSupport.MetaBag
+        , SetField "meta" record ModelSupport.MetaBag
+        ) => record -> record
 
 instance FillParams ('[]) record where
-    fill record = return record
+    fill !record = record
 
 instance (FillParams rest record
     , KnownSymbol fieldName
     , SetField fieldName record fieldType
     , FromParameter fieldType
+    , HasField "meta" record ModelSupport.MetaBag
+    , SetField "meta" record ModelSupport.MetaBag
     ) => FillParams (fieldName:rest) record where
     fill !record = do
-        let name :: ByteString = cs $ NameSupport.fieldNameToColumnName $ cs (symbolVal (Proxy @fieldName))
+        let name :: ByteString = cs $! NameSupport.fieldNameToColumnName $! cs (symbolVal (Proxy @fieldName))
         case paramOrNothing name of
             Just !paramValue ->
                 case fromParameter paramValue of
-                    Left error -> do
-                        attachFailure (Proxy @fieldName) (cs error)
-                        fill @rest record
-                    Right (value :: fieldType) -> fill @rest (setField @fieldName value record)
+                    Left !error -> fill @rest (attachFailure (Proxy @fieldName) (cs error) record)
+                    Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
             Nothing -> fill @rest record
 
-
-type RecordReader r = r -> State.StateT [(Text, Text)] IO r
-
-type ParamPipeline record = forall id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ?controllerContext :: ControllerContext, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => record -> State.StateT [(Text, Text)] IO record
-
-runPipeline :: forall model id. (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, Typeable model, ModelSupport.IsNewId id, GHC.Records.HasField "id" model id) => model -> ParamPipeline model -> IO (Either model model)
-runPipeline model pipeline = do
-        State.evalStateT inner ([] :: [(Text, Text)])
+ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
+ifValid branch model = branch ((if null annotations then Right else Left) model)
     where
-        inner = do
-            model <- pipeline model
-            result <- State.get
-            fromControllerContext @ValidationResults
-                    |> (\(ValidationResults results) -> modifyIORef results (\validations -> (Dynamic.toDyn (model, result)):validations))
-            return (if null result then Right model else Left model)
+        annotations :: [(Text, Text)]
+        annotations = getField @"annotations" meta
+        meta :: ModelSupport.MetaBag
+        meta = getField @"meta" model
 
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> State.StateT [(Text, Text)] IO record) -> record -> State.StateT [(Text, Text)] IO record
-ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else return record
+ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> record) -> record -> record
+ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 -- TODO: Rename to `uploadPng`
-uploadFile :: _ => Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
+uploadFile :: _ => Proxy fieldName -> record -> IO record
 uploadFile field user = uploadImageFile "png" field user
 
-uploadSVG :: _ => Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
+uploadSVG :: _ => Proxy fieldName -> record -> IO record
 uploadSVG = uploadImageFile "svg"
 
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
@@ -228,7 +224,7 @@ uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Sym
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
-    ) => Text -> Proxy fieldName -> record -> State.StateT [(Text, Text)] IO record
+    ) => Text -> Proxy fieldName -> record -> IO record
 uploadImageFile ext _ user =
     let
         fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))

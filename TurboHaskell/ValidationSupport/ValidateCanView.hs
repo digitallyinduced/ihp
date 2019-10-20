@@ -1,22 +1,15 @@
 module TurboHaskell.ValidationSupport.ValidateCanView (validateCanView) where
 
 import           ClassyPrelude
-import           Control.Lens                         hiding ((|>))
-import           Data.Generics.Product
-import           Data.Generics.Product.Types
 import           Data.Proxy
-import qualified Data.Text                            as Text
-import qualified Data.UUID
 import qualified Database.PostgreSQL.Simple           as PG
 import           TurboHaskell.AuthSupport.Authorization
 import           TurboHaskell.ModelSupport
-import           TurboHaskell.NameSupport               (humanize)
 import           TurboHaskell.QueryBuilder              (Fetchable, fetchOneOrNothing)
 import           TurboHaskell.ValidationSupport.Types
-import           GHC.Generics
-import           GHC.Records                          hiding (HasField, getField)
+import           GHC.Records
 import           GHC.TypeLits                         (KnownSymbol, Symbol)
-import Control.Monad.State
+import TurboHaskell.HaskellSupport
 
 validateCanView :: forall field user model validationState fieldValue validationStateValue fetchedModel. (
         ?model :: model
@@ -24,18 +17,17 @@ validateCanView :: forall field user model validationState fieldValue validation
         , PG.FromRow fetchedModel
         , KnownSymbol (GetTableName fetchedModel)
         , KnownSymbol field
-        , HasField' field model fieldValue
-        , HasField field (ValidatorResultFor model) (ValidatorResultFor model) ValidatorResult ValidatorResult
+        , HasField field model fieldValue
         , Fetchable fieldValue fetchedModel
         , CanView user fetchedModel
         , ValidateCanView' fieldValue fetchedModel
-    ) => Proxy field -> user ->  StateT (ValidatorResultFor model) IO ()
-validateCanView _ user = do
+        , HasField "meta" user MetaBag
+        , SetField "meta" user MetaBag
+    ) => Proxy field -> user -> IO user
+validateCanView field user = do
     let id = getField @field ?model
-    validationResult <- liftIO $ doValidateCanView (Proxy @fetchedModel) user id
-    validationState <- get
-    put $ validationState & ((field @field) .~ validationResult)
-    return ()
+    validationResult <- doValidateCanView (Proxy @fetchedModel) user id
+    return (attachValidatorResult field validationResult user)
 
 
 -- Let's say we have a model like:
