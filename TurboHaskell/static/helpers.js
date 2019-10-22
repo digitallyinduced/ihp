@@ -358,39 +358,41 @@ window.transitionToNewPage = function (newBody) {
     }, 1);
 }
 
-window.allIntervals = [];
-window.allTimeouts = [];
+if (!('allIntervals' in window)) {
+    window.allIntervals = [];
+    window.allTimeouts = [];
 
-window.unsafeSetInterval = window.setInterval;
-window.unsafeSetTimeout = window.setTimeout;
+    window.unsafeSetInterval = window.setInterval;
+    window.unsafeSetTimeout = window.setTimeout;
 
-window.setInterval = function () {
-    var id = unsafeSetInterval.apply(window, arguments);
-    window.allIntervals.push(id);
-    return id;
-};
+    window.setInterval = function () {
+        var id = unsafeSetInterval.apply(window, arguments);
+        window.allIntervals.push(id);
+        return id;
+    };
 
-window.setTimeout = function () {
-    var id = unsafeSetTimeout.apply(window, arguments);
-    window.allTimeouts.push(id);
-    return id;
-};
+    window.setTimeout = function () {
+        var id = unsafeSetTimeout.apply(window, arguments);
+        window.allTimeouts.push(id);
+        return id;
+    };
 
-window.clearAllIntervals = function () {
-    for (var i = 0; i < window.allIntervals.length; i++) {
-        clearInterval(window.allIntervals[i]);
-    }
+    window.clearAllIntervals = function () {
+        for (var i = 0; i < window.allIntervals.length; i++) {
+            clearInterval(window.allIntervals[i]);
+        }
 
-    var oldLength = window.allIntervals.length;
-    window.allIntervals = new Array(oldLength);
-};
+        var oldLength = window.allIntervals.length;
+        window.allIntervals = new Array(oldLength);
+    };
 
 
-window.clearAllTimeouts = function () {
-    for (var i = 0; i < window.allTimeouts.length; i++) {
-        clearTimeout(window.allTimeouts[i]);
-    }
+    window.clearAllTimeouts = function () {
+        for (var i = 0; i < window.allTimeouts.length; i++) {
+            clearTimeout(window.allTimeouts[i]);
+        }
 
-    var oldLength = window.allTimeouts.length;
-    window.allTimeouts = new Array(oldLength);
-};
+        var oldLength = window.allTimeouts.length;
+        window.allTimeouts = new Array(oldLength);
+    };
+}
