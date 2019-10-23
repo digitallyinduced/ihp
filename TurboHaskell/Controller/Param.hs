@@ -35,6 +35,7 @@ import Data.Proxy
 import TurboHaskell.ControllerSupport
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified Data.Maybe as Maybe
+import qualified System.Process as Process
 
 {-# INLINE fileOrNothing #-}
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
@@ -208,12 +209,47 @@ ifValid branch model = branch ((if null annotations then Right else Left) model)
 ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
+
+data ImageUploadOptions = ImageUploadOptions { convertTo :: Text, imageMagickOptions :: Text }
+
+
+
 -- TODO: Rename to `uploadPng`
 uploadFile :: _ => Proxy fieldName -> record -> IO record
 uploadFile field user = uploadImageFile "png" field user
 
 uploadSVG :: _ => Proxy fieldName -> record -> IO record
 uploadSVG = uploadImageFile "svg"
+
+uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+        ?requestContext :: RequestContext
+        , ?modelContext :: ModelSupport.ModelContext
+        , ?controllerContext :: context
+        , SetField fieldName record (Maybe Text)
+        , KnownSymbol fieldName
+        , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
+        , tableName ~ ModelSupport.GetTableName record
+        , KnownSymbol tableName
+    ) => ImageUploadOptions -> Proxy fieldName -> record -> IO record
+uploadImageWithOptions options _ user =
+    let
+        ext = "jpg" :: Text
+        fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))
+        tableName :: Text = cs (symbolVal (Proxy @tableName))
+        uploadDir :: Text = "static"
+        baseImagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture."
+        imagePath :: Text = baseImagePath <> "jpg"
+        uploadFilePath = baseImagePath <> "upload"
+    in case fileOrNothing fieldName of
+        Just file | fileContent file /= "" -> liftIO do
+            _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> uploadFilePath) <> "`")
+            let fullImagePath = uploadDir <> imagePath
+            (fileContent file) |> LBS.writeFile (cs (uploadDir <> uploadFilePath))
+            Process.runCommand (cs ("convert " <> cs uploadDir <> uploadFilePath <> " " <> (getField @"imageMagickOptions" options) <> " " <> cs fullImagePath))
+            user
+                |> setField @fieldName (Just (cs imagePath :: Text))
+                |> return
+        _ -> return user
 
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
         ?requestContext :: RequestContext
