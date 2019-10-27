@@ -25,11 +25,16 @@ GHC_EXTENSIONS+= -XMultiParamTypeClasses
 GHC_EXTENSIONS+= -XTypeOperators
 GHC_EXTENSIONS+= -XDeriveDataTypeable
 GHC_EXTENSIONS+= -XMultiWayIf
+GHC_EXTENSIONS+= -XUndecidableInstances
+GHC_EXTENSIONS+= -XBlockArguments
+GHC_EXTENSIONS+= -XPartialTypeSignatures
+GHC_EXTENSIONS+= -XLambdaCase
 
-GHC_OPTIONS=-threaded -i. -ibuild
+GHC_OPTIONS=-threaded -i. -ibuild -iConfig
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
+GHC_OPTIONS+= -package turbohaskell
 
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
 PROD_GHC_OPTIONS+= -optc-O3
