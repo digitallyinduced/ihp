@@ -24,6 +24,7 @@ GHC_EXTENSIONS+= -XDeriveGeneric
 GHC_EXTENSIONS+= -XMultiParamTypeClasses
 GHC_EXTENSIONS+= -XTypeOperators
 GHC_EXTENSIONS+= -XDeriveDataTypeable
+GHC_EXTENSIONS+= -XMultiWayIf
 
 GHC_OPTIONS=-threaded -i. -ibuild
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
