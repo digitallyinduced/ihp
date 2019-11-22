@@ -156,8 +156,24 @@ formFor :: forall model viewContext parent id formObject application. (
         , application ~ ViewApp viewContext
         , HasField "meta" model MetaBag
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-formFor formObject = formFor' (createFormContext formObject)
+formFor formObject = buildForm (createFormContext formObject)
 
+{-# INLINE formFor' #-}
+formFor' :: forall model viewContext parent id formObject application. (
+        ?viewContext :: viewContext
+        , HasField "requestContext" viewContext RequestContext
+        , Eq model
+        , Typeable model
+        , ModelFormAction application formObject
+        , HasField "id" model id
+        , TurboHaskell.ModelSupport.IsNewId id
+        , FormObject formObject
+        , model ~ FormObjectModel formObject
+        , HasPath (ModelControllerMap application (NormalizeFormObject formObject))
+        , application ~ ViewApp viewContext
+        , HasField "meta" model MetaBag
+        ) => formObject -> Text -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+formFor' formObject action = buildForm (createFormContext formObject) { formAction = action }
 
 {-# INLINE horizontalFormFor #-}
 horizontalFormFor :: forall model viewContext parent id formObject application. (
@@ -174,7 +190,7 @@ horizontalFormFor :: forall model viewContext parent id formObject application. 
         , application ~ ViewApp viewContext
         , HasField "meta" model MetaBag
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-horizontalFormFor formObject = formFor' (createFormContext formObject)
+horizontalFormFor formObject = buildForm (createFormContext formObject)
         { renderFormField = renderHorizontalBootstrapFormField
         , renderSubmit = renderHorizontalBootstrapSubmitButton
         }
@@ -233,9 +249,9 @@ findValidatorResult model = getField @"annotations" (getField @"meta" model :: M
 
 
 
-{-# INLINE formFor' #-}
-formFor' :: forall model viewContext parent id. (?viewContext :: viewContext) => (HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id) => FormContext model -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-formFor' formContext inner =
+{-# INLINE buildForm #-}
+buildForm :: forall model viewContext parent id. (?viewContext :: viewContext) => (HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id) => FormContext model -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+buildForm formContext inner =
     let
         theModel = model formContext
         action = cs $ (formAction formContext)
