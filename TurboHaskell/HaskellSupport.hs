@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
-module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, (==>), get, set, ifOrEmpty, modify, SetField (..), UpdateField (..), incrementField, decrementField) where
+module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, get, set, ifOrEmpty, modify, SetField (..), UpdateField (..), incrementField, decrementField) where
 
 import ClassyPrelude
 import Control.Monad (when)
@@ -33,9 +33,6 @@ whenNonEmpty condition = when (not (isEmpty condition))
 
 instance Data.Default.Default Data.UUID.UUID where
     def = Data.UUID.nil
-
-(==>) :: forall model attribute value. (KnownSymbol attribute, Record.HasField attribute model value) => model -> Proxy attribute -> value
-(==>) struct _ = Record.getField @attribute struct
 
 instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
     fromLabel = Proxy @name'
