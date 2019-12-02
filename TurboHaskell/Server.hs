@@ -44,6 +44,11 @@ run = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     databaseUrl <- (Environment.lookupEnv "DATABASE_URL") >>= (return . maybe defaultDatabaseUrl cs )
+    port :: Int <- (Environment.lookupEnv "PORT") >>= (\portStr ->
+            case portStr of
+                Just portStr -> return $ fromMaybe (error "PORT: Invalid value") (readMay portStr)
+                Nothing -> return defaultPort
+            )
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
