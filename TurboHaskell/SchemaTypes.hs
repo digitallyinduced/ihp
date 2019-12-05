@@ -20,7 +20,7 @@ data Attribute' stringType = Field stringType (FieldType stringType)
 instance (Show stringType) => Show (Attribute' stringType) where
   show (Field fieldName fieldType) = "Field " <> show fieldName <> " (" <> show fieldType <> ")"
   show (BelongsTo name) = "BelongsTo " <> show name
-  show (HasMany name inverseOf) = "HasMany " <> show name <> " " <> show inverseOf
+  show (HasMany name inverseOf) = "HasMany " <> show name <> " " <> "(" <> show inverseOf <> ")"
 
 type Attribute = Attribute' Text
 
