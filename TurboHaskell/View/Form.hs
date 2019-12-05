@@ -276,7 +276,7 @@ submitButton =
     , buttonClass = mempty
     }
 
-data InputType = TextInput | CheckboxInput | ColorInput | EmailInput | HiddenInput | TextareaInput | DateInput | DateTimeInput | PasswordInput | SelectInput { options :: [(Text, Text)] }
+data InputType = TextInput | CheckboxInput | ColorInput | EmailInput | HiddenInput | TextareaInput | DateInput | DateTimeInput | PasswordInput | SelectInput { options :: ![(Text, Text)] }
 
 {-# INLINE renderHelpText #-}
 renderHelpText (FormField { helpText }) =
@@ -401,18 +401,16 @@ instance (
         , HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id
         --, TurboHaskell.ModelSupport.HasModelName model
         , HasField symbol model value
-        , HasField symbol (TurboHaskell.ModelSupport.ColumnNamesRecord model) ByteString
-        , TurboHaskell.ModelSupport.ColumnNames model
         , TurboHaskell.ModelSupport.InputValue value
         , KnownSymbol (GetModelName model)
     ) => IsLabel symbol ((FormContext model, Proxy TextFieldTag) -> FormField) where
     {-# INLINE fromLabel #-}
-    fromLabel = \(formContext, _) -> let columnName = (cs $ getField @symbol (TurboHaskell.ModelSupport.columnNames (Proxy @model))) in FormField {
+    fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
                         fieldType = TextInput,
-                        fieldName = cs columnName,
-                        fieldLabel = columnNameToFieldLabel columnName,
+                        fieldName = cs fieldName,
+                        fieldLabel = columnNameToFieldLabel (cs fieldName),
                         fieldValue =  let value :: value = getField @(symbol) (model formContext) in TurboHaskell.ModelSupport.inputValue value,
-                        fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> columnName),
+                        fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = (lookup (Text.pack (symbolVal (Proxy @symbol))) (let FormContext { validatorResult } = formContext in validatorResult)),
                         fieldClass = "",
                         labelClass = "",
@@ -431,17 +429,15 @@ instance (
         KnownSymbol symbol
         , HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id
         , HasField symbol model Bool
-        , HasField symbol (TurboHaskell.ModelSupport.ColumnNamesRecord model) ByteString
-        , TurboHaskell.ModelSupport.ColumnNames model
         , KnownSymbol (GetModelName model)
     ) => IsLabel symbol ((FormContext model, Proxy Bool) -> FormField) where
     {-# INLINE fromLabel #-}
-    fromLabel = \(formContext, _) -> let columnName = (cs $ getField @symbol (TurboHaskell.ModelSupport.columnNames (Proxy @model))) in FormField {
+    fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
                         fieldType = CheckboxInput,
-                        fieldName = cs columnName,
-                        fieldLabel = columnNameToFieldLabel columnName,
+                        fieldName = cs fieldName,
+                        fieldLabel = columnNameToFieldLabel (cs fieldName),
                         fieldValue =  let value = getField @(symbol) (model formContext) in if value then "yes" else "no",
-                        fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> columnName),
+                        fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = Nothing,
                         fieldClass = "",
                         labelClass = "",
@@ -462,12 +458,10 @@ instance (
         , HasField symbol model ((SelectValue item))
         , CanSelect item
         , TurboHaskell.ModelSupport.InputValue (SelectValue item)
-        , HasField symbol (TurboHaskell.ModelSupport.ColumnNamesRecord model) ByteString
-        , TurboHaskell.ModelSupport.ColumnNames model
         , (KnownSymbol (GetModelName model))
     ) => IsLabel symbol ((FormContext model, [item], Proxy value) -> FormField) where
     {-# INLINE fromLabel #-}
-    fromLabel = \(formContext, items, _) -> let columnName = (cs $ getField @symbol (TurboHaskell.ModelSupport.columnNames (Proxy @model))) in FormField {
+    fromLabel = \(formContext, items, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
                         fieldType =
                             let
                                 itemToTuple :: item -> (Text, Text)
@@ -475,12 +469,12 @@ instance (
                             in
                                  SelectInput $ map itemToTuple items
                             ,
-                        fieldName = cs columnName,
-                        fieldLabel = removeIdSuffix $ columnNameToFieldLabel columnName,
+                        fieldName = cs fieldName,
+                        fieldLabel = removeIdSuffix $ columnNameToFieldLabel (cs fieldName),
                         fieldValue =
                             let value = ((getField @(symbol) (model formContext)) :: (SelectValue item))
                             in TurboHaskell.ModelSupport.inputValue value,
-                        fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> columnName),
+                        fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = (lookup (Text.pack (symbolVal (Proxy @symbol))) (let FormContext { validatorResult } = formContext in validatorResult)),
                         fieldClass = "",
                         labelClass = "",

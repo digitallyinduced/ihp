@@ -190,7 +190,7 @@ instance (FillParams rest record
     , SetField "meta" record ModelSupport.MetaBag
     ) => FillParams (fieldName:rest) record where
     fill !record = do
-        let name :: ByteString = cs $! NameSupport.fieldNameToColumnName $! cs (symbolVal (Proxy @fieldName))
+        let name :: ByteString = cs $! (symbolVal (Proxy @fieldName))
         case paramOrNothing name of
             Just !paramValue ->
                 case fromParameter paramValue of

@@ -8,39 +8,39 @@ import TurboHaskell.HaskellSupport
 table :: Text -> Table
 table name = Table name []
 
-field :: Text -> FieldType Text -> Attribute' Text
+field :: Text -> FieldType -> Attribute
 field = Field
 
 (Table name fields) + field = Table name (fields <> [field])
 
-serial :: FieldType Text
+serial :: FieldType
 serial = SerialField { defaultValue = Just (SqlDefaultValue "DEFAULT"), references = Nothing, allowNull = False, isPrimaryKey = True, unique = False, onDelete = NoAction }
 
-uuid :: FieldType Text
+uuid :: FieldType
 uuid = UUIDField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, onDelete = NoAction, unique = False }
 
-primaryKey :: FieldType Text
+primaryKey :: FieldType
 primaryKey = uuid { defaultValue = Just (SqlDefaultValue "uuid_generate_v4()"), references = Nothing, allowNull = False, isPrimaryKey = True, unique = False }
 
-text :: FieldType Text
+text :: FieldType
 text = TextField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
-int :: FieldType Text
+int :: FieldType
 int = IntField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
-integer :: FieldType Text
+integer :: FieldType
 integer = int
 
-enum :: [Text] -> FieldType Text
+enum :: [Text] -> FieldType
 enum values = EnumField { defaultValue = Nothing, references = Nothing, values, allowNull = False, isPrimaryKey = False, unique = False }
 
-bool :: FieldType Text
+bool :: FieldType
 bool = BoolField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
-timestamp :: FieldType Text
+timestamp :: FieldType
 timestamp = Timestamp { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
-point :: FieldType Text
+point :: FieldType
 point = PointField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
 belongsTo = BelongsTo

@@ -116,7 +116,6 @@ compileTypes' database table@(Table name attributes) =
     <> section
     <> compileInclude table
     <> section
-    <> compileColumnNames table
     <> section
     <> compileCreate table
     <> section
@@ -180,7 +179,6 @@ primaryKeyTypeName' name = "Id' " <> tshow name <> ""
 compileGeneric2DataDefinition :: Table -> Text
 compileGeneric2DataDefinition table@(Table name attributes) =
         "data " <> tableNameToModelName name <> "' " <> typeArguments <> " = " <> tableNameToModelName name <> " {" <> compileFields attributes <> ", meta :: MetaBag } deriving (Eq, Show)\n"
-        <> "type " <> tableNameToModelName name <> "Functor f = " <> tableNameToModelName name <> "' " <> compileFunctorFields attributes <> "\n"
     where
         typeArguments :: Text
         typeArguments = intercalate " " (map compileTypeArgument attributes)
@@ -193,9 +191,6 @@ compileGeneric2DataDefinition table@(Table name attributes) =
         
         compileField (attribute, n) = columnNameToFieldName (compileTypeArgument attribute) <> " :: " <> compileTypeArgument attribute
 
-        compileFunctorFields :: [Attribute] -> Text
-        compileFunctorFields attributes = intercalate " " $ map compileFunctorField (zip attributes [0..])
-        compileFunctorField (attribute, n) = "(Col f (" <> tshow attribute <> ") " <> tshow name <> ")"
 
 compileEnumDataDefinitions :: Table -> Text
 compileEnumDataDefinitions table@(Table name attributes) =
@@ -328,7 +323,7 @@ compileFromRowInstance table@(Table name attributes) database =
                 relatedIdField = relatedField "id"
                 relatedForeignKeyField = relatedField relatedFieldName
 
-                relatedField :: Text -> Attribute' Text
+                relatedField :: Text -> Attribute
                 relatedField relatedFieldName =
                     let
                         isFieldName name (Field fieldName _) = (columnNameToFieldName fieldName) == name
@@ -381,17 +376,6 @@ compileTypePattern table@(Table name attributes) = tableNameToModelName name <> 
         compileAttribute :: Attribute -> Text
         compileAttribute (Field name _) = name
         compileAttribute (HasMany {name}) = name
-
-compileColumnNames table@(Table tableName attributes) = "instance ColumnNames " <> instanceHead <> " where " <> typeDef <> "; columnNames _ = " <> tableNameToModelName tableName <> " " <> compiledFields <> " def"
-    where
-        instanceHead = "(" <> compileTypePattern table <> ")"
-            where
-                toName (Field fieldName _) = fieldName
-                toName (HasMany {name}) = name
-        typeDef = "type ColumnNamesRecord " <> instanceHead <> " = " <> tableNameToModelName tableName <> "Functor (Control.Applicative.Const ByteString)"
-        compiledFields = intercalate " " (map compileField attributes)
-        compileField (Field fieldName _) = "(" <>tshow fieldName <> " :: ByteString)"
-        compileField (HasMany {name}) = "(" <>tshow name <> " :: ByteString)"
 
 compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compileInclude' (filter isRef attributes)
     where

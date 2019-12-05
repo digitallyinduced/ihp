@@ -184,10 +184,6 @@ deleteRecord model = do
     PG.execute conn (PG.Query . cs $! "DELETE FROM " <> tableName @model <> " WHERE id = ?") (PG.Only id)
     return ()
 
-class ColumnNames model where
-    type ColumnNamesRecord model :: GHC.Types.Type
-    columnNames :: Proxy model -> ColumnNamesRecord model
-
 type family Include (name :: GHC.Types.Symbol) model
 
 
@@ -205,8 +201,6 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
 
-
-data ModelBuilder :: Attribute' Symbol -> Type
 
 data FieldWithDefault valueType = Default | NonDefault valueType deriving (Eq, Show)
 

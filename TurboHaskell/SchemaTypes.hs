@@ -12,37 +12,35 @@ import TurboHaskell.DatabaseSupport.Point
 data Table = Table Text [Attribute]
            deriving (Show, Eq, Ord)
 
-data Attribute' stringType = Field stringType (FieldType stringType)
-               | BelongsTo stringType
-               | HasMany { name :: stringType, inverseOf :: Maybe stringType }
+data Attribute = Field Text FieldType
+               | BelongsTo Text
+               | HasMany { name :: Text, inverseOf :: Maybe Text }
                deriving (Eq, Ord)
 
-instance (Show stringType) => Show (Attribute' stringType) where
+instance Show Attribute where
   show (Field fieldName fieldType) = "Field " <> show fieldName <> " (" <> show fieldType <> ")"
   show (BelongsTo name) = "BelongsTo " <> show name
   show (HasMany name inverseOf) = "HasMany " <> show name <> " " <> "(" <> show inverseOf <> ")"
 
-type Attribute = Attribute' Text
-
 newtype SqlType = SqlType Text
 type Name = Text
 
-data DefaultValue stringType = SqlDefaultValue stringType deriving (Show, Eq, Ord)
+data DefaultValue = SqlDefaultValue !Text deriving (Show, Eq, Ord)
 
 data OnDelete = NoAction | Restrict | SetNull | Cascade deriving (Show, Eq, Ord)
 
-data FieldType stringType =
-             SerialField { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
-           | TextField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | IntField    { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | BoolField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | EnumField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, values :: [stringType], allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | UUIDField   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
-           | Timestamp   { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
-           | PointField  { defaultValue :: Maybe (DefaultValue stringType), references :: Maybe stringType, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+data FieldType =
+             SerialField { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
+           | TextField   { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | IntField    { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | BoolField   { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | EnumField   { defaultValue :: Maybe DefaultValue, references :: Maybe Text, values :: [Text], allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | UUIDField   { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
+           | Timestamp   { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | PointField  { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            deriving (Eq, Ord)
 
-instance (Show stringType) => Show (FieldType stringType) where
+instance Show FieldType where
     show SerialField { defaultValue, references, allowNull, isPrimaryKey, unique } = "SerialField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
     show TextField { defaultValue, references, allowNull, isPrimaryKey, unique } = "TextField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
     show IntField { defaultValue, references, allowNull, isPrimaryKey, unique } = "IntField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
