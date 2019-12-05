@@ -104,7 +104,7 @@ setHasManyRelations tables = map setHasManyRelations' tables
             where
                 hasManyStatements :: [Attribute]
                 hasManyStatements = foreignKeyColumns
-                    |> map (\(tableName, field) -> HasMany { name = tableName, inverseOf = Nothing })
+                    |> map (\(tableName, field) -> HasMany { name = tableName, inverseOf = Just (fieldName field) })
                     |> reverse . List.nub . reverse
 
                 fieldName :: Attribute -> Text
