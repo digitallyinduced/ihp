@@ -44,6 +44,11 @@ respondHtml html = do
     let (RequestContext request respond _ _ _) = ?requestContext
     respond $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
+{-# INLINE respondSvg #-}
+respondSvg :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => Html -> IO ResponseReceived
+respondSvg html = do
+    let (RequestContext request respond _ _ _) = ?requestContext
+    respond $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE renderHtml #-}
 renderHtml :: forall viewContext view controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO Html
