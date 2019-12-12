@@ -39,6 +39,7 @@ isAlphaOnly :: Text -> Bool
 isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
 gen database applicationName controllerName' = do
+    putStrLn $ tshow controllerName'
     let modelName = tableNameToModelName controllerName'
     let controllerName = Countable.pluralize modelName
     let config = ControllerConfig { modelName, controllerName, applicationName }
@@ -64,8 +65,8 @@ usage = putStrLn "Usage: new-controller RESOURCE_NAME"
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
     "instance RestfulController " <> controllerName <> "Controller\n"
-    <> "type instance ModelControllerMap " <> applicationName <> " " <> modelName <> " = " <> controllerName <> "Controller\n"
-    <> "type instance ControllerApplicationMap " <> controllerName <> "Controller" <> " = " <> applicationName <> "\n\n"
+    <> "type instance ModelControllerMap " <> applicationName <> "Application " <> modelName <> " = " <> controllerName <> "Controller\n"
+    <> "type instance ControllerApplicationMap " <> controllerName <> "Controller" <> " = " <> applicationName <> "Application\n\n"
 
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }
@@ -77,7 +78,7 @@ data GeneratorAction
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
 evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction'
+evalActions actions = forM_ actions evalAction
     where
         evalAction' CreateFile { filePath, fileContent } = do
             putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
@@ -199,23 +200,27 @@ generateController database config =
             ""
             <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        runPipeline " <> modelVariableSingular <> " build" <> singularName <> " >>= \\case\n"
-            <> "            Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
-            <> "            Right " <> modelVariableSingular <> " -> do\n"
-            <> "                " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
-            <> "                setSuccessMessage \"" <> model <> " updated\"\n"
-            <> "                redirectTo Edit" <> singularName <> "Action { .. }\n"
+            <> "        " <> modelVariableSingular <> "\n" 
+            <> "            |> build" <> singularName <> "\n"
+            <> "            |> ifValid \\case\n"
+            <> "                Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
+            <> "                Right " <> modelVariableSingular <> " -> do\n"
+            <> "                  " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
+            <> "                    setSuccessMessage \"" <> model <> " updated\"\n"
+            <> "                    redirectTo Edit" <> singularName <> "Action { .. }\n"
 
         createAction =
             ""
             <> "    action Create" <> singularName <> "Action = do\n"
             <> "        let " <> modelVariableSingular <> " = newRecord @New"  <> model <> "\n"
-            <> "        runPipeline " <> modelVariableSingular <> " build" <> singularName <> " >>= \\case\n"
-            <> "            Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
-            <> "            Right " <> modelVariableSingular <> " -> do\n"
-            <> "                " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
-            <> "                setSuccessMessage \"" <> model <> " created\"\n"
-            <> "                redirectTo " <> name <> "Action\n"
+            <> "        " <> modelVariableSingular <> "\n" 
+            <> "            |> build" <> singularName <> "\n"
+            <> "            |> ifValid \\case\n"
+            <> "                Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
+            <> "                Right " <> modelVariableSingular <> " -> do\n"
+            <> "                  " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
+            <> "                    setSuccessMessage \"" <> model <> " created\"\n"
+            <> "                    redirectTo " <> name <> "Action\n"
 
         deleteAction =
             ""
@@ -227,7 +232,7 @@ generateController database config =
 
         fromParams =
             ""
-            <> "build" <> singularName <> " :: _ => RecordReader " <> modelVariableSingular <> "\n"
+            <> "build" <> singularName <> " :: _ => " <> modelVariableSingular <> " -> " <> modelVariableSingular <> "\n"
             <> "build" <> singularName <> " = fill " <> toTypeLevelList modelFields <> "\n"
 
         toTypeLevelList values = "@" <> (if length values < 2 then "'" else "") <> tshow values
