@@ -62,9 +62,10 @@ usage :: IO ()
 usage = putStrLn "Usage: new-controller RESOURCE_NAME"
 
 controllerInstance :: ControllerConfig -> Text
-controllerInstance ControllerConfig { controllerName, modelName } =
+controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
     "instance RestfulController " <> controllerName <> "Controller\n"
-    <> "type instance ModelControllerMap ControllerContext " <> modelName <> " = " <> controllerName <> "Controller\n\n"
+    <> "type instance ModelControllerMap " <> applicationName <> " " <> modelName <> " = " <> controllerName <> "Controller\n"
+    <> "type instance ControllerApplicationMap " <> controllerName <> "Controller" <> " = " <> applicationName <> "\n\n"
 
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }
@@ -76,7 +77,7 @@ data GeneratorAction
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
 evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction
+evalActions actions = forM_ actions evalAction'
     where
         evalAction' CreateFile { filePath, fileContent } = do
             putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
@@ -248,7 +249,7 @@ generateController database config =
         <> "\n"
         <> intercalate "\n" importStatements
         <> "\n\n"
-        <> "instance Controller " <> controllerName <> " ControllerContext where\n"
+        <> "instance Controller " <> controllerName <> " where\n"
         <> indexAction
         <> "\n"
         <> newAction
