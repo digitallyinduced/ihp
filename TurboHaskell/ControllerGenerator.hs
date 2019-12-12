@@ -205,7 +205,7 @@ generateController database config =
             <> "            |> ifValid \\case\n"
             <> "                Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
             <> "                Right " <> modelVariableSingular <> " -> do\n"
-            <> "                  " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
+            <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
             <> "                    setSuccessMessage \"" <> model <> " updated\"\n"
             <> "                    redirectTo Edit" <> singularName <> "Action { .. }\n"
 
@@ -218,7 +218,7 @@ generateController database config =
             <> "            |> ifValid \\case\n"
             <> "                Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
             <> "                Right " <> modelVariableSingular <> " -> do\n"
-            <> "                  " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
+            <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
             <> "                    setSuccessMessage \"" <> model <> " created\"\n"
             <> "                    redirectTo " <> name <> "Action\n"
 
