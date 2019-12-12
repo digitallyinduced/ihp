@@ -11,7 +11,12 @@ import qualified Text.Countable as Countable
 -- `projects` => `Project`
 {-# INLINE tableNameToModelName #-}
 tableNameToModelName :: Text -> Text
-tableNameToModelName tableName = unwrapEither tableName $ Inflector.toCamelCased True $ cs (Countable.singularize tableName)
+tableNameToModelName tableName = do
+    let singularizedTableName = unwrapEither tableName $ Inflector.toCamelCased True $ cs (Countable.singularize tableName)
+    if "_" `isInfixOf` singularizedTableName 
+        then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
+        else singularizedTableName
+
 
 -- `email` => `email`
 -- `project_id` => `projectId`

@@ -39,7 +39,7 @@ isAlphaOnly :: Text -> Bool
 isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
 gen database applicationName controllerName' = do
-    let modelName = tableNameToModelName controllerName'
+    let modelName = if "_" `isInfixOf` controllerName' then (tableNameToModelName controllerName') else controllerName'
     let controllerName = Countable.pluralize modelName
     let config = ControllerConfig { modelName, controllerName, applicationName }
     let generate =
@@ -77,7 +77,7 @@ data GeneratorAction
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
 evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction
+evalActions actions = forM_ actions evalAction'
     where
         evalAction' CreateFile { filePath, fileContent } = do
             putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
