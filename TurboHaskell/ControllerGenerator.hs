@@ -39,7 +39,6 @@ isAlphaOnly :: Text -> Bool
 isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
 gen database applicationName controllerName' = do
-    putStrLn $ tshow controllerName'
     let modelName = tableNameToModelName controllerName'
     let controllerName = Countable.pluralize modelName
     let config = ControllerConfig { modelName, controllerName, applicationName }
