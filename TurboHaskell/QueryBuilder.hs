@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
 
-module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn,genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator) where
+module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator) where
 
 
 import TurboHaskell.HaskellSupport
@@ -47,13 +47,12 @@ instance Default (QueryBuilder model) where
     {-# INLINE def #-}
     def = NewQueryBuilder
 
-data FilterOperator = EqOp | InOp | NotInOp | IsOp deriving (Show, Eq)
+data FilterOperator = EqOp | InOp | IsOp deriving (Show, Eq)
 
 
 {-# INLINE compileOperator #-}
 compileOperator _ EqOp = "="
 compileOperator _ InOp = "IN"
-compileOperator _ NotInOp = "NOT IN"
 compileOperator _ IsOp = "IS"
 
 data QueryBuilder model where
@@ -220,11 +219,6 @@ filterWhere !(name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value,
 {-# INLINE filterWhereIn #-}
 filterWhereIn :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, [value]) -> QueryBuilder model -> QueryBuilder model
 filterWhereIn !(name, value) = FilterByQueryBuilder (name, InOp, toField $ In value)
-
-{-# INLINE filterWhereNotIn #-}
-filterWhereNotIn :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, [value]) -> QueryBuilder model -> QueryBuilder model
-filterWhereNotIn !(name, value) = FilterByQueryBuilder (name, NotInOp, toField $ In value)
-
 
 data FilterWhereTag
 
