@@ -1,5 +1,11 @@
 .PHONY: run
 
+.SHELLFLAGS := -eu -o pipefail -c  
+.ONESHELL:
+
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rules
+
 GHC_EXTENSIONS=
 GHC_EXTENSIONS+= -XOverloadedStrings
 GHC_EXTENSIONS+= -XNoImplicitPrelude
