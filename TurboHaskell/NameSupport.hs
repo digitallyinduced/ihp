@@ -15,7 +15,7 @@ tableNameToModelName tableName = do
     let singularizedTableName = cs (Countable.singularize tableName)
     if "_" `isInfixOf` singularizedTableName 
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
-        else singularizedTableName
+        else ucfirst singularizedTableName
 
 
 -- `email` => `email`
