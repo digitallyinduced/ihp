@@ -12,7 +12,7 @@ import qualified Text.Countable as Countable
 {-# INLINE tableNameToModelName #-}
 tableNameToModelName :: Text -> Text
 tableNameToModelName tableName = do
-    let singularizedTableName = unwrapEither tableName $ Inflector.toCamelCased True $ cs (Countable.singularize tableName)
+    let singularizedTableName = cs (Countable.singularize tableName)
     if "_" `isInfixOf` singularizedTableName 
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else singularizedTableName
