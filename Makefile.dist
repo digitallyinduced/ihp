@@ -134,7 +134,8 @@ print-ghc-extensions:
 build/db/state:
 	mkdir -p build/db
 	cd build/db && initdb state
-	(postgres -D build/db/state -p 8001) & echo $$! > build/db/server.pid
+	(postgres -D state -p 8001) & echo $$! > server.pid
+	cd ../..
 	sleep 4
 	createdb app -p 8001
 	psql -p 8001 -d app < Application/Schema.sql
