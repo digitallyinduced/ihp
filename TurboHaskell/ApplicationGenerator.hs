@@ -37,7 +37,6 @@ filesToCreate applicationName =
     [ (cs applicationName <> "/Types.hs", typesHs)
     , (cs applicationName <> "/Routes.hs", routesHs)
     , (cs applicationName <> "/FrontController.hs", frontControllerHs)
-    , (cs applicationName <> "/Controller/Context.hs", controllerContextHs)
     , (cs applicationName <> "/Controller/Prelude.hs", controllerPreludeHs)
     , (cs applicationName <> "/View/Context.hs", viewContextHs)
     , (cs applicationName <> "/View/Layout.hs", viewLayoutHs)
@@ -47,7 +46,6 @@ filesToCreate applicationName =
         typesHs = 
             "module " <> applicationName <> ".Types where\n"
             <> "import           ClassyPrelude\n"
-            <> "import           " <> applicationName <> ".Controller.Context\n"
             <> "import qualified TurboHaskell.Controller.Session\n"
             <> "import qualified TurboHaskell.ControllerSupport as ControllerSupport\n"
             <> "import           TurboHaskell.HaskellSupport\n"
@@ -85,36 +83,15 @@ filesToCreate applicationName =
             <> "        [ parseRoute @WelcomeController\n"
             <> "        -- Generator Marker\n"
             <> "        ]\n"
-        controllerContextHs = 
-            "module " <> applicationName <> ".Controller.Context where\n\n"
-            <> "import ClassyPrelude hiding (pack)\n"
-            <> "import TurboHaskell.Controller.Session\n"
-            <> "import TurboHaskell.Controller.RequestContext\n"
-            <> "import TurboHaskell.ModelSupport\n"
-            <> "import Generated.Types\n"
-            <> "import Data.Dynamic\n"
-            <> "import qualified Control.Newtype.Generics as Newtype\n\n"
-            <> "data ControllerContext = ControllerContext {\n"
-            <> "        -- Here you can prepare data to be available in your controller actions\n"
-            <> "        -- E.g. you might want to fetch the current logged in user here\n"
-            <> "        -- user :: Maybe User\n"
-            <> "        validations :: IORef [Dynamic]\n"
-            <> "    } deriving (Generic)\n\n"
-            <> "instance Context ControllerContext where\n"
-            <> "    createContext = do\n"
-            <> "        validations <- newIORef []\n"
-            <> "        return ControllerContext { .. }\n"
         controllerPreludeHs = 
             "module " <> applicationName <> ".Controller.Prelude\n"
             <> "( module " <> applicationName <> ".Types\n"
-            <> ", module " <> applicationName <> ".Controller.Context\n"
             <> ", module Application.Helper.Controller\n"
             <> ", module TurboHaskell.ControllerPrelude\n"
             <> ", module Generated.Types\n"
             <> ")\n"
             <> "where\n\n"
             <> "import " <> applicationName <> ".Types\n"
-            <> "import " <> applicationName <> ".Controller.Context\n"
             <> "import Application.Helper.Controller\n"
             <> "import TurboHaskell.ControllerPrelude\n"
             <> "import Generated.Types\n"           
@@ -122,7 +99,6 @@ filesToCreate applicationName =
         viewContextHs = 
             "module " <> applicationName <> ".View.Context where\n\n"
             <> "import ClassyPrelude\n"
-            <> "import " <> applicationName <> ".Controller.Context\n"
             <> "import qualified TurboHaskell.Controller.Session\n"
             <> "import TurboHaskell.ControllerSupport  (RequestContext (RequestContext))\n"
             <> "import qualified TurboHaskell.ControllerSupport\n"
@@ -139,12 +115,11 @@ filesToCreate applicationName =
             <> "    type ControllerContext ViewContext = ControllerContext\n"
             <> "    createViewContext = do\n"
             <> "        flashMessages <- TurboHaskell.Controller.Session.getAndClearFlashMessages\n"
-            <> "        validations <- readIORef (get #validations ?controllerContext)\n"
             <> "        let viewContext = ViewContext {\n"
             <> "                requestContext = ?requestContext,\n"
             <> "                -- user = currentUserOrNothing,\n"
             <> "                flashMessages,\n"
-            <> "                validations,\n"
+            <> "                controllerContext = ?controllerContext,\n"
             <> "                layout = let ?viewContext = viewContext in defaultLayout\n"
             <> "            }\n"
             <> "        return viewContext\n"
