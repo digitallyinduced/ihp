@@ -39,7 +39,7 @@ isAlphaOnly :: Text -> Bool
 isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
 gen database applicationName controllerName' = do
-    let modelName = if "_" `isInfixOf` controllerName' then (tableNameToModelName controllerName') else controllerName'
+    let modelName = tableNameToModelName controllerName'
     let controllerName = Countable.pluralize modelName
     let config = ControllerConfig { modelName, controllerName, applicationName }
     let generate =
