@@ -16,11 +16,24 @@ passwordStrength = 17
 hashPassword :: ByteString -> IO Text
 hashPassword plainText = cs <$> Crypto.PasswordStore.makePassword plainText passwordStrength
 
+
+class VerifiyPassword a where
+    verifyPassword' :: a -> Text -> Bool
+
+instance VerifiyPassword Text where
+    verifyPassword' passwordHash plainText = Crypto.PasswordStore.verifyPassword (cs plainText) (cs passwordHash)
+
+instance VerifiyPassword (Maybe Text) where
+    verifyPassword' (Just passwordHash) plainText = verifyPassword' passwordHash plainText
+    verifyPassword' Nothing _ = False
+
 {-# INLINE verifyPassword #-}
-verifyPassword :: HasField "passwordHash" entity Text => entity -> Text -> Bool
-verifyPassword entity plainText = Crypto.PasswordStore.verifyPassword (cs plainText) (cs passwordHash)
+verifyPassword :: (HasField "passwordHash" entity passwordField, VerifiyPassword passwordField) => entity -> Text -> Bool
+verifyPassword entity plainText = verifyPassword' passwordHash plainText
     where
         passwordHash = getField @"passwordHash" entity
+
+
 
 {-# INLINE generateAuthenticationToken #-}
 generateAuthenticationToken :: IO Text

@@ -67,7 +67,6 @@ filesToCreate applicationName =
             "module " <> applicationName <> ".Routes where\n"
             <> "import TurboHaskell.RouterPrelude\n"
             <> "import Generated.Types\n"
-            <> "import " <> applicationName <> ".Controller.Context\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "-- Generator Marker\n"
         frontControllerHs =
