@@ -248,7 +248,7 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child. (Eq controller,
             editAction' :: RestfulControllerId controller -> Child controller
             editAction' memberId = fromJust (editAction @controller) $ memberId
         in (string (basePath @controller)) >> (
-            string "/" >> ((string "new" >> get (newAction'))
+            string "/" >> ((string "new" <* endOfInput >> get (newAction'))
                 <|> (do
                     memberId <- parsePathArgument
                     let edit = string "edit" >> get (editAction' memberId)
@@ -358,7 +358,7 @@ instance {-# OVERLAPPABLE #-} forall id controller parent child parentParent. (E
             deleteAction' memberId = parent :> (fromJust (deleteAction @controller) $ memberId )
             editAction' memberId = parent :> (fromJust (editAction @controller) $ memberId )
         (string (basePath @controller)) >> (
-            string "/" >> (string "new" >> get (newAction'))
+            string "/" >> (string "new" <* endOfInput >> get (newAction'))
                 <|> (do
                     memberId <- parsePathArgument
                     let custom = (customActions (Just (showActionWithoutParent memberId)) >>= return )
