@@ -64,3 +64,8 @@ isEmail text = Failure "is not a valid email"
 isInRange :: (Show value, Ord value) => (value, value) -> value -> ValidatorResult
 isInRange (min, max) value | value >= min && value <= max = Success
 isInRange (min, max) value = Failure (" has to be between " <> tshow min <> " and " <> tshow max)
+
+{-# INLINE isColor #-}
+isColor :: Text -> ValidatorResult
+isColor text | ("#" `isPrefixOf` text) && (length text == 7) = Success
+isColor text = Failure "is not a valid color"
