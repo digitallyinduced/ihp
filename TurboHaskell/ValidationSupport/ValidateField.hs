@@ -69,3 +69,8 @@ isInRange (min, max) value = Failure (" has to be between " <> tshow min <> " an
 isColor :: Text -> ValidatorResult
 isColor text | ("#" `isPrefixOf` text) && (length text == 7) = Success
 isColor text = Failure "is not a valid color"
+
+{-# INLINE isUrl #-}
+isUrl :: Text -> ValidatorResult
+isUrl text | ("http://" `isPrefixOf` text || "https://" `isPrefixOf` text) = Success
+isUrl text = Failure "is not a valid url. It needs to start with http:// or https://"
