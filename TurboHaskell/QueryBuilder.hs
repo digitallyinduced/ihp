@@ -223,6 +223,7 @@ filterWhereIn !(name, value) = FilterByQueryBuilder (name, InOp, toField (In val
 
 {-# INLINE filterWhereNotIn #-}
 filterWhereNotIn :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, [value]) -> QueryBuilder model -> QueryBuilder model
+filterWhereNotIn !(_, []) = id -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn !(name, value) = FilterByQueryBuilder (name, NotInOp, toField (In value))
 
 
