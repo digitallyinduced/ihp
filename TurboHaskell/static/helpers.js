@@ -259,6 +259,7 @@ function initFileUploadPreview() {
 
 var datePickers = [];
 function initDatePicker() {
+    if (!('flatpickr' in window)) { return; }
     flatpickr("input[type='date']", {
         altFormat: 'd.m.y',
     });
