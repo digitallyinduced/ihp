@@ -11,6 +11,7 @@ import qualified Text.Countable as Countable
 -- `projects` => `Project`
 {-# INLINE tableNameToModelName #-}
 tableNameToModelName :: Text -> Text
+tableNameToModelName "brain_waves" = "BrainWave"
 tableNameToModelName tableName = do
     let singularizedTableName = cs (Countable.singularize tableName)
     if "_" `isInfixOf` singularizedTableName 

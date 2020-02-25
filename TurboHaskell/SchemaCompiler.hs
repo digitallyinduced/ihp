@@ -317,8 +317,8 @@ compileFromRowInstance table@(Table name attributes) database =
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
         compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow relatedFieldName <> ", " <> (fromJust $ toBinding' (tableNameToModelName name) relatedIdField)  <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
             where
-                compileInverseOf Nothing = (columnNameToFieldName (Countable.singularize name)) <> "Id"
-                compileInverseOf (Just name) = columnNameToFieldName (Countable.singularize name)
+                compileInverseOf Nothing = (columnNameToFieldName (singularize name)) <> "Id"
+                compileInverseOf (Just name) = columnNameToFieldName (singularize name)
                 relatedFieldName = compileInverseOf inverseOf
                 relatedIdField = relatedField "id"
                 relatedForeignKeyField = relatedField relatedFieldName
@@ -395,7 +395,7 @@ compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compi
                 compileTypeVariable (HasMany {name}) = name
                 compileTypeVariable' :: Attribute -> Text
                 compileTypeVariable' (Field fieldName' _) | fieldName' == fieldName = "(GetModelById " <> fieldName' <> ")"
-                compileTypeVariable' (HasMany {name}) | name == fieldName = "[" <> tableNameToModelName (Countable.singularize name) <> "]"
+                compileTypeVariable' (HasMany {name}) | name == fieldName = "[" <> tableNameToModelName (singularize name) <> "]"
                 compileTypeVariable' otherwise = compileTypeVariable otherwise
                 fieldName =
                     case attribute of

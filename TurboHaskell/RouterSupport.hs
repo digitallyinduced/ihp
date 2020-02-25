@@ -124,10 +124,13 @@ type family ModelControllerMap controllerContext model
 getConstructorByName :: forall theType. Data theType => String -> Maybe Constr
 getConstructorByName name = readConstr (dataTypeOf (ClassyPrelude.undefined :: theType)) name
 
+singularize "BrainWaves" = "BrainWave"
+singularize word = Countable.singularize word
+
 {-# INLINE constructorWithId #-}
 constructorWithId :: forall controller. (RestfulController controller, Data (Child controller), Data (RestfulControllerId controller)) => Text -> Maybe (RestfulControllerId controller -> Child controller)
 constructorWithId name =
-    case getConstructorByName @(Child controller) (cs (name <> (Countable.singularize $ cs (strippedControllerName @controller)) <> "Action")) of
+    case getConstructorByName @(Child controller) (cs (name <> (singularize $ cs (strippedControllerName @controller)) <> "Action")) of
         Just constructor -> Just (\id -> fromJust $ fromConstrM (cast id :: forall d. Data d => Maybe d) constructor)
         Nothing -> Nothing
 
@@ -149,10 +152,10 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
     indexAction = fromConstr <$> getConstructorByName @(Child controller) (cs (strippedControllerName @controller <> "Action"))
     {-# INLINE newAction #-}
     newAction :: Maybe (Child controller)
-    newAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("New" <> (Countable.singularize $ cs (strippedControllerName @controller)) <> "Action"))
+    newAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("New" <> (singularize $ cs (strippedControllerName @controller)) <> "Action"))
     {-# INLINE createAction #-}
     createAction :: Maybe (Child controller)
-    createAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("Create" <> (Countable.singularize $ cs (strippedControllerName @controller)) <> "Action"))
+    createAction = fromConstr <$> getConstructorByName @(Child controller) (cs ("Create" <> (singularize $ cs (strippedControllerName @controller)) <> "Action"))
     {-# INLINE showAction #-}
     showAction :: Maybe (RestfulControllerId controller -> Child controller)
     showAction = constructorWithId @controller "Show"
@@ -187,7 +190,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
                     , "Delete" <> singularControllerName <> "Action"
                     ]
                         where
-                            singularControllerName = Countable.singularize controllerName
+                            singularControllerName = singularize controllerName
             parseCustomAction action' = (string actionPath <* endOfInput >> onGetOrPost action action)
                 where
                     action = initiateAction action' id
@@ -197,7 +200,7 @@ class (Typeable controller, Generic controller, Data controller, Data (Child con
                             Nothing -> fromConstr constructor
                     actionName = showConstr action'
                     withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
-                    modelName = cs $ Countable.singularize $ cs controllerName
+                    modelName = cs $ singularize $ cs controllerName
                     withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
                     actionPath = controllerNameToPathName (cs withoutModelPrefix)
         in choice (map parseCustomAction customConstructors)
@@ -297,7 +300,7 @@ genericPathTo action = genericPathTo' action
                     id = headMay (toListOf (types @id) action)
                     actionName = showConstr (toConstr action)
                     withoutActionSuffix = fromMaybe actionName (stripSuffix "Action" actionName)
-                    modelName = cs $ Countable.singularize $ cs (strippedControllerName @controller)
+                    modelName = cs $ singularize $ cs (strippedControllerName @controller)
                     withoutModelPrefix = fromMaybe withoutActionSuffix (stripPrefix modelName withoutActionSuffix)
                 in
                     indexBasePath <> "/" <> maybe "" (\id -> tshow id <> "/") id <> (cs $ controllerNameToPathName (cs withoutModelPrefix))
