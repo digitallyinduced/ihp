@@ -18,6 +18,8 @@ import qualified Text.Countable as Countable
 -- USE LINE PRAGMA IN OUTPUT
 --{-# LINE 42 "Foo.vhs" #-}
 
+singularize word = Countable.singularize word
+
 haskellType :: Table -> Attribute -> Text
 haskellType table (Field fieldName field) =
     let
