@@ -2,26 +2,26 @@ module TurboHaskell.AuthSupport.Lockable where
 
 import ClassyPrelude
 import           Control.Lens                         hiding ((|>))
-import           Data.Generics.Product
-import           Data.Generics.Product.Types
 import TurboHaskell.ModelSupport
 import qualified Data.Time.Clock as Clock
 import Unsafe.Coerce
+import GHC.Records
+import TurboHaskell.HaskellSupport
 
-lock :: forall user modelContext. (?modelContext :: ModelContext, CanUpdate user, HasField "lockedAt" user user (Maybe UTCTime) (Maybe UTCTime), Generic user) => user -> IO user
+lock :: forall user modelContext. (?modelContext :: ModelContext, CanUpdate user, UpdateField "lockedAt" user user (Maybe UTCTime) (Maybe UTCTime)) => user -> IO user
 lock user = do
     now <- getCurrentTime
-    let currentLockedAt :: Maybe UTCTime = user ^. field @"lockedAt"
-    let user' :: user = user & field @"lockedAt" .~ Just now
+    let currentLockedAt :: Maybe UTCTime = getField @"lockedAt" user
+    let user' :: user = updateField @"lockedAt" (Just now) user
     updateRecord user'
 
 lockDuration :: Clock.NominalDiffTime
 lockDuration = let timeInSecs = 60 * 60 in Clock.secondsToNominalDiffTime timeInSecs
 
-isLocked :: forall user. (HasField "lockedAt" user user (Maybe UTCTime) (Maybe UTCTime)) => user -> IO Bool
+isLocked :: forall user. (HasField "lockedAt" user (Maybe UTCTime)) => user -> IO Bool
 isLocked user = do
     now <- Clock.getCurrentTime
-    let currentLockedAt :: Maybe UTCTime = user ^. field @"lockedAt"
+    let currentLockedAt :: Maybe UTCTime = getField @"lockedAt" user
     return $! case currentLockedAt of
         Just lockedAt ->
             let diff = Clock.diffUTCTime now (unsafeCoerce lockedAt)
