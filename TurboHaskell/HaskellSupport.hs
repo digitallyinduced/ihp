@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
-module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, get, set, ifOrEmpty, modify, SetField (..), UpdateField (..), incrementField, decrementField) where
+module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, get, set, ifOrEmpty, modify, SetField (..), UpdateField (..), incrementField, decrementField, isToday, isToday') where
 
 import ClassyPrelude
 import Control.Monad (when)
@@ -63,3 +63,14 @@ class SetField (field :: GHC.TypeLits.Symbol) model value | field model -> value
 
 class Record.HasField field model value => UpdateField (field :: GHC.TypeLits.Symbol) model model' value value' | model model' value' -> value where
     updateField :: value' -> model -> model'
+
+utcTimeToYearMonthDay :: UTCTime -> (Integer, Int, Int)
+utcTimeToYearMonthDay = toGregorian . utctDay -- (year,month,day)
+
+isToday :: UTCTime -> IO Bool
+isToday timestamp = do
+    now <- getCurrentTime
+    return (isToday' now timestamp)
+
+isToday' :: UTCTime -> UTCTime -> Bool
+isToday' currentTime timestamp = utcTimeToYearMonthDay currentTime == utcTimeToYearMonthDay timestamp
