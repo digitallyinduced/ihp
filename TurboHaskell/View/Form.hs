@@ -320,6 +320,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                 input ! type_ "hidden" ! name fieldName ! A.value (cs $ TurboHaskell.ModelSupport.inputValue False)
                 Html5.text fieldLabel
                 if disableValidationResult then mempty else renderValidationResult formField
+                renderHelpText formField
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
         renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) =
             maybeWithFormGroup formField $ do
