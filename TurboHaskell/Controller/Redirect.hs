@@ -1,4 +1,4 @@
-module TurboHaskell.Controller.Redirect (redirectTo, redirectToPath) where
+module TurboHaskell.Controller.Redirect (redirectTo, redirectToPath, redirectToUrl) where
 import ClassyPrelude
 import qualified Network.Wai.Util 
 import Network.URI (parseURI)
@@ -35,11 +35,22 @@ redirectTo action = redirectToPath (pathTo action)
 -- Use `redirectTo` if you want to redirect to a controller action
 {-# INLINE redirectToPath #-}
 redirectToPath :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO Wai.ResponseReceived
-redirectToPath url = do
+redirectToPath path = redirectToUrl (FrameworkConfig.baseUrl <> path)
+
+-- Redirects to a url (given as a string)
+-- Example:
+-- ```
+-- redirectToUrl "https://example.com/hello-world.html"
+-- ```
+--
+-- Use `redirectToPath` if you want to redirect to a relative path like "/hello-world.html"
+{-# INLINE redirectToUrl #-}
+redirectToUrl :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO Wai.ResponseReceived
+redirectToUrl url = do
     let (RequestContext _ respond _ _ _) = ?requestContext
     let !parsedUrl = fromMaybe 
-            (error "redirectToPath: Unable to parse url")
-            (parseURI (cs $ FrameworkConfig.baseUrl <> url))
+            (error ("redirectToPath: Unable to parse url: " <> show url))
+            (parseURI (cs url))
     let !redirectResponse = fromMaybe
             (error "redirectToPath: Unable to construct redirect response")
             (Network.Wai.Util.redirect status302 [] parsedUrl)
