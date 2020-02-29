@@ -59,7 +59,7 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 RUNGHC=runghc
 
 run: .envrc build/db/state build/Generated static/prod.js static/prod.css
-	nix-shell --run RunDevServer
+	RunDevServer
 
 
 .envrc: default.nix TurboHaskell/NixSupport/default.nix
