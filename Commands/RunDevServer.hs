@@ -182,7 +182,7 @@ cleanup state = do
 
 startPlainGhci :: IO ManagedProcess
 startPlainGhci = do
-    let process = (Process.proc "ghci" ["-threaded", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j", "-O0", "+RTS", "-A512m", "-n4m", "-H512m", "-G3"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
+    let process = (Process.proc "ghci" ["-threaded", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j", "-O0", "+RTS", "-A512m", "-n4m", "-H512m", "-G3", "-qg"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
     errorLog <- Just <$> newIORef ""
     return ManagedProcess { .. }
