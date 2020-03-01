@@ -214,9 +214,9 @@ data ImageUploadOptions = ImageUploadOptions { convertTo :: Text, imageMagickOpt
 
 
 
--- TODO: Rename to `uploadPng`
-uploadFile :: _ => Proxy fieldName -> record -> IO record
-uploadFile field user = uploadImageFile "png" field user
+-- Usage: `user |> uploadPng #profilePicture`
+uploadPng :: _ => Proxy fieldName -> record -> IO record
+uploadPng field record = uploadImageFile "png" field record
 
 uploadSVG :: _ => Proxy fieldName -> record -> IO record
 uploadSVG = uploadImageFile "svg"
@@ -234,7 +234,7 @@ uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName
 uploadImageWithOptions options _ user =
     let
         ext = "jpg" :: Text
-        fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))
+        fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
         baseImagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture."
@@ -263,7 +263,7 @@ uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Sym
     ) => Text -> Proxy fieldName -> record -> IO record
 uploadImageFile ext _ user =
     let
-        fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))
+        fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
         imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture." <> ext
