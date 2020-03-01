@@ -7,6 +7,7 @@ import ClassyPrelude (Text, Show, show)
 import Data.String.Conversions (cs)
 import TurboHaskell.View.ConvertibleStrings ()
 import qualified Data.ByteString
+import Prelude (String)
 
 class ToHtml a where
     toHtml :: a -> Html5.Html
@@ -16,6 +17,10 @@ instance ToHtml (Text.Blaze.Internal.MarkupM ()) where
     toHtml a = a
 
 instance ToHtml Text where
+    {-# INLINE toHtml #-}
+    toHtml = cs
+
+instance ToHtml String where
     {-# INLINE toHtml #-}
     toHtml = cs
 
