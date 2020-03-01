@@ -7,6 +7,7 @@ module TurboHaskell.ViewSupport
 , Layout
 , View (..)
 , currentViewId
+, forEach
 ) where
 
 import ClassyPrelude
@@ -26,7 +27,7 @@ type Layout = Html5.Html -> Html5.Html
 
 {-# INLINE classes #-}
 classes :: [(Text, Bool)] -> Text
-classes classNameBoolPairs =
+classes !classNameBoolPairs =
     classNameBoolPairs
     |> filter snd
     |> map fst
@@ -56,6 +57,7 @@ class View theView viewContext | theView -> viewContext where
 -- render = [hsx|<div id={currentViewId}>Hello World!</div>|]
 -- 
 -- This will render `<div id="projects-show">Hello World!</div>`
+{-# INLINE currentViewId #-}
 currentViewId :: (?view :: view, Typeable view) => Text
 currentViewId = 
         case moduleParts of
@@ -72,4 +74,6 @@ currentViewId =
         moduleParts = Text.splitOn "." moduleName
 
 
-        
+{-# INLINE forEach #-}
+forEach :: _ => _
+forEach = forM_
