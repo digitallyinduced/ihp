@@ -90,7 +90,7 @@ db: Application/Schema.sql Application/Fixtures.sql
 
 dumpdb: dump_db
 dump_db:
-	pg_dump -a --inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
+	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
 ghci:
 	ghci -threaded -i. -iTurboHaskell -fexternal-interpreter
