@@ -48,7 +48,7 @@ import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport
 import TurboHaskell.ModelSupport (getModelName, GetModelName, Id', FieldWithDefault, NormalizeModel, MetaBag)
 
-import TurboHaskell.RouterSupport (RestfulController (..), RestfulControllerId, Child, HasPath, PathArgument, Child, Parent)
+import TurboHaskell.RouterSupport (HasPath, AutoRoute (..), createAction, updateAction)
 import GHC.Records
 
 
@@ -66,9 +66,8 @@ instance ModelFormAction application (parent, child) where
 instance (
         HasField "id" formObject id
         , controller ~ ModelControllerMap application (NormalizeModel formObject)
-        , Child controller ~ controller
         , HasPath controller
-        , RestfulController controller
+        , AutoRoute controller
         , ModelFormActionTopLevelResource controller id
         , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormAction application formObject where
@@ -80,19 +79,16 @@ class ModelFormActionTopLevelResource controller id where
     modelFormActionTopLevelResource :: Proxy controller -> id -> Text
 
 instance (
-        Child controller ~ controller
-        , HasPath controller
-        , RestfulController controller
+        HasPath controller
+        , AutoRoute controller
         , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormActionTopLevelResource controller (FieldWithDefault id') where
     {-# INLINE modelFormActionTopLevelResource #-}
     modelFormActionTopLevelResource _ _ = pathTo (fromJust (createAction @controller))
 
 instance (
-        RestfulControllerId controller ~ Id' table
-        , Child controller ~ controller
-        , HasPath controller
-        , RestfulController controller
+        HasPath controller
+        , AutoRoute controller
         , HasPath controller
         , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormActionTopLevelResource controller (Id' (table :: Symbol)) where
@@ -186,7 +182,7 @@ horizontalFormFor :: forall model viewContext parent id formObject application. 
         , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
-        , HasPath (Child (ModelControllerMap application formObject))
+        , HasPath (ModelControllerMap application formObject)
         , application ~ ViewApp viewContext
         , HasField "meta" model MetaBag
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html

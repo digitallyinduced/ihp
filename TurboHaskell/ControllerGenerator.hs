@@ -63,7 +63,7 @@ usage = putStrLn "Usage: new-controller RESOURCE_NAME"
 
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
-    "instance RestfulController " <> controllerName <> "Controller\n"
+    "instance AutoRoute " <> controllerName <> "Controller\n"
     <> "type instance ModelControllerMap " <> applicationName <> "Application " <> modelName <> " = " <> controllerName <> "Controller\n"
     <> "type instance ControllerApplicationMap " <> controllerName <> "Controller" <> " = " <> applicationName <> "Application\n\n"
 

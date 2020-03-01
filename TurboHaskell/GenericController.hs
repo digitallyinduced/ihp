@@ -10,7 +10,7 @@ import TurboHaskell.ViewPrelude hiding (query, fetch, param)
 import TurboHaskell.ViewSupport
 import qualified Text.Blaze.Html5 as Html5
 
-instance {-# OVERLAPPABLE #-} (RestfulController controller, Router.Child controller ~ controller, Eq controller, model ~ GetModelById (RestfulControllerId controller), KnownSymbol (GetTableName model), FromRow model, Show model, Generic model, HasField "id" model id, Show id, Show controller) => Controller controller where
+instance {-# OVERLAPPABLE #-} (AutoRoute controller, Eq controller, KnownSymbol (GetTableName model), FromRow model, Show model, Generic model, HasField "id" model id, Show id, Show controller) => Controller controller where
     action theAction | isIndexAction @controller theAction = do
         models <- query @model |> fetch
         respondHtml (renderLayout (indexView models))

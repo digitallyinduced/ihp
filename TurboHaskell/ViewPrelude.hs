@@ -30,7 +30,6 @@ module TurboHaskell.ViewPrelude (
     addStyle,
     css,
     pathTo,
-    (:>)(..),
     module TurboHaskell.ViewSupport,
     module TurboHaskell.ModelSupport,
     (!),

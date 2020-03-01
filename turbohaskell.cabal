@@ -61,7 +61,6 @@ Library TurboHaskellFramework
         , TurboHaskell.ViewPrelude
         , TurboHaskell.ViewSupport
         , TurboHaskell.RouterSupport
-        , TurboHaskell.GenericController
         , TurboHaskell.ControllerGenerator
         , TurboHaskell.SchemaTypes
         , TurboHaskell.AppPrelude

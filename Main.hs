@@ -6,9 +6,9 @@ import TurboHaskell.FrameworkConfig
 import qualified TurboHaskell.Server
 import TurboHaskell.RouterSupport
 import TurboHaskell.ControllerPrelude
-import TurboHaskell.GenericController
+--import TurboHaskell.GenericController
 
-data DemoController = DemoAction deriving (Eq, Show, Generic)
+data DemoController = DemoAction deriving (Eq, Show)
 
 instance HasPath RootApplication where
 	pathTo _ = ""

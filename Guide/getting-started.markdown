@@ -441,7 +441,7 @@ The last action is dealing with `DELETE /Posts/{postId}` requests. It's pretty m
 The router is configured in `src/Apps/Web/Routes.hs`. The generator just places a single line there:
 
 ```haskell
-instance RestfulController PostsController
+instance AutoRoute PostsController
 ```
 
 This empty instance magically sets up the routing as you would have expected from a RESTful controller.
@@ -802,10 +802,10 @@ This will generate a new working controller for us. We now need to do some adjus
 
 Right now the comments are available at `/Comments`. As they are always connected to a post, we want to have them as a subresource of a post, e.g. like `/Posts/{postId}/Comments`.
 
-Open `src/Apps/Web/Routes.hs` and change the `instance RestfulController CommentsController` like this:
+Open `src/Apps/Web/Routes.hs` and change the `instance AutoRoute CommentsController` like this:
 
 ```haskell
-instance RestfulController (PostsController :> CommentsController)
+instance AutoRoute (PostsController :> CommentsController)
 ```
 
 The `:>` is a combinator to describe nested resource. In this case `PostsController` is the parent controller and `CommentsController` is the child controller.
@@ -816,7 +816,7 @@ After this change, the dev server will show some errors like this:
 
 ```haskell
 src/Apps/Web/View/Comments/Show.hs:8:33: error:
-    • Could not deduce (TurboHaskell.RouterSupport.RestfulController CommentsController)
+    • Could not deduce (TurboHaskell.RouterSupport.AutoRoute CommentsController)
 ```
 
 E.g. in the `Show.hs` the error is triggered by this line:
