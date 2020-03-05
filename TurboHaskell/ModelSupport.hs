@@ -34,6 +34,7 @@ import qualified Data.Text as Text
 data ModelContext = ModelContext {-# UNPACK #-} !Connection
 
 type family GetModelById id :: Type where
+    GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)
     GetModelById (Id' tableName) = GetModelByTableName tableName
 type family GetTableName model :: Symbol
 type family GetModelByTableName (tableName :: Symbol) :: Type
