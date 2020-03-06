@@ -282,6 +282,7 @@ instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' mo
     type FetchResult (Maybe (Id' model')) model = [model]
     {-# INLINE fetch #-}
     fetch (Just a) = genericFetchId a
+    fetch Nothing = return []
     {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing Nothing = return Nothing
     fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
