@@ -12,6 +12,7 @@ import GHC.Records
 
 import TurboHaskell.FrameworkConfig (FrameworkConfig)
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
+import TurboHaskell.ControllerSupport
 
 -- Redirects to an action
 -- Example:
@@ -21,7 +22,7 @@ import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 --
 -- Use `redirectToPath` if you want to redirect to a non-action url
 {-# INLINE redirectTo #-}
-redirectTo :: (?requestContext :: RequestContext, FrameworkConfig, HasPath action, FrontControllerPrefix (ControllerApplicationMap action)) => action -> IO Wai.ResponseReceived
+redirectTo :: (?requestContext :: RequestContext, FrameworkConfig, HasPath action, FrontControllerPrefix (ControllerApplicationMap action)) => action -> IO ()
 redirectTo action = redirectToPath (pathTo action)
 
 -- TODO: redirectTo user
@@ -34,7 +35,7 @@ redirectTo action = redirectToPath (pathTo action)
 --
 -- Use `redirectTo` if you want to redirect to a controller action
 {-# INLINE redirectToPath #-}
-redirectToPath :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO Wai.ResponseReceived
+redirectToPath :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO ()
 redirectToPath path = redirectToUrl (FrameworkConfig.baseUrl <> path)
 
 -- Redirects to a url (given as a string)
@@ -45,7 +46,7 @@ redirectToPath path = redirectToUrl (FrameworkConfig.baseUrl <> path)
 --
 -- Use `redirectToPath` if you want to redirect to a relative path like "/hello-world.html"
 {-# INLINE redirectToUrl #-}
-redirectToUrl :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO Wai.ResponseReceived
+redirectToUrl :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO ()
 redirectToUrl url = do
     let (RequestContext _ respond _ _ _) = ?requestContext
     let !parsedUrl = fromMaybe 
@@ -54,4 +55,4 @@ redirectToUrl url = do
     let !redirectResponse = fromMaybe
             (error "redirectToPath: Unable to construct redirect response")
             (Network.Wai.Util.redirect status302 [] parsedUrl)
-    respond redirectResponse
+    respondAndExit redirectResponse

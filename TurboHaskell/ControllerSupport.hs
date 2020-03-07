@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes #-}
 
-module TurboHaskell.ControllerSupport (Action, Action', SimpleAction, cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), ControllerApplicationMap, runActionWithNewContext, emptyControllerContext) where
+module TurboHaskell.ControllerSupport (Action, Action', SimpleAction, cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), ControllerApplicationMap, runActionWithNewContext, emptyControllerContext, respondAndExit) where
 import ClassyPrelude
 import TurboHaskell.HaskellSupport
 import Data.String.Conversions (cs)
@@ -11,10 +11,6 @@ import TurboHaskell.ApplicationContext (ApplicationContext (..))
 import qualified TurboHaskell.ApplicationContext as ApplicationContext
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import Data.Maybe (fromJust)
-import qualified Data.Text.Read
-import qualified Data.Either
-import qualified Data.Text.Encoding
 import qualified Data.Text
 import qualified Data.Aeson
 import TurboHaskell.Controller.RequestContext
@@ -36,15 +32,6 @@ import qualified TurboHaskell.ErrorController as ErrorController
 type Action controllerContext = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: controllerContext) => IO ResponseReceived)
 type SimpleAction = Action ()
 type Action' = IO ResponseReceived
-
--- type ActionHelper return = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: controllerContext) => return)
-
---request :: StateT RequestContext IO ResponseReceived -> Request
---request = do
---    RequestContext request <- get
---    return request
-
---(|>) :: a -> f -> f a
 
 newtype ControllerContext = ControllerContext TypeMap.TMap
 type family ControllerApplicationMap controller
@@ -69,7 +56,7 @@ emptyControllerContext = ControllerContext TypeMap.empty
 class (Show controller, Eq controller) => Controller controller where
     beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => IO ()
     beforeAction = return ()
-    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ResponseReceived
+    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext) => TypeMap.TMap -> IO TypeMap.TMap
@@ -79,7 +66,9 @@ runAction :: forall controller. (Controller controller, ?requestContext :: Reque
 runAction controller = do
     let ?theAction = controller
     let handlePatternMatchFailure (e :: Exception.PatternMatchFail) = ErrorController.handlePatternMatchFailure e controller
-    beforeAction >> ((action controller) `Exception.catch` handlePatternMatchFailure)
+    let (RequestContext _ respond _ _ _) = ?requestContext
+    let handleResponseException  (ResponseException response) = respond response
+    (((beforeAction >> action controller >> ErrorController.handleNoResponseReturned controller) `Exception.catch` handleResponseException) `Exception.catch` handlePatternMatchFailure)
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext (ControllerApplicationMap controller)) => controller -> IO ResponseReceived
@@ -125,3 +114,17 @@ createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestCo
 createRequestContext ApplicationContext { session } request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
     return (RequestContext request respond params files session)
+
+
+
+-- Can be thrown from inside the action to abort the current action execution.
+-- Does not indicates a runtime error. It's just used for control flow management.
+data ResponseException = ResponseException Response
+
+instance Show ResponseException where show _ = "ResponseException { .. }"
+
+instance Exception ResponseException
+
+{-# INLINE respondAndExit #-}
+respondAndExit :: Response -> IO ()
+respondAndExit response = Exception.throw (ResponseException response)
