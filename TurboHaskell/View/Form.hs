@@ -406,7 +406,7 @@ instance (
     fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
                         fieldType = TextInput,
                         fieldName = cs fieldName,
-                        fieldLabel = columnNameToFieldLabel (cs fieldName),
+                        fieldLabel = fieldNameToFieldLabel (cs fieldName),
                         fieldValue =  let value :: value = getField @(symbol) (model formContext) in TurboHaskell.ModelSupport.inputValue value,
                         fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = (lookup (Text.pack (symbolVal (Proxy @symbol))) (let FormContext { validatorResult } = formContext in validatorResult)),
@@ -433,7 +433,7 @@ instance (
     fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
                         fieldType = CheckboxInput,
                         fieldName = cs fieldName,
-                        fieldLabel = columnNameToFieldLabel (cs fieldName),
+                        fieldLabel = fieldNameToFieldLabel (cs fieldName),
                         fieldValue =  let value = getField @(symbol) (model formContext) in if value then "yes" else "no",
                         fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = Nothing,
@@ -468,7 +468,7 @@ instance (
                                  SelectInput $ map itemToTuple items
                             ,
                         fieldName = cs fieldName,
-                        fieldLabel = removeIdSuffix $ columnNameToFieldLabel (cs fieldName),
+                        fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName),
                         fieldValue =
                             let value = ((getField @(symbol) (model formContext)) :: (SelectValue item))
                             in TurboHaskell.ModelSupport.inputValue value,
