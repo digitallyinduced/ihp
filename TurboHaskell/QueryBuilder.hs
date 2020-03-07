@@ -232,11 +232,11 @@ data FilterWhereTag
 data OrderByTag
 
 {-# INLINE orderBy #-}
-orderBy :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
+orderBy :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderBy !name = OrderByQueryBuilder (name, Asc)
 
 {-# INLINE orderByDesc #-}
-orderByDesc :: KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder model
+orderByDesc :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderByDesc !name = OrderByQueryBuilder (name, Desc)
 
 data IncludeTag
