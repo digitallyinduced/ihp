@@ -38,3 +38,4 @@
 :set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
 :set -Werror=missing-fields
+:set -fwarn-incomplete-patterns
