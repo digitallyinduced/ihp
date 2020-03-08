@@ -37,6 +37,9 @@ enum values = EnumField { defaultValue = Nothing, references = Nothing, values, 
 bool :: FieldType
 bool = BoolField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
+boolean :: FieldType
+boolean = bool
+
 timestamp :: FieldType
 timestamp = Timestamp { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
