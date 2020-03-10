@@ -1,5 +1,5 @@
 module TurboHaskell.SchemaSupport where
-import ClassyPrelude hiding (length)
+import ClassyPrelude hiding (length, bool)
 import Data.Maybe (fromJust)
 import qualified Data.List as List
 import TurboHaskell.SchemaTypes
