@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
 
-module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator) where
+module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount) where
 
 
 import TurboHaskell.HaskellSupport
@@ -25,7 +25,6 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
 import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById)
-import qualified TurboHaskell.ModelSupport
 import qualified TurboHaskell.ModelSupport as ModelSupport
 import TurboHaskell.NameSupport (fieldNameToColumnName)
 import TurboHaskell.ModelSupport (Id, Id')
@@ -60,7 +59,7 @@ data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
     FilterByQueryBuilder :: (KnownSymbol field) => !(Proxy field, FilterOperator, Action) -> !(QueryBuilder model) -> QueryBuilder model
     OrderByQueryBuilder :: KnownSymbol field => !(Proxy field, OrderByDirection) -> !(QueryBuilder model) -> QueryBuilder model
-    IncludeQueryBuilder :: (KnownSymbol field, KnownSymbol (GetTableName model)) => !(Proxy field, QueryBuilder relatedModel) -> !(QueryBuilder model) -> QueryBuilder (TurboHaskell.ModelSupport.Include field model)
+    IncludeQueryBuilder :: (KnownSymbol field, KnownSymbol (GetTableName model)) => !(Proxy field, QueryBuilder relatedModel) -> !(QueryBuilder model) -> QueryBuilder (ModelSupport.Include field model)
     UnionQueryBuilder :: !(QueryBuilder model) -> !(QueryBuilder model) -> QueryBuilder model
 
 data Condition = VarCondition !Text !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show)
@@ -115,53 +114,63 @@ buildQuery !queryBuilder =
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext) => fetchable -> IO (FetchResult fetchable model)
-    fetchOneOrNothing :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext) => fetchable -> IO (Maybe model)
-    fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext) => fetchable -> IO model
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext) => fetchable -> IO (FetchResult fetchable model)
+    fetchOneOrNothing :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext) => fetchable -> IO (Maybe model)
+    fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext) => fetchable -> IO model
 
 instance Fetchable (QueryBuilder model) model where
     type FetchResult (QueryBuilder model) model = [model]
     {-# INLINE fetch #-}
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext) => QueryBuilder model -> IO [model]
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext) => QueryBuilder model -> IO [model]
     fetch !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
         putStrLn $! tshow (theQuery, theParameters)
-        TurboHaskell.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
+        ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing :: (?modelContext :: TurboHaskell.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
     fetchOneOrNothing !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
         putStrLn $! tshow (theQuery, theParameters)
-        results <- TurboHaskell.ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
+        results <- ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
         return $ listToMaybe results
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: TurboHaskell.ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
+    fetchOne :: (?modelContext :: ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
     fetchOne !queryBuilder = do
         maybeModel <- fetchOneOrNothing queryBuilder
         return $ case maybeModel of
             Just model -> model
             Nothing -> error "Cannot find model"
 
+{-# INLINE fetchCount #-}
+-- Returns the count of records selected by the query builder.
+fetchCount :: (?modelContext :: ModelSupport.ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Int
+fetchCount !queryBuilder = do
+    let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
+    let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
+    putStrLn $! tshow (theQuery, theParameters)
+    ![PG.Only count] <- ModelSupport.sqlQuery (Query $! cs theQuery) theParameters
+    return count
+
 {-# INLINE genericFetchId #-}
-genericFetchId :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO [model]
+genericFetchId :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO [model]
 genericFetchId !id = query @model |> filterWhere (#id, id) |> fetch
 {-# INLINE genericfetchIdOneOrNothing #-}
-genericfetchIdOneOrNothing :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO (Maybe model)
+genericfetchIdOneOrNothing :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO (Maybe model)
 genericfetchIdOneOrNothing !id = query @model |> filterWhere (#id, id) |> fetchOneOrNothing
 {-# INLINE genericFetchIdOne #-}
-genericFetchIdOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO model
+genericFetchIdOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO model
 genericFetchIdOne !id = query @model |> filterWhere (#id, id) |> fetchOne
 
 {-# INLINE genericFetchIds #-}
-genericFetchIds :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => [value] -> IO [model]
+genericFetchIds :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => [value] -> IO [model]
 genericFetchIds !ids = query @model |> filterWhereIn (#id, ids) |> fetch
 {-# INLINE genericfetchIdsOneOrNothing #-}
-genericfetchIdsOneOrNothing :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => [value] -> IO (Maybe model)
+genericfetchIdsOneOrNothing :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => [value] -> IO (Maybe model)
 genericfetchIdsOneOrNothing !ids = query @model |> filterWhereIn (#id, ids) |> fetchOneOrNothing
 {-# INLINE genericFetchIdsOne #-}
-genericFetchIdsOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: TurboHaskell.ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => [value] -> IO model
+genericFetchIdsOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => [value] -> IO model
 genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
@@ -240,7 +249,7 @@ orderByDesc :: (KnownSymbol name, HasField name model value) => Proxy name -> Qu
 orderByDesc !name = OrderByQueryBuilder (name, Desc)
 
 data IncludeTag
-include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (TurboHaskell.ModelSupport.Include name model)
+include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (ModelSupport.Include name model)
 include !name = IncludeQueryBuilder (name, relatedQueryBuilder)
     where
         relatedQueryBuilder = query @relatedModel
