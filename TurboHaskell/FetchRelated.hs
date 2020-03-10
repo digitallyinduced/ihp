@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, AllowAmbiguousTypes #-}
 
-module TurboHaskell.FetchRelated (fetchRelated, collectionFetchRelated) where
+module TurboHaskell.FetchRelated (fetchRelated, collectionFetchRelated, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
 
 import TurboHaskell.HaskellSupport
 import ClassyPrelude hiding (UTCTime, find)
@@ -75,3 +75,28 @@ fetchRelated relatedField model = do
     result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
     let model' = updateField @field result model
     return model'
+
+fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
+        ?modelContext :: ModelContext,
+        UpdateField field model (Include field model) (Maybe fieldValue) (Maybe (FetchResult fieldValue fetchModel)),
+        HasField field model (Maybe fieldValue),
+        PG.FromRow fetchModel,
+        KnownSymbol (GetTableName fetchModel),
+        Fetchable fieldValue fetchModel
+    ) => Proxy field -> model -> IO (Include field model)
+fetchRelatedOrNothing relatedField model = do
+    result :: Maybe (FetchResult fieldValue fetchModel) <- case getField @field model of
+            Just fieldValue -> fetch fieldValue >>= return . Just
+            Nothing -> return Nothing
+    let model' = updateField @field result model
+    return model'
+
+maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
+        ?modelContext :: ModelContext,
+        UpdateField field model (Include field model) (Maybe fieldValue) (Maybe (FetchResult fieldValue fetchModel)),
+        HasField field model (Maybe fieldValue),
+        PG.FromRow fetchModel,
+        KnownSymbol (GetTableName fetchModel),
+        Fetchable fieldValue fetchModel
+    ) => Proxy field -> Maybe model -> IO (Maybe (Include field model))
+maybeFetchRelatedOrNothing relatedField = maybe (return Nothing) (\q -> fetchRelatedOrNothing relatedField q >>= return . Just)
