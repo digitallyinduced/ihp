@@ -37,6 +37,8 @@ compileAttribute table field@(Field name fieldType) = name <> " " <> compileType
         compileType Timestamp { defaultValue, allowNull, isPrimaryKey, unique }            = compileTokens ["TIMESTAMP WITH TIME ZONE", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
         compileType UUIDField { defaultValue, allowNull, isPrimaryKey, unique }            = compileTokens ["UUID", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
         compileType PointField { defaultValue, allowNull, isPrimaryKey, unique }            = compileTokens ["POINT", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
+        compileType FloatField { defaultValue, references, allowNull, isPrimaryKey, unique } = compileTokens ["REAL", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
+        compileType DoubleField { defaultValue, references, allowNull, isPrimaryKey, unique } = compileTokens ["DOUBLE PRECISION", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
 
         compileDefaultValue (Just (SqlDefaultValue value)) = "DEFAULT " <> value
         compileDefaultValue _                              = ""

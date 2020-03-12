@@ -33,6 +33,8 @@ haskellType table (Field fieldName field) =
                 Timestamp {}   -> "UTCTime"
                 UUIDField {}   -> "UUID"
                 PointField {}  -> "Point"
+                FloatField {}  -> "Float"
+                DoubleField {} -> "Double"
         actualType =
             if isPrimaryKey field
                 then "(" <> primaryKeyTypeName table <> ")"

@@ -38,6 +38,8 @@ data FieldType =
            | UUIDField   { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, onDelete :: OnDelete, unique :: Bool }
            | Timestamp   { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            | PointField  { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | FloatField  { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
+           | DoubleField  { defaultValue :: Maybe DefaultValue, references :: Maybe Text, allowNull :: Bool, isPrimaryKey :: Bool, unique :: Bool }
            deriving (Eq, Ord)
 
 instance Show FieldType where
@@ -49,4 +51,6 @@ instance Show FieldType where
     show Timestamp { defaultValue, references, allowNull, isPrimaryKey, unique } = "Timestamp (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
     show PointField { defaultValue, references, allowNull, isPrimaryKey, unique } = "PointField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
     show EnumField { values, defaultValue, references, allowNull, isPrimaryKey, unique } = "EnumField (" <> show defaultValue <> ") (" <> show references <> ") (" <> show values <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
+    show FloatField { defaultValue, references, allowNull, isPrimaryKey, unique } = "FloatField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
+    show DoubleField { defaultValue, references, allowNull, isPrimaryKey, unique } = "DoubleField (" <> show defaultValue <> ") (" <> show references <> ") " <> show allowNull <> " " <> show isPrimaryKey <> " " <> show unique
 

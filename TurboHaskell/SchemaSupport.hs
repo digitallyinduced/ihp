@@ -46,6 +46,12 @@ timestamp = Timestamp { defaultValue = Nothing, references = Nothing, allowNull 
 point :: FieldType
 point = PointField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
+float :: FieldType
+float = FloatField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
+double :: FieldType
+double = DoubleField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
 belongsTo = BelongsTo
 hasMany name = HasMany { name = name, inverseOf = Nothing }
 
