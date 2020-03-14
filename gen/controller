@@ -24,7 +24,7 @@ else
 	echo ":l Application/Schema.hs" >> "$GHCI_SCRIPT"
 fi
 
-echo "TurboHaskell.ControllerGenerator.main' Model.Schema.database [\"$@\"]" >> "$GHCI_SCRIPT"
+echo "TurboHaskell.ControllerGenerator.main' Application.Schema.database [\"$@\"]" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
 ghci -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"

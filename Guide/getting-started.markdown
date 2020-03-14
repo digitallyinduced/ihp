@@ -148,7 +148,7 @@ Open `Application/Schema.hs` and add the following code:
 
 
 ```haskell
-module Model.Schema where
+module Application.Schema where
 import ClassyPrelude (Maybe (..), (<>), Bool (..))
 import TurboHaskell.SchemaSupport
 
@@ -763,7 +763,7 @@ The `Application/Schema.hs` will now look like this:
 
 
 ```haskell
-module Model.Schema where
+module Application.Schema where
 import ClassyPrelude (Maybe (..), (<>), Bool (..))
 import TurboHaskell.SchemaSupport
 
