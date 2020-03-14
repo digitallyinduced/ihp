@@ -32,7 +32,13 @@ handleNoResponseReturned controller = do
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError "No response returned" errorMessage))
 
 
-
+handleGenericException :: (Show controller, ?requestContext :: RequestContext) => Exception.SomeException -> controller -> IO ResponseReceived
+handleGenericException exception controller = do
+    let errorMessage = ("An exception was raised while running the action " <> tshow controller <> ".\n\n")
+    let (RequestContext _ respond _ _ _) = ?requestContext
+    let title = H.text (tshow exception)
+    putStrLn (tshow exception)
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 renderError :: _
 renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ do

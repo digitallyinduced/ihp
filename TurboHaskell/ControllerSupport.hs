@@ -66,9 +66,10 @@ runAction :: forall controller. (Controller controller, ?requestContext :: Reque
 runAction controller = do
     let ?theAction = controller
     let handlePatternMatchFailure (e :: Exception.PatternMatchFail) = ErrorController.handlePatternMatchFailure e controller
+    let handleGenericException (e :: Exception.SomeException) = ErrorController.handleGenericException e controller
     let (RequestContext _ respond _ _ _) = ?requestContext
     let handleResponseException  (ResponseException response) = respond response
-    (((beforeAction >> action controller >> ErrorController.handleNoResponseReturned controller) `Exception.catch` handleResponseException) `Exception.catch` handlePatternMatchFailure)
+    (((beforeAction >> action controller >> ErrorController.handleNoResponseReturned controller) `Exception.catch` handleResponseException) `Exception.catch` handlePatternMatchFailure) `Exception.catch` handleGenericException
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext (ControllerApplicationMap controller)) => controller -> IO ResponseReceived

@@ -140,7 +140,7 @@ makeElement !name !children =
             if name `elem` leafs then
                 leaf ()
             else
-                error "makeElement: Unknown tag "
+                error ("makeElement: Unknown tag "  <> show name)
 
 attributes =
         [ "accept", "accept-charset", "accesskey", "action", "alt", "async"
