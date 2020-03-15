@@ -275,3 +275,6 @@ uploadImageFile ext _ user =
                 |> setField @fieldName (Just (cs imagePath :: Text))
                 |> return
         _ -> return user
+
+-- Transforms `Just ""` to `Nothing`
+emptyValueToNothing field = TurboHaskell.HaskellSupport.modify field (maybe Nothing (\value -> if null value then Nothing else Just value))
