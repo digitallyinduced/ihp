@@ -195,7 +195,7 @@ parents =
         , "pre", "progress", "q", "rp", "rt", "ruby", "samp", "script"
         , "section", "select", "small", "span", "strong", "style", "sub"
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
-        , "thead", "time", "title", "tr", "ul", "var", "video"
+        , "thead", "time", "title", "tr", "u", "ul", "var", "video"
         , "svg", "path", "text", "circle"
         ]
 
