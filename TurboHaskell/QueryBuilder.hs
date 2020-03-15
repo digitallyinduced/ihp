@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
 
-module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount) where
+module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql) where
 
 
 import TurboHaskell.HaskellSupport
@@ -30,6 +30,7 @@ import TurboHaskell.NameSupport (fieldNameToColumnName)
 import TurboHaskell.ModelSupport (Id, Id')
 import qualified TurboHaskell.SchemaTypes as Schema
 import GHC.Records
+import qualified Data.ByteString.Builder as ByteStringBuilder
 
 {-# INLINE query #-}
 query :: forall model. DefaultScope model => QueryBuilder model
@@ -46,7 +47,7 @@ instance Default (QueryBuilder model) where
     {-# INLINE def #-}
     def = NewQueryBuilder
 
-data FilterOperator = EqOp | InOp | NotInOp | IsOp deriving (Show, Eq)
+data FilterOperator = EqOp | InOp | NotInOp | IsOp | SqlOp deriving (Show, Eq)
 
 
 {-# INLINE compileOperator #-}
@@ -54,6 +55,7 @@ compileOperator _ EqOp = "="
 compileOperator _ InOp = "IN"
 compileOperator _ NotInOp = "NOT IN"
 compileOperator _ IsOp = "IS"
+compileOperator _ SqlOp = ""
 
 data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
@@ -235,6 +237,10 @@ filterWhereNotIn :: forall name model value. (KnownSymbol name, ToField value, H
 filterWhereNotIn !(_, []) = id -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn !(name, value) = FilterByQueryBuilder (name, NotInOp, toField (In value))
 
+-- Allows to add a custom raw sql where condition
+{-# INLINE filterWhereSql #-}
+filterWhereSql :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, ByteString) -> QueryBuilder model -> QueryBuilder model
+filterWhereSql !(name, sqlCondition) = FilterByQueryBuilder (name, SqlOp, Plain (ByteStringBuilder.byteString sqlCondition))
 
 data FilterWhereTag
 
