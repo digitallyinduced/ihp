@@ -1,6 +1,8 @@
 module TurboHaskell.FrameworkConfig where
 
 import ClassyPrelude
+import qualified System.Environment as Environment
+import System.Directory (getCurrentDirectory)
 import TurboHaskell.Environment
 import TurboHaskell.ControllerSupport
 import TurboHaskell.RouterSupport
@@ -16,3 +18,9 @@ instance Controller RootApplication where
 
 instance FrontControllerPrefix RootApplication where
     prefix = ""
+
+appDatabaseUrl :: IO ByteString
+appDatabaseUrl = do
+    currentDirectory <- getCurrentDirectory
+    let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
+    (Environment.lookupEnv "DATABASE_URL") >>= (return . maybe defaultDatabaseUrl cs )

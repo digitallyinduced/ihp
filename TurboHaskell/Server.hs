@@ -1,4 +1,4 @@
-module TurboHaskell.Server (run) where
+module TurboHaskell.Server (run, appDatabaseUrl) where
 import ClassyPrelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
@@ -22,7 +22,6 @@ import qualified TurboHaskell.ControllerSupport as ControllerSupport
 
 import Database.PostgreSQL.Simple
 
-
 import qualified TurboHaskell.LoginSupport.Middleware
 import Unsafe.Coerce
 import TurboHaskell.Environment (isDevelopment)
@@ -33,7 +32,7 @@ import System.Directory (getCurrentDirectory)
 import Data.String.Conversions (cs)
 
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
-import TurboHaskell.FrameworkConfig (FrameworkConfig)
+import TurboHaskell.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
 import TurboHaskell.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
 
 defaultPort :: Int
@@ -41,9 +40,7 @@ defaultPort = 8000
 
 run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
 run = do
-    currentDirectory <- getCurrentDirectory
-    let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
-    databaseUrl <- (Environment.lookupEnv "DATABASE_URL") >>= (return . maybe defaultDatabaseUrl cs )
+    databaseUrl <- appDatabaseUrl
     port :: Int <- (Environment.lookupEnv "PORT") >>= (\portStr ->
             case portStr of
                 Just portStr -> return $ fromMaybe (error "PORT: Invalid value") (readMay portStr)
