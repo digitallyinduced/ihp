@@ -149,7 +149,7 @@ instance FromField (Id' model) where
     {-# INLINE fromField #-}
     fromField value metaData = do
         fieldValue <- fromField value metaData
-        return (Id fieldValue)
+        pure (Id fieldValue)
 
 instance ToField (Id' model) where
     {-# INLINE toField #-}
@@ -183,7 +183,7 @@ deleteRecord model = do
     let id = getField @"id" model
     putStrLn ("deleteRecord " <> tshow model)
     PG.execute conn (PG.Query . cs $! "DELETE FROM " <> tableName @model <> " WHERE id = ?") (PG.Only id)
-    return ()
+    pure ()
 
 type family Include (name :: GHC.Types.Symbol) model
 

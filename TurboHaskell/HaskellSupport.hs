@@ -70,7 +70,7 @@ utcTimeToYearMonthDay = toGregorian . utctDay -- (year,month,day)
 isToday :: UTCTime -> IO Bool
 isToday timestamp = do
     now <- getCurrentTime
-    return (isToday' now timestamp)
+    pure (isToday' now timestamp)
 
 isToday' :: UTCTime -> UTCTime -> Bool
 isToday' currentTime timestamp = utcTimeToYearMonthDay currentTime == utcTimeToYearMonthDay timestamp

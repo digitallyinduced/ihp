@@ -135,13 +135,13 @@ instance Fetchable (QueryBuilder model) model where
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
         putStrLn $! tshow (theQuery, theParameters)
         results <- ModelSupport.sqlQuery (Query $ cs theQuery) theParameters
-        return $ listToMaybe results
+        pure $ listToMaybe results
 
     {-# INLINE fetchOne #-}
     fetchOne :: (?modelContext :: ModelSupport.ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
     fetchOne !queryBuilder = do
         maybeModel <- fetchOneOrNothing queryBuilder
-        return $ case maybeModel of
+        pure $ case maybeModel of
             Just model -> model
             Nothing -> error "Cannot find model"
 
@@ -153,7 +153,7 @@ fetchCount !queryBuilder = do
     let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
     putStrLn $! tshow (theQuery, theParameters)
     ![PG.Only count] <- ModelSupport.sqlQuery (Query $! cs theQuery) theParameters
-    return count
+    pure count
 
 {-# INLINE genericFetchId #-}
 genericFetchId :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO [model]
@@ -297,9 +297,9 @@ instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' mo
     type FetchResult (Maybe (Id' model')) model = [model]
     {-# INLINE fetch #-}
     fetch (Just a) = genericFetchId a
-    fetch Nothing = return []
+    fetch Nothing = pure []
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing Nothing = return Nothing
+    fetchOneOrNothing Nothing = pure Nothing
     fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
     {-# INLINE fetchOne #-}
     fetchOne (Just a) = genericFetchIdOne a

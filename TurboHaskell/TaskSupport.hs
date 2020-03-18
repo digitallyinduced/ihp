@@ -18,5 +18,5 @@ runTask taskMain = do
 createModelContext = do
     databaseUrl <- Config.appDatabaseUrl
     conn <- PG.connectPostgreSQL databaseUrl 
-    return (ModelContext conn)
+    pure (ModelContext conn)
     

@@ -31,5 +31,5 @@ validateIsUnique fieldProxy model = do
         |> filterWhere (fieldProxy, value)
         |> fetchOneOrNothing
     case result of
-        Nothing -> return (attachValidatorResult fieldProxy Success model)
-        Just value -> return (attachValidatorResult fieldProxy (Failure "This is already in use") model)
+        Nothing -> pure (attachValidatorResult fieldProxy Success model)
+        Just value -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)

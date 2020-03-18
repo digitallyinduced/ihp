@@ -61,7 +61,7 @@ collectionFetchRelated relatedField model = do
     let
         result :: [TurboHaskell.ModelSupport.Include relatedField model]
         result = map assignRelated model
-    return result
+    pure result
 
 fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
@@ -74,7 +74,7 @@ fetchRelated :: forall model field fieldValue fetchModel. (
 fetchRelated relatedField model = do
     result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
     let model' = updateField @field result model
-    return model'
+    pure model'
 
 fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
@@ -86,10 +86,10 @@ fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
     ) => Proxy field -> model -> IO (Include field model)
 fetchRelatedOrNothing relatedField model = do
     result :: Maybe (FetchResult fieldValue fetchModel) <- case getField @field model of
-            Just fieldValue -> fetch fieldValue >>= return . Just
-            Nothing -> return Nothing
+            Just fieldValue -> fetch fieldValue >>= pure . Just
+            Nothing -> pure Nothing
     let model' = updateField @field result model
-    return model'
+    pure model'
 
 maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
@@ -99,4 +99,4 @@ maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         KnownSymbol (GetTableName fetchModel),
         Fetchable fieldValue fetchModel
     ) => Proxy field -> Maybe model -> IO (Maybe (Include field model))
-maybeFetchRelatedOrNothing relatedField = maybe (return Nothing) (\q -> fetchRelatedOrNothing relatedField q >>= return . Just)
+maybeFetchRelatedOrNothing relatedField = maybe (pure Nothing) (\q -> fetchRelatedOrNothing relatedField q >>= pure . Just)

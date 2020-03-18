@@ -10,7 +10,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 data WelcomeController = WelcomeAction deriving (Eq, Show)
 
 instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => CanRoute WelcomeController where
-    parseRoute' = (string "/" <|> string "") *> endOfInput *> return WelcomeAction
+    parseRoute' = (string "/" <|> string "") *> endOfInput *> pure WelcomeAction
 
 instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => HasPath WelcomeController where
     pathTo WelcomeAction = "/"

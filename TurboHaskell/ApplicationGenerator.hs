@@ -121,7 +121,7 @@ filesToCreate applicationName =
             <> "                controllerContext = ?controllerContext,\n"
             <> "                layout = let ?viewContext = viewContext in defaultLayout\n"
             <> "            }\n"
-            <> "        return viewContext\n"
+            <> "        pure viewContext\n"
 
         viewLayoutHs =
             "module " <> applicationName <> ".View.Layout (defaultLayout, Html) where\n"
@@ -206,7 +206,7 @@ addImport file importStatements = do
     case addImport' file importStatements of
         Just newContent -> writeFile (cs file) (cs newContent)
         Nothing -> putStrLn ("Could not automatically add " <> tshow importStatements <> " to " <> file)
-    return ()
+    pure ()
 
 
 updateRootFrontController :: Text -> Text -> IO ()

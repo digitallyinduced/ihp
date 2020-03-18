@@ -43,8 +43,8 @@ run = do
     databaseUrl <- appDatabaseUrl
     port :: Int <- (Environment.lookupEnv "PORT") >>= (\portStr ->
             case portStr of
-                Just portStr -> return $ fromMaybe (error "PORT: Invalid value") (readMay portStr)
-                Nothing -> return defaultPort
+                Just portStr -> pure $ fromMaybe (error "PORT: Invalid value") (readMay portStr)
+                Nothing -> pure defaultPort
             )
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
@@ -78,4 +78,4 @@ run = do
 pingDevServer :: IO ()
 pingDevServer = do
     _ <- Process.system "(lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGINT) || true"
-    return ()
+    pure ()

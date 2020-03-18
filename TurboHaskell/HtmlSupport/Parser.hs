@@ -26,39 +26,39 @@ parser = do
     node <- manyHsxElement <|> hsxElement
     spaces
     eof
-    return node
+    pure node
 
 hsxElement = try hsxSelfClosingElement <|> hsxNormalElement
 
 manyHsxElement = do
-    values <- many (do a <- hsxChild; spaces; return a)
-    return $ Children values
+    values <- many (do a <- hsxChild; spaces; pure a)
+    pure $ Children values
 
 hsxSelfClosingElement = do
     _ <- char '<'
     name <- hsxElementName
     attributes <- hsxNodeAttributes
     _ <- string "/>"
-    return (Node name attributes [])
+    pure (Node name attributes [])
 
 hsxNormalElement = do
     (name, attributes) <- hsxOpeningElement
     children <- many hsxChild
     hsxClosingElement name
-    return (Node name attributes children)
+    pure (Node name attributes children)
 
 hsxOpeningElement = do
     _ <- char '<'
     name <- hsxElementName
     attributes <- hsxNodeAttributes
     _ <- char '>'
-    return (name, attributes)
+    pure (name, attributes)
 
 hsxNodeAttributes = try hsxSplicedAttributes <|> (StaticAttributes <$> many hsxNodeAttribute)
 
 hsxSplicedAttributes = do
     name <- between (string "{...") (string "}") (many (noneOf "}"))
-    return (SplicedAttributes name)
+    pure (SplicedAttributes name)
 
 hsxNodeAttribute = do
     key <- hsxAttributeName
@@ -67,39 +67,39 @@ hsxNodeAttribute = do
     spaces
     value <- hsxQuotedValue <|> hsxSplicedValue
     spaces
-    return (key, value)
+    pure (key, value)
 
 hsxAttributeName = many (letter <|> char '-')
 
 hsxQuotedValue = do
     value <- between (char '"') (char '"') (many (noneOf "\""))
-    return (TextValue value)
+    pure (TextValue value)
 
 hsxSplicedValue = do
     value <- between (char '{') (char '}') (many (noneOf "}"))
-    return (ExpressionValue value)
+    pure (ExpressionValue value)
 
 hsxClosingElement name = do
     _ <- string ("</" <> name <> ">")
-    return ()
+    pure ()
 
 hsxChild = try hsxText <|> try hsxSplicedNode <|> try hsxElement
 
 hsxText = do
     value <- many1 (noneOf "{}<>")
-    return (TextNode (trim value))
+    pure (TextNode (trim value))
 
 
 data TokenTree = TokenLeaf String | TokenNode [TokenTree] deriving (Show)
 
 hsxSplicedNode = do
         expression <- doParse
-        return (SplicedNode expression)
+        pure (SplicedNode expression)
     where
         doParse = do
             tree <- node
             let value = (treeToString "" tree)
-            return $ unsafeInit $ unsafeTail value
+            pure $ unsafeInit $ unsafeTail value
 
         parseTree = node <|> leaf
         node = TokenNode <$> between (char '{') (char '}') (many parseTree)
@@ -115,7 +115,7 @@ hsxElementName = hsxIdentifier
 hsxIdentifier = do
     name <- many1 alphaNum
     spaces
-    return name
+    pure name
 
 trim :: String -> String
 trim = f . f

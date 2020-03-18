@@ -37,4 +37,4 @@ verifyPassword entity plainText = verifyPassword' passwordHash plainText
 
 {-# INLINE generateAuthenticationToken #-}
 generateAuthenticationToken :: IO Text
-generateAuthenticationToken = (Test.RandomStrings.randomWord Test.RandomStrings.randomASCII 32) >>= return . cs
+generateAuthenticationToken = (Test.RandomStrings.randomWord Test.RandomStrings.randomASCII 32) >>= pure . cs

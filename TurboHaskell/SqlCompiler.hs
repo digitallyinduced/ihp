@@ -14,7 +14,7 @@ main database = writeFileIfNecessary "Application/Schema.sql" (compileDatabase d
 writeFileIfNecessary :: FilePath -> Text -> IO ()
 writeFileIfNecessary path content = do
     alreadyExists <- Directory.doesFileExist path
-    existingContent <- if alreadyExists then readFile path else return ""
+    existingContent <- if alreadyExists then readFile path else pure ""
     when (existingContent /= cs content) $ do
         putStrLn $ "Updating " <> cs path
         writeFile (cs path) (cs content)

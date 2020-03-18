@@ -53,7 +53,7 @@ renderHtml !view = do
     let layout = getField @"layout" context
     let ?view = view'
     let boundHtml = let ?viewContext = context in layout (ViewSupport.html view')
-    return boundHtml
+    pure boundHtml
 
 renderFile :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing

@@ -34,7 +34,7 @@ quoteHsxExpression code = do
         monadicParseHsx code =
             case parseHsx code of
                 Left error   -> fail (show error)
-                Right result -> return result
+                Right result -> pure result
 
 compileToHaskell :: Node -> TH.ExpQ
 compileToHaskell (Node name attributes children) =
@@ -54,7 +54,7 @@ compileToHaskell (Children children) =
 compileToHaskell (TextNode value) = [| Html5.string value |]
 compileToHaskell (SplicedNode code) =
     case parseExp code of
-        Right expression -> let patched = patchExpr expression in [| toHtml $(return patched) |]
+        Right expression -> let patched = patchExpr expression in [| toHtml $(pure patched) |]
         Left error -> fail ("compileToHaskell(" <> code <> "): " <> show error)
 
 patchExpr :: TH.Exp -> TH.Exp
@@ -102,7 +102,7 @@ patchExpr e = e
 toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
 toStringAttribute (name, TextValue value) = do
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
+    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then pure () else fail ("Invalid attribute: " <> name)
 
     if null value
         then [| (attribute name nameWithSuffix) mempty |]
@@ -110,9 +110,9 @@ toStringAttribute (name, TextValue value) = do
 
 toStringAttribute (name, ExpressionValue code) = do
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
+    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then pure () else fail ("Invalid attribute: " <> name)
     case parseExp code of
-        Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(return patched)) |]
+        Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(pure patched)) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> code <> "): " <> show error)
 
 

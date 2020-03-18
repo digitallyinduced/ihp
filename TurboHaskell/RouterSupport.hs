@@ -89,7 +89,7 @@ class Data controller => AutoRoute controller where
                             let id :: UUID = fromMaybe (error "AutoRoute: Failed parsing UUID") (fromASCIIBytes value)
 
                             State.modify (+1)
-                            return (unsafeCoerce id)
+                            pure (unsafeCoerce id)
                         )) constructor) 0
 
                     actionName = showConstr constructor
@@ -108,7 +108,7 @@ class Data controller => AutoRoute controller where
                     checkRequestMethod action = do
                             method <- getMethod
                             if method `elem` allowedMethods
-                                then return action
+                                then pure action
                                 else error ("Invalid method, expected one of: " <> show allowedMethods)
         in choice (map parseCustomAction allConstructors)
             
@@ -146,7 +146,7 @@ updateAction =
                 i <- State.get
 
                 State.modify (+1)
-                return (unsafeCoerce id)
+                pure (unsafeCoerce id)
             )) constructor) 0
 
         allConstructors :: [Constr]
@@ -191,7 +191,7 @@ getMethod =
     in
         case methodOrError of
             Left error -> fail (cs error)
-            Right method -> return method
+            Right method -> pure method
 
 withMethod :: (?requestContext :: RequestContext) => StdMethod -> RequestContext
 withMethod requestMethod = (?requestContext) { request = newRequest }
@@ -202,22 +202,22 @@ withMethod requestMethod = (?requestContext) { request = newRequest }
 post action = do
     method <- getMethod
     case method of 
-        POST -> return action
+        POST -> pure action
         _   -> fail "Invalid method, expected POST"
 
 {-# INLINE get #-}
 get action = do
     method <- getMethod
     case method of 
-        GET -> return action
+        GET -> pure action
         _   -> fail "Invalid method, expected GET"
 
 {-# INLINE onGetOrPost #-}
 onGetOrPost getResult postResult = do
     method <- getMethod
     (case method of
-                    GET  -> return getResult
-                    POST -> return postResult
+                    GET  -> pure getResult
+                    POST -> pure postResult
                     _    -> fail "Invalid method, expected GET or POST"
                 )
 
@@ -225,9 +225,9 @@ onGetOrPost getResult postResult = do
 onGetOrPostOrDelete getResult postResult deleteResult = do
     method <- getMethod
     case method of
-        GET    -> return getResult
-        POST   -> return postResult
-        DELETE -> return deleteResult
+        GET    -> pure getResult
+        POST   -> pure postResult
+        DELETE -> pure deleteResult
         _      -> fail "Invalid method, expected GET, POST or DELETE"
 
 
@@ -251,8 +251,8 @@ mountFrontController = withPrefix (prefix @frontController) (controllers @frontC
 
 {-# INLINE parseRoute #-}
 parseRoute :: forall controller parent. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext (ControllerApplicationMap controller)) => Parser (IO ResponseReceived)
-parseRoute = parseRoute' @controller >>= return . runActionWithNewContext
+parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext
 
 {-# INLINE catchAll #-}
 catchAll :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext (ControllerApplicationMap action)) => action -> Parser (IO ResponseReceived)
-catchAll action = return (runActionWithNewContext action)
+catchAll action = pure (runActionWithNewContext action)

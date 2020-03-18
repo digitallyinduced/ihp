@@ -55,7 +55,7 @@ emptyControllerContext = ControllerContext TypeMap.empty
 
 class (Show controller, Eq controller) => Controller controller where
     beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => IO ()
-    beforeAction = return ()
+    beforeAction = pure ()
     action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
@@ -114,7 +114,7 @@ getFiles =
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
 createRequestContext ApplicationContext { session } request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
-    return (RequestContext request respond params files session)
+    pure (RequestContext request respond params files session)
 
 
 

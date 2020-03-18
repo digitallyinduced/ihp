@@ -22,7 +22,7 @@ isLocked :: forall user. (HasField "lockedAt" user (Maybe UTCTime)) => user -> I
 isLocked user = do
     now <- Clock.getCurrentTime
     let currentLockedAt :: Maybe UTCTime = getField @"lockedAt" user
-    return $! case currentLockedAt of
+    pure $! case currentLockedAt of
         Just lockedAt ->
             let diff = Clock.diffUTCTime now (unsafeCoerce lockedAt)
             in diff < lockDuration

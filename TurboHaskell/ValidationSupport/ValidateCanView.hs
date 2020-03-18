@@ -27,7 +27,7 @@ validateCanView :: forall field user model validationState fieldValue validation
 validateCanView field user = do
     let id = getField @field ?model
     validationResult <- doValidateCanView (Proxy @fetchedModel) user id
-    return (attachValidatorResult field validationResult user)
+    pure (attachValidatorResult field validationResult user)
 
 
 -- Let's say we have a model like:
@@ -46,14 +46,14 @@ class ValidateCanView' id model where
 -- Maybe someId
 instance {-# OVERLAPS #-} (ValidateCanView' id' model, Fetchable id' model) => ValidateCanView' (Maybe id') model where
     -- doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model) => Proxy model -> user -> (Maybe id) -> IO ValidatorResult
-    doValidateCanView model user id = maybe (return Success) (doValidateCanView model user) id
+    doValidateCanView model user id = maybe (pure Success) (doValidateCanView model user) id
 
 -- Catch all
 instance {-# OVERLAPPABLE #-} ValidateCanView' any model where
     doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model) => Proxy model -> user -> id -> IO ValidatorResult
     doValidateCanView model user id = do
         fetchedModel <- liftIO (fetchOneOrNothing id)
-        canView' <- maybe (return False) (\fetchedModel -> canView fetchedModel user) fetchedModel
-        return $ if canView'
+        canView' <- maybe (pure False) (\fetchedModel -> canView fetchedModel user) fetchedModel
+        pure $ if canView'
             then Success
             else Failure "Please pick something"

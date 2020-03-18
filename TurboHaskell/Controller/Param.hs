@@ -249,7 +249,7 @@ uploadImageWithOptions options _ user =
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
                 |> return
-        _ -> return user
+        _ -> pure user
 
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
         ?requestContext :: RequestContext
@@ -274,7 +274,7 @@ uploadImageFile ext _ user =
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
                 |> return
-        _ -> return user
+        _ -> pure user
 
 -- Transforms `Just ""` to `Nothing`
 emptyValueToNothing field = TurboHaskell.HaskellSupport.modify field (maybe Nothing (\value -> if null value then Nothing else Just value))

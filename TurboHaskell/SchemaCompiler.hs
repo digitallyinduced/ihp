@@ -56,7 +56,7 @@ compile database = do
 writeTable :: (FilePath, Text) -> IO ()
 writeTable (path, content) = do
     alreadyExists <- Directory.doesFileExist path
-    existingContent <- if alreadyExists then readFile path else return ""
+    existingContent <- if alreadyExists then readFile path else pure ""
     when (existingContent /= cs content) $ do
         putStrLn $ "Updating " <> cs path
         writeFile (cs path) (cs content)
@@ -64,7 +64,7 @@ writeTable (path, content) = do
 writeStub :: (FilePath, Text) -> IO ()
 writeStub (path, content) = do
     stubExists <- Directory.doesFileExist (cs path)
-    if not stubExists then writeFile (cs path) (cs content) else return ()
+    if not stubExists then writeFile (cs path) (cs content) else pure ()
 
 section = "\n"
 
@@ -217,7 +217,7 @@ compileEnumDataDefinitions table@(Table name attributes) =
         enumFields = filter isEnumField attributes
         compileEnumField (Field fieldName (EnumField {values})) = "data " <> tableNameToModelName fieldName <> " = " <> (intercalate " | " (map tableNameToModelName values)) <> " deriving (Eq, Show, Read, Enum)"
         compileFromFieldInstance (Field fieldName (EnumField {values})) = "instance FromField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" ((map compileFromFieldInstanceForValue values) <> [compileFromFieldInstanceForError, compileFromFieldInstanceForNull]))
-        compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = return " <> tableNameToModelName value
+        compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = pure " <> tableNameToModelName value
         compileFromFieldInstanceForError = "fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
         compileFromFieldInstanceForNull = "fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\""
         compileDefaultInstance (Field fieldName (EnumField {values})) = "instance Default " <> tableNameToModelName fieldName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
@@ -258,7 +258,7 @@ compileCreate table@(Table name attributes) =
                 <> "create model = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
                     <> "result <- Database.PostgreSQL.Simple.query conn \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
-                    <> "return (unsafeHead result)\n"
+                    <> "pure (unsafeHead result)\n"
                     )
                 <> "createMany models = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
@@ -300,7 +300,7 @@ compileUpdate table@(Table name attributes) =
         <> indent ("updateRecord model = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
                     <> "result <- Database.PostgreSQL.Simple.query conn \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
-                    <> "return (unsafeHead result)\n"
+                    <> "pure (unsafeHead result)\n"
                 )
             )
 
@@ -311,7 +311,7 @@ compileFromRowInstance table@(Table name attributes) database =
     where
         defaultFromRow =
             "instance FromRow " <> tableNameToModelName name <> " where "
-            <> ("fromRow = do model <- " <> modelConstructor <> " <$> " <>  (intercalate " <*> " $ map (const "field") $ fieldsOnly attributes)) <> "; return " <> tableNameToModelName name <> " { " <> intercalate ", " (map compileQuery attributes) <> ", meta = def }\n"
+            <> ("fromRow = do model <- " <> modelConstructor <> " <$> " <>  (intercalate " <*> " $ map (const "field") $ fieldsOnly attributes)) <> "; pure " <> tableNameToModelName name <> " { " <> intercalate ", " (map compileQuery attributes) <> ", meta = def }\n"
         modelConstructor = "(\\" <> intercalate " " (map compileParam $ fieldsOnly attributes) <> " -> " <> tableNameToModelName name <> " " <> intercalate " " (map compileValue attributes) <> " def)"
         compileParam (Field fieldName _) = fieldName
         compileParam (HasMany {name}) = name

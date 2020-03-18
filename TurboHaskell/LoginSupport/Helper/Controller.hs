@@ -32,7 +32,7 @@ currentUserId = currentUser @user |> get #id
 ensureIsUser :: forall user userId. (?controllerContext :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser =
     case currentUserOrNothing @user of
-        Just _ -> return ()
+        Just _ -> pure ()
         Nothing -> TurboHaskell.LoginSupport.Types.throwNotLoggedIn (Just (newSessionUrl (Proxy :: Proxy user)))
 
 {-# INLINE currentAdmin #-}
@@ -51,7 +51,7 @@ currentAdminId = currentAdmin @admin |> get #id
 ensureIsAdmin :: forall admin adminId. (?controllerContext :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => IO ()
 ensureIsAdmin =
     case currentAdminOrNothing @admin of
-        Just _ -> return ()
+        Just _ -> pure ()
         Nothing -> TurboHaskell.LoginSupport.Types.throwNotLoggedIn (Just (newSessionUrl (Proxy :: Proxy admin)))
 
 -- Log's in an entity

@@ -53,7 +53,7 @@ initDevServerState = do
     modelCompilerProcess <- startCompileGhci >>= newIORef
     rebuildServerLock <- Lock.new
     liveReloadNotificationServerProcess <- startLiveReloadNotificationServer >>= newIORef
-    return DevServerState {
+    pure DevServerState {
             postgresProcess = postgresProcess,
             serverProcess = serverProcess,
             modelCompilerProcess = modelCompilerProcess,
@@ -92,7 +92,7 @@ initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
                     didStopErrorServer
                     clearErrorLog serverProcess
                     writeIORef errorServerRef Nothing
-                Nothing -> return ()
+                Nothing -> pure ()
     let getLastErrors (ManagedProcess { errorLog }) = readIORef (fromJust errorLog)
 
     let startErrorServer = do
@@ -101,7 +101,7 @@ initErrorWatcher serverProcess willStartErrorServer didStopErrorServer = do
                     let errorApp req respond = do
                             isCompiling' <- readIORef isCompiling
                             errorLog <- readIORef serverProcess
-                                    >>= return . fromJust . getField @"errorLog"
+                                    >>= pure . fromJust . getField @"errorLog"
                                     >>= readIORef
                             respond $ Wai.responseBuilder HTTP.status200 [(HTTP.hContentType, "text/html")] (Blaze.renderHtmlBuilder $ renderErrorView errorLog isCompiling')
                     let port = 8000
@@ -146,7 +146,7 @@ main = do
             forever (threadDelay maxBound) `finally` (do FS.stopManager manager; cleanup state)
 
 initServerProcessWatcher DevServerState { serverProcess } = do
-    initErrorWatcher serverProcess (return ()) (return ())
+    initErrorWatcher serverProcess (pure ()) (pure ())
 
 initModelCompilerProcessWatcher :: DevServerState -> IO ()
 initModelCompilerProcessWatcher DevServerState { serverProcess, modelCompilerProcess } = do
@@ -178,34 +178,34 @@ cleanup state = do
     stopServer
     forM_ processes stopProcess
     _ <- Process.system "lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -9"
-    return ()
+    pure ()
 
 startPlainGhci :: IO ManagedProcess
 startPlainGhci = do
     let process = (Process.proc "ghci" ["-threaded", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j", "-O0", "+RTS", "-A512m", "-n4m", "-H512m", "-G3", "-qg"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
     errorLog <- Just <$> newIORef ""
-    return ManagedProcess { .. }
+    pure ManagedProcess { .. }
 
 startCompileGhci :: IO ManagedProcess
 startCompileGhci = do
     let process = (Process.proc "ghci" ["-threaded", "-w", "-j2", "-fobject-code", "-fomit-interface-pragmas", "+RTS", "-A128m"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
     errorLog <- Just <$> newIORef ""
-    return ManagedProcess { .. }
+    pure ManagedProcess { .. }
 
 startLiveReloadNotificationServer :: IO ManagedProcess
 startLiveReloadNotificationServer = do
     let process = (Process.proc "RunLiveReloadNotificationServer" []) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
     let errorLog = Nothing
-    return ManagedProcess { .. }
+    pure ManagedProcess { .. }
 
 
 initServer :: ManagedProcess -> IO ManagedProcess
 initServer ghci = do
     sendGhciCommand ghci (":script TurboHaskell/startDevServerGhciScript")
-    return ghci
+    pure ghci
 
 watch :: DevServerState -> FS.Event -> IO ()
 watch state@(DevServerState {serverProcess, rebuildServerLock}) event =
@@ -228,7 +228,7 @@ rebuildModels (DevServerState {modelCompilerProcess}) = do
 triggerAssetReload :: IO ()
 triggerAssetReload = do
     _ <- Process.system "(lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGUSR1) || true"
-    return ()
+    pure ()
 
 rebuild :: IORef ManagedProcess -> Lock.Lock -> IO ()
 rebuild serverProcess rebuildServerLock = do
@@ -236,12 +236,12 @@ rebuild serverProcess rebuildServerLock = do
         clearErrorLog serverProcess
         pauseRunningApp
         continueRunningApp serverProcess
-    return ()
+    pure ()
 
 pauseRunningApp :: IO ()
 pauseRunningApp = do
     _ <- Process.system "lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -SIGINT"
-    return ()
+    pure ()
 
 continueRunningApp :: IORef ManagedProcess -> IO ()
 continueRunningApp serverProcess = do
@@ -271,9 +271,9 @@ watchGhciProcessState ghciRef onStateChange = do
                         Just errorLog -> do
                             modifyIORef errorLog (\log -> log <> "\n" <> line)
                             _ <- async pingDevServer
-                            return ()
-                        Nothing -> return ()
-                Nothing -> return ()
+                            pure ()
+                        Nothing -> pure ()
+                Nothing -> pure ()
     async $ forever $ do
             line <- ByteString.hGetLine errorHandle
             ByteString.putStrLn line
@@ -281,9 +281,9 @@ watchGhciProcessState ghciRef onStateChange = do
                 Just errorLog -> do
                     modifyIORef errorLog (\log -> log <> "\n" <> line)
                     _ <- async pingDevServer
-                    return ()
-                Nothing -> return ()
-    return ()
+                    pure ()
+                Nothing -> pure ()
+    pure ()
 
 
 sendGhciCommand :: ManagedProcess -> String -> IO ()
@@ -297,7 +297,7 @@ stopServer :: IO ()
 stopServer = do
     putStrLn "stopServer called"
     _ <- Process.system "(lsof -i :8000|grep ghc-iserv | awk '{print $2}'|head -n1|xargs kill -9) || true"
-    return ()
+    pure ()
 
 startPostgres :: IO ManagedProcess
 startPostgres = do
@@ -305,13 +305,13 @@ startPostgres = do
     let process = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db"]) { Process.std_in = Process.CreatePipe, Process.std_out = Process.CreatePipe, Process.std_err = Process.CreatePipe }
     (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) <- Process.createProcess process
     let errorLog = Nothing
-    return ManagedProcess { .. }
+    pure ManagedProcess { .. }
 
 getPid ph = withProcessHandle ph go
     where
         go ph_ = case ph_ of
-            OpenHandle x   -> return $ Just x
-            ClosedHandle _ -> return Nothing
+            OpenHandle x   -> pure $ Just x
+            ClosedHandle _ -> pure Nothing
 
 clearErrorLog :: IORef ManagedProcess -> IO ()
 clearErrorLog serverProcess = do
@@ -321,5 +321,5 @@ clearErrorLog serverProcess = do
 pingDevServer :: IO ()
 pingDevServer = do
     _ <- Process.system "(lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGINT) || true"
-    return ()
+    pure ()
 

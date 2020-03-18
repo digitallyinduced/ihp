@@ -32,14 +32,14 @@ nextId = maybe 0 ((+) 1) . maximumMay . map fst
 connectClient :: Websocket.Connection -> Concurrent.MVar State -> IO ClientId
 connectClient connection stateRef = Concurrent.modifyMVar stateRef $ \state -> do
     let clientId = nextId state
-    return ((clientId, connection) : state, clientId)
+    pure ((clientId, connection) : state, clientId)
 
 withoutClient :: ClientId -> State -> State
 withoutClient clientId = filter ((/=) clientId . fst)
 
 disconnectClient :: ClientId -> Concurrent.MVar State -> IO ()
 disconnectClient clientId stateRef = Concurrent.modifyMVar_ stateRef $ \state ->
-    return $ withoutClient clientId state
+    pure $ withoutClient clientId state
 
 listen :: Websocket.Connection -> ClientId -> Concurrent.MVar State -> IO ()
 listen connection clientId stateRef = forever $ do

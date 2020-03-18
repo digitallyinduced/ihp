@@ -57,7 +57,7 @@ setModal :: (?controllerContext :: ControllerContext) => Html -> IO ()
 setModal modal = do
     let (ModalContainer ref) = fromControllerContext @ModalContainer
     writeIORef ref (Just modal)
-    return ()
+    pure ()
 
 getCurrentModal :: (?controllerContext :: ControllerContext) => IO (Maybe Html)
 getCurrentModal = do
@@ -66,8 +66,8 @@ getCurrentModal = do
 
 newtype ModalContainer = ModalContainer (IORef (Maybe Html))
 initModal context = do 
-    modalContainer <- newIORef Nothing >>= return . ModalContainer
-    return (TypeMap.insert @ModalContainer modalContainer context)
+    modalContainer <- newIORef Nothing >>= pure . ModalContainer
+    pure (TypeMap.insert @ModalContainer modalContainer context)
 
 renderCurrentModal :: (?viewContext :: viewContext, HasField "modal" viewContext (Maybe Html)) => Html
 renderCurrentModal = 

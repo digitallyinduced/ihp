@@ -18,7 +18,7 @@ instance CanRoute RootApplication () where
 instance HasPath DemoController where
 	pathTo _ = ""
 instance CanRoute DemoController () where
-    parseRoute = return (renderPlain "test")
+    parseRoute = pure (renderPlain "test")
 
 instance FrameworkConfig where 
 	environment = Development

@@ -46,6 +46,6 @@ initAuthentication :: forall user.
     ) => TypeMap.TMap -> IO TypeMap.TMap
 initAuthentication context = do
     user <- getSessionUUID (sessionKey @user)
-            >>= return . fmap (Newtype.pack @(Id user))
+            >>= pure . fmap (Newtype.pack @(Id user))
             >>= fetchOneOrNothing
-    return (TypeMap.insert @(Maybe (NormalizeModel user)) user context)
+    pure (TypeMap.insert @(Maybe (NormalizeModel user)) user context)

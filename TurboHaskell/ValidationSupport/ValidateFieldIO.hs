@@ -34,4 +34,4 @@ validateFieldIO :: forall field model savedModel idType validationState fieldVal
 validateFieldIO fieldProxy customValidation model = do
     let value :: fieldValue = getField @field model
     result <- liftIO (customValidation value)
-    return (attachValidatorResult fieldProxy result model)
+    pure (attachValidatorResult fieldProxy result model)

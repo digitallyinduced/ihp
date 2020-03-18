@@ -62,7 +62,7 @@ instance FromField Point where
             string ","
             y <- double
             string ")"
-            return $ Point x y
+            pure $ Point x y
 
 instance ToField Point where
     toField p = Many $

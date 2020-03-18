@@ -23,4 +23,4 @@ appDatabaseUrl :: IO ByteString
 appDatabaseUrl = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
-    (Environment.lookupEnv "DATABASE_URL") >>= (return . maybe defaultDatabaseUrl cs )
+    (Environment.lookupEnv "DATABASE_URL") >>= (pure . maybe defaultDatabaseUrl cs )
