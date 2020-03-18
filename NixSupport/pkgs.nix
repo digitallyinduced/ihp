@@ -51,7 +51,7 @@ let
           # More exotic overrides go here
           manualOverrides = haskellPackagesNew: haskellPackagesOld: {
             turbohaskell = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.allowInconsistentDependencies haskellPackagesOld.turbohaskell);
-            time_1_9_2 = pkgs.haskell.lib.dontCheck haskellPackagesOld.time_1_9_2;
+            time_1_9_3 = pkgs.haskell.lib.dontCheck haskellPackagesOld.time_1_9_3;
           };
 
                                             #mkDerivation = args: super.mkDerivation (args // {

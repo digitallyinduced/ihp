@@ -42,7 +42,7 @@
 , temporary
 , tz
 , attoparsec
-, time_1_9_2
+, time_1_9_3
 , case-insensitive
 , haskell-src-exts
 , containers
@@ -64,7 +64,7 @@ mkDerivation {
         gitignore = callPackage (fetchFromGitHub {
             owner = "siers";
             repo = "nix-gitignore";
-            rev = "d69e4f620ec9d35ddb125ee495f6a5dee519c905";
+            rev = "bf7c0f0461e047bec108a5c5d5d1b144289a65ba";
             sha256 = "0x55qgirpkzm0yagyqqxi8l7yc3g20bx42iayz124n09cz7sp7mp";
         }) {};
     in
@@ -113,7 +113,7 @@ mkDerivation {
     tz
     attoparsec
     lens
-    time_1_9_2
+    time_1_9_3
     case-insensitive
     haskell-src-exts
     containers

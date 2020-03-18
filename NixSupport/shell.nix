@@ -44,7 +44,7 @@ let
 	    tz
 	    attoparsec
 	    lens
-	    time_1_9_2
+	    time_1_9_3
 	    case-insensitive
 	    http-media
 	    newtype-generics
