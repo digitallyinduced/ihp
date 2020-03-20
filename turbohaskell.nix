@@ -42,7 +42,7 @@
 , temporary
 , tz
 , attoparsec
-, time_1_9_3
+, time_1_9_2
 , case-insensitive
 , haskell-src-exts
 , containers
@@ -113,7 +113,7 @@ mkDerivation {
     tz
     attoparsec
     lens
-    time_1_9_3
+    time_1_9_2
     case-insensitive
     haskell-src-exts
     containers
