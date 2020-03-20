@@ -27,7 +27,6 @@ Library TurboHaskellFramework
         , TurboHaskell.HtmlSupport.ToHtml
         , TurboHaskell.LoginSupport.Helper.Controller
         , TurboHaskell.LoginSupport.Helper.View
-        , TurboHaskell.LoginSupport.Controller
         , TurboHaskell.LoginSupport.Middleware
         , TurboHaskell.LoginSupport.Types
         , TurboHaskell.ValidationSupport.Types
