@@ -1,6 +1,6 @@
 module TurboHaskell.Controller.Redirect (redirectTo, redirectToPath, redirectToUrl) where
 import ClassyPrelude
-import qualified Network.Wai.Util 
+import qualified Network.Wai.Util
 import Network.URI (parseURI)
 import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport (HasPath (pathTo), FrontControllerPrefix, ControllerApplicationMap)

@@ -37,5 +37,7 @@
 :set -fbyte-code
 :set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
+:set -XStandaloneDeriving
+:set -XDerivingVia
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns

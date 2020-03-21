@@ -73,7 +73,3 @@ currentViewId =
         moduleParts :: [Text]
         moduleParts = Text.splitOn "." moduleName
 
-
-{-# INLINE forEach #-}
-forEach :: _ => _
-forEach = forM_

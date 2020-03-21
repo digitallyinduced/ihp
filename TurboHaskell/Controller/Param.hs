@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType, BlockArguments #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType, BlockArguments, DataKinds #-}
 
 module TurboHaskell.Controller.Param where
 import           ClassyPrelude
@@ -163,6 +163,10 @@ instance FromParameter param => FromParameter (Maybe param) where
             Right value -> Right (Just value)
             Left error -> Left error
 
+instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \"..\"'" :: Symbol))) => FromParameter  (IO param) where
+    fromParameter _ = error "Unreachable"
+
+
 instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
     fromParameter string =
             case find (\value -> ModelSupport.inputValue value == string') allValues of
@@ -171,6 +175,8 @@ instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter
         where
             string' = cs string
             allValues = enumFrom (toEnum 0) :: [parameter]
+
+
 
 class FillParams (params :: [Symbol]) record where
     fill :: (

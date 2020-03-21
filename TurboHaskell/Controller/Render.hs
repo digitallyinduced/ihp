@@ -8,17 +8,9 @@ import qualified Network.Wai
 import Network.HTTP.Types (status200, status302, status406)
 import Network.HTTP.Types.Header
 import TurboHaskell.ModelSupport
-import TurboHaskell.ApplicationContext
-import Network.Wai.Parse as WaiParse
 import qualified Network.Wai.Util
 import qualified Data.ByteString.Lazy
-import qualified Network.URI
-import Data.Maybe (fromJust)
 import qualified TurboHaskell.ViewSupport as ViewSupport
-import qualified Data.Text.Read
-import qualified Data.Either
-import qualified Data.Text.Encoding
-import qualified Data.Text
 import qualified Data.Aeson
 import TurboHaskell.ControllerSupport
 import qualified Network.HTTP.Media as Accept
@@ -26,10 +18,6 @@ import qualified Data.List as List
 
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
-
-import Database.PostgreSQL.Simple as PG
-
-import Control.Monad.Reader
 import GHC.Records
 
 {-# INLINE renderPlain #-}
@@ -37,11 +25,11 @@ renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [] (cs text)
 
 {-# INLINE respondHtml #-}
-respondHtml :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => Html -> IO ()
+respondHtml :: (?requestContext :: RequestContext) => Html -> IO ()
 respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE respondSvg #-}
-respondSvg :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => Html -> IO ()
+respondSvg :: (?requestContext :: RequestContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE renderHtml #-}

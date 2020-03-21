@@ -48,6 +48,7 @@ let
 	    case-insensitive
 	    http-media
 	    newtype-generics
+	    typerep-map
 	]);
 in
     pkgs.stdenv.mkDerivation {

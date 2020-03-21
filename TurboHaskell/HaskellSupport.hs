@@ -1,5 +1,21 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
-module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, get, set, ifOrEmpty, modify, SetField (..), UpdateField (..), incrementField, decrementField, isToday, isToday') where
+module TurboHaskell.HaskellSupport (
+ (|>)
+, isEmpty
+, whenEmpty
+, whenNonEmpty
+, get
+, set
+, ifOrEmpty
+, modify
+, SetField (..)
+, UpdateField (..)
+, incrementField
+, decrementField
+, isToday
+, isToday'
+, forEach
+) where
 
 import ClassyPrelude
 import Control.Monad (when)
@@ -78,3 +94,10 @@ isToday' currentTime timestamp = utcTimeToYearMonthDay currentTime == utcTimeToY
 -- Allows `Just "someThing"` to be written as `"someThing"`
 instance IsString string => IsString (Maybe string) where
     fromString string = Just (fromString string)
+
+
+-- Example:
+-- forEach users \user -> putStrLn (tshow user)
+{-# INLINE forEach #-}
+forEach :: _ => _
+forEach = forM_
