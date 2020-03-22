@@ -125,7 +125,7 @@ getModelName :: forall model. KnownSymbol (GetModelName model) => Text
 getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 newtype Id' table = Id UUID deriving (Eq, Data)
 
--- We need to map the model to it's table name to prevent infinite recursion in the model data definition
+-- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
 -- But `type Project = Project' { id :: Id "projects" }` will
 type Id model = Id' (GetTableName model)
@@ -211,7 +211,7 @@ instance Default (FieldWithDefault valueType) where
 class Record model where
     newRecord :: model
 
--- Helper type to deal with models where relations are included or that are only partially fetched
+-- | Helper type to deal with models where relations are included or that are only partially fetched
 -- Examples:
 -- NormalizeModel (Include "author_id" Post) = Post
 -- NormalizeModel NewPost = Post

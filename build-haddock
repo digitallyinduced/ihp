@@ -1,0 +1,41 @@
+#!/bin/sh
+# Builds the api documentation for all TurboHaskell modules
+# Output is placed in directory haddock-build
+# After building, you can view the api docs with: open haddock-build/index.html
+mkdir -p haddock-build
+haddock --html -o haddock-build \
+    $(find TurboHaskell -regex '.+\.hs' -not \( -regex '.+GenericController.hs' \) |xargs) \
+    --optghc="-i." \
+    --optghc="-package turbohaskell" \
+    --optghc="-XOverloadedStrings" \
+    --optghc="-XNoImplicitPrelude" \
+    --optghc="-XImplicitParams" \
+    --optghc="-XRank2Types" \
+    --optghc="-XDisambiguateRecordFields" \
+    --optghc="-XNamedFieldPuns" \
+    --optghc="-XDuplicateRecordFields" \
+    --optghc="-XOverloadedLabels" \
+    --optghc="-XFlexibleContexts" \
+    --optghc="-XTypeSynonymInstances" \
+    --optghc="-XFlexibleInstances" \
+    --optghc="-XQuasiQuotes" \
+    --optghc="-XTypeFamilies" \
+    --optghc="-XPackageImports" \
+    --optghc="-XScopedTypeVariables" \
+    --optghc="-XRecordWildCards" \
+    --optghc="-XTypeApplications" \
+    --optghc="-XDataKinds" \
+    --optghc="-XDeriveGeneric" \
+    --optghc="-XMultiParamTypeClasses" \
+    --optghc="-XTypeOperators" \
+    --optghc="-XDeriveDataTypeable" \
+    --optghc="-XMultiWayIf" \
+    --optghc="-XUndecidableInstances" \
+    --optghc="-XBlockArguments" \
+    --optghc="-XPartialTypeSignatures" \
+    --optghc="-XLambdaCase" \
+    --optghc="-XBangPatterns" \
+    --optghc="-XInstanceSigs" \
+    --optghc="-XFunctionalDependencies" \
+    --optghc="-package typerep-map" \
+    --optghc="-XDefaultSignatures"

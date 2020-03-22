@@ -57,7 +57,7 @@ ensureIsAdmin =
         Just _ -> pure ()
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy admin))
 
--- Log's in an entity
+-- | Log's in an entity
 -- Examples:
 -- ```
 -- let user :: User = ... in login user

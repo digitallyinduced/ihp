@@ -30,7 +30,7 @@ validateCanView field user = do
     pure (attachValidatorResult field validationResult user)
 
 
--- Let's say we have a model like:
+-- | Let's say we have a model like:
 --
 --   Project { teamId :: Maybe TeamId }
 --

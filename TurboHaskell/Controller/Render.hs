@@ -64,16 +64,16 @@ instance MaybeRender (IO ()) where
     {-# INLINE maybeRenderToMaybe #-}
     maybeRenderToMaybe response = Just response
 
--- Can be used to render different responses for html, json, etc. requests based on `Accept` header
+-- | Can be used to render different responses for html, json, etc. requests based on `Accept` header
 -- Example:
---
+-- `
 -- show :: Action
 -- show = do
 --     renderPolymorphic polymorphicRender {
 --         html = renderHtml [hsx|<div>Hello World</div>|]
 --         json = renderJson True
 --     }
---
+-- `
 -- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
 {-# INLINE renderPolymorphic #-}
 renderPolymorphic :: forall viewContext jsonType htmlType. (?requestContext :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ()

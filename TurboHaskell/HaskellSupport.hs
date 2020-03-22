@@ -94,12 +94,12 @@ isToday timestamp = do
 isToday' :: UTCTime -> UTCTime -> Bool
 isToday' currentTime timestamp = utcTimeToYearMonthDay currentTime == utcTimeToYearMonthDay timestamp
 
--- Allows `Just "someThing"` to be written as `"someThing"`
+-- | Allows `Just "someThing"` to be written as `"someThing"`
 instance IsString string => IsString (Maybe string) where
     fromString string = Just (fromString string)
 
 
--- Example:
+-- | Example:
 -- forEach users \user -> putStrLn (tshow user)
 {-# INLINE forEach #-}
 forEach :: _ => _

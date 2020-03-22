@@ -6,6 +6,7 @@ let
       "filesystem-conduit"
       "tz"
       "http2-client"
+      "typerep-map"
     ];
 
     doJailbreakPackages = [
@@ -17,8 +18,8 @@ let
     dontHaddockPackages = [
     ];
 
-    nixPkgsRev = "4d48e8106f9fac757b9359b8c8eeec3ca1e35908";
-    nixPkgsSha256 = "0av0q7xyv76jq2csbg10x8gcnlnadlppvlx616s7qz7jahkmymrk";
+    nixPkgsRev = "b6ef10f6a81d1653b27bd8cff0593b55a7081106";
+    nixPkgsSha256 = "1dvqrhp0c85n7n9n79gv3hkyw6i32gwhpqgdyxkaqzf13ckmdrjm";
 
     compiler = "ghc865";
 

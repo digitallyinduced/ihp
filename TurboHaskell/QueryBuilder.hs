@@ -218,7 +218,7 @@ compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
 
--- Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
+-- | Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
 instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
 instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp

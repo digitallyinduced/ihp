@@ -7,7 +7,7 @@ import qualified Data.Text
 import qualified Data.Maybe as Maybe
 import qualified Text.Countable as Countable
 
--- `users` => `User`
+-- | `users` => `User`
 -- `projects` => `Project`
 {-# INLINE tableNameToModelName #-}
 tableNameToModelName :: Text -> Text
@@ -19,7 +19,7 @@ tableNameToModelName tableName = do
         else ucfirst singularizedTableName
 
 
--- `email` => `email`
+-- | `email` => `email`
 -- `project_id` => `projectId`
 {-# INLINE columnNameToFieldName #-}
 columnNameToFieldName :: Text -> Text
@@ -29,7 +29,7 @@ columnNameToFieldName columnName = unwrapEither columnName $ Inflector.toCamelCa
 unwrapEither _ (Right value) = value
 unwrapEither input (Left value) = error ("TurboHaskell.NameSupport: " <> show value <> " (value to be transformed: " <>  show input <> ")")
 
--- `email` => `email`
+-- | `email` => `email`
 -- `projectId` => `project_id`
 {-# INLINE fieldNameToColumnName #-}
 fieldNameToColumnName :: Text -> Text
