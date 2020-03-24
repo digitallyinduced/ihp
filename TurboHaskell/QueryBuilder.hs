@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
 
-module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql) where
+module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql, fetchExists) where
 
 
 import TurboHaskell.HaskellSupport
@@ -145,8 +145,16 @@ instance Fetchable (QueryBuilder model) model where
             Just model -> model
             Nothing -> error "Cannot find model"
 
-{-# INLINE fetchCount #-}
--- Returns the count of records selected by the query builder.
+-- | Returns the count of records selected by the query builder.
+-- Examples:
+-- @
+--     allUsersCount <- query @User |> fetchCount
+-- @
+-- @
+--     activeProjectsCount <- query @Project
+--         |> filterWhere (#isActive, True)
+--         |> fetchCount
+-- @
 fetchCount :: (?modelContext :: ModelSupport.ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Int
 fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
@@ -154,6 +162,23 @@ fetchCount !queryBuilder = do
     putStrLn $! tshow (theQuery, theParameters)
     ![PG.Only count] <- ModelSupport.sqlQuery (Query $! cs theQuery) theParameters
     pure count
+{-# INLINE fetchCount #-}
+
+-- | Checks whether the query has any results.
+-- Examples:
+-- @
+--     hasUnreadMessages <- query @Message
+--         |> filterWhere (#isUnread, True)
+--         |> fetchExists
+-- @
+fetchExists :: (?modelContext :: ModelSupport.ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Bool
+fetchExists !queryBuilder = do
+    let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
+    let theQuery = "SELECT EXISTS FROM (" <> theQuery' <> ") AS _exists_values"
+    putStrLn $! tshow (theQuery, theParameters)
+    ![PG.Only exists] <- ModelSupport.sqlQuery (Query $! cs theQuery) theParameters
+    pure exists
+{-# INLINE fetchExists #-}
 
 {-# INLINE genericFetchId #-}
 genericFetchId :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelSupport.ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO [model]
