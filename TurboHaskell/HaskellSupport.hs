@@ -117,4 +117,4 @@ isWeekend = do
     now <- Data.Time.getCurrentTime
     let today = Data.Time.utctDay now
     let weekday = Data.Time.dayOfWeek today
-    return ((show weekday) == "Saturday" || (show weekday) == "Sunday")
+    return ((weekday == Data.Time.Saturday) || (weekday == Data.Time.Sunday))
