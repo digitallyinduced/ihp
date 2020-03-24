@@ -1,5 +1,22 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
-module TurboHaskell.HaskellSupport ((|>), isEmpty, whenEmpty, whenNonEmpty, get, set, ifOrEmpty, modify, SetField (..), UpdateField (..), incrementField, decrementField, isToday, isToday') where
+module TurboHaskell.HaskellSupport (
+ (|>)
+, isEmpty
+, whenEmpty
+, whenNonEmpty
+, get
+, set
+, ifOrEmpty
+, modify
+, SetField (..)
+, UpdateField (..)
+, incrementField
+, decrementField
+, isToday
+, isToday'
+, forEach
+, textToInt
+) where
 
 import ClassyPrelude
 import Control.Monad (when)
@@ -9,6 +26,8 @@ import Data.Proxy
 import GHC.TypeLits
 import GHC.OverloadedLabels
 import qualified GHC.Records as Record
+import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
+import Data.String.Conversions (cs)
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
@@ -75,6 +94,18 @@ isToday timestamp = do
 isToday' :: UTCTime -> UTCTime -> Bool
 isToday' currentTime timestamp = utcTimeToYearMonthDay currentTime == utcTimeToYearMonthDay timestamp
 
--- Allows `Just "someThing"` to be written as `"someThing"`
+-- | Allows `Just "someThing"` to be written as `"someThing"`
 instance IsString string => IsString (Maybe string) where
     fromString string = Just (fromString string)
+
+
+-- | Example:
+-- forEach users \user -> putStrLn (tshow user)
+{-# INLINE forEach #-}
+forEach :: _ => _
+forEach = forM_
+
+textToInt :: Text -> Maybe Int
+textToInt text = case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) (cs text) of
+    Right value -> Just value
+    Left _error -> Nothing

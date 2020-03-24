@@ -8,3 +8,4 @@ build.js
 dist
 build
 *.dump-simpl
+haddock-build

@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes #-}
 
-module TurboHaskell.ControllerSupport (Action, Action', SimpleAction, cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), ControllerApplicationMap, runActionWithNewContext, emptyControllerContext, respondAndExit) where
+module TurboHaskell.ControllerSupport (Action', cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), ControllerApplicationMap, runActionWithNewContext, emptyControllerContext, respondAndExit) where
 import ClassyPrelude
 import TurboHaskell.HaskellSupport
 import Data.String.Conversions (cs)
@@ -11,26 +11,13 @@ import TurboHaskell.ApplicationContext (ApplicationContext (..))
 import qualified TurboHaskell.ApplicationContext as ApplicationContext
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import qualified Data.Text
-import qualified Data.Aeson
 import TurboHaskell.Controller.RequestContext
 import qualified Data.CaseInsensitive
-
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import Text.Blaze.Html (Html)
-
-import Database.PostgreSQL.Simple as PG
-
 import Control.Monad.Reader
-
-import Network.Wai.Session (Session)
-import qualified Data.Vault.Lazy         as Vault
 import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified TurboHaskell.ErrorController as ErrorController
 
-type Action controllerContext = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: controllerContext) => IO ResponseReceived)
-type SimpleAction = Action ()
 type Action' = IO ResponseReceived
 
 newtype ControllerContext = ControllerContext TypeMap.TMap

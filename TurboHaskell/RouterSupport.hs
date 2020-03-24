@@ -115,7 +115,7 @@ class Data controller => AutoRoute controller where
 
 stripActionSuffix actionName = fromMaybe actionName (stripSuffix "Action" actionName)
 
--- Returns the create action for a given controller.
+-- | Returns the create action for a given controller.
 -- Example: `createAction @UsersController == Just CreateUserAction`
 createAction :: forall controller. AutoRoute controller => Maybe controller
 createAction = maybe Nothing (Just . fromConstr) createConstructor
@@ -130,7 +130,7 @@ createAction = maybe Nothing (Just . fromConstr) createConstructor
         isCreateConstructor constructor = "Create" `isPrefixOf` (showConstr constructor) && ClassyPrelude.null (constrFields constructor)
 
 
--- Returns the update action when given a controller and id.
+-- | Returns the update action when given a controller and id.
 -- Example: `updateAction @UsersController == Just (\id -> UpdateUserAction id)`
 updateAction :: forall controller id. AutoRoute controller => Maybe (id -> controller)
 updateAction = 

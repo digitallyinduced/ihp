@@ -47,7 +47,7 @@ class View theView viewContext | theView -> viewContext where
     json :: theView -> JSON.Value
     json = error "Not implemented"
 
--- Returns a string to be used as a html id attribute for the current view.
+-- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling `currentViewId` while rendering the view `Web.View.Projects.Show`, this will pure `"projects-show"`
 --
 -- Useful to automatically scope certain css rules to a specific view.
@@ -73,7 +73,3 @@ currentViewId =
         moduleParts :: [Text]
         moduleParts = Text.splitOn "." moduleName
 
-
-{-# INLINE forEach #-}
-forEach :: _ => _
-forEach = forM_

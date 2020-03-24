@@ -15,7 +15,7 @@ module TurboHaskell.ModelPrelude (
 import           ClassyPrelude                      hiding (find, id)
 import           Data.String.Conversions            (cs)
 import           Data.UUID                          (UUID)
-import           Database.PostgreSQL.Simple         hiding (fold, query)
+import           Database.PostgreSQL.Simple         hiding (fold, query, forEach)
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.SqlQQ   (sql)
 import           TurboHaskell.HaskellSupport

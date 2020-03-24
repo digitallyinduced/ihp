@@ -5,7 +5,7 @@ module TurboHaskell.HtmlSupport.QQ (hsx) where
 import           ClassyPrelude
 import           TurboHaskell.HtmlSupport.Parser
 import           Language.Haskell.Meta         (parseExp)
-import qualified Language.Haskell.TH           as TH
+import qualified "template-haskell" Language.Haskell.TH           as TH
 import           Language.Haskell.TH.Quote
 import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
