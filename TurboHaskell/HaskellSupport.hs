@@ -16,6 +16,7 @@ module TurboHaskell.HaskellSupport (
 , isToday'
 , forEach
 , textToInt
+, isWeekend
 ) where
 
 import ClassyPrelude
@@ -23,6 +24,7 @@ import Control.Monad (when)
 import qualified Data.Default
 import qualified Data.UUID
 import Data.Proxy
+import qualified Data.Time
 import GHC.TypeLits
 import GHC.OverloadedLabels
 import qualified GHC.Records as Record
@@ -109,3 +111,10 @@ textToInt :: Text -> Maybe Int
 textToInt text = case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) (cs text) of
     Right value -> Just value
     Left _error -> Nothing
+
+isWeekend :: IO Bool
+isWeekend = do
+    now <- Data.Time.getCurrentTime
+    let today = Data.Time.utctDay now
+    let weekday = Data.Time.dayOfWeek today
+    return ((weekday == Data.Time.Saturday) || (weekday == Data.Time.Sunday))
