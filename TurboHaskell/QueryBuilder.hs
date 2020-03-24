@@ -262,7 +262,11 @@ filterWhereNotIn :: forall name model value. (KnownSymbol name, ToField value, H
 filterWhereNotIn !(_, []) = id -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn !(name, value) = FilterByQueryBuilder (name, NotInOp, toField (In value))
 
--- Allows to add a custom raw sql where condition
+-- | Allows to add a custom raw sql where condition
+-- Examples:
+-- @
+--     filterWhereSql (#startedAt, "< current_timestamp - interval '1 day'")
+-- @
 {-# INLINE filterWhereSql #-}
 filterWhereSql :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, ByteString) -> QueryBuilder model -> QueryBuilder model
 filterWhereSql !(name, sqlCondition) = FilterByQueryBuilder (name, SqlOp, Plain (ByteStringBuilder.byteString sqlCondition))
