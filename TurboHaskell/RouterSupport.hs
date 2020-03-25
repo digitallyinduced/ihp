@@ -256,3 +256,18 @@ parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext
 {-# INLINE catchAll #-}
 catchAll :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext (ControllerApplicationMap action)) => action -> Parser (IO ResponseReceived)
 catchAll action = pure (runActionWithNewContext action)
+
+-- | Parses a text until the next `/`
+parseText :: Parser Text
+parseText = takeTill ((==) '/') >>= return . cs
+
+-- | Parses an UUID-based Id (e.g. user id, project id)
+parseId = parseUUID >>= pure . ModelSupport.Id
+
+-- | Parses a UUID. Use `parseId` if you need an `Id model`.
+parseUUID :: forall m. Parser UUID
+parseUUID = do
+    uuid <- take 36
+    case fromASCIIBytes uuid of
+        Just uuid -> pure uuid
+        Nothing -> fail "parsing uuid failed"
