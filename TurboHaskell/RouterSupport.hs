@@ -17,6 +17,9 @@ module TurboHaskell.RouterSupport (
     , mountFrontController
     , createAction
     , updateAction
+    , parseUUID
+    , parseId
+    , parseText
 ) where
 
 import ClassyPrelude hiding (index, delete, take)
