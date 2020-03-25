@@ -7,7 +7,6 @@ let
 	    classy-prelude
 	    directory
 	    string-conversions
-	    fsnotify
 	    warp
 	    wai
 	    mtl
@@ -46,8 +45,16 @@ let
 	    lens
 	    time_1_9_3
 	    case-insensitive
+	    haskell-src-exts
+	    containers
 	    http-media
+	    cookie
+	    process
 	    newtype-generics
+	    unix
+	    fsnotify
+	    concurrent-extra
+	    countable-inflections
 	    typerep-map
 	]);
 in
