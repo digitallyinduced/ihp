@@ -17,7 +17,6 @@ jobs:
       env:
         SSH_AUTH_SOCK: /tmp/ssh_agent.sock
       run: |
-          exit 0 #maintenance
           mkdir -p ~/.ssh
           ssh-keyscan -H 142.93.99.41 >> ~/.ssh/known_hosts
           ssh-agent -a $SSH_AUTH_SOCK > /dev/null
