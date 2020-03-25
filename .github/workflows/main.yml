@@ -23,4 +23,4 @@ jobs:
           ssh-agent -a $SSH_AUTH_SOCK > /dev/null
           ssh-add <(echo "${{ secrets.KEY }}")
           echo "Starting SSH"
-          ssh -A root@142.93.99.41 'cd /home/haskell/humovo2020; chmod +x Operations/dodeploy.sh; chmod +x Operations/database_deployment.sh; nix-shell --run ./Operations/dodeploy.sh;'
+          ssh -A root@142.93.99.41 'cd /home/turbohaskell; ./build_documentation.sh'
