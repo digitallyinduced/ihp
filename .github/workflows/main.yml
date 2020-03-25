@@ -1,0 +1,26 @@
+name: Build Documentation
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install OpenSSH
+      run: sudo apt install openssh-client -y
+    
+    - name: Run SSH script
+      env:
+        SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+      run: |
+          exit 0 #maintenance
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 142.93.99.41 >> ~/.ssh/known_hosts
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          ssh-add <(echo "${{ secrets.KEY }}")
+          echo "Starting SSH"
+          ssh -A root@142.93.99.41 'cd /home/haskell/humovo2020; chmod +x Operations/dodeploy.sh; chmod +x Operations/database_deployment.sh; nix-shell --run ./Operations/dodeploy.sh;'
