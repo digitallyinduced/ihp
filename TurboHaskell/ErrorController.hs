@@ -5,7 +5,7 @@ import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import TurboHaskell.Controller.RequestContext
 import Data.String.Conversions (cs)
-import Network.HTTP.Types (status500)
+import Network.HTTP.Types (status500, status404)
 import Network.Wai
 import Network.HTTP.Types.Header
 
@@ -39,6 +39,13 @@ handleGenericException exception controller = do
     let title = H.text (tshow exception)
     putStrLn (tshow exception)
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+handleNotFound :: (?requestContext :: RequestContext) => IO ResponseReceived
+handleNotFound = do
+    let errorMessage = "Router failed to find an action to handle this request.\n\n"
+    let title = H.text "Action Not Found"
+    let (RequestContext _ respond _ _ _) = ?requestContext
+    respond $ responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 renderError :: _
 renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ do

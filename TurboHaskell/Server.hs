@@ -34,6 +34,7 @@ import Data.String.Conversions (cs)
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 import TurboHaskell.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
 import TurboHaskell.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
+import qualified TurboHaskell.ErrorController as ErrorController
 
 defaultPort :: Int
 defaultPort = 8000
@@ -54,7 +55,7 @@ run = do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?requestContext = requestContext
-            frontControllerToWAIApp @FrameworkConfig.RootApplication
+            frontControllerToWAIApp @FrameworkConfig.RootApplication ErrorController.handleNotFound
             
     let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
     let logMiddleware :: Middleware = logStdoutDev

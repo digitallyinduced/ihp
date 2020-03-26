@@ -239,14 +239,14 @@ onGetOrPostOrDelete getResult postResult deleteResult = do
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
 
 {-# INLINE runApp #-}
-runApp :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived
-runApp routes = let path = (rawPathInfo (getField @"request" ?requestContext)) in case parseOnly (routes <* endOfInput) path of
-            Left message -> error ("Failed to route `" <> cs path <> "`: " <> message)
+runApp :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived -> IO ResponseReceived
+runApp routes notFoundAction = let path = (rawPathInfo (getField @"request" ?requestContext)) in case parseOnly (routes <* endOfInput) path of
+            Left message -> notFoundAction
             Right action -> action
 
 {-# INLINE frontControllerToWAIApp #-}
-frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app, FrontControllerPrefix app) => IO ResponseReceived
-frontControllerToWAIApp = runApp (withPrefix (prefix @app) (controllers @app))
+frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app, FrontControllerPrefix app) => IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp notFoundAction = runApp (withPrefix (prefix @app) (controllers @app)) notFoundAction
 
 {-# INLINE mountFrontController #-}
 mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController, FrontControllerPrefix frontController) => Parser (IO ResponseReceived)
