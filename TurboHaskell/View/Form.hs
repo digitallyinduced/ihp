@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeSynonymInstances, StandaloneDeriving,InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
+{-# LANGUAGE InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
 
 module TurboHaskell.View.Form where
 
@@ -21,8 +21,7 @@ import qualified Network.Wai
 import           Text.Blaze                         (Attribute, dataAttribute, preEscapedText, stringValue, text)
 import           Text.Blaze.Html5                   (a, body, button, code, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img,
                                                      input, label, li, link, meta, nav, ol, p, pre, script, small, span, table, tbody, td, th, thead, title, tr,
-                                                     ul)
-import           Text.Blaze.Html5                   ((!))
+                                                     ul, (!))
 import qualified Text.Blaze.Html5                   as H
 import qualified Text.Blaze.Html5                   as Html5
 import           Text.Blaze.Html5.Attributes        (autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
@@ -39,7 +38,6 @@ import GHC.TypeLits
 import Data.Proxy
 import qualified Data.Text
 import qualified Text.Inflections
-import GHC.Records
 import qualified Data.Text as Text
 import Data.Default
 import Data.Dynamic
@@ -47,8 +45,6 @@ import Data.Maybe (fromJust)
 import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport
 import TurboHaskell.ModelSupport (getModelName, GetModelName, Id', FieldWithDefault, NormalizeModel, MetaBag)
-
-import TurboHaskell.RouterSupport (HasPath, AutoRoute (..), createAction, updateAction)
 import GHC.Records
 
 
@@ -93,7 +89,7 @@ instance (
         , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormActionTopLevelResource controller (Id' (table :: Symbol)) where
     {-# INLINE modelFormActionTopLevelResource #-}
-    modelFormActionTopLevelResource _ id = pathTo ((fromJust (updateAction @controller)) id)
+    modelFormActionTopLevelResource _ id = pathTo (fromJust (updateAction @controller) id)
 
 
 -- modelFormAction (newUser :: New User)
@@ -212,7 +208,7 @@ createFormContext formObject =
         , renderSubmit = renderBootstrapSubmitButton
         , validatorResult = findValidatorResult model
         , request = getField @"request" (getField @"requestContext" ?viewContext)
-        , formAction = (modelFormAction @application) formObject
+        , formAction = modelFormAction @application formObject
         }
             where
                 model = getModel formObject
@@ -250,7 +246,7 @@ buildForm :: forall model viewContext parent id. (?viewContext :: viewContext) =
 buildForm formContext inner =
     let
         theModel = model formContext
-        action = cs $ (formAction formContext)
+        action = cs (formAction formContext)
         isNewRecord = TurboHaskell.ModelSupport.isNew theModel
         formId = if isNewRecord then "" else cs (formAction formContext)
         formClass = if isNewRecord then "new-form" else "edit-form"
@@ -407,7 +403,7 @@ instance (
                         fieldType = TextInput,
                         fieldName = cs fieldName,
                         fieldLabel = fieldNameToFieldLabel (cs fieldName),
-                        fieldValue =  let value :: value = getField @(symbol) (model formContext) in TurboHaskell.ModelSupport.inputValue value,
+                        fieldValue =  let value :: value = getField @symbol (model formContext) in TurboHaskell.ModelSupport.inputValue value,
                         fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = (lookup (Text.pack (symbolVal (Proxy @symbol))) (let FormContext { validatorResult } = formContext in validatorResult)),
                         fieldClass = "",
@@ -453,7 +449,7 @@ instance (
 instance (
         KnownSymbol symbol
         , HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id
-        , HasField symbol model ((SelectValue item))
+        , HasField symbol model (SelectValue item)
         , CanSelect item
         , TurboHaskell.ModelSupport.InputValue (SelectValue item)
         , (KnownSymbol (GetModelName model))
@@ -561,8 +557,7 @@ renderFlashMessages :: forall viewContext. (?viewContext :: viewContext, HasFiel
 renderFlashMessages =
     let flashMessages = (getField @"flashMessages" ?viewContext) :: [TurboHaskell.Controller.Session.FlashMessage]
     in
-        forEach flashMessages $ \flashMessage -> do
-            case flashMessage of
+        forEach flashMessages $ \flashMessage -> case flashMessage of
                 TurboHaskell.Controller.Session.SuccessFlashMessage message -> div ! class_ "alert alert-success" $ cs message
                 TurboHaskell.Controller.Session.ErrorFlashMessage message -> div ! class_ "alert alert-danger" $ cs message
 

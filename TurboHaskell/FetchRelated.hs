@@ -23,9 +23,7 @@ import GHC.TypeLits
 import GHC.Types
 import GHC.Records
 import Data.Proxy
-import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById)
-import qualified TurboHaskell.ModelSupport
-import TurboHaskell.ModelSupport (Include)
+import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById, Include)
 import TurboHaskell.NameSupport (fieldNameToColumnName)
 import TurboHaskell.QueryBuilder
 
@@ -33,7 +31,7 @@ collectionFetchRelated :: forall model relatedField relatedFieldValue relatedMod
         ?modelContext :: ModelContext,
         HasField relatedField model relatedFieldValue,
         HasField "id" relatedModel relatedFieldValue,
-        UpdateField relatedField model (TurboHaskell.ModelSupport.Include relatedField model) relatedFieldValue relatedModel,
+        UpdateField relatedField model (Include relatedField model) relatedFieldValue relatedModel,
         Fetchable relatedFieldValue relatedModel,
         KnownSymbol (GetTableName relatedModel),
         PG.FromRow relatedModel,
@@ -43,11 +41,11 @@ collectionFetchRelated :: forall model relatedField relatedFieldValue relatedMod
         KnownSymbol relatedField,
         HasField "id" relatedModel relatedFieldValue,
         Show relatedFieldValue
-    ) => Proxy relatedField -> [model] -> IO [TurboHaskell.ModelSupport.Include relatedField model]
+    ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
 collectionFetchRelated relatedField model = do
     relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, map (getField @relatedField) model) |> fetch
     let
-        assignRelated :: model -> TurboHaskell.ModelSupport.Include relatedField model
+        assignRelated :: model -> Include relatedField model
         assignRelated model =
             let
                 relatedModel :: relatedModel
@@ -59,7 +57,7 @@ collectionFetchRelated relatedField model = do
                 updateField @relatedField relatedModel model
 
     let
-        result :: [TurboHaskell.ModelSupport.Include relatedField model]
+        result :: [Include relatedField model]
         result = map assignRelated model
     pure result
 
@@ -86,7 +84,7 @@ fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
     ) => Proxy field -> model -> IO (Include field model)
 fetchRelatedOrNothing relatedField model = do
     result :: Maybe (FetchResult fieldValue fetchModel) <- case getField @field model of
-            Just fieldValue -> fetch fieldValue >>= pure . Just
+            Just fieldValue -> Just <$> fetch fieldValue
             Nothing -> pure Nothing
     let model' = updateField @field result model
     pure model'

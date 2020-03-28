@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies #-}
-
 module TurboHaskell.ViewSupport
 ( HtmlWithContext
 , classes

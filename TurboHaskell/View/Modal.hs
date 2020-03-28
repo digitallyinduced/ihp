@@ -66,12 +66,10 @@ getCurrentModal = do
 
 newtype ModalContainer = ModalContainer (IORef (Maybe Html))
 initModal context = do 
-    modalContainer <- newIORef Nothing >>= pure . ModalContainer
+    modalContainer <- ModalContainer <$> newIORef Nothing
     pure (TypeMap.insert @ModalContainer modalContainer context)
 
 renderCurrentModal :: (?viewContext :: viewContext, HasField "modal" viewContext (Maybe Html)) => Html
 renderCurrentModal = 
     let controllerContext :: (Maybe Html) = getField @"modal" ?viewContext
-    in case controllerContext of
-        Just html -> html
-        Nothing -> mempty
+    in fromMaybe mempty controllerContext

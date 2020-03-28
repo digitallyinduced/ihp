@@ -7,7 +7,6 @@ import TurboHaskell.NameSupport
 import TurboHaskell.SchemaSupport
 import Data.String.Conversions (cs)
 import Data.Text.IO (appendFile)
-import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import qualified System.Exit as Exit
 import TurboHaskell.SchemaTypes

@@ -49,7 +49,7 @@ whenEmpty condition = when (isEmpty condition)
 
 {-# INLINE whenNonEmpty #-}
 whenNonEmpty :: (Monoid a, Eq a, Applicative f) => a -> f () -> f ()
-whenNonEmpty condition = when (not (isEmpty condition))
+whenNonEmpty condition = unless (isEmpty condition)
 
 
 instance Data.Default.Default Data.UUID.UUID where

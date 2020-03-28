@@ -43,15 +43,12 @@ import ClassyPrelude
 import           Data.String.Conversions      (ConvertibleStrings (convertString), cs)
 import           Data.Text                    (Text, intercalate)
 import           TurboHaskell.HaskellSupport
-import qualified TurboHaskell.ModelSupport
-import TurboHaskell.ModelSupport (Include, Include', inputValue)
 import           TurboHaskell.ViewErrorMessages
 import           TurboHaskell.ViewSupport
 import qualified Network.Wai
 import           Text.Blaze                   (Attribute, dataAttribute, preEscapedText, stringValue, text)
 import           Text.Blaze.Html5             (preEscapedToHtml, a, body, button, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img, input,
-                                               label, li, link, meta, nav, ol, p, script, small, span, table, tbody, td, th, thead, title, tr, ul, pre, code, select, option)
-import           Text.Blaze.Html5             ((!))
+                                               label, li, link, meta, nav, ol, p, script, small, span, table, tbody, td, th, thead, title, tr, ul, pre, code, select, option, (!))
 import qualified Text.Blaze.Html5             as Html5
 import           Text.Blaze.Html5.Attributes  (action, autocomplete, autofocus, charset, class_, selected, checked, content, href, httpEquiv, id, lang, method, name, onclick, onload,
                                                placeholder, rel, src, style, type_, value)
@@ -114,7 +111,7 @@ isActivePathOrSub route =
     let
         currentPath = Network.Wai.rawPathInfo theRequest
     in
-        (cs $ pathToString route) `isPrefixOf` currentPath
+        cs (pathToString route) `isPrefixOf` currentPath
 
 {-# INLINE viewContext #-}
 viewContext :: (?viewContext :: viewContext) => viewContext

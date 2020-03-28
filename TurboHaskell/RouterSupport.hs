@@ -103,9 +103,9 @@ class Data controller => AutoRoute controller where
                     allowedMethods :: [StdMethod]
                     allowedMethods =
                             case actionName of
-                                a | ("Delete" `isPrefixOf` a) -> [DELETE]
-                                a | ("Update" `isPrefixOf` a) -> [POST, PATCH]
-                                a | ("Create" `isPrefixOf` a) -> [POST]
+                                a | "Delete" `isPrefixOf` a -> [DELETE]
+                                a | "Update" `isPrefixOf` a -> [POST, PATCH]
+                                a | "Create" `isPrefixOf` a -> [POST]
                                 _ -> [GET, POST]
 
                     checkRequestMethod action = do
@@ -121,7 +121,7 @@ stripActionSuffix actionName = fromMaybe actionName (stripSuffix "Action" action
 -- | Returns the create action for a given controller.
 -- Example: `createAction @UsersController == Just CreateUserAction`
 createAction :: forall controller. AutoRoute controller => Maybe controller
-createAction = maybe Nothing (Just . fromConstr) createConstructor
+createAction = fmap fromConstr createConstructor
     where
         createConstructor :: Maybe Constr
         createConstructor = find isCreateConstructor allConstructors
@@ -130,7 +130,7 @@ createAction = maybe Nothing (Just . fromConstr) createConstructor
         allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: controller))
 
         isCreateConstructor :: Constr -> Bool
-        isCreateConstructor constructor = "Create" `isPrefixOf` (showConstr constructor) && ClassyPrelude.null (constrFields constructor)
+        isCreateConstructor constructor = "Create" `isPrefixOf` showConstr constructor && ClassyPrelude.null (constrFields constructor)
 
 
 -- | Returns the update action when given a controller and id.
@@ -184,7 +184,7 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller, FrontContr
                     |> map (\s -> let (key, value) = Text.breakOn "=" s in (Text.strip key, Text.strip (Text.drop 1 value)))
                     |> map (\(k, v) -> (cs k, cs v))
                     |> filter (\(k, v) -> (not . ClassyPrelude.null) k && (not . ClassyPrelude.null) v)
-                    |> (\q -> (if ClassyPrelude.null q then mempty else renderSimpleQuery True q))
+                    |> (\q -> if ClassyPrelude.null q then mempty else renderSimpleQuery True q)
 
 
 {-# INLINE getMethod #-}
@@ -197,7 +197,7 @@ getMethod =
             Right method -> pure method
 
 withMethod :: (?requestContext :: RequestContext) => StdMethod -> RequestContext
-withMethod requestMethod = (?requestContext) { request = newRequest }
+withMethod requestMethod = ?requestContext { request = newRequest }
     where
         newRequest = (TurboHaskell.Controller.RequestContext.request ?requestContext) { requestMethod = renderStdMethod requestMethod }
 
@@ -218,11 +218,10 @@ get action = do
 {-# INLINE onGetOrPost #-}
 onGetOrPost getResult postResult = do
     method <- getMethod
-    (case method of
-                    GET  -> pure getResult
-                    POST -> pure postResult
-                    _    -> fail "Invalid method, expected GET or POST"
-                )
+    case method of
+        GET  -> pure getResult
+        POST -> pure postResult
+        _    -> fail "Invalid method, expected GET or POST"
 
 {-# INLINE onGetOrPostOrDelete #-}
 onGetOrPostOrDelete getResult postResult deleteResult = do
@@ -262,10 +261,10 @@ catchAll action = pure (runActionWithNewContext action)
 
 -- | Parses a text until the next `/`
 parseText :: Parser Text
-parseText = takeTill ((==) '/') >>= return . cs
+parseText = cs <$> takeTill ('/' ==)
 
 -- | Parses an UUID-based Id (e.g. user id, project id)
-parseId = parseUUID >>= pure . ModelSupport.Id
+parseId = ModelSupport.Id <$> parseUUID
 
 -- | Parses a UUID. Use `parseId` if you need an `Id model`.
 parseUUID :: forall m. Parser UUID
