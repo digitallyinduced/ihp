@@ -63,7 +63,7 @@ run = do
     let runServer = if isDevelopment FrameworkConfig.environment
             then
                 let settings = Warp.defaultSettings
-                        |> Warp.setBeforeMainLoop pingDevServer
+                        |> Warp.setBeforeMainLoop (putStrLn "Server started")
                         |> Warp.setPort port
                 in Warp.runSettings settings
             else Warp.runEnv defaultPort
@@ -73,8 +73,3 @@ run = do
                 logMiddleware $            
                         methodOverridePost $
                             application
-
-pingDevServer :: IO ()
-pingDevServer = do
-    _ <- Process.system "(lsof -i :8002|awk '{print $2}'|tail -n1|xargs kill -SIGINT) || true"
-    pure ()

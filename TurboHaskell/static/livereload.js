@@ -4,7 +4,16 @@ function refresh() {
         return;
     }
 
-    fetch(window.location.href, {credentials: 'include'})
+    function delay(ms) { return new Promise((resolve, reject) => { setTimeout(resolve, ms); }); }
+
+    function fetchWithRetries(url, options, n) {
+        return fetch(url, options).catch(function (error) {
+            if (n === 1) throw error;
+            return delay(10).then(() => fetchWithRetries(url, options, n - 1));
+        })
+    }
+
+    fetchWithRetries(window.location.href, {credentials: 'include'}, 50)
         .then(response => { if (response.ok) return response.text(); else throw Error(response.statusText) })
         .catch(error => {
             console.log('Live Reload Failed', error);
