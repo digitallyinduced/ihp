@@ -1,3 +1,5 @@
 :script TurboHaskell/applicationGhciConfig
+import qualified ClassyPrelude
 :l Main.hs
-main
+app <- ClassyPrelude.async (ClassyPrelude.pure ())
+app <- ClassyPrelude.async main

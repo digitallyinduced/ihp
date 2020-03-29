@@ -1,2 +1,3 @@
+ClassyPrelude.uninterruptibleCancel app
 :r
-main
+app <- ClassyPrelude.async main
