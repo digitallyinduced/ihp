@@ -37,6 +37,5 @@ ensureNoOtherPostgresIsRunning :: IO ()
 ensureNoOtherPostgresIsRunning = do
     pidFileExists <- Directory.doesPathExist "build/db/state/postmaster.pid"
     when pidFileExists do
-        putStrLn "Found an already existing postgres instance!"
         Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]
         

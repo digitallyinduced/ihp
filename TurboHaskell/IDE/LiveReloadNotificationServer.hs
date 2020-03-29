@@ -6,19 +6,15 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
-import qualified System.Posix.Signals as Signals
 import qualified Control.Concurrent as Concurrent
 
 startLiveReloadNotificationServer :: IO (Async (), IO (), IO ())
 startLiveReloadNotificationServer = do
     state <- newIORef []
-    --Signals.installHandler Signals.keyboardSignal (Signals.Catch (notifyReload state)) Nothing
 
     reloadTask <- newIORef Nothing
-
     let handleAssetChange = notifyAssetChange state
     let handleHaskellChange = do
-            putStrLn "handle haskell change"
             readIORef reloadTask >>= maybe (pure ()) uninterruptibleCancel
             (async (notifyReload state)) >>= pure . Just >>= writeIORef reloadTask
     server <- async $ Warp.run 8002 $ Websocket.websocketsOr
@@ -36,7 +32,7 @@ notifyAssetChange = broadcast "reload_assets"
 broadcast :: ByteString -> IORef [Websocket.Connection] -> IO ()
 broadcast message stateRef = do
     clients <- readIORef stateRef
-    forM_ clients $ \connection -> ((Websocket.sendTextData connection message) `catch` (\(e :: SomeException) -> putStrLn $ tshow e))
+    forM_ clients $ \connection -> ((Websocket.sendTextData connection message) `catch` (\(e :: SomeException) -> pure ()))
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do

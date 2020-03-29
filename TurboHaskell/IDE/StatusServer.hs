@@ -7,7 +7,6 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
-import qualified System.Posix.Signals as Signals
 import TurboHaskell.HaskellSupport
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Network.HTTP.Types.Header as HTTP
@@ -33,8 +32,7 @@ startStatusServer = do
                 (app websocketState)
                 (statusServerApp (standardOutput, errorOutput))
 
-        let startServer' = async do
-                (Warp.run appPort warpApp) `catch` (\(e :: SomeException) -> putStrLn (tshow e))
+        let startServer' = async $ Warp.run appPort warpApp
         
         serverRef <- startServer' >>= newIORef
 
@@ -57,7 +55,6 @@ startStatusServer = do
                 pure ()
 
         let startStatusServer = do
-                putStrLn "START STATUS SERVER"
                 async do
                     Concurrent.threadDelay 10000
                     readIORef serverRef >>= cancel
@@ -121,7 +118,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
 notifyOutput :: IORef [Websocket.Connection] -> ByteString -> IO ()
 notifyOutput stateRef output = do
     clients <- readIORef stateRef
-    forM_ clients $ \connection -> ((Websocket.sendTextData connection output) `catch` (\(e :: SomeException) -> putStrLn $ tshow e))
+    forM_ clients $ \connection -> ((Websocket.sendTextData connection output) `catch` (\(e :: SomeException) -> pure ()))
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do
@@ -129,7 +126,6 @@ app stateRef pendingConnection = do
     modifyIORef stateRef $ \state -> (connection : state)
     Websocket.forkPingThread connection 30
     forever do
-        -- (_ :: Text) <- Websocket.receiveData connection
         Websocket.sendTextData connection ("pong" :: Text)
         Concurrent.threadDelay (1000000)
         pure ()

@@ -2,32 +2,17 @@ module Main (main) where
 
 import ClassyPrelude
 import qualified System.Process as Process
-import System.Process.Internals
-import qualified System.Directory as Directory
 import TurboHaskell.HaskellSupport
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai as Wai
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import qualified Network.HTTP.Types.Header as HTTP
-import qualified Text.Blaze.Html5 as Html5
-import GHC.Records
-import Data.String.Interpolate (i)
-import qualified Network.HTTP.Types as HTTP
-import TurboHaskell.HtmlSupport.QQ (hsx)
 import qualified Data.ByteString.Char8 as ByteString
+import Control.Concurrent (threadDelay, myThreadId)
+import System.Exit
+import System.Posix.Signals
+import qualified System.FSNotify as FS
 
 import TurboHaskell.IDE.Types
 import TurboHaskell.IDE.Postgres
 import TurboHaskell.IDE.StatusServer
 import TurboHaskell.IDE.LiveReloadNotificationServer
-
-import Control.Concurrent (threadDelay, myThreadId)
-
-import System.Exit
-import System.Posix.Signals
-import qualified System.FSNotify as FS
-
-type FileEventHandler = FS.Event -> IO ()
 
 main :: IO ()
 main = do
@@ -66,7 +51,7 @@ start = do
     pure State { .. }
 
 stop :: State -> IO ()
-stop (State { .. }) = do
+stop State { .. } = do
     cleanupManagedProcess postgres
     readIORef statusServer >>= uninterruptibleCancel
     cleanupManagedProcess applicationGHCI
@@ -94,7 +79,7 @@ getEventFilePath event = case event of
         FS.Removed filePath _ _ -> filePath
         FS.Unknown filePath _ _ -> filePath
 
-startGHCI :: (ByteString -> IO (), ByteString -> IO ()) -> IO (ManagedProcess)
+startGHCI :: (ByteString -> IO (), ByteString -> IO ()) -> IO ManagedProcess
 startGHCI (applicationOnStandardOutput, applicationOnErrorOutput) = do
     let args = ["-threaded", "-fexternal-interpreter", "-fomit-interface-pragmas", "-j", "-O0", "+RTS", "-A512m", "-n4m", "-H512m", "-G3", "-qg"]
     let process = (Process.proc "ghci" args)
@@ -109,13 +94,12 @@ startGHCI (applicationOnStandardOutput, applicationOnErrorOutput) = do
 
     async $ forever $ do
             line <- ByteString.hGetLine outputHandle
-            ByteString.putStrLn line
+            -- ByteString.putStrLn line
             applicationOnStandardOutput line
     async $ forever $ do
             line <- ByteString.hGetLine errorHandle
-            ByteString.putStrLn line
+            -- ByteString.putStrLn line
             applicationOnErrorOutput line
-            -- putStrLn $ tshow $ readGhciState line
 
     pure managedProcess
 
@@ -125,7 +109,6 @@ startAppGHCI (applicationOnStandardOutput', applicationOnErrorOutput, applicatio
     let applicationOnStandardOutput line =
             if "Server started" `isSuffixOf` line
                 then do
-                    putStrLn "APP: Started"
                     writeIORef isAppRunning True
                     applicationOnStart
                 else applicationOnStandardOutput' line
@@ -144,8 +127,9 @@ startCodeGenerationGHCI :: (ByteString -> IO (), ByteString -> IO ()) -> IO (Man
 startCodeGenerationGHCI (applicationOnStandardOutput, applicationOnErrorOutput) = do
     process <- startGHCI (applicationOnStandardOutput, applicationOnErrorOutput)
 
-    let handleFileChange event = sendGhciCommand process ":script TurboHaskell/compileModels"
+    let compileModelsCommand = ":script TurboHaskell/compileModels"
+    let handleFileChange event = sendGhciCommand process compileModelsCommand
 
-    sendGhciCommand process ":script TurboHaskell/compileModels"
+    sendGhciCommand process compileModelsCommand
 
     pure (process, handleFileChange)

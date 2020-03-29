@@ -4,6 +4,7 @@ import ClassyPrelude
 import System.Process.Internals
 import qualified System.Process as Process
 import qualified GHC.IO.Handle as Handle
+import qualified System.FSNotify as FS
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -20,7 +21,7 @@ data State = State
     , liveReloadNotificationServer :: Async ()
     }
     
-data GHCIState = Ok | Failed | Pending deriving (Eq, Show)
+type FileEventHandler = FS.Event -> IO ()
 
 createManagedProcess :: CreateProcess -> IO ManagedProcess
 createManagedProcess config = do
@@ -31,11 +32,6 @@ createManagedProcess config = do
 
 cleanupManagedProcess :: ManagedProcess -> IO ()
 cleanupManagedProcess (ManagedProcess { .. }) = Process.cleanupProcess (Just inputHandle, Just outputHandle, Just errorHandle, processHandle)
-
-readGHCIState :: ByteString -> GHCIState
-readGHCIState line | "Ok," `isPrefixOf` line = Ok
-readGHCIState line | "Failed," `isPrefixOf` line = Failed
-readGHCIState _ = Pending
 
 sendGhciCommand :: ManagedProcess -> String -> IO ()
 sendGhciCommand ManagedProcess { inputHandle } command = do
