@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.DevServer (main) where
+module Main (main) where
 
 import ClassyPrelude
 import qualified System.Process as Process
@@ -36,13 +36,11 @@ main = do
     threadId <- myThreadId
 
     let catchHandler = do
-        stop state
-        throwTo threadId ExitSuccess
+            stop state
+            throwTo threadId ExitSuccess
     installHandler sigINT (Catch catchHandler) Nothing
 
     forever (threadDelay maxBound)
-
-    -- stop state
 
 start :: IO State
 start = do
@@ -67,7 +65,6 @@ start = do
 
     pure State { .. }
 
-
 stop :: State -> IO ()
 stop (State { .. }) = do
     cleanupManagedProcess postgres
@@ -81,7 +78,6 @@ startFilewatcher handleFileChange =
     async $ FS.withManager $ \manager -> do
         FS.watchTree manager "." shouldActOnFileChange handleFileChange
         forever (threadDelay maxBound) `finally` FS.stopManager manager
-
 
 shouldActOnFileChange :: FS.ActionPredicate
 shouldActOnFileChange event =
@@ -137,28 +133,18 @@ startAppGHCI (applicationOnStandardOutput', applicationOnErrorOutput, applicatio
     process <- startGHCI (applicationOnStandardOutput, applicationOnErrorOutput)
 
     let handleFileChange event = do
-        isAppRunning' <- readIORef isAppRunning
-        sendGhciCommand process (":script TurboHaskell/" <> (if isAppRunning' then "startDevServerGhciScriptRec" else "startDevServerGhciScriptAfterError"))
-        writeIORef isAppRunning False
+            isAppRunning' <- readIORef isAppRunning
+            sendGhciCommand process (":script TurboHaskell/" <> (if isAppRunning' then "startDevServerGhciScriptRec" else "startDevServerGhciScriptAfterError"))
+            writeIORef isAppRunning False
 
     sendGhciCommand process ":script TurboHaskell/startDevServerGhciScript"
     pure (process, handleFileChange)
-
-
-
-getPid ph = withProcessHandle ph go
-    where
-        go ph_ = case ph_ of
-            OpenHandle x   -> pure (Just x)
-            _ -> pure Nothing
 
 startCodeGenerationGHCI :: (ByteString -> IO (), ByteString -> IO ()) -> IO (ManagedProcess, FileEventHandler)
 startCodeGenerationGHCI (applicationOnStandardOutput, applicationOnErrorOutput) = do
     process <- startGHCI (applicationOnStandardOutput, applicationOnErrorOutput)
 
-    let handleFileChange event = do
-        sendGhciCommand process ":!clear"
-        sendGhciCommand process ":script TurboHaskell/compileModels"
+    let handleFileChange event = sendGhciCommand process ":script TurboHaskell/compileModels"
 
     sendGhciCommand process ":script TurboHaskell/compileModels"
 

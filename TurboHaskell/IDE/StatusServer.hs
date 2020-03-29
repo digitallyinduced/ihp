@@ -34,40 +34,40 @@ startStatusServer = do
                 (statusServerApp (standardOutput, errorOutput))
 
         let startServer' = async do
-            (Warp.run appPort warpApp) `catch` (\(e :: SomeException) -> putStrLn (tshow e))
+                (Warp.run appPort warpApp) `catch` (\(e :: SomeException) -> putStrLn (tshow e))
         
         serverRef <- startServer' >>= newIORef
 
 
         let applicationOnStandardOutput line = do
-            modifyIORef standardOutput (\o -> o <> "\n" <> line)
+                modifyIORef standardOutput (\o -> o <> "\n" <> line)
 
-            -- We don't want to slow down the compiling process
-            -- therefore we notify our websockets in another thread
-            _ <- async $ notifyOutput websocketState ("stdout" <> line)
-            pure ()
+                -- We don't want to slow down the compiling process
+                -- therefore we notify our websockets in another thread
+                _ <- async $ notifyOutput websocketState ("stdout" <> line)
+                pure ()
 
         let stopStatusServer = do
-            async do
-                server <- readIORef serverRef
-                cancel server
-                writeIORef standardOutput ""
-                writeIORef errorOutput ""
-                writeIORef websocketState []
-            pure ()
+                async do
+                    server <- readIORef serverRef
+                    cancel server
+                    writeIORef standardOutput ""
+                    writeIORef errorOutput ""
+                    writeIORef websocketState []
+                pure ()
 
         let startStatusServer = do
-            putStrLn "START STATUS SERVER"
-            async do
-                Concurrent.threadDelay 10000
-                readIORef serverRef >>= cancel
-                startServer' >>= writeIORef serverRef
-            pure ()
+                putStrLn "START STATUS SERVER"
+                async do
+                    Concurrent.threadDelay 10000
+                    readIORef serverRef >>= cancel
+                    startServer' >>= writeIORef serverRef
+                pure ()
 
         let applicationOnErrorOutput line = do
-            modifyIORef errorOutput (\o -> o <> "\n" <> line)
-            _ <- async $ notifyOutput websocketState ("stderr" <> line)
-            pure ()
+                modifyIORef errorOutput (\o -> o <> "\n" <> line)
+                _ <- async $ notifyOutput websocketState ("stderr" <> line)
+                pure ()
 
         pure (serverRef, applicationOnStandardOutput, applicationOnErrorOutput, startStatusServer, stopStatusServer)
     where
