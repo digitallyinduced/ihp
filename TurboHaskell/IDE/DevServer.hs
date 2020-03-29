@@ -104,14 +104,19 @@ startGHCI (applicationOnStandardOutput, applicationOnErrorOutput) = do
     pure managedProcess
 
 startAppGHCI :: (ByteString -> IO (), ByteString -> IO (), IO ()) -> IO (ManagedProcess, FileEventHandler)
-startAppGHCI (applicationOnStandardOutput', applicationOnErrorOutput, applicationOnStart) = do
+startAppGHCI (applicationOnStandardOutput', applicationOnErrorOutput', applicationOnStart) = do
     isAppRunning <- newIORef False
-    let applicationOnStandardOutput line =
+    let applicationOnStandardOutput line = do
+            ByteString.putStrLn line
             if "Server started" `isSuffixOf` line
                 then do
                     writeIORef isAppRunning True
                     applicationOnStart
                 else applicationOnStandardOutput' line
+
+    let applicationOnErrorOutput line = do
+            ByteString.putStrLn line
+            applicationOnErrorOutput' line
 
     process <- startGHCI (applicationOnStandardOutput, applicationOnErrorOutput)
 
