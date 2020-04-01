@@ -58,7 +58,7 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 RUNGHC=runghc
 
-run: .envrc build/db/state build/Generated static/prod.js static/prod.css
+run: .envrc build/Generated static/prod.js static/prod.css
 	RunDevServer
 
 
@@ -130,6 +130,3 @@ print-ghc-options:
 
 print-ghc-extensions:
 	@echo ${GHC_EXTENSIONS}
-
-build/db/state: .envrc
-	nix-shell --run "mkdir -p build/db; function kill_pg() { lsof -i :8001|awk '{print \$$2}'|tail -n1|xargs kill -9; }; cd build/db && initdb state; (postgres -D state -p 8001 & ); trap kill_pg EXIT; sleep 4; createdb app -p 8001; psql -p 8001 -d app < ../../Application/Schema.sql; psql -p 8001 -d app < ../../Application/Fixtures.sql"
