@@ -38,8 +38,8 @@ start = do
     fileWatcher <- startFilewatcher $ \event -> do
         let filePath = getEventFilePath event
         if isHaskellFile filePath
-            then if filePath `isSuffixOf` "Application/Schema.hs"
-                then codeGenerationHandleFileChange event
+            then if "Application/Schema.hs" `isSuffixOf` filePath
+                then codeGenerationHandleFileChange
                 else do
                     appHandleFileChange event
                     startStatusServer
@@ -128,13 +128,12 @@ startAppGHCI (applicationOnStandardOutput', applicationOnErrorOutput', applicati
     sendGhciCommand process ":script TurboHaskell/startDevServerGhciScript"
     pure (process, handleFileChange)
 
-startCodeGenerationGHCI :: (ByteString -> IO (), ByteString -> IO ()) -> IO (ManagedProcess, FileEventHandler)
+startCodeGenerationGHCI :: (ByteString -> IO (), ByteString -> IO ()) -> IO (ManagedProcess, IO ())
 startCodeGenerationGHCI (applicationOnStandardOutput, applicationOnErrorOutput) = do
     process <- startGHCI (applicationOnStandardOutput, applicationOnErrorOutput)
 
-    let compileModelsCommand = ":script TurboHaskell/compileModels"
-    let handleFileChange event = sendGhciCommand process compileModelsCommand
+    let handleFileChange = sendGhciCommand process ":script TurboHaskell/compileModels"
 
-    sendGhciCommand process compileModelsCommand
+    handleFileChange
 
     pure (process, handleFileChange)
