@@ -56,6 +56,7 @@ let
 	    concurrent-extra
 	    countable-inflections
 	    typerep-map
+	    mmark-cli
 	]);
 in
     pkgs.stdenv.mkDerivation {
