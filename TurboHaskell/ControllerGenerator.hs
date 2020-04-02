@@ -143,7 +143,7 @@ generateControllerData config =
         <> "    | Edit" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    | Update" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    | Delete" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
-        <> "    deriving (Eq, Show, Generic, Data)\n"
+        <> "    deriving (Eq, Show, Data)\n"
 
 generateController :: [Table] -> ControllerConfig -> Text
 generateController database config =
