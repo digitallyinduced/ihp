@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.LiveReloadNotificationServer where
+module TurboHaskell.IDE.LiveReloadNotificationServer (startLiveReloadNotificationServer, notifyHaskellChange, notifyAssetChange, stopLiveReloadNotification) where
 
 import ClassyPrelude
 import qualified Network.HTTP.Types as Http
@@ -7,32 +7,35 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
+import TurboHaskell.IDE.Types
 
-startLiveReloadNotificationServer :: IO (Async (), IO (), IO ())
+startLiveReloadNotificationServer :: (?context :: Context) => IO ()
 startLiveReloadNotificationServer = do
-    state <- newIORef []
+    clients <- newIORef []
 
-    reloadTask <- newIORef Nothing
-    let handleAssetChange = notifyAssetChange state
-    let handleHaskellChange = do
-            readIORef reloadTask >>= maybe (pure ()) uninterruptibleCancel
-            (async (notifyReload state)) >>= pure . Just >>= writeIORef reloadTask
     server <- async $ Warp.run 8002 $ Websocket.websocketsOr
         Websocket.defaultConnectionOptions
-        (app state)
+        (app clients)
         httpApp
-    pure (server, handleAssetChange, handleHaskellChange)
+
+    dispatch (UpdateLiveReloadNotificationServerState (LiveReloadNotificationServerStarted { server, clients }))
 
 httpApp :: Wai.Application
 httpApp request respond = respond $ Wai.responseLBS Http.status400 [] "Not a websocket request"
 
-notifyReload = broadcast "reload"
+notifyHaskellChange :: LiveReloadNotificationServerState -> IO ()
+notifyHaskellChange = broadcast "reload"
 notifyAssetChange = broadcast "reload_assets"
 
-broadcast :: ByteString -> IORef [Websocket.Connection] -> IO ()
-broadcast message stateRef = do
-    clients <- readIORef stateRef
-    forM_ clients $ \connection -> ((Websocket.sendTextData connection message) `catch` (\(e :: SomeException) -> pure ()))
+broadcast :: ByteString -> LiveReloadNotificationServerState -> IO ()
+broadcast message LiveReloadNotificationServerStarted { server, clients } = do
+    async do readIORef clients >>= (mapM_ $ \connection -> ((Websocket.sendTextData connection message) `catch` (\(e :: SomeException) -> pure ())))
+    pure ()
+broadcast message _ = pure ()
+
+stopLiveReloadNotification :: LiveReloadNotificationServerState -> IO ()
+stopLiveReloadNotification LiveReloadNotificationServerStarted { .. } = uninterruptibleCancel server
+stopLiveReloadNotification _ = pure ()
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do

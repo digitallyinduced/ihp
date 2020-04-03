@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.StatusServer (startStatusServer) where
+module TurboHaskell.IDE.StatusServer (startStatusServer, stopStatusServer, notifyBrowserOnApplicationOutput) where
 
 import ClassyPrelude
 import qualified Network.HTTP.Types as Http
@@ -21,15 +21,15 @@ appPort :: Int
 appPort = 8000
 
 
-startStatusServer :: IO (IORef (Async ()), ByteString -> IO (), ByteString -> IO (), IO (), IO ())
+startStatusServer :: (?context :: Context) => IO ()
 startStatusServer = do
         standardOutput <- newIORef ""
         errorOutput <- newIORef ""
-        websocketState <- newIORef []
+        clients <- newIORef []
 
         let warpApp = Websocket.websocketsOr
                 Websocket.defaultConnectionOptions
-                (app websocketState)
+                (app clients)
                 (statusServerApp (standardOutput, errorOutput))
 
         let startServer' = async $ Warp.run appPort warpApp
@@ -37,36 +37,7 @@ startStatusServer = do
         serverRef <- startServer' >>= newIORef
 
 
-        let applicationOnStandardOutput line = do
-                modifyIORef standardOutput (\o -> o <> "\n" <> line)
-
-                -- We don't want to slow down the compiling process
-                -- therefore we notify our websockets in another thread
-                _ <- async $ notifyOutput websocketState ("stdout" <> line)
-                pure ()
-
-        let stopStatusServer = do
-                async do
-                    server <- readIORef serverRef
-                    cancel server
-                    writeIORef standardOutput ""
-                    writeIORef errorOutput ""
-                    writeIORef websocketState []
-                pure ()
-
-        let startStatusServer = do
-                async do
-                    Concurrent.threadDelay 10000
-                    readIORef serverRef >>= cancel
-                    startServer' >>= writeIORef serverRef
-                pure ()
-
-        let applicationOnErrorOutput line = do
-                modifyIORef errorOutput (\o -> o <> "\n" <> line)
-                _ <- async $ notifyOutput websocketState ("stderr" <> line)
-                pure ()
-
-        pure (serverRef, applicationOnStandardOutput, applicationOnErrorOutput, startStatusServer, stopStatusServer)
+        dispatch (UpdateStatusServerState (StatusServerStarted { serverRef, clients, standardOutput, errorOutput }))
     where
         statusServerApp :: (IORef ByteString, IORef ByteString) -> Wai.Application
         statusServerApp (standardOutput, errorOutput) req respond = do
@@ -76,6 +47,23 @@ startStatusServer = do
             let responseHeaders = [(HTTP.hContentType, "text/html")]
             respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
 
+stopStatusServer :: StatusServerState -> IO ()
+stopStatusServer StatusServerStarted { serverRef } = do 
+    async $ readIORef serverRef >>= uninterruptibleCancel
+    pure ()
+stopStatusServer _ = putStrLn "StatusServer: Cannot stop as not running"
+
+notifyBrowserOnApplicationOutput :: StatusServerState -> OutputLine -> IO ()
+notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, standardOutput, errorOutput } line = do
+    case line of
+        StandardOutput line -> modifyIORef standardOutput (\o -> o <> "\n" <> line)
+        ErrorOutput line -> modifyIORef errorOutput (\o -> o <> "\n" <> line)
+    let payload = case line of
+            StandardOutput line -> "stdout" <> line
+            ErrorOutput line -> "stderr" <> line
+    async (notifyOutput clients payload)
+    pure ()
+notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
 
 renderErrorView :: ByteString -> ByteString -> Bool -> Html5.Html
 renderErrorView standardOutput errorOutput isCompiling = [hsx|

@@ -1,0 +1,3 @@
+:script TurboHaskell/applicationGhciConfig
+import qualified ClassyPrelude
+:l Main.hs
