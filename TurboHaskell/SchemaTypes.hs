@@ -12,8 +12,8 @@ import TurboHaskell.DatabaseSupport.Point
 data Table = Table Text [Attribute]
            deriving (Show, Eq, Ord)
 
-data Attribute = Field Text FieldType
-               | BelongsTo Text
+data Attribute = Field { name :: Text, fieldType :: FieldType }
+               | BelongsTo { name :: Text }
                | HasMany { name :: Text, inverseOf :: Maybe Text }
                deriving (Eq, Ord, Show)
 

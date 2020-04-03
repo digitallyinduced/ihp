@@ -4,6 +4,8 @@ import Data.Maybe (fromJust)
 import qualified Data.List as List
 import TurboHaskell.SchemaTypes
 import TurboHaskell.HaskellSupport
+import Data.Char (isLower, isUpper)
+import qualified Data.Text as Text
 
 table :: Text -> Table
 table name = Table name []
@@ -69,7 +71,9 @@ validateTable database table@(Table name attributes) = catMaybes $ map (validate
 validateAttribute :: [Table] -> Table -> Attribute -> Maybe Text
 validateAttribute database table field = 
     case validateReferences database table field of
-        Nothing -> validateOnDelete database table field
+        Nothing -> case (isJust (Text.find isUpper $ get #name field)) of
+            True -> validateOnDelete database table field
+            False -> error "You need to use underscores and all lowerCase instead of CamelCase in Schema.hs."
         error -> error
 
 validateReferences :: [Table] -> Table -> Attribute -> Maybe Text
@@ -134,3 +138,6 @@ setHasManyRelations tables = map setHasManyRelations' tables
 
 schema :: [Table] -> [Table]
 schema database = setHasManyRelations database
+
+getFieldName :: Attribute -> Text
+getFieldName (Field fieldName _) = fieldName
