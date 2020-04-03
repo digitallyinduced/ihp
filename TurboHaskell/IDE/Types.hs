@@ -6,6 +6,7 @@ import qualified System.Process as Process
 import qualified GHC.IO.Handle as Handle
 import qualified System.FSNotify as FS
 import qualified Network.WebSockets as Websocket
+import qualified Data.ByteString.Char8 as ByteString
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -34,9 +35,9 @@ createManagedProcess config = do
 cleanupManagedProcess :: ManagedProcess -> IO ()
 cleanupManagedProcess (ManagedProcess { .. }) = Process.cleanupProcess (Just inputHandle, Just outputHandle, Just errorHandle, processHandle)
 
-sendGhciCommand :: ManagedProcess -> String -> IO ()
+sendGhciCommand :: ManagedProcess -> ByteString -> IO ()
 sendGhciCommand ManagedProcess { inputHandle } command = do
-    Handle.hPutStr inputHandle (command <> "\n")
+    ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
 data OutputLine = StandardOutput ByteString | ErrorOutput ByteString deriving (Show)
