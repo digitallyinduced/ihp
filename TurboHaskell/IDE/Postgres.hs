@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.Postgres (startPostgres) where
+module TurboHaskell.IDE.Postgres (startPostgres, stopPostgres) where
 
 import TurboHaskell.IDE.Types
 import ClassyPrelude
@@ -6,7 +6,7 @@ import qualified System.Process as Process
 import qualified System.Directory as Directory
 import qualified Data.ByteString.Char8 as ByteString
 
-startPostgres :: IO ManagedProcess
+startPostgres :: (?context :: Context) => IO ManagedProcess
 startPostgres = do
     currentDir <- Directory.getCurrentDirectory
     ensureNoOtherPostgresIsRunning 
@@ -25,13 +25,20 @@ startPostgres = do
     standardOutput <- redirectHandleToVariable outputHandle
     errorOutput <- redirectHandleToVariable errorHandle
 
+    dispatch (UpdatePostgresState (PostgresStarted { .. }))
+
     pure process
-    
+
+stopPostgres :: PostgresState -> IO ()
+stopPostgres PostgresStarted { .. } = cleanupManagedProcess process
+stopPostgres _ = pure ()
+
 redirectHandleToVariable :: Handle -> IO (IORef ByteString)
 redirectHandleToVariable handle = do
     ref <- newIORef ""
     async $ forever $ do
         line <- ByteString.hGetLine handle
+        ByteString.putStrLn line
         modifyIORef ref (\log -> log <> "\n" <> line)
     pure ref
 
