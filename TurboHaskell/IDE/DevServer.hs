@@ -60,28 +60,39 @@ handleAction state@(AppState { statusServerState }) ReceiveCodeGenerationOutput 
     notifyBrowserOnApplicationOutput statusServerState line
     pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) AppModulesLoaded = do
-    case postgresState of
-        PostgresStarted {} -> do
-            let AppGHCILoading { .. } = appGHCIState
-            let appGHCIState' = AppGHCIModulesLoaded { .. }
-            startLoadedApp appGHCIState'
-            pure state { appGHCIState = appGHCIState' }
-        _ -> do
-            putStrLn "Cannot start app as postgres is not ready yet"
+    case appGHCIState of
+        AppGHCILoading { .. } -> do
+            case postgresState of
+                PostgresStarted {} -> do
+                    let appGHCIState' = AppGHCIModulesLoaded { .. }
+                    startLoadedApp appGHCIState'
+                    pure state { appGHCIState = appGHCIState' }
+                _ -> do
+                    putStrLn "Cannot start app as postgres is not ready yet"
+                    pure state
+        RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
+        AppGHCINotStarted -> error "Unreachable"
+        AppGHCIModulesLoaded { } -> do
+            startLoadedApp appGHCIState
             pure state
-handleAction state@(AppState { statusServerState, appGHCIState }) AppStarted = do
+handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotificationServerState }) AppStarted = do
     stopStatusServer statusServerState
     let state' = state { statusServerState = StatusServerNotStarted }
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> pure state' { appGHCIState = RunningAppGHCI { .. } }
+        RunningAppGHCI { } -> do
+            notifyHaskellChange liveReloadNotificationServerState
+            pure state'
         otherwise -> pure state'
     
 handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged = do
     notifyAssetChange liveReloadNotificationServerState
     pure state
 
-handleAction state@(AppState { liveReloadNotificationServerState }) HaskellFileChanged = do
-    notifyHaskellChange liveReloadNotificationServerState
+handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState }) HaskellFileChanged = do
+    case appGHCIState of
+        RunningAppGHCI { process } -> sendGhciCommand process ":script TurboHaskell/startDevServerGhciScriptRec"
+        _ -> putStrLn "Could not reload ghci"
     pure state
 
 handleAction state@(AppState { codeGenerationState }) SchemaChanged = do

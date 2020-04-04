@@ -29,13 +29,17 @@ notifyAssetChange = broadcast "reload_assets"
 
 broadcast :: ByteString -> LiveReloadNotificationServerState -> IO ()
 broadcast message LiveReloadNotificationServerStarted { server, clients } = do
-    async do readIORef clients >>= (mapM_ $ \connection -> ((Websocket.sendTextData connection message) `catch` (\(e :: SomeException) -> pure ())))
+    async do
+        clients' <- readIORef clients
+        putStrLn $ "SENDING " <> tshow (length clients')
+        let sendMessage connection = ((Websocket.sendTextData connection message) `catch` (\(e :: SomeException) -> putStrLn (tshow e)))
+        mapM_ sendMessage clients'
     pure ()
-broadcast message _ = pure ()
+broadcast message _ = putStrLn "LiveReloadNotificationServer: broadcast failed as not running"
 
 stopLiveReloadNotification :: LiveReloadNotificationServerState -> IO ()
 stopLiveReloadNotification LiveReloadNotificationServerStarted { .. } = uninterruptibleCancel server
-stopLiveReloadNotification _ = putStrLn "stopLiveReloadNotification: LiveReloadNotificationServer not running"
+stopLiveReloadNotification _ = pure ()
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do
