@@ -9,13 +9,13 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 data WelcomeController = WelcomeAction deriving (Eq, Show)
 
-instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => CanRoute WelcomeController where
+instance CanRoute WelcomeController where
     parseRoute' = (string "/" <|> string "") *> endOfInput $> WelcomeAction
 
-instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => HasPath WelcomeController where
+instance HasPath WelcomeController where
     pathTo WelcomeAction = "/"
 
-instance (FrontControllerPrefix (ControllerApplicationMap WelcomeController)) => Controller WelcomeController where
+instance Controller WelcomeController where
     action WelcomeAction = respondHtml (renderLayout view)
 
 view :: H.Html

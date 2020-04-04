@@ -16,9 +16,6 @@ data RootApplication = RootApplication deriving (Eq, Show)
 
 instance Controller RootApplication where
 
-instance FrontControllerPrefix RootApplication where
-    prefix = ""
-
 appDatabaseUrl :: IO ByteString
 appDatabaseUrl = do
     currentDirectory <- getCurrentDirectory

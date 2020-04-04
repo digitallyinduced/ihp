@@ -65,7 +65,6 @@ instance (
         , HasPath controller
         , AutoRoute controller
         , ModelFormActionTopLevelResource controller id
-        , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormAction application formObject where
     {-# INLINE modelFormAction #-}
     modelFormAction formObject = modelFormActionTopLevelResource (Proxy @controller) (getField @"id" formObject)
@@ -77,7 +76,6 @@ class ModelFormActionTopLevelResource controller id where
 instance (
         HasPath controller
         , AutoRoute controller
-        , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormActionTopLevelResource controller (FieldWithDefault id') where
     {-# INLINE modelFormActionTopLevelResource #-}
     modelFormActionTopLevelResource _ _ = pathTo (fromJust (createAction @controller))
@@ -86,7 +84,6 @@ instance (
         HasPath controller
         , AutoRoute controller
         , HasPath controller
-        , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormActionTopLevelResource controller (Id' (table :: Symbol)) where
     {-# INLINE modelFormActionTopLevelResource #-}
     modelFormActionTopLevelResource _ id = pathTo (fromJust (updateAction @controller) id)

@@ -10,8 +10,6 @@ module TurboHaskell.RouterSupport (
     , withPrefix
     , ModelControllerMap
     , FrontController (..)
-    , FrontControllerPrefix (..)
-    , ControllerApplicationMap
     , parseRoute 
     , catchAll
     , mountFrontController
@@ -32,7 +30,7 @@ import TurboHaskell.Controller.RequestContext
 import Network.Wai
 import Data.String.Conversions (cs)
 import TurboHaskell.ControllerSupport
-import Data.Attoparsec.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill)
+import Data.Attoparsec.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import GHC.TypeLits
 import Data.Data
 import qualified Data.UUID as UUID
@@ -45,15 +43,14 @@ import Network.HTTP.Types.URI
 import Data.List ((!!))
 import Unsafe.Coerce
 import TurboHaskell.HaskellSupport hiding (get)
-
-class FrontControllerPrefix application where
-    prefix :: ByteString
-    prefix = "/"
+import qualified Data.Typeable as Typeable
+import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.Char as Char
 
 class FrontController application where
-    controllers :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
+    controllers :: (?applicationContext :: ApplicationContext, ?application :: Proxy application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
 
-class (FrontControllerPrefix (ControllerApplicationMap controller)) => HasPath controller where
+class HasPath controller where
     pathTo :: controller -> Text    
 
 class HasPath controller => CanRoute controller where
@@ -73,8 +70,11 @@ class Data controller => AutoRoute controller where
             allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: controller))
 
             parseCustomAction :: Constr -> Parser controller
-            parseCustomAction constructor = (string actionPath <* endOfInput >> checkRequestMethod action)
+            parseCustomAction constructor = string prefix >> (string actionPath <* endOfInput >> checkRequestMethod action)
                 where
+                    prefix :: ByteString
+                    prefix = actionPrefix @controller
+
                     action :: controller
                     action = actionInstance constructor
 
@@ -114,7 +114,27 @@ class Data controller => AutoRoute controller where
                                 then pure action
                                 else error ("Invalid method, expected one of: " <> show allowedMethods)
         in choice (map parseCustomAction allConstructors)
-            
+
+
+actionPrefix :: forall controller. Typeable controller => ByteString
+actionPrefix =
+        case appModule of
+            "Web" -> "/"
+            "" -> "/"
+            appName -> "/" <> ByteString.map Char.toLower appName <> "/"
+    where
+        appModule :: ByteString
+        appModule = fromMaybe "" (headMay moduleParts)
+
+        moduleParts :: [ByteString]
+        moduleParts = ByteString.split '.' moduleName
+
+        moduleName :: ByteString
+        moduleName = Typeable.typeOf (error "unreachable" :: controller)
+                |> Typeable.typeRepTyCon
+                |> Typeable.tyConModule
+                |> cs
+{-# INLINE actionPrefix #-}
 
 stripActionSuffix actionName = fromMaybe actionName (stripSuffix "Action" actionName)
 
@@ -158,16 +178,16 @@ updateAction =
         isUpdateConstructor :: Constr -> Bool
         isUpdateConstructor constructor = "Update" `isPrefixOf` (showConstr constructor) && (length (constrFields constructor) == 1)
 
-instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller, FrontControllerPrefix (ControllerApplicationMap controller)) => CanRoute controller where
+instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => CanRoute controller where
     {-# INLINE parseRoute' #-}
     parseRoute' = autoRoute
 
-instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller, FrontControllerPrefix (ControllerApplicationMap controller)) => HasPath controller where
+instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
     {-# INLINE pathTo #-}
     pathTo !action = appPrefix <> actionName <> cs arguments
         where
             appPrefix :: Text 
-            !appPrefix = cs (prefix @(ControllerApplicationMap controller))
+            !appPrefix = cs (actionPrefix @controller)
 
             actionName :: Text
             !actionName = cs (stripActionSuffix $! showConstr constructor) 
@@ -239,25 +259,33 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 
 {-# INLINE runApp #-}
 runApp :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived -> IO ResponseReceived
-runApp routes notFoundAction = let path = (rawPathInfo (getField @"request" ?requestContext)) in case parseOnly (routes <* endOfInput) path of
+runApp routes notFoundAction =
+    let
+        path = ?requestContext
+                |> getField @"request"
+                |> rawPathInfo
+    in case parseOnly (routes <* endOfInput) path of
             Left message -> notFoundAction
             Right action -> action
 
 {-# INLINE frontControllerToWAIApp #-}
-frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app, FrontControllerPrefix app) => IO ResponseReceived -> IO ResponseReceived
-frontControllerToWAIApp notFoundAction = runApp (withPrefix (prefix @app) (controllers @app)) notFoundAction
+frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = Proxy @app in controllers))) notFoundAction
 
 {-# INLINE mountFrontController #-}
-mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController, FrontControllerPrefix frontController) => Parser (IO ResponseReceived)
-mountFrontController = withPrefix (prefix @frontController) (controllers @frontController)
+mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => Parser (IO ResponseReceived)
+mountFrontController = choice (map (\r -> r <* endOfInput) (let ?application = Proxy @frontController in controllers))
 
 {-# INLINE parseRoute #-}
-parseRoute :: forall controller parent. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext (ControllerApplicationMap controller)) => Parser (IO ResponseReceived)
-parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext
+parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: Proxy application) => Parser (IO ResponseReceived)
+parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
 
 {-# INLINE catchAll #-}
-catchAll :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext (ControllerApplicationMap action)) => action -> Parser (IO ResponseReceived)
-catchAll action = pure (runActionWithNewContext action)
+catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: Proxy application) => action -> Parser (IO ResponseReceived)
+catchAll action = do
+    string (actionPrefix @action)
+    _ <- takeByteString
+    pure (runActionWithNewContext @application action)
 
 -- | Parses a text until the next `/`
 parseText :: Parser Text
