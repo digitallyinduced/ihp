@@ -40,7 +40,7 @@ sendGhciCommand ManagedProcess { inputHandle } command = do
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
-data OutputLine = StandardOutput ByteString | ErrorOutput ByteString deriving (Show)
+data OutputLine = StandardOutput ByteString | ErrorOutput ByteString deriving (Show, Eq)
 
 data Action = 
     UpdatePostgresState PostgresState

@@ -35,13 +35,14 @@ broadcast message _ = pure ()
 
 stopLiveReloadNotification :: LiveReloadNotificationServerState -> IO ()
 stopLiveReloadNotification LiveReloadNotificationServerStarted { .. } = uninterruptibleCancel server
-stopLiveReloadNotification _ = pure ()
+stopLiveReloadNotification _ = putStrLn "stopLiveReloadNotification: LiveReloadNotificationServer not running"
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do
     connection <- Websocket.acceptRequest pendingConnection
     modifyIORef stateRef $ \state -> (connection : state)
-    Websocket.forkPingThread connection 30
+    Websocket.forkPingThread connection 1
     forever do
-        Concurrent.threadDelay (30 * 1000000)
+        Websocket.sendTextData connection ("pong" :: Text)
+        Concurrent.threadDelay (1000000)
         pure ()

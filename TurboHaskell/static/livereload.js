@@ -73,6 +73,7 @@ function startReloadListener() {
         } else if (event.data === 'reload_assets')
             refreshAssets();
     }
+    notificationSocket.onclose = function () { window.location.reload(); }
 }
 
 if (window.liveReloadEnabled) {

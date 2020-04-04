@@ -32,6 +32,7 @@ main = do
     start
     forever do
         appState <- readIORef appStateRef
+        -- putStrLn $ " ===> " <> (tshow appState)
         action <- takeMVar actionVar
         putStrLn $ tshow action
         nextAppState <- handleAction appState action
@@ -41,15 +42,24 @@ main = do
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
 handleAction state (UpdatePostgresState postgresState) = pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
+handleAction state@(AppState { codeGenerationState = CodeGenerationFailed { standardOutput = cgStdOut, errorOutput = cgErrOut } }) (UpdateStatusServerState statusServerState@(StatusServerStarted { standardOutput, errorOutput })) = do
+    readIORef cgStdOut >>= writeIORef standardOutput
+    readIORef cgErrOut >>= writeIORef errorOutput
+    pure state { statusServerState }
 handleAction state (UpdateStatusServerState statusServerState) = pure state { statusServerState }
-handleAction state (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = pure state { liveReloadNotificationServerState }
+handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = pure state { liveReloadNotificationServerState }
+handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerStarted {} }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = 
+    case liveReloadNotificationServerState of
+        LiveReloadNotificationServerNotStarted -> pure state { liveReloadNotificationServerState }
+        otherwise -> error "Cannot start live reload notification server twice"
 handleAction state (UpdateFileWatcherState fileWatcherState) = pure state { fileWatcherState }
 handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = do
     notifyBrowserOnApplicationOutput statusServerState line
     pure state
-handleAction state@(AppState { statusServerState }) ReceiveCodeGenerationOutput { line } = pure state
+handleAction state@(AppState { statusServerState }) ReceiveCodeGenerationOutput { line } = do
+    notifyBrowserOnApplicationOutput statusServerState line
+    pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) AppModulesLoaded = do
-    stopStatusServer statusServerState
     case postgresState of
         PostgresStarted {} -> do
             let AppGHCILoading { .. } = appGHCIState
@@ -59,10 +69,13 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
         _ -> do
             putStrLn "Cannot start app as postgres is not ready yet"
             pure state
-    pure state
-handleAction state@(AppState { statusServerState }) AppStarted = do
+handleAction state@(AppState { statusServerState, appGHCIState }) AppStarted = do
     stopStatusServer statusServerState
-    pure state
+    let state' = state { statusServerState = StatusServerNotStarted }
+    case appGHCIState of
+        AppGHCIModulesLoaded { .. } -> pure state' { appGHCIState = RunningAppGHCI { .. } }
+        otherwise -> pure state'
+    
 handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged = do
     notifyAssetChange liveReloadNotificationServerState
     pure state
@@ -74,9 +87,13 @@ handleAction state@(AppState { liveReloadNotificationServerState }) HaskellFileC
 handleAction state@(AppState { codeGenerationState }) SchemaChanged = do
     case codeGenerationState of
         CodeGenerationReady { .. } -> do
+            writeIORef standardOutput ""
+            writeIORef errorOutput ""
             runCodeGeneration process
             pure state { codeGenerationState = CodeGenerationRunning { .. } }
         CodeGenerationFailed { .. } -> do
+            writeIORef standardOutput ""
+            writeIORef errorOutput ""
             runCodeGeneration process
             pure state { codeGenerationState = CodeGenerationRunning { .. } }
         otherwise -> do
@@ -89,14 +106,40 @@ handleAction state@(AppState { statusServerState, liveReloadNotificationServerSt
         _ -> pure ()
     notifyHaskellChange liveReloadNotificationServerState
     pure state
-handleAction state (UpdateCodeGenerationState codeGenerationState) = pure state { codeGenerationState }
+
+handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, codeGenerationState = CodeGenerationRunning {}, statusServerState }) (UpdateCodeGenerationState codeGenerationState@(CodeGenerationFailed {})) = do
+    state' <- handleAction state PauseApp
+    case statusServerState of
+        StatusServerNotStarted -> do
+            _ <- async do
+                threadDelay 100000
+                startStatusServer
+            pure ()
+        o -> putStrLn $ "Not starting status server as already running" <> tshow o
+    stopLiveReloadNotification liveReloadNotificationServerState
+    pure state' { codeGenerationState, liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted }
+
+handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, codeGenerationState = CodeGenerationRunning {}, statusServerState }) (UpdateCodeGenerationState codeGenerationState@(CodeGenerationReady {})) = do
+    stopStatusServer statusServerState
+    let AppGHCIModulesLoaded { .. } = appGHCIState
+    startLoadedApp appGHCIState
+    case liveReloadNotificationServerState of
+        LiveReloadNotificationServerNotStarted -> do
+            async startLiveReloadNotificationServer
+            pure ()
+        otherwise -> putStrLn "LiveReloadNotificationServer already started"
+    pure state { appGHCIState, codeGenerationState, statusServerState = StatusServerNotStarted }
+
+handleAction state@(AppState { appGHCIState, codeGenerationState, statusServerState }) (UpdateCodeGenerationState cgState) = do
+    pure state { codeGenerationState = cgState }
+    
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
     case appGHCIState of
         RunningAppGHCI { .. } -> do
             pauseAppGHCI appGHCIState
             pure state { appGHCIState = AppGHCIModulesLoaded { .. } }
-        _ -> pure state
+        otherwise -> do putStrLn ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
 
 
 
@@ -126,12 +169,12 @@ stop AppState { .. } = do
 
     --readIORef statusServer >>= uninterruptibleCancel
 
-startFilewatcher :: (?context :: Context) => IO (Async ())
-startFilewatcher =
-    async $ FS.withManager $ \manager -> do
-        FS.watchTree manager "." shouldActOnFileChange handleFileChange
-        forever (threadDelay maxBound) `finally` FS.stopManager manager
-
+startFilewatcher :: (?context :: Context) => IO ()
+startFilewatcher = do
+        thread <- async $ FS.withManager $ \manager -> do
+            FS.watchTree manager "." shouldActOnFileChange handleFileChange
+            forever (threadDelay maxBound) `finally` FS.stopManager manager
+        dispatch (UpdateFileWatcherState (FileWatcherStarted { thread }))
     where
         handleFileChange event = do
             let filePath = getEventFilePath event
@@ -239,4 +282,5 @@ stopCodeGenerationGHCI CodeGenerationRunning { .. } = cleanupManagedProcess proc
 stopCodeGenerationGHCI _ = pure ()
 
 runCodeGeneration :: ManagedProcess -> IO ()
-runCodeGeneration process = sendGhciCommand process ":script TurboHaskell/compileModels"
+runCodeGeneration process = do
+    sendGhciCommand process ":script TurboHaskell/compileModels"

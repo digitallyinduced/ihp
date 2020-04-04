@@ -55,14 +55,17 @@ stopStatusServer _ = putStrLn "StatusServer: Cannot stop as not running"
 
 notifyBrowserOnApplicationOutput :: StatusServerState -> OutputLine -> IO ()
 notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, standardOutput, errorOutput } line = do
-    case line of
-        StandardOutput line -> modifyIORef standardOutput (\o -> o <> "\n" <> line)
-        ErrorOutput line -> modifyIORef errorOutput (\o -> o <> "\n" <> line)
-    let payload = case line of
-            StandardOutput line -> "stdout" <> line
-            ErrorOutput line -> "stderr" <> line
-    async (notifyOutput clients payload)
-    pure ()
+    let shouldIgnoreLine = (line == ErrorOutput "Warning: -debug, -threaded and -ticky are ignored by GHCi")
+    unless shouldIgnoreLine do
+        case line of
+            StandardOutput line -> modifyIORef standardOutput (\o -> o <> "\n" <> line)
+            ErrorOutput line -> modifyIORef errorOutput (\o -> o <> "\n" <> line)
+        let payload = case line of
+                StandardOutput line -> "stdout" <> line
+                ErrorOutput line -> "stderr" <> line
+        async (notifyOutput clients payload)
+        pure ()
+    
 notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
 
 renderErrorView :: ByteString -> ByteString -> Bool -> Html5.Html
@@ -112,7 +115,7 @@ app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do
     connection <- Websocket.acceptRequest pendingConnection
     modifyIORef stateRef $ \state -> (connection : state)
-    Websocket.forkPingThread connection 30
+    Websocket.forkPingThread connection 1
     forever do
         Websocket.sendTextData connection ("pong" :: Text)
         Concurrent.threadDelay (1000000)
