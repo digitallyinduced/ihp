@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
+{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
 
 module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql, fetchExists) where
 
@@ -70,7 +70,7 @@ instance Eq (TurboHaskell.QueryBuilder.QueryBuilder model) where a == b = True
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
-        selectFrom :: !(Text),
+        selectFrom :: !Text,
         whereCondition :: !(Maybe Condition),
         orderByClause :: !(Maybe (Text, OrderByDirection)),
         limitClause :: !(Maybe Text)
@@ -85,12 +85,12 @@ buildQuery !queryBuilder =
             in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = Nothing, limitClause = Nothing }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
-                query = (buildQuery queryBuilder)
+                query = buildQuery queryBuilder
                 condition = VarCondition ((fieldNameToColumnName . cs $ symbolVal fieldProxy) <> " " <> compileOperator fieldProxy operator <> " ?") value
             in
                 query { whereCondition = Just $ case whereCondition query of Just c -> AndCondition c condition; Nothing -> condition }
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
-            let query = (buildQuery queryBuilder)
+            let query = buildQuery queryBuilder
             in query { orderByClause = Just (fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection) }
         IncludeQueryBuilder include queryBuilder -> buildQuery queryBuilder
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
@@ -197,7 +197,7 @@ genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
-toSQL' !sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
+toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
         (theQuery, theParams)
     where
         !theQuery =
@@ -264,7 +264,7 @@ filterWhereNotIn (name, value) = FilterByQueryBuilder (name, NotInOp, toField (I
 -- @
 {-# INLINE filterWhereSql #-}
 filterWhereSql :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, ByteString) -> QueryBuilder model -> QueryBuilder model
-filterWhereSql !(name, sqlCondition) = FilterByQueryBuilder (name, SqlOp, Plain (ByteStringBuilder.byteString sqlCondition))
+filterWhereSql (name, sqlCondition) = FilterByQueryBuilder (name, SqlOp, Plain (ByteStringBuilder.byteString sqlCondition))
 
 data FilterWhereTag
 
