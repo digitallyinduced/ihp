@@ -1,5 +1,12 @@
 {-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
+{-|
+Description:  Tool to build simple sql queries
 
+QueryBuilder is mainly used for doing simple `SELECT` sql queries. It allows dynamic
+creation of sql queries in a type safe way.
+
+For more complex sql queries, use 'TurboHaskell.ModelSupport.sqlQuery'.
+-}
 module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql, fetchExists) where
 
 
@@ -29,9 +36,28 @@ import GHC.Records
 import qualified Data.ByteString.Builder as ByteStringBuilder
 import TurboHaskell.NameSupport (fieldNameToColumnName)
 
-{-# INLINE query #-}
+-- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.
+-- Used togehter with the other functions to compose a sql query.
+-- 
+-- Example:
+-- 
+-- > toSQL (query @User)
+-- > -- Returns: ("SELECT id, firstname, lastname FROM users", [])
+--
+-- Example: Fetching all users
+--
+-- > allUsers <- query @User |> fetch
+-- > -- Runs a 'SELECT * FROM users' query
+--
+-- You can use it together with 'filterWhere':
+--
+-- > activeUsers :: [User] <-
+-- >    query @User
+-- >     |> filterWhere (#active, True)
+-- >     |> fetch
 query :: forall model. DefaultScope model => QueryBuilder model
 query = defaultScope NewQueryBuilder
+{-# INLINE query #-}
 
 class DefaultScope model where
     defaultScope :: QueryBuilder model -> QueryBuilder model
@@ -141,15 +167,18 @@ instance Fetchable (QueryBuilder model) model where
         pure $ fromMaybe (error "Cannot find model") maybeModel
 
 -- | Returns the count of records selected by the query builder.
--- Examples:
--- @
---     allUsersCount <- query @User |> fetchCount
--- @
--- @
---     activeProjectsCount <- query @Project
---         |> filterWhere (#isActive, True)
---         |> fetchCount
--- @
+--
+-- __Example:__ Counting all users.
+--
+-- > allUsersCount <- query @User |> fetchCount -- SELECT COUNT(*) FROM users
+--
+-- 
+-- __Example:__ Counting all active projects
+--
+-- >     activeProjectsCount <- query @Project
+-- >         |> filterWhere (#isActive, True)
+-- >         |> fetchCount
+-- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
 fetchCount :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Int
 fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
@@ -160,12 +189,15 @@ fetchCount !queryBuilder = do
 {-# INLINE fetchCount #-}
 
 -- | Checks whether the query has any results.
--- Examples:
--- @
---     hasUnreadMessages <- query @Message
---         |> filterWhere (#isUnread, True)
---         |> fetchExists
--- @
+--
+-- Returns @True@ when there is atleast one row matching the conditions of the query. Returns @False@ otherwise.
+--
+-- __Example:__ Checking whether there are unread messages
+--
+-- >     hasUnreadMessages <- query @Message
+-- >         |> filterWhere (#isUnread, True)
+-- >         |> fetchExists
+-- >     -- SELECT EXISTS FROM (SELECT * FROM messages WHERE is_unread = true)
 fetchExists :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Bool
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
@@ -238,30 +270,64 @@ compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
 
--- | Helper to deal with `some_field IS NULL` vs `some_field = 'some value'`
+-- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
 instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
 instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
 
-{-# INLINE filterWhere #-}
+-- | Adds a simple @WHERE x = y@ condition to the query.
+--
+-- __Example:__ Only show projects where @active@ is @True@.
+-- 
+-- > activeProjects <- query @Project
+-- >     |> filterWhere (#active, True)
+-- >     |> fetch
+-- > -- SELECT * FROM projects WHERE active = True
+--
+-- __Example:__ Find book with title @Learn you a Haskell@.
+-- 
+-- > book <- query @Book
+-- >     |> filterWhere (#title, "Learn you a Haskell")
+-- >     |> fetchOne
+-- > -- SELECT * FROM books WHERE name = 'Learn you a Haskell' LIMIT 1
+--
+--
+-- __Example:__ Find active projects owned by the current user.
+-- 
+-- > projects <- query @User
+-- >     |> filterWhere (#active, True)
+-- >     |> filterWhere (#currentUserId, currentUserId)
+-- >     |> fetch
+-- > -- SELECT * FROM projects WHERE active = true AND current_user_id = '..'
+--
+--
+-- For dynamic conditions (e.g. involving @NOW()@), see 'filterWhereSql'.
+-- 
+-- For @WHERE x IN (a, b, c)@ conditions, take a look at 'filterWhereIn' and 'filterWhereNotIn'.
+--
+-- When your condition is too complex, use a raw sql query with 'TurboHaskell.ModelSupport.sqlQuery'.
 filterWhere :: forall name model value. (KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value) => (Proxy name, value) -> QueryBuilder model -> QueryBuilder model
 filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
+{-# INLINE filterWhere #-}
 
-
-{-# INLINE filterWhereIn #-}
 filterWhereIn :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, [value]) -> QueryBuilder model -> QueryBuilder model
 filterWhereIn (name, value) = FilterByQueryBuilder (name, InOp, toField (In value))
+{-# INLINE filterWhereIn #-}
 
-{-# INLINE filterWhereNotIn #-}
 filterWhereNotIn :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, [value]) -> QueryBuilder model -> QueryBuilder model
 filterWhereNotIn (_, []) = id -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn (name, value) = FilterByQueryBuilder (name, NotInOp, toField (In value))
+{-# INLINE filterWhereNotIn #-}
 
 -- | Allows to add a custom raw sql where condition
--- Examples:
--- @
---     filterWhereSql (#startedAt, "< current_timestamp - interval '1 day'")
--- @
+--
+-- If your query cannot be represented with 'filterWhereSql', take a look at 'TurboHaskell.ModelSupport.sqlQuery'.
+-- 
+-- __Example:__ Fetching all projects created in the last 24 hours.
+-- > latestProjects <- query @Project
+-- >     |> filterWhereSql (#startedAt, "< current_timestamp - interval '1 day'")
+-- >     |> fetch
+-- > -- SELECT * FROM projects WHERE started_at < current_timestamp - interval '1 day'
 {-# INLINE filterWhereSql #-}
 filterWhereSql :: forall name model value. (KnownSymbol name, ToField value, HasField name model value) => (Proxy name, ByteString) -> QueryBuilder model -> QueryBuilder model
 filterWhereSql (name, sqlCondition) = FilterByQueryBuilder (name, SqlOp, Plain (ByteStringBuilder.byteString sqlCondition))
@@ -270,13 +336,35 @@ data FilterWhereTag
 
 data OrderByTag
 
-{-# INLINE orderBy #-}
+-- | Adds an @ORDER BY .. ASC@ to your query.
+-- 
+-- Use 'orderByDesc' for descending order.
+--
+-- __Example:__ Fetch the 10 oldest books.
+--
+-- > query @Book
+-- >     |> orderBy #createdAt
+-- >     |> limit 10
+-- >     |> fetch
+-- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
 orderBy :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderBy !name = OrderByQueryBuilder (name, Asc)
+{-# INLINE orderBy #-}
 
-{-# INLINE orderByDesc #-}
+-- | Adds an @ORDER BY .. DESC@ to your query.
+-- 
+-- Use 'orderBy' for ascending order.
+--
+-- __Example:__ Fetch the 10 newest projects (ordered by creation time).
+--
+-- > query @Project
+-- >     |> orderBy #createdAt
+-- >     |> limit 10
+-- >     |> fetch
+-- > -- SELECT * FROM projects LIMIT 10 ORDER BY created_at DESC
 orderByDesc :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderByDesc !name = OrderByQueryBuilder (name, Desc)
+{-# INLINE orderByDesc #-}
 
 data IncludeTag
 include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (Include name model)
@@ -300,13 +388,34 @@ findById !value !queryBuilder = queryBuilder |> filterWhere (Proxy @"id", value)
 findManyBy !field !value !queryBuilder = queryBuilder |> filterWhere (field, value) |> fetch
 -- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #templateId id
 
-{-# INLINE queryUnion #-}
+-- | Merges the results of two query builders.
+-- 
+-- Take a look at ‘queryOr'  as well, as this might be a bit shorter.
+-- 
+-- __Example:__ Return all pages owned by the user or owned by the users team.
+-- 
+-- > let userPages = query @Page |> filterWhere (#ownerId, currentUserId)
+-- > let teamPages = query @Page |> filterWhere (#teamId, currentTeamId)
+-- > pages <- queryUnion userPages teamPages |> fetch
+-- > -- (SELECT * FROM pages WHERE owner_id = '..') UNION (SELECT * FROM pages WHERE team_id = '..')
 queryUnion :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
 queryUnion = UnionQueryBuilder
+{-# INLINE queryUnion #-}
 
-{-# INLINE queryOr #-}
+
+-- | Adds an @a OR b@ condition
+-- 
+-- __Example:__ Return all pages owned by the user or public.
+-- 
+-- > query @Page
+-- >     |> queryOr
+-- >         (filterWhere (#createdBy, currentUserId))
+-- >         (filterWhere (#public, True))
+-- >     |> fetch
+-- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
 queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr a b queryBuilder = a queryBuilder `UnionQueryBuilder` b queryBuilder
+{-# INLINE queryOr #-}
 
 instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model') => Fetchable (Id' model') model where
     type FetchResult (Id' model') model = model

@@ -102,9 +102,28 @@ instance Default Point where
 
 type FieldName = ByteString
 
-{-# INLINE isNew #-}
+-- | Returns @True@ when the record has not been saved to the database yet. Returns @False@ otherwise.
+--
+-- __Example:__ Returns @False@ when a record has not been inserted yet.
+--
+-- >>> let project = newRecord @Project
+-- >>> isNew project
+-- False
+--
+-- __Example:__ Returns @True@ after inserting a record.
+--
+-- >>> project <- createRecord project
+-- >>> isNew project
+-- True
+--
+-- __Example:__ Returns @True@ for records which have been fetched from the database.
+--
+-- >>> book <- query @Book |> fetchOne
+-- >>> isNew book
+-- False
 isNew :: forall model id. (IsNewId id, HasField "id" model id) => model -> Bool
 isNew model = isNewId (getField @"id" model)
+{-# INLINE isNew #-}
 
 class IsNewId id where
     isNewId :: id -> Bool
@@ -120,9 +139,19 @@ instance IsNewId (FieldWithDefault valueType) where
 
 type family GetModelName model :: Symbol
 
-{-# INLINE getModelName #-}
+-- | Returns the model name of a given model as Text
+--
+-- __Example:__
+-- 
+-- >>> modelName @User
+-- "User"
+--
+-- >>> modelName @Project
+-- "Project"
 getModelName :: forall model. KnownSymbol (GetModelName model) => Text
 getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
+{-# INLINE getModelName #-}
+
 newtype Id' table = Id UUID deriving (Eq, Data)
 
 -- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
@@ -168,15 +197,33 @@ instance Default (Id' model) where
     {-# INLINE def #-}
     def = Newtype.pack def
 
-{-# INLINE sqlQuery #-}
+-- | Runs a raw sql query
+--
+-- __Example:__
+--
+-- > users <- sqlQuery "SELECT id, firstname, lastname FROM users"
+--
+-- Take a look at "TurboHaskell.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
+{-# INLINE sqlQuery #-}
 
-{-# INLINE tableName #-}
+-- | Returns the table name of a given model.
+--
+-- __Example:__
+-- 
+-- >>> tableName @User
+-- "users"
+--
 tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
 tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
+{-# INLINE tableName #-}
 
-{-# INLINE deleteRecord #-}
+-- | Runs a @DELETE@ query for a record.
+--
+-- >>> let project :: Project = ...
+-- >>> deleteRecord project
+-- DELETE FROM projects WHERE id = '..'
 deleteRecord :: forall model id. (?modelContext::ModelContext, Show model, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
 deleteRecord model = do
     let (ModelContext conn) = ?modelContext
@@ -184,6 +231,7 @@ deleteRecord model = do
     putStrLn ("deleteRecord " <> tshow model)
     PG.execute conn (PG.Query . cs $! "DELETE FROM " <> tableName @model <> " WHERE id = ?") (PG.Only id)
     pure ()
+{-# INLINE deleteRecord #-}
 
 type family Include (name :: GHC.Types.Symbol) model
 
@@ -217,9 +265,16 @@ class Record model where
 -- NormalizeModel NewPost = Post
 type NormalizeModel model = GetModelByTableName (GetTableName model)
 
-{-# INLINE ids #-}
+-- | Returns the ids for a list of models
+--
+-- Shorthand for @map (get #id) records@.
+-- 
+-- >>> users <- query @User |> fetch
+-- >>> ids users
+-- [227fbba3-0578-4eb8-807d-b9b692c3644f, 9d7874f2-5343-429b-bcc4-8ee62a5a6895, ...] :: [Id User]
 ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (getField @"id") records
+{-# INLINE ids #-}
 
 data MetaBag = MetaBag { annotations :: [(Text, Text)] } deriving (Eq, Show)
 

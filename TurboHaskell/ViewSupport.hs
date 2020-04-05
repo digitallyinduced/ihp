@@ -21,15 +21,61 @@ import qualified Text.Inflections as Inflector
 import qualified Data.Either as Either
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
+
+-- | A layout is just a function taking a view and returning a new view.
+--
+-- __Example:__ A very basic html layout.
+-- 
+-- > myLayout :: Layout
+-- > myLayout view = [hsx|
+-- >     <html>
+-- >         <body>
+-- >             {view}
+-- >         </body>
+-- >     </html>
+-- > |]
 type Layout = Html5.Html -> Html5.Html
 
-{-# INLINE classes #-}
+-- | Helper for dynamically generating the @class=".."@ attribute.
+-- 
+-- Given a list like
+-- 
+-- > [("a", True), ("b", False), ("c", True)]
+-- 
+-- builds a class name string for all parts where the second value is @True@.
+--
+-- E.g.
+--
+-- >>> classes [("a", True), ("b", False), ("c", True)]
+-- "a c"
+--
+-- When setting @b@ to @True@:
+--
+-- >>> classes [("a", True), ("b", True), ("c", True)]
+-- "a b c"
+--
+-- __Example:__
+-- 
+-- >>> <div class={classes [("is-active", False)]}>
+-- <div class="">
+--
+-- >>> <div class={classes [("is-active", True)]}>
+-- <div class="is-active">
+--
+-- >>> forEach projects \project -> [hsx|
+-- >>>     <div class={classes [("project", True), ("active", get #active project)]}>
+-- >>>         {project}
+-- >>>     </div>
+-- >>> |]
+-- If project is active:                        <div class="project active">{project}</div>
+-- Otherwise:                                   <div class="project">{project}</div>
 classes :: [(Text, Bool)] -> Text
 classes !classNameBoolPairs =
     classNameBoolPairs
     |> filter snd
     |> map fst
     |> unwords
+{-# INLINE classes #-}
 
 class CreateViewContext viewContext where
     type ViewApp viewContext
