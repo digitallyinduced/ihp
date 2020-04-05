@@ -15,11 +15,7 @@ import qualified Network.HTTP.Types as HTTP
 import TurboHaskell.ViewPrelude
 import qualified Data.ByteString.Char8 as ByteString
 import TurboHaskell.IDE.Types
-
-
-appPort :: Int
-appPort = 8000
-
+import TurboHaskell.IDE.PortConfig
 
 startStatusServer :: (?context :: Context) => IO ()
 startStatusServer = do
@@ -32,7 +28,12 @@ startStatusServer = do
                 (app clients)
                 (statusServerApp (standardOutput, errorOutput))
 
-        let startServer' = async $ Warp.run appPort warpApp
+        let port = ?context
+                |> get #portConfig
+                |> get #appPort
+                |> fromIntegral
+
+        let startServer' = async $ Warp.run port warpApp
         
         serverRef <- startServer' >>= newIORef
 
@@ -92,7 +93,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                 else [hsx|<h1>Error while compiling</h1>|]
 
             websocketHandler = preEscapedToHtml [plain|
-                var socket = new WebSocket("ws://localhost:#{appPort}");
+                var socket = new WebSocket("ws://localhost:" + window.location.port);
                 socket.onclose = function () { window.location.reload(); }
                 socket.onmessage = function (event) {
                     var c = (event.data.substr(0, 6) === 'stdout' ? stdout : stderr); c.innerText = c.innerText + "\\n" + event.data.substr(6);

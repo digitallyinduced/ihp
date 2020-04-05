@@ -36,19 +36,12 @@ import TurboHaskell.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
 import TurboHaskell.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
 import qualified TurboHaskell.ErrorController as ErrorController
 
-defaultPort :: Int
-defaultPort = 8000
-
 run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
 run = do
     databaseUrl <- appDatabaseUrl
-    port :: Int <- (Environment.lookupEnv "PORT") >>= (\portStr ->
-            case portStr of
-                Just portStr -> pure $ fromMaybe (error "PORT: Invalid value") (readMay portStr)
-                Nothing -> pure defaultPort
-            )
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
+    port <- FrameworkConfig.initAppPort
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let applicationContext = ApplicationContext { modelContext = (ModelContext conn), session }
     let application :: Application = \request respond -> do
@@ -66,7 +59,7 @@ run = do
                         |> Warp.setBeforeMainLoop (putStrLn "Server started")
                         |> Warp.setPort port
                 in Warp.runSettings settings
-            else Warp.runEnv defaultPort
+            else Warp.runEnv port
     runServer $
         staticMiddleware $
             sessionMiddleware $

@@ -7,6 +7,7 @@ import qualified GHC.IO.Handle as Handle
 import qualified System.FSNotify as FS
 import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
+import TurboHaskell.IDE.PortConfig
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -14,16 +15,6 @@ data ManagedProcess = ManagedProcess
     , errorHandle :: !Handle
     , processHandle :: !ProcessHandle
     } deriving (Show)
-
---data State = State
---    { postgres : :ManagedProcess
---    , statusServer :: IORef (Async ())
---    , applicationGHCI :: ManagedProcess
---    , fileWatcher :: Async ()
---    , liveReloadNotificationServer :: Async ()
---    }
-    
-type FileEventHandler = FS.Event -> IO ()
 
 createManagedProcess :: CreateProcess -> IO ManagedProcess
 createManagedProcess config = do
@@ -122,7 +113,10 @@ emptyAppState = AppState
     , codeGenerationState = CodeGenerationNotStarted
     }
 
-data Context = Context { actionVar :: MVar Action }
+data Context = Context
+    { actionVar :: MVar Action
+    , portConfig :: PortConfig
+    }
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar

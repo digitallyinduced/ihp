@@ -13,14 +13,16 @@ import TurboHaskell.IDE.Types
 import TurboHaskell.IDE.Postgres
 import TurboHaskell.IDE.StatusServer
 import TurboHaskell.IDE.LiveReloadNotificationServer
+import TurboHaskell.IDE.PortConfig
+import qualified System.Environment as Env
 
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
     appStateRef <- newIORef emptyAppState
-    let ?context = Context { actionVar }
-    
-
+    portConfig <- findAvailablePortConfig
+    putStrLn $ tshow $ portConfig
+    let ?context = Context { actionVar, portConfig }
 
     threadId <- myThreadId
     let catchHandler = do
@@ -231,6 +233,13 @@ startGHCI = do
 
 startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
+    -- The app is using the `PORT` env variable for it's web server
+    let appPort :: Int = ?context
+            |> get #portConfig
+            |> get #appPort
+            |> fromIntegral
+    Env.setEnv "PORT" (show appPort)
+
     isAppRunning <- newIORef False
     process <- startGHCI
 

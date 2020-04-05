@@ -66,7 +66,8 @@ function refreshAssets() {
 }
 
 function startReloadListener() {
-    var notificationSocket = new WebSocket("ws://localhost:8002");
+    var port = (parseInt(document.location.port, 10) || 8000) + 2;
+    var notificationSocket = new WebSocket("ws://localhost:" + port);
     notificationSocket.onmessage = function (event) {
         if (event.data === 'reload') {
             refresh();

@@ -8,12 +8,19 @@ import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
 import TurboHaskell.IDE.Types
+import TurboHaskell.HaskellSupport
+import TurboHaskell.IDE.PortConfig
 
 startLiveReloadNotificationServer :: (?context :: Context) => IO ()
 startLiveReloadNotificationServer = do
     clients <- newIORef []
 
-    server <- async $ Warp.run 8002 $ Websocket.websocketsOr
+    let port = ?context
+            |> get #portConfig
+            |> get #liveReloadNotificationPort
+            |> fromIntegral
+    
+    server <- async $ Warp.run port $ Websocket.websocketsOr
         Websocket.defaultConnectionOptions
         (app clients)
         httpApp
