@@ -1,3 +1,8 @@
+{-|
+Module: TurboHaskell.NameSupport
+Description:  Transforms names, e.g. table names to model names
+Copyright: (c) digitally induced GmbH, 2020
+-}
 module TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName) where
 
 import           ClassyPrelude
@@ -7,9 +12,13 @@ import qualified Data.Text
 import qualified Data.Maybe as Maybe
 import qualified Text.Countable as Countable
 
--- | `users` => `User`
--- `projects` => `Project`
-{-# INLINE tableNameToModelName #-}
+-- | Transforms a underscore table name to a camel case model name.
+--
+-- >>> tableNameToModelName "users"
+-- "User"
+--
+-- >>> tableNameToModelName "projects"
+-- "Project"
 tableNameToModelName :: Text -> Text
 tableNameToModelName "brain_waves" = "BrainWave"
 tableNameToModelName tableName = do
@@ -17,27 +26,38 @@ tableNameToModelName tableName = do
     if "_" `isInfixOf` singularizedTableName 
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else ucfirst singularizedTableName
+{-# INLINE tableNameToModelName #-}
 
-
--- | `email` => `email`
--- `project_id` => `projectId`
-{-# INLINE columnNameToFieldName #-}
+-- | Transforms a underscore table column name to a camel case attribute name for use in haskell.
+--
+-- >>> columnNameToFieldName "email"
+-- "email"
+--
+-- >>> columnNameToFieldName "project_id"
+-- "projectId"
 columnNameToFieldName :: Text -> Text
 columnNameToFieldName columnName = unwrapEither columnName $ Inflector.toCamelCased False columnName
+{-# INLINE columnNameToFieldName #-}
 
 {-# INLINE unwrapEither #-}
 unwrapEither _ (Right value) = value
 unwrapEither input (Left value) = error ("TurboHaskell.NameSupport: " <> show value <> " (value to be transformed: " <>  show input <> ")")
 
--- | `email` => `email`
--- `projectId` => `project_id`
-{-# INLINE fieldNameToColumnName #-}
+-- | Transforms a camel case attribute name from haskell to a underscore table column name for the database.
+--
+-- >>> fieldNameToColumnName "email"
+-- "email"
+--
+-- >>> fieldNameToColumnName "projectId"
+-- "project_id"
 fieldNameToColumnName :: Text -> Text
 fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUnderscore columnName
+{-# INLINE fieldNameToColumnName #-}
 
-{-# INLINE humanize #-}
+-- | Returns a more friendly version for an identifier
 humanize :: Text -> Text
 humanize text = unwrapEither text $ Inflector.toHumanized True text
+{-# INLINE humanize #-}
 
 {-# INLINE applyFirst #-}
 applyFirst :: (Text -> Text) -> Text -> Text
@@ -45,10 +65,24 @@ applyFirst f text =
     let (first, rest) = Data.Text.splitAt 1 text
     in (f first) <> rest
 
-{-# INLINE lcfirst #-}
+-- | Make a text's first character lowercase
+--
+-- >>> lcfirst "Hello World"
+-- "hello World"
+--
+-- >>> lcfirst "alread lowercase"
+-- "already lowercase"
 lcfirst :: Text -> Text
 lcfirst = applyFirst Data.Text.toLower
+{-# INLINE lcfirst #-}
 
-{-# INLINE ucfirst #-}
+-- | Make a text's first character uppercase
+--
+-- >>> ucfirst "hello world"
+-- "Hello World"
+--
+-- >>> ucfirst "Alread uppercase"
+-- "Already uppercase"
 ucfirst :: Text -> Text
 ucfirst = applyFirst Data.Text.toUpper
+{-# INLINE ucfirst #-}

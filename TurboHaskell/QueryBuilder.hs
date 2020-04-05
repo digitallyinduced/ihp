@@ -1,6 +1,8 @@
 {-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs #-}
 {-|
+Module: TurboHaskell.QueryBuilder
 Description:  Tool to build simple sql queries
+Copyright: (c) digitally induced GmbH, 2020
 
 QueryBuilder is mainly used for doing simple `SELECT` sql queries. It allows dynamic
 creation of sql queries in a type safe way.

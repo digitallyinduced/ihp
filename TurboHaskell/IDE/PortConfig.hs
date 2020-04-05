@@ -33,8 +33,7 @@ instance Enum PortConfig where
             liveReloadNotificationPort = port + defaultAppPort + 2
 
 -- | Returns True when the given port looks to be free.
--- Used to e.g. detect which port the dev server should
--- use.
+-- Used to e.g. detect which port the dev server should use.
 isPortAvailable :: Socket.PortNumber -> IO Bool
 isPortAvailable port = do
     let address = Socket.SockAddrInet port (Socket.tupleToHostAddress (127, 0, 0, 1))
@@ -49,9 +48,10 @@ isPortAvailable port = do
 -- | Returns True when all ports in port config are available.
 -- 
 -- Example:
+--
 -- >>> let portConfig = PortConfig { appPort = 8000, liveReloadNotificationPort = 8002 }
 -- >>> isPortConfigAvailable portConfig
--- >>> True
+-- True
 isPortConfigAvailable :: PortConfig -> IO Bool
 isPortConfigAvailable portConfig = do
     available <- mapM isPortAvailable (allPorts portConfig)
@@ -60,8 +60,9 @@ isPortConfigAvailable portConfig = do
 -- | Returns a port config where all ports are available
 --
 -- When e.g. port 8000 and 80002 are not used:
+--
 -- >>> portConfig <- findAvailablePortConfig
--- >>> PortConfig { appPort = 8000, liveReloadNotificationPort = 8002 }
+-- PortConfig { appPort = 8000, liveReloadNotificationPort = 8002 }
 findAvailablePortConfig :: IO PortConfig
 findAvailablePortConfig = do
         let portConfigs :: [PortConfig] = take 100 (map toEnum [0..])
