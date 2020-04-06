@@ -12,7 +12,7 @@ startPostgres = do
     ensureNoOtherPostgresIsRunning 
     shouldInit <- needsDatabaseInit
     when shouldInit initDatabase
-    let args = ["-D", "build/db/state", "-k", currentDir <> "/build/db"]
+    let args = ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="]
     let params = (Process.proc "postgres" args)
                 { Process.std_in = Process.CreatePipe
                 , Process.std_out = Process.CreatePipe
@@ -59,7 +59,7 @@ initDatabase = do
     Directory.withCurrentDirectory "build/db" do
         Process.callProcess "initdb" ["state"]
 
-        process <- createManagedProcess (Process.proc "postgres" ["-D", "state", "-k", currentDir <> "/build/db"])
+        process <- createManagedProcess (Process.proc "postgres" ["-D", "state", "-k", currentDir <> "/build/db", "-c", "listen_addresses=x"])
                     { Process.std_in = Process.CreatePipe
                     , Process.std_out = Process.CreatePipe
                     , Process.std_err = Process.CreatePipe
