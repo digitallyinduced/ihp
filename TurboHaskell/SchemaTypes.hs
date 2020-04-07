@@ -8,6 +8,7 @@ import GHC.Types
 
 import Data.UUID
 import TurboHaskell.DatabaseSupport.Point
+import Data.String.Conversions (cs)
 
 data Table = Table Text [Attribute]
            deriving (Show, Eq, Ord)
@@ -20,7 +21,12 @@ data Attribute = Field { name :: Text, fieldType :: FieldType }
 newtype SqlType = SqlType Text
 type Name = Text
 
-data DefaultValue = SqlDefaultValue !Text deriving (Show, Eq, Ord)
+data DefaultValue = SqlDefaultValue !Text
+                  | DefaultValue !Text
+                  deriving (Show, Eq, Ord)
+
+instance IsString DefaultValue where
+  fromString value = DefaultValue (cs value)
 
 data OnDelete = NoAction | Restrict | SetNull | Cascade deriving (Show, Eq, Ord)
 

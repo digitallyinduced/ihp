@@ -149,21 +149,24 @@ compileNewTypeAlias table@(Table name attributes) =
         <> "type instance New (" <> compileTypePattern table <> ") = New" <> tableNameToModelName name <> "\n"
         <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
     where
-        compileAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = "(FieldWithDefault " <> haskellType table field <> ")"
+        compileAttribute field@(Field fieldName fieldType) | hasSqlDefaultValueOnly field = "(FieldWithDefault " <> haskellType table field <> ")"
         compileAttribute field = haskellType table field
 
-        compileNewOrSavedAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = fieldName
+        compileNewOrSavedAttribute field@(Field fieldName fieldType) | hasSqlDefaultValueOnly field = fieldName
         compileNewOrSavedAttribute field = haskellType table field
 
         newOrSavedArgs :: Text
         newOrSavedArgs =
             attributes
-            |> filter hasDefaultValue
+            |> filter hasSqlDefaultValueOnly
             |> map (\(Field fieldName _) -> fieldName)
             |> unwords 
 
-        hasDefaultValue (Field _ fieldType) | isJust (defaultValue fieldType) = True
-        hasDefaultValue _ = False
+        hasSqlDefaultValueOnly (Field _ fieldType) =
+            case defaultValue fieldType of
+                Just (SqlDefaultValue {}) -> True
+                _ -> False
+        hasSqlDefaultValueOnly _ = False
 
 
 compileNewOrSavedType :: Table -> Text
@@ -358,7 +361,20 @@ compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
         "instance Record New" <> tableNameToModelName name <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
-        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map (const "def") attributes) <> " def\n"
+        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr attributes) <> " def\n"
+
+toDefaultValueExpr (Field { fieldType }) =
+    case defaultValue fieldType of
+        Just (DefaultValue value) ->
+            let
+                wrapNull True value = "(Just " <> value <> ")"
+                wrapNull False value = value
+            in case fieldType of
+                TextField { allowNull } -> wrapNull allowNull (tshow value)
+                BoolField { allowNull } -> wrapNull allowNull (tshow (toLower value == "true"))
+                _ -> if value == "null" then "Nothing" else value
+        _ -> "def"
+toDefaultValueExpr _ = "def"
 
 
 

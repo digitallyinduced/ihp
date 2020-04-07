@@ -8,42 +8,16 @@ import GHC.Records
 import TurboHaskell.ModelSupport
 import TurboHaskell.HaskellSupport
 
-type Validator2 value = ValidateFieldInner value -> ValidatorResult
+type Validator valueType = valueType -> ValidatorResult
 
-type family ValidateFieldInner fieldValue where
-    ValidateFieldInner (FieldWithDefault inner) = inner
-    ValidateFieldInner fieldValue = fieldValue
-
-class ValidateField fieldValue where
-    validateField :: forall field validator model validationState. (
-            KnownSymbol field
-            , HasField field model fieldValue
-            , HasField "meta" model MetaBag
-            , SetField "meta" model MetaBag
-        ) => Proxy field -> Validator2 fieldValue -> model -> model
-
-instance ValidateField (FieldWithDefault inner) where
-    {-# INLINE validateField #-}
-    validateField :: forall field validator model validationState. (
-            KnownSymbol field
-            , HasField field model (FieldWithDefault inner)
-            , HasField "meta" model MetaBag
-            , SetField "meta" model MetaBag
-        ) => Proxy field -> Validator2 (FieldWithDefault inner) -> model -> model
-    validateField field validator model = do
-        case (getField @field model) :: FieldWithDefault inner of
-            Default -> model
-            NonDefault value -> attachValidatorResult field (validator value) model
-
-instance {-# OVERLAPPABLE #-} (ValidateFieldInner fieldValue ~ fieldValue) => ValidateField fieldValue where
-    {-# INLINE validateField #-}
-    validateField :: forall field validator model validationState. (
-            KnownSymbol field
-            , HasField field model fieldValue
-            , HasField "meta" model MetaBag
-            , SetField "meta" model MetaBag
-        ) => Proxy field -> Validator2 fieldValue -> model -> model
-    validateField field validator model = attachValidatorResult field (validator (getField @field model)) model
+validateField :: forall field fieldValue validator model validationState. (
+        KnownSymbol field
+        , HasField field model fieldValue
+        , HasField "meta" model MetaBag
+        , SetField "meta" model MetaBag
+    ) => Proxy field -> Validator fieldValue -> model -> model
+validateField field validator model = attachValidatorResult field (validator (getField @field model)) model
+{-# INLINE validateField #-}
 
 {-# INLINE nonEmpty #-}
 nonEmpty :: MonoFoldable value => value -> ValidatorResult

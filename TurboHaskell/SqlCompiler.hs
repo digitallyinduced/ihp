@@ -41,6 +41,12 @@ compileAttribute table field@(Field name fieldType) = name <> " " <> compileType
         compileType DoubleField { defaultValue, references, allowNull, isPrimaryKey, unique } = compileTokens ["DOUBLE PRECISION", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
 
         compileDefaultValue (Just (SqlDefaultValue value)) = "DEFAULT " <> value
+        compileDefaultValue (Just (DefaultValue haskellDefaultValue)) = "DEFAULT " <> sqlDefaultValue
+            where
+                sqlDefaultValue =
+                    case fieldType of
+                        TextField {} | haskellDefaultValue /= "null" -> "'" <> haskellDefaultValue <> "'"
+                        _ -> haskellDefaultValue
         compileDefaultValue _                              = ""
 
         compileNullConstraint :: Bool -> Text
