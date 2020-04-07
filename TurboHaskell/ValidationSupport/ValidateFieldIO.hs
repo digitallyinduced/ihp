@@ -36,7 +36,7 @@ type ValidatorIO value = value -> IO ValidatorResult
 -- You can retrieve a possible validation error using 'TurboHaskell.ValidationSupport.Types.getValidationFailure'.
 --
 validateFieldIO :: forall field model fieldValue. (
-        , ?modelContext :: ModelContext
+        ?modelContext :: ModelContext
         , KnownSymbol field
         , HasField field model fieldValue
         , HasField "meta" model MetaBag
