@@ -1,3 +1,3 @@
 import Prelude
 :def source readFile
-:source applicationGhciConfig
+:source TurboHaskell/IDE/applicationGhciConfig

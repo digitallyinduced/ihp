@@ -93,7 +93,7 @@ handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged
 
 handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState }) HaskellFileChanged = do
     case appGHCIState of
-        RunningAppGHCI { process } -> sendGhciCommand process ":script TurboHaskell/startDevServerGhciScriptRec"
+        RunningAppGHCI { process } -> sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/startDevServerGhciScriptRec"
         _ -> putStrLn "Could not reload ghci"
     pure state
 
@@ -255,16 +255,16 @@ startAppGHCI = do
 
     let handleFileChange event = do
             isAppRunning' <- readIORef isAppRunning
-            sendGhciCommand process (":script TurboHaskell/" <> (if isAppRunning' then "startDevServerGhciScriptRec" else "startDevServerGhciScriptAfterError"))
+            sendGhciCommand process (":script TurboHaskell/TurboHaskell/IDE/" <> (if isAppRunning' then "startDevServerGhciScriptRec" else "startDevServerGhciScriptAfterError"))
             writeIORef isAppRunning False
 
-    sendGhciCommand process ":script TurboHaskell/loadAppModules"
+    sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/loadAppModules"
 
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
     pure ()
 
 startLoadedApp :: AppGHCIState -> IO ()
-startLoadedApp (AppGHCIModulesLoaded { .. }) = sendGhciCommand process ":script TurboHaskell/startDevServerGhciScript"
+startLoadedApp (AppGHCIModulesLoaded { .. }) = sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/startDevServerGhciScript"
 startLoadedApp _ = putStrLn "startLoadedApp: App not running"
 
 
@@ -274,7 +274,7 @@ stopAppGHCI AppGHCIModulesLoaded { process } = cleanupManagedProcess process
 stopAppGHCI _ = pure ()
 
 pauseAppGHCI :: AppGHCIState -> IO ()
-pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process ":script TurboHaskell/pauseDevServer"
+pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/pauseDevServer"
 pauseAppGHCI _ = pure ()
 
 startCodeGenerationGHCI :: (?context :: Context) => IO ()
@@ -303,4 +303,4 @@ stopCodeGenerationGHCI _ = pure ()
 
 runCodeGeneration :: ManagedProcess -> IO ()
 runCodeGeneration process = do
-    sendGhciCommand process ":script TurboHaskell/compileModels"
+    sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/compileModels"
