@@ -68,13 +68,16 @@ function refreshAssets() {
 function startReloadListener() {
     var port = (parseInt(document.location.port, 10) || 8000) + 2;
     var notificationSocket = new WebSocket("ws://localhost:" + port);
+    var wasOpened = false;
+    notificationSocket.onopen = function (event) { wasOpened = true; }
     notificationSocket.onmessage = function (event) {
+        wasOpened = true;
         if (event.data === 'reload') {
             refresh();
         } else if (event.data === 'reload_assets')
             refreshAssets();
     }
-    notificationSocket.onclose = function () { window.location.reload(); }
+    notificationSocket.onclose = function (event) { if (wasOpened) window.location.reload(); }
 }
 
 if (window.liveReloadEnabled) {
