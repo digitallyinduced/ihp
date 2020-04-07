@@ -32,7 +32,7 @@ validateCanView field user = do
 
 -- | Let's say we have a model like:
 --
---   Project { teamId :: Maybe TeamId }
+-- > Project { teamId :: Maybe TeamId }
 --
 -- Validation for the value `Project { teamId = Nothing }` should result in `Success`.
 -- The usual validation logic will just do a `Project { teamId = Nothing} |> get #teamId |> fetchOneOrNothing`.

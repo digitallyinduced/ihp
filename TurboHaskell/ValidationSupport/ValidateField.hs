@@ -1,3 +1,14 @@
+{-|
+Module: TurboHaskell.ValidationSupport.ValidateField
+Description: Side-effect free validations for records
+Copyright: (c) digitally induced GmbH, 2020
+
+Use 'validateField' together with the validation functions to do simple validations.
+
+In case your validation requires IO, take a look at 'TurboHaskell.ValidationSupport.ValidateFieldIO.validateFieldIO'.
+
+Also take a look at 'TurboHaskell.ValidationSupport.ValidateIsUnique.validateIsUnique' for e.g. checking that an email is unique.
+-}
 module TurboHaskell.ValidationSupport.ValidateField where
 
 import ClassyPrelude
@@ -8,9 +19,47 @@ import GHC.Records
 import TurboHaskell.ModelSupport
 import TurboHaskell.HaskellSupport
 
+-- | A function taking some value and returning a 'ValidatorResult'
+--
+-- >>> Validator Text
+-- Text -> ValidatorResult
+--
+-- >>> Validator Int
+-- Int -> ValidatorResult
 type Validator valueType = valueType -> ValidatorResult
 
-validateField :: forall field fieldValue validator model validationState. (
+-- | Validates a record field using a given validator function.
+--
+-- When the validation fails, the validation error is saved inside the @meta :: MetaBag@ field of the record.
+-- You can retrieve a possible validation error using 'TurboHaskell.ValidationSupport.Types.getValidationFailure'.
+--
+-- __Example:__ 'nonEmpty' validation for a record
+--
+-- > let project :: NewProject = newRecord
+-- > project
+-- >     |> validateField #name nonEmpty
+-- >     |> getValidationFailure #name -- Just "This field cannot be empty"
+-- >
+-- >
+-- > project
+-- >     |> set #name "Hello World"
+-- >     |> validateField #name nonEmpty
+-- >     |> getValidationFailure #name -- Nothing
+--
+--
+-- __Example:__ Using 'TurboHaskell.Controller.Param.ifValid' for branching
+--
+-- > let project :: NewProject = newRecord
+-- >
+-- > project
+-- >     |> validateField #name nonEmpty
+-- >     |> ifValid \case
+-- >         Left project -> do
+-- >             putStrLn "Invalid project. Please try again"
+-- >         Right project -> do
+-- >             putStrLn "Project is valid. Saving to database."
+-- >             createRecord project
+validateField :: forall field fieldValue validator model. (
         KnownSymbol field
         , HasField field model fieldValue
         , HasField "meta" model MetaBag
@@ -19,32 +68,92 @@ validateField :: forall field fieldValue validator model validationState. (
 validateField field validator model = attachValidatorResult field (validator (getField @field model)) model
 {-# INLINE validateField #-}
 
-{-# INLINE nonEmpty #-}
+-- | Validates value is not empty
+--
+-- >>> nonEmpty "hello world"
+-- Success
+--
+-- >>> nonEmpty ""
+-- Failure "This field cannot be empty"
+--
+-- >>> nonEmpty (Just "hello")
+-- Success
+--
+-- >>> nonEmpty Nothing
+-- Failure "This field cannot be empty"
 nonEmpty :: MonoFoldable value => value -> ValidatorResult
 nonEmpty value | null value = Failure "This field cannot be empty"
 nonEmpty _ = Success
+{-# INLINE nonEmpty #-}
 
-{-# INLINE isPhoneNumber #-}
+-- | Validates value looks like a phone number
+--
+-- Values needs to start with @\+@ and has to have atleast 5 characters
+--
+-- >>> isPhoneNumber "1337"
+-- Failure ".."
+--
+-- >>> isPhoneNumber "+49123456789"
+-- Success
 isPhoneNumber :: Text -> ValidatorResult
 isPhoneNumber text | "+" `isPrefixOf` text && length text > 5 = Success
 isPhoneNumber text = Failure "is not a valid phone number (has to start with +, at least 5 characters)"
+{-# INLINE isPhoneNumber #-}
 
-{-# INLINE isEmail #-}
+-- | Validates email by checking that there is an @\@@
+--
+-- >>> isEmail "marc@digitallyinduced.com"
+-- Success
+--
+-- >>> isEmail "loremipsum"
+-- Failure "is not a valid email"
+--
+-- >>> isEmail "someone@hostname"
+-- Success
 isEmail :: Text -> ValidatorResult
 isEmail text | "@" `isInfixOf` text = Success
 isEmail text = Failure "is not a valid email"
+{-# INLINE isEmail #-}
 
-{-# INLINE isInRange #-}
+-- | Validates value is between min and max
+--
+-- >>> isInRange (0, 10) 5
+-- Success
+--
+-- >>> isInRange (0, 10) 0
+-- Success
+--
+-- >>> isInRange (0, 10) 1337
+-- Failure " has to be between 0 and 10"
+--
+-- >>> let isHumanAge = isInRange (0, 100)
+-- >>> isHumanAge 22
+-- Success
 isInRange :: (Show value, Ord value) => (value, value) -> value -> ValidatorResult
 isInRange (min, max) value | value >= min && value <= max = Success
 isInRange (min, max) value = Failure (" has to be between " <> tshow min <> " and " <> tshow max)
+{-# INLINE isInRange #-}
 
-{-# INLINE isColor #-}
+-- | Validates that value is a hax-based color string
+--
+-- >>> isColor "#ffffff"
+--  Success
+--
+-- >>> isColor "rgb(0, 0, 0)"
+-- Failure "is not a valid color"
 isColor :: Text -> ValidatorResult
 isColor text | ("#" `isPrefixOf` text) && (length text == 7) = Success
 isColor text = Failure "is not a valid color"
+{-# INLINE isColor #-}
 
-{-# INLINE isUrl #-}
+-- | Validates string starts with @http://@ or @https://@
+--
+-- >>> isUrl "https://digitallyinduced.com"
+-- Success
+--
+-- >>> isUrl "digitallyinduced.com"
+-- Failure "is not a valid url. It needs to start with http:// or https://"
 isUrl :: Text -> ValidatorResult
 isUrl text | "http://" `isPrefixOf` text || "https://" `isPrefixOf` text = Success
 isUrl text = Failure "is not a valid url. It needs to start with http:// or https://"
+{-# INLINE isUrl #-}
