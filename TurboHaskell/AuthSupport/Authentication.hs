@@ -5,11 +5,9 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module TurboHaskell.AuthSupport.Authentication (verifyPassword, hashPassword, generateAuthenticationToken, Lockable (maxSignInAttemps)) where
 
-import ClassyPrelude
-import Data.String.Conversions (cs)
+import TurboHaskell.Prelude
 import qualified Crypto.PasswordStore
 import qualified Test.RandomStrings
-import GHC.Records
 
 class Lockable entity where
     maxSignInAttemps :: entity -> Int

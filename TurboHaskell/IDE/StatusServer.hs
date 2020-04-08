@@ -1,6 +1,6 @@
 module TurboHaskell.IDE.StatusServer (startStatusServer, stopStatusServer, notifyBrowserOnApplicationOutput) where
 
-import ClassyPrelude
+import TurboHaskell.ViewPrelude
 import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -12,10 +12,10 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Network.HTTP.Types.Header as HTTP
 import qualified Text.Blaze.Html5 as Html5
 import qualified Network.HTTP.Types as HTTP
-import TurboHaskell.ViewPrelude
 import qualified Data.ByteString.Char8 as ByteString
 import TurboHaskell.IDE.Types
 import TurboHaskell.IDE.PortConfig
+import ClassyPrelude (async, uninterruptibleCancel, catch, forever)
 
 startStatusServer :: (?context :: Context) => IO ()
 startStatusServer = do

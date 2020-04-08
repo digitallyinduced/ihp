@@ -1,5 +1,5 @@
 module TurboHaskell.SchemaSupport where
-import ClassyPrelude hiding (length, bool)
+import TurboHaskell.Prelude hiding (length, bool)
 import Data.Maybe (fromJust)
 import qualified Data.List as List
 import TurboHaskell.SchemaTypes
@@ -72,7 +72,7 @@ validateTable database table@(Table name attributes) = catMaybes $ map (validate
 validateAttribute :: [Table] -> Table -> Attribute -> Maybe Text
 validateAttribute database table field = 
     case validateReferences database table field of
-        Nothing -> case all (not . isUpper) (get #name field) of
+        Nothing -> case all (not . isUpper) (cs (get #name field) :: String) of
             True -> validateOnDelete database table field
             False -> error $ (cs $ get #name field) <> "You need to use underscores and all lowerCase instead of CamelCase in Schema.hs."
         error -> error

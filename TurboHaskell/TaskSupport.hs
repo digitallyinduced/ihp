@@ -1,6 +1,6 @@
 module TurboHaskell.TaskSupport (runTask, Task) where
 
-import ClassyPrelude
+import TurboHaskell.Prelude
 import qualified TurboHaskell.FrameworkConfig as Config
 import TurboHaskell.ModelSupport
 import qualified Database.PostgreSQL.Simple as PG

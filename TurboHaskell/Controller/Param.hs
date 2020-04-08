@@ -1,40 +1,25 @@
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType, BlockArguments, DataKinds #-}
 
 module TurboHaskell.Controller.Param where
-import           ClassyPrelude
+
+import TurboHaskell.Prelude
 import qualified Data.Either as Either
-import           Data.String.Conversions              (cs)
 import qualified Data.Text.Read
-import           TurboHaskell.Controller.RequestContext
-import           TurboHaskell.HaskellSupport
+import TurboHaskell.Controller.RequestContext
 import qualified Network.Wai as Wai
 import Network.Wai.Parse (FileInfo, fileContent)
-import qualified Data.UUID
-import Data.UUID (UUID)
+import qualified Data.UUID as UUID
 import qualified TurboHaskell.ModelSupport as ModelSupport
 import TurboHaskell.DatabaseSupport.Point
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as Char8
-
-import GHC.TypeLits
-import Control.Lens ()
-import Data.Proxy
-import qualified Control.Monad.State.Strict as State
 import TurboHaskell.ValidationSupport
-import Data.Default
-import qualified Data.Dynamic as Dynamic
-import GHC.Records
-import Control.Monad.State
-import qualified TurboHaskell.NameSupport as NameSupport
-import TurboHaskell.HaskellSupport
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Process as Process
 
 import GHC.TypeLits
-import Data.Proxy
 import TurboHaskell.ControllerSupport
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
-import qualified Data.Maybe as Maybe
 import qualified System.Process as Process
 
 {-# INLINE fileOrNothing #-}
@@ -58,7 +43,7 @@ hasParam = isJust . paramOrNothing'
 
 {-# INLINE paramOrDefault #-}
 paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => a -> ByteString -> a
-paramOrDefault !defaultValue = Maybe.fromMaybe defaultValue . paramOrNothing
+paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 
 {-# INLINE paramOrNothing #-}
 paramOrNothing :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> Maybe a
@@ -82,7 +67,7 @@ class ParamName a where
 
 instance ParamName ByteString where
     {-# INLINE paramName #-}
-    paramName = ClassyPrelude.id
+    paramName value = value
 
 params :: (?requestContext :: RequestContext) => ParamName a => [a] -> [(a, ByteString)]
 params = map (\name -> (name, param $ paramName name))
@@ -114,7 +99,7 @@ instance FromParameter Bool where
 instance FromParameter UUID where
     {-# INLINE fromParameter #-}
     fromParameter byteString =
-        case Data.UUID.fromASCIIBytes byteString of
+        case UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
             Nothing -> Left "FromParamter UUID: Parse error"
 
@@ -212,7 +197,7 @@ ifValid branch model = branch ((if null annotations then Right else Left) model)
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model
 
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> record) -> record -> record
+ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, HasField "id" record id, ModelSupport.IsNewId id) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 
@@ -283,4 +268,4 @@ uploadImageFile ext _ user =
         _ -> pure user
 
 -- Transforms `Just ""` to `Nothing`
-emptyValueToNothing field = TurboHaskell.HaskellSupport.modify field (maybe Nothing (\value -> if null value then Nothing else Just value))
+emptyValueToNothing field = modify field (maybe Nothing (\value -> if null value then Nothing else Just value))

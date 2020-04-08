@@ -1,8 +1,7 @@
 module TurboHaskell.Server (run, appDatabaseUrl) where
-import ClassyPrelude
+import TurboHaskell.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
-
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static
@@ -11,25 +10,17 @@ import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
-import Data.Default (def)
 import Network.Wai.Session.Map (mapStore_)
 import qualified Web.Cookie
 import qualified Data.Time.Clock
-
 import TurboHaskell.ModelSupport
 import TurboHaskell.ApplicationContext
 import qualified TurboHaskell.ControllerSupport as ControllerSupport
-
 import Database.PostgreSQL.Simple
-
 import qualified TurboHaskell.LoginSupport.Middleware
 import Unsafe.Coerce
 import TurboHaskell.Environment (isDevelopment)
-import qualified System.Process as Process
-import TurboHaskell.HaskellSupport
-import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
-import Data.String.Conversions (cs)
 
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 import TurboHaskell.FrameworkConfig (FrameworkConfig, appDatabaseUrl)

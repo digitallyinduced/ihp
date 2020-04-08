@@ -84,7 +84,10 @@ compileTypes database =
                   <> "import TurboHaskell.HaskellSupport\n"
                   <> "import TurboHaskell.ModelSupport\n"
                   <> "import TurboHaskell.SchemaTypes\n"
-                  <> "import ClassyPrelude hiding (id) \n"
+                  <> "import CorePrelude hiding (id) \n"
+                  <> "import Data.Time.Clock \n"
+                  <> "import qualified Data.List as List \n"
+                  <> "import qualified Data.ByteString as ByteString \n"
                   <> "import Database.PostgreSQL.Simple\n"
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
                   <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
@@ -261,11 +264,11 @@ compileCreate table@(Table name attributes) =
                 <> "create model = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
                     <> "result <- Database.PostgreSQL.Simple.query conn \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
-                    <> "pure (unsafeHead result)\n"
+                    <> "pure (List.head result)\n"
                     )
                 <> "createMany models = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
-                    <> "Database.PostgreSQL.Simple.query conn (Query $ \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES \" <> (intercalate \", \" (map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") (concat $ map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)\n"
+                    <> "Database.PostgreSQL.Simple.query conn (Query $ \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") (List.concat $ List.map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)\n"
                     )
             )
 
@@ -303,7 +306,7 @@ compileUpdate table@(Table name attributes) =
         <> indent ("updateRecord model = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
                     <> "result <- Database.PostgreSQL.Simple.query conn \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
-                    <> "pure (unsafeHead result)\n"
+                    <> "pure (List.head result)\n"
                 )
             )
 

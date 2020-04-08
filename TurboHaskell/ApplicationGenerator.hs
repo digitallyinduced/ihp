@@ -1,18 +1,19 @@
 module Main where
 
-import ClassyPrelude hiding (writeFile)
+import TurboHaskell.Prelude hiding (writeFile)
 import TurboHaskell.NameSupport (ucfirst)
 import System.Directory (createDirectory)
 import Data.String.Conversions (cs)
-import Data.ByteString (writeFile)
+import Data.ByteString (writeFile, readFile)
 import TurboHaskell.HaskellSupport
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 
 main :: IO ()
 main = do
     args <- getArgs
     case headMay args of
-        Just applicationName' | not (null applicationName') -> do
+        Just applicationName' | not (Text.null applicationName') -> do
             let applicationName = ucfirst applicationName'
             let directories = directoriesToCreate (cs applicationName)
             let files = filesToCreate (cs applicationName)
@@ -45,24 +46,20 @@ filesToCreate applicationName =
     where
         typesHs = 
             "module " <> applicationName <> ".Types where\n"
-            <> "import           ClassyPrelude\n"
+            <> "import TurboHaskell.Prelude\n"
             <> "import qualified TurboHaskell.Controller.Session\n"
             <> "import qualified TurboHaskell.ControllerSupport as ControllerSupport\n"
-            <> "import           TurboHaskell.HaskellSupport\n"
-            <> "import           TurboHaskell.ModelSupport\n"
-            <> "import           Application.Helper.Controller\n"
-            <> "import qualified Network.Wai\n"
+            <> "import TurboHaskell.ModelSupport\n"
+            <> "import Application.Helper.Controller\n"
             <> "import TurboHaskell.ViewSupport\n"
-            <> "import Generated.Types\n"
-            <> "import Data.Dynamic\n"
-            <> "import Data.Data\n\n"
+            <> "import Generated.Types\n\n"
             <> "data " <> applicationName <> "Application = " <> applicationName <> "Application deriving (Eq, Show)\n\n"
             <> "data ViewContext = ViewContext\n"
             <> "    { requestContext :: ControllerSupport.RequestContext\n"
             <> "    , flashMessages :: [TurboHaskell.Controller.Session.FlashMessage]\n"
-            <> "    , validations :: [Dynamic]\n"
+            <> "    , controllerContext :: ControllerSupport.ControllerContext\n"
             <> "    , layout :: Layout\n"
-            <> "    } deriving (Generic)\n"
+            <> "    }\n"
         routesHs =
             "module " <> applicationName <> ".Routes where\n"
             <> "import TurboHaskell.RouterPrelude\n"
@@ -96,16 +93,13 @@ filesToCreate applicationName =
 
         viewContextHs = 
             "module " <> applicationName <> ".View.Context where\n\n"
-            <> "import ClassyPrelude\n"
+            <> "import TurboHaskell.Prelude\n"
             <> "import qualified TurboHaskell.Controller.Session\n"
             <> "import TurboHaskell.ControllerSupport  (RequestContext (RequestContext))\n"
             <> "import qualified TurboHaskell.ControllerSupport\n"
-            <> "import TurboHaskell.HaskellSupport\n"
             <> "import TurboHaskell.ModelSupport\n"
             <> "import Application.Helper.Controller\n"
             <> "import Generated.Types\n"
-            <> "import qualified Network.Wai\n"
-            <> "import Data.Dynamic\n"
             <> "import qualified TurboHaskell.ViewSupport as ViewSupport\n"
             <> "import " <> applicationName <> ".View.Layout\n"
             <> "import " <> applicationName <> ".Types\n\n"
@@ -201,7 +195,7 @@ filesToCreate applicationName =
 
 addImport :: Text -> [Text] -> IO ()
 addImport file importStatements = do
-    content :: Text <- cs <$> readFile (cs file)
+    content :: Text <- Text.readFile (cs file)
     case addImport' file importStatements of
         Just newContent -> writeFile (cs file) (cs newContent)
         Nothing -> putStrLn ("Could not automatically add " <> tshow importStatements <> " to " <> file)

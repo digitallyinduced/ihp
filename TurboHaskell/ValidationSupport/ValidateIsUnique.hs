@@ -1,13 +1,9 @@
 module TurboHaskell.ValidationSupport.ValidateIsUnique (validateIsUnique) where
 
-import           ClassyPrelude
-import           Data.Proxy
-import qualified Database.PostgreSQL.Simple           as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import           TurboHaskell.ModelSupport
-import           TurboHaskell.ValidationSupport.Types
-import           GHC.Records
-import           GHC.TypeLits                         (KnownSymbol, Symbol)
+import TurboHaskell.Prelude
+import Database.PostgreSQL.Simple.ToField
+import TurboHaskell.ModelSupport
+import TurboHaskell.ValidationSupport.Types
 import TurboHaskell.HaskellSupport
 import TurboHaskell.QueryBuilder
 
@@ -15,12 +11,12 @@ import TurboHaskell.QueryBuilder
 validateIsUnique :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
-        , PG.FromRow savedModel
+        , FromRow savedModel
         , KnownSymbol field
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , PG.ToField fieldValue
+        , ToField fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag

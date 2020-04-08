@@ -1,9 +1,6 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 module TurboHaskell.AuthSupport.Authorization where
 
-import ClassyPrelude
-import TurboHaskell.ModelSupport
+import TurboHaskell.Prelude
 
 class CanView user model where
     canView :: (?modelContext :: ModelContext) => model -> user -> IO Bool

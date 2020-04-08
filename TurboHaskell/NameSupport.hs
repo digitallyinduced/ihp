@@ -5,11 +5,10 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module TurboHaskell.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName) where
 
-import           ClassyPrelude
-import           Data.String.Conversions (cs)
-import qualified Text.Inflections        as Inflector
-import qualified Data.Text
-import qualified Data.Maybe as Maybe
+import Prelude hiding (splitAt)
+import Data.Text
+import Data.String.Conversions (cs)
+import qualified Text.Inflections as Inflector
 import qualified Text.Countable as Countable
 
 -- | Transforms a underscore table name to a camel case model name.
@@ -62,7 +61,7 @@ humanize text = unwrapEither text $ Inflector.toHumanized True text
 {-# INLINE applyFirst #-}
 applyFirst :: (Text -> Text) -> Text -> Text
 applyFirst f text =
-    let (first, rest) = Data.Text.splitAt 1 text
+    let (first, rest) = splitAt 1 text
     in (f first) <> rest
 
 -- | Make a text's first character lowercase
@@ -73,7 +72,7 @@ applyFirst f text =
 -- >>> lcfirst "alread lowercase"
 -- "already lowercase"
 lcfirst :: Text -> Text
-lcfirst = applyFirst Data.Text.toLower
+lcfirst = applyFirst toLower
 {-# INLINE lcfirst #-}
 
 -- | Make a text's first character uppercase
@@ -84,5 +83,5 @@ lcfirst = applyFirst Data.Text.toLower
 -- >>> ucfirst "Alread uppercase"
 -- "Already uppercase"
 ucfirst :: Text -> Text
-ucfirst = applyFirst Data.Text.toUpper
+ucfirst = applyFirst toUpper
 {-# INLINE ucfirst #-}

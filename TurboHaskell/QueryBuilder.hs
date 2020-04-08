@@ -11,32 +11,17 @@ For more complex sql queries, use 'TurboHaskell.ModelSupport.sqlQuery'.
 -}
 module TurboHaskell.QueryBuilder (query, findManyBy, findById, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql, fetchExists) where
 
-
-import TurboHaskell.HaskellSupport
-import ClassyPrelude hiding (UTCTime, find)
-import qualified ClassyPrelude
+import TurboHaskell.Prelude
 import Database.PostgreSQL.Simple (Connection)
-import qualified Text.Inflections
 import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
-import Data.Default
-import Data.Time.Format.ISO8601 (iso8601Show)
-import Data.String.Conversions (cs)
-import Data.Time.Clock (UTCTime)
-import Unsafe.Coerce
-import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.OverloadedLabels
-import GHC.TypeLits
-import GHC.Types
-import Data.Proxy
 import TurboHaskell.ModelSupport
 import qualified TurboHaskell.SchemaTypes as Schema
-import GHC.Records
 import qualified Data.ByteString.Builder as ByteStringBuilder
-import TurboHaskell.NameSupport (fieldNameToColumnName)
 
 -- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.
 -- Used togehter with the other functions to compose a sql query.

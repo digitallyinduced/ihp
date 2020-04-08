@@ -2,8 +2,7 @@
 
 module TurboHaskell.LoginSupport.Types ( HasNewSessionUrl (newSessionUrl) ) where
 
-import ClassyPrelude hiding (throw)
-import Data.Proxy (Proxy (Proxy))
+import TurboHaskell.Prelude
 
 class HasNewSessionUrl user where
     newSessionUrl :: Proxy user -> Text

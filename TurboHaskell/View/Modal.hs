@@ -1,12 +1,10 @@
 module TurboHaskell.View.Modal (Modal (..), setModal, renderModalHeader, initModal, renderCurrentModal, getCurrentModal) where
 
-import ClassyPrelude
+import TurboHaskell.Prelude
 import TurboHaskell.HtmlSupport.ToHtml
 import TurboHaskell.HtmlSupport.QQ
 import Text.Blaze.Html5 (Html, preEscapedText)
-import Control.Lens hiding ((|>))
 import TurboHaskell.ControllerSupport
-import GHC.Records
 
 import qualified Data.TMap as TypeMap
 

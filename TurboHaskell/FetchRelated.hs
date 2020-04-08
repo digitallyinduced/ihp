@@ -2,29 +2,15 @@
 
 module TurboHaskell.FetchRelated (fetchRelated, collectionFetchRelated, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
 
-import TurboHaskell.HaskellSupport
-import ClassyPrelude hiding (UTCTime, find)
-import qualified ClassyPrelude
+import TurboHaskell.Prelude
 import Database.PostgreSQL.Simple (Connection)
-import qualified Text.Inflections
 import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
-import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
-import Data.Time.Clock (UTCTime)
-import Unsafe.Coerce
-import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import GHC.OverloadedLabels
-import Data.String.Conversions (cs)
-import GHC.TypeLits
-import GHC.Types
-import GHC.Records
-import Data.Proxy
 import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById, Include)
-import TurboHaskell.NameSupport (fieldNameToColumnName)
 import TurboHaskell.QueryBuilder
 
 collectionFetchRelated :: forall model relatedField relatedFieldValue relatedModel. (
@@ -49,7 +35,7 @@ collectionFetchRelated relatedField model = do
         assignRelated model =
             let
                 relatedModel :: relatedModel
-                relatedModel = case ClassyPrelude.find (\r -> (getField @"id" r :: relatedFieldValue) == targetForeignKey) relatedModels of
+                relatedModel = case find (\r -> (getField @"id" r :: relatedFieldValue) == targetForeignKey) relatedModels of
                         Just m -> m
                         Nothing -> error ("Could not find record with id = " <> show targetForeignKey <> " in result set. Looks like the foreign key is pointing to a non existing record")
                 targetForeignKey = (getField @relatedField model :: relatedFieldValue)

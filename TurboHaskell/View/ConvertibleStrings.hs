@@ -5,9 +5,12 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module TurboHaskell.View.ConvertibleStrings where
-import           ClassyPrelude
-import           Data.String.Conversions (ConvertibleStrings (convertString), cs)
-import           Text.Blaze.Html5
+
+import Prelude
+import Data.String.Conversions (ConvertibleStrings (convertString), cs)
+import Text.Blaze.Html5
+import Data.Text
+import Data.ByteString
 import qualified Text.Blaze.Html5        as Html5
 import qualified Data.ByteString.Lazy as LBS
 import TurboHaskell.RouterSupport (HasPath (..))

@@ -46,7 +46,6 @@ Library TurboHaskellFramework
         , TurboHaskell.FetchRelated
         , TurboHaskell.FrameworkConfig
         , TurboHaskell.HaskellSupport
-        , TurboHaskell.ModelPrelude
         , TurboHaskell.ModelSupport
         , TurboHaskell.NameSupport
         , TurboHaskell.QueryBuilder
@@ -62,7 +61,7 @@ Library TurboHaskellFramework
         , TurboHaskell.RouterSupport
         , TurboHaskell.ControllerGenerator
         , TurboHaskell.SchemaTypes
-        , TurboHaskell.AppPrelude
+        , TurboHaskell.Prelude
         , TurboHaskell.SchemaPrelude
         , TurboHaskell.ErrorController
         , TurboHaskell.TaskSupport
@@ -118,6 +117,7 @@ Library TurboHaskellFramework
         , newtype-generics
         , countable-inflections
         , typerep-map
+        , basic-prelude
     hs-source-dirs:      .
     default-language:    Haskell2010
     extensions:
@@ -214,6 +214,7 @@ Executable RunDevServer
         , typerep-map
         , network
         , unliftio
+        , basic-prelude
     hs-source-dirs: .
     default-language: Haskell2010
     extensions:
@@ -308,6 +309,7 @@ Executable new-application
         , websockets
         , countable-inflections
         , typerep-map
+        , basic-prelude
     hs-source-dirs: .
     default-language: Haskell2010
     extensions:

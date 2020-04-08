@@ -2,17 +2,12 @@
 
 module TurboHaskell.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, ensureIsUser, HasNewSessionUrl, currentAdmin, currentAdminOrNothing, currentAdminId, ensureIsAdmin, login, sessionKey, logout, CurrentUserRecord, CurrentAdminRecord) where
 
-import TurboHaskell.HaskellSupport
-import Data.Proxy (Proxy (Proxy))
-import ClassyPrelude
+import TurboHaskell.ControllerPrelude
 import TurboHaskell.LoginSupport.Types
 import TurboHaskell.Controller.RequestContext
 import qualified TurboHaskell.Controller.Session as Session
 import qualified TurboHaskell.ModelSupport as ModelSupport
 import TurboHaskell.ControllerSupport
-import GHC.TypeLits
-import GHC.Records
-import TurboHaskell.ControllerPrelude
 import TurboHaskell.FrameworkConfig
 import System.IO.Unsafe (unsafePerformIO)
 

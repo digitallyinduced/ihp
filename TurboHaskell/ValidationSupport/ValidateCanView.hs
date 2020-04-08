@@ -1,15 +1,11 @@
 module TurboHaskell.ValidationSupport.ValidateCanView (validateCanView) where
 
-import           ClassyPrelude
-import           Data.Proxy
+import TurboHaskell.Prelude
 import qualified Database.PostgreSQL.Simple           as PG
-import           TurboHaskell.AuthSupport.Authorization
-import           TurboHaskell.ModelSupport
-import           TurboHaskell.QueryBuilder              (Fetchable, fetchOneOrNothing)
-import           TurboHaskell.ValidationSupport.Types
-import           GHC.Records
-import           GHC.TypeLits                         (KnownSymbol, Symbol)
-import TurboHaskell.HaskellSupport
+import TurboHaskell.AuthSupport.Authorization
+import TurboHaskell.ModelSupport
+import TurboHaskell.QueryBuilder              (Fetchable, fetchOneOrNothing)
+import TurboHaskell.ValidationSupport.Types
 
 validateCanView :: forall field user model validationState fieldValue validationStateValue fetchedModel. (
         ?model :: model

@@ -1,10 +1,9 @@
 module TurboHaskell.ErrorController where
 
-import ClassyPrelude
+import TurboHaskell.Prelude
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import TurboHaskell.Controller.RequestContext
-import Data.String.Conversions (cs)
 import Network.HTTP.Types (status500, status404)
 import Network.Wai
 import Network.HTTP.Types.Header

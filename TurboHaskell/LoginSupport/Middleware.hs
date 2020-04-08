@@ -2,24 +2,18 @@
 
 module TurboHaskell.LoginSupport.Middleware (initAuthentication) where
 
-import ClassyPrelude hiding (catch)
+import TurboHaskell.Prelude
 import           Control.Exception
 import Network.Wai (Application, Middleware, ResponseReceived)
-import TurboHaskell.ApplicationContext
 import TurboHaskell.LoginSupport.Types
 import qualified TurboHaskell.ControllerSupport as ControllerSupport
 import TurboHaskell.FrameworkConfig (FrameworkConfig)
-
 import qualified Data.TMap as TypeMap
-import TurboHaskell.ModelSupport
 import qualified Control.Newtype.Generics as Newtype
 import TurboHaskell.LoginSupport.Helper.Controller
 import TurboHaskell.Controller.Session
 import TurboHaskell.QueryBuilder
 import TurboHaskell.ControllerSupport
-import GHC.Records
-import GHC.TypeLits
-import Database.PostgreSQL.Simple (FromRow)
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user.

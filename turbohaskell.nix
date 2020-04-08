@@ -55,6 +55,7 @@
 , concurrent-extra
 , countable-inflections
 , typerep-map
+, basic-prelude
 }:
 mkDerivation {
   pname = "turbohaskell";
@@ -126,6 +127,7 @@ mkDerivation {
     concurrent-extra
     countable-inflections
     typerep-map
+    basic-prelude
   ];
   license = stdenv.lib.licenses.bsd3;
   postInstall = ''

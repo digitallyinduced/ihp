@@ -8,10 +8,9 @@ module TurboHaskell.ViewSupport
 , forEach
 ) where
 
-import ClassyPrelude
+import TurboHaskell.Prelude
 import qualified Text.Blaze
 import qualified Text.Blaze.Html5 as Html5
-import TurboHaskell.HaskellSupport
 import TurboHaskell.ControllerSupport
 import TurboHaskell.ModelSupport
 import qualified Data.Aeson as JSON
