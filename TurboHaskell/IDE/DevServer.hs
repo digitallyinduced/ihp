@@ -110,7 +110,7 @@ handleAction state@(AppState { codeGenerationState }) SchemaChanged = do
             runCodeGeneration process
             pure state { codeGenerationState = CodeGenerationRunning { .. } }
         otherwise -> do
-            putStrLn "CodeGeneration skiped as it's still busy"
+            putStrLn "CodeGeneration skipped as it's still busy"
             pure state
 
 handleAction state@(AppState { statusServerState, liveReloadNotificationServerState }) (UpdateCodeGenerationState (CodeGenerationRunning {})) = do
@@ -160,13 +160,10 @@ start :: (?context :: Context) => IO ()
 start = do
     async startStatusServer
     async startLiveReloadNotificationServer
-    --(codeGenerationGHCI, codeGenerationHandleFileChange) <- startCodeGenerationGHCI (applicationOnStandardOutput, applicationOnErrorOutput, startStatusServer, do putStrLn "on fin"; stopStatusServer)
     async startAppGHCI
     async startPostgres
     async startFilewatcher
     async startCodeGenerationGHCI
-
-    --pure AppState { .. }
 
     pure ()
 
@@ -179,8 +176,6 @@ stop AppState { .. } = do
     stopLiveReloadNotification liveReloadNotificationServerState
     stopFileWatcher fileWatcherState
     stopCodeGenerationGHCI codeGenerationState
-
-    --readIORef statusServer >>= uninterruptibleCancel
 
 startFilewatcher :: (?context :: Context) => IO ()
 startFilewatcher = do
@@ -196,9 +191,6 @@ startFilewatcher = do
                     then dispatch SchemaChanged
                     else do
                         dispatch HaskellFileChanged
-                        --appHandleFileChange event
-                        --startStatusServer
-                        --refreshBrowser
                 else if isAssetFile filePath
                     then dispatch AssetChanged
                     else mempty
