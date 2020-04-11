@@ -92,7 +92,7 @@ compileTypes database =
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
                   <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
                   <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
-                  <> "import TurboHaskell.Controller.Param (ParamName (..))\n"
+                  <> "import TurboHaskell.Controller.Param ()\n"
                   <> "import qualified Data.Function\n"
                   <> "import GHC.TypeLits\n"
                   <> "import Data.UUID (UUID)\n"
