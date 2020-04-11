@@ -1,4 +1,10 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
+
+{-|
+Module: TurboHaskell.HaskellSupport
+Description: Provides helpers to write better haskell code
+Copyright: (c) digitally induced GmbH, 2020
+-}
 module TurboHaskell.HaskellSupport (
  (|>)
 , isEmpty
@@ -36,21 +42,20 @@ infixl 8 |>
 a |> f = f a
 {-# INLINE (|>) #-}
 
-isEmpty :: (Eq a, Monoid a) => a -> Bool
-isEmpty value = value == mempty
+isEmpty :: MonoFoldable value => value -> Bool
+isEmpty value = null value
 {-# INLINE isEmpty #-}
 
 ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
 {-# INLINE ifOrEmpty #-}
 
-{-# INLINE whenEmpty #-}
 whenEmpty condition = when (isEmpty condition)
+{-# INLINE whenEmpty #-}
 
-{-# INLINE whenNonEmpty #-}
-whenNonEmpty :: (Monoid a, Eq a, Applicative f) => a -> f () -> f ()
+whenNonEmpty :: (MonoFoldable a, Applicative f) => a -> f () -> f ()
 whenNonEmpty condition = unless (isEmpty condition)
-
+{-# INLINE whenNonEmpty #-}
 
 instance Data.Default.Default Data.UUID.UUID where
     def = Data.UUID.nil
@@ -58,27 +63,72 @@ instance Data.Default.Default Data.UUID.UUID where
 instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
     fromLabel = Proxy @name'
 
-{-# INLINE get #-}
+-- | Returns the field value for a field name
+--
+-- __Example:__
+-- 
+-- > data Project = Project { name :: Text, isPublic :: Bool }
+-- > 
+-- > let project = Project { name = "Hello World", isPublic = False }
+--
+-- >>> get #name project
+-- "Hello World"
+--
+-- >>> get #isPublic project
+-- False
 get :: forall model name value. (KnownSymbol name, Record.HasField name model value) => Proxy name -> model -> value
 get _ record = Record.getField @name record
+{-# INLINE get #-}
 
-{-# INLINE set #-}
+-- | Sets a field of a record and returns the new record.
+--
+-- __Example:__
+-- 
+-- > data Project = Project { name :: Text, isPublic :: Bool }
+-- > 
+-- > let project = Project { name = "Hello World", isPublic = False }
+--
+-- >>> set #name "New Name" project
+-- Project { name = "New Name", isPublic = False }
+--
+-- >>> set #isPublic True project
+-- Project { name = "Hello World", isPublic = True }
 set :: forall model name value. (KnownSymbol name, SetField name model value) => Proxy name -> value -> model -> model
 set name value record = setField @name value record
+{-# INLINE set #-}
 
 {-# INLINE modify #-}
 modify :: forall model name value updateFunction. (KnownSymbol name, Record.HasField name model value, SetField name model value) => Proxy name -> (value -> value) -> model -> model
 modify _ updateFunction model = let value = Record.getField @name model in setField @name (updateFunction value) model
 
-{-# INLINE incrementField #-}
+-- | Plus @1@ on record field.
+--
+-- __Example:__
+-- 
+-- > data Project = Project { name :: Text, followersCount :: Int }
+-- > 
+-- > let project = Project { name = "Hello World", followersCount = 0 }
+--
+-- >>> project |> incrementField #followersCount
+-- Project { name = "Hello World", followersCount = 1 }
 incrementField :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value, Num value) => Proxy name -> model -> model
 incrementField _ model = let value = Record.getField @name model in setField @name (value + 1) model
+{-# INLINE incrementField #-}
 
-{-# INLINE decrementField #-}
+-- | Minus @1@ on a record field.
+--
+-- __Example:__
+-- 
+-- > data Project = Project { name :: Text, followersCount :: Int }
+-- > 
+-- > let project = Project { name = "Hello World", followersCount = 1337 }
+--
+-- >>> project |> decrementField #followersCount
+-- Project { name = "Hello World", followersCount = 1336 }
 decrementField :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value, Num value) => Proxy name -> model -> model
 decrementField _ model = let value = Record.getField @name model in setField @name (value - 1) model
+{-# INLINE decrementField #-}
 
--- UpdateField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
 class SetField (field :: GHC.TypeLits.Symbol) model value | field model -> value where
     setField :: value -> model -> model
 
@@ -107,11 +157,27 @@ instance IsString string => IsString (Maybe string) where
 forEach :: _ => _
 forEach = forM_
 
+-- | Parses a text to an int. Returns @Nothing@ on failure.
+--
+-- __Example:__
+--
+-- >>> textToInt "1337"
+-- Just 1337
+--
+-- >>> textToInt "bad input"
+-- Nothing
 textToInt :: Text -> Maybe Int
 textToInt text = case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) (cs text) of
     Right value -> Just value
     Left _error -> Nothing
 
+-- | Returns @True@ when today is Saturday or Sunday.
+--
+-- __Example:__
+--
+-- > do
+-- >     todayIsWeekend <- isWeekend
+-- >     when todayIsWeekend (putStrLn "It's weekend!")
 isWeekend :: IO Bool
 isWeekend = do
     now <- Data.Time.getCurrentTime
