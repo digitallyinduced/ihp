@@ -36,7 +36,7 @@ data OutputLine = StandardOutput ByteString | ErrorOutput ByteString deriving (S
 data Action = 
     UpdatePostgresState PostgresState
     | UpdateAppGHCIState AppGHCIState
-    | AppModulesLoaded
+    | AppModulesLoaded { success :: Bool }
     | AppStarted
     | ReceiveAppOutput { line :: OutputLine }
     | ReceiveCodeGenerationOutput { line :: OutputLine }
@@ -58,9 +58,9 @@ data PostgresState
 
 data AppGHCIState
     = AppGHCINotStarted
-    | AppGHCILoading { process :: ManagedProcess }
-    | AppGHCIModulesLoaded { process :: ManagedProcess }
-    | RunningAppGHCI { process :: ManagedProcess }
+    | AppGHCILoading { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
+    | AppGHCIModulesLoaded { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
+    | RunningAppGHCI { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
     deriving (Show)
 
 data LiveReloadNotificationServerState

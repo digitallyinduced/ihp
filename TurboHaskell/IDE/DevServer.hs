@@ -61,7 +61,7 @@ handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = 
 handleAction state@(AppState { statusServerState }) ReceiveCodeGenerationOutput { line } = do
     notifyBrowserOnApplicationOutput statusServerState line
     pure state
-handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) AppModulesLoaded = do
+handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = True }) = do
     case appGHCIState of
         AppGHCILoading { .. } -> do
             case postgresState of
@@ -77,6 +77,18 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
         AppGHCIModulesLoaded { } -> do
             startLoadedApp appGHCIState
             pure state
+handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = False }) = do
+    case statusServerState of
+        StatusServerNotStarted -> startStatusServer
+        o -> putStrLn $ "Not starting status server as already running" <> tshow o
+
+    let newAppGHCIState =
+            case appGHCIState of
+                AppGHCILoading { .. } -> AppGHCIModulesLoaded { .. }
+                AppGHCIModulesLoaded { .. } -> AppGHCIModulesLoaded { .. }
+                RunningAppGHCI { .. } -> AppGHCIModulesLoaded { .. }
+    pure state { statusServerState, appGHCIState = newAppGHCIState }
+
 handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotificationServerState }) AppStarted = do
     stopStatusServer statusServerState
     let state' = state { statusServerState = StatusServerNotStarted }
@@ -92,9 +104,7 @@ handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged
     pure state
 
 handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState }) HaskellFileChanged = do
-    case appGHCIState of
-        RunningAppGHCI { process } -> sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/startDevServerGhciScriptRec"
-        _ -> putStrLn "Could not reload ghci"
+    startLoadedApp appGHCIState
     pure state
 
 handleAction state@(AppState { codeGenerationState }) SchemaChanged = do
@@ -232,7 +242,8 @@ startAppGHCI = do
             |> fromIntegral
     Env.setEnv "PORT" (show appPort)
 
-    isAppRunning <- newIORef False
+    isFirstStart <- newIORef True
+    needsErrorRecovery <- newIORef False
     process <- startGHCI
 
     let ManagedProcess { outputHandle, errorHandle } = process
@@ -241,22 +252,33 @@ startAppGHCI = do
                 if "Server started" `isSuffixOf` line
                     then dispatch AppStarted
                     else if "Ok," `isPrefixOf` line
-                        then dispatch AppModulesLoaded
-                        else dispatch ReceiveAppOutput { line = StandardOutput line }
+                        then do
+                            writeIORef needsErrorRecovery False
+                            dispatch AppModulesLoaded { success = True }
+                        else if "Failed," `isPrefixOf` line
+                            then do
+                                writeIORef needsErrorRecovery True
+                                dispatch AppModulesLoaded { success = False }
+                            else dispatch ReceiveAppOutput { line = StandardOutput line }
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> dispatch ReceiveAppOutput { line = ErrorOutput line }
-
-    let handleFileChange event = do
-            isAppRunning' <- readIORef isAppRunning
-            sendGhciCommand process (":script TurboHaskell/TurboHaskell/IDE/" <> (if isAppRunning' then "startDevServerGhciScriptRec" else "startDevServerGhciScriptAfterError"))
-            writeIORef isAppRunning False
 
     sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/loadAppModules"
 
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
-    pure ()
+
 
 startLoadedApp :: AppGHCIState -> IO ()
-startLoadedApp (AppGHCIModulesLoaded { .. }) = sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/startDevServerGhciScript"
+startLoadedApp (AppGHCIModulesLoaded { .. }) = do
+    recover <- readIORef needsErrorRecovery
+    firstStart <- readIORef isFirstStart
+    let theScript =
+            if firstStart
+                then "startDevServerGhciScript"
+                else if recover
+                    then "startDevServerGhciScriptAfterError"
+                    else "startDevServerGhciScriptRec"
+    sendGhciCommand process (":script TurboHaskell/TurboHaskell/IDE/" <> theScript)
+    when firstStart (writeIORef isFirstStart False)
 startLoadedApp _ = putStrLn "startLoadedApp: App not running"
 
 
