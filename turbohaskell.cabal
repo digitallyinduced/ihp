@@ -17,6 +17,7 @@ Library TurboHaskellFramework
         , TurboHaskell.AuthSupport.Authorization
         , TurboHaskell.AuthSupport.Lockable
         , TurboHaskell.Controller.Param
+        , TurboHaskell.Controller.FileUpload
         , TurboHaskell.Controller.Redirect
         , TurboHaskell.Controller.Render
         , TurboHaskell.Controller.RequestContext
