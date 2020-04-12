@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.StatusServer (startStatusServer, stopStatusServer, notifyBrowserOnApplicationOutput) where
+module TurboHaskell.IDE.StatusServer (startStatusServer, stopStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer) where
 
 import TurboHaskell.ViewPrelude
 import qualified Network.HTTP.Types as Http
@@ -22,7 +22,15 @@ startStatusServer = do
         standardOutput <- newIORef ""
         errorOutput <- newIORef ""
         clients <- newIORef []
+        serverRef <- async (pure ()) >>= newIORef
 
+        continueStatusServer StatusServerPaused { .. }
+
+        dispatch (UpdateStatusServerState (StatusServerStarted { serverRef, clients, standardOutput, errorOutput }))
+
+continueStatusServer :: (?context :: Context) => StatusServerState -> IO ()
+continueStatusServer StatusServerPaused { .. } = do
+    
         let warpApp = Websocket.websocketsOr
                 Websocket.defaultConnectionOptions
                 (app clients)
@@ -33,12 +41,9 @@ startStatusServer = do
                 |> get #appPort
                 |> fromIntegral
 
-        let startServer' = async $ Warp.run port warpApp
+        server <- async $ Warp.run port warpApp
         
-        serverRef <- startServer' >>= newIORef
-
-
-        dispatch (UpdateStatusServerState (StatusServerStarted { serverRef, clients, standardOutput, errorOutput }))
+        writeIORef serverRef server
     where
         statusServerApp :: (IORef ByteString, IORef ByteString) -> Wai.Application
         statusServerApp (standardOutput, errorOutput) req respond = do
