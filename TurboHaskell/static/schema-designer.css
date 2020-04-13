@@ -1,0 +1,43 @@
+.object-selector h5 {
+    font-size: 14px;
+    padding-left: 0.5rem;
+    padding-top: 0.5rem;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+.object {
+    font-size: 14px;
+    padding-left: 0.5rem;
+    display: block;
+    color: black;
+}
+
+.object:hover {
+    text-decoration: none;
+    color: black;
+    background-color: rgba(0,0,0,.075);
+}
+
+.object.active {
+    background-color: #2862d9;
+    color: #ffffff;
+    transition: color 0.1s;
+}
+
+.object-selector, .column-selector {
+    border: 1px solid #d5d4d5;
+}
+
+.column-selector {
+    border-left: 0;
+}
+
+.column-selector table tr:first-child td {
+    border-top: 0;
+}
+
+
+.column-selector {
+    font-size: 14px;
+}

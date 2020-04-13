@@ -265,7 +265,7 @@ runApp routes notFoundAction =
                 |> getField @"request"
                 |> rawPathInfo
     in case parseOnly (routes <* endOfInput) path of
-            Left message -> notFoundAction
+            Left message -> traceShow path notFoundAction
             Right action -> action
 
 {-# INLINE frontControllerToWAIApp #-}

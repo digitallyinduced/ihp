@@ -49,6 +49,7 @@ data Action =
     | UpdateLiveReloadNotificationServerState LiveReloadNotificationServerState
     | UpdateFileWatcherState FileWatcherState
     | UpdateCodeGenerationState CodeGenerationState
+    | UpdateToolServerState ToolServerState
     | PauseApp
     deriving (Show)
 
@@ -110,6 +111,15 @@ instance Show StatusServerState where
     show StatusServerStarted { } = "Started"
     show StatusServerPaused { } = "Paused"
 
+data ToolServerState
+    = ToolServerNotStarted
+    | ToolServerStarted { thread :: Async () }
+
+instance Show ToolServerState where
+    show ToolServerNotStarted = "NotStarted"
+    show ToolServerStarted {} = "Started"
+
+
 data CodeGenerationState
     = CodeGenerationNotStarted
     | CodeGenerationReady { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
@@ -133,6 +143,7 @@ data AppState = AppState
     , liveReloadNotificationServerState :: LiveReloadNotificationServerState
     , fileWatcherState :: FileWatcherState
     , codeGenerationState :: CodeGenerationState
+    , toolServerState :: ToolServerState
     } deriving (Show)
 
 emptyAppState :: AppState 
@@ -143,6 +154,7 @@ emptyAppState = AppState
     , liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted
     , fileWatcherState = FileWatcherNotStarted
     , codeGenerationState = CodeGenerationNotStarted
+    , toolServerState = ToolServerNotStarted
     }
 
 data Context = Context
@@ -152,3 +164,5 @@ data Context = Context
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
+
+
