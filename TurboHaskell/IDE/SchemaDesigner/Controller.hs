@@ -9,7 +9,6 @@ import TurboHaskell.IDE.SchemaDesigner.Parser
 
 instance Controller SchemaDesignerController where
     action TablesAction = do
-        putStrLn "TEsT1 123"
         statements <- readSchema
         render IndexView { .. }
 

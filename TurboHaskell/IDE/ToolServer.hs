@@ -35,6 +35,7 @@ import TurboHaskell.IDE.SchemaDesigner.Controller
 import TurboHaskell.IDE.ToolServer.Types
 import Control.Concurrent.Async
 import TurboHaskell.IDE.ToolServer.Routes
+import qualified System.Process as Process
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -46,6 +47,8 @@ startToolServer = do
 
 
     thread <- async (startToolServer' port)
+
+    openUrl ("http://localhost:" <> tshow port <> "/turbohaskell/")
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
@@ -69,6 +72,12 @@ startToolServer' port = do
 
 stopToolServer ToolServerStarted { thread } = uninterruptibleCancel thread
 stopToolServer ToolServerNotStarted = pure ()
+
+openUrl :: Text -> IO ()
+openUrl url = do
+    Process.callCommand (cs $ "open " <> url)
+    pure ()
+
 
 instance FrontController ToolServerApplication where
     controllers =

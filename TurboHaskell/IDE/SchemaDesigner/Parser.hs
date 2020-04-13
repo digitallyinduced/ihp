@@ -158,5 +158,3 @@ comment = do
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
 
---parseHsx :: String -> Either ParseError Node
---parseHsx code = runParser parser () "" code
