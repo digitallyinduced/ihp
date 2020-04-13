@@ -19,7 +19,6 @@
 , postgresql-simple
 , wai-middleware-static
 , wai-util
-, http-conduit
 , http-client
 , aeson
 , uuid
@@ -33,13 +32,10 @@
 , random-strings
 , interpolate
 , uri-encode
-, generic-lens
-, lens
 , websockets
 , wai-websockets
 , mime-mail
 , mime-mail-ses
-, temporary
 , tz
 , attoparsec
 , time_1_9_3
@@ -52,7 +48,6 @@
 , newtype-generics
 , unix
 , fsnotify
-, concurrent-extra
 , countable-inflections
 , typerep-map
 , basic-prelude
@@ -90,7 +85,6 @@ mkDerivation {
     postgresql-simple
     wai-middleware-static
     wai-util
-    http-conduit
     http-client
     aeson
     uuid
@@ -102,18 +96,14 @@ mkDerivation {
     template-haskell
     haskell-src-meta
     random-strings
-    concurrent-extra
     interpolate
     uri-encode
-    generic-lens
     websockets
     wai-websockets
     mime-mail
     mime-mail-ses
-    temporary
     tz
     attoparsec
-    lens
     time_1_9_3
     case-insensitive
     haskell-src-exts
@@ -124,7 +114,6 @@ mkDerivation {
     newtype-generics
     unix
     fsnotify
-    concurrent-extra
     countable-inflections
     typerep-map
     basic-prelude

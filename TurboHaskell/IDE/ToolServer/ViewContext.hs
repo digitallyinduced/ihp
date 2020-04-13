@@ -6,8 +6,6 @@ import TurboHaskell.ControllerSupport  (RequestContext (RequestContext))
 import qualified TurboHaskell.ControllerSupport
 import TurboHaskell.HaskellSupport
 import TurboHaskell.ModelSupport
-import Application.Helper.Controller
-import Generated.Types
 import qualified TurboHaskell.ViewSupport as ViewSupport
 import TurboHaskell.IDE.ToolServer.Types
 import TurboHaskell.IDE.ToolServer.Layout
