@@ -230,14 +230,34 @@ tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
 -- >>> let project :: Project = ...
 -- >>> deleteRecord project
 -- DELETE FROM projects WHERE id = '..'
-deleteRecord :: forall model id. (?modelContext::ModelContext, Show model, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
+--
+-- Use 'deleteRecords' if you want to delete multiple records.
+deleteRecord :: forall model id. (?modelContext::ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
 deleteRecord model = do
     let (ModelContext conn) = ?modelContext
     let id = getField @"id" model
-    putStrLn ("deleteRecord " <> tshow model)
-    PG.execute conn (PG.Query . cs $! "DELETE FROM " <> tableName @model <> " WHERE id = ?") (PG.Only id)
+    let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
+    let theParameters = (PG.Only id)
+    putStrLn (tshow (theQuery, theParameters))
+    PG.execute conn (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecord #-}
+
+-- | Runs a @DELETE@ query for a list of records.
+--
+-- >>> let projects :: [Project] = ...
+-- >>> deleteRecords projects
+-- DELETE FROM projects WHERE id IN (..)
+deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName record), HasField "id" record id, record ~ GetModelById id, ToField id) => [record] -> IO ()
+deleteRecords records = do
+    let (ModelContext conn) = ?modelContext
+    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
+    let theParameters = (PG.Only (PG.In (ids records)))
+    putStrLn (tshow (theQuery, theParameters))
+    PG.execute conn (PG.Query . cs $! theQuery) theParameters
+    pure ()
+{-# INLINE deleteRecords #-}
+
 
 type family Include (name :: GHC.Types.Symbol) model
 
