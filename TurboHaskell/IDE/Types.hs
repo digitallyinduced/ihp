@@ -8,6 +8,7 @@ import qualified System.FSNotify as FS
 import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
 import TurboHaskell.IDE.PortConfig
+import Data.String.Conversions (cs)
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -28,6 +29,7 @@ cleanupManagedProcess (ManagedProcess { .. }) = Process.cleanupProcess (Just inp
 
 sendGhciCommand :: ManagedProcess -> ByteString -> IO ()
 sendGhciCommand ManagedProcess { inputHandle } command = do
+    putStrLn ("GHCI: " <> cs command)
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
@@ -36,7 +38,7 @@ data OutputLine = StandardOutput ByteString | ErrorOutput ByteString deriving (S
 data Action = 
     UpdatePostgresState PostgresState
     | UpdateAppGHCIState AppGHCIState
-    | AppModulesLoaded
+    | AppModulesLoaded { success :: Bool }
     | AppStarted
     | ReceiveAppOutput { line :: OutputLine }
     | ReceiveCodeGenerationOutput { line :: OutputLine }
@@ -47,6 +49,7 @@ data Action =
     | UpdateLiveReloadNotificationServerState LiveReloadNotificationServerState
     | UpdateFileWatcherState FileWatcherState
     | UpdateCodeGenerationState CodeGenerationState
+    | UpdateToolServerState ToolServerState
     | PauseApp
     deriving (Show)
 
@@ -54,24 +57,39 @@ data PostgresState
     = PostgresNotStarted
     | StartingPostgres
     | PostgresStarted { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
-    deriving (Show)
+
+instance Show PostgresState where
+    show PostgresNotStarted = "NotStarted"
+    show StartingPostgres = "Starting"
+    show PostgresStarted { } = "Started"
 
 data AppGHCIState
     = AppGHCINotStarted
-    | AppGHCILoading { process :: ManagedProcess }
-    | AppGHCIModulesLoaded { process :: ManagedProcess }
-    | RunningAppGHCI { process :: ManagedProcess }
-    deriving (Show)
+    | AppGHCILoading { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
+    | AppGHCIModulesLoaded { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
+    | RunningAppGHCI { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
+
+instance Show AppGHCIState where
+    show AppGHCINotStarted = "NotStarted"
+    show AppGHCILoading { } = "Loading"
+    show AppGHCIModulesLoaded { } = "Loaded"
+    show RunningAppGHCI { } = "Running"
 
 data LiveReloadNotificationServerState
     = LiveReloadNotificationServerNotStarted
     | LiveReloadNotificationServerStarted { server :: Async (), clients :: IORef [Websocket.Connection] }
-    deriving (Show)
+
+instance Show LiveReloadNotificationServerState where
+    show LiveReloadNotificationServerNotStarted = "NotStarted"
+    show LiveReloadNotificationServerStarted { } = "Started"
 
 data FileWatcherState
     = FileWatcherNotStarted
     | FileWatcherStarted { thread :: Async () }
-    deriving (Show)
+
+instance Show FileWatcherState where
+    show FileWatcherNotStarted = "NotStarted"
+    show FileWatcherStarted { } = "Started"
 
 data StatusServerState
     = StatusServerNotStarted
@@ -81,14 +99,38 @@ data StatusServerState
         , standardOutput :: IORef ByteString
         , errorOutput :: IORef ByteString
         }
-    deriving (Show)
+    | StatusServerPaused
+        { serverRef :: IORef (Async ())
+        , clients :: IORef [Websocket.Connection]
+        , standardOutput :: IORef ByteString
+        , errorOutput :: IORef ByteString
+        }
+
+instance Show StatusServerState where
+    show StatusServerNotStarted = "NotStarted"
+    show StatusServerStarted { } = "Started"
+    show StatusServerPaused { } = "Paused"
+
+data ToolServerState
+    = ToolServerNotStarted
+    | ToolServerStarted { thread :: Async () }
+
+instance Show ToolServerState where
+    show ToolServerNotStarted = "NotStarted"
+    show ToolServerStarted {} = "Started"
+
 
 data CodeGenerationState
     = CodeGenerationNotStarted
     | CodeGenerationReady { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
     | CodeGenerationRunning { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
     | CodeGenerationFailed { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
-    deriving (Show)
+
+instance Show CodeGenerationState where
+    show CodeGenerationNotStarted = "NotStarted"
+    show CodeGenerationReady { } = "Ready"
+    show CodeGenerationRunning { } = "Running"
+    show CodeGenerationFailed { } = "Failed"
 
 instance Show (IORef x) where show _ = "(..)"
 instance Show ProcessHandle where show _ = "(..)"
@@ -101,6 +143,7 @@ data AppState = AppState
     , liveReloadNotificationServerState :: LiveReloadNotificationServerState
     , fileWatcherState :: FileWatcherState
     , codeGenerationState :: CodeGenerationState
+    , toolServerState :: ToolServerState
     } deriving (Show)
 
 emptyAppState :: AppState 
@@ -111,6 +154,7 @@ emptyAppState = AppState
     , liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted
     , fileWatcherState = FileWatcherNotStarted
     , codeGenerationState = CodeGenerationNotStarted
+    , toolServerState = ToolServerNotStarted
     }
 
 data Context = Context
@@ -120,3 +164,5 @@ data Context = Context
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
+
+

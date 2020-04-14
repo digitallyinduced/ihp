@@ -31,7 +31,7 @@ import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
 
-data ModelContext = ModelContext {-# UNPACK #-} !Connection
+data ModelContext = ModelContext { databaseConnection :: Connection }
 
 type family GetModelById id :: Type where
     GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)

@@ -48,7 +48,6 @@ ensureNoOtherPostgresIsRunning = do
     when pidFileExists do
         Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]
 
-
 needsDatabaseInit :: IO Bool
 needsDatabaseInit = not <$> Directory.doesDirectoryExist "build/db"
 
@@ -59,7 +58,7 @@ initDatabase = do
     Directory.withCurrentDirectory "build/db" do
         Process.callProcess "initdb" ["state"]
 
-        process <- createManagedProcess (Process.proc "postgres" ["-D", "state", "-k", currentDir <> "/build/db", "-c", "listen_addresses=x"])
+        process <- createManagedProcess (Process.proc "postgres" ["-D", "state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
                     { Process.std_in = Process.CreatePipe
                     , Process.std_out = Process.CreatePipe
                     , Process.std_err = Process.CreatePipe

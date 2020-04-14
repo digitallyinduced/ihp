@@ -55,5 +55,4 @@ dateTime :: UTCTime -> Html
 dateTime = timeElement "date-time"
 
 timeElement :: Text -> UTCTime-> Html
-timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ formatDateTime dateTime) $ cs (formatDateTime dateTime)
-    where formatDateTime time = iso8601Show time
+timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (iso8601Show dateTime)

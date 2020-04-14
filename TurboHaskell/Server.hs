@@ -5,7 +5,6 @@ import Network.Wai
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static
-import Network.HTTP.Types.Status (status404)
 import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession

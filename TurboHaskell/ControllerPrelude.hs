@@ -3,6 +3,7 @@ module TurboHaskell.ControllerPrelude
     , module TurboHaskell.ControllerSupport
     , module TurboHaskell.Controller.Render
     , module TurboHaskell.Controller.Param
+    , module TurboHaskell.Controller.FileUpload
     , module TurboHaskell.Controller.Session
     , module TurboHaskell.Controller.Redirect
     , module TurboHaskell.HaskellSupport
@@ -17,6 +18,7 @@ module TurboHaskell.ControllerPrelude
     ) where
 import TurboHaskell.Prelude
 import TurboHaskell.Controller.Param
+import TurboHaskell.Controller.FileUpload
 import TurboHaskell.Controller.Render
 import TurboHaskell.Controller.Session
 import TurboHaskell.ControllerSupport
