@@ -14,8 +14,12 @@ function refresh() {
     }
 
     fetchWithRetries(window.location.href, {credentials: 'include'}, 50)
-        .then(response => { if (response.ok) return response.text(); else throw Error(response.statusText) })
-        .catch(error => {
+        .then(response => {
+            if (response.ok || (response.status === 500 && response.statusText == 'Internal Server Error'))
+                return response.text();
+            else
+                throw Error(response.statusText);
+        }).catch(error => {
             console.log('Live Reload Failed', error);
 
             throw error;

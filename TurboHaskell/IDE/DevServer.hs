@@ -14,6 +14,7 @@ import TurboHaskell.IDE.Postgres
 import TurboHaskell.IDE.StatusServer
 import TurboHaskell.IDE.LiveReloadNotificationServer
 import TurboHaskell.IDE.PortConfig
+import TurboHaskell.IDE.ToolServer
 import qualified System.Environment as Env
 
 main :: IO ()
@@ -44,6 +45,7 @@ main = do
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
 handleAction state (UpdatePostgresState postgresState) = pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
+handleAction state (UpdateToolServerState toolServerState) = pure state { toolServerState }
 handleAction state@(AppState { codeGenerationState = CodeGenerationFailed { standardOutput = cgStdOut, errorOutput = cgErrOut } }) (UpdateStatusServerState statusServerState@(StatusServerStarted { standardOutput, errorOutput })) = do
     readIORef cgStdOut >>= writeIORef standardOutput
     readIORef cgErrOut >>= writeIORef errorOutput
@@ -191,6 +193,7 @@ start = do
     async startPostgres
     async startFilewatcher
     async startCodeGenerationGHCI
+    async startToolServer
 
     pure ()
 
@@ -203,6 +206,7 @@ stop AppState { .. } = do
     stopLiveReloadNotification liveReloadNotificationServerState
     stopFileWatcher fileWatcherState
     stopCodeGenerationGHCI codeGenerationState
+    stopToolServer toolServerState
 
 startFilewatcher :: (?context :: Context) => IO ()
 startFilewatcher = do

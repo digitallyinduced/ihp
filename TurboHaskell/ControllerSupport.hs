@@ -46,6 +46,7 @@ class (Show controller, Eq controller) => Controller controller where
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext) => TypeMap.TMap -> IO TypeMap.TMap
+    initContext context = pure context
 
 {-# INLINE runAction #-}
 runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived

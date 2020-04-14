@@ -79,14 +79,11 @@ Library TurboHaskellFramework
         , wai-extra
         , wai
         , http-types
-        , blaze-html
-        , mtl
         , inflections
         , text
         , postgresql-simple
         , wai-middleware-static
         , wai-util
-        , http-conduit
         , http-client
         , bytestring
         , network-uri
@@ -102,8 +99,6 @@ Library TurboHaskellFramework
         , time
         , parsec
         , attoparsec
-        , lens
-        , generic-lens
         , ghc-prim
         , case-insensitive
         , haskell-src-meta
@@ -119,6 +114,8 @@ Library TurboHaskellFramework
         , countable-inflections
         , typerep-map
         , basic-prelude
+        , megaparsec
+        , async
     hs-source-dirs:      .
     default-language:    Haskell2010
     extensions:
@@ -169,14 +166,11 @@ Executable RunDevServer
         , wai-extra
         , wai
         , http-types
-        , blaze-html
-        , mtl
         , inflections
         , text
         , postgresql-simple
         , wai-middleware-static
         , wai-util
-        , http-conduit
         , http-client
         , bytestring
         , network-uri
@@ -192,8 +186,6 @@ Executable RunDevServer
         , time
         , parsec
         , attoparsec
-        , lens
-        , generic-lens
         , ghc-prim
         , case-insensitive
         , haskell-src-meta
@@ -208,7 +200,6 @@ Executable RunDevServer
         , newtype-generics
         , unix
         , fsnotify
-        , concurrent-extra
         , wai-websockets
         , websockets
         , countable-inflections
@@ -216,6 +207,8 @@ Executable RunDevServer
         , network
         , unliftio
         , basic-prelude
+        , megaparsec
+        , async
     hs-source-dirs: .
     default-language: Haskell2010
     extensions:
@@ -266,14 +259,11 @@ Executable new-application
         , wai-extra
         , wai
         , http-types
-        , blaze-html
-        , mtl
         , inflections
         , text
         , postgresql-simple
         , wai-middleware-static
         , wai-util
-        , http-conduit
         , http-client
         , bytestring
         , network-uri
@@ -289,8 +279,6 @@ Executable new-application
         , time
         , parsec
         , attoparsec
-        , lens
-        , generic-lens
         , ghc-prim
         , case-insensitive
         , haskell-src-meta
@@ -303,14 +291,11 @@ Executable new-application
         , cookie
         , process
         , newtype-generics
-        , unix
-        , fsnotify
-        , concurrent-extra
-        , wai-websockets
-        , websockets
         , countable-inflections
         , typerep-map
         , basic-prelude
+        , megaparsec
+        , async
     hs-source-dirs: .
     default-language: Haskell2010
     extensions:
