@@ -232,7 +232,7 @@ tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model id. (?modelContext::ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
+deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
 deleteRecord model = do
     let (ModelContext conn) = ?modelContext
     let id = getField @"id" model
@@ -260,15 +260,6 @@ deleteRecords records = do
 
 
 type family Include (name :: GHC.Types.Symbol) model
-
-
-
-type family Eval (tableName :: Symbol) value
-type family Col f field (tableName :: Symbol) where
-    Col f field tableName = Eval tableName (f field)
-
-type instance Eval tableName (Const a _) = a
-
 
 type family New model
 
