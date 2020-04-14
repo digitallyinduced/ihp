@@ -78,7 +78,6 @@ openUrl url = do
     Process.callCommand (cs $ "open " <> url)
     pure ()
 
-
 instance FrontController ToolServerApplication where
     controllers =
         [ parseRoute @SchemaDesignerController

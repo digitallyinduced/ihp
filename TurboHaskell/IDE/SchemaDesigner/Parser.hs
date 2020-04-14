@@ -14,12 +14,14 @@ import Data.Void
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
 import Data.Char
+import TurboHaskell.IDE.SchemaDesigner.Compiler (compileSql)
+
+schemaFilePath = "Application/Schema.sql"
 
 parseSchemaSql :: IO (Either ByteString [Statement])
 parseSchemaSql = do
-    let filePath = "Application/Schema.sql"
-    schemaSql <- Text.readFile filePath
-    let result = runParser parseDDL (cs filePath) schemaSql
+    schemaSql <- Text.readFile schemaFilePath
+    let result = runParser parseDDL (cs schemaFilePath) schemaSql
     case result of
         Left error -> pure (Left (cs $ errorBundlePretty error))
         Right r -> pure (Right r)
@@ -115,9 +117,9 @@ column = do
         lexeme "DEFAULT"
         value <- expression
         pure (cs value)
-    isPrimaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
-    isNotNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
-    pure Column { name, columnType, primaryKey = False, defaultValue }
+    primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
+    notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
+    pure Column { name, columnType, primaryKey, defaultValue, notNull }
 
 
 sqlType = choice
@@ -142,10 +144,12 @@ varExpr = identifier
 callExpr = do
     func <- identifier
     args <- between (char '(') (char ')') (expression `sepBy` char ',')
-    pure func
+    pure (func <> "(" <> intercalate ", " args <> ")")
 
 stringExpr :: Parser Text
-stringExpr = cs <$> (char '\'' *> manyTill Lexer.charLiteral (char '\''))
+stringExpr = do
+    str <- cs <$> (char '\'' *> manyTill Lexer.charLiteral (char '\''))
+    pure ("'" <> str <> "'")
 
 identifier :: Parser Text
 identifier = do
