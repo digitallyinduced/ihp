@@ -60,16 +60,7 @@
 mkDerivation {
   pname = "turbohaskell";
   version = "1.0.28";
-  src =
-    let
-        gitignore = callPackage (fetchFromGitHub {
-            owner = "siers";
-            repo = "nix-gitignore";
-            rev = "bf7c0f0461e047bec108a5c5d5d1b144289a65ba";
-            sha256 = "0x55qgirpkzm0yagyqqxi8l7yc3g20bx42iayz124n09cz7sp7mp";
-        }) {};
-    in
-        gitignore.gitignoreSource [] ./.;
+  src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
