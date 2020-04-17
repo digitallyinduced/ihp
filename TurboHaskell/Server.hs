@@ -18,7 +18,6 @@ import qualified TurboHaskell.ControllerSupport as ControllerSupport
 import Database.PostgreSQL.Simple
 import qualified TurboHaskell.LoginSupport.Middleware
 import TurboHaskell.Environment (isDevelopment)
-import System.Directory (getCurrentDirectory)
 
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 import TurboHaskell.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
