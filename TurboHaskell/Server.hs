@@ -40,7 +40,7 @@ run = do
             let ?requestContext = requestContext
             frontControllerToWAIApp @FrameworkConfig.RootApplication ErrorController.handleNotFound
             
-    let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
+    let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30)) }) session
     let logMiddleware :: Middleware = logStdoutDev
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase "TurboHaskell/TurboHaskell/static/")
     let runServer = if isDevelopment FrameworkConfig.environment
