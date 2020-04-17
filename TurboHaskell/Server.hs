@@ -17,7 +17,6 @@ import TurboHaskell.ApplicationContext
 import qualified TurboHaskell.ControllerSupport as ControllerSupport
 import Database.PostgreSQL.Simple
 import qualified TurboHaskell.LoginSupport.Middleware
-import Unsafe.Coerce
 import TurboHaskell.Environment (isDevelopment)
 import System.Directory (getCurrentDirectory)
 
