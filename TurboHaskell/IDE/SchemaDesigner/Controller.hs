@@ -14,13 +14,12 @@ instance Controller SchemaDesignerController where
         statements <- readSchema
         render IndexView { .. }
 
-    action ShowTableAction = do
-        let name = param "name"
+    action ShowTableAction { tableName } = do
+        let name = tableName
         statements <- readSchema
         render ShowView { .. }
 
-    action NewColumnAction = do
-        let tableName = param "tableName"
+    action NewColumnAction { tableName } = do
         statements <- readSchema
         render NewColumnView { .. }
 
@@ -36,7 +35,7 @@ instance Controller SchemaDesignerController where
 
         updateSchema (map (addColumnToTable tableName column))
 
-        redirectToPath $ (pathTo ShowTableAction) <> "?name=" <> tableName
+        redirectTo ShowTableAction { .. }
 
 readSchema :: _ => _
 readSchema = parseSchemaSql >>= \case

@@ -39,7 +39,7 @@ renderObjectSelector statements activeObjectName = [hsx|
 |]
     where
         renderObject :: Statement -> Html
-        renderObject CreateTable { name } = [hsx|<a href={(pathTo ShowTableAction) <> "?name=" <> name} class={classes [("object object-table", True), ("active", Just name == activeObjectName)]}>{name}</a>|]
+        renderObject CreateTable { name } = [hsx|<a href={ShowTableAction name} class={classes [("object object-table", True), ("active", Just name == activeObjectName)]}>{name}</a>|]
         renderObject CreateEnumType { name } = [hsx|<div class="object object-type">{name}</div>|]
         renderObject Comment {} = mempty
         renderObject AddConstraint {} = mempty
@@ -106,7 +106,7 @@ instance View NewColumnView ViewContext where
                 </form>
             |]
             modalFooter = mempty 
-            modalCloseUrl = (pathTo ShowTableAction) <> "?name=" <> tableName
+            modalCloseUrl = pathTo ShowTableAction { tableName }
             modalTitle = "New Column"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
@@ -121,7 +121,7 @@ renderColumnSelector tableName columns = [hsx|
         </tbody>
     </table>
 
-    <a href={pathTo NewColumnAction <> "?tableName=" <> tableName} class="btn btn-sm btn-primary">New</a>
+    <a href={NewColumnAction tableName} class="btn btn-sm btn-primary">New</a>
 </div>
 |]
 

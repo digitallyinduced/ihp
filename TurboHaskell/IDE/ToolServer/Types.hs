@@ -19,8 +19,8 @@ data ToolServerApplication = ToolServerApplication deriving (Eq, Show)
 
 data SchemaDesignerController
     = TablesAction
-    | ShowTableAction
-    | NewColumnAction
+    | ShowTableAction { tableName :: Text }
+    | NewColumnAction { tableName :: Text }
     | CreateColumnAction
     deriving (Eq, Show, Data)
 

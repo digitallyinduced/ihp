@@ -15,9 +15,7 @@ module TurboHaskell.RouterSupport (
     , mountFrontController
     , createAction
     , updateAction
-    , parseUUID
-    , parseId
-    , parseText
+    , parseTextArgument
 ) where
 
 import ClassyPrelude hiding (index, delete, take)
@@ -57,7 +55,7 @@ class HasPath controller => CanRoute controller where
     parseRoute' :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
 
 
--- Maps models to their restful controllers
+-- | Maps models to their restful controllers
 -- E.g. ModelControllerMap ControllerContext User = UsersController
 type family ModelControllerMap controllerContext model
 
@@ -88,11 +86,11 @@ class Data controller => AutoRoute controller where
                     actionInstance constructor = State.evalState ((fromConstrM (do
                             i <- State.get
                             let field :: ByteString = cs (fields !! i)
-                            let value :: ByteString = fromMaybe (error "AutoRoute: Param empty") $ fromMaybe (error "AutoRoute: Param missign") (lookup field query)
-                            let id :: UUID = fromMaybe (error "AutoRoute: Failed parsing UUID") (fromASCIIBytes value)
+                            let value :: ByteString = fromMaybe (error "AutoRoute: Param empty") $ fromMaybe (error "AutoRoute: Param missing") (lookup field query)
+                            let id = parseArgument @controller field value
 
                             State.modify (+1)
-                            pure (unsafeCoerce id)
+                            pure id
                         )) constructor) 0
 
                     actionName = showConstr constructor
@@ -100,13 +98,7 @@ class Data controller => AutoRoute controller where
                     actionPath :: ByteString
                     actionPath = cs $! stripActionSuffix actionName
 
-                    allowedMethods :: [StdMethod]
-                    allowedMethods =
-                            case actionName of
-                                a | "Delete" `isPrefixOf` a -> [DELETE]
-                                a | "Update" `isPrefixOf` a -> [POST, PATCH]
-                                a | "Create" `isPrefixOf` a -> [POST]
-                                _ -> [GET, POST]
+                    allowedMethods = allowedMethodsForAction @controller actionName
 
                     checkRequestMethod action = do
                             method <- getMethod
@@ -115,7 +107,63 @@ class Data controller => AutoRoute controller where
                                 else error ("Invalid method, expected one of: " <> show allowedMethods)
         in choice (map parseCustomAction allConstructors)
 
+    parseArgument :: forall d. Data d => ByteString -> ByteString -> d
+    parseArgument field value =
+        value
+        |> fromASCIIBytes
+        |> fromMaybe (error "AutoRoute: Failed parsing UUID")
+        |> unsafeCoerce
+    {-# INLINE parseArgument #-}
 
+    -- | Specifies the allowed HTTP methods for a given action
+    --
+    -- The default implementation does a smart guess based on the
+    -- usual naming conventions for controllers.
+    --
+    -- __Example (for default implementation):__
+    --
+    -- >>> allowedMethodsForAction @ProjectsController "DeleteProjectAction"
+    -- [DELETE]
+    --
+    -- >>> allowedMethodsForAction @ProjectsController "UpdateProjectAction"
+    -- [POST, PATCH]
+    --
+    -- >>> allowedMethodsForAction @ProjectsController "CreateProjectAction"
+    -- [POST]
+    --
+    -- >>> allowedMethodsForAction @ProjectsController "HelloAction"
+    -- [GET, POST]
+    --
+    allowedMethodsForAction :: String -> [StdMethod]
+    allowedMethodsForAction actionName =
+            case actionName of
+                a | "Delete" `isPrefixOf` a -> [DELETE]
+                a | "Update" `isPrefixOf` a -> [POST, PATCH]
+                a | "Create" `isPrefixOf` a -> [POST]
+                _ -> [GET, POST]
+    {-# INLINE allowedMethodsForAction #-}
+
+-- | When the arguments for your AutoRoute based actions are not UUIDs or IDs
+-- you can override the 'parseArgument' function of your 'AutoRoute' instance
+-- with 'parseTextArgument' to receive them as a @Text@
+--
+-- __Example:__
+--
+-- >
+-- > data HelloWorldController = HelloAction { name :: Text }
+-- >     deriving (Eq, Show, Data)
+-- >
+-- > instance AutoRoute HelloWorldController where
+-- >     parseArgument = parseTextArgument
+parseTextArgument :: forall d. Data d => ByteString -> ByteString -> d
+parseTextArgument field value = unsafeCoerce ((cs value) :: Text)
+
+-- | Returns the url prefix for a controller. The prefix is based on the
+-- module where the controller is defined.
+-- 
+-- All controllers defined in the `Web/` directory don't have a prefix at all.
+--
+-- E.g. controllers in the `Admin/` directory are prefixed with @/admin/@.
 actionPrefix :: forall controller. Typeable controller => ByteString
 actionPrefix =
         case appModule of
@@ -136,6 +184,16 @@ actionPrefix =
                 |> cs
 {-# INLINE actionPrefix #-}
 
+-- | Strips the "Action" at the end of action names
+--
+-- >>> stripActionSuffix "ShowUserAction"
+-- "ShowUser"
+--
+-- >>> stripActionSuffix "UsersAction"
+-- "UsersAction"
+--
+-- >>> stripActionSuffix "User"
+-- "User"
 stripActionSuffix actionName = fromMaybe actionName (stripSuffix "Action" actionName)
 
 -- | Returns the create action for a given controller.
@@ -202,10 +260,10 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     |> fst -- ` a = b, c = d`
                     |> Text.splitOn "," -- [" a = b", " c = d "]
                     |> map (\s -> let (key, value) = Text.breakOn "=" s in (Text.strip key, Text.strip (Text.drop 1 value)))
+                    |> map (\(k ,v) -> (k, Text.dropAround (== '"') v)) -- "value" -> value
                     |> map (\(k, v) -> (cs k, cs v))
                     |> filter (\(k, v) -> (not . ClassyPrelude.null) k && (not . ClassyPrelude.null) v)
                     |> (\q -> if ClassyPrelude.null q then mempty else renderSimpleQuery True q)
-
 
 {-# INLINE getMethod #-}
 getMethod :: (?requestContext :: RequestContext) => Parser StdMethod
@@ -286,18 +344,3 @@ catchAll action = do
     string (actionPrefix @action)
     _ <- takeByteString
     pure (runActionWithNewContext @application action)
-
--- | Parses a text until the next `/`
-parseText :: Parser Text
-parseText = cs <$> takeTill ('/' ==)
-
--- | Parses an UUID-based Id (e.g. user id, project id)
-parseId = ModelSupport.Id <$> parseUUID
-
--- | Parses a UUID. Use `parseId` if you need an `Id model`.
-parseUUID :: forall m. Parser UUID
-parseUUID = do
-    uuid <- take 36
-    case fromASCIIBytes uuid of
-        Just uuid -> pure uuid
-        Nothing -> fail "parsing uuid failed"
