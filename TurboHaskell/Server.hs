@@ -17,9 +17,7 @@ import TurboHaskell.ApplicationContext
 import qualified TurboHaskell.ControllerSupport as ControllerSupport
 import Database.PostgreSQL.Simple
 import qualified TurboHaskell.LoginSupport.Middleware
-import Unsafe.Coerce
 import TurboHaskell.Environment (isDevelopment)
-import System.Directory (getCurrentDirectory)
 
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 import TurboHaskell.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
@@ -40,7 +38,7 @@ run = do
             let ?requestContext = requestContext
             frontControllerToWAIApp @FrameworkConfig.RootApplication ErrorController.handleNotFound
             
-    let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
+    let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30)) }) session
     let logMiddleware :: Middleware = logStdoutDev
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase "TurboHaskell/TurboHaskell/static/")
     let runServer = if isDevelopment FrameworkConfig.environment
