@@ -24,7 +24,6 @@ instance View IndexView ViewContext where
     html IndexView { .. } = [hsx|
 
 <div class="container">
-    <h1 class="py-5">TurboHaskell Schema Designer</h1>
     <div class="row no-gutters">
         {renderObjectSelector statements Nothing}
     </div>
@@ -51,7 +50,6 @@ renderObjectSelector statements activeObjectName = [hsx|
 instance View ShowView ViewContext where
     html ShowView { .. } = [hsx|
 <div class="container">
-    <h1 class="py-5">TurboHaskell Schema Designer</h1>
     <div class="row no-gutters">
         {renderObjectSelector statements (Just name)}
         {renderColumnSelector name columns}
@@ -67,7 +65,6 @@ instance View ShowView ViewContext where
 instance View NewColumnView ViewContext where
     html NewColumnView { .. } = [hsx|
 <div class="container">
-    <h1 class="py-5">TurboHaskell Schema Designer</h1>
     <div class="row no-gutters">
         {renderObjectSelector statements (Just tableName)}
         {renderColumnSelector tableName columns}

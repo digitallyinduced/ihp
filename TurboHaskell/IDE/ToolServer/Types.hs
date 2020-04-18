@@ -24,7 +24,6 @@ data SchemaDesignerController
     | CreateColumnAction
     deriving (Eq, Show, Data)
 
-
 instance FrameworkConfig where 
     environment = Development
     baseUrl = "http://localhost:8001"
