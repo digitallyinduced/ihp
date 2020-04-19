@@ -10,7 +10,7 @@ import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Session.Map (mapStore_)
-import qualified Web.Cookie
+import qualified Web.Cookie as Cookie
 import qualified Data.Time.Clock
 import TurboHaskell.ModelSupport
 import TurboHaskell.ApplicationContext
@@ -38,7 +38,12 @@ run = do
             let ?requestContext = requestContext
             frontControllerToWAIApp @FrameworkConfig.RootApplication ErrorController.handleNotFound
             
-    let sessionMiddleware :: Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30)) }) session
+    let sessionCookie = def
+                { Cookie.setCookiePath = Just "/"
+                , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
+                , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
+                }
+    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie session
     let logMiddleware :: Middleware = logStdoutDev
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase "TurboHaskell/TurboHaskell/static/")
     let runServer = if isDevelopment FrameworkConfig.environment
