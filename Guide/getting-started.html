@@ -320,6 +320,17 @@
 </li>
 </ul>
 </li>
+<li>
+<a href="#recipes">Recipes</a>
+<ul>
+<li>
+<a href="#static-pages">Static Pages</a>
+</li>
+<li>
+<a href="#adding-a-native-dependency">Adding a native dependency</a>
+</li>
+</ul>
+</li>
 </ul>
 <h2 id="dependencies">Dependencies</h2>
 <h3 id="1-nix-package-manager">1. Nix Package Manager</h3>
@@ -1096,6 +1107,97 @@ You can just use the <code>query</code> function for that.</p>
 <p>Place it in <code>Web/Types.hs</code>.</p>
 <h5 id="next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</h5>
 <p>A TurboHaskell project can consist of multiple applications. Run <code>new-application admin</code> to generate a new admin application. The logic for the new application is located in the <code>Admin/</code> directory. On the web you can find it at <code>http://localhost:8000/admin/</code> (all actions are prefixed with <code>/admin/</code>).</p>
+<h1 id="recipes">Recipes</h1>
+<p>This section describes best-practise solutions to common tasks your facing when building web applications.</p>
+<h2 id="static-pages">Static Pages</h2>
+<p>For adding a static page like e.g. a start page, terms of service, privacy, pricing etc. you usually use a normal controller which just renders the view for that page. The only special thing is, that you might want to customize the routing to have SEO-friendly urls.</p>
+<p>Let’s say we have a controller like this defined in <code>Web.Types</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">data</span><span> </span><span class="cr">StaticController</span><span>
+    </span><span class="sy">=</span><span> </span><span class="cr">AboutAction</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">TermsAction</span><span>
+    </span><span class="kw">deriving</span><span> </span><span class="sy">(</span><span class="cr">Eq</span><span class="sy">,</span><span> </span><span class="cr">Show</span><span class="sy">,</span><span> </span><span class="cr">Data</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<p>The controller implementation will look like this in <code>Web.Controller.Static</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Web.Controller.Static</span><span> </span><span class="kw">where</span><span>
+
+</span><span class="kw">import</span><span> </span><span class="cr">Web.Controller.Prelude</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Web.View.Static.Terms</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Web.View.Static.About</span><span>
+
+</span><span class="kw">instance</span><span> </span><span class="cr">Controller</span><span> </span><span class="cr">StaticController</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">action</span><span> </span><span class="cr">TermsAction</span><span> </span><span class="sy">=</span><span> </span><span class="va">render</span><span> </span><span class="cr">TermsView</span><span>
+    </span><span class="va">action</span><span> </span><span class="cr">AboutAction</span><span> </span><span class="sy">=</span><span> </span><span class="va">render</span><span> </span><span class="cr">AboutView</span><span>
+</span></code></pre></div>
+<p>We can now customize the routing in <code>Web.Routes</code> by first deleting the <code>instance AutoRoute StaticController</code> statement to delete the auto generated routing configuration and append:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">HasPath</span><span> </span><span class="cr">StaticController</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">pathTo</span><span> </span><span class="cr">TermsAction</span><span> </span><span class="sy">=</span><span> </span><span class="st">&quot;/terms&quot;</span><span>
+    </span><span class="va">pathTo</span><span> </span><span class="cr">AboutAction</span><span> </span><span class="sy">=</span><span> </span><span class="st">&quot;/about&quot;</span><span>
+
+</span><span class="kw">instance</span><span> </span><span class="cr">CanRoute</span><span> </span><span class="cr">StaticController</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">parseRoute&#39;</span><span> </span><span class="sy">=</span><span> 
+        </span><span class="sy">(</span><span class="va">string</span><span> </span><span class="st">&quot;/terms&quot;</span><span> </span><span class="op">&lt;*</span><span> </span><span class="va">endOfInput</span><span> </span><span class="op">&gt;&gt;</span><span> </span><span class="va">pure</span><span> </span><span class="cr">TermsAction</span><span class="sy">)</span><span>
+        </span><span class="op">&lt;|&gt;</span><span> </span><span class="sy">(</span><span class="va">string</span><span> </span><span class="st">&quot;/about&quot;</span><span> </span><span class="op">&lt;*</span><span> </span><span class="va">endOfInput</span><span> </span><span class="op">&gt;&gt;</span><span> </span><span class="va">pure</span><span> </span><span class="cr">AboutAction</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<p>Now the terms can be reached at <code>/terms</code> instead of <code>/Terms</code>. The about is at <code>/about</code> now, instead of <code>/About</code>.</p>
+<h2 id="adding-a-native-dependency">Adding a native dependency</h2>
+<p>Sometimes your project uses some other software tool which is not bundled with TurboHaskell by default. Because we’re using nix, we can easily manage that dependency for our project.</p>
+<p>Let’s say we want to add imagemagick to transform and resize images uploaded by the users of our application.</p>
+<p>All dependencies of our project are listed in <code>default.nix</code> at the root of the project directory. The file looks like this:</p>
+<div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
+<span>    </span><span class="ex">turboHaskell</span><span> = builtins.fetchGit {</span>
+<span>        </span><span class="ex">url</span><span> = </span><span class="st">&quot;https://github.com/digitallyinduced/haskellframework.git&quot;</span><span class="kw">;</span>
+<span>        </span><span class="fu">rev</span><span> = </span><span class="st">&quot;c6d40612697bb7905802f23b7753702d33b9e2c1&quot;</span><span class="kw">;</span>
+<span>    };</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${turboHaskell}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
+<span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc865&quot;</span><span class="kw">;</span>
+<span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
+<span>            cabal-install</span>
+<span>            base</span>
+<span>            classy-prelude</span>
+<span>            wai</span>
+<span>            text</span>
+<span>            hlint</span>
+<span>            turbohaskell</span>
+<span>            wreq</span>
+<span>        ];</span>
+<span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
+<span>        ];</span>
+<span>        projectPath </span><span class="ot">=</span><span> ./.;</span>
+<span>    };</span>
+<span>in</span>
+<span>    haskellEnv</span>
+</code></pre></div>
+<p>We now just have to add <code>imagemagick</code> to <code>otherDeps</code>:</p>
+<div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
+<span>    </span><span class="ex">turboHaskell</span><span> = builtins.fetchGit {</span>
+<span>        </span><span class="ex">url</span><span> = </span><span class="st">&quot;https://github.com/digitallyinduced/haskellframework.git&quot;</span><span class="kw">;</span>
+<span>        </span><span class="fu">rev</span><span> = </span><span class="st">&quot;c6d40612697bb7905802f23b7753702d33b9e2c1&quot;</span><span class="kw">;</span>
+<span>    };</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${turboHaskell}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
+<span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc865&quot;</span><span class="kw">;</span>
+<span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
+<span>            cabal-install</span>
+<span>            base</span>
+<span>            classy-prelude</span>
+<span>            wai</span>
+<span>            text</span>
+<span>            hlint</span>
+<span>            turbohaskell</span>
+<span>            wreq</span>
+<span>        ];</span>
+<span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
+
+<span>            imagemagick </span><span class="co"># &lt;-----------------------</span>
+<span>            </span>
+<span>        ];</span>
+<span>        projectPath </span><span class="ot">=</span><span> ./.;</span>
+<span>    };</span>
+<span>in</span>
+<span>    haskellEnv</span>
+</code></pre></div>
+<p>If running, stop your development server. Now run <code>make</code> again. This will install imagemagick locally to your project.</p>
+<p>When you are inside the project with your terminal, you can also call <code>imagemagick</code> to see that it’s available.</p>
+<p>You can look up the package name for the software you dependend on inside the nixpkgs repository. <a href="https://github.com/NixOS/nixpkgs">Just open it on GitHub</a> and use the GitHub search to look up the package name.</p>
 </div>
 
     

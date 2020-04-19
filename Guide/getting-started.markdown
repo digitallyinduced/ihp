@@ -1140,3 +1140,120 @@ Place it in `Web/Types.hs`.
 ##### Next to my main web application, I'm building an admin backend application. Where to place it?
 
 A TurboHaskell project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
+
+# Recipes
+
+This section describes best-practise solutions to common tasks your facing when building web applications.
+
+## Static Pages
+
+For adding a static page like e.g. a start page, terms of service, privacy, pricing etc. you usually use a normal controller which just renders the view for that page. The only special thing is, that you might want to customize the routing to have SEO-friendly urls.
+
+Let's say we have a controller like this defined in `Web.Types`:
+
+```haskell
+data StaticController
+    = AboutAction
+    | TermsAction
+    deriving (Eq, Show, Data)
+```
+
+The controller implementation will look like this in `Web.Controller.Static`:
+
+```haskell
+module Web.Controller.Static where
+
+import Web.Controller.Prelude
+import Web.View.Static.Terms
+import Web.View.Static.About
+
+instance Controller StaticController where
+    action TermsAction = render TermsView
+    action AboutAction = render AboutView
+```
+
+We can now customize the routing in `Web.Routes` by first deleting the `instance AutoRoute StaticController` statement to delete the auto generated routing configuration and append:
+
+```haskell
+instance HasPath StaticController where
+    pathTo TermsAction = "/terms"
+    pathTo AboutAction = "/about"
+
+instance CanRoute StaticController where
+    parseRoute' = 
+        (string "/terms" <* endOfInput >> pure TermsAction)
+        <|> (string "/about" <* endOfInput >> pure AboutAction)
+```
+
+Now the terms can be reached at `/terms` instead of `/Terms`. The about is at `/about` now, instead of `/About`.
+
+## Adding a native dependency
+
+Sometimes your project uses some other software tool which is not bundled with TurboHaskell by default. Because we're using nix, we can easily manage that dependency for our project.
+
+Let's say we want to add imagemagick to transform and resize images uploaded by the users of our application.
+
+All dependencies of our project are listed in `default.nix` at the root of the project directory. The file looks like this:
+
+```nix
+let
+    turboHaskell = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/haskellframework.git";
+        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+    };
+    haskellEnv = import "${turboHaskell}/NixSupport/default.nix" {
+        compiler = "ghc865";
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            classy-prelude
+            wai
+            text
+            hlint
+            turbohaskell
+            wreq
+        ];
+        otherDeps = p: with p; [
+        ];
+        projectPath = ./.;
+    };
+in
+    haskellEnv
+```
+
+We now just have to add `imagemagick` to `otherDeps`:
+
+```nix
+let
+    turboHaskell = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/haskellframework.git";
+        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+    };
+    haskellEnv = import "${turboHaskell}/NixSupport/default.nix" {
+        compiler = "ghc865";
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            classy-prelude
+            wai
+            text
+            hlint
+            turbohaskell
+            wreq
+        ];
+        otherDeps = p: with p; [
+
+            imagemagick # <-----------------------
+            
+        ];
+        projectPath = ./.;
+    };
+in
+    haskellEnv
+```
+
+If running, stop your development server. Now run `make` again. This will install imagemagick locally to your project.
+
+When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
+
+You can look up the package name for the software you dependend on inside the nixpkgs repository. [Just open it on GitHub](https://github.com/NixOS/nixpkgs) and use the GitHub search to look up the package name.
