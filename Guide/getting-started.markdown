@@ -1116,3 +1116,27 @@ Given the above example, the rendered form will look like this:
 # Debuging
 
 TODO: Show example using traceShowId
+
+# Architecture
+
+This section tries to answer common questions on where to place your code.
+
+In general remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.
+
+##### Where to place a function I want to use in all my views?
+
+If the function is only used in a single application and is a building block for your layout, place it in `Web/View/Layout.hs`. The module is already imported in all your views (just don't forget to add the function to the export list).
+
+If the function is used across multiple applications or more like a helper function, place it in `Application/Helper/View.hs`. This module is also already included in your view files.
+
+##### Where to place a function I want to use in all my controllers?
+
+Place it in `Application/Helper/Controller.hs`. This module is already imported into your controllers.
+
+##### Where to place a custom type?
+
+Place it in `Web/Types.hs`.
+
+##### Next to my main web application, I'm building an admin backend application. Where to place it?
+
+A TurboHaskell project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).

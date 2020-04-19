@@ -303,6 +303,23 @@
 <li>
 <a href="#debuging">Debuging</a>
 </li>
+<li>
+<a href="#architecture">Architecture</a>
+<ul>
+<li>
+<a href="#where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</a>
+</li>
+<li>
+<a href="#where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</a>
+</li>
+<li>
+<a href="#where-to-place-a-custom-type">Where to place a custom type?</a>
+</li>
+<li>
+<a href="#next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</a>
+</li>
+</ul>
+</li>
 </ul>
 <h2 id="dependencies">Dependencies</h2>
 <h3 id="1-nix-package-manager">1. Nix Package Manager</h3>
@@ -1067,6 +1084,18 @@ You can just use the <code>query</code> function for that.</p>
 </code></pre></div>
 <h1 id="debuging">Debuging</h1>
 <p>TODO: Show example using traceShowId</p>
+<h1 id="architecture">Architecture</h1>
+<p>This section tries to answer common questions on where to place your code.</p>
+<p>In general remember that all specific web app logic should stay in the <code>Web/</code> space. The <code>Application/</code> space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.</p>
+<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</h5>
+<p>If the function is only used in a single application and is a building block for your layout, place it in <code>Web/View/Layout.hs</code>. The module is already imported in all your views (just don’t forget to add the function to the export list).</p>
+<p>If the function is used across multiple applications or more like a helper function, place it in <code>Application/Helper/View.hs</code>. This module is also already included in your view files.</p>
+<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</h5>
+<p>Place it in <code>Application/Helper/Controller.hs</code>. This module is already imported into your controllers.</p>
+<h5 id="where-to-place-a-custom-type">Where to place a custom type?</h5>
+<p>Place it in <code>Web/Types.hs</code>.</p>
+<h5 id="next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</h5>
+<p>A TurboHaskell project can consist of multiple applications. Run <code>new-application admin</code> to generate a new admin application. The logic for the new application is located in the <code>Admin/</code> directory. On the web you can find it at <code>http://localhost:8000/admin/</code> (all actions are prefixed with <code>/admin/</code>).</p>
 </div>
 
     
