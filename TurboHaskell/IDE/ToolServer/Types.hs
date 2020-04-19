@@ -4,6 +4,8 @@ import TurboHaskell.Prelude
 import qualified TurboHaskell.Controller.Session as Session
 import qualified TurboHaskell.ControllerSupport as ControllerSupport
 import qualified TurboHaskell.ViewSupport as ViewSupport
+import TurboHaskell.FrameworkConfig
+import TurboHaskell.Environment
 
 data ViewContext = ViewContext
     { requestContext :: ControllerSupport.RequestContext
@@ -17,7 +19,11 @@ data ToolServerApplication = ToolServerApplication deriving (Eq, Show)
 
 data SchemaDesignerController
     = TablesAction
-    | ShowTableAction
+    | ShowTableAction { tableName :: Text }
+    | NewColumnAction { tableName :: Text }
+    | CreateColumnAction
     deriving (Eq, Show, Data)
 
-
+instance FrameworkConfig where 
+    environment = Development
+    baseUrl = "http://localhost:8001"
