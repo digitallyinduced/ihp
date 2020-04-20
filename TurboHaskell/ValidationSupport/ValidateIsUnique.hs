@@ -8,7 +8,7 @@ import TurboHaskell.HaskellSupport
 import TurboHaskell.QueryBuilder
 
 {-# INLINE validateIsUnique #-}
-validateIsUnique :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel. (
+validateIsUnique :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -20,6 +20,9 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
+        , HasField "id" savedModel savedModelId
+        , HasField "id" model modelId
+        , EqId modelId savedModelId
     ) => Proxy field -> model -> IO model
 validateIsUnique fieldProxy model = do
     let value = getField @field model
@@ -27,5 +30,14 @@ validateIsUnique fieldProxy model = do
         |> filterWhere (fieldProxy, value)
         |> fetchOneOrNothing
     case result of
-        Nothing -> pure (attachValidatorResult fieldProxy Success model)
-        Just value -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
+        Just value | not $ eqId (getField @"id" model) (getField @"id" value) -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
+        _ -> pure (attachValidatorResult fieldProxy Success model)
+
+class EqId a b where
+    eqId :: a -> b -> Bool
+
+instance {-# OVERLAPS #-} EqId (FieldWithDefault a) b where
+    eqId _ _ = False
+
+instance {-# OVERLAPPABLE #-} (a ~ b, Eq a) => EqId a b where
+    eqId = (==)
