@@ -1057,6 +1057,7 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make db</td><td>Creates a new database with the current Schema and imports Fixtures.sql</td></tr>
 <tr><td>make dumpdb</td><td>Saves the current database state into the Fixtures.sql</td></tr>
 <tr><td>make psql</td><td>Connects to the running postgresql server</td></tr>
+<tr><td>make .envrc</td><td>Loads $PATH from nix-shell into .envrc</td></tr>
 <tr><td>ghci</td><td>Opens a new ghci session with the project and framework already loaded</td></tr>
 <tr><td>make clean</td><td>Resets all build and temporary files</td></tr>
 <tr><td>make print-ghc-extensions</td><td>Prints all used ghc extensions. Useful for scripting</td></tr>
@@ -1067,6 +1068,7 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make static/prod.css</td><td>Builds the production css bundle</td></tr>
 </tbody>
 </table>
+      <p>You can use the <code>-B</code> flag to force a remake. For example <code>make -B .envrc</code></p>
 <h1 id="form-reference">Form Reference</h1>
 <h2 id="select-inputs">Select Inputs</h2>
 <p>You can use the <code>selectField</code> helper for select inputs:</p>
