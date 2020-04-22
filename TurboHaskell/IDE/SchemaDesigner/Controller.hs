@@ -8,6 +8,7 @@ import TurboHaskell.IDE.SchemaDesigner.View
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
+import qualified System.Process as Process
 
 instance Controller SchemaDesignerController where
     action TablesAction = do
@@ -36,6 +37,10 @@ instance Controller SchemaDesignerController where
         updateSchema (map (addColumnToTable tableName column))
 
         redirectTo ShowTableAction { .. }
+
+    action PushToDbAction = do
+        Process.system "make db"
+        redirectTo TablesAction
 
 readSchema :: _ => _
 readSchema = parseSchemaSql >>= \case
