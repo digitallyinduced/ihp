@@ -105,10 +105,10 @@ instance View NewColumnView ViewContext where
                     </div>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col col-form-label">
+                        <label class="col col-form-label">
                             <input type="checkbox" name="primaryKey" class="mr-2"/>Primary Key
                         </label>
-                        <label for="inputEmail3" class="col col-form-label">
+                        <label class="col col-form-label">
                             <input type="checkbox" name="allowNull" class="mr-2"/>Allow Null
                         </label>
                     </div>
