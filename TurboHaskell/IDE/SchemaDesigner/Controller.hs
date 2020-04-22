@@ -32,7 +32,6 @@ instance Controller SchemaDesignerController where
                     , defaultValue = Nothing
                     , notNull = (not (param "allowNull"))
                     }
-        putStrLn (show (get #primaryKey column) <> " " <> show (get #notNull column))
         updateSchema (map (addColumnToTable tableName column))
 
         redirectTo ShowTableAction { .. }
