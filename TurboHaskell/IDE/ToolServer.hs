@@ -20,10 +20,9 @@ import qualified TurboHaskell.ErrorController as ErrorController
 import TurboHaskell.ApplicationContext
 import TurboHaskell.ModelSupport
 import TurboHaskell.RouterSupport hiding (get)
-import qualified Web.Cookie as Cookie
+import qualified Web.Cookie
 import qualified Data.Time.Clock
 import Network.Wai.Session.ClientSession (clientsessionStore)
-import Network.Wai.Session.Map (mapStore_)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
@@ -38,7 +37,6 @@ import Control.Concurrent.Async
 import TurboHaskell.IDE.ToolServer.Routes
 import qualified System.Process as Process
 
-
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
     let port = ?context
@@ -50,21 +48,14 @@ startToolServer = do
 
     thread <- async (startToolServer' port)
 
-    --openUrl ("http://localhost:" <> tshow port <> "/turbohaskell/")
-    putStrLn "ToolServer started"
+    openUrl ("http://localhost:" <> tshow port <> "/turbohaskell/")
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
 startToolServer' port = do
     session <- Vault.newKey
-    --store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    store <- mapStore_
-    let sessionCookie = def
-                { Cookie.setCookiePath = Just "/"
-                , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
-                , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
-                }
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session    
+    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
     let applicationContext = ApplicationContext { modelContext = (ModelContext (error "Not connected")), session }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
@@ -74,7 +65,7 @@ startToolServer' port = do
             
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase "TurboHaskell/TurboHaskell/static/")
 
-    let warpSettings = Warp.defaultSettings |> Warp.setPort 8002
+    let warpSettings = Warp.defaultSettings |> Warp.setPort port
     
     Warp.runSettings warpSettings $ 
             staticMiddleware $ logStdoutDev $ methodOverridePost $ sessionMiddleware $ application

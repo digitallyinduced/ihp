@@ -30,8 +30,7 @@ run = do
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     port <- FrameworkConfig.initAppPort
-    --store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    store <- mapStore_
+    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let applicationContext = ApplicationContext { modelContext = (ModelContext conn), session }
     let application :: Application = \request respond -> do
             let ?applicationContext = applicationContext
