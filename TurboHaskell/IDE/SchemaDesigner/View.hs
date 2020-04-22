@@ -24,8 +24,8 @@ instance View IndexView ViewContext where
     html IndexView { .. } = [hsx|
 
 <div class="container">
-    <form class="w-100 d-flex justify-content-end" action={pathTo MakeDbAction}>
-        <button type="submit" class="btn btn-primary my-3">Make db</button>
+    <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
+        <button type="submit" class="btn btn-primary my-3">Push to DB</button>
     </form>
     <div class="row no-gutters">
         {renderObjectSelector statements Nothing}
@@ -53,9 +53,9 @@ renderObjectSelector statements activeObjectName = [hsx|
 instance View ShowView ViewContext where
     html ShowView { .. } = [hsx|
 <div class="container">
-    <div class="w-100 d-flex justify-content-end">
-        <a href={MakeDbAction}><div class="btn btn-primary my-3">Make db</div></a>
-    </div>
+    <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
+        <button type="submit" class="btn btn-primary my-3">Push to DB</button>
+    </form>
     <div class="row no-gutters">
         {renderObjectSelector statements (Just name)}
         {renderColumnSelector name columns}

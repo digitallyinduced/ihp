@@ -38,8 +38,8 @@ instance Controller SchemaDesignerController where
 
         redirectTo ShowTableAction { .. }
 
-    action MakeDbAction = do
-        Process.system("make db")
+    action PushToDbAction = do
+        Process.system "make db"
         redirectTo TablesAction
 
 readSchema :: _ => _

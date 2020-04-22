@@ -22,7 +22,7 @@ data SchemaDesignerController
     | ShowTableAction { tableName :: Text }
     | NewColumnAction { tableName :: Text }
     | CreateColumnAction
-    | MakeDbAction
+    | PushToDbAction
     deriving (Eq, Show, Data)
 
 instance FrameworkConfig where 
