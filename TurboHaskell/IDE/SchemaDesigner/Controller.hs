@@ -20,6 +20,15 @@ instance Controller SchemaDesignerController where
         statements <- readSchema
         render ShowView { .. }
 
+    action NewTableAction = do
+        statements <- readSchema
+        render NewTableView { .. }
+
+    action CreateTableAction = do
+        let tableName = param "tableName"
+        updateSchema (addTable tableName)
+        redirectTo ShowTableAction { .. }
+
     action NewColumnAction { tableName } = do
         statements <- readSchema
         render NewColumnView { .. }
@@ -57,3 +66,5 @@ addColumnToTable :: Text -> Column -> Statement -> Statement
 addColumnToTable tableName column (table@CreateTable { name, columns }) | name == tableName =
     table { columns = columns <> [column] }
 addColumnToTable tableName column statement = statement
+
+addTable tableName list = list <> [CreateTable { name = tableName, columns = [] }]
