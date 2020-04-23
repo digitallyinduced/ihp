@@ -327,9 +327,7 @@ startCodeGenerationGHCI = do
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
                 modifyIORef errorOutput (\o -> o <> "\n" <> line)
                 dispatch ReceiveCodeGenerationOutput { line = ErrorOutput line }
-                if ("cannot find object file for module" `isInfixOf` line)
-                    then sendGhciCommand process ":l Main.hs"
-                    else unless ("Warning" `isInfixOf` line) (dispatch (UpdateCodeGenerationState (CodeGenerationFailed { .. })))
+                unless ("Warning" `isInfixOf` line) (dispatch (UpdateCodeGenerationState (CodeGenerationFailed { .. })))
 
     dispatch (UpdateCodeGenerationState (CodeGenerationReady { .. }))
 
