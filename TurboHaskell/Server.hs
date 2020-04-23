@@ -30,7 +30,8 @@ run = do
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     port <- FrameworkConfig.initAppPort
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    --store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    store <- mapStore_
     let applicationContext = ApplicationContext { modelContext = (ModelContext conn), session }
     let application :: Application = \request respond -> do
             let ?applicationContext = applicationContext
@@ -50,7 +51,7 @@ run = do
             then
                 let settings = Warp.defaultSettings
                         |> Warp.setBeforeMainLoop (putStrLn "Server started")
-                        |> Warp.setPort port
+                        |> Warp.setPort 8000
                 in Warp.runSettings settings
             else Warp.runEnv port
     runServer $
