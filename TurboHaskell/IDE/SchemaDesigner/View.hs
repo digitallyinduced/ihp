@@ -20,6 +20,9 @@ data NewColumnView = NewColumnView
     , tableName :: Text
     }
 
+data NewTableView = NewTableView 
+    { statements :: [Statement] }
+
 instance View IndexView ViewContext where
     html IndexView { .. } = [hsx|
 
@@ -37,6 +40,7 @@ renderObjectSelector statements activeObjectName = [hsx|
 <div class="col object-selector">
     <h5>Objects</h5>
     {forEach statements renderObject}
+    <a href={NewTableAction} class="btn btn-sm btn-primary">New</a>
 </div>
 |]
     where
@@ -116,6 +120,40 @@ instance View NewColumnView ViewContext where
             modalTitle = "New Column"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
+
+
+instance View NewTableView ViewContext where
+    html NewTableView { .. } = [hsx|
+<div class="container">
+    <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
+        <button type="submit" class="btn btn-primary my-3">Push to DB</button>
+    </form>
+    <div class="row no-gutters">
+        {renderObjectSelector statements Nothing}
+    </div>
+</div>
+{Just modal}
+    |]
+        where
+            modalContent = [hsx|
+                <form method="POST" action={CreateTableAction}>
+
+                    <div class="form-group row">
+                        <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
+                        <div class="col-sm-10">
+                            <input name="tableName" type="text" class="form-control" autofocus="autofocus"/>
+                        </div>
+                    </div>
+
+                    <div class="text-right">
+                        <button type="submit" class="btn btn-primary">Create Column</button>
+                    </div>
+                </form>
+            |]
+            modalFooter = mempty 
+            modalCloseUrl = pathTo TablesAction
+            modalTitle = "New Table"
+            modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
 
 
