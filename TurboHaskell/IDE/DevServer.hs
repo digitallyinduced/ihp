@@ -281,7 +281,14 @@ startAppGHCI = do
                                 writeIORef needsErrorRecovery True
                                 dispatch AppModulesLoaded { success = False }
                             else dispatch ReceiveAppOutput { line = StandardOutput line }
-    async $ forever $ ByteString.hGetLine errorHandle >>= \line -> dispatch ReceiveAppOutput { line = ErrorOutput line }
+
+    async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
+        if "cannot find object file for module" `isInfixOf` line
+            then do
+                sendGhciCommand process ":l Main.hs"
+                sendGhciCommand process "main"
+                dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
+            else dispatch ReceiveAppOutput { line = ErrorOutput line }
 
     sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/loadAppModules"
 
