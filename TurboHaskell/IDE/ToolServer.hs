@@ -20,11 +20,10 @@ import qualified TurboHaskell.ErrorController as ErrorController
 import TurboHaskell.ApplicationContext
 import TurboHaskell.ModelSupport
 import TurboHaskell.RouterSupport hiding (get)
-import qualified Web.Cookie as Cookie
+import qualified Web.Cookie
 import qualified Data.Time.Clock
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
-import Network.Wai.Session.Map (mapStore_)
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
@@ -55,14 +54,8 @@ startToolServer = do
     
 startToolServer' port = do
     session <- Vault.newKey
-    --store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    store <- mapStore_
-    let sessionCookie = def
-                { Cookie.setCookiePath = Just "/"
-                , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
-                , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
-                }
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session    
+    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
     let applicationContext = ApplicationContext { modelContext = (ModelContext (error "Not connected")), session }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext

@@ -41,7 +41,7 @@ continueStatusServer StatusServerPaused { .. } = do
                 |> get #appPort
                 |> fromIntegral
 
-        server <- async $ Warp.run 8001 warpApp
+        server <- async $ Warp.run port warpApp
         
         writeIORef serverRef server
     where
