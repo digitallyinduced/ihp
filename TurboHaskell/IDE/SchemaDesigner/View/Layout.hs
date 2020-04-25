@@ -23,16 +23,17 @@ renderColumnSelector tableName columns = [hsx|
 |]
 
 renderColumn :: Column -> Html
-renderColumn Column { name, primaryKey, columnType, defaultValue } = [hsx|
+renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } = [hsx|
 <tr>
     <td>{name}</td>
-    <td>{columnType}</td>
+    <td>{columnType}{renderAllowNull}</td>
     <td>{renderDefault}</td>
     <td>{renderPrimaryKey}</td>
 </tr>
 |]
     where
         renderPrimaryKey = if primaryKey then [hsx|PRIMARY KEY|] else mempty
+        renderAllowNull = if notNull then mempty else [hsx|{" | " :: Text}NULL|]
         renderDefault =
             case defaultValue of
                 Just value -> [hsx|default: {value}|]

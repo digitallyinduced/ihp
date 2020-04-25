@@ -38,14 +38,17 @@ instance Controller SchemaDesignerController where
     action CreateColumnAction = do
         let tableName = param "tableName"
         let column = Column
-                    { name = param "name"
-                    , columnType = param "columnType"
-                    , primaryKey = (param "primaryKey")
-                    , defaultValue = Nothing
-                    , notNull = (not (param "allowNull"))
-                    }
-        updateSchema (map (addColumnToTable tableName column))
-
+                { name = param "name"
+                , columnType = param "columnType"
+                , primaryKey = (param "primaryKey")
+                , defaultValue = Nothing
+                , notNull = (not (param "allowNull"))
+                }
+        if ((get #name column) == "")
+            then do
+                setSuccessMessage ("Column Name can not be empty")
+            else do
+                updateSchema (map (addColumnToTable tableName column))
         redirectTo ShowTableAction { .. }
 
     action PushToDbAction = do
