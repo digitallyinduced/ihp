@@ -278,13 +278,13 @@ startAppGHCI = do
     let ManagedProcess { outputHandle, errorHandle } = process
 
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
-                if "Server started" `isSuffixOf` line
+                if "Server started" `isInfixOf` line
                     then dispatch AppStarted
-                    else if "Ok," `isPrefixOf` line
+                    else if "modules loaded." `isInfixOf` line
                         then do
                             writeIORef needsErrorRecovery False
                             dispatch AppModulesLoaded { success = True }
-                        else if "Failed," `isPrefixOf` line
+                        else if "Failed," `isInfixOf` line
                             then do
                                 writeIORef needsErrorRecovery True
                                 dispatch AppModulesLoaded { success = False }
