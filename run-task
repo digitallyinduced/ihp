@@ -1,0 +1,35 @@
+#!/bin/bash -e
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+TASK_PATH=$@
+TASK_MODULE=${TASK_PATH##*/}
+TASK_MODULE="${TASK_MODULE%.*}"
+
+# Ensure we are in an app dir
+if [ ! -f Main.hs ]; then
+    echo "You have to be in a project directory to run the generator"
+    exit 1
+fi
+
+FRAMEWORKDIR=$(dirname $(readlink $(which RunDevServer)))/../
+if [ -d TurboHaskell ]; then
+    FRAMEWORKDIR="$(pwd)/TurboHaskell"
+fi
+
+GHCI_SCRIPT="$(mktemp)"
+trap "rm $GHCI_SCRIPT" EXIT
+
+echo ":script $FRAMEWORKDIR/TurboHaskell/IDE/applicationGhciConfig" > "$GHCI_SCRIPT"
+
+if [ -d TurboHaskell ]; then
+    echo ":l TurboHaskell/TurboHaskell/TaskSupport.hs Application/Schema.hs $TASK_PATH" >> "$GHCI_SCRIPT"
+else
+    echo "import TurboHaskell.TaskSupport" >> "$GHCI_SCRIPT"
+fi
+
+echo "import TurboHaskell.TaskSupport" >> "$GHCI_SCRIPT"
+echo "import qualified Application.Tasks.$TASK_MODULE as Task" >> "$GHCI_SCRIPT"
+echo "TurboHaskell.TaskSupport.runTask Task.run" >> "$GHCI_SCRIPT"
+echo ":quit" >> "$GHCI_SCRIPT"
+
+ghci -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
+

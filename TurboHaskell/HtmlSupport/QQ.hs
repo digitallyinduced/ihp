@@ -5,7 +5,7 @@ module TurboHaskell.HtmlSupport.QQ (hsx) where
 import           ClassyPrelude
 import           TurboHaskell.HtmlSupport.Parser
 import           Language.Haskell.Meta         (parseExp)
-import qualified Language.Haskell.TH           as TH
+import qualified "template-haskell" Language.Haskell.TH           as TH
 import           Language.Haskell.TH.Quote
 import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
@@ -34,7 +34,7 @@ quoteHsxExpression code = do
         monadicParseHsx code =
             case parseHsx code of
                 Left error   -> fail (show error)
-                Right result -> return result
+                Right result -> pure result
 
 compileToHaskell :: Node -> TH.ExpQ
 compileToHaskell (Node name attributes children) =
@@ -54,7 +54,7 @@ compileToHaskell (Children children) =
 compileToHaskell (TextNode value) = [| Html5.string value |]
 compileToHaskell (SplicedNode code) =
     case parseExp code of
-        Right expression -> let patched = patchExpr expression in [| toHtml $(return patched) |]
+        Right expression -> let patched = patchExpr expression in [| toHtml $(pure patched) |]
         Left error -> fail ("compileToHaskell(" <> code <> "): " <> show error)
 
 patchExpr :: TH.Exp -> TH.Exp
@@ -102,7 +102,7 @@ patchExpr e = e
 toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
 toStringAttribute (name, TextValue value) = do
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
+    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then pure () else fail ("Invalid attribute: " <> name)
 
     if null value
         then [| (attribute name nameWithSuffix) mempty |]
@@ -110,9 +110,9 @@ toStringAttribute (name, TextValue value) = do
 
 toStringAttribute (name, ExpressionValue code) = do
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then return () else fail ("Invalid attribute: " <> name)
+    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then pure () else fail ("Invalid attribute: " <> name)
     case parseExp code of
-        Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(return patched)) |]
+        Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(pure patched)) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> code <> "): " <> show error)
 
 
@@ -140,7 +140,7 @@ makeElement !name !children =
             if name `elem` leafs then
                 leaf ()
             else
-                error "makeElement: Unknown tag "
+                error ("makeElement: Unknown tag "  <> show name)
 
 attributes =
         [ "accept", "accept-charset", "accesskey", "action", "alt", "async"
@@ -179,7 +179,7 @@ attributes =
         , "role"
         , "d", "viewBox", "fill", "cx", "cy", "r", "x", "y", "text-anchor", "alignment-baseline"
         , "line-spacing", "letter-spacing"
-        , "integrity", "crossorigin"
+        , "integrity", "crossorigin", "poster"
         ]
 
 
@@ -195,7 +195,7 @@ parents =
         , "pre", "progress", "q", "rp", "rt", "ruby", "samp", "script"
         , "section", "select", "small", "span", "strong", "style", "sub"
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
-        , "thead", "time", "title", "tr", "ul", "var", "video"
+        , "thead", "time", "title", "tr", "u", "ul", "var", "video"
         , "svg", "path", "text", "circle"
         ]
 

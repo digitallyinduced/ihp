@@ -58,7 +58,7 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 RUNGHC=runghc
 
-run: .envrc build/db/state build/Generated static/prod.js static/prod.css
+run: .envrc build/Generated static/prod.js static/prod.css
 	RunDevServer
 
 
@@ -90,14 +90,14 @@ db: Application/Schema.sql Application/Fixtures.sql
 
 dumpdb: dump_db
 dump_db:
-	pg_dump -a --inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
+	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
 ghci:
 	ghci -threaded -i. -iTurboHaskell -fexternal-interpreter
 
 build/Generated: Application/Schema.hs TurboHaskell/TurboHaskell/SchemaCompiler.hs
 	rm -rf build/Generated && mkdir -p build/Generated
-	ghci -e ':script TurboHaskell/compileModels'
+	ghci -e ':script TurboHaskell/TurboHaskell/IDE/compileModels'
 
 build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated
 	mkdir -p build/RunUnoptimizedProdServer
@@ -130,14 +130,3 @@ print-ghc-options:
 
 print-ghc-extensions:
 	@echo ${GHC_EXTENSIONS}
-
-build/db/state:
-	mkdir -p build/db
-	cd build/db && initdb state
-	(postgres -D build/db/state -p 8001) & echo $$! > build/db/server.pid
-	sleep 4
-	createdb app -p 8001
-	psql -p 8001 -d app < Application/Schema.sql
-	psql -p 8001 -d app < Application/Fixtures.sql
-	kill `cat build/db/server.pid`
-	rm build/db/server.pid

@@ -3,12 +3,12 @@
 {-# LANGUAGE TypeFamilies          #-}
 
 module TurboHaskell.ValidationSupport
-    ( module TurboHaskell.ValidationSupport.Types
-    , module TurboHaskell.ValidationSupport.ValidateCanView
-    , module TurboHaskell.ValidationSupport.ValidateField
-    , module TurboHaskell.ValidationSupport.ValidateIsUnique
-    , module TurboHaskell.ValidationSupport.ValidateFieldIO
-    )
+( module TurboHaskell.ValidationSupport.Types
+, module TurboHaskell.ValidationSupport.ValidateCanView
+, module TurboHaskell.ValidationSupport.ValidateField
+, module TurboHaskell.ValidationSupport.ValidateIsUnique
+, module TurboHaskell.ValidationSupport.ValidateFieldIO
+)
 where
 
 import ClassyPrelude

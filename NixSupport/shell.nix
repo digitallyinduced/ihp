@@ -7,7 +7,6 @@ let
 	    classy-prelude
 	    directory
 	    string-conversions
-	    fsnotify
 	    warp
 	    wai
 	    mtl
@@ -44,15 +43,25 @@ let
 	    tz
 	    attoparsec
 	    lens
-	    time_1_9_2
+	    time_1_9_3
 	    case-insensitive
+	    haskell-src-exts
+	    containers
 	    http-media
+	    cookie
+	    process
 	    newtype-generics
+	    unix
+	    fsnotify
+	    concurrent-extra
+	    countable-inflections
+	    typerep-map
+	    mmark-cli
 	]);
 in
     pkgs.stdenv.mkDerivation {
         name = "app";
-        src = ./../../../.;
+        src = ./../.;
         buildInputs = [haskellDeps];
         shellHook = "eval $(egrep ^export ${haskellDeps}/bin/ghc)";
     }

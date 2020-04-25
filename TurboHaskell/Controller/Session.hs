@@ -27,7 +27,7 @@ getSession :: (?requestContext :: RequestContext) => Text -> IO (Maybe Text)
 getSession name = do
         value <- (sessionLookup (cs name))
         let textValue = fmap cs value
-        return $! if textValue == Just "" then Nothing else textValue
+        pure $! if textValue == Just "" then Nothing else textValue
     where
         (RequestContext request _ _ _ session) = ?requestContext
         Just (sessionLookup, _) = Vault.lookup session (Network.Wai.vault request)
@@ -35,14 +35,14 @@ getSession name = do
 getSessionInt :: (?requestContext :: RequestContext) => Text -> IO (Maybe Int)
 getSessionInt name = do
     value <- getSession name
-    return $! case fmap (Data.Text.Read.decimal . cs) value of
+    pure $! case fmap (Data.Text.Read.decimal . cs) value of
             Just (Right value) -> Just $ fst value
             _                  -> Nothing
 
 getSessionUUID :: (?requestContext :: RequestContext) => Text -> IO (Maybe Data.UUID.UUID)
 getSessionUUID name = do
     value <- getSession name
-    return $! case fmap Data.UUID.fromText value of
+    pure $! case fmap Data.UUID.fromText value of
             Just (Just value) -> Just value
             _                 -> Nothing
 
@@ -73,8 +73,8 @@ getAndClearFlashMessages = do
     errorMessage <- getSession errorMessageKey
     case successMessage of
         Just value | value /= "" -> setSuccessMessage ""
-        Nothing -> return ()
+        Nothing -> pure ()
     case errorMessage of
         Just value | value /= "" -> setErrorMessage ""
-        Nothing -> return ()
-    return $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])
+        Nothing -> pure ()
+    pure $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])

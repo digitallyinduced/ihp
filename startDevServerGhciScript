@@ -1,3 +1,0 @@
-:script TurboHaskell/applicationGhciConfig
-:l Main.hs
-main

@@ -18,6 +18,8 @@ import qualified Text.Countable as Countable
 -- USE LINE PRAGMA IN OUTPUT
 --{-# LINE 42 "Foo.vhs" #-}
 
+singularize word = Countable.singularize word
+
 haskellType :: Table -> Attribute -> Text
 haskellType table (Field fieldName field) =
     let
@@ -31,6 +33,8 @@ haskellType table (Field fieldName field) =
                 Timestamp {}   -> "UTCTime"
                 UUIDField {}   -> "UUID"
                 PointField {}  -> "Point"
+                FloatField {}  -> "Float"
+                DoubleField {} -> "Double"
         actualType =
             if isPrimaryKey field
                 then "(" <> primaryKeyTypeName table <> ")"
@@ -44,7 +48,7 @@ haskellType table (HasMany {name}) = "(QueryBuilder.QueryBuilder " <> tableNameT
 compile :: [Table] -> IO ()
 compile database = do
     let validationErrors = validate database
-    when (not (null validationErrors)) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
+    unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
     writeTable (getTypesFilePath, compileTypes database)
     TurboHaskell.SqlCompiler.main database
 
@@ -52,7 +56,7 @@ compile database = do
 writeTable :: (FilePath, Text) -> IO ()
 writeTable (path, content) = do
     alreadyExists <- Directory.doesFileExist path
-    existingContent <- if alreadyExists then readFile path else return ""
+    existingContent <- if alreadyExists then readFile path else pure ""
     when (existingContent /= cs content) $ do
         putStrLn $ "Updating " <> cs path
         writeFile (cs path) (cs content)
@@ -60,7 +64,7 @@ writeTable (path, content) = do
 writeStub :: (FilePath, Text) -> IO ()
 writeStub (path, content) = do
     stubExists <- Directory.doesFileExist (cs path)
-    if not stubExists then writeFile (cs path) (cs content) else return ()
+    if not stubExists then writeFile (cs path) (cs content) else pure ()
 
 section = "\n"
 
@@ -80,12 +84,15 @@ compileTypes database =
                   <> "import TurboHaskell.HaskellSupport\n"
                   <> "import TurboHaskell.ModelSupport\n"
                   <> "import TurboHaskell.SchemaTypes\n"
-                  <> "import ClassyPrelude hiding (id) \n"
+                  <> "import CorePrelude hiding (id) \n"
+                  <> "import Data.Time.Clock \n"
+                  <> "import qualified Data.List as List \n"
+                  <> "import qualified Data.ByteString as ByteString \n"
                   <> "import Database.PostgreSQL.Simple\n"
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
                   <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
                   <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
-                  <> "import TurboHaskell.Controller.Param (ParamName (..))\n"
+                  <> "import TurboHaskell.Controller.Param ()\n"
                   <> "import qualified Data.Function\n"
                   <> "import GHC.TypeLits\n"
                   <> "import Data.UUID (UUID)\n"
@@ -134,37 +141,40 @@ getTypesFilePath = "build/Generated/Types.hs"
 
 compileTypeAlias :: Table -> Text
 compileTypeAlias table@(Table name attributes) =
-        "type " <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map (haskellType table) attributes) <> "\n"
+        "type " <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> unwords (map (haskellType table) attributes) <> "\n"
 
 
 
 compileNewTypeAlias :: Table -> Text
 compileNewTypeAlias table@(Table name attributes) =
-        "type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map compileAttribute attributes) <> "\n"
-        <> "type NewOrSaved" <> tableNameToModelName name <> " " <> newOrSavedArgs <> " = " <> tableNameToModelName name <> "' " <> intercalate " " (map compileNewOrSavedAttribute attributes) <> "\n"
+        "type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "' " <> unwords (map compileAttribute attributes) <> "\n"
+        <> "type NewOrSaved" <> tableNameToModelName name <> " " <> newOrSavedArgs <> " = " <> tableNameToModelName name <> "' " <> unwords (map compileNewOrSavedAttribute attributes) <> "\n"
         <> "type instance New (" <> compileTypePattern table <> ") = New" <> tableNameToModelName name <> "\n"
         <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
     where
-        compileAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = "(FieldWithDefault " <> haskellType table field <> ")"
+        compileAttribute field@(Field fieldName fieldType) | hasSqlDefaultValueOnly field = "(FieldWithDefault " <> haskellType table field <> ")"
         compileAttribute field = haskellType table field
 
-        compileNewOrSavedAttribute field@(Field fieldName fieldType) | isJust (defaultValue fieldType) = fieldName
+        compileNewOrSavedAttribute field@(Field fieldName fieldType) | hasSqlDefaultValueOnly field = fieldName
         compileNewOrSavedAttribute field = haskellType table field
 
         newOrSavedArgs :: Text
         newOrSavedArgs =
             attributes
-            |> filter hasDefaultValue
+            |> filter hasSqlDefaultValueOnly
             |> map (\(Field fieldName _) -> fieldName)
             |> unwords 
 
-        hasDefaultValue (Field _ fieldType) | isJust (defaultValue fieldType) = True
-        hasDefaultValue _ = False
+        hasSqlDefaultValueOnly (Field _ fieldType) =
+            case defaultValue fieldType of
+                Just (SqlDefaultValue {}) -> True
+                _ -> False
+        hasSqlDefaultValueOnly _ = False
 
 
 compileNewOrSavedType :: Table -> Text
 compileNewOrSavedType table@(Table name attributes) =
-        "" <> tableNameToModelName name <> "' " <> intercalate " " (map compileAttribute attributes)
+        "" <> tableNameToModelName name <> "' " <> unwords (map compileAttribute attributes)
     where
         compileAttribute :: Attribute -> Text
         compileAttribute (Field fieldName _) = fieldName
@@ -181,7 +191,7 @@ compileGeneric2DataDefinition table@(Table name attributes) =
         "data " <> tableNameToModelName name <> "' " <> typeArguments <> " = " <> tableNameToModelName name <> " {" <> compileFields attributes <> ", meta :: MetaBag } deriving (Eq, Show)\n"
     where
         typeArguments :: Text
-        typeArguments = intercalate " " (map compileTypeArgument attributes)
+        typeArguments = unwords (map compileTypeArgument attributes)
         compileTypeArgument :: Attribute -> Text
         compileTypeArgument (Field fieldName _) = fieldName
         compileTypeArgument (HasMany { name }) = name
@@ -213,7 +223,7 @@ compileEnumDataDefinitions table@(Table name attributes) =
         enumFields = filter isEnumField attributes
         compileEnumField (Field fieldName (EnumField {values})) = "data " <> tableNameToModelName fieldName <> " = " <> (intercalate " | " (map tableNameToModelName values)) <> " deriving (Eq, Show, Read, Enum)"
         compileFromFieldInstance (Field fieldName (EnumField {values})) = "instance FromField " <> tableNameToModelName fieldName <> " where\n" <> indent (intercalate "\n" ((map compileFromFieldInstanceForValue values) <> [compileFromFieldInstanceForError, compileFromFieldInstanceForNull]))
-        compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = return " <> tableNameToModelName value
+        compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = pure " <> tableNameToModelName value
         compileFromFieldInstanceForError = "fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
         compileFromFieldInstanceForNull = "fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\""
         compileDefaultInstance (Field fieldName (EnumField {values})) = "instance Default " <> tableNameToModelName fieldName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
@@ -254,11 +264,11 @@ compileCreate table@(Table name attributes) =
                 <> "create model = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
                     <> "result <- Database.PostgreSQL.Simple.query conn \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
-                    <> "return (unsafeHead result)\n"
+                    <> "pure (List.head result)\n"
                     )
                 <> "createMany models = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
-                    <> "Database.PostgreSQL.Simple.query conn (Query $ \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES \" <> (intercalate \", \" (map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") (concat $ map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)\n"
+                    <> "Database.PostgreSQL.Simple.query conn (Query $ \"INSERT INTO " <> name <> " (" <> columns <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") (List.concat $ List.map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)\n"
                     )
             )
 
@@ -296,7 +306,7 @@ compileUpdate table@(Table name attributes) =
         <> indent ("updateRecord model = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
                     <> "result <- Database.PostgreSQL.Simple.query conn \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
-                    <> "return (unsafeHead result)\n"
+                    <> "pure (List.head result)\n"
                 )
             )
 
@@ -307,8 +317,8 @@ compileFromRowInstance table@(Table name attributes) database =
     where
         defaultFromRow =
             "instance FromRow " <> tableNameToModelName name <> " where "
-            <> ("fromRow = do model <- " <> modelConstructor <> " <$> " <>  (intercalate " <*> " $ map (const "field") $ fieldsOnly attributes)) <> "; return " <> tableNameToModelName name <> " { " <> intercalate ", " (map compileQuery attributes) <> ", meta = def }\n"
-        modelConstructor = "(\\" <> intercalate " " (map compileParam $ fieldsOnly attributes) <> " -> " <> tableNameToModelName name <> " " <> intercalate " " (map compileValue attributes) <> " def)"
+            <> ("fromRow = do model <- " <> modelConstructor <> " <$> " <>  (intercalate " <*> " $ map (const "field") $ fieldsOnly attributes)) <> "; pure " <> tableNameToModelName name <> " { " <> intercalate ", " (map compileQuery attributes) <> ", meta = def }\n"
+        modelConstructor = "(\\" <> unwords (map compileParam $ fieldsOnly attributes) <> " -> " <> tableNameToModelName name <> " " <> unwords (map compileValue attributes) <> " def)"
         compileParam (Field fieldName _) = fieldName
         compileParam (HasMany {name}) = name
         compileValue field@(Field _ _) = compileParam field
@@ -317,8 +327,8 @@ compileFromRowInstance table@(Table name attributes) database =
         compileQuery field@(Field fieldName _) = columnNameToFieldName fieldName <> " = (" <> (fromJust $ toBinding (tableNameToModelName name) field) <> ")"
         compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow relatedFieldName <> ", " <> (fromJust $ toBinding' (tableNameToModelName name) relatedIdField)  <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
             where
-                compileInverseOf Nothing = (columnNameToFieldName (Countable.singularize name)) <> "Id"
-                compileInverseOf (Just name) = columnNameToFieldName (Countable.singularize name)
+                compileInverseOf Nothing = (columnNameToFieldName (singularize name)) <> "Id"
+                compileInverseOf (Just name) = columnNameToFieldName (singularize name)
                 relatedFieldName = compileInverseOf inverseOf
                 relatedIdField = relatedField "id"
                 relatedForeignKeyField = relatedField relatedFieldName
@@ -354,16 +364,29 @@ compileBuild :: Table -> Text
 compileBuild table@(Table name attributes) =
         "instance Record New" <> tableNameToModelName name <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
-        <> "    newRecord = " <> tableNameToModelName name <> " " <> intercalate " " (map (const "def") attributes) <> " def\n"
+        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr attributes) <> " def\n"
+
+toDefaultValueExpr (Field { fieldType }) =
+    case defaultValue fieldType of
+        Just (DefaultValue value) ->
+            let
+                wrapNull True value = "(Just " <> value <> ")"
+                wrapNull False value = value
+            in case fieldType of
+                TextField { allowNull } -> wrapNull allowNull (tshow value)
+                BoolField { allowNull } -> wrapNull allowNull (tshow (toLower value == "true"))
+                _ -> if value == "null" then "Nothing" else value
+        _ -> "def"
+toDefaultValueExpr _ = "def"
 
 
 
-compileHasTableNameInstance table@(Table name attributes) = "\ntype instance GetTableName (" <> tableNameToModelName name <> "' " <> intercalate " " (map (const "_") attributes) <>  ") = " <> tshow name <> "\n"
+compileHasTableNameInstance table@(Table name attributes) = "\ntype instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") attributes) <>  ") = " <> tshow name <> "\n"
 
-compileGetModelName table@(Table name attributes) = "\ntype instance GetModelName (" <> tableNameToModelName name <> "' " <> intercalate " " (map (const "_") attributes) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
+compileGetModelName table@(Table name attributes) = "\ntype instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") attributes) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
 
 compileDataTypePattern :: Table -> Text
-compileDataTypePattern table@(Table name attributes) = tableNameToModelName name <> " " <> intercalate " " (map compileAttribute attributes)
+compileDataTypePattern table@(Table name attributes) = tableNameToModelName name <> " " <> unwords (map compileAttribute attributes)
     where
         compileAttribute :: Attribute -> Text
         compileAttribute (Field name _) = name
@@ -371,7 +394,7 @@ compileDataTypePattern table@(Table name attributes) = tableNameToModelName name
 
 
 compileTypePattern :: Table -> Text
-compileTypePattern table@(Table name attributes) = tableNameToModelName name <> "' " <> intercalate " " (map compileAttribute attributes)
+compileTypePattern table@(Table name attributes) = tableNameToModelName name <> "' " <> unwords (map compileAttribute attributes)
     where
         compileAttribute :: Attribute -> Text
         compileAttribute (Field name _) = name
@@ -387,15 +410,15 @@ compileInclude table@(Table tableName attributes) = intercalate "\n" $ map compi
         compileInclude' attribute = "type instance Include " <> tshow (columnNameToFieldName fieldName) <> " (" <> leftModelType <> ") = " <> rightModelType <> "\n"
             where
                 leftModelType :: Text
-                leftModelType = intercalate " " $ (tableNameToModelName tableName <> "'"):(map compileTypeVariable attributes)
+                leftModelType = unwords $ (tableNameToModelName tableName <> "'"):(map compileTypeVariable attributes)
                 rightModelType :: Text
-                rightModelType = intercalate " " $ (tableNameToModelName tableName <> "'"):(map compileTypeVariable' attributes)
+                rightModelType = unwords $ (tableNameToModelName tableName <> "'"):(map compileTypeVariable' attributes)
                 compileTypeVariable :: Attribute -> Text
                 compileTypeVariable (Field fieldName _) = fieldName
                 compileTypeVariable (HasMany {name}) = name
                 compileTypeVariable' :: Attribute -> Text
                 compileTypeVariable' (Field fieldName' _) | fieldName' == fieldName = "(GetModelById " <> fieldName' <> ")"
-                compileTypeVariable' (HasMany {name}) | name == fieldName = "[" <> tableNameToModelName (Countable.singularize name) <> "]"
+                compileTypeVariable' (HasMany {name}) | name == fieldName = "[" <> tableNameToModelName (singularize name) <> "]"
                 compileTypeVariable' otherwise = compileTypeVariable otherwise
                 fieldName =
                     case attribute of
@@ -409,7 +432,7 @@ compileSetFieldInstances table@(Table tableName attributes) = intercalate "\n" (
         getFieldName (Field fieldName _) = fieldName
         getFieldName (HasMany fieldName _) = fieldName
 
-        compileSetField fieldName = "instance SetField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") " <> setFieldType <> " where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> " meta) = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes)) <> " " <> (if fieldName == "meta" then "newValue" else "meta")
+        compileSetField fieldName = "instance SetField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") " <> setFieldType <> " where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> " meta) = " <> tableNameToModelName tableName <> " " <> (unwords (map compileAttribute attributes)) <> " " <> (if fieldName == "meta" then "newValue" else "meta")
             where
                 setFieldType = if fieldName == "meta" then "MetaBag" else fieldName
                 compileAttribute :: Attribute -> Text
@@ -421,14 +444,14 @@ compileUpdateFieldInstances table@(Table tableName attributes) = intercalate "\n
     where
         compileSetField' (Field fieldName _) = compileSetField fieldName
         compileSetField' (HasMany fieldName _) = compileSetField fieldName
-        compileSetField fieldName = "instance UpdateField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' table fieldName  <> ") " <> fieldName <> " " <> fieldName <> "' where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> " meta) = " <> tableNameToModelName tableName <> " " <> (intercalate " " (map compileAttribute attributes)) <> " meta"
+        compileSetField fieldName = "instance UpdateField " <> tshow (columnNameToFieldName fieldName) <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' table fieldName  <> ") " <> fieldName <> " " <> fieldName <> "' where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> " meta) = " <> tableNameToModelName tableName <> " " <> (unwords (map compileAttribute attributes)) <> " meta"
             where
                 compileAttribute :: Attribute -> Text
                 compileAttribute (Field name _) = if fieldName == name then "newValue" else name
                 compileAttribute (HasMany {name}) = if fieldName == name then "newValue" else name
 
                 compileTypePattern' :: Table -> Text -> Text
-                compileTypePattern' table@(Table name attributes) fieldName = tableNameToModelName name <> "' " <> intercalate " " (map (\f -> if f == fieldName then fieldName <> "'" else f) (map compileAttribute' attributes))
+                compileTypePattern' table@(Table name attributes) fieldName = tableNameToModelName name <> "' " <> unwords (map (\f -> if f == fieldName then fieldName <> "'" else f) (map compileAttribute' attributes))
                     where
                         compileAttribute' :: Attribute -> Text
                         compileAttribute' (Field name _) = name

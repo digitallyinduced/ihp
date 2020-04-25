@@ -259,6 +259,7 @@ function initFileUploadPreview() {
 
 var datePickers = [];
 function initDatePicker() {
+    if (!('flatpickr' in window)) { return; }
     flatpickr("input[type='date']", {
         altFormat: 'd.m.y',
     });
@@ -295,8 +296,6 @@ window.transitionToNewPage = function (newBody) {
             if (newBody.classList.contains('modal-open') && from.id === 'main-row') {
                 return false;
             } else if (isModalOpen && from.id === 'main-row') {
-                return false;
-            } else if (from.parentNode && from.parentNode.tagName === 'svg') {
                 return false;
             } else if (from.classList.contains('flatpickr-input') && from._flatpickr) {
                 unsafeSetTimeout(function (from, to) {

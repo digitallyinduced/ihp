@@ -5,7 +5,7 @@ This guide covers everything you need to ship software with interactive lambda.
 
 ##### Feature Overview
 
-- **Fully managed dev environment:** Works on any machine because all dependencies (even PostgreSQL) are managed using the nix package manager.
+- **Fully managed dev environment:** Works on any machine because all dependencies (including PostgreSQL) are managed using the nix package manager.
 - **Bootstrap 4 Out of the box:** The default layout already integrates bootstrap 4.
 - **Auto live reload using virtual dom in dev mode:** Each code change changes your local page to refresh. The refresh uses a diff based patch to avoid resetting the page state.
 - **Build robust applications:** With the power of haskell your application are going to be a lot more robust. Pretty much no runtime errors in production.
@@ -116,7 +116,7 @@ Here is a short overview of the whole structure:
 
 ### 2. Hello, World!
 
-You now already have a working haskell app ready to be started
+You now already have a working haskell app ready to be started.
 You can start the development server by running this in the `Blog` directory:
 
 ```bash
@@ -127,14 +127,16 @@ $ make
 Your app is now running at [http://localhost:8000](http://localhost:8000).
 The server can be stopped by pressing CTRL+C.
 
+The built-in development server automatically starts a PostgreSQL database connected to your application. So you don't need to worry about manually setting up the database.
+
 
 ### 3. Data Structures & PostgreSQL
 
 ##### Schema Modeling
 
-For our blog we're going to deal with posts. A post has a title and a body. As we are dealing with a database we also need an id. We are using UUIDs instead of the typical numerics ids for this.
+For our blog we're going to deal with posts. A post has a title and a body and of course also an id. TurboHaskell is using UUIDs instead of the typical numerics ids.
 
-A `posts` table in a PostgreSQL database could loke like this:
+**A `posts` table in a PostgreSQL database could loke like this:**
 
 
 | id :: UUID                           | title :: Text                                          | body :: Text                                                                                                       |
@@ -148,7 +150,7 @@ Open `Application/Schema.hs` and add the following code:
 
 
 ```haskell
-module Model.Schema where
+module Application.Schema where
 import ClassyPrelude (Maybe (..), (<>), Bool (..))
 import TurboHaskell.SchemaSupport
 
@@ -255,15 +257,15 @@ We can run the code generator like this:
 ```bash
 $ new-controller posts
 
-+ src/Apps/Web/Controller/Posts.hs
-* src/Apps/Web/Routes.hs
-* src/Apps/Web/Types.hs
-* src/Apps/Web/App.hs (import)
-* src/Apps/Web/App.hs (import)
-+ src/Apps/Web/View/Posts/Show.hs
-+ src/Apps/Web/View/Posts/New.hs
-+ src/Apps/Web/View/Posts/Edit.hs
-+ src/Apps/Web/View/Posts/Index.hs
++ Web/Controller/Posts.hs
+* Web/Routes.hs
+* Web/Types.hs
+* Web/App.hs (import)
+* Web/App.hs (import)
++ Web/View/Posts/Show.hs
++ Web/View/Posts/New.hs
++ Web/View/Posts/Edit.hs
++ Web/View/Posts/Index.hs
 ``` 
 
 You can see that lot's of files have been created and updated.
@@ -276,7 +278,7 @@ Here's how the new controller looks like:
 
 ##### New Types
 
-Let's first take a closer look at the changes in `src/Apps/Web/Types.hs`. Here a new data structures was created:
+Let's first take a closer look at the changes in `Web/Types.hs`. Here a new data structures was created:
 
 
 ```haskell
@@ -288,7 +290,7 @@ data PostsController
     | EditPostAction { postId :: !(Id Post) }
     | UpdatePostAction { postId :: !(Id Post) }
     | DeletePostAction { postId :: !(Id Post) }
-    deriving (Eq, Show, Generic, Data)
+    deriving (Eq, Show, Data)
 ```
 
 We have one constructor for each possible action. Here you can see a short description for all the constructors:
@@ -296,12 +298,12 @@ We have one constructor for each possible action. Here you can see a short descr
 | Action                                 | Request                    | Description                        |
 |----------------------------------------|----------------------------|------------------------------------|
 | `PostsAction`                          | `GET /Posts`               | Lists all posts                    |
-| `NewPostAction`                        | `GET /Posts/new`           | Displays the form to create a post |
-| `ShowPostAction { postId = someId }`   | `GET /Posts/{someId}`      | Shows the posts with id $someId    |
-| `CreatePostAction`                     | `POST /Posts`              | Endpoint to create a Post          |
-| `EditPostAction { postId = someId }`   | `GET /Posts/{someId}/edit` | Displays the form to edit a post   |
-| `UpdatePostAction { postId = someId }` | `POST /Posts/{someId}`     | Endpoint to submit a post update   |
-| `DeletePostAction { postId = someId }` | `DELETE /Posts/{someId}`   | Deletes the post                   |
+| `NewPostAction`                        | `GET /NewPost`           | Displays the form to create a post |
+| `ShowPostAction { postId = someId }`   | `GET /ShowPost?postId={someId}`      | Shows the posts with id $someId    |
+| `CreatePostAction`                     | `POST /CreatePost`              | Endpoint to create a Post          |
+| `EditPostAction { postId = someId }`   | `GET /EditPost?postId={someId}` | Displays the form to edit a post   |
+| `UpdatePostAction { postId = someId }` | `POST /UpdatePost?postId={someId}`     | Endpoint to submit a post update   |
+| `DeletePostAction { postId = someId }` | `DELETE /DeletePost?postId={someId}`   | Deletes the post                   |
 
 
 A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`" can be represented like `ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }`.
@@ -309,9 +311,9 @@ A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`"
 The type `Id Post` is just a UUID, but wrapped within a newtype (`newtype Id model = Id UUID`).
 
 
-##### Controller Implementation
+##### Controller Implementation: `Web/Controller/Posts.hs`
 
-The actual code running, when an action is executed, is defined in `src/Apps/Web/Controller/Posts.hs`. Let's take a look, step by step.
+The actual code running, when an action is executed, is defined in `Web/Controller/Posts.hs`. Let's take a look, step by step.
 
 ###### Imports
 
@@ -327,29 +329,18 @@ import Web.View.Posts.Show
 
 In the header we just see some imports. Controllers always import a special `Web.Controller.Prelude` module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just "normal" haskell modules.
 
-###### ChangeSet
-
-```haskell
-type instance ChangeSet Post = ["title", "body"]
-type instance ChangeSet NewPost = ChangeSet Post
-```
-
-Here we can see the list of fields which can be modified or set by the controller. Sometimes you don't want to allow specific fields to be changed by a controller (e.g. a `createdAt` field should not be set from the user).
-
-The second line specifies that when creating a new post (`NewPost`), the same attributes are allowed as when updating an existing post.
-
 ###### Instance
 
 
 ```haskell
-instance Controller PostsController ControllerContext where
+instance Controller PostsController where
 ```
 
-The controller logic is specified by implementing an instance of the `Controller` type-class. Don't worry about the `ControllerContext` parameter, we will get back to that later on.
+The controller logic is specified by implementing an instance of the `Controller` type-class.
 
 ###### Index Action
 
-This is where the interesting part begins. As we will see below, the controller implementation is just an `action` function, pattern mattching over our `data PostsController` structure we defined in `src/Apps/Web/Types.hs`.
+This is where the interesting part begins. As we will see below, the controller implementation is just an `action` function, pattern mattching over our `data PostsController` structure we defined in `Web/Types.hs`.
 
 ```haskell
     action PostsAction = do
@@ -367,7 +358,7 @@ This is the index action. It's called when opening `/Posts`. First it fetches al
         render NewView { .. }
 ```
 
-This is our endpoint for `/Posts/new`. It just creates an empty new post and then passes it to the `NewView`. The `newRecord` is giving us an empty `Post` model. It's equivalent to manually writing `Post { id = Default, title = "", body = "" }`.
+This is our endpoint for `/NewPost`. It just creates an empty new post and then passes it to the `NewView`. The `newRecord` is giving us an empty `Post` model. It's equivalent to manually writing `Post { id = Default, title = "", body = "" }`.
 
 ###### Show Action
 
@@ -376,7 +367,7 @@ This is our endpoint for `/Posts/new`. It just creates an empty new post and the
         post <- fetch postId
         render ShowView { .. }
 ```
-This is our show action at `/Posts/{postId}`. Here we pattern match on the `postId` field of `ShowPostAction` to get post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Then we just pass that post to the view.
+This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Then we just pass that post to the view.
 
 ###### Edit Action
 
@@ -385,7 +376,7 @@ This is our show action at `/Posts/{postId}`. Here we pattern match on the `post
         post <- fetch postId
         render EditView { .. }
 ```
-Our `/Posts/{postId}/edit` action. It's pretty much the same as in the `action ShowPostAction`, just with a different view.
+Our `/EditPost?postId=postId` action. It's pretty much the same as in the `action ShowPostAction`, just with a different view.
 
 
 ###### Update Action
@@ -393,38 +384,43 @@ Our `/Posts/{postId}/edit` action. It's pretty much the same as in the `action S
 ```haskell
     action UpdatePostAction { postId } = do
         post <- fetch postId
-        fromParams' post >>= \case
-            Left post -> render EditView { .. }
-            Right post -> do
-                post <- updateRecord post
-                setSuccessMessage "Post updated"
-                redirectTo EditPostAction { .. }
+        post
+            |> buildPost
+            |> ifValid \case
+                Left post -> render EditView { .. }
+                Right post -> do
+                    post <- post |> updateRecord
+                    setSuccessMessage "Post updated"
+                    redirectTo EditPostAction { .. }
 ```
 
 This action deals with update requests for a specific post. As usual we pattern match on the `postId` and fetch it. 
 
-The interesting part is `fromParams' post`. The `fromParams'` function reads in the updated fields from the request and sets the value on the passed `post` record. It only passes the fields specified by `ChangeLog Post`, so only `title` and `body`. It also checks for validation errors after setting the attributes (we will learn more about this later).
+The interesting part is `buildPost`. It is a helper function defined later in the controller: `buildPost = fill @["title", "body"]`. The `fill` call inside `buildPost` reads the `title` and `body` attributes from the browser request and fills them into the `post` record. The `buildPost` is also the place for validation logic.
 
-`fromParams' post` returns `Either Post Post`. `Left post` means that e.g. the `title` or `body` did not pass validation. `Right post` means that all parameters could be set on `post` without any errors. 
+`ifValid` returns `Either Post Post`. `Left post` means that e.g. the `title` or `body` did not pass validation. `Right post` means that all parameters could be set on `post` without any errors. 
 
-In the error case (`Left post ->`) we just re-render the `EditView`. The `EditView` then tells the user about alidation errors.
+In the error case (`Left post ->`) we just re-render the `EditView`. The `EditView` then tells the user about validation errors.
 
 In the success case (`Right post ->`) we save the updated post to the database (with `updateRecord`). Then we set a success message and redirect the user back to the edit view.
 
 
 ```haskell
     action CreatePostAction = do
-        fromParams @NewPost >>= \case
-            Left post -> render NewView { .. } 
-            Right post -> do
-                post <- createRecord post
-                setSuccessMessage "Post created"
-                redirectTo PostsAction
+        let post = newRecord @NewPost
+        post
+            |> buildPost
+            |> ifValid \case
+                Left post -> render NewView { .. } 
+                Right post -> do
+                    post <- post |> createRecord
+                    setSuccessMessage "Post created"
+                    redirectTo PostsAction
 ```
 
-Our create action, dealing with `POST /Posts` requests.
+Our create action, dealing with `POST /CreatePost` requests.
 
-It's pretty much like the update action. The `fromParams @NewPost` is just shorthand for `fromParams' (newRecord @NewPost)`.
+It's pretty much like the update action. When the validation succeeded, it saves the record to the database using `createRecord`.
 
 ```haskell
     action DeletePostAction { postId } = do
@@ -434,23 +430,23 @@ It's pretty much like the update action. The `fromParams @NewPost` is just short
         redirectTo PostsAction
 ```
 
-The last action is dealing with `DELETE /Posts/{postId}` requests. It's pretty much like the other actions, we just call `deleteRecord` here.
+The last action is dealing with `DELETE /DeletePost?postId=postId` requests. It's pretty much like the other actions, we just call `deleteRecord` here.
 
 ##### Routes
 
-The router is configured in `src/Apps/Web/Routes.hs`. The generator just places a single line there:
+The router is configured in `Web/Routes.hs`. The generator just places a single line there:
 
 ```haskell
-instance RestfulController PostsController
+instance AutoRoute PostsController
 ```
 
-This empty instance magically sets up the routing as you would have expected from a RESTful controller.
+This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the urls according to your needs (e.g. "beautiful urls" for SEO).
 
 ##### Views
 
 We should also quickly take a look at our views.
 
-Let first look at the show view in `src/Apps/Web/View/Posts/Show.hs`:
+Let first look at the show view in `Web/View/Posts/Show.hs`:
 
 ```haskell
 module Web.View.Posts.Show where
@@ -489,7 +485,7 @@ Click "Save Post". You should now see the new post listed on the index view.
 
 Let's first improve the show view. Right now the headline is "Show Post", and the actual Post body is never shown.
 
-Open the `src/Apps/Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{get #title post}</h1>`. Also add a `<div>{get #body post}</div>` below the `<h1>`.
+Open the `Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{get #title post}</h1>`. Also add a `<div>{get #body post}</div>` below the `<h1>`.
 
 The hsx code should now look like this:
 ```html
@@ -509,7 +505,7 @@ After you saved the changes, you should see that the changes have been reflected
 
 After creating your post, you should have already seen that posts list is right now displaying all the post fields. Let's change it to only display the post's title.
 
-Open the `src/Apps/Web/View/Posts/Index.hs` and replace `<td>{post}</td>` with `<td>{get #title post}</td>`.
+Open the `Web/View/Posts/Index.hs` and replace `<td>{post}</td>` with `<td>{get #title post}</td>`.
 
 Let's also make it clickable by wrapping it in a link. We can just put a `<a href={ShowPostAction (get #id post)}>` around it. The line should now look like `<td><a href={ShowPostAction (get #id post)}>{get #title post}</a></td>`.
 
@@ -518,41 +514,38 @@ Now we can also remove the "Show" link. We can do that by removing the next line
 
 #### Adding Validation
 
-Let's make sure that every post has atleast a title. Validations can be defined inside `src/Apps/Web/Validation.hs`.
+Let's make sure that every post has atleast a title. Validations can be defined inside our controller `Web/Controller/Posts.hs`.
 
-You should see an instance like this:
+Right now at the bottom of the file we have this:
+
 
 ```haskell
-instance ValidateRecord NewPost ControllerContext where
-    validateRecord = do
-        validateNothing
+buildPost = fill @["title","body"]
 ```
 
-Replace `validateNothing` with `validateField #title nonEmpty`.
-
-The instance should now look like this:
+Replace the implementation with this:
 
 ```haskell
-instance ValidateRecord NewPost ControllerContext where
-    validateRecord = do
-        validateField #title nonEmpty
+buildPost post = post
+    |> fill @["title","body"]
+    |> validateField #title nonEmpty
 ```
 
 Now open [http://localhost:8000/Posts/new](http://localhost:8000/Posts/new) and click "Save Post" without filling the text fields. You will get a "This field cannot be empty".
 
-That's how easy it is, to validate your models with interactive lambda.
+That's how easy it is, to validate your models with TurboHaskell.
 
 #### Timestamps
 
 It would be nice to always show the latest post on the index view. Let's add a timestamp to do exactly that.
 
-Before we change our database schema, it's time to quickly save our current database state. For that you can just run `make dump_db`:
+Before we change our database schema, it's time to quickly save our current database state. For that you can just run `make dumpdb`:
 
 ```bash
-$ make dump_db
+$ make dumpdb
 ```
 
-Take a look at `src/Model/Fixtures.sql`, the file should look like this now:
+Take a look at `Application/Fixtures.sql`, the file should look like this now:
 
 ```sql
 -- .......
@@ -583,11 +576,11 @@ Run the following command to fix that:
 $ make db
 ```
 
-This command will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `src/Model/Fixtures.sql` a moment ago.
+This command will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
-Now we can order the posts by our new `created_at` field. Open `src/Apps/Web/Controller/Posts.hs` and add `orderByDesc #createdAt` like this inside the `action PostsAction`:
+Now we can order the posts by our new `created_at` field. Open `Web/Controller/Posts.hs` and add `orderByDesc #createdAt` like this inside the `action PostsAction`:
 
 ```haskell
 action PostsAction = do
@@ -597,7 +590,7 @@ action PostsAction = do
     render IndexView { .. }
 ```
 
-Let's also show the creation time in the `ShowView` in `src/Apps/Web/View/Posts/Show.hs`. There we add `<p>{timeAgo (get #createdAt post)}</p>` below the title:
+Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`. There we add `<p>{timeAgo (get #createdAt post)}</p>` below the title:
 
 ```html
 <nav>
@@ -667,7 +660,7 @@ Now restart the development server by pressing CTRL+C and then typing `make` aga
 
 ##### Markdown Rendering
 
-Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: Add `import qualified Text.MMark as MMark` to the top of `src/Apps/Web/View/Posts/Show.hs`.
+Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: Add `import qualified Text.MMark as MMark` to the top of `Web/View/Posts/Show.hs`.
 
 Next change `{get #body post}` to `{get #body post |> renderMarkdown}`. This pipes the body field through a function `renderMarkdown`. Of course we also have to define the function now.
 
@@ -704,7 +697,7 @@ The show view will now show real formatted text, as we would have expected.
 
 Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a textarea to support multi line text.
 
-Open `src/Apps/Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use markdown here"} }`.
+Open `Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use markdown here"} }`.
 
 ```haskell
 renderForm :: Post -> Html
@@ -715,11 +708,15 @@ renderForm post = formFor post [hsx|
 |]
 ```
 
-After that, do the same in `src/Apps/Web/View/Posts/New.hs`.
+After that, do the same in `Web/View/Posts/New.hs`.
 
 We can also add an error message when the user tries to save invalid markdown. We can quickly write a custom validator for that:
 
-Open `src/Apps/Web/validation.hs` and import `MMark` at the top `import qualified Text.MMark as MMark`.
+Open `Web/Controller/Posts.hs` and import `MMark` at the top:
+
+```haskell
+import qualified Text.MMark as MMark
+```
 
 Then add this custom validator to the bottom of the file:
 
@@ -731,14 +728,14 @@ isMarkdown text =
         Right _ -> Success
 ```
 
-We can use the validator by adding a new `validateField #body isMarkdown` line to the `ValidateRecord` instance of the post:
+We can use the validator by adding a new `validateField #body isMarkdown` line to the `buildPost` function:
 
 ```haskell
-instance ValidateRecord NewPost ControllerContext where
-    validateRecord = do
-        validateField #title nonEmpty
-        validateField #body nonEmpty
-        validateField #body isMarkdown
+buildPost post = post
+    |> fill @["title","body"]
+    |> validateField #title nonEmpty
+    |> validateField #body nonEmpty
+    |> validateField #body isMarkdown
 ```
 
 Create a new post with just `#` (a headline without any text) as the content to see our new error message.
@@ -763,7 +760,7 @@ The `Application/Schema.hs` will now look like this:
 
 
 ```haskell
-module Model.Schema where
+module Application.Schema where
 import ClassyPrelude (Maybe (..), (<>), Bool (..))
 import TurboHaskell.SchemaSupport
 
@@ -784,7 +781,7 @@ database = [
 
 #### 6.2 Loading the Schema
 
-Run `make dump_db` and `make db` to save our current posts to `src/Model/Fixtures.sql` and to rebuild the database to add our new `comments` table.
+Run `make dump_db` and `make db` to save our current posts to `Application/Fixtures.sql` and to rebuild the database to add our new `comments` table.
 
 
 #### 6.3 The Controller
@@ -792,7 +789,6 @@ Run `make dump_db` and `make db` to save our current posts to `src/Model/Fixture
 It's time to also add a new controller for our comments. For that call the controller generator like this:
 
 ```bash
-$ cd src/Apps/Web
 $ new-controller comments
 ```
 
@@ -802,10 +798,10 @@ This will generate a new working controller for us. We now need to do some adjus
 
 Right now the comments are available at `/Comments`. As they are always connected to a post, we want to have them as a subresource of a post, e.g. like `/Posts/{postId}/Comments`.
 
-Open `src/Apps/Web/Routes.hs` and change the `instance RestfulController CommentsController` like this:
+Open `Web/Routes.hs` and change the `instance AutoRoute CommentsController` like this:
 
 ```haskell
-instance RestfulController (PostsController :> CommentsController)
+instance AutoRoute (PostsController :> CommentsController)
 ```
 
 The `:>` is a combinator to describe nested resource. In this case `PostsController` is the parent controller and `CommentsController` is the child controller.
@@ -815,8 +811,8 @@ The `:>` is a combinator to describe nested resource. In this case `PostsControl
 After this change, the dev server will show some errors like this:
 
 ```haskell
-src/Apps/Web/View/Comments/Show.hs:8:33: error:
-    • Could not deduce (TurboHaskell.RouterSupport.RestfulController CommentsController)
+Web/View/Comments/Show.hs:8:33: error:
+    • Could not deduce (TurboHaskell.RouterSupport.AutoRoute CommentsController)
 ```
 
 E.g. in the `Show.hs` the error is triggered by this line:
@@ -1116,3 +1112,148 @@ Given the above example, the rendered form will look like this:
     </select>
 </form>
 ```
+
+# Debuging
+
+TODO: Show example using traceShowId
+
+# Architecture
+
+This section tries to answer common questions on where to place your code.
+
+In general remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.
+
+##### Where to place a function I want to use in all my views?
+
+If the function is only used in a single application and is a building block for your layout, place it in `Web/View/Layout.hs`. The module is already imported in all your views (just don't forget to add the function to the export list).
+
+If the function is used across multiple applications or more like a helper function, place it in `Application/Helper/View.hs`. This module is also already included in your view files.
+
+##### Where to place a function I want to use in all my controllers?
+
+Place it in `Application/Helper/Controller.hs`. This module is already imported into your controllers.
+
+##### Where to place a custom type?
+
+Place it in `Web/Types.hs`.
+
+##### Next to my main web application, I'm building an admin backend application. Where to place it?
+
+A TurboHaskell project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
+
+# Recipes
+
+This section describes best-practise solutions to common tasks your facing when building web applications.
+
+## Static Pages
+
+For adding a static page like e.g. a start page, terms of service, privacy, pricing etc. you usually use a normal controller which just renders the view for that page. The only special thing is, that you might want to customize the routing to have SEO-friendly urls.
+
+Let's say we have a controller like this defined in `Web.Types`:
+
+```haskell
+data StaticController
+    = AboutAction
+    | TermsAction
+    deriving (Eq, Show, Data)
+```
+
+The controller implementation will look like this in `Web.Controller.Static`:
+
+```haskell
+module Web.Controller.Static where
+
+import Web.Controller.Prelude
+import Web.View.Static.Terms
+import Web.View.Static.About
+
+instance Controller StaticController where
+    action TermsAction = render TermsView
+    action AboutAction = render AboutView
+```
+
+We can now customize the routing in `Web.Routes` by first deleting the `instance AutoRoute StaticController` statement to delete the auto generated routing configuration and append:
+
+```haskell
+instance HasPath StaticController where
+    pathTo TermsAction = "/terms"
+    pathTo AboutAction = "/about"
+
+instance CanRoute StaticController where
+    parseRoute' = 
+        (string "/terms" <* endOfInput >> pure TermsAction)
+        <|> (string "/about" <* endOfInput >> pure AboutAction)
+```
+
+Now the terms can be reached at `/terms` instead of `/Terms`. The about is at `/about` now, instead of `/About`.
+
+## Adding a native dependency
+
+Sometimes your project uses some other software tool which is not bundled with TurboHaskell by default. Because we're using nix, we can easily manage that dependency for our project.
+
+Let's say we want to add imagemagick to transform and resize images uploaded by the users of our application.
+
+All dependencies of our project are listed in `default.nix` at the root of the project directory. The file looks like this:
+
+```nix
+let
+    turboHaskell = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/haskellframework.git";
+        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+    };
+    haskellEnv = import "${turboHaskell}/NixSupport/default.nix" {
+        compiler = "ghc865";
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            classy-prelude
+            wai
+            text
+            hlint
+            turbohaskell
+            wreq
+        ];
+        otherDeps = p: with p; [
+        ];
+        projectPath = ./.;
+    };
+in
+    haskellEnv
+```
+
+We now just have to add `imagemagick` to `otherDeps`:
+
+```nix
+let
+    turboHaskell = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/haskellframework.git";
+        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+    };
+    haskellEnv = import "${turboHaskell}/NixSupport/default.nix" {
+        compiler = "ghc865";
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            classy-prelude
+            wai
+            text
+            hlint
+            turbohaskell
+            wreq
+        ];
+        otherDeps = p: with p; [
+
+            imagemagick # <-----------------------
+            
+        ];
+        projectPath = ./.;
+    };
+in
+    haskellEnv
+```
+
+If running, stop your development server. Now run `make` again. This will install imagemagick locally to your project.
+
+When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
+
+You can look up the package name for the software you dependend on inside the nixpkgs repository. [Just open it on GitHub](https://github.com/NixOS/nixpkgs) and use the GitHub search to look up the package name.

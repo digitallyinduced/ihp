@@ -4,9 +4,22 @@ function refresh() {
         return;
     }
 
-    fetch(window.location.href, {credentials: 'include'})
-        .then(response => { if (response.ok) return response.text(); else throw Error(response.statusText) })
-        .catch(error => {
+    function delay(ms) { return new Promise((resolve, reject) => { setTimeout(resolve, ms); }); }
+
+    function fetchWithRetries(url, options, n) {
+        return fetch(url, options).catch(function (error) {
+            if (n === 1) throw error;
+            return delay(10).then(() => fetchWithRetries(url, options, n - 1));
+        })
+    }
+
+    fetchWithRetries(window.location.href, {credentials: 'include'}, 50)
+        .then(response => {
+            if (response.ok || (response.status === 500 && response.statusText == 'Internal Server Error'))
+                return response.text();
+            else
+                throw Error(response.statusText);
+        }).catch(error => {
             console.log('Live Reload Failed', error);
 
             throw error;
@@ -57,13 +70,18 @@ function refreshAssets() {
 }
 
 function startReloadListener() {
-    var notificationSocket = new WebSocket("ws://localhost:8002");
+    var port = (parseInt(document.location.port, 10) || 8000) + 2;
+    var notificationSocket = new WebSocket("ws://localhost:" + port);
+    var wasOpened = false;
+    notificationSocket.onopen = function (event) { wasOpened = true; }
     notificationSocket.onmessage = function (event) {
+        wasOpened = true;
         if (event.data === 'reload') {
             refresh();
         } else if (event.data === 'reload_assets')
             refreshAssets();
     }
+    notificationSocket.onclose = function (event) { if (wasOpened) window.location.reload(); }
 }
 
 if (window.liveReloadEnabled) {

@@ -1,9 +1,12 @@
 module TurboHaskell.SchemaSupport where
-import ClassyPrelude hiding (length)
+import TurboHaskell.Prelude hiding (length, bool)
 import Data.Maybe (fromJust)
 import qualified Data.List as List
 import TurboHaskell.SchemaTypes
 import TurboHaskell.HaskellSupport
+import Data.Char (isLower, isUpper)
+import qualified Data.Text as Text
+import Data.String.Conversions (cs)
 
 table :: Text -> Table
 table name = Table name []
@@ -37,11 +40,20 @@ enum values = EnumField { defaultValue = Nothing, references = Nothing, values, 
 bool :: FieldType
 bool = BoolField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
+boolean :: FieldType
+boolean = bool
+
 timestamp :: FieldType
 timestamp = Timestamp { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
 point :: FieldType
 point = PointField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
+float :: FieldType
+float = FloatField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
+
+double :: FieldType
+double = DoubleField { defaultValue = Nothing, references = Nothing, allowNull = False, isPrimaryKey = False, unique = False }
 
 belongsTo = BelongsTo
 hasMany name = HasMany { name = name, inverseOf = Nothing }
@@ -60,7 +72,9 @@ validateTable database table@(Table name attributes) = catMaybes $ map (validate
 validateAttribute :: [Table] -> Table -> Attribute -> Maybe Text
 validateAttribute database table field = 
     case validateReferences database table field of
-        Nothing -> validateOnDelete database table field
+        Nothing -> case all (not . isUpper) (cs (get #name field) :: String) of
+            True -> validateOnDelete database table field
+            False -> error $ (cs $ get #name field) <> "You need to use underscores and all lowerCase instead of CamelCase in Schema.hs."
         error -> error
 
 validateReferences :: [Table] -> Table -> Attribute -> Maybe Text
@@ -125,3 +139,6 @@ setHasManyRelations tables = map setHasManyRelations' tables
 
 schema :: [Table] -> [Table]
 schema database = setHasManyRelations database
+
+getFieldName :: Attribute -> Text
+getFieldName (Field fieldName _) = fieldName

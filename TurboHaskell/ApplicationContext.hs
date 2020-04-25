@@ -1,9 +1,8 @@
 module TurboHaskell.ApplicationContext where
 
-import ClassyPrelude
+import TurboHaskell.Prelude
 import Network.Wai.Session (Session)
 import qualified Data.Vault.Lazy         as Vault
-import           TurboHaskell.ModelSupport (ModelContext)
 
 data ApplicationContext = ApplicationContext
     { modelContext :: !ModelContext

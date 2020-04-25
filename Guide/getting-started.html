@@ -18,7 +18,7 @@
 <h5 id="feature-overview">Feature Overview</h5>
 <ul>
 <li>
-<strong>Fully managed dev environment:</strong> Works on any machine because all dependencies (even PostgreSQL) are managed using the nix package manager.
+<strong>Fully managed dev environment:</strong> Works on any machine because all dependencies (including PostgreSQL) are managed using the nix package manager.
 </li>
 <li>
 <strong>Bootstrap 4 Out of the box:</strong> The default layout already integrates bootstrap 4.
@@ -108,13 +108,10 @@
 <a href="#new-types">New Types</a>
 </li>
 <li>
-<a href="#controller-implementation">Controller Implementation</a>
+<a href="#controller-implementation-webcontrollerpostshs">Controller Implementation: <code>Web/Controller/Posts.hs</code></a>
 <ul>
 <li>
 <a href="#imports">Imports</a>
-</li>
-<li>
-<a href="#changeset">ChangeSet</a>
 </li>
 <li>
 <a href="#instance">Instance</a>
@@ -303,6 +300,37 @@
 </li>
 </ul>
 </li>
+<li>
+<a href="#debuging">Debuging</a>
+</li>
+<li>
+<a href="#architecture">Architecture</a>
+<ul>
+<li>
+<a href="#where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</a>
+</li>
+<li>
+<a href="#where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</a>
+</li>
+<li>
+<a href="#where-to-place-a-custom-type">Where to place a custom type?</a>
+</li>
+<li>
+<a href="#next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#recipes">Recipes</a>
+<ul>
+<li>
+<a href="#static-pages">Static Pages</a>
+</li>
+<li>
+<a href="#adding-a-native-dependency">Adding a native dependency</a>
+</li>
+</ul>
+</li>
 </ul>
 <h2 id="dependencies">Dependencies</h2>
 <h3 id="1-nix-package-manager">1. Nix Package Manager</h3>
@@ -366,16 +394,17 @@
 </tbody>
 </table>
 <h3 id="2-hello-world">2. Hello, World!</h3>
-<p>You now already have a working haskell app ready to be started
+<p>You now already have a working haskell app ready to be started.
 You can start the development server by running this in the <code>Blog</code> directory:</p>
 <div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span>
 </code></pre></div>
 <p>Your app is now running at <a href="http://localhost:8000/">http://localhost:8000</a>.
 The server can be stopped by pressing CTRL+C.</p>
+<p>The built-in development server automatically starts a PostgreSQL database connected to your application. So you don’t need to worry about manually setting up the database.</p>
 <h3 id="3-data-structures-postgresql">3. Data Structures &amp; PostgreSQL</h3>
 <h5 id="schema-modeling">Schema Modeling</h5>
-<p>For our blog we’re going to deal with posts. A post has a title and a body. As we are dealing with a database we also need an id. We are using UUIDs instead of the typical numerics ids for this.</p>
-<p>A <code>posts</code> table in a PostgreSQL database could loke like this:</p>
+<p>For our blog we’re going to deal with posts. A post has a title and a body and of course also an id. TurboHaskell is using UUIDs instead of the typical numerics ids.</p>
+<p><strong>A <code>posts</code> table in a PostgreSQL database could loke like this:</strong></p>
 <table>
 <thead>
 <tr><th>id :: UUID</th><th>title :: Text</th><th>body :: Text</th></tr>
@@ -387,7 +416,7 @@ The server can be stopped by pressing CTRL+C.</p>
 </table>
 <p>To work with posts in our application, we now have to declare this data schema.
 Open <code>Application/Schema.hs</code> and add the following code:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Model.Schema</span><span> </span><span class="kw">where</span><span>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Application.Schema</span><span> </span><span class="kw">where</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">ClassyPrelude</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="sy">(</span><span class="op">&lt;&gt;</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="cr">Bool</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">)</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">TurboHaskell.SchemaSupport</span><span>
 
@@ -485,22 +514,22 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>We can run the code generator like this:</p>
 <div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">new-controller</span><span> posts</span>
 
-<span class="ex">+</span><span> src/Apps/Web/Controller/Posts.hs</span>
-<span class="ex">*</span><span> src/Apps/Web/Routes.hs</span>
-<span class="ex">*</span><span> src/Apps/Web/Types.hs</span>
-<span class="ex">*</span><span> src/Apps/Web/App.hs (import)</span>
-<span class="ex">*</span><span> src/Apps/Web/App.hs (import)</span>
-<span class="ex">+</span><span> src/Apps/Web/View/Posts/Show.hs</span>
-<span class="ex">+</span><span> src/Apps/Web/View/Posts/New.hs</span>
-<span class="ex">+</span><span> src/Apps/Web/View/Posts/Edit.hs</span>
-<span class="ex">+</span><span> src/Apps/Web/View/Posts/Index.hs</span>
+<span class="ex">+</span><span> Web/Controller/Posts.hs</span>
+<span class="ex">*</span><span> Web/Routes.hs</span>
+<span class="ex">*</span><span> Web/Types.hs</span>
+<span class="ex">*</span><span> Web/App.hs (import)</span>
+<span class="ex">*</span><span> Web/App.hs (import)</span>
+<span class="ex">+</span><span> Web/View/Posts/Show.hs</span>
+<span class="ex">+</span><span> Web/View/Posts/New.hs</span>
+<span class="ex">+</span><span> Web/View/Posts/Edit.hs</span>
+<span class="ex">+</span><span> Web/View/Posts/Index.hs</span>
 </code></pre></div>
 <p>You can see that lot’s of files have been created and updated.</p>
 <p>Open your browser at <a href="http://localhost:8000/Posts">http://localhost:8000/Posts</a> to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.</p>
 <p>Here’s how the new controller looks like:</p>
 <p><img src="images/Posts.png" alt="Screenshot of the /Posts view"></p>
 <h5 id="new-types">New Types</h5>
-<p>Let’s first take a closer look at the changes in <code>src/Apps/Web/Types.hs</code>. Here a new data structures was created:</p>
+<p>Let’s first take a closer look at the changes in <code>Web/Types.hs</code>. Here a new data structures was created:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">data</span><span> </span><span class="cr">PostsController</span><span>
     </span><span class="sy">=</span><span> </span><span class="cr">PostsAction</span><span>
     </span><span class="sy">|</span><span> </span><span class="cr">NewPostAction</span><span>
@@ -509,7 +538,7 @@ Don’t worry, the local development postgresql server is already running. The d
     </span><span class="sy">|</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">::</span><span> </span><span class="sy">!</span><span class="sy">(</span><span class="cr">Id</span><span> </span><span class="cr">Post</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
     </span><span class="sy">|</span><span> </span><span class="cr">UpdatePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">::</span><span> </span><span class="sy">!</span><span class="sy">(</span><span class="cr">Id</span><span> </span><span class="cr">Post</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
     </span><span class="sy">|</span><span> </span><span class="cr">DeletePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">::</span><span> </span><span class="sy">!</span><span class="sy">(</span><span class="cr">Id</span><span> </span><span class="cr">Post</span><span class="sy">)</span><span> </span><span class="sy">}</span><span>
-    </span><span class="kw">deriving</span><span> </span><span class="sy">(</span><span class="cr">Eq</span><span class="sy">,</span><span> </span><span class="cr">Show</span><span class="sy">,</span><span> </span><span class="cr">Generic</span><span class="sy">,</span><span> </span><span class="cr">Data</span><span class="sy">)</span><span>
+    </span><span class="kw">deriving</span><span> </span><span class="sy">(</span><span class="cr">Eq</span><span class="sy">,</span><span> </span><span class="cr">Show</span><span class="sy">,</span><span> </span><span class="cr">Data</span><span class="sy">)</span><span>
 </span></code></pre></div>
 <p>We have one constructor for each possible action. Here you can see a short description for all the constructors:</p>
 <table>
@@ -518,18 +547,18 @@ Don’t worry, the local development postgresql server is already running. The d
 </thead>
 <tbody>
 <tr><td><code>PostsAction</code></td><td><code>GET /Posts</code></td><td>Lists all posts</td></tr>
-<tr><td><code>NewPostAction</code></td><td><code>GET /Posts/new</code></td><td>Displays the form to create a post</td></tr>
-<tr><td><code>ShowPostAction { postId = someId }</code></td><td><code>GET /Posts/{someId}</code></td><td>Shows the posts with id $someId</td></tr>
-<tr><td><code>CreatePostAction</code></td><td><code>POST /Posts</code></td><td>Endpoint to create a Post</td></tr>
-<tr><td><code>EditPostAction { postId = someId }</code></td><td><code>GET /Posts/{someId}/edit</code></td><td>Displays the form to edit a post</td></tr>
-<tr><td><code>UpdatePostAction { postId = someId }</code></td><td><code>POST /Posts/{someId}</code></td><td>Endpoint to submit a post update</td></tr>
-<tr><td><code>DeletePostAction { postId = someId }</code></td><td><code>DELETE /Posts/{someId}</code></td><td>Deletes the post</td></tr>
+<tr><td><code>NewPostAction</code></td><td><code>GET /NewPost</code></td><td>Displays the form to create a post</td></tr>
+<tr><td><code>ShowPostAction { postId = someId }</code></td><td><code>GET /ShowPost?postId={someId}</code></td><td>Shows the posts with id $someId</td></tr>
+<tr><td><code>CreatePostAction</code></td><td><code>POST /CreatePost</code></td><td>Endpoint to create a Post</td></tr>
+<tr><td><code>EditPostAction { postId = someId }</code></td><td><code>GET /EditPost?postId={someId}</code></td><td>Displays the form to edit a post</td></tr>
+<tr><td><code>UpdatePostAction { postId = someId }</code></td><td><code>POST /UpdatePost?postId={someId}</code></td><td>Endpoint to submit a post update</td></tr>
+<tr><td><code>DeletePostAction { postId = someId }</code></td><td><code>DELETE /DeletePost?postId={someId}</code></td><td>Deletes the post</td></tr>
 </tbody>
 </table>
 <p>A request like “Show me the post with id <code>e57cfb85-ad55-4d5c-b3b6-3affed9c662c</code>“ can be represented like <code>ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }</code>.</p>
 <p>The type <code>Id Post</code> is just a UUID, but wrapped within a newtype (<code>newtype Id model = Id UUID</code>).</p>
-<h5 id="controller-implementation">Controller Implementation</h5>
-<p>The actual code running, when an action is executed, is defined in <code>src/Apps/Web/Controller/Posts.hs</code>. Let’s take a look, step by step.</p>
+<h5 id="controller-implementation-webcontrollerpostshs">Controller Implementation: <code>Web/Controller/Posts.hs</code></h5>
+<p>The actual code running, when an action is executed, is defined in <code>Web/Controller/Posts.hs</code>. Let’s take a look, step by step.</p>
 <h6 id="imports">Imports</h6>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Web.Controller.Posts</span><span> </span><span class="kw">where</span><span>
 
@@ -540,18 +569,12 @@ Don’t worry, the local development postgresql server is already running. The d
 </span><span class="kw">import</span><span> </span><span class="cr">Web.View.Posts.Show</span><span>
 </span></code></pre></div>
 <p>In the header we just see some imports. Controllers always import a special <code>Web.Controller.Prelude</code> module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just “normal” haskell modules.</p>
-<h6 id="changeset">ChangeSet</h6>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">type</span><span> </span><span class="kw">instance</span><span> </span><span class="cr">ChangeSet</span><span> </span><span class="cr">Post</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[</span><span class="st">&quot;title&quot;</span><span class="sy">,</span><span> </span><span class="st">&quot;body&quot;</span><span class="sy">]</span><span>
-</span><span class="kw">type</span><span> </span><span class="kw">instance</span><span> </span><span class="cr">ChangeSet</span><span> </span><span class="cr">NewPost</span><span> </span><span class="sy">=</span><span> </span><span class="cr">ChangeSet</span><span> </span><span class="cr">Post</span><span>
-</span></code></pre></div>
-<p>Here we can see the list of fields which can be modified or set by the controller. Sometimes you don’t want to allow specific fields to be changed by a controller (e.g. a <code>createdAt</code> field should not be set from the user).</p>
-<p>The second line specifies that when creating a new post (<code>NewPost</code>), the same attributes are allowed as when updating an existing post.</p>
 <h6 id="instance">Instance</h6>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">Controller</span><span> </span><span class="cr">PostsController</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">Controller</span><span> </span><span class="cr">PostsController</span><span> </span><span class="kw">where</span><span>
 </span></code></pre></div>
-<p>The controller logic is specified by implementing an instance of the <code>Controller</code> type-class. Don’t worry about the <code>ControllerContext</code> parameter, we will get back to that later on.</p>
+<p>The controller logic is specified by implementing an instance of the <code>Controller</code> type-class.</p>
 <h6 id="index-action">Index Action</h6>
-<p>This is where the interesting part begins. As we will see below, the controller implementation is just an <code>action</code> function, pattern mattching over our <code>data PostsController</code> structure we defined in <code>src/Apps/Web/Types.hs</code>.</p>
+<p>This is where the interesting part begins. As we will see below, the controller implementation is just an <code>action</code> function, pattern mattching over our <code>data PostsController</code> structure we defined in <code>Web/Types.hs</code>.</p>
 <div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">PostsAction</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">posts</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Post</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
         </span><span class="va">render</span><span> </span><span class="cr">IndexView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
@@ -562,59 +585,64 @@ Don’t worry, the local development postgresql server is already running. The d
         </span><span class="kw">let</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">newRecord</span><span>
         </span><span class="va">render</span><span> </span><span class="cr">NewView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
 </span></code></pre></div>
-<p>This is our endpoint for <code>/Posts/new</code>. It just creates an empty new post and then passes it to the <code>NewView</code>. The <code>newRecord</code> is giving us an empty <code>Post</code> model. It’s equivalent to manually writing <code>Post { id = Default, title = &quot;&quot;, body = &quot;&quot; }</code>.</p>
+<p>This is our endpoint for <code>/NewPost</code>. It just creates an empty new post and then passes it to the <code>NewView</code>. The <code>newRecord</code> is giving us an empty <code>Post</code> model. It’s equivalent to manually writing <code>Post { id = Default, title = &quot;&quot;, body = &quot;&quot; }</code>.</p>
 <h6 id="show-action">Show Action</h6>
 <div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">ShowPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
         </span><span class="va">render</span><span> </span><span class="cr">ShowView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
 </span></code></pre></div>
-<p>This is our show action at <code>/Posts/{postId}</code>. Here we pattern match on the <code>postId</code> field of <code>ShowPostAction</code> to get post id of the given request. Then we just call <code>fetch</code> on that <code>postId</code> which gives us the specific <code>Post</code> record. Then we just pass that post to the view.</p>
+<p>This is our show action at <code>/ShowPost?postId=postId</code>. Here we pattern match on the <code>postId</code> field of <code>ShowPostAction</code> to get post id of the given request. Then we just call <code>fetch</code> on that <code>postId</code> which gives us the specific <code>Post</code> record. Then we just pass that post to the view.</p>
 <h6 id="edit-action">Edit Action</h6>
 <div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
         </span><span class="va">render</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
 </span></code></pre></div>
-<p>Our <code>/Posts/{postId}/edit</code> action. It’s pretty much the same as in the <code>action ShowPostAction</code>, just with a different view.</p>
+<p>Our <code>/EditPost?postId=postId</code> action. It’s pretty much the same as in the <code>action ShowPostAction</code>, just with a different view.</p>
 <h6 id="update-action">Update Action</h6>
 <div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">UpdatePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
-        </span><span class="va">fromParams&#39;</span><span> </span><span class="va">post</span><span> </span><span class="op">&gt;&gt;=</span><span> </span><span class="sy">\</span><span class="sy">case</span><span>
-            </span><span class="cr">Left</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
-            </span><span class="cr">Right</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
-                </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">updateRecord</span><span> </span><span class="va">post</span><span>
-                </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post updated&quot;</span><span>
-                </span><span class="va">redirectTo</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+        </span><span class="va">post</span><span>
+            </span><span class="op">|&gt;</span><span> </span><span class="va">buildPost</span><span>
+            </span><span class="op">|&gt;</span><span> </span><span class="va">ifValid</span><span> </span><span class="sy">\</span><span class="sy">case</span><span>
+                </span><span class="cr">Left</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+                </span><span class="cr">Right</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
+                    </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">post</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">updateRecord</span><span>
+                    </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post updated&quot;</span><span>
+                    </span><span class="va">redirectTo</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
 </span></code></pre></div>
 <p>This action deals with update requests for a specific post. As usual we pattern match on the <code>postId</code> and fetch it.</p>
-<p>The interesting part is <code>fromParams&#39; post</code>. The <code>fromParams&#39;</code> function reads in the updated fields from the request and sets the value on the passed <code>post</code> record. It only passes the fields specified by <code>ChangeLog Post</code>, so only <code>title</code> and <code>body</code>. It also checks for validation errors after setting the attributes (we will learn more about this later).</p>
-<p><code>fromParams&#39; post</code> returns <code>Either Post Post</code>. <code>Left post</code> means that e.g. the <code>title</code> or <code>body</code> did not pass validation. <code>Right post</code> means that all parameters could be set on <code>post</code> without any errors.</p>
-<p>In the error case (<code>Left post -&gt;</code>) we just re-render the <code>EditView</code>. The <code>EditView</code> then tells the user about alidation errors.</p>
+<p>The interesting part is <code>buildPost</code>. It is a helper function defined later in the controller: <code>buildPost = fill @[&quot;title&quot;, &quot;body&quot;]</code>. The <code>fill</code> call inside <code>buildPost</code> reads the <code>title</code> and <code>body</code> attributes from the browser request and fills them into the <code>post</code> record. The <code>buildPost</code> is also the place for validation logic.</p>
+<p><code>ifValid</code> returns <code>Either Post Post</code>. <code>Left post</code> means that e.g. the <code>title</code> or <code>body</code> did not pass validation. <code>Right post</code> means that all parameters could be set on <code>post</code> without any errors.</p>
+<p>In the error case (<code>Left post -&gt;</code>) we just re-render the <code>EditView</code>. The <code>EditView</code> then tells the user about validation errors.</p>
 <p>In the success case (<code>Right post -&gt;</code>) we save the updated post to the database (with <code>updateRecord</code>). Then we set a success message and redirect the user back to the edit view.</p>
 <div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">CreatePostAction</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">fromParams</span><span> </span><span class="sy">@</span><span class="cr">NewPost</span><span> </span><span class="op">&gt;&gt;=</span><span> </span><span class="sy">\</span><span class="sy">case</span><span>
-            </span><span class="cr">Left</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">NewView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span> 
-            </span><span class="cr">Right</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
-                </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">createRecord</span><span> </span><span class="va">post</span><span>
-                </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post created&quot;</span><span>
-                </span><span class="va">redirectTo</span><span> </span><span class="cr">PostsAction</span><span>
+        </span><span class="kw">let</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">newRecord</span><span> </span><span class="sy">@</span><span class="cr">NewPost</span><span>
+        </span><span class="va">post</span><span>
+            </span><span class="op">|&gt;</span><span> </span><span class="va">buildPost</span><span>
+            </span><span class="op">|&gt;</span><span> </span><span class="va">ifValid</span><span> </span><span class="sy">\</span><span class="sy">case</span><span>
+                </span><span class="cr">Left</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">NewView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span> 
+                </span><span class="cr">Right</span><span> </span><span class="va">post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
+                    </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">post</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">createRecord</span><span>
+                    </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post created&quot;</span><span>
+                    </span><span class="va">redirectTo</span><span> </span><span class="cr">PostsAction</span><span>
 </span></code></pre></div>
-<p>Our create action, dealing with <code>POST /Posts</code> requests.</p>
-<p>It’s pretty much like the update action. The <code>fromParams @NewPost</code> is just shorthand for <code>fromParams&#39; (newRecord @NewPost)</code>.</p>
+<p>Our create action, dealing with <code>POST /CreatePost</code> requests.</p>
+<p>It’s pretty much like the update action. When the validation succeeded, it saves the record to the database using <code>createRecord</code>.</p>
 <div class="source-code"><pre><code class="language-haskell"><span>    </span><span class="va">action</span><span> </span><span class="cr">DeletePostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
         </span><span class="va">deleteRecord</span><span> </span><span class="va">post</span><span>
         </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Post deleted&quot;</span><span>
         </span><span class="va">redirectTo</span><span> </span><span class="cr">PostsAction</span><span>
 </span></code></pre></div>
-<p>The last action is dealing with <code>DELETE /Posts/{postId}</code> requests. It’s pretty much like the other actions, we just call <code>deleteRecord</code> here.</p>
+<p>The last action is dealing with <code>DELETE /DeletePost?postId=postId</code> requests. It’s pretty much like the other actions, we just call <code>deleteRecord</code> here.</p>
 <h5 id="routes">Routes</h5>
-<p>The router is configured in <code>src/Apps/Web/Routes.hs</code>. The generator just places a single line there:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">RestfulController</span><span> </span><span class="cr">PostsController</span><span>
+<p>The router is configured in <code>Web/Routes.hs</code>. The generator just places a single line there:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">AutoRoute</span><span> </span><span class="cr">PostsController</span><span>
 </span></code></pre></div>
-<p>This empty instance magically sets up the routing as you would have expected from a RESTful controller.</p>
+<p>This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the urls according to your needs (e.g. “beautiful urls” for SEO).</p>
 <h5 id="views">Views</h5>
 <p>We should also quickly take a look at our views.</p>
-<p>Let first look at the show view in <code>src/Apps/Web/View/Posts/Show.hs</code>:</p>
+<p>Let first look at the show view in <code>Web/View/Posts/Show.hs</code>:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Web.View.Posts.Show</span><span> </span><span class="kw">where</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">Web.View.Prelude</span><span>
 
@@ -641,7 +669,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>Click “Save Post”. You should now see the new post listed on the index view.</p>
 <h4 id="displaying-a-post">Displaying a Post</h4>
 <p>Let’s first improve the show view. Right now the headline is “Show Post”, and the actual Post body is never shown.</p>
-<p>Open the <code>src/Apps/Web/View/Posts/Show.hs</code> and replace <code>&lt;h1&gt;Show Post&lt;/h1&gt;</code> with <code>&lt;h1&gt;{get #title post}&lt;/h1&gt;</code>. Also add a <code>&lt;div&gt;{get #body post}&lt;/div&gt;</code> below the <code>&lt;h1&gt;</code>.</p>
+<p>Open the <code>Web/View/Posts/Show.hs</code> and replace <code>&lt;h1&gt;Show Post&lt;/h1&gt;</code> with <code>&lt;h1&gt;{get #title post}&lt;/h1&gt;</code>. Also add a <code>&lt;div&gt;{get #body post}&lt;/div&gt;</code> below the <code>&lt;h1&gt;</code>.</p>
 <p>The hsx code should now look like this:</p>
 <div class="source-code"><pre><code class="language-html"><span class="kw">&lt;nav&gt;</span>
 <span>    </span><span class="kw">&lt;ol</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb&quot;</span><span class="kw">&gt;</span>
@@ -655,30 +683,27 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>After you saved the changes, you should see that the changes have been reflected in the browser already. In the background the page has been refreshed automatically (technically the page has been patched using a vdom library).</p>
 <h4 id="display-all-posts">Display all posts</h4>
 <p>After creating your post, you should have already seen that posts list is right now displaying all the post fields. Let’s change it to only display the post’s title.</p>
-<p>Open the <code>src/Apps/Web/View/Posts/Index.hs</code> and replace <code>&lt;td&gt;{post}&lt;/td&gt;</code> with <code>&lt;td&gt;{get #title post}&lt;/td&gt;</code>.</p>
+<p>Open the <code>Web/View/Posts/Index.hs</code> and replace <code>&lt;td&gt;{post}&lt;/td&gt;</code> with <code>&lt;td&gt;{get #title post}&lt;/td&gt;</code>.</p>
 <p>Let’s also make it clickable by wrapping it in a link. We can just put a <code>&lt;a href={ShowPostAction (get #id post)}&gt;</code> around it. The line should now look like <code>&lt;td&gt;&lt;a href={ShowPostAction (get #id post)}&gt;{get #title post}&lt;/a&gt;&lt;/td&gt;</code>.</p>
 <p>Now we can also remove the “Show” link. We can do that by removing the next line <code>&lt;td&gt;&lt;a href={ShowPostAction (get #id post)}&gt;Show&lt;/a&gt;&lt;/td&gt;</code>.</p>
 <h4 id="adding-validation">Adding Validation</h4>
-<p>Let’s make sure that every post has atleast a title. Validations can be defined inside <code>src/Apps/Web/Validation.hs</code>.</p>
-<p>You should see an instance like this:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateNothing</span><span>
+<p>Let’s make sure that every post has atleast a title. Validations can be defined inside our controller <code>Web/Controller/Posts.hs</code>.</p>
+<p>Right now at the bottom of the file we have this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">buildPost</span><span> </span><span class="sy">=</span><span> </span><span class="va">fill</span><span> </span><span class="sy">@</span><span class="sy">[</span><span class="st">&quot;title&quot;</span><span class="sy">,</span><span class="st">&quot;body&quot;</span><span class="sy">]</span><span>
 </span></code></pre></div>
-<p>Replace <code>validateNothing</code> with <code>validateField #title nonEmpty</code>.</p>
-<p>The instance should now look like this:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
+<p>Replace the implementation with this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">buildPost</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">post</span><span>
+    </span><span class="op">|&gt;</span><span> </span><span class="va">fill</span><span> </span><span class="sy">@</span><span class="sy">[</span><span class="st">&quot;title&quot;</span><span class="sy">,</span><span class="st">&quot;body&quot;</span><span class="sy">]</span><span>
+    </span><span class="op">|&gt;</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
 </span></code></pre></div>
 <p>Now open <a href="http://localhost:8000/Posts/new">http://localhost:8000/Posts/new</a> and click “Save Post” without filling the text fields. You will get a “This field cannot be empty”.</p>
-<p>That’s how easy it is, to validate your models with interactive lambda.</p>
+<p>That’s how easy it is, to validate your models with TurboHaskell.</p>
 <h4 id="timestamps">Timestamps</h4>
 <p>It would be nice to always show the latest post on the index view. Let’s add a timestamp to do exactly that.</p>
-<p>Before we change our database schema, it’s time to quickly save our current database state. For that you can just run <code>make dump_db</code>:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span><span> dump_db</span>
+<p>Before we change our database schema, it’s time to quickly save our current database state. For that you can just run <code>make dumpdb</code>:</p>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span><span> dumpdb</span>
 </code></pre></div>
-<p>Take a look at <code>src/Model/Fixtures.sql</code>, the file should look like this now:</p>
+<p>Take a look at <code>Application/Fixtures.sql</code>, the file should look like this now:</p>
 <div class="source-code"><pre><code class="language-sql"><span class="co">-- .......</span>
 <span class="co">-- .......</span>
 
@@ -698,16 +723,16 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>Run the following command to fix that:</p>
 <div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span><span> db</span>
 </code></pre></div>
-<p>This command will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to <code>src/Model/Fixtures.sql</code> a moment ago.</p>
+<p>This command will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to <code>Application/Fixtures.sql</code> a moment ago.</p>
 <p>You can open <a href="http://localhost:8000/Posts">http://localhost:8000/Posts</a> again. The error is gone now.</p>
-<p>Now we can order the posts by our new <code>created_at</code> field. Open <code>src/Apps/Web/Controller/Posts.hs</code> and add <code>orderByDesc #createdAt</code> like this inside the <code>action PostsAction</code>:</p>
+<p>Now we can order the posts by our new <code>created_at</code> field. Open <code>Web/Controller/Posts.hs</code> and add <code>orderByDesc #createdAt</code> like this inside the <code>action PostsAction</code>:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">action</span><span> </span><span class="cr">PostsAction</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
     </span><span class="va">posts</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Post</span><span>
         </span><span class="op">|&gt;</span><span> </span><span class="va">orderByDesc</span><span> </span><span class="va">#createdAt</span><span>
         </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
     </span><span class="va">render</span><span> </span><span class="cr">IndexView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
 </span></code></pre></div>
-<p>Let’s also show the creation time in the <code>ShowView</code> in <code>src/Apps/Web/View/Posts/Show.hs</code>. There we add <code>&lt;p&gt;{timeAgo (get #createdAt post)}&lt;/p&gt;</code> below the title:</p>
+<p>Let’s also show the creation time in the <code>ShowView</code> in <code>Web/View/Posts/Show.hs</code>. There we add <code>&lt;p&gt;{timeAgo (get #createdAt post)}&lt;/p&gt;</code> below the title:</p>
 <div class="source-code"><pre><code class="language-html"><span class="kw">&lt;nav&gt;</span>
 <span>    </span><span class="kw">&lt;ol</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb&quot;</span><span class="kw">&gt;</span>
 <span>        </span><span class="kw">&lt;li</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb-item&quot;</span><span class="kw">&gt;&lt;a</span><span class="ot"> href=</span><span class="st">{PostsAction}</span><span class="kw">&gt;</span><span>Posts</span><span class="kw">&lt;/a&gt;&lt;/li&gt;</span>
@@ -764,7 +789,7 @@ Don’t worry, the local development postgresql server is already running. The d
 </code></pre></div>
 <p>Now restart the development server by pressing CTRL+C and then typing <code>make</code> again. We will see that mmark is going to be installed.</p>
 <h5 id="markdown-rendering">Markdown Rendering</h5>
-<p>Now that we have <code>mmark</code> installed, we need to integrate it into our <code>ShowView</code>. First we need to import it: Add <code>import qualified Text.MMark as MMark</code> to the top of <code>src/Apps/Web/View/Posts/Show.hs</code>.</p>
+<p>Now that we have <code>mmark</code> installed, we need to integrate it into our <code>ShowView</code>. First we need to import it: Add <code>import qualified Text.MMark as MMark</code> to the top of <code>Web/View/Posts/Show.hs</code>.</p>
 <p>Next change <code>{get #body post}</code> to <code>{get #body post |&gt; renderMarkdown}</code>. This pipes the body field through a function <code>renderMarkdown</code>. Of course we also have to define the function now.</p>
 <p>Add the following to the bottom of the show view:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">renderMarkdown</span><span> </span><span class="va">text</span><span> </span><span class="sy">=</span><span> </span><span class="va">text</span><span>
@@ -785,7 +810,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>The show view will now show real formatted text, as we would have expected.</p>
 <h5 id="forms-validation">Forms &amp; Validation</h5>
 <p>Let’s also quickly update our form. Right now we have a one-line text field there. We can replace it with a textarea to support multi line text.</p>
-<p>Open <code>src/Apps/Web/View/Posts/Edit.hs</code> and change <code>{textField #body}</code> to <code>{textareaField #body}</code>. We can also add a short hint that the text area supports markdown: Replace <code>{textareaField #body}</code> with <code>{(textareaField #body) { helpText = &quot;You can use markdown here&quot;} }</code>.</p>
+<p>Open <code>Web/View/Posts/Edit.hs</code> and change <code>{textField #body}</code> to <code>{textareaField #body}</code>. We can also add a short hint that the text area supports markdown: Replace <code>{textareaField #body}</code> with <code>{(textareaField #body) { helpText = &quot;You can use markdown here&quot;} }</code>.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">renderForm</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Post</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">Html</span><span>
 </span><span class="va">renderForm</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">formFor</span><span> </span><span class="va">post</span><span> </span><span class="sy">[hsx|
     {textField #title}
@@ -793,9 +818,11 @@ Don’t worry, the local development postgresql server is already running. The d
     {submitButton}
 |]</span><span>
 </span></code></pre></div>
-<p>After that, do the same in <code>src/Apps/Web/View/Posts/New.hs</code>.</p>
+<p>After that, do the same in <code>Web/View/Posts/New.hs</code>.</p>
 <p>We can also add an error message when the user tries to save invalid markdown. We can quickly write a custom validator for that:</p>
-<p>Open <code>src/Apps/Web/validation.hs</code> and import <code>MMark</code> at the top <code>import qualified Text.MMark as MMark</code>.</p>
+<p>Open <code>Web/Controller/Posts.hs</code> and import <code>MMark</code> at the top:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">import</span><span> </span><span class="kw">qualified</span><span> </span><span class="cr">Text.MMark</span><span> </span><span class="kw">as</span><span> </span><span class="cr">MMark</span><span>
+</span></code></pre></div>
 <p>Then add this custom validator to the bottom of the file:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">isMarkdown</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Text</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
 </span><span class="va">isMarkdown</span><span> </span><span class="va">text</span><span> </span><span class="sy">=</span><span>
@@ -803,12 +830,12 @@ Don’t worry, the local development postgresql server is already running. The d
         </span><span class="cr">Left</span><span> </span><span class="sy">_</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">Failure</span><span> </span><span class="st">&quot;Please provide valid markdown&quot;</span><span>
         </span><span class="cr">Right</span><span> </span><span class="sy">_</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">Success</span><span>
 </span></code></pre></div>
-<p>We can use the validator by adding a new <code>validateField #body isMarkdown</code> line to the <code>ValidateRecord</code> instance of the post:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
-        </span><span class="va">validateField</span><span> </span><span class="va">#body</span><span> </span><span class="va">nonEmpty</span><span>
-        </span><span class="va">validateField</span><span> </span><span class="va">#body</span><span> </span><span class="va">isMarkdown</span><span>
+<p>We can use the validator by adding a new <code>validateField #body isMarkdown</code> line to the <code>buildPost</code> function:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">buildPost</span><span> </span><span class="va">post</span><span> </span><span class="sy">=</span><span> </span><span class="va">post</span><span>
+    </span><span class="op">|&gt;</span><span> </span><span class="va">fill</span><span> </span><span class="sy">@</span><span class="sy">[</span><span class="st">&quot;title&quot;</span><span class="sy">,</span><span class="st">&quot;body&quot;</span><span class="sy">]</span><span>
+    </span><span class="op">|&gt;</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
+    </span><span class="op">|&gt;</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#body</span><span> </span><span class="va">nonEmpty</span><span>
+    </span><span class="op">|&gt;</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#body</span><span> </span><span class="va">isMarkdown</span><span>
 </span></code></pre></div>
 <p>Create a new post with just <code>#</code> (a headline without any text) as the content to see our new error message.</p>
 <h3 id="6-a-second-model">6. A Second Model</h3>
@@ -822,7 +849,7 @@ Don’t worry, the local development postgresql server is already running. The d
 </span></code></pre></div>
 <p>The <code>uuid { references = Just &quot;posts&quot;, onDelete = Cascade }</code> column type specifies that we have a uuid column including a foreign key constraint to the <code>posts</code> table. The <code>onDelete</code> option is set to cascade to tell our database to delete the comments when the post is removed.</p>
 <p>The <code>Application/Schema.hs</code> will now look like this:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Model.Schema</span><span> </span><span class="kw">where</span><span>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Application.Schema</span><span> </span><span class="kw">where</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">ClassyPrelude</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="sy">(</span><span class="op">&lt;&gt;</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="cr">Bool</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">)</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">TurboHaskell.SchemaSupport</span><span>
 
@@ -841,23 +868,22 @@ Don’t worry, the local development postgresql server is already running. The d
     </span><span class="sy">]</span><span>
 </span></code></pre></div>
 <h4 id="62-loading-the-schema">6.2 Loading the Schema</h4>
-<p>Run <code>make dump_db</code> and <code>make db</code> to save our current posts to <code>src/Model/Fixtures.sql</code> and to rebuild the database to add our new <code>comments</code> table.</p>
+<p>Run <code>make dump_db</code> and <code>make db</code> to save our current posts to <code>Application/Fixtures.sql</code> and to rebuild the database to add our new <code>comments</code> table.</p>
 <h4 id="63-the-controller">6.3 The Controller</h4>
 <p>It’s time to also add a new controller for our comments. For that call the controller generator like this:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="bu">cd</span><span> src/Apps/Web</span>
-<span>$ </span><span class="ex">new-controller</span><span> comments</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">new-controller</span><span> comments</span>
 </code></pre></div>
 <p>This will generate a new working controller for us. We now need to do some adjustments to better integrate the comments into the posts.</p>
 <hr>
 <p>Right now the comments are available at <code>/Comments</code>. As they are always connected to a post, we want to have them as a subresource of a post, e.g. like <code>/Posts/{postId}/Comments</code>.</p>
-<p>Open <code>src/Apps/Web/Routes.hs</code> and change the <code>instance RestfulController CommentsController</code> like this:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">RestfulController</span><span> </span><span class="sy">(</span><span class="cr">PostsController</span><span> </span><span class="op">:&gt;</span><span> </span><span class="cr">CommentsController</span><span class="sy">)</span><span>
+<p>Open <code>Web/Routes.hs</code> and change the <code>instance AutoRoute CommentsController</code> like this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">AutoRoute</span><span> </span><span class="sy">(</span><span class="cr">PostsController</span><span> </span><span class="op">:&gt;</span><span> </span><span class="cr">CommentsController</span><span class="sy">)</span><span>
 </span></code></pre></div>
 <p>The <code>:&gt;</code> is a combinator to describe nested resource. In this case <code>PostsController</code> is the parent controller and <code>CommentsController</code> is the child controller.</p>
 <hr>
 <p>After this change, the dev server will show some errors like this:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="va">src</span><span class="op">/</span><span class="cr">Apps</span><span class="op">/</span><span class="cr">Web</span><span class="op">/</span><span class="cr">View</span><span class="op">/</span><span class="cr">Comments</span><span class="op">/</span><span class="va">Show.hs</span><span class="sy">:</span><span class="it">8</span><span class="sy">:</span><span class="it">33</span><span class="sy">:</span><span> </span><span class="va">error</span><span class="sy">:</span><span>
-    </span><span class="op">•</span><span> </span><span class="cr">Could</span><span> </span><span class="va">not</span><span> </span><span class="va">deduce</span><span> </span><span class="sy">(</span><span class="cr">TurboHaskell.RouterSupport.RestfulController</span><span> </span><span class="cr">CommentsController</span><span class="sy">)</span><span>
+<div class="source-code"><pre><code class="language-haskell"><span class="cr">Web</span><span class="op">/</span><span class="cr">View</span><span class="op">/</span><span class="cr">Comments</span><span class="op">/</span><span class="va">Show.hs</span><span class="sy">:</span><span class="it">8</span><span class="sy">:</span><span class="it">33</span><span class="sy">:</span><span> </span><span class="va">error</span><span class="sy">:</span><span>
+    </span><span class="op">•</span><span> </span><span class="cr">Could</span><span> </span><span class="va">not</span><span> </span><span class="va">deduce</span><span> </span><span class="sy">(</span><span class="cr">TurboHaskell.RouterSupport.AutoRoute</span><span> </span><span class="cr">CommentsController</span><span class="sy">)</span><span>
 </span></code></pre></div>
 <p>E.g. in the <code>Show.hs</code> the error is triggered by this line:</p>
 <div class="source-code"><pre><code class="language-html"><span class="kw">&lt;li</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb-item&quot;</span><span class="kw">&gt;&lt;a</span><span class="ot"> href=</span><span class="st">{CommentsAction}</span><span class="kw">&gt;</span><span>Comments</span><span class="kw">&lt;/a&gt;&lt;/li&gt;</span>
@@ -1031,6 +1057,7 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make db</td><td>Creates a new database with the current Schema and imports Fixtures.sql</td></tr>
 <tr><td>make dumpdb</td><td>Saves the current database state into the Fixtures.sql</td></tr>
 <tr><td>make psql</td><td>Connects to the running postgresql server</td></tr>
+<tr><td>make .envrc</td><td>Loads $PATH from nix-shell into .envrc</td></tr>
 <tr><td>ghci</td><td>Opens a new ghci session with the project and framework already loaded</td></tr>
 <tr><td>make clean</td><td>Resets all build and temporary files</td></tr>
 <tr><td>make print-ghc-extensions</td><td>Prints all used ghc extensions. Useful for scripting</td></tr>
@@ -1041,6 +1068,7 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make static/prod.css</td><td>Builds the production css bundle</td></tr>
 </tbody>
 </table>
+      <p>You can use the <code>-B</code> flag to force a remake. For example <code>make -B .envrc</code></p>
 <h1 id="form-reference">Form Reference</h1>
 <h2 id="select-inputs">Select Inputs</h2>
 <p>You can use the <code>selectField</code> helper for select inputs:</p>
@@ -1067,6 +1095,111 @@ You can just use the <code>query</code> function for that.</p>
 <span>    </span><span class="kw">&lt;/select&gt;</span>
 <span class="kw">&lt;/form&gt;</span>
 </code></pre></div>
+<h1 id="debuging">Debuging</h1>
+<p>TODO: Show example using traceShowId</p>
+<h1 id="architecture">Architecture</h1>
+<p>This section tries to answer common questions on where to place your code.</p>
+<p>In general remember that all specific web app logic should stay in the <code>Web/</code> space. The <code>Application/</code> space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.</p>
+<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</h5>
+<p>If the function is only used in a single application and is a building block for your layout, place it in <code>Web/View/Layout.hs</code>. The module is already imported in all your views (just don’t forget to add the function to the export list).</p>
+<p>If the function is used across multiple applications or more like a helper function, place it in <code>Application/Helper/View.hs</code>. This module is also already included in your view files.</p>
+<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</h5>
+<p>Place it in <code>Application/Helper/Controller.hs</code>. This module is already imported into your controllers.</p>
+<h5 id="where-to-place-a-custom-type">Where to place a custom type?</h5>
+<p>Place it in <code>Web/Types.hs</code>.</p>
+<h5 id="next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</h5>
+<p>A TurboHaskell project can consist of multiple applications. Run <code>new-application admin</code> to generate a new admin application. The logic for the new application is located in the <code>Admin/</code> directory. On the web you can find it at <code>http://localhost:8000/admin/</code> (all actions are prefixed with <code>/admin/</code>).</p>
+<h1 id="recipes">Recipes</h1>
+<p>This section describes best-practise solutions to common tasks your facing when building web applications.</p>
+<h2 id="static-pages">Static Pages</h2>
+<p>For adding a static page like e.g. a start page, terms of service, privacy, pricing etc. you usually use a normal controller which just renders the view for that page. The only special thing is, that you might want to customize the routing to have SEO-friendly urls.</p>
+<p>Let’s say we have a controller like this defined in <code>Web.Types</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">data</span><span> </span><span class="cr">StaticController</span><span>
+    </span><span class="sy">=</span><span> </span><span class="cr">AboutAction</span><span>
+    </span><span class="sy">|</span><span> </span><span class="cr">TermsAction</span><span>
+    </span><span class="kw">deriving</span><span> </span><span class="sy">(</span><span class="cr">Eq</span><span class="sy">,</span><span> </span><span class="cr">Show</span><span class="sy">,</span><span> </span><span class="cr">Data</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<p>The controller implementation will look like this in <code>Web.Controller.Static</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Web.Controller.Static</span><span> </span><span class="kw">where</span><span>
+
+</span><span class="kw">import</span><span> </span><span class="cr">Web.Controller.Prelude</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Web.View.Static.Terms</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">Web.View.Static.About</span><span>
+
+</span><span class="kw">instance</span><span> </span><span class="cr">Controller</span><span> </span><span class="cr">StaticController</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">action</span><span> </span><span class="cr">TermsAction</span><span> </span><span class="sy">=</span><span> </span><span class="va">render</span><span> </span><span class="cr">TermsView</span><span>
+    </span><span class="va">action</span><span> </span><span class="cr">AboutAction</span><span> </span><span class="sy">=</span><span> </span><span class="va">render</span><span> </span><span class="cr">AboutView</span><span>
+</span></code></pre></div>
+<p>We can now customize the routing in <code>Web.Routes</code> by first deleting the <code>instance AutoRoute StaticController</code> statement to delete the auto generated routing configuration and append:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">HasPath</span><span> </span><span class="cr">StaticController</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">pathTo</span><span> </span><span class="cr">TermsAction</span><span> </span><span class="sy">=</span><span> </span><span class="st">&quot;/terms&quot;</span><span>
+    </span><span class="va">pathTo</span><span> </span><span class="cr">AboutAction</span><span> </span><span class="sy">=</span><span> </span><span class="st">&quot;/about&quot;</span><span>
+
+</span><span class="kw">instance</span><span> </span><span class="cr">CanRoute</span><span> </span><span class="cr">StaticController</span><span> </span><span class="kw">where</span><span>
+    </span><span class="va">parseRoute&#39;</span><span> </span><span class="sy">=</span><span> 
+        </span><span class="sy">(</span><span class="va">string</span><span> </span><span class="st">&quot;/terms&quot;</span><span> </span><span class="op">&lt;*</span><span> </span><span class="va">endOfInput</span><span> </span><span class="op">&gt;&gt;</span><span> </span><span class="va">pure</span><span> </span><span class="cr">TermsAction</span><span class="sy">)</span><span>
+        </span><span class="op">&lt;|&gt;</span><span> </span><span class="sy">(</span><span class="va">string</span><span> </span><span class="st">&quot;/about&quot;</span><span> </span><span class="op">&lt;*</span><span> </span><span class="va">endOfInput</span><span> </span><span class="op">&gt;&gt;</span><span> </span><span class="va">pure</span><span> </span><span class="cr">AboutAction</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<p>Now the terms can be reached at <code>/terms</code> instead of <code>/Terms</code>. The about is at <code>/about</code> now, instead of <code>/About</code>.</p>
+<h2 id="adding-a-native-dependency">Adding a native dependency</h2>
+<p>Sometimes your project uses some other software tool which is not bundled with TurboHaskell by default. Because we’re using nix, we can easily manage that dependency for our project.</p>
+<p>Let’s say we want to add imagemagick to transform and resize images uploaded by the users of our application.</p>
+<p>All dependencies of our project are listed in <code>default.nix</code> at the root of the project directory. The file looks like this:</p>
+<div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
+<span>    </span><span class="ex">turboHaskell</span><span> = builtins.fetchGit {</span>
+<span>        </span><span class="ex">url</span><span> = </span><span class="st">&quot;https://github.com/digitallyinduced/haskellframework.git&quot;</span><span class="kw">;</span>
+<span>        </span><span class="fu">rev</span><span> = </span><span class="st">&quot;c6d40612697bb7905802f23b7753702d33b9e2c1&quot;</span><span class="kw">;</span>
+<span>    };</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${turboHaskell}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
+<span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc865&quot;</span><span class="kw">;</span>
+<span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
+<span>            cabal-install</span>
+<span>            base</span>
+<span>            classy-prelude</span>
+<span>            wai</span>
+<span>            text</span>
+<span>            hlint</span>
+<span>            turbohaskell</span>
+<span>            wreq</span>
+<span>        ];</span>
+<span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
+<span>        ];</span>
+<span>        projectPath </span><span class="ot">=</span><span> ./.;</span>
+<span>    };</span>
+<span>in</span>
+<span>    haskellEnv</span>
+</code></pre></div>
+<p>We now just have to add <code>imagemagick</code> to <code>otherDeps</code>:</p>
+<div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
+<span>    </span><span class="ex">turboHaskell</span><span> = builtins.fetchGit {</span>
+<span>        </span><span class="ex">url</span><span> = </span><span class="st">&quot;https://github.com/digitallyinduced/haskellframework.git&quot;</span><span class="kw">;</span>
+<span>        </span><span class="fu">rev</span><span> = </span><span class="st">&quot;c6d40612697bb7905802f23b7753702d33b9e2c1&quot;</span><span class="kw">;</span>
+<span>    };</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${turboHaskell}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
+<span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc865&quot;</span><span class="kw">;</span>
+<span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
+<span>            cabal-install</span>
+<span>            base</span>
+<span>            classy-prelude</span>
+<span>            wai</span>
+<span>            text</span>
+<span>            hlint</span>
+<span>            turbohaskell</span>
+<span>            wreq</span>
+<span>        ];</span>
+<span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
+
+<span>            imagemagick </span><span class="co"># &lt;-----------------------</span>
+<span>            </span>
+<span>        ];</span>
+<span>        projectPath </span><span class="ot">=</span><span> ./.;</span>
+<span>    };</span>
+<span>in</span>
+<span>    haskellEnv</span>
+</code></pre></div>
+<p>If running, stop your development server. Now run <code>make</code> again. This will install imagemagick locally to your project.</p>
+<p>When you are inside the project with your terminal, you can also call <code>imagemagick</code> to see that it’s available.</p>
+<p>You can look up the package name for the software you dependend on inside the nixpkgs repository. <a href="https://github.com/NixOS/nixpkgs">Just open it on GitHub</a> and use the GitHub search to look up the package name.</p>
 </div>
 
     

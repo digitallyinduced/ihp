@@ -1,39 +1,23 @@
 {-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, AllowAmbiguousTypes #-}
 
-module TurboHaskell.FetchRelated (fetchRelated, collectionFetchRelated) where
+module TurboHaskell.FetchRelated (fetchRelated, collectionFetchRelated, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
 
-import TurboHaskell.HaskellSupport
-import ClassyPrelude hiding (UTCTime, find)
-import qualified ClassyPrelude
+import TurboHaskell.Prelude
 import Database.PostgreSQL.Simple (Connection)
-import qualified Text.Inflections
 import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
-import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
-import Data.Time.Clock (UTCTime)
-import Unsafe.Coerce
-import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import GHC.OverloadedLabels
-import Data.String.Conversions (cs)
-import GHC.TypeLits
-import GHC.Types
-import GHC.Records
-import Data.Proxy
-import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById)
-import qualified TurboHaskell.ModelSupport
-import TurboHaskell.ModelSupport (Include)
-import TurboHaskell.NameSupport (fieldNameToColumnName)
+import TurboHaskell.ModelSupport (GetTableName, ModelContext, GetModelById, Include)
 import TurboHaskell.QueryBuilder
 
 collectionFetchRelated :: forall model relatedField relatedFieldValue relatedModel. (
         ?modelContext :: ModelContext,
         HasField relatedField model relatedFieldValue,
         HasField "id" relatedModel relatedFieldValue,
-        UpdateField relatedField model (TurboHaskell.ModelSupport.Include relatedField model) relatedFieldValue relatedModel,
+        UpdateField relatedField model (Include relatedField model) relatedFieldValue relatedModel,
         Fetchable relatedFieldValue relatedModel,
         KnownSymbol (GetTableName relatedModel),
         PG.FromRow relatedModel,
@@ -43,15 +27,15 @@ collectionFetchRelated :: forall model relatedField relatedFieldValue relatedMod
         KnownSymbol relatedField,
         HasField "id" relatedModel relatedFieldValue,
         Show relatedFieldValue
-    ) => Proxy relatedField -> [model] -> IO [TurboHaskell.ModelSupport.Include relatedField model]
+    ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
 collectionFetchRelated relatedField model = do
     relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, map (getField @relatedField) model) |> fetch
     let
-        assignRelated :: model -> TurboHaskell.ModelSupport.Include relatedField model
+        assignRelated :: model -> Include relatedField model
         assignRelated model =
             let
                 relatedModel :: relatedModel
-                relatedModel = case ClassyPrelude.find (\r -> (getField @"id" r :: relatedFieldValue) == targetForeignKey) relatedModels of
+                relatedModel = case find (\r -> (getField @"id" r :: relatedFieldValue) == targetForeignKey) relatedModels of
                         Just m -> m
                         Nothing -> error ("Could not find record with id = " <> show targetForeignKey <> " in result set. Looks like the foreign key is pointing to a non existing record")
                 targetForeignKey = (getField @relatedField model :: relatedFieldValue)
@@ -59,9 +43,9 @@ collectionFetchRelated relatedField model = do
                 updateField @relatedField relatedModel model
 
     let
-        result :: [TurboHaskell.ModelSupport.Include relatedField model]
+        result :: [Include relatedField model]
         result = map assignRelated model
-    return result
+    pure result
 
 fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
@@ -74,4 +58,29 @@ fetchRelated :: forall model field fieldValue fetchModel. (
 fetchRelated relatedField model = do
     result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
     let model' = updateField @field result model
-    return model'
+    pure model'
+
+fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
+        ?modelContext :: ModelContext,
+        UpdateField field model (Include field model) (Maybe fieldValue) (Maybe (FetchResult fieldValue fetchModel)),
+        HasField field model (Maybe fieldValue),
+        PG.FromRow fetchModel,
+        KnownSymbol (GetTableName fetchModel),
+        Fetchable fieldValue fetchModel
+    ) => Proxy field -> model -> IO (Include field model)
+fetchRelatedOrNothing relatedField model = do
+    result :: Maybe (FetchResult fieldValue fetchModel) <- case getField @field model of
+            Just fieldValue -> Just <$> fetch fieldValue
+            Nothing -> pure Nothing
+    let model' = updateField @field result model
+    pure model'
+
+maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
+        ?modelContext :: ModelContext,
+        UpdateField field model (Include field model) (Maybe fieldValue) (Maybe (FetchResult fieldValue fetchModel)),
+        HasField field model (Maybe fieldValue),
+        PG.FromRow fetchModel,
+        KnownSymbol (GetTableName fetchModel),
+        Fetchable fieldValue fetchModel
+    ) => Proxy field -> Maybe model -> IO (Maybe (Include field model))
+maybeFetchRelatedOrNothing relatedField = maybe (pure Nothing) (\q -> fetchRelatedOrNothing relatedField q >>= pure . Just)

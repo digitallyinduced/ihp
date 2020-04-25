@@ -1,0 +1,25 @@
+name: Build Documentation
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install OpenSSH
+      run: sudo apt install openssh-client -y
+    
+    - name: Run SSH script
+      env:
+        SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+      run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 142.93.99.41 >> ~/.ssh/known_hosts
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          ssh-add <(echo "${{ secrets.KEY }}")
+          echo "Starting SSH"
+          ssh -A root@142.93.99.41 'cd /home/turbohaskell; ./build_documentation.sh'

@@ -1,18 +1,19 @@
 module Main where
 
-import ClassyPrelude hiding (writeFile)
+import TurboHaskell.Prelude hiding (writeFile)
 import TurboHaskell.NameSupport (ucfirst)
 import System.Directory (createDirectory)
 import Data.String.Conversions (cs)
-import Data.ByteString (writeFile)
+import Data.ByteString (writeFile, readFile)
 import TurboHaskell.HaskellSupport
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 
 main :: IO ()
 main = do
     args <- getArgs
     case headMay args of
-        Just applicationName' | not (null applicationName') -> do
+        Just applicationName' | not (Text.null applicationName') -> do
             let applicationName = ucfirst applicationName'
             let directories = directoriesToCreate (cs applicationName)
             let files = filesToCreate (cs applicationName)
@@ -37,7 +38,6 @@ filesToCreate applicationName =
     [ (cs applicationName <> "/Types.hs", typesHs)
     , (cs applicationName <> "/Routes.hs", routesHs)
     , (cs applicationName <> "/FrontController.hs", frontControllerHs)
-    , (cs applicationName <> "/Controller/Context.hs", controllerContextHs)
     , (cs applicationName <> "/Controller/Prelude.hs", controllerPreludeHs)
     , (cs applicationName <> "/View/Context.hs", viewContextHs)
     , (cs applicationName <> "/View/Layout.hs", viewLayoutHs)
@@ -46,108 +46,77 @@ filesToCreate applicationName =
     where
         typesHs = 
             "module " <> applicationName <> ".Types where\n"
-            <> "import           ClassyPrelude\n"
-            <> "import           " <> applicationName <> ".Controller.Context\n"
+            <> "import TurboHaskell.Prelude\n"
             <> "import qualified TurboHaskell.Controller.Session\n"
             <> "import qualified TurboHaskell.ControllerSupport as ControllerSupport\n"
-            <> "import           TurboHaskell.HaskellSupport\n"
-            <> "import           TurboHaskell.ModelSupport\n"
-            <> "import           Application.Helper.Controller\n"
-            <> "import qualified Network.Wai\n"
+            <> "import TurboHaskell.ModelSupport\n"
+            <> "import Application.Helper.Controller\n"
             <> "import TurboHaskell.ViewSupport\n"
-            <> "import Generated.Types\n"
-            <> "import Data.Dynamic\n"
-            <> "import Data.Data\n\n"
+            <> "import Generated.Types\n\n"
             <> "data " <> applicationName <> "Application = " <> applicationName <> "Application deriving (Eq, Show)\n\n"
             <> "data ViewContext = ViewContext\n"
             <> "    { requestContext :: ControllerSupport.RequestContext\n"
             <> "    , flashMessages :: [TurboHaskell.Controller.Session.FlashMessage]\n"
-            <> "    , validations :: [Dynamic]\n"
+            <> "    , controllerContext :: ControllerSupport.ControllerContext\n"
             <> "    , layout :: Layout\n"
-            <> "    } deriving (Generic)\n"
+            <> "    }\n"
         routesHs =
             "module " <> applicationName <> ".Routes where\n"
             <> "import TurboHaskell.RouterPrelude\n"
             <> "import Generated.Types\n"
-            <> "import " <> applicationName <> ".Controller.Context\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "-- Generator Marker\n"
         frontControllerHs =
             "module " <> applicationName <> ".FrontController where\n"
             <> "import TurboHaskell.RouterPrelude\n"
+            <> "import TurboHaskell.ControllerSupport\n"
             <> "import Generated.Types\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "-- Controller Imports\n"
             <> "import TurboHaskell.Welcome.Controller\n\n"
             <> "instance FrontController " <> applicationName <> "Application where\n"
-            <> "    prefix = \"/\"\n"
             <> "    controllers = \n"
             <> "        [ parseRoute @WelcomeController\n"
             <> "        -- Generator Marker\n"
-            <> "        ]\n"
-        controllerContextHs = 
-            "module " <> applicationName <> ".Controller.Context where\n\n"
-            <> "import ClassyPrelude hiding (pack)\n"
-            <> "import TurboHaskell.Controller.Session\n"
-            <> "import TurboHaskell.Controller.RequestContext\n"
-            <> "import TurboHaskell.ModelSupport\n"
-            <> "import Generated.Types\n"
-            <> "import Data.Dynamic\n"
-            <> "import qualified Control.Newtype.Generics as Newtype\n\n"
-            <> "data ControllerContext = ControllerContext {\n"
-            <> "        -- Here you can prepare data to be available in your controller actions\n"
-            <> "        -- E.g. you might want to fetch the current logged in user here\n"
-            <> "        -- user :: Maybe User\n"
-            <> "        validations :: IORef [Dynamic]\n"
-            <> "    } deriving (Generic)\n\n"
-            <> "instance Context ControllerContext where\n"
-            <> "    createContext = do\n"
-            <> "        validations <- newIORef []\n"
-            <> "        return ControllerContext { .. }\n"
+            <> "        ]\n\n"
+            <> "instance InitControllerContext " <> applicationName <> "\n"
         controllerPreludeHs = 
             "module " <> applicationName <> ".Controller.Prelude\n"
             <> "( module " <> applicationName <> ".Types\n"
-            <> ", module " <> applicationName <> ".Controller.Context\n"
             <> ", module Application.Helper.Controller\n"
             <> ", module TurboHaskell.ControllerPrelude\n"
             <> ", module Generated.Types\n"
             <> ")\n"
             <> "where\n\n"
             <> "import " <> applicationName <> ".Types\n"
-            <> "import " <> applicationName <> ".Controller.Context\n"
             <> "import Application.Helper.Controller\n"
             <> "import TurboHaskell.ControllerPrelude\n"
             <> "import Generated.Types\n"           
 
         viewContextHs = 
             "module " <> applicationName <> ".View.Context where\n\n"
-            <> "import ClassyPrelude\n"
-            <> "import " <> applicationName <> ".Controller.Context\n"
+            <> "import TurboHaskell.Prelude\n"
             <> "import qualified TurboHaskell.Controller.Session\n"
             <> "import TurboHaskell.ControllerSupport  (RequestContext (RequestContext))\n"
             <> "import qualified TurboHaskell.ControllerSupport\n"
-            <> "import TurboHaskell.HaskellSupport\n"
             <> "import TurboHaskell.ModelSupport\n"
             <> "import Application.Helper.Controller\n"
             <> "import Generated.Types\n"
-            <> "import qualified Network.Wai\n"
-            <> "import Data.Dynamic\n"
             <> "import qualified TurboHaskell.ViewSupport as ViewSupport\n"
             <> "import " <> applicationName <> ".View.Layout\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "instance ViewSupport.CreateViewContext ViewContext where\n"
-            <> "    type ControllerContext ViewContext = ControllerContext\n"
+            <> "    type ViewApp ViewContext = " <> applicationName <> "Application\n"
             <> "    createViewContext = do\n"
             <> "        flashMessages <- TurboHaskell.Controller.Session.getAndClearFlashMessages\n"
-            <> "        validations <- readIORef (get #validations ?controllerContext)\n"
             <> "        let viewContext = ViewContext {\n"
             <> "                requestContext = ?requestContext,\n"
             <> "                -- user = currentUserOrNothing,\n"
             <> "                flashMessages,\n"
-            <> "                validations,\n"
+            <> "                controllerContext = ?controllerContext,\n"
             <> "                layout = let ?viewContext = viewContext in defaultLayout\n"
             <> "            }\n"
-            <> "        return viewContext\n"
+            <> "        pure viewContext\n"
 
         viewLayoutHs =
             "module " <> applicationName <> ".View.Layout (defaultLayout, Html) where\n"
@@ -230,11 +199,11 @@ filesToCreate applicationName =
 
 addImport :: Text -> [Text] -> IO ()
 addImport file importStatements = do
-    content :: Text <- cs <$> readFile (cs file)
+    content :: Text <- Text.readFile (cs file)
     case addImport' file importStatements of
         Just newContent -> writeFile (cs file) (cs newContent)
         Nothing -> putStrLn ("Could not automatically add " <> tshow importStatements <> " to " <> file)
-    return ()
+    pure ()
 
 
 updateRootFrontController :: Text -> Text -> IO ()

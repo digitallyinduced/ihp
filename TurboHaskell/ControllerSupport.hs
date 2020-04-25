@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes #-}
 
-module TurboHaskell.ControllerSupport (Action, Action', SimpleAction, cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), ControllerApplicationMap, runActionWithNewContext, emptyControllerContext) where
+module TurboHaskell.ControllerSupport (Action', cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), runActionWithNewContext, emptyControllerContext, respondAndExit) where
 import ClassyPrelude
 import TurboHaskell.HaskellSupport
 import Data.String.Conversions (cs)
@@ -11,43 +11,16 @@ import TurboHaskell.ApplicationContext (ApplicationContext (..))
 import qualified TurboHaskell.ApplicationContext as ApplicationContext
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import Data.Maybe (fromJust)
-import qualified Data.Text.Read
-import qualified Data.Either
-import qualified Data.Text.Encoding
-import qualified Data.Text
-import qualified Data.Aeson
 import TurboHaskell.Controller.RequestContext
 import qualified Data.CaseInsensitive
-
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import Text.Blaze.Html (Html)
-
-import Database.PostgreSQL.Simple as PG
-
 import Control.Monad.Reader
-
-import Network.Wai.Session (Session)
-import qualified Data.Vault.Lazy         as Vault
 import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified TurboHaskell.ErrorController as ErrorController
 
-type Action controllerContext = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: controllerContext) => IO ResponseReceived)
-type SimpleAction = Action ()
 type Action' = IO ResponseReceived
 
--- type ActionHelper return = ((?requestContext :: RequestContext, ?modelContext :: ModelContext, ?controllerContext :: controllerContext) => return)
-
---request :: StateT RequestContext IO ResponseReceived -> Request
---request = do
---    RequestContext request <- get
---    return request
-
---(|>) :: a -> f -> f a
-
 newtype ControllerContext = ControllerContext TypeMap.TMap
-type family ControllerApplicationMap controller
 
 {-# INLINE fromControllerContext #-}
 fromControllerContext :: forall a. (?controllerContext :: ControllerContext, Typeable a) => a
@@ -68,24 +41,28 @@ emptyControllerContext = ControllerContext TypeMap.empty
 
 class (Show controller, Eq controller) => Controller controller where
     beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => IO ()
-    beforeAction = return ()
-    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ResponseReceived
+    beforeAction = pure ()
+    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext) => TypeMap.TMap -> IO TypeMap.TMap
+    initContext context = pure context
 
 {-# INLINE runAction #-}
 runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let handlePatternMatchFailure (e :: Exception.PatternMatchFail) = ErrorController.handlePatternMatchFailure e controller
-    beforeAction >> ((action controller) `Exception.catch` handlePatternMatchFailure)
+    let handleGenericException (e :: Exception.SomeException) = ErrorController.handleGenericException e controller
+    let (RequestContext _ respond _ _ _) = ?requestContext
+    let handleResponseException  (ResponseException response) = respond response
+    (((beforeAction >> action controller >> ErrorController.handleNoResponseReturned controller) `Exception.catch` handleResponseException) `Exception.catch` handlePatternMatchFailure) `Exception.catch` handleGenericException
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext (ControllerApplicationMap controller)) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    context <- initContext @(ControllerApplicationMap controller) TypeMap.empty
+    context <- initContext @application TypeMap.empty
     let ?controllerContext = ControllerContext context
     runAction controller
 
@@ -124,4 +101,18 @@ getFiles =
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
 createRequestContext ApplicationContext { session } request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
-    return (RequestContext request respond params files session)
+    pure (RequestContext request respond params files session)
+
+
+
+-- Can be thrown from inside the action to abort the current action execution.
+-- Does not indicates a runtime error. It's just used for control flow management.
+data ResponseException = ResponseException Response
+
+instance Show ResponseException where show _ = "ResponseException { .. }"
+
+instance Exception ResponseException
+
+{-# INLINE respondAndExit #-}
+respondAndExit :: Response -> IO ()
+respondAndExit response = Exception.throw (ResponseException response)

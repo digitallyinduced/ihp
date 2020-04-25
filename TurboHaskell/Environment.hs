@@ -1,5 +1,5 @@
 module TurboHaskell.Environment where
-import           ClassyPrelude
+import TurboHaskell.Prelude
 
 data Environment = Development | Production deriving (Eq, Show)
 

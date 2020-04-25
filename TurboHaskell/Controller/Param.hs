@@ -1,48 +1,84 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType, BlockArguments #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, FlexibleInstances, IncoherentInstances, UndecidableInstances, PolyKinds, TypeInType, BlockArguments, DataKinds #-}
 
+{-|
+Module: TurboHaskell.Controller.Param
+Description: Accessing query parameters and the request body
+Copyright: (c) digitally induced GmbH, 2020
+-}
 module TurboHaskell.Controller.Param where
-import           ClassyPrelude
+
+import TurboHaskell.Prelude
 import qualified Data.Either as Either
-import           Data.String.Conversions              (cs)
 import qualified Data.Text.Read
-import           TurboHaskell.Controller.RequestContext
-import           TurboHaskell.HaskellSupport
+import TurboHaskell.Controller.RequestContext
 import qualified Network.Wai as Wai
-import Network.Wai.Parse (FileInfo, fileContent)
-import qualified Data.UUID
-import Data.UUID (UUID)
+import qualified Data.UUID as UUID
 import qualified TurboHaskell.ModelSupport as ModelSupport
 import TurboHaskell.DatabaseSupport.Point
-import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as Char8
-
-import GHC.TypeLits
-import Control.Lens ()
-import Data.Proxy
-import qualified Control.Monad.State.Strict as State
 import TurboHaskell.ValidationSupport
-import Data.Default
-import qualified Data.Dynamic as Dynamic
-import GHC.Records
-import Control.Monad.State
-import qualified TurboHaskell.NameSupport as NameSupport
-import TurboHaskell.HaskellSupport
-import qualified Data.ByteString.Lazy as LBS
-import qualified System.Process as Process
-
 import GHC.TypeLits
-import Data.Proxy
-import TurboHaskell.ControllerSupport
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
-import qualified Data.Maybe as Maybe
-import qualified System.Process as Process
 
-{-# INLINE fileOrNothing #-}
-fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
-fileOrNothing !name = ?requestContext |> getField @"files" |> lookup name
-
-{-# INLINE param #-}
-param :: (?requestContext :: RequestContext) => (FromParameter a) => ByteString -> a
+-- | Returns a query or body parameter from the current request. The raw string
+-- value is parsed before returning it. So the return value type depends on what
+-- you expect (e.g. can be Int, Text, UUID, Bool, some custom type).
+--
+-- When the parameter is missing or cannot be parsed, an exception is thrown and
+-- the current action is aborted. Use 'paramOrDefault' when you want to get a
+-- default value instead of an exception, or 'paramOrNothing' to get @Nothing@
+-- when the parameter is missing.
+--
+-- You can define a custom parameter parser by defining a 'FromParameter' instance.
+--
+-- __Example:__ Accessing a query parameter.
+--
+-- Let's say the request is:
+-- 
+-- > GET /UsersAction?maxItems=50
+--
+-- We can read @maxItems@ like this:
+--
+-- > action UsersAction = do
+-- >     let maxItems :: Int = param "maxItems"
+--
+--
+-- __Example:__ Working with forms (Accessing a body parameter).
+--
+-- Let's say we have the following html form:
+-- 
+-- > <form method="POST" action="/HelloWorld"
+-- >     <input type="text" name="firstname" placeholder="Your firstname" />
+-- >     <button type="submit">Send</button>
+-- > </form>
+--
+-- The form has firstname text field and a send button.
+-- When the form is submitted, it's send to @/HelloWorld@.
+--
+-- The following action reads the value of the submitted firstname and prints out @Hello firstname@:
+--
+-- > action HelloWorldAction = do
+-- >     let firstname = param "firstname"
+-- >     renderPlain ("Hello " <> firstname)
+--
+--
+-- __Example:__ Missing parameters
+--
+-- Let's say the request is:
+-- 
+-- > GET /HelloWorldAction
+--
+-- But the action requires us to provide a firstname, like:
+--
+-- > action HelloWorldAction = do
+-- >     let firstname = param "firstname"
+-- >     renderPlain ("Hello " <> firstname)
+--
+-- Running the request @GET /HelloWorldAction@ without the firstname parameter will cause an
+-- exception to be thrown with:
+-- 
+-- > param: Parameter 'firstname' not found
+param :: (?requestContext :: RequestContext) => (FromParameter valueType) => ByteString -> valueType
 param !name =
     let
         notFoundMessage = "param: Parameter '" <> cs name <> "' not found"
@@ -50,44 +86,79 @@ param !name =
     in case paramOrNothing name of
         Just value -> Either.fromRight (error parserErrorMessage) (fromParameter value)
         Nothing -> error notFoundMessage
-            
+{-# INLINE param #-}            
 
-{-# INLINE hasParam #-}
+-- | Returns @True@ when a parameter is given in the request via the query or request body.
+--
+-- Use 'paramOrDefault' when you want to use this for providing a default value.
+--
+-- __Example:__ 
+--
+-- Given the request @GET /HelloWorld@
+--
+-- > action HelloWorldAction = do
+-- >     if hasParam "firstname"
+-- >         then ...
+-- >         else renderPlain "Please provide your firstname"
+--
+-- This will render @Please provide your firstname@ because @hasParam "firstname"@ returns @False@
 hasParam :: (?requestContext :: RequestContext) => ByteString -> Bool
-hasParam = isJust . paramOrNothing'
+hasParam = isJust . queryOrBodyParam
+{-# INLINE hasParam #-}
 
-{-# INLINE paramOrDefault #-}
+-- | Like 'param', but returns a default value when the parameter is missing instead of throwing
+-- an exception.
+--
+-- Use 'paramOrNothing' when you want to get @Maybe@.
+--
+-- __Example:__ Pagination
+--
+-- When calling @GET /Users@ the variable @page@ will be set to the default value @0@.
+--
+-- > action UsersAction = do
+-- >     let page :: Int = paramOrDefault "page" 0
+--
+-- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
 paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => a -> ByteString -> a
-paramOrDefault !defaultValue = Maybe.fromMaybe defaultValue . paramOrNothing
+paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
+{-# INLINE paramOrDefault #-}
 
-{-# INLINE paramOrNothing #-}
+-- | Like 'param', but returns @Nothing@ the parameter is missing instead of throwing
+-- an exception.
+--
+-- Use 'paramOrDefault' when you want to deal with a default value.
+--
+-- __Example:__
+--
+-- When calling @GET /Users@ the variable @page@ will be set to @Nothing@.
+--
+-- > action UsersAction = do
+-- >     let page :: Maybe Int = paramOrNothing "page"
+--
+-- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
 paramOrNothing :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> Maybe a
-paramOrNothing !name = case paramOrNothing' name of
+paramOrNothing !name = case queryOrBodyParam name of
     Just value -> case fromParameter value of
         Left error -> Nothing
         Right value -> Just value
     Nothing -> Nothing
+{-# INLINE paramOrNothing #-}
 
-{-# INLINE paramOrNothing' #-}
-paramOrNothing' :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
-paramOrNothing' !name = do
-    let (RequestContext { request, params }) = ?requestContext
+-- | Returns a parameter without any parsing. Returns @Nothing@ when the parameter is missing.
+queryOrBodyParam :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
+queryOrBodyParam !name =
     let
+        RequestContext { request, params } = ?requestContext
         allParams :: [(ByteString, Maybe ByteString)]
         allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
-    join (lookup name allParams)
+    in
+        join (lookup name allParams)
+{-# INLINE queryOrBodyParam #-}
 
-class ParamName a where
-    paramName :: a -> ByteString
-
-instance ParamName ByteString where
-    {-# INLINE paramName #-}
-    paramName = ClassyPrelude.id
-
-params :: (?requestContext :: RequestContext) => ParamName a => [a] -> [(a, ByteString)]
-params = map (\name -> (name, param $ paramName name))
-
-
+-- | Input parser for 'param'.
+--
+-- Parses the input bytestring. Returns @Left "some error"@ when there is an error parsing the value.
+-- Returns @Right value@ when the parsing succeeded.
 class FromParameter a where
     fromParameter :: ByteString -> Either ByteString a
 
@@ -106,6 +177,10 @@ instance FromParameter Text where
     {-# INLINE fromParameter #-}
     fromParameter byteString = pure (cs byteString)
 
+-- | Parses a boolean.
+--
+-- Html form checkboxes usually use @on@ or @off@ for representation. These
+-- values are supported here.
 instance FromParameter Bool where
     {-# INLINE fromParameter #-}
     fromParameter on | on == cs (ModelSupport.inputValue True) = pure True
@@ -114,7 +189,7 @@ instance FromParameter Bool where
 instance FromParameter UUID where
     {-# INLINE fromParameter #-}
     fromParameter byteString =
-        case Data.UUID.fromASCIIBytes byteString of
+        case UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
             Nothing -> Left "FromParamter UUID: Parse error"
 
@@ -163,6 +238,18 @@ instance FromParameter param => FromParameter (Maybe param) where
             Right value -> Right (Just value)
             Left error -> Left error
 
+-- | Custom error hint when the 'param' is called with do-notation
+--
+-- __Example:__
+--
+-- > action Example = do
+-- >     myParam <- param "hello"
+--
+-- Now a custom type error will be shown telling the user to use @let myParam = param "hello"@ instead of do-notation.
+instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \"..\"'" :: Symbol))) => FromParameter  (IO param) where
+    fromParameter _ = error "Unreachable"
+
+
 instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
     fromParameter string =
             case find (\value -> ModelSupport.inputValue value == string') allValues of
@@ -172,6 +259,28 @@ instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter
             string' = cs string
             allValues = enumFrom (toEnum 0) :: [parameter]
 
+
+-- | Provides the 'fill' function for mass-assignment of multiple parameters to a record
+--
+-- Accepts a type-level list of parameter names (type-list syntax is like @\@'["a", "b", "c"]@) and a record. Then each parameter is
+-- read from the request using the 'param' API. The parameter value is written to the record
+-- field.  Because the parameter is assigned to the record, the parameter name list can only
+-- contain attribute names of the record.
+--
+-- When there is a parser error, the error will be attached as a validation error to the record. The
+-- remaining parameters will continue to be read.
+--
+-- If a parameter is missing from the request, this will be ignored and the function proceeds as usual.
+--
+--
+-- __Example:__
+--
+-- > action UpdateUserAction { userId } = do
+-- >     user :: User <- fetch userId
+-- >     user
+-- >         |> fill @["firstname", "lastname", "email"]
+--
+-- This code will read the firstname, lastname and email from the request and aissgn them to the user.
 class FillParams (params :: [Symbol]) record where
     fill :: (
         ?requestContext :: RequestContext
@@ -206,72 +315,9 @@ ifValid branch model = branch ((if null annotations then Right else Left) model)
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model
 
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, GHC.Records.HasField "id" record id, ModelSupport.IsNewId id) => (record -> record) -> record -> record
+ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, HasField "id" record id, ModelSupport.IsNewId id) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 
-data ImageUploadOptions = ImageUploadOptions { convertTo :: Text, imageMagickOptions :: Text }
-
-
-
--- TODO: Rename to `uploadPng`
-uploadFile :: _ => Proxy fieldName -> record -> IO record
-uploadFile field user = uploadImageFile "png" field user
-
-uploadSVG :: _ => Proxy fieldName -> record -> IO record
-uploadSVG = uploadImageFile "svg"
-
-uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?requestContext :: RequestContext
-        , ?modelContext :: ModelSupport.ModelContext
-        , ?controllerContext :: context
-        , SetField fieldName record (Maybe Text)
-        , KnownSymbol fieldName
-        , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
-        , tableName ~ ModelSupport.GetTableName record
-        , KnownSymbol tableName
-    ) => ImageUploadOptions -> Proxy fieldName -> record -> IO record
-uploadImageWithOptions options _ user =
-    let
-        ext = "jpg" :: Text
-        fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))
-        tableName :: Text = cs (symbolVal (Proxy @tableName))
-        uploadDir :: Text = "static"
-        baseImagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture."
-        imagePath :: Text = baseImagePath <> "jpg"
-        uploadFilePath = baseImagePath <> "upload"
-    in case fileOrNothing fieldName of
-        Just file | fileContent file /= "" -> liftIO do
-            _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> uploadFilePath) <> "`")
-            let fullImagePath = uploadDir <> imagePath
-            (fileContent file) |> LBS.writeFile (cs (uploadDir <> uploadFilePath))
-            Process.runCommand (cs ("convert " <> cs uploadDir <> uploadFilePath <> " " <> (getField @"imageMagickOptions" options) <> " " <> cs fullImagePath))
-            user
-                |> setField @fieldName (Just (cs imagePath :: Text))
-                |> return
-        _ -> return user
-
-uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?requestContext :: RequestContext
-        , ?modelContext :: ModelSupport.ModelContext
-        , ?controllerContext :: context
-        , SetField fieldName record (Maybe Text)
-        , KnownSymbol fieldName
-        , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
-        , tableName ~ ModelSupport.GetTableName record
-        , KnownSymbol tableName
-    ) => Text -> Proxy fieldName -> record -> IO record
-uploadImageFile ext _ user =
-    let
-        fieldName :: ByteString = cs (NameSupport.fieldNameToColumnName (cs (symbolVal (Proxy @fieldName))))
-        tableName :: Text = cs (symbolVal (Proxy @tableName))
-        uploadDir :: Text = "static"
-        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture." <> ext
-    in case fileOrNothing fieldName of
-        Just file | fileContent file /= "" -> liftIO do
-            _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")
-            (fileContent file) |> LBS.writeFile (cs $ uploadDir <> imagePath)
-            user
-                |> setField @fieldName (Just (cs imagePath :: Text))
-                |> return
-        _ -> return user
+-- Transforms `Just ""` to `Nothing`
+emptyValueToNothing field = modify field (maybe Nothing (\value -> if null value then Nothing else Just value))

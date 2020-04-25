@@ -1,12 +1,10 @@
 module TurboHaskell.View.Modal (Modal (..), setModal, renderModalHeader, initModal, renderCurrentModal, getCurrentModal) where
 
-import ClassyPrelude
+import TurboHaskell.Prelude
 import TurboHaskell.HtmlSupport.ToHtml
 import TurboHaskell.HtmlSupport.QQ
 import Text.Blaze.Html5 (Html, preEscapedText)
-import Control.Lens hiding ((|>))
 import TurboHaskell.ControllerSupport
-import GHC.Records
 
 import qualified Data.TMap as TypeMap
 
@@ -28,9 +26,13 @@ renderModal Modal { modalContent, modalFooter, modalCloseUrl, modalTitle } show 
 
             modalInner = [hsx|
             <div class="modal-dialog" role="document" id="modal-inner">
-              <div class="modal-content">
-                {modalContent}
-              </div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{modalTitle}</h5>
+                    </div>
+                    <div class="modal-body">{modalContent}</div>
+                    <div class="modal-footer">{modalFooter}</div>
+                </div>
             </div>
             |]
 
@@ -57,7 +59,7 @@ setModal :: (?controllerContext :: ControllerContext) => Html -> IO ()
 setModal modal = do
     let (ModalContainer ref) = fromControllerContext @ModalContainer
     writeIORef ref (Just modal)
-    return ()
+    pure ()
 
 getCurrentModal :: (?controllerContext :: ControllerContext) => IO (Maybe Html)
 getCurrentModal = do
@@ -66,12 +68,10 @@ getCurrentModal = do
 
 newtype ModalContainer = ModalContainer (IORef (Maybe Html))
 initModal context = do 
-    modalContainer <- newIORef Nothing >>= return . ModalContainer
-    return (TypeMap.insert @ModalContainer modalContainer context)
+    modalContainer <- ModalContainer <$> newIORef Nothing
+    pure (TypeMap.insert @ModalContainer modalContainer context)
 
 renderCurrentModal :: (?viewContext :: viewContext, HasField "modal" viewContext (Maybe Html)) => Html
 renderCurrentModal = 
     let controllerContext :: (Maybe Html) = getField @"modal" ?viewContext
-    in case controllerContext of
-        Just html -> html
-        Nothing -> mempty
+    in fromMaybe mempty controllerContext

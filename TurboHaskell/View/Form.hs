@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeSynonymInstances, StandaloneDeriving,InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
+{-# LANGUAGE InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
 
 module TurboHaskell.View.Form where
 
@@ -21,8 +21,7 @@ import qualified Network.Wai
 import           Text.Blaze                         (Attribute, dataAttribute, preEscapedText, stringValue, text)
 import           Text.Blaze.Html5                   (a, body, button, code, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img,
                                                      input, label, li, link, meta, nav, ol, p, pre, script, small, span, table, tbody, td, th, thead, title, tr,
-                                                     ul)
-import           Text.Blaze.Html5                   ((!))
+                                                     ul, (!))
 import qualified Text.Blaze.Html5                   as H
 import qualified Text.Blaze.Html5                   as Html5
 import           Text.Blaze.Html5.Attributes        (autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
@@ -39,7 +38,6 @@ import GHC.TypeLits
 import Data.Proxy
 import qualified Data.Text
 import qualified Text.Inflections
-import GHC.Records
 import qualified Data.Text as Text
 import Data.Default
 import Data.Dynamic
@@ -47,8 +45,6 @@ import Data.Maybe (fromJust)
 import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport
 import TurboHaskell.ModelSupport (getModelName, GetModelName, Id', FieldWithDefault, NormalizeModel, MetaBag)
-
-import TurboHaskell.RouterSupport (RestfulController (..), RestfulControllerId, Child, HasPath, PathArgument, Child, Parent)
 import GHC.Records
 
 
@@ -66,11 +62,9 @@ instance ModelFormAction application (parent, child) where
 instance (
         HasField "id" formObject id
         , controller ~ ModelControllerMap application (NormalizeModel formObject)
-        , Child controller ~ controller
         , HasPath controller
-        , RestfulController controller
+        , AutoRoute controller
         , ModelFormActionTopLevelResource controller id
-        , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormAction application formObject where
     {-# INLINE modelFormAction #-}
     modelFormAction formObject = modelFormActionTopLevelResource (Proxy @controller) (getField @"id" formObject)
@@ -80,24 +74,19 @@ class ModelFormActionTopLevelResource controller id where
     modelFormActionTopLevelResource :: Proxy controller -> id -> Text
 
 instance (
-        Child controller ~ controller
-        , HasPath controller
-        , RestfulController controller
-        , FrontControllerPrefix (ControllerApplicationMap controller)
+        HasPath controller
+        , AutoRoute controller
         ) => ModelFormActionTopLevelResource controller (FieldWithDefault id') where
     {-# INLINE modelFormActionTopLevelResource #-}
     modelFormActionTopLevelResource _ _ = pathTo (fromJust (createAction @controller))
 
 instance (
-        RestfulControllerId controller ~ Id' table
-        , Child controller ~ controller
+        HasPath controller
+        , AutoRoute controller
         , HasPath controller
-        , RestfulController controller
-        , HasPath controller
-        , FrontControllerPrefix (ControllerApplicationMap controller)
         ) => ModelFormActionTopLevelResource controller (Id' (table :: Symbol)) where
     {-# INLINE modelFormActionTopLevelResource #-}
-    modelFormActionTopLevelResource _ id = pathTo ((fromJust (updateAction @controller)) id)
+    modelFormActionTopLevelResource _ id = pathTo (fromJust (updateAction @controller) id)
 
 
 -- modelFormAction (newUser :: New User)
@@ -186,7 +175,7 @@ horizontalFormFor :: forall model viewContext parent id formObject application. 
         , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
-        , HasPath (Child (ModelControllerMap application formObject))
+        , HasPath (ModelControllerMap application formObject)
         , application ~ ViewApp viewContext
         , HasField "meta" model MetaBag
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
@@ -216,7 +205,7 @@ createFormContext formObject =
         , renderSubmit = renderBootstrapSubmitButton
         , validatorResult = findValidatorResult model
         , request = getField @"request" (getField @"requestContext" ?viewContext)
-        , formAction = (modelFormAction @application) formObject
+        , formAction = modelFormAction @application formObject
         }
             where
                 model = getModel formObject
@@ -254,7 +243,7 @@ buildForm :: forall model viewContext parent id. (?viewContext :: viewContext) =
 buildForm formContext inner =
     let
         theModel = model formContext
-        action = cs $ (formAction formContext)
+        action = cs (formAction formContext)
         isNewRecord = TurboHaskell.ModelSupport.isNew theModel
         formId = if isNewRecord then "" else cs (formAction formContext)
         formClass = if isNewRecord then "new-form" else "edit-form"
@@ -286,7 +275,7 @@ renderHelpText (FormField { helpText }) =
 
 {-# INLINE renderValidationResult #-}
 renderValidationResult (FormField { modelIsNew, validatorResult }) = case validatorResult of
-                Nothing -> return ()
+                Nothing -> pure ()
                 Just message -> div ! class_ "invalid-feedback" $ cs message
 
 {-# INLINE isInvalid #-}
@@ -320,10 +309,11 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                 input ! type_ "hidden" ! name fieldName ! A.value (cs $ TurboHaskell.ModelSupport.inputValue False)
                 Html5.text fieldLabel
                 if disableValidationResult then mempty else renderValidationResult formField
+                renderHelpText formField
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
         renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) =
             maybeWithFormGroup formField $ do
-                if disableLabel || fieldLabel == "" then return () else H.label ! A.class_ labelClass ! A.for (cs fieldInputId) $ cs fieldLabel
+                if disableLabel || fieldLabel == "" then pure () else H.label ! A.class_ labelClass ! A.for (cs fieldInputId) $ cs fieldLabel
                 let theInput = (fieldInput formField) ! type_ inputType ! name fieldName ! A.placeholder (cs placeholder) ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isNothing validatorResult then "" else "is-invalid") <> " " <> fieldClass)
                 if fieldValue == "" then theInput else theInput ! value (cs fieldValue)
                 if disableValidationResult then mempty else renderValidationResult formField
@@ -331,12 +321,12 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
         renderSelectField :: FormField -> Html5.Html
         renderSelectField formField@(FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass }) =
             maybeWithFormGroup formField $ do
-                if disableLabel then return () else H.label ! A.class_ labelClass ! A.for (cs fieldInputId) $ cs fieldLabel
+                if disableLabel then pure () else H.label ! A.class_ labelClass ! A.for (cs fieldInputId) $ cs fieldLabel
                 Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isNothing validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
                     --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
                     let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
                     (if isValueSelected then Html5.option else Html5.option ! A.selected "selected")  ! A.disabled "disabled" $ Html5.text (if null placeholder then "Please select" else placeholder)
-                    forM_ (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
+                    forEach (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
                 renderHelpText formField
                 if disableValidationResult then mempty else renderValidationResult formField
 
@@ -369,7 +359,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
         renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass, placeholder }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
-                    if disableLabel || fieldLabel == "" then return () else H.label ! A.class_ ("col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
+                    if disableLabel || fieldLabel == "" then pure () else H.label ! A.class_ ("col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
                     div ! class_ "col-sm-8" $ do
                         (fieldInput formField) ! type_ inputType ! name fieldName ! A.placeholder (cs placeholder) ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isNothing validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue)
                         if disableValidationResult then mempty else renderValidationResult formField
@@ -378,13 +368,13 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
         renderSelectField formField@(FormField {fieldType, placeholder, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, modelIsNew, formIsSubmitted, labelClass }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
-                    if disableLabel || fieldLabel == "" then return () else H.label ! A.class_ ("col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
+                    if disableLabel || fieldLabel == "" then pure () else H.label ! A.class_ ("col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
                     div ! class_ "col-sm-8" $ do
                         Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ ("form-control " <> (if not formIsSubmitted || isNothing validatorResult then "" else "is-invalid") <> " " <> fieldClass) ! value (cs fieldValue) $ do
                             --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
                             let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
                             (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") ! A.disabled "disabled" $ Html5.text (if null placeholder then "Please select" else placeholder)
-                            forM_ (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
+                            forEach (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
                         if disableValidationResult then mempty else renderValidationResult formField
                         renderHelpText formField
 
@@ -409,8 +399,8 @@ instance (
     fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
                         fieldType = TextInput,
                         fieldName = cs fieldName,
-                        fieldLabel = columnNameToFieldLabel (cs fieldName),
-                        fieldValue =  let value :: value = getField @(symbol) (model formContext) in TurboHaskell.ModelSupport.inputValue value,
+                        fieldLabel = fieldNameToFieldLabel (cs fieldName),
+                        fieldValue =  let value :: value = getField @symbol (model formContext) in TurboHaskell.ModelSupport.inputValue value,
                         fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = (lookup (Text.pack (symbolVal (Proxy @symbol))) (let FormContext { validatorResult } = formContext in validatorResult)),
                         fieldClass = "",
@@ -436,7 +426,7 @@ instance (
     fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
                         fieldType = CheckboxInput,
                         fieldName = cs fieldName,
-                        fieldLabel = columnNameToFieldLabel (cs fieldName),
+                        fieldLabel = fieldNameToFieldLabel (cs fieldName),
                         fieldValue =  let value = getField @(symbol) (model formContext) in if value then "yes" else "no",
                         fieldInputId = cs (TurboHaskell.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName),
                         validatorResult = Nothing,
@@ -456,7 +446,7 @@ instance (
 instance (
         KnownSymbol symbol
         , HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id
-        , HasField symbol model ((SelectValue item))
+        , HasField symbol model (SelectValue item)
         , CanSelect item
         , TurboHaskell.ModelSupport.InputValue (SelectValue item)
         , (KnownSymbol (GetModelName model))
@@ -471,7 +461,7 @@ instance (
                                  SelectInput $ map itemToTuple items
                             ,
                         fieldName = cs fieldName,
-                        fieldLabel = removeIdSuffix $ columnNameToFieldLabel (cs fieldName),
+                        fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName),
                         fieldValue =
                             let value = ((getField @(symbol) (model formContext)) :: (SelectValue item))
                             in TurboHaskell.ModelSupport.inputValue value,
@@ -564,8 +554,7 @@ renderFlashMessages :: forall viewContext. (?viewContext :: viewContext, HasFiel
 renderFlashMessages =
     let flashMessages = (getField @"flashMessages" ?viewContext) :: [TurboHaskell.Controller.Session.FlashMessage]
     in
-        forM_ flashMessages $ \flashMessage -> do
-            case flashMessage of
+        forEach flashMessages $ \flashMessage -> case flashMessage of
                 TurboHaskell.Controller.Session.SuccessFlashMessage message -> div ! class_ "alert alert-success" $ cs message
                 TurboHaskell.Controller.Session.ErrorFlashMessage message -> div ! class_ "alert alert-danger" $ cs message
 

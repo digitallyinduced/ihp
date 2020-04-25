@@ -15,7 +15,7 @@ fi
 GHCI_SCRIPT="$(mktemp)"
 trap "rm $GHCI_SCRIPT" EXIT
 
-echo ":script $FRAMEWORKDIR/applicationGhciConfig" > "$GHCI_SCRIPT"
+echo ":script $FRAMEWORKDIR/TurboHaskell/IDE/applicationGhciConfig" > "$GHCI_SCRIPT"
 
 if [ -d TurboHaskell ]; then
 	echo ":l TurboHaskell/TurboHaskell/ControllerGenerator.hs Application/Schema.hs" >> "$GHCI_SCRIPT"
@@ -24,7 +24,7 @@ else
 	echo ":l Application/Schema.hs" >> "$GHCI_SCRIPT"
 fi
 
-echo "TurboHaskell.ControllerGenerator.main' Model.Schema.database [\"$@\"]" >> "$GHCI_SCRIPT"
+echo "TurboHaskell.ControllerGenerator.main' Application.Schema.database [\"$@\"]" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
 ghci -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"

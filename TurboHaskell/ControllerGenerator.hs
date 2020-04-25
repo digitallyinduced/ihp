@@ -7,7 +7,6 @@ import TurboHaskell.NameSupport
 import TurboHaskell.SchemaSupport
 import Data.String.Conversions (cs)
 import Data.Text.IO (appendFile)
-import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import qualified System.Exit as Exit
 import TurboHaskell.SchemaTypes
@@ -39,7 +38,7 @@ isAlphaOnly :: Text -> Bool
 isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
 gen database applicationName controllerName' = do
-    let modelName = if "_" `isInfixOf` controllerName' then (tableNameToModelName controllerName') else controllerName'
+    let modelName = tableNameToModelName controllerName'
     let controllerName = Countable.pluralize modelName
     let config = ControllerConfig { modelName, controllerName, applicationName }
     let generate =
@@ -63,9 +62,8 @@ usage = putStrLn "Usage: new-controller RESOURCE_NAME"
 
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
-    "instance RestfulController " <> controllerName <> "Controller\n"
-    <> "type instance ModelControllerMap " <> applicationName <> "Application " <> modelName <> " = " <> controllerName <> "Controller\n"
-    <> "type instance ControllerApplicationMap " <> controllerName <> "Controller" <> " = " <> applicationName <> "Application\n\n"
+    "instance AutoRoute " <> controllerName <> "Controller\n"
+    <> "type instance ModelControllerMap " <> applicationName <> "Application " <> modelName <> " = " <> controllerName <> "Controller\n\n"
 
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }
@@ -144,7 +142,7 @@ generateControllerData config =
         <> "    | Edit" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    | Update" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    | Delete" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
-        <> "    deriving (Eq, Show, Generic, Data)\n"
+        <> "    deriving (Eq, Show, Data)\n"
 
 generateController :: [Table] -> ControllerConfig -> Text
 generateController database config =

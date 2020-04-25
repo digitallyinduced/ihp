@@ -14,7 +14,7 @@ main database = writeFileIfNecessary "Application/Schema.sql" (compileDatabase d
 writeFileIfNecessary :: FilePath -> Text -> IO ()
 writeFileIfNecessary path content = do
     alreadyExists <- Directory.doesFileExist path
-    existingContent <- if alreadyExists then readFile path else return ""
+    existingContent <- if alreadyExists then readFile path else pure ""
     when (existingContent /= cs content) $ do
         putStrLn $ "Updating " <> cs path
         writeFile (cs path) (cs content)
@@ -37,8 +37,16 @@ compileAttribute table field@(Field name fieldType) = name <> " " <> compileType
         compileType Timestamp { defaultValue, allowNull, isPrimaryKey, unique }            = compileTokens ["TIMESTAMP WITH TIME ZONE", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
         compileType UUIDField { defaultValue, allowNull, isPrimaryKey, unique }            = compileTokens ["UUID", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
         compileType PointField { defaultValue, allowNull, isPrimaryKey, unique }            = compileTokens ["POINT", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
+        compileType FloatField { defaultValue, references, allowNull, isPrimaryKey, unique } = compileTokens ["REAL", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
+        compileType DoubleField { defaultValue, references, allowNull, isPrimaryKey, unique } = compileTokens ["DOUBLE PRECISION", compileDefaultValue defaultValue, compilePrimaryKeyConstraint isPrimaryKey, compileNullConstraint allowNull, compileUnique unique]
 
         compileDefaultValue (Just (SqlDefaultValue value)) = "DEFAULT " <> value
+        compileDefaultValue (Just (DefaultValue haskellDefaultValue)) = "DEFAULT " <> sqlDefaultValue
+            where
+                sqlDefaultValue =
+                    case fieldType of
+                        TextField {} | haskellDefaultValue /= "null" -> "'" <> haskellDefaultValue <> "'"
+                        _ -> haskellDefaultValue
         compileDefaultValue _                              = ""
 
         compileNullConstraint :: Bool -> Text

@@ -1,3 +1,0 @@
-import qualified TurboHaskell.SchemaCompiler
-:l Application/Schema.hs
-TurboHaskell.SchemaCompiler.compile database
