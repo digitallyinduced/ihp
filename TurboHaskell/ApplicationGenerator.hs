@@ -106,7 +106,7 @@ filesToCreate applicationName =
             <> "import " <> applicationName <> ".View.Layout\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "instance ViewSupport.CreateViewContext ViewContext where\n"
-            <> "    type ViewApp ViewContext = " <> applicationName <> "\n"
+            <> "    type ViewApp ViewContext = " <> applicationName <> "Application\n"
             <> "    createViewContext = do\n"
             <> "        flashMessages <- TurboHaskell.Controller.Session.getAndClearFlashMessages\n"
             <> "        let viewContext = ViewContext {\n"
