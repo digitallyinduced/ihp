@@ -69,6 +69,7 @@ filesToCreate applicationName =
         frontControllerHs =
             "module " <> applicationName <> ".FrontController where\n"
             <> "import TurboHaskell.RouterPrelude\n"
+            <> "import TurboHaskell.ControllerSupport\n"
             <> "import Generated.Types\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "-- Controller Imports\n"
@@ -77,7 +78,8 @@ filesToCreate applicationName =
             <> "    controllers = \n"
             <> "        [ parseRoute @WelcomeController\n"
             <> "        -- Generator Marker\n"
-            <> "        ]\n"
+            <> "        ]\n\n"
+            <> "instance InitControllerContext " <> applicationName <> "\n"
         controllerPreludeHs = 
             "module " <> applicationName <> ".Controller.Prelude\n"
             <> "( module " <> applicationName <> ".Types\n"
