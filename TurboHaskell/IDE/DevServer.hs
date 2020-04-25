@@ -115,8 +115,16 @@ handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged
     notifyAssetChange liveReloadNotificationServerState
     pure state
 
-handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState }) HaskellFileChanged = do
-    startLoadedApp appGHCIState
+handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, statusServerState }) HaskellFileChanged = do
+    case appGHCIState of
+        AppGHCIModulesLoaded { .. } -> sendGhciCommand process ":r"
+        RunningAppGHCI { .. } -> do
+            sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
+            sendGhciCommand process ":r"
+        AppGHCILoading { .. } -> sendGhciCommand process ":r"
+
+    clearStatusServer statusServerState
+
     let appGHCIState' = 
             case appGHCIState of
                 AppGHCILoading { .. } -> AppGHCILoading { .. }

@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.StatusServer (startStatusServer, stopStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer) where
+module TurboHaskell.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer) where
 
 import TurboHaskell.ViewPrelude
 import qualified Network.HTTP.Types as Http
@@ -59,6 +59,17 @@ stopStatusServer StatusServerStarted { serverRef } = do
     pure ()
 stopStatusServer _ = putStrLn "StatusServer: Cannot stop as not running"
 
+clearStatusServer :: StatusServerState -> IO ()
+clearStatusServer StatusServerStarted { .. } = do
+    writeIORef standardOutput ""
+    writeIORef errorOutput ""
+    async (notifyOutput clients "clear")
+    pure ()
+clearStatusServer StatusServerPaused { .. } = do
+    writeIORef standardOutput ""
+    writeIORef errorOutput ""
+clearStatusServer StatusServerNotStarted = pure ()
+
 notifyBrowserOnApplicationOutput :: StatusServerState -> OutputLine -> IO ()
 notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, standardOutput, errorOutput } line = do
     let shouldIgnoreLine = (line == ErrorOutput "Warning: -debug, -threaded and -ticky are ignored by GHCi")
@@ -101,7 +112,13 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                 var socket = new WebSocket("ws://localhost:" + window.location.port);
                 socket.onclose = function () { window.location.reload(); }
                 socket.onmessage = function (event) {
-                    var c = (event.data.substr(0, 6) === 'stdout' ? stdout : stderr); c.innerText = c.innerText + "\\n" + event.data.substr(6);
+                    if (event.data === 'clear') {
+                        stdout.innerText = '';
+                        stderr.innerText = '';
+                    } else {
+                        var c = (event.data.substr(0, 6) === 'stdout' ? stdout : stderr);
+                        c.innerText = c.innerText + "\\n" + event.data.substr(6);
+                    }
                 }
             |]
 
