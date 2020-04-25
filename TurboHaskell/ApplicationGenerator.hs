@@ -217,6 +217,7 @@ filesToCreate applicationName =
             <> ", module Generated.Types\n"
             <> ", module " <> applicationName <> ".Types\n"
             <> ", module " <> applicationName <> ".View.Context\n"
+            <> ", module Application.Helper.View\n"
             <> ") where\n"
             <> "\n"
             <> "import TurboHaskell.ViewPrelude\n"
@@ -225,6 +226,7 @@ filesToCreate applicationName =
             <> "import " <> applicationName <> ".Types\n"
             <> "import " <> applicationName <> ".Routes ()\n"
             <> "import " <> applicationName <> ".View.Context\n"
+            <> "import Application.Helper.View\n"
 
 addImport :: Text -> [Text] -> IO ()
 addImport file importStatements = do
