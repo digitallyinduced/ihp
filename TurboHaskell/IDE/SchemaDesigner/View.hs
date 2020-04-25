@@ -116,8 +116,8 @@ instance View NewColumnView ViewContext where
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Create Column</button>
                     </div>
-                    <input type="hidden" name="primaryKey" value="False"/>
-                    <input type="hidden" name="allowNull" value="False"/>
+                    <input type="hidden" name="primaryKey" value={inputValue False}/>
+                    <input type="hidden" name="allowNull" value={inputValue False}/>
                 </form>
             |]
             modalFooter = mempty 
