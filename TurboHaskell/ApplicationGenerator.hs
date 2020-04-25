@@ -69,6 +69,7 @@ filesToCreate applicationName =
         frontControllerHs =
             "module " <> applicationName <> ".FrontController where\n"
             <> "import TurboHaskell.RouterPrelude\n"
+            <> "import TurboHaskell.ControllerSupport\n"
             <> "import Generated.Types\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "-- Controller Imports\n"
@@ -77,7 +78,8 @@ filesToCreate applicationName =
             <> "    controllers = \n"
             <> "        [ parseRoute @WelcomeController\n"
             <> "        -- Generator Marker\n"
-            <> "        ]\n"
+            <> "        ]\n\n"
+            <> "instance InitControllerContext " <> applicationName <> "\n"
         controllerPreludeHs = 
             "module " <> applicationName <> ".Controller.Prelude\n"
             <> "( module " <> applicationName <> ".Types\n"
@@ -104,7 +106,7 @@ filesToCreate applicationName =
             <> "import " <> applicationName <> ".View.Layout\n"
             <> "import " <> applicationName <> ".Types\n\n"
             <> "instance ViewSupport.CreateViewContext ViewContext where\n"
-            <> "    type ViewApp ViewContext = " <> applicationName <> "\n"
+            <> "    type ViewApp ViewContext = " <> applicationName <> "Application\n"
             <> "    createViewContext = do\n"
             <> "        flashMessages <- TurboHaskell.Controller.Session.getAndClearFlashMessages\n"
             <> "        let viewContext = ViewContext {\n"
@@ -184,6 +186,7 @@ filesToCreate applicationName =
             <> ", module Generated.Types\n"
             <> ", module " <> applicationName <> ".Types\n"
             <> ", module " <> applicationName <> ".View.Context\n"
+            <> ", module Application.Helper.View\n"
             <> ") where\n"
             <> "\n"
             <> "import TurboHaskell.ViewPrelude\n"
@@ -192,6 +195,7 @@ filesToCreate applicationName =
             <> "import " <> applicationName <> ".Types\n"
             <> "import " <> applicationName <> ".Routes ()\n"
             <> "import " <> applicationName <> ".View.Context\n"
+            <> "import Application.Helper.View\n"
 
 addImport :: Text -> [Text] -> IO ()
 addImport file importStatements = do

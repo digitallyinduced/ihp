@@ -40,11 +40,10 @@ instance Controller SchemaDesignerController where
         let column = Column
                     { name = param "name"
                     , columnType = param "columnType"
-                    , primaryKey = False
+                    , primaryKey = (param "primaryKey")
                     , defaultValue = Nothing
-                    , notNull = True
+                    , notNull = (not (param "allowNull"))
                     }
-
         updateSchema (map (addColumnToTable tableName column))
 
         redirectTo ShowTableAction { .. }
