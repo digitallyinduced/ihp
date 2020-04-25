@@ -3,8 +3,10 @@ module TurboHaskell.IDE.SchemaDesigner.Controller where
 import TurboHaskell.ControllerPrelude
 import TurboHaskell.IDE.ToolServer.Types
 import TurboHaskell.IDE.ToolServer.ViewContext
-import TurboHaskell.IDE.SchemaDesigner.View
-import TurboHaskell.IDE.SchemaDesigner.View
+import TurboHaskell.IDE.SchemaDesigner.View.Columns.New
+import TurboHaskell.IDE.SchemaDesigner.View.Tables.New
+import TurboHaskell.IDE.SchemaDesigner.View.Tables.Show
+import TurboHaskell.IDE.SchemaDesigner.View.Tables.Index
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
