@@ -49,7 +49,7 @@ startToolServer = do
 
     thread <- async (startToolServer' port)
 
-    openUrl ("http://localhost:" <> tshow port <> "/turbohaskell/")
+    openUrl ("http://localhost:" <> "8001" <> "/turbohaskell/")
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
@@ -72,7 +72,7 @@ startToolServer' port = do
             
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase "TurboHaskell/TurboHaskell/static/")
 
-    let warpSettings = Warp.defaultSettings |> Warp.setPort port
+    let warpSettings = Warp.defaultSettings |> Warp.setPort 8001
     
     Warp.runSettings warpSettings $ 
             staticMiddleware $ logStdoutDev $ methodOverridePost $ sessionMiddleware $ application
