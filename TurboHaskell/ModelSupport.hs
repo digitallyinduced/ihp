@@ -3,7 +3,7 @@
 module TurboHaskell.ModelSupport where
 
 import TurboHaskell.HaskellSupport
-import ClassyPrelude hiding (UTCTime, find)
+import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
 import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
@@ -13,7 +13,8 @@ import Database.PostgreSQL.Simple.ToField
 import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.String.Conversions (cs)
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock
+import Data.Time.Calendar
 import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
@@ -40,15 +41,14 @@ type family GetTableName model :: Symbol
 type family GetModelByTableName (tableName :: Symbol) :: Type
 
 class CanCreate a where
-    type Created a :: Type
-    create :: (?modelContext :: ModelContext) => a -> IO (Created a)
-    createMany :: (?modelContext :: ModelContext) => [a] -> IO [Created a]
+    create :: (?modelContext :: ModelContext) => a -> IO a
+    createMany :: (?modelContext :: ModelContext) => [a] -> IO [a]
 
 class CanUpdate a where
     updateRecord :: (?modelContext :: ModelContext) => a -> IO a
 
 {-# INLINE createRecord #-}
-createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO (Created model)
+createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
 createRecord = create
 
 class InputValue a where
@@ -127,21 +127,9 @@ type FieldName = ByteString
 -- >>> book <- query @Book |> fetchOne
 -- >>> isNew book
 -- False
-isNew :: forall model id. (IsNewId id, HasField "id" model id) => model -> Bool
-isNew model = isNewId (getField @"id" model)
+isNew :: forall model id. (HasField "id" model id, Default id, Eq id) => model -> Bool
+isNew model = def == (getField @"id" model)
 {-# INLINE isNew #-}
-
-class IsNewId id where
-    isNewId :: id -> Bool
-instance IsNewId () where
-    {-# INLINE isNewId #-}
-    isNewId _ = True
-instance IsNewId UUID where
-    {-# INLINE isNewId #-}
-    isNewId _ = False
-instance IsNewId (FieldWithDefault valueType) where
-    {-# INLINE isNewId #-}
-    isNewId _ = True
 
 type family GetModelName model :: Symbol
 
@@ -164,10 +152,6 @@ newtype Id' table = Id UUID deriving (Eq, Data)
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
 -- But `type Project = Project' { id :: Id "projects" }` will
 type Id model = Id' (GetTableName model)
-
-instance IsNewId (Id' model) where
-    {-# INLINE isNewId #-}
-    isNewId _ = False
 
 instance InputValue (Id' model') where
     {-# INLINE inputValue #-}
@@ -268,10 +252,8 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' (x:xs) model = Include' xs (Include x model)
 
 
-data FieldWithDefault valueType = Default | NonDefault valueType deriving (Eq, Show)
-
-instance Default (FieldWithDefault valueType) where
-    def = Default
+instance Default UTCTime where
+    def = UTCTime (ModifiedJulianDay 0) 0
 
 class Record model where
     newRecord :: model
