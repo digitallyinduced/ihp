@@ -286,7 +286,6 @@ startAppGHCI = do
         if "cannot find object file for module" `isInfixOf` line
             then do
                 sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/loadAppModules"
-                sendGhciCommand process "main"
                 dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
             else dispatch ReceiveAppOutput { line = ErrorOutput line }
 
