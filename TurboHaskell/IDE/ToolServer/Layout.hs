@@ -2,6 +2,7 @@ module TurboHaskell.IDE.ToolServer.Layout where
 
 import TurboHaskell.ViewPrelude
 import TurboHaskell.IDE.SchemaDesigner.Types
+import TurboHaskell.IDE.WebRepl.Types
 import TurboHaskell.IDE.ToolServer.Types
 import TurboHaskell.IDE.ToolServer.Routes
 import TurboHaskell.Environment
@@ -40,7 +41,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         </div>
         {navItem "SCHEMA" databaseIcon (pathTo TablesAction)}
         {navItem "DATA" tableIcon "#"}
-        {navItem "REPL" terminalIcon "#"}
+        {navItem "REPL" terminalIcon (pathTo ReplAction)}
         {navItem "CODEGEN" copyIcon "#"}
         {navItem "LOGS" serverIcon "#"}
         {navItem "LINT" flagIcon "#"}

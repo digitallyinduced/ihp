@@ -33,6 +33,8 @@ import Unsafe.Coerce
 import Network.Wai.Session (withSession, Session)
 import TurboHaskell.IDE.SchemaDesigner.Types
 import TurboHaskell.IDE.SchemaDesigner.Controller
+import TurboHaskell.IDE.WebRepl.Types
+import TurboHaskell.IDE.WebRepl.Controller
 import TurboHaskell.IDE.ToolServer.Types
 import Control.Concurrent.Async
 import TurboHaskell.IDE.ToolServer.Routes
@@ -82,12 +84,13 @@ stopToolServer ToolServerNotStarted = pure ()
 
 openUrl :: Text -> IO ()
 openUrl url = do
-    Process.callCommand (cs $ "open " <> url)
+    --Process.callCommand (cs $ "open " <> url)
     pure ()
 
 instance FrontController ToolServerApplication where
     controllers =
         [ parseRoute @SchemaDesignerController
+        , parseRoute @WebReplController
         , catchAll TablesAction
         ]
 

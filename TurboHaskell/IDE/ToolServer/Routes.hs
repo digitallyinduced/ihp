@@ -4,3 +4,6 @@ import TurboHaskell.IDE.ToolServer.Types
 
 instance AutoRoute SchemaDesignerController where
     parseArgument = parseTextArgument
+
+instance AutoRoute WebReplController where
+    parseArgument = parseTextArgument

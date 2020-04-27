@@ -25,6 +25,10 @@ data SchemaDesignerController
     | PushToDbAction
     deriving (Eq, Show, Data)
 
+data WebReplController
+    = ReplAction
+    deriving (Eq, Show, Data)
+
 instance FrameworkConfig where 
     environment = Development
     baseUrl = "http://localhost:8001"

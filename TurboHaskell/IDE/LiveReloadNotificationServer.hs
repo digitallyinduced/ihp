@@ -20,7 +20,7 @@ startLiveReloadNotificationServer = do
             |> get #liveReloadNotificationPort
             |> fromIntegral
     
-    server <- async $ Warp.run 8003 $ Websocket.websocketsOr
+    server <- async $ Warp.run 8002 $ Websocket.websocketsOr
         Websocket.defaultConnectionOptions
         (app clients)
         httpApp
