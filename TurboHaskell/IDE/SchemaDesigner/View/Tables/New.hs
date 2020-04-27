@@ -15,7 +15,7 @@ instance View NewTableView ViewContext where
             <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>
             </form>
-            <div class="row no-gutters">
+            <div class="row no-gutters bg-white">
                 {renderObjectSelector statements Nothing}
             </div>
         </div>
