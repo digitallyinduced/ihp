@@ -65,9 +65,25 @@ instance View NewColumnView ViewContext where
                         </label>
                     </div>
 
+                    <div class="form-group row">
+                        <label for="inputEmail3" class="col-sm-2 col-form-label">Default Value:</label>
+                        <div class="col-sm-10">
+                            <select name="defaultValue" class="form-control">
+                                <option value="NODEFAULT">No Default</option>
+                                <option value="EMPTY">""</option>
+                                <option value="NULL">null</option>
+                                <option value="CUSTOM">custom</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-10">
+                            <input name="customDefaultValue" type="text" class="form-control"/>
+                        </div>
+                    </div>
+
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Create Column</button>
                     </div>
+
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
                 </form>

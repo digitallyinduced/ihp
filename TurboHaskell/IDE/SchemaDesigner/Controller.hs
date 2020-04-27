@@ -42,18 +42,18 @@ instance Controller SchemaDesignerController where
 
     action CreateColumnAction = do
         let tableName = param "tableName"
+        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue") (param "customDefaultValue")
         let column = Column
                 { name = param "name"
                 , columnType = param "columnType"
                 , primaryKey = (param "primaryKey")
-                , defaultValue = Nothing
+                , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 }
-        if ((get #name column) == "")
-            then do
-                setSuccessMessage ("Column Name can not be empty") -- just reloads the show view for now
-            else do
-                updateSchema (map (addColumnToTable tableName column))
+        when ((get #name column) == "") do
+            setSuccessMessage ("Column Name can not be empty")
+            redirectTo ShowTableAction { tableName }
+        updateSchema (map (addColumnToTable tableName column))
         redirectTo ShowTableAction { .. }
 
     action EditColumnAction { .. } = do
@@ -78,11 +78,10 @@ instance Controller SchemaDesignerController where
                 , defaultValue = Nothing
                 , notNull = (not (param "allowNull"))
                 }
-        if ((get #name column) == "")
-            then do
-                setSuccessMessage ("Column Name can not be empty") -- just reloads the show view for now
-            else do
-                updateSchema (map (updateColumnInTable tableName column columnId))
+        when ((get #name column) == "") do
+            setSuccessMessage ("Column Name can not be empty")
+            redirectTo ShowTableAction { tableName }
+        updateSchema (map (updateColumnInTable tableName column columnId))
         redirectTo ShowTableAction { .. }
 
     -- DB
@@ -116,3 +115,19 @@ updateColumnInTable tableName column columnId statement = statement
 replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of
    (before, _:after) -> before ++ (e: after)
+
+getDefaultValue :: Text -> Text -> Text -> Maybe Text
+getDefaultValue columnType value custom = case value of
+    "EMPTY" -> Just "''"
+    "NULL" -> Just "NULL"
+    "CUSTOM" -> case columnType of
+        "TEXT" -> Just ("'" <> custom <> "'")
+        "INT" -> Just custom
+        "UUID" -> Just ("'" <> custom <> "'")
+        "BOOLEAN" -> Just custom
+        "TIMESTAMP WITH TIME ZONE" -> Just ("'" <> custom <> "'")
+        "REAL" -> Just custom
+        "DOUBLE PRECISION" -> Just custom
+        "POINT" -> Just ("'" <> custom <> "'")
+        _ -> Just ("'" <> custom <> "'")
+    _ -> Nothing
