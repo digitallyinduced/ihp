@@ -8,6 +8,14 @@
     opacity: 0.8;
 }
 
+.column-selector h5 {
+    font-size: 14px;
+    padding-left: 0.5rem;
+    padding-top: 0.5rem;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
 .object {
     font-size: 14px;
     padding-left: 0.5rem;
@@ -39,7 +47,11 @@
     border-top: 0;
 }
 
-
 .column-selector {
     font-size: 14px;
+}
+
+.toolbox {
+    margin-left:auto;
+    margin-right:2px;
 }

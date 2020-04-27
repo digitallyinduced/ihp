@@ -68,6 +68,7 @@ instance Controller SchemaDesignerController where
     action UpdateColumnAction = do
         statements <- readSchema
         let tableName = param "tableName"
+        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue") (param "customDefaultValue")
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
         let columnId = param "columnId"
@@ -75,7 +76,7 @@ instance Controller SchemaDesignerController where
                 { name = param "name"
                 , columnType = param "columnType"
                 , primaryKey = (param "primaryKey")
-                , defaultValue = Nothing
+                , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 }
         when ((get #name column) == "") do

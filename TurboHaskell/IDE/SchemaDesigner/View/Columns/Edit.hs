@@ -71,6 +71,11 @@ instance View EditColumnView ViewContext where
                         </label>
                     </div>
 
+                    <div class="form-group row">
+                        <label for="inputEmail3" class="col-sm-2 col-form-label">Default Value:</label>
+                        {defaultSelector (get #defaultValue column)}
+                    </div>
+
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Edit Column</button>
                     </div>
@@ -99,3 +104,29 @@ typeSelector selected = preEscapedToHtml [plain|
         option selected value text = if selected == value
             then [plain|<option value=#{value} selected>#{text}</option>|]
             else [plain|<option value=#{value}>#{text}</option>|]
+
+defaultSelector selected = preEscapedToHtml [plain|
+    <div class="col-sm-10">
+        <select name="defaultValue" class="form-control">
+            #{option (selectedType selected) "NODEFAULT" "no default"}
+            #{option (selectedType selected) "EMPTY" "''"}
+            #{option (selectedType selected) "NULL" "null"}
+            #{option (selectedType selected) "CUSTOM" "custom"}
+        </select>
+    </div>
+    <div class="col-sm-2"></div>
+    <div class="col-sm-10">
+        <input style=#{if selected == "CUSTOM" then "display: block;" else "display: none;"} name="customDefaultValue" type="text" class="form-control" value=#{fromMaybe "" selected}>    
+    </div>
+|]
+    where
+        option selected value text = if selected == value
+            then [plain|<option value=#{value} selected>#{text}</option>|]
+            else [plain|<option value=#{value}>#{text}</option>|]
+        selectedType selection = case selection of
+            Just "''" -> "EMPTY"
+            Just "NULL" -> "NULL"
+            Just "null" -> "NULL"
+            Nothing -> "NODEFAULT"
+            _ -> "CUSTOM"
+

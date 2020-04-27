@@ -68,15 +68,16 @@ instance View NewColumnView ViewContext where
                     <div class="form-group row">
                         <label for="inputEmail3" class="col-sm-2 col-form-label">Default Value:</label>
                         <div class="col-sm-10">
-                            <select name="defaultValue" class="form-control">
-                                <option value="NODEFAULT">No Default</option>
-                                <option value="EMPTY">""</option>
+                            <select onchange="if (event.target.value == 'CUSTOM') { customDefaultValue.style.display = 'block'; } else { customDefaultValue.style.display = 'none'; }" name="defaultValue" class="form-control">
+                                <option value="NODEFAULT">no default</option>
+                                <option value="EMPTY">''</option>
                                 <option value="NULL">null</option>
                                 <option value="CUSTOM">custom</option>
                             </select>
                         </div>
+                        <div class="col-sm-2"></div>
                         <div class="col-sm-10">
-                            <input name="customDefaultValue" type="text" class="form-control"/>
+                            <input style="display: none;" name="customDefaultValue" type="text" class="form-control"/>    
                         </div>
                     </div>
 

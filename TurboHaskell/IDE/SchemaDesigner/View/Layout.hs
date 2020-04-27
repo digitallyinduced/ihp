@@ -13,13 +13,17 @@ findTableByName tableName statements = find pred statements
 renderColumnSelector :: Text -> [(Int, Column)] -> Html
 renderColumnSelector tableName columns = [hsx|
 <div class="col-8 column-selector">
+    <div class="d-flex">
+        <h5>Columns</h5>
+        <div class="toolbox">
+            <a href={NewColumnAction tableName} class="btn btn-sm btn-outline-primary m-1">New</a>
+        </div>
+    </div>
     <table class="table table-hover table-sm">
         <tbody>
             {forEach columns (\column -> renderColumn (snd column) (fst column) tableName)}
         </tbody>
     </table>
-
-    <a href={NewColumnAction tableName} class="btn btn-sm btn-primary">New</a>
 </div>
 |]
 
@@ -44,10 +48,14 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } id t
                 Nothing -> mempty
 
 renderObjectSelector statements activeObjectName = [hsx|
-<div class="col object-selector">
-    <h5>Objects</h5>
+    <div class="col object-selector">
+    <div class="d-flex">
+        <h5>Objects</h5>
+        <div class="toolbox">
+            <a href={NewTableAction} class="btn btn-sm btn-outline-primary m-1">New</a>
+        </div>
+    </div>
     {forEach statements renderObject}
-    <a href={NewTableAction} class="btn btn-sm btn-primary">New</a>
 </div>
 |]
     where
