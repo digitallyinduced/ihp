@@ -2,6 +2,10 @@ html {
     height: 100%;
 }
 
+body {
+    background-color: #f8f8f8;
+}
+
 #nav {
     width: 80px;
     height: 100%;
