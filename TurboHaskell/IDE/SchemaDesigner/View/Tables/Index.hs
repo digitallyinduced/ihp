@@ -13,13 +13,12 @@ data IndexView = IndexView
 
 instance View IndexView ViewContext where
     html IndexView { .. } = [hsx|
-
-<div class="container">
-    <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
-        <button type="submit" class="btn btn-primary my-3">Push to DB</button>
-    </form>
-    <div class="row no-gutters">
-        {renderObjectSelector statements Nothing}
-    </div>
-</div>
+        <div class="container">
+            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
+                <button type="submit" class="btn btn-primary my-3">Push to DB</button>
+            </form>
+            <div class="row no-gutters">
+                {renderObjectSelector statements Nothing}
+            </div>
+        </div>
     |]

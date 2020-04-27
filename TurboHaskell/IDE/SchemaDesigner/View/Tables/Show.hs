@@ -14,15 +14,15 @@ data ShowView = ShowView
 
 instance View ShowView ViewContext where
     html ShowView { .. } = [hsx|
-<div class="container">
-    <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
-        <button type="submit" class="btn btn-primary my-3">Push to DB</button>
-    </form>
-    <div class="row no-gutters">
-        {renderObjectSelector statements (Just name)}
-        {renderColumnSelector name columns}
-    </div>
-</div>
+        <div class="container">
+            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
+                <button type="submit" class="btn btn-primary my-3">Push to DB</button>
+            </form>
+            <div class="row no-gutters">
+                {renderObjectSelector statements (Just name)}
+                {renderColumnSelector name (zip [0..] columns)}
+            </div>
+        </div>
     |]
         where
             table = findTableByName name statements

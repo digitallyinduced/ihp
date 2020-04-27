@@ -10,11 +10,12 @@ findTableByName tableName statements = find pred statements
         pred CreateTable { name } | name == tableName = True
         pred _ = False
 
+renderColumnSelector :: Text -> [(Int, Column)] -> Html
 renderColumnSelector tableName columns = [hsx|
 <div class="col-8 column-selector">
     <table class="table table-hover table-sm">
         <tbody>
-            {forEach columns renderColumn}
+            {forEach columns (\column -> renderColumn (snd column) (fst column) tableName)}
         </tbody>
     </table>
 
@@ -22,13 +23,16 @@ renderColumnSelector tableName columns = [hsx|
 </div>
 |]
 
-renderColumn :: Column -> Html
-renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } = [hsx|
+renderColumn :: Column -> Int -> Text -> Html
+renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } id tableName = [hsx|
 <tr>
     <td>{name}</td>
     <td>{columnType}{renderAllowNull}</td>
     <td>{renderDefault}</td>
     <td>{renderPrimaryKey}</td>
+    <td>
+        <a href={EditColumnAction tableName id} class="btn btn-primary btn-sm">Edit</a>
+    </td>
 </tr>
 |]
     where

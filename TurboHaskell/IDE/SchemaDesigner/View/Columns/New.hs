@@ -20,7 +20,7 @@ instance View NewColumnView ViewContext where
             </form>
             <div class="row no-gutters">
                 {renderObjectSelector statements (Just tableName)}
-                {renderColumnSelector tableName columns}
+                {renderColumnSelector tableName  (zip [0..] columns)}
             </div>
         </div>
         {Just modal}
