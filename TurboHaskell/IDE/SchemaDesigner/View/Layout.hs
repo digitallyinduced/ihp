@@ -64,12 +64,21 @@ renderObjectSelector statements activeObjectName = [hsx|
         <a href={ShowTableAction name} class={classes [("object object-table w-100", True), ("active", Just name == activeObjectName)]}>
             <div class="d-flex">
                 {name}
-                <div class="toolbox">
+                <div class="toolbox w-50">
                     <a href={EditTableAction name id} class="btn btn-primary btn-sm m-1">Edit</a>
+                    <a href={DeleteTableAction id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
                 </div>
             </div>
         </a>|]
-        renderObject CreateEnumType { name } id = [hsx|<div class="object object-type">{name}</div>|]
+        renderObject CreateEnumType { name } id = [hsx|
+        <div class="object object-type w-100">
+            <div class="d-flex">
+                {name}
+                <div class="toolbox w-50">
+                    <a href={DeleteTableAction id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
+                </div>
+            </div>
+        </div>|]
         renderObject Comment {} id = mempty
         renderObject AddConstraint {} id = mempty
         renderObject CreateExtension {} id = mempty

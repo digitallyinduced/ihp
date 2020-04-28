@@ -47,6 +47,11 @@ instance Controller SchemaDesignerController where
         updateSchema (updateTable tableId tableName)
         redirectTo ShowTableAction { .. }
 
+    action DeleteTableAction { .. } = do
+        let tableId = param "tableId"
+        updateSchema (deleteTable tableId)
+        redirectTo TablesAction
+
     -- COLUMNS
     action NewColumnAction { tableName } = do
         statements <- readSchema
@@ -118,10 +123,14 @@ addColumnToTable tableName column (table@CreateTable { name, columns }) | name =
     table { columns = columns <> [column] }
 addColumnToTable tableName column statement = statement
 
+addTable :: Text -> [Statement] -> [Statement]
 addTable tableName list = list <> [CreateTable { name = tableName, columns = [] }]
 
 updateTable :: Int -> Text -> [Statement] -> [Statement]
 updateTable tableId tableName list = replace tableId CreateTable { name = tableName, columns = (get #columns (list !! tableId))} list
+
+deleteTable :: Int -> [Statement] -> [Statement]
+deleteTable tableId list = delete (list !! tableId) list
 
 updateColumnInTable :: Text -> Column -> Int -> Statement -> Statement
 updateColumnInTable tableName column columnId (table@CreateTable { name, columns }) | name == tableName =
