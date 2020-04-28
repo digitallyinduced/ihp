@@ -18,7 +18,7 @@ instance View IndexView ViewContext where
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>
             </form>
             <div class="row no-gutters bg-white">
-                {renderObjectSelector statements Nothing}
+                {renderObjectSelector (zip [0..] statements) Nothing}
             </div>
         </div>
     |]

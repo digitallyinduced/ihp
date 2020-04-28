@@ -55,14 +55,22 @@ renderObjectSelector statements activeObjectName = [hsx|
             <a href={NewTableAction} class="btn btn-sm btn-outline-primary m-1">New</a>
         </div>
     </div>
-    {forEach statements renderObject}
+    {forEach statements (\statement -> renderObject (snd statement) (fst statement))}
 </div>
 |]
     where
-        renderObject :: Statement -> Html
-        renderObject CreateTable { name } = [hsx|<a href={ShowTableAction name} class={classes [("object object-table", True), ("active", Just name == activeObjectName)]}>{name}</a>|]
-        renderObject CreateEnumType { name } = [hsx|<div class="object object-type">{name}</div>|]
-        renderObject Comment {} = mempty
-        renderObject AddConstraint {} = mempty
-        renderObject CreateExtension {} = mempty
-        renderObject statement = [hsx|<div>{statement}</div>|]
+        renderObject :: Statement -> Int -> Html
+        renderObject CreateTable { name } id = [hsx|
+        <a href={ShowTableAction name} class={classes [("object object-table w-100", True), ("active", Just name == activeObjectName)]}>
+            <div class="d-flex">
+                {name}
+                <div class="toolbox">
+                    <a href={EditTableAction name id} class="btn btn-primary btn-sm m-1">Edit</a>
+                </div>
+            </div>
+        </a>|]
+        renderObject CreateEnumType { name } id = [hsx|<div class="object object-type">{name}</div>|]
+        renderObject Comment {} id = mempty
+        renderObject AddConstraint {} id = mempty
+        renderObject CreateExtension {} id = mempty
+        renderObject statement id = [hsx|<div>{statement}</div>|]

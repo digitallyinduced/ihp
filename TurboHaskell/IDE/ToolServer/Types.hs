@@ -27,6 +27,8 @@ data SchemaDesignerController
     | NewTableAction
     | EditColumnAction { tableName :: Text, columnId :: Int }
     | UpdateColumnAction
+    | EditTableAction { tableName :: Text, tableId :: Int }
+    | UpdateTableAction
     deriving (Eq, Show, Data)
 
 instance FrameworkConfig where 

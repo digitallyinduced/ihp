@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.SchemaDesigner.View.Tables.New where
+module TurboHaskell.IDE.SchemaDesigner.View.Tables.Edit where
 
 import TurboHaskell.ViewPrelude
 import TurboHaskell.IDE.SchemaDesigner.Types
@@ -7,10 +7,14 @@ import TurboHaskell.IDE.ToolServer.Layout
 import TurboHaskell.View.Modal
 import TurboHaskell.IDE.SchemaDesigner.View.Layout
 
-data NewTableView = NewTableView { statements :: [Statement] }
+data EditTableView = EditTableView
+    { statements :: [Statement]
+    , tableName :: Text
+    , tableId :: Int
+    }
 
-instance View NewTableView ViewContext where
-    html NewTableView { .. } = [hsx|
+instance View EditTableView ViewContext where
+    html EditTableView { .. } = [hsx|
         <div class="container">
             <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>
@@ -23,21 +27,21 @@ instance View NewTableView ViewContext where
     |]
         where
             modalContent = [hsx|
-                <form method="POST" action={CreateTableAction}>
-
+                <form method="POST" action={UpdateTableAction}>
+                    <input type="hidden" name="tableId" value={tshow tableId}/>
                     <div class="form-group row">
                         <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
-                            <input name="tableName" type="text" class="form-control" autofocus="autofocus"/>
+                            <input name="tableName" type="text" class="form-control" autofocus="autofocus" value={tableName}/>
                         </div>
                     </div>
 
                     <div class="text-right">
-                        <button type="submit" class="btn btn-primary">Create Column</button>
+                        <button type="submit" class="btn btn-primary">Edit Table</button>
                     </div>
                 </form>
             |]
             modalFooter = mempty 
             modalCloseUrl = pathTo TablesAction
-            modalTitle = "New Table"
+            modalTitle = "Edit Table"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }

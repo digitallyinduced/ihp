@@ -19,7 +19,7 @@ instance View NewColumnView ViewContext where
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>
             </form>
             <div class="row no-gutters bg-white">
-                {renderObjectSelector statements (Just tableName)}
+                {renderObjectSelector (zip [0..] statements) (Just tableName)}
                 {renderColumnSelector tableName  (zip [0..] columns)}
             </div>
         </div>
