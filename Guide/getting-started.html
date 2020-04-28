@@ -329,6 +329,9 @@
 <li>
 <a href="#adding-a-native-dependency">Adding a native dependency</a>
 </li>
+<li>
+<a href="#uploading-a-user-profile-picture">Uploading a user profile picture</a>
+</li>
 </ul>
 </li>
 </ul>
@@ -1057,7 +1060,6 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make db</td><td>Creates a new database with the current Schema and imports Fixtures.sql</td></tr>
 <tr><td>make dumpdb</td><td>Saves the current database state into the Fixtures.sql</td></tr>
 <tr><td>make psql</td><td>Connects to the running postgresql server</td></tr>
-<tr><td>make .envrc</td><td>Loads $PATH from nix-shell into .envrc</td></tr>
 <tr><td>ghci</td><td>Opens a new ghci session with the project and framework already loaded</td></tr>
 <tr><td>make clean</td><td>Resets all build and temporary files</td></tr>
 <tr><td>make print-ghc-extensions</td><td>Prints all used ghc extensions. Useful for scripting</td></tr>
@@ -1068,7 +1070,6 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make static/prod.css</td><td>Builds the production css bundle</td></tr>
 </tbody>
 </table>
-      <p>You can use the <code>-B</code> flag to force a remake. For example <code>make -B .envrc</code></p>
 <h1 id="form-reference">Form Reference</h1>
 <h2 id="select-inputs">Select Inputs</h2>
 <p>You can use the <code>selectField</code> helper for select inputs:</p>
@@ -1200,6 +1201,29 @@ You can just use the <code>query</code> function for that.</p>
 <p>If running, stop your development server. Now run <code>make</code> again. This will install imagemagick locally to your project.</p>
 <p>When you are inside the project with your terminal, you can also call <code>imagemagick</code> to see that it’s available.</p>
 <p>You can look up the package name for the software you dependend on inside the nixpkgs repository. <a href="https://github.com/NixOS/nixpkgs">Just open it on GitHub</a> and use the GitHub search to look up the package name.</p>
+<h2 id="uploading-a-user-profile-picture">Uploading a user profile picture</h2>
+<p>You can easily upload a user profile pictures using <code>uploadImageWithOptions</code> inside your <code>UpdateUserAction</code>:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">action</span><span> </span><span class="cr">UpdateUserAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">userId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">user</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">userId</span><span>
+    </span><span class="va">accessDeniedUnless</span><span> </span><span class="sy">(</span><span class="va">userId</span><span> </span><span class="op">==</span><span> </span><span class="va">currentUserId</span><span class="sy">)</span><span>
+
+    </span><span class="kw">let</span><span> </span><span class="va">profilePictureOptions</span><span> </span><span class="sy">=</span><span> </span><span class="cr">ImageUploadOptions</span><span>
+            </span><span class="sy">{</span><span> </span><span class="va">convertTo</span><span> </span><span class="sy">=</span><span> </span><span class="st">&quot;jpg&quot;</span><span>
+            </span><span class="sy">,</span><span> </span><span class="va">imageMagickOptions</span><span> </span><span class="sy">=</span><span> </span><span class="st">&quot;-resize &#39;1024x1024^&#39; -gravity north -extent 1024x1024 -quality 85% -strip&quot;</span><span>
+            </span><span class="sy">}</span><span>
+
+    </span><span class="va">user</span><span>
+        </span><span class="op">|&gt;</span><span> </span><span class="va">fill</span><span> </span><span class="sy">@</span><span class="sy">[</span><span class="st">&quot;firstname&quot;</span><span class="sy">,</span><span> </span><span class="st">&quot;lastname&quot;</span><span class="sy">,</span><span> </span><span class="st">&quot;pictureUrl&quot;</span><span class="sy">]</span><span>
+        </span><span class="op">|&gt;</span><span> </span><span class="va">uploadImageWithOptions</span><span> </span><span class="va">profilePictureOptions</span><span> </span><span class="va">#pictureUrl</span><span>
+        </span><span class="op">&gt;&gt;=</span><span> </span><span class="va">ifValid</span><span> </span><span class="sy">\</span><span class="sy">case</span><span>
+            </span><span class="cr">Left</span><span> </span><span class="va">user</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+            </span><span class="cr">Right</span><span> </span><span class="va">user</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
+                </span><span class="va">user</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">user</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">updateRecord</span><span>
+                </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Deine Änderungen wurden gespeichert.&quot;</span><span>
+                </span><span class="va">redirectTo</span><span> </span><span class="cr">EditUserAction</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<p>This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the <code>static/uploads</code> folder in the project (directory will be created if it does not exist).</p>
+<p>In your view, just use the image url like <code>&lt;img src={get #pictureUrl currentUser}/&gt;</code>.</p>
 </div>
 
     
