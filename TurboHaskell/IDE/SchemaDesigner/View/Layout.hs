@@ -10,6 +10,11 @@ findTableByName tableName statements = find pred statements
         pred CreateTable { name } | name == tableName = True
         pred _ = False
 
+findEnumByName enumName statements = find pred statements
+    where
+        pred CreateEnumType { name } | name == enumName = True
+        pred _ = False
+
 renderColumnSelector :: Text -> [(Int, Column)] -> Html
 renderColumnSelector tableName columns = [hsx|
 <div class="col-8 column-selector">
