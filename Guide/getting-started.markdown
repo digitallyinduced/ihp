@@ -1257,3 +1257,32 @@ If running, stop your development server. Now run `make` again. This will instal
 When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
 
 You can look up the package name for the software you dependend on inside the nixpkgs repository. [Just open it on GitHub](https://github.com/NixOS/nixpkgs) and use the GitHub search to look up the package name.
+
+## Uploading a user profile picture
+
+You can easily upload a user profile pictures using `uploadImageWithOptions` inside your `UpdateUserAction`:
+
+```haskell
+action UpdateUserAction { userId } = do
+    user <- fetch userId
+    accessDeniedUnless (userId == currentUserId)
+
+    let profilePictureOptions = ImageUploadOptions
+            { convertTo = "jpg"
+            , imageMagickOptions = "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip"
+            }
+
+    user
+        |> fill @["firstname", "lastname", "pictureUrl"]
+        |> uploadImageWithOptions profilePictureOptions #pictureUrl
+        >>= ifValid \case
+            Left user -> render EditView { .. }
+            Right user -> do
+                user <- user |> updateRecord
+                setSuccessMessage "Deine Änderungen wurden gespeichert."
+                redirectTo EditUserAction { .. }
+```
+
+This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
+
+In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
