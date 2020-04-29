@@ -40,7 +40,8 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } id t
     <td>{renderDefault}</td>
     <td>{renderPrimaryKey}</td>
     <td>
-        <a href={EditColumnAction tableName id} class="btn btn-primary btn-sm">Edit</a>
+        <a href={EditColumnAction tableName id} class="btn btn-primary btn-sm m-1">Edit</a>
+        <a href={DeleteColumnAction tableName id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
     </td>
 </tr>
 |]

@@ -162,6 +162,13 @@ instance Controller SchemaDesignerController where
         updateSchema (map (updateColumnInTable tableName column columnId))
         redirectTo ShowTableAction { .. }
 
+    action DeleteColumnAction { .. } = do
+        statements <- readSchema
+        let tableName = param "tableName"
+        let columnId = param "columnId"
+        updateSchema (map (deleteColumnInTable tableName columnId))
+        redirectTo ShowTableAction { .. }
+
     -- DB
     action PushToDbAction = do
         Process.system "make db"
@@ -204,6 +211,11 @@ updateColumnInTable :: Text -> Column -> Int -> Statement -> Statement
 updateColumnInTable tableName column columnId (table@CreateTable { name, columns }) | name == tableName =
     table { columns = (replace columnId column columns) }
 updateColumnInTable tableName column columnId statement = statement
+
+deleteColumnInTable :: Text -> Int -> Statement -> Statement
+deleteColumnInTable tableName columnId (table@CreateTable { name, columns }) | name == tableName =
+    table { columns = delete (columns !! columnId) columns}
+deleteColumnInTable tableName columnId statement = statement
 
 updateValueInEnum :: Text -> Text -> Int -> Statement -> Statement
 updateValueInEnum enumName value valueId (table@CreateEnumType { name, values }) | name == enumName =

@@ -38,6 +38,7 @@ data SchemaDesignerController
     | EditEnumValueAction { enumName :: Text, valueId :: Int }
     | UpdateEnumValueAction
     | DeleteEnumValueAction { enumName :: Text, valueId :: Int }
+    | DeleteColumnAction { tableName :: Text, columnId :: Int }
     deriving (Eq, Show, Data)
 
 instance FrameworkConfig where 
