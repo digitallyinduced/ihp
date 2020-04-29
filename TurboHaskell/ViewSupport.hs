@@ -91,15 +91,15 @@ class View theView viewContext | theView -> viewContext where
     json = error "Not implemented"
 
 -- | Returns a string to be used as a html id attribute for the current view.
--- E.g. when calling `currentViewId` while rendering the view `Web.View.Projects.Show`, this will pure `"projects-show"`
+-- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@
 --
 -- Useful to automatically scope certain css rules to a specific view.
 -- Example:
 -- 
--- module Web.View.Projects.Show where
--- render = [hsx|<div id={currentViewId}>Hello World!</div>|]
+-- > module Web.View.Projects.Show where
+-- > render = [hsx|<div id={currentViewId}>Hello World!</div>|]
 -- 
--- This will render `<div id="projects-show">Hello World!</div>`
+-- This will render @<div id="projects-show">Hello World!</div>@
 {-# INLINE currentViewId #-}
 currentViewId :: (?view :: view, Typeable view) => Text
 currentViewId = 

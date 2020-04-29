@@ -198,6 +198,60 @@
 </ul>
 </li>
 <li>
+<a href="#debuging">Debuging</a>
+</li>
+<li>
+<a href="#architecture">Architecture</a>
+<ul>
+<li>
+<a href="#where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</a>
+</li>
+<li>
+<a href="#where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</a>
+</li>
+<li>
+<a href="#where-to-place-a-custom-type">Where to place a custom type?</a>
+</li>
+<li>
+<a href="#next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</a>
+</li>
+<li>
+<a href="#how-to-structure-my-css">How to structure my CSS?</a>
+<ul>
+<li>
+<a href="#pagespecific-css-rules">Page-specific CSS rules</a>
+</li>
+<li>
+<a href="#sass-webpack">SASS &amp; Webpack</a>
+</li>
+<li>
+<a href="#library-css">Library CSS</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#how-to-structure-my-javascript-code">How to structure my Javascript Code?</a>
+<ul>
+<li>
+<a href="#pagespecific-js">Page-specific JS</a>
+</li>
+<li>
+<a href="#webpack">Webpack</a>
+</li>
+<li>
+<a href="#library-js">Library JS</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#where-to-place-static-images">Where to place static images?</a>
+</li>
+</ul>
+</li>
+<li>
+<a href="#reference">Reference</a>
+<ul>
+<li>
 <a href="#querybuilder-reference">QueryBuilder Reference</a>
 <ul>
 <li>
@@ -299,24 +353,6 @@
 <a href="#select-inputs">Select Inputs</a>
 </li>
 </ul>
-</li>
-<li>
-<a href="#debuging">Debuging</a>
-</li>
-<li>
-<a href="#architecture">Architecture</a>
-<ul>
-<li>
-<a href="#where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</a>
-</li>
-<li>
-<a href="#where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</a>
-</li>
-<li>
-<a href="#where-to-place-a-custom-type">Where to place a custom type?</a>
-</li>
-<li>
-<a href="#next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</a>
 </li>
 </ul>
 </li>
@@ -898,9 +934,85 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>Of course now we also have to pass the <code>postId</code> to that view.</p>
 <h3 id="form-customization">Form Customization</h3>
 <h3 id="login-logout">Login &amp; Logout</h3>
-<h1 id="querybuilder-reference">QueryBuilder Reference</h1>
+<h1 id="debuging">Debuging</h1>
+<p>TODO: Show example using traceShowId</p>
+<h1 id="architecture">Architecture</h1>
+<p>This section tries to answer common questions on where to place your code. These are recommendations found by digitally induced to be working well.</p>
+<p>In general remember that all specific web app logic should stay in the <code>Web/</code> space. The <code>Application/</code> space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.</p>
+<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</h5>
+<p>If the function is only used in a single application and is a building block for your layout, place it in <code>Web/View/Layout.hs</code>. The module is already imported in all your views (just don’t forget to add the function to the export list).</p>
+<p>If the function is used across multiple applications or more like a helper function, place it in <code>Application/Helper/View.hs</code>. This module is also already included in your view files.</p>
+<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</h5>
+<p>Place it in <code>Application/Helper/Controller.hs</code>. This module is already imported into your controllers.</p>
+<h5 id="where-to-place-a-custom-type">Where to place a custom type?</h5>
+<p>Place it in <code>Web/Types.hs</code>.</p>
+<h5 id="next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</h5>
+<p>A TurboHaskell project can consist of multiple applications. Run <code>new-application admin</code> to generate a new admin application. The logic for the new application is located in the <code>Admin/</code> directory. On the web you can find it at <code>http://localhost:8000/admin/</code> (all actions are prefixed with <code>/admin/</code>).</p>
+<h5 id="how-to-structure-my-css">How to structure my CSS?</h5>
+<p>CSS files, as all your other static assets, should be place in the <code>static</code> directory.</p>
+<p>Create an <code>static/app.css</code>. In there use CSS imports to import your other stylesheets. An example <code>app.css</code> could look like this:</p>
+<div class="source-code"><pre><code class="language-css"><span class="im">@import</span><span> </span><span class="st">&quot;/layout.css&quot;</span><span class="op">;</span>
+<span class="im">@import</span><span> </span><span class="st">&quot;/widget.css&quot;</span><span class="op">;</span>
+<span class="im">@import</span><span> </span><span class="st">&quot;/form.css&quot;</span><span class="op">;</span>
+<span class="im">@import</span><span> </span><span class="st">&quot;/button.css&quot;</span><span class="op">;</span>
+<span class="im">@import</span><span> </span><span class="st">&quot;/users.css&quot;</span><span class="op">;</span>
+</code></pre></div>
+<p>In your <code>Web.View.Layout</code> just import the <code>app.css</code>:</p>
+<div class="source-code"><pre><code class="language-html"><span class="kw">&lt;link</span><span class="ot"> rel=</span><span class="st">&quot;stylesheet&quot;</span><span class="ot"> href=</span><span class="st">&quot;/app.css&quot;</span><span class="kw">/&gt;</span>
+</code></pre></div>
+<h6 id="pagespecific-css-rules">Page-specific CSS rules</h6>
+<p>Place page-specific CSS used by e.g. views of the <code>Web.Controller.Users</code> controller in the <code>users.css</code>. Use <a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ViewSupport.html#v:currentViewId">currentViewId</a> to scope your css rules to the view.</p>
+<p>Given the view:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Web.View.Projects.Show</span><span> </span><span class="kw">where</span><span>
+
+</span><span class="va">render</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[hsx|
+    &lt;div id={currentViewId}&gt;
+        &lt;h1&gt;Hello World!&lt;/h1&gt;
+    &lt;/div&gt;
+|]</span><span>
+</span></code></pre></div>
+<p>This will render like</p>
+<div class="source-code"><pre><code class="language-html"><span class="kw">&lt;div</span><span class="ot"> id=</span><span class="st">&quot;projects-show&quot;</span><span class="kw">&gt;</span>
+<span>    </span><span class="kw">&lt;h1&gt;</span><span>Hello World!</span><span class="kw">&lt;/h1&gt;</span>
+<span class="kw">&lt;/div&gt;</span><span>`</span>
+</code></pre></div>
+<p>So in your <code>projects.css</code> you can just do rules like</p>
+<div class="source-code"><pre><code class="language-css"><span class="pp">#projects-show</span><span> h1 { </span><span class="kw">color</span><span>: </span><span class="cn">blue</span><span class="op">;</span><span> }</span>
+</code></pre></div>
+<h6 id="sass-webpack">SASS &amp; Webpack</h6>
+<p>We discourage the use of tools like SASS or webpack because they have to much overhead.</p>
+<h6 id="library-css">Library CSS</h6>
+<p>CSS files from external libraries or components should be placed in <code>static/vendor/</code>.</p>
+<h5 id="how-to-structure-my-javascript-code">How to structure my Javascript Code?</h5>
+<p>JS files, as all your other static assets, should be place in the <code>static</code> directory.</p>
+<p>In general we follow an approach where most of the business logic resides on the haskell server. Only for small interactions we try to use a small isolated bit of javascript.</p>
+<p>Your global, non-page specific, javascript code can be placed in <code>app.js</code>.</p>
+<p>E.g. the <code>app.js</code> could look like this:</p>
+<div class="source-code"><pre><code class="language-javascript"><span class="at">$</span><span>(</span><span class="kw">function</span><span> () </span><span class="op">{</span>
+<span>    </span><span class="at">initNavbarEffects</span><span>()</span><span class="op">;</span>
+<span class="op">}</span><span>)</span><span class="op">;</span>
+
+<span class="kw">function</span><span> </span><span class="at">initNavbarEffects</span><span>() </span><span class="op">{</span>
+<span>    </span><span class="co">// ...</span>
+<span class="op">}</span>
+</code></pre></div>
+<p>In your <code>Web.View.Layout</code> just import the <code>app.js</code>:</p>
+<div class="source-code"><pre><code class="language-html"><span class="kw">&lt;script</span><span class="ot"> src=</span><span class="st">&quot;/app.js&quot;</span><span class="kw">&gt;&lt;/script&gt;</span>
+</code></pre></div>
+<h6 id="pagespecific-js">Page-specific JS</h6>
+<p>Place page-specific JS used by e.g. views of the <code>Web.Controller.Users</code> controller in the <code>users.js</code>.</p>
+<p>In the views, just import the javascript with <code>&lt;script src=&quot;/users.js&quot;&gt;&lt;/script&gt;</code>.</p>
+<h6 id="webpack">Webpack</h6>
+<p>We discourage the use of webpack or any other bundler because they have to much overhead. Of course this advice only applies if you follow the approach to use as few javascript as possible.</p>
+<h6 id="library-js">Library JS</h6>
+<p>JS files from external libraries or components should be placed in <code>static/vendor/</code>. For simplicity it might make sense to just download the javascript bundle of the library you want to use, and then just commit it into git instead of using NPM.</p>
+<p>For more complex use-cases with lots of javascript, you should not follow this advice and just use NPM instead.</p>
+<h5 id="where-to-place-static-images">Where to place static images?</h5>
+<p>Place your images in the <code>static</code> folder. We recommend to use SVG images.</p>
+<h1 id="reference">Reference</h1>
+<h2 id="querybuilder-reference">QueryBuilder Reference</h2>
 <p>You can compose database queries using the QueryBuilder module.</p>
-<h2 id="creating-a-new-query">Creating a new query</h2>
+<h3 id="creating-a-new-query">Creating a new query</h3>
 <p>To query the database for some records, you first need to build a query.
 You can just use the <code>query</code> function for that.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">myQueryBuilder</span><span> </span><span class="sy">=</span><span> </span><span class="va">query</span><span>
@@ -908,9 +1020,9 @@ You can just use the <code>query</code> function for that.</p>
 <p>You can optionally specify the model you want to query:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">myProjectQueryBuilder</span><span> </span><span class="sy">=</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span>
 </span></code></pre></div>
-<h2 id="running-a-query">Running a query</h2>
+<h3 id="running-a-query">Running a query</h3>
 <p>You can run a query using <code>fetch</code>, <code>fetchOneOrNothing</code> or <code>fetchOne</code>:</p>
-<h3 id="many-rows-fetch">many rows: <code>fetch</code></h3>
+<h4 id="many-rows-fetch">many rows: <code>fetch</code></h4>
 <p>To run a query which will return many rows use <code>fetch</code>:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">example</span><span> </span><span class="sy">::</span><span> </span><span class="cr">IO</span><span> </span><span class="sy">[</span><span class="cr">Project</span><span class="sy">]</span><span>
 </span><span class="va">example</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
@@ -918,7 +1030,7 @@ You can just use the <code>query</code> function for that.</p>
     </span><span class="co">-- Query: `SELECT * FROM projects`</span><span>
     </span><span class="va">return</span><span> </span><span class="va">projects</span><span>
 </span></code></pre></div>
-<h3 id="maybe-single-row-fetchoneornothing">maybe single row: <code>fetchOneOrNothing</code></h3>
+<h4 id="maybe-single-row-fetchoneornothing">maybe single row: <code>fetchOneOrNothing</code></h4>
 <p>To run a query which will maybe return a single row use <code>fetchOneOrNothing</code>:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">example</span><span> </span><span class="sy">::</span><span> </span><span class="cr">IO</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="cr">Project</span><span class="sy">)</span><span>
 </span><span class="va">example</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
@@ -926,7 +1038,7 @@ You can just use the <code>query</code> function for that.</p>
     </span><span class="co">-- Query: `SELECT * FROM projects LIMIT 1`</span><span>
     </span><span class="va">return</span><span> </span><span class="va">project</span><span>
 </span></code></pre></div>
-<h3 id="single-row-fetchone">single row: <code>fetchOne</code></h3>
+<h4 id="single-row-fetchone">single row: <code>fetchOne</code></h4>
 <p>To run a query which will return a single and <strong>throws an error if no record is found</strong> row use <code>fetchOne</code>:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">example</span><span> </span><span class="sy">::</span><span> </span><span class="cr">IO</span><span> </span><span class="cr">Project</span><span>
 </span><span class="va">example</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
@@ -934,7 +1046,7 @@ You can just use the <code>query</code> function for that.</p>
     </span><span class="co">-- Query: `SELECT * FROM projects LIMIT 1`</span><span>
     </span><span class="va">return</span><span> </span><span class="va">project</span><span>
 </span></code></pre></div>
-<h2 id="where-conditions">Where Conditions</h2>
+<h3 id="where-conditions">Where Conditions</h3>
 <p>To specify <code>WHERE</code> conditions, you can use <code>filterWhere</code>:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">projectsByUser</span><span> </span><span class="sy">::</span><span> </span><span class="cr">UserId</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">IO</span><span> </span><span class="sy">[</span><span class="cr">Project</span><span class="sy">]</span><span>
 </span><span class="va">projectsByUser</span><span> </span><span class="va">userId</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
@@ -945,21 +1057,21 @@ You can just use the <code>query</code> function for that.</p>
     </span><span class="co">-- Query: `SELECT * FROM projects WHERE user_id = &lt;userId&gt; AND deleted = false`</span><span>
     </span><span class="va">return</span><span> </span><span class="va">projects</span><span>
 </span></code></pre></div>
-<h2 id="order-by">Order By</h2>
+<h3 id="order-by">Order By</h3>
 <p>You can just use <code>orderBy #field</code>:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span>
         </span><span class="op">|&gt;</span><span> </span><span class="va">orderBy</span><span> </span><span class="va">#createdAt</span><span>
         </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
 </span><span class="co">-- Query: `SELECT * FROM projects ORDER BY created_at`</span><span>
 </span></code></pre></div>
-<h2 id="or">Or</h2>
+<h3 id="or">Or</h3>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span>
          </span><span class="op">|&gt;</span><span> </span><span class="va">queryOr</span><span>
             </span><span class="sy">(</span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span class="sy">)</span><span> </span><span class="sy">(</span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">teamId</span><span class="sy">,</span><span> </span><span class="va">teamId</span><span class="sy">)</span><span class="sy">)</span><span>
         </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
 </span><span class="co">-- Query: `SELECT * FROM projects WHERE (user_id = ?) OR (team_id = ?)`</span><span>
 </span></code></pre></div>
-<h2 id="union-merging-two-queries">Union / Merging two queries</h2>
+<h3 id="union-merging-two-queries">Union / Merging two queries</h3>
 <p>Two query builders of the same type can be merged like this:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="co">-- SELECT * FROM projects WHERE team_id = ?</span><span>
 </span><span class="kw">let</span><span> </span><span class="va">teamProjects</span><span> </span><span class="sy">::</span><span> </span><span class="cr">QueryBuilder</span><span> </span><span class="cr">Project</span><span> </span><span class="sy">=</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">teamId</span><span class="sy">,</span><span> </span><span class="va">teamId</span><span class="sy">)</span><span>
@@ -970,36 +1082,36 @@ You can just use the <code>query</code> function for that.</p>
 </span><span class="co">-- SELECT * FROM projects WHERE (team_id = ?) OR (team_id IS NULL AND created_by = ?)</span><span>
 </span><span class="kw">let</span><span> </span><span class="va">projects</span><span> </span><span class="sy">::</span><span> </span><span class="cr">QueryBuilder</span><span> </span><span class="cr">Project</span><span> </span><span class="sy">=</span><span> </span><span class="va">queryUnion</span><span> </span><span class="va">teamProjects</span><span> </span><span class="va">personalProjects</span><span>
 </span></code></pre></div>
-<h2 id="shortcuts">Shortcuts</h2>
-<h3 id="findby-field-value"><code>findBy #field value</code></h3>
+<h3 id="shortcuts">Shortcuts</h3>
+<h4 id="findby-field-value"><code>findBy #field value</code></h4>
 <p>Just a shortcut for <code>filterWhere (#field, value) |&gt; fetchOne</code></p>
 <div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
 </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOne</span><span>
 </span><span class="co">-- Shorter version</span><span>
 </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findBy</span><span> </span><span class="va">#userId</span><span> </span><span class="va">userId</span><span>
 </span></code></pre></div>
-<h3 id="findmaybeby-field-value"><code>findMaybeBy #field value</code></h3>
+<h4 id="findmaybeby-field-value"><code>findMaybeBy #field value</code></h4>
 <p>Just a shortcut for <code>filterWhere (#field, value) |&gt; fetchOneOrNothing</code></p>
 <div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
 </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOneOrNothing</span><span>
 </span><span class="co">-- Shorter version</span><span>
 </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findMaybeBy</span><span> </span><span class="va">#userId</span><span> </span><span class="va">userId</span><span>
 </span></code></pre></div>
-<h3 id="findbyid-id"><code>findById id</code></h3>
+<h4 id="findbyid-id"><code>findById id</code></h4>
 <p>Just a shortcut for <code>filterWhere (#id, id) |&gt; fetchOne</code></p>
 <div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
 </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">id</span><span class="sy">,</span><span> </span><span class="va">id</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOne</span><span>
 </span><span class="co">-- Shorter version</span><span>
 </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findOneById</span><span> </span><span class="va">#id</span><span> </span><span class="va">id</span><span>
 </span></code></pre></div>
-<h3 id="findmanyby-field-value"><code>findManyBy #field value</code></h3>
+<h4 id="findmanyby-field-value"><code>findManyBy #field value</code></h4>
 <p>Just a shortcut for <code>filterWhere (#field, value) |&gt; fetch</code></p>
 <div class="source-code"><pre><code class="language-haskell"><span class="co">-- Long version</span><span>
 </span><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">filterWhere</span><span> </span><span class="sy">(#</span><span class="va">userId</span><span class="sy">,</span><span> </span><span class="va">userId</span><span class="sy">)</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
 </span><span class="co">-- Shorter version</span><span>
 </span><span class="va">projects</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">query</span><span> </span><span class="sy">@</span><span class="cr">Project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">findManyBy</span><span> </span><span class="va">#userId</span><span> </span><span class="va">userId</span><span>
 </span></code></pre></div>
-<h2 id="projectid-fetch"><code>projectId |&gt; fetch</code></h2>
+<h3 id="projectid-fetch"><code>projectId |&gt; fetch</code></h3>
 <p>Ids also have <code>fetch</code> implementations, that way you can just run:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">projectId</span><span> </span><span class="sy">::</span><span> </span><span class="cr">ProjectId</span><span> </span><span class="sy">=</span><span> </span><span class="op">...</span><span>
 </span><span class="va">project</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">projectId</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetch</span><span>
@@ -1008,11 +1120,11 @@ You can just use the <code>query</code> function for that.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">let</span><span> </span><span class="va">assignedUserId</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Maybe</span><span> </span><span class="cr">UserId</span><span> </span><span class="sy">=</span><span> </span><span class="va">project</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">get</span><span> </span><span class="va">#assignedUserId</span><span>
 </span><span class="va">assignedUser</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">assignedUserId</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">fetchOneOrNothing</span><span>
 </span></code></pre></div>
-<h2 id="raw-sql-queries">Raw SQL Queries</h2>
+<h3 id="raw-sql-queries">Raw SQL Queries</h3>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">result</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">sqlQuery</span><span> </span><span class="st">&quot;SELECT * FROM projects WHERE id = ?&quot;</span><span> </span><span class="sy">(</span><span class="cr">Only</span><span> </span><span class="va">id</span><span class="sy">)</span><span>
 </span></code></pre></div>
-<h1 id="validation-reference">Validation Reference</h1>
-<h2 id="pure-validations">Pure Validations</h2>
+<h2 id="validation-reference">Validation Reference</h2>
+<h3 id="pure-validations">Pure Validations</h3>
 <p>With <code>validateField</code> you can do simple, pure validations.</p>
 <p>Here are some examples:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
@@ -1022,7 +1134,7 @@ You can just use the <code>query</code> function for that.</p>
         </span><span class="va">validateField</span><span> </span><span class="va">#email</span><span> </span><span class="va">isEmail</span><span>
         </span><span class="kw">let</span><span> </span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span> </span><span class="kw">in</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#age</span><span> </span><span class="va">isAge</span><span>
 </span></code></pre></div>
-<h3 id="custom-validators">Custom Validators</h3>
+<h4 id="custom-validators">Custom Validators</h4>
 <p>If needed you can just write your own constraint, e.g. like this:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">nonEmpty</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Text</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
 </span><span class="va">nonEmpty</span><span> </span><span class="st">&quot;&quot;</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Failure</span><span> </span><span class="st">&quot;This field cannot be empty&quot;</span><span>
@@ -1031,26 +1143,26 @@ You can just use the <code>query</code> function for that.</p>
 </span><span class="va">isAge</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Int</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
 </span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span>
 </span></code></pre></div>
-<h2 id="uniqueness">Uniqueness</h2>
+<h3 id="uniqueness">Uniqueness</h3>
 <p>The function <code>validateIsUnique</code> is usually used to make sure that e.g. a user’s email is unique. Of course it will also work with other model fields.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
     </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">validateIsUnique</span><span> </span><span class="va">#email</span><span>
 </span></code></pre></div>
-<h2 id="validate-permissions">Validate Permissions</h2>
+<h3 id="validate-permissions">Validate Permissions</h3>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
     </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
         </span><span class="va">validateCanView</span><span> </span><span class="va">currentUser</span><span>
 </span></code></pre></div>
-<h1 id="view-helper-reference">View Helper Reference</h1>
-<h2 id="time">Time</h2>
-<h3 id="timeago"><code>timeAgo</code></h3>
+<h2 id="view-helper-reference">View Helper Reference</h2>
+<h3 id="time">Time</h3>
+<h4 id="timeago"><code>timeAgo</code></h4>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">timeAgo</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#createdAt</span><span> </span><span class="va">post</span><span class="sy">)</span><span> </span><span class="co">-- &quot;1 minute ago&quot;</span><span>
 </span></code></pre></div>
-<h3 id="datetime"><code>dateTime</code></h3>
+<h4 id="datetime"><code>dateTime</code></h4>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">dateTime</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#createdAt</span><span> </span><span class="va">post</span><span class="sy">)</span><span> </span><span class="co">-- &quot;10.6.2019, 15:58 Uhr&quot;</span><span>
 </span></code></pre></div>
-<h1 id="command-line-reference">Command Line Reference</h1>
+<h2 id="command-line-reference">Command Line Reference</h2>
 <table>
 <thead>
 <tr><th>Command</th><th>Description</th></tr>
@@ -1070,8 +1182,8 @@ You can just use the <code>query</code> function for that.</p>
 <tr><td>make static/prod.css</td><td>Builds the production css bundle</td></tr>
 </tbody>
 </table>
-<h1 id="form-reference">Form Reference</h1>
-<h2 id="select-inputs">Select Inputs</h2>
+<h2 id="form-reference">Form Reference</h2>
+<h3 id="select-inputs">Select Inputs</h3>
 <p>You can use the <code>selectField</code> helper for select inputs:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">formFor</span><span> </span><span class="va">project</span><span> </span><span class="sy">[hsx|
     {selectField #userId users}
@@ -1096,20 +1208,6 @@ You can just use the <code>query</code> function for that.</p>
 <span>    </span><span class="kw">&lt;/select&gt;</span>
 <span class="kw">&lt;/form&gt;</span>
 </code></pre></div>
-<h1 id="debuging">Debuging</h1>
-<p>TODO: Show example using traceShowId</p>
-<h1 id="architecture">Architecture</h1>
-<p>This section tries to answer common questions on where to place your code.</p>
-<p>In general remember that all specific web app logic should stay in the <code>Web/</code> space. The <code>Application/</code> space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.</p>
-<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-views">Where to place a function I want to use in all my views?</h5>
-<p>If the function is only used in a single application and is a building block for your layout, place it in <code>Web/View/Layout.hs</code>. The module is already imported in all your views (just don’t forget to add the function to the export list).</p>
-<p>If the function is used across multiple applications or more like a helper function, place it in <code>Application/Helper/View.hs</code>. This module is also already included in your view files.</p>
-<h5 id="where-to-place-a-function-i-want-to-use-in-all-my-controllers">Where to place a function I want to use in all my controllers?</h5>
-<p>Place it in <code>Application/Helper/Controller.hs</code>. This module is already imported into your controllers.</p>
-<h5 id="where-to-place-a-custom-type">Where to place a custom type?</h5>
-<p>Place it in <code>Web/Types.hs</code>.</p>
-<h5 id="next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</h5>
-<p>A TurboHaskell project can consist of multiple applications. Run <code>new-application admin</code> to generate a new admin application. The logic for the new application is located in the <code>Admin/</code> directory. On the web you can find it at <code>http://localhost:8000/admin/</code> (all actions are prefixed with <code>/admin/</code>).</p>
 <h1 id="recipes">Recipes</h1>
 <p>This section describes best-practise solutions to common tasks your facing when building web applications.</p>
 <h2 id="static-pages">Static Pages</h2>
@@ -1234,7 +1332,7 @@ You can just use the <code>query</code> function for that.</p>
         
         border-radius: 3px;
       }
-      .language-haskell, .language-bash, .language-sql, .language-html, .language-nix {
+      .language-haskell, .language-bash, .language-sql, .language-html, .language-nix, .language-css, .language-javascript {
         color: #839496;
         display: block;
         padding: 1rem;
