@@ -34,7 +34,9 @@ data SchemaDesignerController
     | NewEnumAction
     | CreateEnumAction
     | NewEnumValueAction { enumName :: Text }
-    | CreateEnumValueAction 
+    | CreateEnumValueAction
+    | EditEnumValueAction { enumName :: Text, valueId :: Int }
+    | UpdateEnumValueAction
     deriving (Eq, Show, Data)
 
 instance FrameworkConfig where 

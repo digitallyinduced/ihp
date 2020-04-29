@@ -12,10 +12,11 @@ import TurboHaskell.IDE.SchemaDesigner.View.Tables.Edit
 import TurboHaskell.IDE.SchemaDesigner.View.Enums.New
 import TurboHaskell.IDE.SchemaDesigner.View.Enums.Show
 import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.New
+import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.Edit
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
-import TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName)
+import TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName)
 import qualified System.Process as Process
 import qualified Data.List as List
 
@@ -79,6 +80,30 @@ instance Controller SchemaDesignerController where
         let enumValueName = param "enumValueName"
         updateSchema (map (addValueToEnum enumName enumValueName))
         redirectTo ShowEnumAction { .. }
+
+    action EditEnumValueAction { .. } = do
+        statements <- readSchema
+        let valueId = param "valueId"
+        let enumName = param "enumName"
+        let enum = findEnumByName enumName statements
+        let values = maybe [] (get #values) enum
+        let value = values !! valueId
+        render EditEnumValueView { .. }
+
+    action UpdateEnumValueAction = do
+        statements <- readSchema
+        let enumName = param "enumName"
+        let valueId = param "valueId"
+        let newValue = param "enumValueName" :: Text
+        let enum = findEnumByName enumName statements
+        let values = maybe [] (get #values) enum
+        let value = values !! valueId
+        when (newValue == "") do
+            setSuccessMessage ("Column Name can not be empty")
+            redirectTo ShowEnumAction { enumName }
+        updateSchema (map (updateValueInEnum enumName value valueId))
+        redirectTo ShowEnumAction { .. }
+
 
     -- COLUMNS
     action NewColumnAction { tableName } = do
@@ -172,6 +197,11 @@ updateColumnInTable :: Text -> Column -> Int -> Statement -> Statement
 updateColumnInTable tableName column columnId (table@CreateTable { name, columns }) | name == tableName =
     table { columns = (replace columnId column columns) }
 updateColumnInTable tableName column columnId statement = statement
+
+updateValueInEnum :: Text -> Text -> Int -> Statement -> Statement
+updateValueInEnum enumName value valueId (table@CreateEnumType { name, values }) | name == enumName =
+    table { values = (replace valueId value values) }
+updateValueInEnum enumName value valueId statement = statement
 
 replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of

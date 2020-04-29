@@ -52,7 +52,6 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } id t
                 Just value -> [hsx|default: {value}|]
                 Nothing -> mempty
 
--- href
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
 renderEnumSelector enumName values = [hsx|
 <div class="col-8 column-selector">
@@ -69,12 +68,11 @@ renderEnumSelector enumName values = [hsx|
     </table>
 </div>|]
 
--- href
 renderValue :: Text -> Int -> Text -> Html
 renderValue value valueId enumName = [hsx|
     <tr>
         <td>{value}</td>
-        <td><a href="#" class="btn btn-primary btn-sm">Edit</a></td>
+        <td><a href={EditEnumValueAction enumName valueId} class="btn btn-primary btn-sm">Edit</a></td>
     </tr>
 |]
 
