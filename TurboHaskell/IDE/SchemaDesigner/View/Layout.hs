@@ -72,7 +72,11 @@ renderValue :: Text -> Int -> Text -> Html
 renderValue value valueId enumName = [hsx|
     <tr>
         <td>{value}</td>
-        <td><a href={EditEnumValueAction enumName valueId} class="btn btn-primary btn-sm">Edit</a></td>
+        <td>
+            <a href={EditEnumValueAction enumName valueId} class="btn btn-primary btn-sm m-1">Edit</a>
+            <a href={DeleteEnumValueAction enumName valueId} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
+        </td>
+
     </tr>
 |]
 

@@ -56,7 +56,7 @@ instance Controller SchemaDesignerController where
         updateSchema (deleteTable tableId)
         redirectTo TablesAction
 
-
+    -- ENUMS
     action ShowEnumAction { .. } = do
         statements <- readSchema
         let name = enumName
@@ -71,6 +71,7 @@ instance Controller SchemaDesignerController where
         updateSchema (addEnum enumName)
         redirectTo ShowEnumAction { .. }
 
+    -- ENUM VALUES
     action NewEnumValueAction { enumName } = do
         statements <- readSchema
         render NewEnumValueView { .. }
@@ -104,6 +105,12 @@ instance Controller SchemaDesignerController where
         updateSchema (map (updateValueInEnum enumName value valueId))
         redirectTo ShowEnumAction { .. }
 
+    action DeleteEnumValueAction { .. } = do
+        statements <- readSchema
+        let enumName = param "enumName"
+        let valueId = param "valueId"
+        updateSchema (map (deleteValueInEnum enumName valueId))
+        redirectTo ShowEnumAction { .. }
 
     -- COLUMNS
     action NewColumnAction { tableName } = do
@@ -202,6 +209,11 @@ updateValueInEnum :: Text -> Text -> Int -> Statement -> Statement
 updateValueInEnum enumName value valueId (table@CreateEnumType { name, values }) | name == enumName =
     table { values = (replace valueId value values) }
 updateValueInEnum enumName value valueId statement = statement
+
+deleteValueInEnum :: Text -> Int -> Statement -> Statement
+deleteValueInEnum enumName valueId (table@CreateEnumType { name, values }) | name == enumName =
+    table { values = delete (values !! valueId) values}
+deleteValueInEnum enumName valueId statement = statement
 
 replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of
