@@ -37,13 +37,14 @@ compileOnDelete (Just SetNull) = "ON DELETE SET NULL"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: Column -> Text
-compileColumn Column { name, columnType, primaryKey, defaultValue, notNull } =
+compileColumn Column { name, columnType, primaryKey, defaultValue, notNull, isUnique } =
     "    " <> unwords (catMaybes
         [ Just name
         , Just columnType
         , fmap compileDefaultValue defaultValue
         , if primaryKey then Just "PRIMARY KEY" else Nothing
         , if notNull then Just "NOT NULL" else Nothing
+        , if isUnique then Just "UNIQUE" else Nothing
         ])
 
 compileDefaultValue :: Text -> Text

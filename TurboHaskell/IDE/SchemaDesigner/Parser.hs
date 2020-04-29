@@ -119,7 +119,8 @@ column = do
         pure (cs value)
     primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
     notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
-    pure Column { name, columnType, primaryKey, defaultValue, notNull }
+    isUnique <- isJust <$> optional (lexeme "UNIQUE")
+    pure Column { name, columnType, primaryKey, defaultValue, notNull, isUnique }
 
 
 sqlType = choice

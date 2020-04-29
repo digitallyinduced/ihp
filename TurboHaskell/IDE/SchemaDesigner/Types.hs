@@ -27,6 +27,7 @@ data Column = Column
     , primaryKey :: Bool
     , defaultValue :: Maybe Text
     , notNull :: Bool
+    , isUnique :: Bool
     }
     deriving (Eq, Show)
 

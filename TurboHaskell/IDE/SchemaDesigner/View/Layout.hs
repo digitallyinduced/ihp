@@ -33,11 +33,11 @@ renderColumnSelector tableName columns = [hsx|
 |]
 
 renderColumn :: Column -> Int -> Text -> Html
-renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } id tableName = [hsx|
+renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
 <tr>
     <td>{name}</td>
     <td>{columnType}{renderAllowNull}</td>
-    <td>{renderDefault}</td>
+    <td>{renderDefault}{renderIsUnique}</td>
     <td>{renderPrimaryKey}</td>
     <td>
         <a href={EditColumnAction tableName id} class="btn btn-primary btn-sm m-1">Edit</a>
@@ -48,9 +48,10 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull } id t
     where
         renderPrimaryKey = if primaryKey then [hsx|PRIMARY KEY|] else mempty
         renderAllowNull = if notNull then mempty else [hsx|{" | " :: Text}NULL|]
+        renderIsUnique = if isUnique then [hsx|IS UNIQUE|] else mempty
         renderDefault =
             case defaultValue of
-                Just value -> [hsx|default: {value}|]
+                Just value -> [hsx|default: {value} |]
                 Nothing -> mempty
 
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
