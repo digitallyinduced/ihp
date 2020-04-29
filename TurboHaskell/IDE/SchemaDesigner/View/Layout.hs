@@ -35,10 +35,10 @@ renderColumnSelector tableName columns = [hsx|
 renderColumn :: Column -> Int -> Text -> Html
 renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
 <tr>
-    <td>{name}</td>
-    <td>{columnType}{renderAllowNull}</td>
-    <td>{renderDefault}{renderIsUnique}</td>
-    <td>{renderPrimaryKey}</td>
+    <td class="context-column">{name}</td>
+    <td class="context-column">{columnType}{renderAllowNull}</td>
+    <td class="context-column">{renderDefault}{renderIsUnique}</td>
+    <td class="context-column">{renderPrimaryKey}</td>
     <td>
         <a href={EditColumnAction tableName id} class="btn btn-primary btn-sm m-1">Edit</a>
         <a href={DeleteColumnAction tableName id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
@@ -97,7 +97,7 @@ renderObjectSelector statements activeObjectName = [hsx|
     where
         renderObject :: Statement -> Int -> Html
         renderObject CreateTable { name } id = [hsx|
-        <a href={ShowTableAction name} class={classes [("object object-table w-100", True), ("active", Just name == activeObjectName)]}>
+        <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]}>
             <div class="d-flex">
                 {name}
                 <div class="toolbox w-50">
@@ -107,7 +107,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             </div>
         </a>|]
         renderObject CreateEnumType { name } id = [hsx|
-        <a href={ShowEnumAction name} class={classes [("object object-table w-100", True), ("active", Just name == activeObjectName)]}>
+        <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]}>
             <div class="d-flex">
                 {name}
                 <div class="toolbox w-50">

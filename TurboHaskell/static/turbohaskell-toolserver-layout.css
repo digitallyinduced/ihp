@@ -86,3 +86,30 @@ body {
     height: 100%;
     margin-top: 80px;
 }
+
+/* Context Menu */
+.menu-for-table, .menu-for-column, .menu-for-enum {
+    display: none;
+    z-index: 1000;
+    position: absolute;
+    overflow: hidden;
+    border: 1px solid #CCC;
+    white-space: nowrap;
+    font-family: sans-serif;
+    background: #FFF;
+    color: #333;
+    border-radius: 5px;
+    padding: 0;
+}
+
+.menu-for-table li, .menu-for-column li, .menu-for-enum li {
+    padding: 8px 12px;
+    cursor: pointer;
+    list-style-type: none;
+    transition: all .3s ease;
+    user-select: none;
+}
+
+.menu-for-table li:hover, .menu-for-column li:hover, .menu-for-enum li:hover  {
+    background-color: #DEF;
+}
