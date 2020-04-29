@@ -63,6 +63,9 @@ instance View NewColumnView ViewContext where
                         <label class="col col-form-label">
                             <input type="checkbox" name="allowNull" class="mr-2"/>Allow Null
                         </label>
+                        <label class="col col-form-label">
+                            <input type="checkbox" name="isUnique" class="mr-2"/>Unique
+                        </label>
                     </div>
 
                     <div class="form-group row">
@@ -87,6 +90,7 @@ instance View NewColumnView ViewContext where
 
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
+                    <input type="hidden" name="isUnique" value={inputValue False}/>
                 </form>
             |]
             modalFooter = mempty 

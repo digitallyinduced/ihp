@@ -126,7 +126,7 @@ instance Controller SchemaDesignerController where
                 , primaryKey = (param "primaryKey")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
-                , isUnique = False
+                , isUnique = param "isUnique"
                 }
         when ((get #name column) == "") do
             setSuccessMessage ("Column Name can not be empty")
@@ -156,7 +156,7 @@ instance Controller SchemaDesignerController where
                 , primaryKey = (param "primaryKey")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
-                , isUnique = False
+                , isUnique = param "isUnique"
                 }
         when ((get #name column) == "") do
             setSuccessMessage ("Column Name can not be empty")

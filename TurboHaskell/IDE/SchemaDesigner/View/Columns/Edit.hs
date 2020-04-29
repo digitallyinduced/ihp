@@ -40,6 +40,10 @@ instance View EditColumnView ViewContext where
             allowNullCheckbox = if get #notNull column
                 then preEscapedToHtml [plain|<input type="checkbox" name="allowNull" class="mr-2"/>|]
                 else preEscapedToHtml [plain|<input type="checkbox" name="allowNull" class="mr-2" checked/>|]
+
+            isUniqueCheckbox = if get #isUnique column
+                then preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2" checked/>|]
+                else preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2"/>|]
             
             modalContent = [hsx|
                 <form method="POST" action={UpdateColumnAction}>
@@ -69,6 +73,10 @@ instance View EditColumnView ViewContext where
                             {allowNullCheckbox}
                             Allow Null
                         </label>
+                        <label class="col col-form-label">
+                            {isUniqueCheckbox}
+                            Unique
+                        </label>
                     </div>
 
                     <div class="form-group row">
@@ -81,6 +89,7 @@ instance View EditColumnView ViewContext where
                     </div>
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
+                    <input type="hidden" name="isUnique" value={inputValue False}/>
                 </form>
             |]
             modalFooter = mempty 
