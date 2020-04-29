@@ -9,6 +9,9 @@ import TurboHaskell.IDE.SchemaDesigner.View.Tables.New
 import TurboHaskell.IDE.SchemaDesigner.View.Tables.Show
 import TurboHaskell.IDE.SchemaDesigner.View.Tables.Index
 import TurboHaskell.IDE.SchemaDesigner.View.Tables.Edit
+import TurboHaskell.IDE.SchemaDesigner.View.Enums.New
+import TurboHaskell.IDE.SchemaDesigner.View.Enums.Show
+import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.New
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
@@ -47,10 +50,35 @@ instance Controller SchemaDesignerController where
         updateSchema (updateTable tableId tableName)
         redirectTo ShowTableAction { .. }
 
-    action DeleteTableAction { .. } = do
+    action DeleteTableAction { .. } = do -- rename to deleteObject/deleteStatement
         let tableId = param "tableId"
         updateSchema (deleteTable tableId)
         redirectTo TablesAction
+
+
+    action ShowEnumAction { .. } = do
+        statements <- readSchema
+        let name = enumName
+        render ShowEnumView { .. }
+
+    action NewEnumAction = do
+        statements <- readSchema
+        render NewEnumView { .. }
+
+    action CreateEnumAction = do
+        let enumName = param "enumName"
+        updateSchema (addEnum enumName)
+        redirectTo ShowEnumAction { .. }
+
+    action NewEnumValueAction { enumName } = do
+        statements <- readSchema
+        render NewEnumValueView { .. }
+
+    action CreateEnumValueAction = do
+        let enumName = param "enumName"
+        let enumValueName = param "enumValueName"
+        updateSchema (map (addValueToEnum enumName enumValueName))
+        redirectTo ShowEnumAction { .. }
 
     -- COLUMNS
     action NewColumnAction { tableName } = do
@@ -123,13 +151,21 @@ addColumnToTable tableName column (table@CreateTable { name, columns }) | name =
     table { columns = columns <> [column] }
 addColumnToTable tableName column statement = statement
 
+addValueToEnum :: Text -> Text -> Statement -> Statement
+addValueToEnum enumName enumValueName (table@CreateEnumType { name, values }) | name == enumName =
+    table { values = values <> ["'" <> enumValueName <> "'"] }
+addValueToEnum enumName enumValueName statement = statement
+
 addTable :: Text -> [Statement] -> [Statement]
 addTable tableName list = list <> [CreateTable { name = tableName, columns = [] }]
 
 updateTable :: Int -> Text -> [Statement] -> [Statement]
 updateTable tableId tableName list = replace tableId CreateTable { name = tableName, columns = (get #columns (list !! tableId))} list
 
-deleteTable :: Int -> [Statement] -> [Statement]
+addEnum :: Text -> [Statement] -> [Statement]
+addEnum enumName list = list <> [CreateEnumType { name = enumName, values = []}]
+
+deleteTable :: Int -> [Statement] -> [Statement] -- rename to deleteObject/deleteStatement
 deleteTable tableId list = delete (list !! tableId) list
 
 updateColumnInTable :: Text -> Column -> Int -> Statement -> Statement

@@ -30,6 +30,11 @@ data SchemaDesignerController
     | EditTableAction { tableName :: Text, tableId :: Int }
     | UpdateTableAction
     | DeleteTableAction { tableId :: Int }
+    | ShowEnumAction { enumName :: Text }
+    | NewEnumAction
+    | CreateEnumAction
+    | NewEnumValueAction { enumName :: Text }
+    | CreateEnumValueAction 
     deriving (Eq, Show, Data)
 
 instance FrameworkConfig where 

@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.SchemaDesigner.View.Enums.New where
+module TurboHaskell.IDE.SchemaDesigner.View.EnumValues.New where
 
 import TurboHaskell.ViewPrelude
 import TurboHaskell.IDE.SchemaDesigner.Types
@@ -7,37 +7,45 @@ import TurboHaskell.IDE.ToolServer.Layout
 import TurboHaskell.View.Modal
 import TurboHaskell.IDE.SchemaDesigner.View.Layout
 
-data NewEnumView = NewEnumView { statements :: [Statement] }
+data NewEnumValueView = NewEnumValueView
+    { statements :: [Statement]
+    , enumName :: Text
+    }
 
-instance View NewEnumView ViewContext where
-    html NewEnumView { .. } = [hsx|
+instance View NewEnumValueView ViewContext where
+    html NewEnumValueView { .. } = [hsx|
         <div class="container">
             <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>
             </form>
             <div class="row no-gutters bg-white">
-                {renderObjectSelector (zip [0..] statements) Nothing}
+                {renderObjectSelector (zip [0..] statements) (Just enumName)}
+                {renderEnumSelector enumName (zip [0..] values)}
             </div>
         </div>
         {Just modal}
     |]
         where
+            table = findEnumByName enumName statements
+            values = maybe [] (get #values) table
+
             modalContent = [hsx|
-                <form method="POST" action={CreateEnumAction}>
+                <form method="POST" action={CreateEnumValueAction}>
+                    <input type="hidden" name="enumName" value={enumName}/>
 
                     <div class="form-group row">
                         <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
-                            <input name="enumName" type="text" class="form-control" autofocus="autofocus"/>
+                            <input name="enumValueName" type="text" class="form-control" autofocus="autofocus"/>
                         </div>
                     </div>
 
                     <div class="text-right">
-                        <button type="submit" class="btn btn-primary">Create Enum</button>
+                        <button type="submit" class="btn btn-primary">Create Enum Value</button>
                     </div>
                 </form>
             |]
             modalFooter = mempty 
-            modalCloseUrl = pathTo TablesAction
-            modalTitle = "New Enum"
+            modalCloseUrl = pathTo ShowEnumAction { enumName }
+            modalTitle = "New Enum Value"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }

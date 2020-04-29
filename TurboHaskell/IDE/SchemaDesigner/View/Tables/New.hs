@@ -33,7 +33,7 @@ instance View NewTableView ViewContext where
                     </div>
 
                     <div class="text-right">
-                        <button type="submit" class="btn btn-primary">Create Column</button>
+                        <button type="submit" class="btn btn-primary">Create Table</button>
                     </div>
                 </form>
             |]
