@@ -46,7 +46,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Char as Char
 
 class FrontController application where
-    controllers :: (?applicationContext :: ApplicationContext, ?application :: Proxy application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
+    controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
 
 class HasPath controller where
     pathTo :: controller -> Text    
@@ -327,19 +327,19 @@ runApp routes notFoundAction =
             Right action -> action
 
 {-# INLINE frontControllerToWAIApp #-}
-frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => IO ResponseReceived -> IO ResponseReceived
-frontControllerToWAIApp notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = Proxy @app in controllers))) notFoundAction
+frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
 
 {-# INLINE mountFrontController #-}
-mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => Parser (IO ResponseReceived)
-mountFrontController = choice (map (\r -> r <* endOfInput) (let ?application = Proxy @frontController in controllers))
+mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?application :: frontController, ?requestContext :: RequestContext, FrontController frontController) => Parser (IO ResponseReceived)
+mountFrontController = choice (map (\r -> r <* endOfInput) controllers)
 
 {-# INLINE parseRoute #-}
-parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: Proxy application) => Parser (IO ResponseReceived)
+parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application) => Parser (IO ResponseReceived)
 parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
 
 {-# INLINE catchAll #-}
-catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: Proxy application) => action -> Parser (IO ResponseReceived)
+catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application) => action -> Parser (IO ResponseReceived)
 catchAll action = do
     string (actionPrefix @action)
     _ <- takeByteString
