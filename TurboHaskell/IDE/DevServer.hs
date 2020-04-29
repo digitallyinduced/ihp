@@ -23,7 +23,7 @@ main = do
     appStateRef <- newIORef emptyAppState
     portConfig <- findAvailablePortConfig
     putStrLn $ tshow $ portConfig
-    let ?context = Context { actionVar, portConfig }
+    let ?context = Context { actionVar, portConfig, appStateRef }
 
     threadId <- myThreadId
     let catchHandler = do
