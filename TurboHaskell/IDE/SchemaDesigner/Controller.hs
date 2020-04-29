@@ -88,7 +88,7 @@ instance Controller SchemaDesignerController where
         let enumName = param "enumName"
         let enum = findEnumByName enumName statements
         let values = maybe [] (get #values) enum
-        let value = values !! valueId
+        let value = removeQuotes (cs (values !! valueId))
         render EditEnumValueView { .. }
 
     action UpdateEnumValueAction = do
@@ -102,7 +102,7 @@ instance Controller SchemaDesignerController where
         when (newValue == "") do
             setSuccessMessage ("Column Name can not be empty")
             redirectTo ShowEnumAction { enumName }
-        updateSchema (map (updateValueInEnum enumName value valueId))
+        updateSchema (map (updateValueInEnum enumName newValue valueId))
         redirectTo ShowEnumAction { .. }
 
     action DeleteEnumValueAction { .. } = do
@@ -221,7 +221,7 @@ deleteColumnInTable tableName columnId statement = statement
 
 updateValueInEnum :: Text -> Text -> Int -> Statement -> Statement
 updateValueInEnum enumName value valueId (table@CreateEnumType { name, values }) | name == enumName =
-    table { values = (replace valueId value values) }
+    table { values = (replace valueId ("'" <> value <> "'") values) }
 updateValueInEnum enumName value valueId statement = statement
 
 deleteValueInEnum :: Text -> Int -> Statement -> Statement
@@ -248,3 +248,6 @@ getDefaultValue columnType value custom = case value of
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
     _ -> Nothing
+
+removeQuotes :: [Char] -> Text
+removeQuotes (x:xs) = cs (init xs)
