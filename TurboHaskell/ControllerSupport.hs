@@ -59,10 +59,10 @@ runAction controller = do
     (((beforeAction >> action controller >> ErrorController.handleNoResponseReturned controller) `Exception.catch` handleResponseException) `Exception.catch` handlePatternMatchFailure) `Exception.catch` handleGenericException
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    context <- initContext @application TypeMap.empty
+    context <- initContext @application (TypeMap.empty |> TypeMap.insert ?application)
     let ?controllerContext = ControllerContext context
     runAction controller
 

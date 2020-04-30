@@ -6,6 +6,7 @@ import qualified TurboHaskell.ControllerSupport as ControllerSupport
 import qualified TurboHaskell.ViewSupport as ViewSupport
 import TurboHaskell.FrameworkConfig
 import TurboHaskell.Environment
+import qualified TurboHaskell.IDE.Types as DevServer
 
 data ViewContext = ViewContext
     { requestContext :: ControllerSupport.RequestContext
@@ -15,7 +16,7 @@ data ViewContext = ViewContext
     }
 
 
-data ToolServerApplication = ToolServerApplication deriving (Eq, Show)
+data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context } deriving (Eq)
 
 data SchemaDesignerController
     = TablesAction
@@ -39,6 +40,11 @@ data SchemaDesignerController
     | UpdateEnumValueAction
     | DeleteEnumValueAction { enumName :: Text, valueId :: Int }
     | DeleteColumnAction { tableName :: Text, columnId :: Int }
+    deriving (Eq, Show, Data)
+
+data LogsController
+    = AppLogsAction
+    | PostgresLogsAction
     deriving (Eq, Show, Data)
 
 instance FrameworkConfig where 

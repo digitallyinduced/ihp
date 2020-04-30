@@ -45,7 +45,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {navItem "DATA" tableIcon "#"}
         {navItem "REPL" terminalIcon "#"}
         {navItem "CODEGEN" copyIcon "#"}
-        {navItem "LOGS" serverIcon "#"}
+        {navItem "LOGS" serverIcon (pathTo AppLogsAction)}
         {navItem "LINT" flagIcon "#"}
         {navItem "DEPLOY" globeIcon "#"}
         {navItem "DOCU" bookIcon "https://turbohaskell.digitallyinduced.com/getting-started.html"}

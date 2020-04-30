@@ -82,7 +82,11 @@ notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, stand
                 ErrorOutput line -> "stderr" <> line
         async (notifyOutput clients payload)
         pure ()
-    
+notifyBrowserOnApplicationOutput StatusServerPaused { serverRef, clients, standardOutput, errorOutput } line = do
+    case line of
+        StandardOutput line -> modifyIORef standardOutput (\o -> o <> "\n" <> line)
+        ErrorOutput line -> modifyIORef errorOutput (\o -> o <> "\n" <> line)
+    pure ()
 notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
 
 renderErrorView :: ByteString -> ByteString -> Bool -> Html5.Html

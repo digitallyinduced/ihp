@@ -833,11 +833,145 @@ Of course now we also have to pass the `postId` to that view.
 
 ### Login & Logout
 
-# QueryBuilder Reference
+# Debuging
+
+TODO: Show example using traceShowId
+
+# Architecture
+
+This section tries to answer common questions on where to place your code. These are recommendations found by digitally induced to be working well.
+
+In general remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.
+
+##### Where to place a function I want to use in all my views?
+
+If the function is only used in a single application and is a building block for your layout, place it in `Web/View/Layout.hs`. The module is already imported in all your views (just don't forget to add the function to the export list).
+
+If the function is used across multiple applications or more like a helper function, place it in `Application/Helper/View.hs`. This module is also already included in your view files.
+
+##### Where to place a function I want to use in all my controllers?
+
+Place it in `Application/Helper/Controller.hs`. This module is already imported into your controllers.
+
+##### Where to place a custom type?
+
+Place it in `Web/Types.hs`.
+
+##### Next to my main web application, I'm building an admin backend application. Where to place it?
+
+A TurboHaskell project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
+
+##### How to structure my CSS?
+
+CSS files, as all your other static assets, should be place in the `static` directory.
+
+Create an `static/app.css`. In there use CSS imports to import your other stylesheets. An example `app.css` could look like this:
+
+```css
+@import "/layout.css";
+@import "/widget.css";
+@import "/form.css";
+@import "/button.css";
+@import "/users.css";
+```
+
+In your `Web.View.Layout` just import the `app.css`:
+
+```html
+<link rel="stylesheet" href="/app.css"/>
+```
+
+###### Page-specific CSS rules
+
+Place page-specific CSS used by e.g. views of the `Web.Controller.Users` controller in the `users.css`. Use [currentViewId](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ViewSupport.html#v:currentViewId) to scope your css rules to the view.
+
+Given the view:
+
+```haskell
+module Web.View.Projects.Show where
+
+render = [hsx|
+    <div id={currentViewId}>
+        <h1>Hello World!</h1>
+    </div>
+|]
+```
+
+This will render like
+
+```html
+<div id="projects-show">
+    <h1>Hello World!</h1>
+</div>`
+```
+
+So in your `projects.css` you can just do rules like 
+
+```css
+#projects-show h1 { color: blue; }
+```
+
+###### SASS & Webpack
+
+We discourage the use of tools like SASS or webpack because they have to much overhead.
+
+###### Library CSS
+
+CSS files from external libraries or components should be placed in `static/vendor/`.
+
+##### How to structure my Javascript Code?
+
+JS files, as all your other static assets, should be place in the `static` directory.
+
+In general we follow an approach where most of the business logic resides on the haskell server. Only for small interactions we try to use a small isolated bit of javascript.
+
+Your global, non-page specific, javascript code can be placed in `app.js`.
+
+E.g. the `app.js` could look like this:
+
+```javascript
+$(function () {
+    initNavbarEffects();
+});
+
+function initNavbarEffects() {
+    // ...
+}
+```
+
+In your `Web.View.Layout` just import the `app.js`:
+
+```html
+<script src="/app.js"></script>
+```
+
+###### Page-specific JS
+
+Place page-specific JS used by e.g. views of the `Web.Controller.Users` controller in the `users.js`.
+
+In the views, just import the javascript with `<script src="/users.js"></script>`.
+
+###### Webpack
+
+We discourage the use of webpack or any other bundler because they have to much overhead. Of course this advice only applies if you follow the approach to use as few javascript as possible.
+
+###### Library JS
+
+JS files from external libraries or components should be placed in `static/vendor/`. For simplicity it might make sense to just download the javascript bundle of the library you want to use, and then just commit it into git instead of using NPM.
+
+For more complex use-cases with lots of javascript, you should not follow this advice and just use NPM instead.
+
+##### Where to place static images?
+
+Place your images in the `static` folder. We recommend to use SVG images.
+
+# Reference
+
+## QueryBuilder Reference
 
 You can compose database queries using the QueryBuilder module.
 
-## Creating a new query
+### Creating a new query
 To query the database for some records, you first need to build a query.
 You can just use the `query` function for that.
 
@@ -851,11 +985,11 @@ You can optionally specify the model you want to query:
 let myProjectQueryBuilder = query @Project
 ```
 
-## Running a query
+### Running a query
 
 You can run a query using `fetch`, `fetchOneOrNothing` or `fetchOne`:
 
-### many rows: `fetch`
+#### many rows: `fetch`
 To run a query which will return many rows use `fetch`:
 ```haskell
 example :: IO [Project]
@@ -865,7 +999,7 @@ example = do
     return projects
 ```
 
-### maybe single row: `fetchOneOrNothing`
+#### maybe single row: `fetchOneOrNothing`
 To run a query which will maybe return a single row use `fetchOneOrNothing`:
 ```haskell
 example :: IO (Maybe Project)
@@ -875,7 +1009,7 @@ example = do
     return project
 ```
 
-### single row: `fetchOne`
+#### single row: `fetchOne`
 To run a query which will return a single and **throws an error if no record is found** row use `fetchOne`:
 ```haskell
 example :: IO Project
@@ -885,7 +1019,7 @@ example = do
     return project
 ```
 
-## Where Conditions
+### Where Conditions
 
 To specify `WHERE` conditions, you can use `filterWhere`:
 
@@ -900,7 +1034,7 @@ projectsByUser userId = do
     return projects
 ```
 
-## Order By
+### Order By
 
 You can just use `orderBy #field`:
 ```haskell
@@ -910,7 +1044,7 @@ projects <- query @Project
 -- Query: `SELECT * FROM projects ORDER BY created_at`
 ```
 
-## Or
+### Or
 
 ```haskell
 projects <- query @Project
@@ -920,7 +1054,7 @@ projects <- query @Project
 -- Query: `SELECT * FROM projects WHERE (user_id = ?) OR (team_id = ?)`
 ```
 
-## Union / Merging two queries
+### Union / Merging two queries
 
 Two query builders of the same type can be merged like this:
 
@@ -935,8 +1069,8 @@ let personalProjects :: QueryBuilder Project = query @Project |> filterWhere (#t
 let projects :: QueryBuilder Project = queryUnion teamProjects personalProjects
 ```
 
-## Shortcuts
-### `findBy #field value`
+### Shortcuts
+#### `findBy #field value`
 Just a shortcut for `filterWhere (#field, value) |> fetchOne`
 
 ```haskell
@@ -946,7 +1080,7 @@ project <- query @Project |> filterWhere (#userId, userId) |> fetchOne
 project <- query @Project |> findBy #userId userId
 ```
 
-### `findMaybeBy #field value`
+#### `findMaybeBy #field value`
 Just a shortcut for `filterWhere (#field, value) |> fetchOneOrNothing`
 
 ```haskell
@@ -956,7 +1090,7 @@ project <- query @Project |> filterWhere (#userId, userId) |> fetchOneOrNothing
 project <- query @Project |> findMaybeBy #userId userId
 ```
 
-### `findById id`
+#### `findById id`
 Just a shortcut for `filterWhere (#id, id) |> fetchOne`
 
 ```haskell
@@ -966,7 +1100,7 @@ project <- query @Project |> filterWhere (#id, id) |> fetchOne
 project <- query @Project |> findOneById #id id
 ```
 
-### `findManyBy #field value`
+#### `findManyBy #field value`
 Just a shortcut for `filterWhere (#field, value) |> fetch`
 
 ```haskell
@@ -976,7 +1110,7 @@ projects <- query @Project |> filterWhere (#userId, userId) |> fetch
 projects <- query @Project |> findManyBy #userId userId
 ```
 
-## `projectId |> fetch`
+### `projectId |> fetch`
 Ids also have `fetch` implementations, that way you can just run:
 
 ```haskell
@@ -991,14 +1125,14 @@ let assignedUserId :: Maybe UserId = project |> get #assignedUserId
 assignedUser <- assignedUserId |> fetchOneOrNothing
 ```
 
-## Raw SQL Queries
+### Raw SQL Queries
 ```haskell
 result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
-# Validation Reference
+## Validation Reference
 
-## Pure Validations
+### Pure Validations
 
 With `validateField` you can do simple, pure validations.
 
@@ -1014,7 +1148,7 @@ instance ValidateRecord NewPost ControllerContext where
         let isAge = isInRange (0, 100) in validateField #age isAge
 ````
 
-### Custom Validators
+#### Custom Validators
 
 If needed you can just write your own constraint, e.g. like this:
 
@@ -1027,7 +1161,7 @@ isAge :: Int -> ValidatorResult
 isAge = isInRange (0, 100)
 ```
 
-## Uniqueness
+### Uniqueness
 
 The function `validateIsUnique` is usually used to make sure that e.g. a user's email is unique. Of course it will also work with other model fields.
 
@@ -1037,7 +1171,7 @@ instance ValidateRecord NewPost ControllerContext where
         validateIsUnique #email
 ````
 
-## Validate Permissions
+### Validate Permissions
 
 ```haskell
 instance ValidateRecord NewPost ControllerContext where
@@ -1045,23 +1179,23 @@ instance ValidateRecord NewPost ControllerContext where
         validateCanView currentUser
 ````
 
-# View Helper Reference
+## View Helper Reference
 
-## Time
+### Time
 
-### `timeAgo`
+#### `timeAgo`
 
 ```haskell
 timeAgo (get #createdAt post) -- "1 minute ago"
 ```
 
-### `dateTime`
+#### `dateTime`
 
 ```haskell
 dateTime (get #createdAt post) -- "10.6.2019, 15:58 Uhr"
 ```
 
-# Command Line Reference
+## Command Line Reference
 | Command                                 | Description                                                             |
 |-----------------------------------------|-------------------------------------------------------------------------|
 | make                                    | Starts the dev server                                                   |
@@ -1078,9 +1212,9 @@ dateTime (get #createdAt post) -- "10.6.2019, 15:58 Uhr"
 | make static/prod.css                    | Builds the production css bundle                                        |
 
 
-# Form Reference
+## Form Reference
 
-## Select Inputs
+### Select Inputs
 
 You can use the `selectField` helper for select inputs:
 
@@ -1113,33 +1247,7 @@ Given the above example, the rendered form will look like this:
 </form>
 ```
 
-# Debuging
 
-TODO: Show example using traceShowId
-
-# Architecture
-
-This section tries to answer common questions on where to place your code.
-
-In general remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.
-
-##### Where to place a function I want to use in all my views?
-
-If the function is only used in a single application and is a building block for your layout, place it in `Web/View/Layout.hs`. The module is already imported in all your views (just don't forget to add the function to the export list).
-
-If the function is used across multiple applications or more like a helper function, place it in `Application/Helper/View.hs`. This module is also already included in your view files.
-
-##### Where to place a function I want to use in all my controllers?
-
-Place it in `Application/Helper/Controller.hs`. This module is already imported into your controllers.
-
-##### Where to place a custom type?
-
-Place it in `Web/Types.hs`.
-
-##### Next to my main web application, I'm building an admin backend application. Where to place it?
-
-A TurboHaskell project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
 
 # Recipes
 
@@ -1257,3 +1365,32 @@ If running, stop your development server. Now run `make` again. This will instal
 When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
 
 You can look up the package name for the software you dependend on inside the nixpkgs repository. [Just open it on GitHub](https://github.com/NixOS/nixpkgs) and use the GitHub search to look up the package name.
+
+## Uploading a user profile picture
+
+You can easily upload a user profile pictures using `uploadImageWithOptions` inside your `UpdateUserAction`:
+
+```haskell
+action UpdateUserAction { userId } = do
+    user <- fetch userId
+    accessDeniedUnless (userId == currentUserId)
+
+    let profilePictureOptions = ImageUploadOptions
+            { convertTo = "jpg"
+            , imageMagickOptions = "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip"
+            }
+
+    user
+        |> fill @["firstname", "lastname", "pictureUrl"]
+        |> uploadImageWithOptions profilePictureOptions #pictureUrl
+        >>= ifValid \case
+            Left user -> render EditView { .. }
+            Right user -> do
+                user <- user |> updateRecord
+                setSuccessMessage "Deine Änderungen wurden gespeichert."
+                redirectTo EditUserAction { .. }
+```
+
+This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
+
+In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.

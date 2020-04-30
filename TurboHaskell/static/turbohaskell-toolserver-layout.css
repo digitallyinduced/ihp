@@ -84,7 +84,7 @@ body {
 #content {
     width: 100%;
     height: 100%;
-    margin-top: 80px;
+    overflow: scroll;
 }
 
 /* Context Menu */
@@ -124,3 +124,4 @@ body {
     border-style: none none solid none;
     border: 1px solid #e3e3e3;
 }
+
