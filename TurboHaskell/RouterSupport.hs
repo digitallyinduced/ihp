@@ -331,8 +331,8 @@ frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, 
 frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
 
 {-# INLINE mountFrontController #-}
-mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?application :: frontController, ?requestContext :: RequestContext, FrontController frontController) => Parser (IO ResponseReceived)
-mountFrontController = choice (map (\r -> r <* endOfInput) controllers)
+mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
+mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
 
 {-# INLINE parseRoute #-}
 parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application) => Parser (IO ResponseReceived)
