@@ -22,7 +22,8 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , SetField "meta" model MetaBag
         , HasField "id" savedModel savedModelId
         , HasField "id" model modelId
-        , EqId modelId savedModelId
+        , savedModelId ~ modelId
+        , Eq modelId
     ) => Proxy field -> model -> IO model
 validateIsUnique fieldProxy model = do
     let value = getField @field model
@@ -30,14 +31,5 @@ validateIsUnique fieldProxy model = do
         |> filterWhere (fieldProxy, value)
         |> fetchOneOrNothing
     case result of
-        Just value | not $ eqId (getField @"id" model) (getField @"id" value) -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
+        Just value | not $ (getField @"id" model) == (getField @"id" value) -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
         _ -> pure (attachValidatorResult fieldProxy Success model)
-
-class EqId a b where
-    eqId :: a -> b -> Bool
-
-instance {-# OVERLAPS #-} EqId (FieldWithDefault a) b where
-    eqId _ _ = False
-
-instance {-# OVERLAPPABLE #-} (a ~ b, Eq a) => EqId a b where
-    eqId = (==)

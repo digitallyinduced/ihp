@@ -160,7 +160,8 @@ emptyAppState = AppState
 data Context = Context
     { actionVar :: MVar Action
     , portConfig :: PortConfig
-    }
+    , appStateRef :: IORef AppState
+    } deriving (Eq)
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar

@@ -23,7 +23,7 @@ main = do
     appStateRef <- newIORef emptyAppState
     portConfig <- findAvailablePortConfig
     putStrLn $ tshow $ portConfig
-    let ?context = Context { actionVar, portConfig }
+    let ?context = Context { actionVar, portConfig, appStateRef }
 
     threadId <- myThreadId
     let catchHandler = do
@@ -278,18 +278,24 @@ startAppGHCI = do
     let ManagedProcess { outputHandle, errorHandle } = process
 
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
-                if "Server started" `isSuffixOf` line
+                if "Server started" `isInfixOf` line
                     then dispatch AppStarted
-                    else if "Ok," `isPrefixOf` line
+                    else if "modules loaded." `isInfixOf` line
                         then do
                             writeIORef needsErrorRecovery False
                             dispatch AppModulesLoaded { success = True }
-                        else if "Failed," `isPrefixOf` line
+                        else if "Failed," `isInfixOf` line
                             then do
                                 writeIORef needsErrorRecovery True
                                 dispatch AppModulesLoaded { success = False }
                             else dispatch ReceiveAppOutput { line = StandardOutput line }
-    async $ forever $ ByteString.hGetLine errorHandle >>= \line -> dispatch ReceiveAppOutput { line = ErrorOutput line }
+
+    async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
+        if "cannot find object file for module" `isInfixOf` line
+            then do
+                sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/loadAppModules"
+                dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
+            else dispatch ReceiveAppOutput { line = ErrorOutput line }
 
     sendGhciCommand process ":script TurboHaskell/TurboHaskell/IDE/loadAppModules"
 

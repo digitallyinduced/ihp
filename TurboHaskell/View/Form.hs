@@ -44,7 +44,7 @@ import Data.Dynamic
 import Data.Maybe (fromJust)
 import TurboHaskell.Controller.RequestContext
 import TurboHaskell.RouterSupport
-import TurboHaskell.ModelSupport (getModelName, GetModelName, Id', FieldWithDefault, NormalizeModel, MetaBag)
+import TurboHaskell.ModelSupport (getModelName, GetModelName, Id', NormalizeModel, MetaBag)
 import GHC.Records
 
 
@@ -70,15 +70,8 @@ instance (
     modelFormAction formObject = modelFormActionTopLevelResource (Proxy @controller) (getField @"id" formObject)
 
 
-class ModelFormActionTopLevelResource controller id where
+class (Default id, Eq id) => ModelFormActionTopLevelResource controller id where
     modelFormActionTopLevelResource :: Proxy controller -> id -> Text
-
-instance (
-        HasPath controller
-        , AutoRoute controller
-        ) => ModelFormActionTopLevelResource controller (FieldWithDefault id') where
-    {-# INLINE modelFormActionTopLevelResource #-}
-    modelFormActionTopLevelResource _ _ = pathTo (fromJust (createAction @controller))
 
 instance (
         HasPath controller
@@ -86,7 +79,9 @@ instance (
         , HasPath controller
         ) => ModelFormActionTopLevelResource controller (Id' (table :: Symbol)) where
     {-# INLINE modelFormActionTopLevelResource #-}
-    modelFormActionTopLevelResource _ id = pathTo (fromJust (updateAction @controller) id)
+    modelFormActionTopLevelResource _ id = if id == def
+        then pathTo (fromJust (createAction @controller))
+        else pathTo (fromJust (updateAction @controller) id)
 
 
 -- modelFormAction (newUser :: New User)
@@ -138,12 +133,13 @@ formFor :: forall model viewContext parent id formObject application. (
         , Typeable model
         , ModelFormAction application formObject
         , HasField "id" model id
-        , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
         , HasPath (ModelControllerMap application (NormalizeFormObject formObject))
         , application ~ ViewApp viewContext
         , HasField "meta" model MetaBag
+        , Default id
+        , Eq id
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor formObject = buildForm (createFormContext formObject)
 
@@ -155,12 +151,13 @@ formFor' :: forall model viewContext parent id formObject application. (
         , Typeable model
         , ModelFormAction application formObject
         , HasField "id" model id
-        , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
         , HasPath (ModelControllerMap application (NormalizeFormObject formObject))
         , application ~ ViewApp viewContext
         , HasField "meta" model MetaBag
+        , Default id
+        , Eq id
         ) => formObject -> Text -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 formFor' formObject action = buildForm (createFormContext formObject) { formAction = action }
 
@@ -172,12 +169,13 @@ horizontalFormFor :: forall model viewContext parent id formObject application. 
         , Typeable model
         , ModelFormAction application formObject
         , HasField "id" model id
-        , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
         , HasPath (ModelControllerMap application formObject)
         , application ~ ViewApp viewContext
         , HasField "meta" model MetaBag
+        , Default id
+        , Eq id
         ) => formObject -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 horizontalFormFor formObject = buildForm (createFormContext formObject)
         { renderFormField = renderHorizontalBootstrapFormField
@@ -192,7 +190,6 @@ createFormContext :: forall model viewContext parent id formObject application. 
         , Typeable model
         , ModelFormAction application formObject
         , HasField "id" model id
-        , TurboHaskell.ModelSupport.IsNewId id
         , FormObject formObject
         , model ~ FormObjectModel formObject
         , application ~ ViewApp viewContext
@@ -239,7 +236,7 @@ findValidatorResult model = getField @"annotations" (getField @"meta" model :: M
 
 
 {-# INLINE buildForm #-}
-buildForm :: forall model viewContext parent id. (?viewContext :: viewContext) => (HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id) => FormContext model -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+buildForm :: forall model viewContext parent id. (?viewContext :: viewContext, HasField "id" model id, Default id, Eq id) => FormContext model -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 buildForm formContext inner =
     let
         theModel = model formContext
@@ -252,7 +249,7 @@ buildForm formContext inner =
             let ?formContext = formContext in inner
 
 {-# INLINE submitButton #-}
-submitButton :: forall model id. (?formContext :: FormContext model, HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id, KnownSymbol (GetModelName model)) => SubmitButton
+submitButton :: forall model id. (?formContext :: FormContext model, HasField "id" model id, KnownSymbol (GetModelName model), Eq id, Default id) => SubmitButton
 submitButton =
     let
         modelName = TurboHaskell.ModelSupport.getModelName @model
@@ -389,11 +386,12 @@ data TextFieldTag
 
 instance (
         KnownSymbol symbol
-        , HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id
-        --, TurboHaskell.ModelSupport.HasModelName model
+        , HasField "id" model id
         , HasField symbol model value
         , TurboHaskell.ModelSupport.InputValue value
         , KnownSymbol (GetModelName model)
+        , Default id
+        , Eq id
     ) => IsLabel symbol ((FormContext model, Proxy TextFieldTag) -> FormField) where
     {-# INLINE fromLabel #-}
     fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
@@ -418,9 +416,11 @@ instance (
 
 instance (
         KnownSymbol symbol
-        , HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id
+        , HasField "id" model id
         , HasField symbol model Bool
         , KnownSymbol (GetModelName model)
+        , Default id
+        , Eq id
     ) => IsLabel symbol ((FormContext model, Proxy Bool) -> FormField) where
     {-# INLINE fromLabel #-}
     fromLabel = \(formContext, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {
@@ -445,11 +445,13 @@ instance (
 
 instance (
         KnownSymbol symbol
-        , HasField "id" model id, TurboHaskell.ModelSupport.IsNewId id
+        , HasField "id" model id
         , HasField symbol model (SelectValue item)
         , CanSelect item
         , TurboHaskell.ModelSupport.InputValue (SelectValue item)
         , (KnownSymbol (GetModelName model))
+        , Default id
+        , Eq id
     ) => IsLabel symbol ((FormContext model, [item], Proxy value) -> FormField) where
     {-# INLINE fromLabel #-}
     fromLabel = \(formContext, items, _) -> let fieldName = symbolVal (Proxy @symbol) in FormField {

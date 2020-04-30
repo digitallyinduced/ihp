@@ -30,8 +30,13 @@ import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static
 import Unsafe.Coerce
 import Network.Wai.Session (withSession, Session)
+
 import TurboHaskell.IDE.SchemaDesigner.Types
 import TurboHaskell.IDE.SchemaDesigner.Controller
+
+import TurboHaskell.IDE.Logs.Controller
+
+
 import TurboHaskell.IDE.ToolServer.Types
 import Control.Concurrent.Async
 import TurboHaskell.IDE.ToolServer.Routes
@@ -57,11 +62,12 @@ startToolServer' port = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (def { Web.Cookie.setCookiePath = Just "/", Web.Cookie.setCookieMaxAge = Just ((unsafeCoerce (Data.Time.Clock.secondsToDiffTime 60 * 60 * 24 * 30))) }) session
     let applicationContext = ApplicationContext { modelContext = (ModelContext (error "Not connected")), session }
+    let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?requestContext = requestContext
-            frontControllerToWAIApp @ToolServerApplication ErrorController.handleNotFound
+            frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
             
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase "TurboHaskell/TurboHaskell/static/")
 
@@ -81,6 +87,7 @@ openUrl url = do
 instance FrontController ToolServerApplication where
     controllers =
         [ parseRoute @SchemaDesignerController
+        , parseRoute @LogsController
         , catchAll TablesAction
         ]
 

@@ -227,10 +227,6 @@ instance {-# OVERLAPS #-} FromParameter (ModelSupport.Id' model') where
             Right uuid -> pure (ModelSupport.Id uuid)
             Left error -> Left error
 
-instance FromParameter param => FromParameter (ModelSupport.FieldWithDefault param) where
-    {-# INLINE fromParameter #-}
-    fromParameter param = fromParameter param
-
 instance FromParameter param => FromParameter (Maybe param) where
     {-# INLINE fromParameter #-}
     fromParameter param =
@@ -315,7 +311,7 @@ ifValid branch model = branch ((if null annotations then Right else Left) model)
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model
 
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, ModelSupport.IsNewId id, HasField "id" record id, ModelSupport.IsNewId id) => (record -> record) -> record -> record
+ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, HasField "id" record id, Default id, Eq id) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 
