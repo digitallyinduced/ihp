@@ -4,6 +4,11 @@
 Module: TurboHaskell.Controller.FileUpload
 Description: Easy access to uploaded files
 Copyright: (c) digitally induced GmbH, 2020
+
+This modules provides high-level file and image upload functionality.
+
+All uploaded files are saved to the `uploads` directory. Given e.g. an User entity with @id = 550e8400-e29b-11d4-a716-446655440000@, the file is saved to @\/uploads\/users\/550e8400-e29b-11d4-a716-446655440000\/picture.jpg@. If the directory does not exists, it will be created.
+
 -}
 module TurboHaskell.Controller.FileUpload where
 
@@ -17,23 +22,50 @@ import TurboHaskell.Controller.RequestContext
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified System.Process as Process
 
-{-# INLINE fileOrNothing #-}
+-- | Returns a file upload from the request as a ByteString.
+--
+-- Returns `Nothing` when the file is not found in the request body.
 fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
 fileOrNothing !name = ?requestContext |> getField @"files" |> lookup name
+{-# INLINE fileOrNothing #-}
 
-data ImageUploadOptions = ImageUploadOptions { convertTo :: Text, imageMagickOptions :: Text }
-
--- | Accepts a uploaded png file
+-- | Options to be used together with 'uploadImageWithOptions'
 --
--- Example:
+-- __Example:__
+-- 
+-- > ImageUploadOptions { convertTo = "jpg", imageMagickOptions = "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip" }
+data ImageUploadOptions = ImageUploadOptions {
+    -- | The file extension to be used when saving the file, e.g. @"jpg"@ or @"png"@.
+      convertTo :: Text
+    -- | Command line options passed to imagemagick. Can used for e.g. resizing, rotating, file size reduction.
+    , imageMagickOptions :: Text
+    }
+
+-- | Saves an uploaded image file to the @uploads@ directory and writes the relative path to the given record attribute.
 --
--- > user |> uploadPng #profilePicture`
-uploadPng :: _ => Proxy fieldName -> record -> IO record
-uploadPng field record = uploadImageFile "png" field record
-
-uploadSVG :: _ => Proxy fieldName -> record -> IO record
-uploadSVG = uploadImageFile "svg"
-
+-- Given e.g. an User entity with @id = 550e8400-e29b-11d4-a716-446655440000@, the file is saved to @\/uploads\/users\/550e8400-e29b-11d4-a716-446655440000\/picture.jpg@.
+--
+-- Before saving, the image is converted using imagemagick. You can supply custom image magick options using the options attribute.
+--
+-- If the upload directory does not exists, it will be created.
+--
+-- __Example:__ Uploading a user profile picture
+--
+-- > let profilePictureOptions = ImageUploadOptions
+-- >         { convertTo = "jpg"
+-- >         , imageMagickOptions = "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip"
+-- >         }
+-- >
+-- > user
+-- >     |> fill @["firstname", "lastname", "pictureUrl"]
+-- >     |> uploadImageWithOptions profilePictureOptions #pictureUrl
+-- >     >>= ifValid \case
+-- >         Left user -> render EditView { .. }
+-- >         Right user -> do
+-- >             user <- user |> updateRecord
+-- >             redirectTo EditUserAction { .. }
+--
+-- The uploaded image path is now stored in #pictureUrl.
 uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
         ?requestContext :: RequestContext
         , ?modelContext :: ModelSupport.ModelContext
@@ -63,6 +95,28 @@ uploadImageWithOptions options _ user =
                 |> return
         _ -> pure user
 
+-- | Saves an uploaded image file to the `uploads` directory.
+--
+-- Given e.g. an User entity with @id = 550e8400-e29b-11d4-a716-446655440000@, the file is saved to @\/uploads\/users\/550e8400-e29b-11d4-a716-446655440000\/picture.jpg@.
+--
+-- No transformation or validation is applied to the given uploaded file. If you need this, take a look at 'uploadImageWithOptions'.
+--
+-- __Example:__ Uploading a user profile picture
+--
+-- > let profilePictureOptions = ImageUploadOptions
+-- >         { convertTo = "jpg"
+-- >         , imageMagickOptions = "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip"
+-- >         }
+-- >
+-- > user
+-- >     |> fill @["firstname", "lastname", "pictureUrl"]
+-- >     |> uploadImageFile "png" #pictureUrl
+-- >     >>= ifValid \case
+-- >         Left user -> render EditView { .. }
+-- >         Right user -> do
+-- >             user <- user |> updateRecord
+-- >             redirectTo EditUserAction { .. }
+--
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
         ?requestContext :: RequestContext
         , ?modelContext :: ModelSupport.ModelContext
@@ -88,3 +142,12 @@ uploadImageFile ext _ user =
                 |> return
         _ -> pure user
 
+-- | Saves an uploaded png file. No validation or transformation applied.
+-- See 'uploadImageFile' for details.
+uploadPng :: _ => Proxy fieldName -> record -> IO record
+uploadPng field record = uploadImageFile "png" field record
+
+-- | Saves an uploaded svg file. No validation or transformation applied.
+-- See 'uploadImageFile' for details.
+uploadSVG :: _ => Proxy fieldName -> record -> IO record
+uploadSVG = uploadImageFile "svg"
