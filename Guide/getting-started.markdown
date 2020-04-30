@@ -1132,52 +1132,7 @@ result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 
 ## Validation Reference
 
-### Pure Validations
-
-With `validateField` you can do simple, pure validations.
-
-
-Here are some examples:
-
-```haskell
-instance ValidateRecord NewPost ControllerContext where
-    validateRecord = do
-        validateField #title nonEmpty
-        validateField #phone isPhoneNumber
-        validateField #email isEmail
-        let isAge = isInRange (0, 100) in validateField #age isAge
-````
-
-#### Custom Validators
-
-If needed you can just write your own constraint, e.g. like this:
-
-```haskell
-nonEmpty :: Text -> ValidatorResult
-nonEmpty "" = Failure "This field cannot be empty"
-nonEmpty _ = Success
-
-isAge :: Int -> ValidatorResult
-isAge = isInRange (0, 100)
-```
-
-### Uniqueness
-
-The function `validateIsUnique` is usually used to make sure that e.g. a user's email is unique. Of course it will also work with other model fields.
-
-```haskell
-instance ValidateRecord NewPost ControllerContext where
-    validateRecord = do
-        validateIsUnique #email
-````
-
-### Validate Permissions
-
-```haskell
-instance ValidateRecord NewPost ControllerContext where
-    validateRecord = do
-        validateCanView currentUser
-````
+[See the API Documentation](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateField.html).
 
 ## View Helper Reference
 
@@ -1394,3 +1349,20 @@ action UpdateUserAction { userId } = do
 This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
 
 In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
+
+## Creating a custom validator
+
+If needed you can just write your own constraint, e.g. like this:
+
+```haskell
+nonEmpty :: Text -> ValidatorResult
+nonEmpty "" = Failure "This field cannot be empty"
+nonEmpty _ = Success
+
+isAge :: Int -> ValidatorResult
+isAge = isInRange (0, 100)
+```
+
+## Checking that an email is unique
+
+Use [`validateIsUnique`](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).
