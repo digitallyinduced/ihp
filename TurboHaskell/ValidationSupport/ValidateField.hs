@@ -3,9 +3,7 @@ Module: TurboHaskell.ValidationSupport.ValidateField
 Description: Side-effect free validations for records
 Copyright: (c) digitally induced GmbH, 2020
 
-Use 'validateField' together with the validation functions to do simple validations.
-
-In case your validation requires IO, take a look at 'TurboHaskell.ValidationSupport.ValidateFieldIO.validateFieldIO'.
+Use 'validateField' and 'validateFieldIO' together with the validation functions to do simple validations.
 
 Also take a look at 'TurboHaskell.ValidationSupport.ValidateIsUnique.validateIsUnique' for e.g. checking that an email is unique.
 -}
@@ -67,6 +65,36 @@ validateField :: forall field fieldValue validator model. (
     ) => Proxy field -> Validator fieldValue -> model -> model
 validateField field validator model = attachValidatorResult field (validator (getField @field model)) model
 {-# INLINE validateField #-}
+
+
+-- | A function taking some value and returning a 'IO ValidatorResult'
+--
+-- >>> ValidatorIO Text
+-- Text -> IO ValidatorResult
+--
+-- >>> ValidatorIO Int
+-- Int -> IO ValidatorResult
+type ValidatorIO value = value -> IO ValidatorResult
+
+-- | Validates a record field using a given validator function.
+--
+-- The same as 'validateField', but works with IO and can e.g. access the database.
+--
+-- When the validation fails, the validation error is saved inside the @meta :: MetaBag@ field of the record.
+-- You can retrieve a possible validation error using 'TurboHaskell.ValidationSupport.Types.getValidationFailure'.
+--
+validateFieldIO :: forall field model fieldValue. (
+        ?modelContext :: ModelContext
+        , KnownSymbol field
+        , HasField field model fieldValue
+        , HasField "meta" model MetaBag
+        , SetField "meta" model MetaBag
+    ) => Proxy field -> ValidatorIO fieldValue -> model -> IO model
+validateFieldIO fieldProxy customValidation model = do
+    let value :: fieldValue = getField @field model
+    result <- customValidation value
+    pure (attachValidatorResult fieldProxy result model)
+{-# INLINE validateFieldIO #-}
 
 -- | Validates value is not empty
 --

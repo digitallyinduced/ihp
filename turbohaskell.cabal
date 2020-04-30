@@ -33,7 +33,6 @@ Library TurboHaskellFramework
         , TurboHaskell.ValidationSupport.Types
         , TurboHaskell.ValidationSupport.ValidateCanView
         , TurboHaskell.ValidationSupport.ValidateField
-        , TurboHaskell.ValidationSupport.ValidateFieldIO
         , TurboHaskell.ValidationSupport.ValidateIsUnique
         , TurboHaskell.View.ConvertibleStrings
         , TurboHaskell.View.Form
