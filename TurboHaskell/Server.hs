@@ -36,7 +36,7 @@ run = do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?requestContext = requestContext
-            frontControllerToWAIApp @FrameworkConfig.RootApplication ErrorController.handleNotFound
+            frontControllerToWAIApp FrameworkConfig.RootApplication ErrorController.handleNotFound
             
     let sessionCookie = def
                 { Cookie.setCookiePath = Just "/"
