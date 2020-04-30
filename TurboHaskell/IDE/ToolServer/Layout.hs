@@ -101,25 +101,32 @@ globeIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://w
 
 contextMenus = [hsx|
 
-    <ul class="custom-menu menu-for-table" id="menu-table">
+    <ul class="custom-menu menu-for-table shadow" id="menu-table">
         <li data-action="edit-table">Edit Table</li>
         <li data-action="delete-table">Delete Table</li>
+        <div></div>
+        <li data-action="add-to-table">Add Column to Table</li>
+        <div></div>
         <li data-action="add-table">Add Table</li>
         <li data-action="add-enum">Add Enum</li>
-        <li data-action="add-to-table">Add Column to Table</li>
+        
     </ul>
-    <ul class="custom-menu menu-for-column" id="menu-column">
+    <ul class="custom-menu menu-for-column shadow" id="menu-column">
         <li data-action="edit-column">Edit Column</li>
         <li data-action="delete-column">Delete Column</li>
-        <li data-action="add-column">Add Column</li>
+        <div></div>
         <li data-action="make-unique">Make Unique</li>
+        <div></div>
+        <li data-action="add-column">Add Column</li>
     </ul>
-    <ul class="custom-menu menu-for-enum" id="menu-enum">
+    <ul class="custom-menu menu-for-enum shadow" id="menu-enum">
         <li data-action="edit-enum">Edit Enum</li>
         <li data-action="delete-enum">Delete Enum</li>
+        <div></div>
+        <li data-action="add-to-enum">Add Value to Enum</li>
+        <div></div>
         <li data-action="add-table">Add Table</li>
         <li data-action="add-enum">Add Enum</li>
-        <li data-action="add-to-enum">Add Value to Enum</li>
     </ul>
     
 |]
