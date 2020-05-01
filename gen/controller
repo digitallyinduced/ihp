@@ -18,7 +18,7 @@ trap "rm $GHCI_SCRIPT" EXIT
 echo ":script $FRAMEWORKDIR/TurboHaskell/IDE/applicationGhciConfig" > "$GHCI_SCRIPT"
 
 if [ -d TurboHaskell ]; then
-	echo ":l TurboHaskell/TurboHaskell/ControllerGenerator.hs Application/Schema.hs" >> "$GHCI_SCRIPT"
+	echo ":l TurboHaskell/TurboHaskell/ControllerGenerator.hs" >> "$GHCI_SCRIPT"
 else
 	echo "import TurboHaskell.ControllerGenerator" >> "$GHCI_SCRIPT"
 	echo ":l Application/Schema.hs" >> "$GHCI_SCRIPT"

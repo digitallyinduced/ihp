@@ -8,11 +8,8 @@ import qualified System.Directory as Directory
 import qualified Data.Set
 import Data.List ((!!), (\\))
 import Data.List.Split
-import qualified TurboHaskell.SqlCompiler
 import TurboHaskell.HaskellSupport
 import qualified Text.Countable as Countable
-
-
 import qualified TurboHaskell.IDE.SchemaDesigner.Parser as SchemaDesigner
 import TurboHaskell.IDE.SchemaDesigner.Types
 
@@ -25,7 +22,6 @@ compile = do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             writeIfDifferent typesFilePath (compileTypes options (Schema statements))
-            -- TurboHaskell.SqlCompiler.main database
 
 typesFilePath :: FilePath
 typesFilePath = "build/Generated/Types.hs"

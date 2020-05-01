@@ -21,7 +21,7 @@ trap "rm $GHCI_SCRIPT" EXIT
 echo ":script $FRAMEWORKDIR/TurboHaskell/IDE/applicationGhciConfig" > "$GHCI_SCRIPT"
 
 if [ -d TurboHaskell ]; then
-    echo ":l TurboHaskell/TurboHaskell/TaskSupport.hs Application/Schema.hs $TASK_PATH" >> "$GHCI_SCRIPT"
+    echo ":l TurboHaskell/TurboHaskell/TaskSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"
 else
     echo "import TurboHaskell.TaskSupport" >> "$GHCI_SCRIPT"
 fi

@@ -51,18 +51,14 @@ Library TurboHaskellFramework
         , TurboHaskell.QueryBuilder
         , TurboHaskell.RouterPrelude
         , TurboHaskell.SchemaCompiler
-        , TurboHaskell.SchemaSupport
         , TurboHaskell.Server
-        , TurboHaskell.SqlCompiler
         , TurboHaskell.ValidationSupport
         , TurboHaskell.ViewErrorMessages
         , TurboHaskell.ViewPrelude
         , TurboHaskell.ViewSupport
         , TurboHaskell.RouterSupport
         , TurboHaskell.ControllerGenerator
-        , TurboHaskell.SchemaTypes
         , TurboHaskell.Prelude
-        , TurboHaskell.SchemaPrelude
         , TurboHaskell.ErrorController
         , TurboHaskell.TaskSupport
     build-depends:
@@ -147,6 +143,7 @@ Library TurboHaskellFramework
         , FunctionalDependencies
         , PartialTypeSignatures
         , BlockArguments
+        , LambdaCase
     Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200
 
 
@@ -245,6 +242,95 @@ Executable RunDevServer
 
 Executable new-application
     Main-is: TurboHaskell/ApplicationGenerator.hs
+    build-depends:
+        base
+        , classy-prelude
+        , directory
+        , string-conversions
+        , warp
+        , wai
+        , mtl
+        , blaze-html
+        , blaze-markup
+        , wai-extra
+        , wai
+        , http-types
+        , inflections
+        , text
+        , postgresql-simple
+        , wai-middleware-static
+        , wai-util
+        , http-client
+        , bytestring
+        , network-uri
+        , aeson
+        , wai-session
+        , wai-session-clientsession
+        , clientsession
+        , pwstore-fast
+        , vault
+        , data-default
+        , random-strings
+        , uuid
+        , time
+        , parsec
+        , attoparsec
+        , ghc-prim
+        , case-insensitive
+        , haskell-src-meta
+        , template-haskell
+        , haskell-src-exts
+        , interpolate
+        , split
+        , containers
+        , http-media
+        , cookie
+        , process
+        , newtype-generics
+        , countable-inflections
+        , typerep-map
+        , basic-prelude
+        , megaparsec
+        , async
+    hs-source-dirs: .
+    default-language: Haskell2010
+    extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , LambdaCase
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+    Ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 "-with-rtsopts=-A512m -n4m"
+
+
+
+Executable build-generated-code
+    Main-is: TurboHaskell/CLI/BuildGeneratedCode.hs
     build-depends:
         base
         , classy-prelude
