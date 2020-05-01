@@ -10,6 +10,8 @@ import TurboHaskell.IDE.SchemaDesigner.View.Layout
 data ShowView = ShowView
     { statements :: [Statement]
     , name :: Text
+    , generatedHaskellCode :: Text
+    , table :: Statement
     }
 
 instance View ShowView ViewContext where
@@ -22,8 +24,9 @@ instance View ShowView ViewContext where
                 {renderObjectSelector (zip [0..] statements) (Just name)}
                 {renderColumnSelector name (zip [0..] columns)}
             </div>
+
+            <pre class="generated-haskell-code"><code>{generatedHaskellCode}</code></pre>
         </div>
     |]
         where
-            table = findTableByName name statements
-            columns = maybe [] (get #columns) table
+            columns = get #columns table

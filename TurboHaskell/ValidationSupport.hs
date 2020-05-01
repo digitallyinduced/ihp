@@ -7,7 +7,6 @@ module TurboHaskell.ValidationSupport
 , module TurboHaskell.ValidationSupport.ValidateCanView
 , module TurboHaskell.ValidationSupport.ValidateField
 , module TurboHaskell.ValidationSupport.ValidateIsUnique
-, module TurboHaskell.ValidationSupport.ValidateFieldIO
 )
 where
 
@@ -16,5 +15,4 @@ import TurboHaskell.ValidationSupport.Types
 import TurboHaskell.ValidationSupport.ValidateCanView
 import TurboHaskell.ValidationSupport.ValidateIsUnique
 import TurboHaskell.ValidationSupport.ValidateField
-import TurboHaskell.ValidationSupport.ValidateFieldIO
 

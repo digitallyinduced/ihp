@@ -7,7 +7,23 @@ import TurboHaskell.ValidationSupport.Types
 import TurboHaskell.HaskellSupport
 import TurboHaskell.QueryBuilder
 
-{-# INLINE validateIsUnique #-}
+-- | Validates that e.g. an email (or another field) is unique across all users before inserting.
+--
+-- This validator reads the given field name (e.g. email) from the record, and runs a database query
+-- to check that there is no other record using the same field value (e.g. email value).
+--
+-- __Example:__ Validate that an email is unique
+--
+-- > action CreateUserAction = do
+-- >     let user = newRecord @NewUser
+-- >     user
+-- >         |> fill @'["email"]
+-- >         |> validateIsUnique #email
+-- >         >>= ifValid \case
+-- >             Left user -> render NewView { .. } 
+-- >             Right user -> do
+-- >                 createRecord user
+-- >                 redirectTo UsersAction
 validateIsUnique :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
@@ -33,3 +49,4 @@ validateIsUnique fieldProxy model = do
     case result of
         Just value | not $ (getField @"id" model) == (getField @"id" value) -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
         _ -> pure (attachValidatorResult fieldProxy Success model)
+{-# INLINE validateIsUnique #-}

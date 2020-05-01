@@ -18,6 +18,7 @@ import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
 import TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName)
+import qualified TurboHaskell.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import qualified Data.List as List
 
@@ -30,6 +31,8 @@ instance Controller SchemaDesignerController where
     action ShowTableAction { tableName } = do
         let name = tableName
         statements <- readSchema
+        let (Just table) = findTableByName name statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         render ShowView { .. }
 
     action NewTableAction = do
