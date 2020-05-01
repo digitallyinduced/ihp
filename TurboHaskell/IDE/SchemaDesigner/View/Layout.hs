@@ -98,25 +98,41 @@ renderObjectSelector statements activeObjectName = [hsx|
     where
         renderObject :: Statement -> Int -> Html
         renderObject CreateTable { name } id = [hsx|
-        <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]}>
+        <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>
             <div class="d-flex">
                 {name}
-                <div class="toolbox w-50">
-                    <a href={EditTableAction name id} class="btn btn-primary btn-sm m-1">Edit</a>
-                    <a href={DeleteTableAction id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
-                </div>
             </div>
-        </a>|]
+        </a>
+        <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
+            <a href={EditTableAction name id}>Edit Table</a>
+            <a href={DeleteTableAction id} class="js-delete">Delete Table</a>
+            <div></div>
+            <a href={NewColumnAction name}>Add Column to Table</a>
+            <div></div>
+            <a href={NewTableAction}>Add Table</a>
+            <a href={NewEnumAction}>Add Enum</a>
+        </div>
+        |]
+            where
+                contextMenuId = "context-menu-" <> tshow id
         renderObject CreateEnumType { name } id = [hsx|
-        <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]}>
+        <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>
             <div class="d-flex">
                 {name}
-                <div class="toolbox w-50">
-                    <a href={EditEnumAction name id} class="btn btn-primary btn-sm m-1">Edit</a>
-                    <a href={DeleteTableAction id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
-                </div>
             </div>
-        </a>|]
+        </a>
+        <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
+            <a href={EditEnumAction name id}>Edit Enum</a>
+            <a href="#" class="js-delete">Delete Enum</a>
+            <div></div>
+            <a href={NewEnumValueAction name}>Add Column to Table</a>
+            <div></div>
+            <a href={NewTableAction}>Add Table</a>
+            <a href={NewEnumAction}>Add Enum</a>
+        </div>
+        |]
+            where
+                contextMenuId = "context-menu-" <> tshow id
         renderObject Comment {} id = mempty
         renderObject AddConstraint {} id = mempty
         renderObject CreateExtension {} id = mempty

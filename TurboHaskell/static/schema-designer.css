@@ -38,6 +38,7 @@
 
 .object-selector, .column-selector {
     border: 1px solid #d5d4d5;
+    user-select: none;
 }
 
 .column-selector {

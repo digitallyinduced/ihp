@@ -107,14 +107,17 @@ body {
     backdrop-filter: blur(20px) saturate(2);
 }
 
-.menu-for-table li, .menu-for-column li, .menu-for-enum li {
+.menu-for-table a, .menu-for-column a, .menu-for-enum a {
+    display: block;
     padding: 1px 20px 0px;
     cursor: pointer;
     list-style-type: none;
     user-select: none;
+    text-decoration: none !important;
+    color: black;
 }
 
-.menu-for-table li:hover, .menu-for-column li:hover, .menu-for-enum li:hover  {
+.menu-for-table a:hover, .menu-for-column a:hover, .menu-for-enum a:hover  {
     background-color: #4f94fc;
     color: #fefefe;
 }
@@ -126,6 +129,11 @@ body {
     width: 100%;
     border-style: none none solid none;
     border: 1px solid #e3e3e3;
+}
+
+.context-menu-open {
+    display: block;
+    position: fixed;
 }
 
 /* slightly transparent fallback */
