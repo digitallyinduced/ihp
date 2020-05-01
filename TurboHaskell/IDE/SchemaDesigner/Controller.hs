@@ -11,6 +11,7 @@ import TurboHaskell.IDE.SchemaDesigner.View.Tables.Index
 import TurboHaskell.IDE.SchemaDesigner.View.Tables.Edit
 import TurboHaskell.IDE.SchemaDesigner.View.Enums.New
 import TurboHaskell.IDE.SchemaDesigner.View.Enums.Show
+import TurboHaskell.IDE.SchemaDesigner.View.Enums.Edit
 import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.New
 import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.Edit
 import TurboHaskell.IDE.SchemaDesigner.Parser
@@ -69,6 +70,17 @@ instance Controller SchemaDesignerController where
     action CreateEnumAction = do
         let enumName = param "enumName"
         updateSchema (addEnum enumName)
+        redirectTo ShowEnumAction { .. }
+
+    action EditEnumAction { .. } = do
+        statements <- readSchema
+        let enumId = param "enumId"
+        render EditEnumView { .. }
+
+    action UpdateEnumAction = do
+        let enumName = param "enumName"
+        let enumId = param "enumId"
+        updateSchema (updateEnum enumId enumName)
         redirectTo ShowEnumAction { .. }
 
     -- ENUM VALUES
@@ -171,6 +183,12 @@ instance Controller SchemaDesignerController where
         updateSchema (map (deleteColumnInTable tableName columnId))
         redirectTo ShowTableAction { .. }
 
+    action ToggleColumnUniqueAction { .. } = do
+        let tableName = param "tableName"
+        let columnId = param "columnId"
+        updateSchema (map (toggleUniqueInColumn tableName columnId))
+        redirectTo ShowTableAction { .. }
+
     -- DB
     action PushToDbAction = do
         Process.system "make db"
@@ -203,6 +221,9 @@ addTable tableName list = list <> [CreateTable { name = tableName, columns = [] 
 updateTable :: Int -> Text -> [Statement] -> [Statement]
 updateTable tableId tableName list = replace tableId CreateTable { name = tableName, columns = (get #columns (list !! tableId))} list
 
+updateEnum :: Int -> Text -> [Statement] -> [Statement]
+updateEnum enumId enumName list = replace enumId CreateEnumType { name = enumName, values = (get #values (list !! enumId))} list
+
 addEnum :: Text -> [Statement] -> [Statement]
 addEnum enumName list = list <> [CreateEnumType { name = enumName, values = []}]
 
@@ -213,6 +234,11 @@ updateColumnInTable :: Text -> Column -> Int -> Statement -> Statement
 updateColumnInTable tableName column columnId (table@CreateTable { name, columns }) | name == tableName =
     table { columns = (replace columnId column columns) }
 updateColumnInTable tableName column columnId statement = statement
+
+toggleUniqueInColumn :: Text -> Int -> Statement -> Statement
+toggleUniqueInColumn tableName columnId (table@CreateTable { name, columns }) | name == tableName =
+    table { columns = (replace columnId ((columns !! columnId) { isUnique = (not (get #isUnique (columns !! columnId))) }) columns) }
+toggleUniqueInColumn tableName columnId statement = statement
 
 deleteColumnInTable :: Text -> Int -> Statement -> Statement
 deleteColumnInTable tableName columnId (table@CreateTable { name, columns }) | name == tableName =

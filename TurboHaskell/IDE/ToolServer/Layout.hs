@@ -101,7 +101,7 @@ globeIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://w
 
 contextMenus = [hsx|
 
-    <ul class="custom-menu menu-for-table shadow" id="menu-table">
+    <ul class="custom-menu menu-for-table shadow backdrop-blur" id="menu-table">
         <li data-action="edit-table">Edit Table</li>
         <li data-action="delete-table">Delete Table</li>
         <div></div>
@@ -111,7 +111,7 @@ contextMenus = [hsx|
         <li data-action="add-enum">Add Enum</li>
         
     </ul>
-    <ul class="custom-menu menu-for-column shadow" id="menu-column">
+    <ul class="custom-menu menu-for-column shadow backdrop-blur" id="menu-column">
         <li data-action="edit-column">Edit Column</li>
         <li data-action="delete-column">Delete Column</li>
         <div></div>
@@ -119,7 +119,7 @@ contextMenus = [hsx|
         <div></div>
         <li data-action="add-column">Add Column</li>
     </ul>
-    <ul class="custom-menu menu-for-enum shadow" id="menu-enum">
+    <ul class="custom-menu menu-for-enum shadow backdrop-blur" id="menu-enum">
         <li data-action="edit-enum">Edit Enum</li>
         <li data-action="delete-enum">Delete Enum</li>
         <div></div>

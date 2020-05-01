@@ -40,6 +40,9 @@ data SchemaDesignerController
     | UpdateEnumValueAction
     | DeleteEnumValueAction { enumName :: Text, valueId :: Int }
     | DeleteColumnAction { tableName :: Text, columnId :: Int }
+    | EditEnumAction { enumName :: Text, enumId :: Int }
+    | UpdateEnumAction
+    | ToggleColumnUniqueAction { tableName :: Text, columnId :: Int }
     deriving (Eq, Show, Data)
 
 data LogsController

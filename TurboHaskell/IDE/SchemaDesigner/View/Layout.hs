@@ -21,7 +21,7 @@ renderColumnSelector tableName columns = [hsx|
     <div class="d-flex">
         <h5>Columns</h5>
         <div class="toolbox">
-            <a href={NewColumnAction tableName} class="btn btn-sm btn-outline-primary m-1">New</a>
+            <a href={NewColumnAction tableName} class="btn btn-sm btn-outline-primary m-1" id="new-column">New</a>
         </div>
     </div>
     <table class="table table-hover table-sm">
@@ -42,6 +42,7 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
     <td>
         <a href={EditColumnAction tableName id} class="btn btn-primary btn-sm m-1">Edit</a>
         <a href={DeleteColumnAction tableName id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
+        <a href={ToggleColumnUniqueAction tableName id} class="btn btn-outline-secondary btn-sm">Toggle Unique</a>
     </td>
 </tr>
 |]
@@ -111,6 +112,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             <div class="d-flex">
                 {name}
                 <div class="toolbox w-50">
+                    <a href={EditEnumAction name id} class="btn btn-primary btn-sm m-1">Edit</a>
                     <a href={DeleteTableAction id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
                 </div>
             </div>

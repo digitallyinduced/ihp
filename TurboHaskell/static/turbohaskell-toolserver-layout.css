@@ -98,10 +98,10 @@ body {
     font-family: sans-serif;
     font-size: 0.8rem;
     font-weight: 500;
-    background: #f0f0f0;
     color: #000;
     border-radius: 5px;
     padding: 4px 0;
+    backdrop-filter: blur(20px) saturate(2);
 }
 
 .menu-for-table li, .menu-for-column li, .menu-for-enum li {
@@ -125,3 +125,16 @@ body {
     border: 1px solid #e3e3e3;
 }
 
+/* slightly transparent fallback */
+.backdrop-blur {
+    background-color: rgba(240, 240, 240, .98);
+  }
+  
+  /* if backdrop support: very transparent and blurred */
+  @supports ((-webkit-backdrop-filter: blur(2em)) or (backdrop-filter: blur(2em))) {
+    .backdrop-blur {
+      background-color: rgba(240, 240, 240, .5);
+      -webkit-backdrop-filter: blur(2em);
+      backdrop-filter: blur(2em);
+    }
+  }

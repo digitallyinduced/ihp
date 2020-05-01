@@ -5,10 +5,9 @@
 // - Add ".menu-for-TYPE" to CSS
 var baseUrl = window.location.protocol + "//" + window.location.hostname + ":" + window.location.port + "/turbohaskell/";
 
-$( document ).ready(function() {
-    
+var mapEvents = function () {
+    console.log("Mapping..");
     var menus = ["column", "table", "enum"];
-
     for (var m = 0; m < menus.length; m++) {
         var objects = document.getElementsByClassName("context-" + menus[m]);
         for (var i = 0; i < objects.length; i++) {
@@ -26,6 +25,10 @@ $( document ).ready(function() {
             
         }
     }
+};
+
+$( document ).ready(function() {
+    mapEvents();
 });
 
 function openMenu (name, event, contextObject) {
@@ -60,6 +63,28 @@ function openMenu (name, event, contextObject) {
                     document.body.appendChild(form);
                     window.submitForm(form);
                     this.removeEventListener("click", deleteTable, false);
+                    mapEvents();
+                };
+                menuoptions[mo].addEventListener("click", deleteTable, false);
+                break;
+            case "delete-enum":
+                var deleteTableButton = contextElement.children[1].children[2];
+                var deleteTable = function(){ // js-delete
+                    if (!confirm('Are you sure you want to delete this?')) {
+                        return;
+                    }
+                    var form = document.createElement('form');
+                    form.action = deleteTableButton.href;
+                    form.method = 'POST';
+                    var methodInput = document.createElement('input');
+                    methodInput.type = 'hidden';
+                    methodInput.name = '_method';
+                    methodInput.value = 'DELETE';
+                    form.appendChild(methodInput);
+                    document.body.appendChild(form);
+                    window.submitForm(form);
+                    this.removeEventListener("click", deleteTable, false);
+                    mapEvents();
                 };
                 menuoptions[mo].addEventListener("click", deleteTable, false);
                 break;
@@ -70,10 +95,47 @@ function openMenu (name, event, contextObject) {
                 menuoptions[mo].addEventListener("click", function (){doAction("NewEnum")}, false);
                 break;
             case "add-to-table":
-                menuoptions[mo].addEventListener("click", function (){alert("add-to-table");}, false);
+                var tableName = contextObject.textContent;
+                menuoptions[mo].addEventListener("click", function (){doAction("NewColumn?tableName=" + tableName)}, false);
                 break;
             case "edit-column":
-                menuoptions[mo].addEventListener("click", function (){alert("edit-column");}, false);
+                var editColumnButton = contextElement.children[4].children[0];
+                menuoptions[mo].addEventListener("click", function (){window.location = editColumnButton.href;}, false);
+                break;
+            case "delete-column":
+                var deleteColumnButton = contextElement.children[4].children[1];
+                var deleteColumn = function(){ // js-delete
+                    if (!confirm('Are you sure you want to delete this?')) {
+                        return;
+                    }
+                    var form = document.createElement('form');
+                    form.action = deleteColumnButton.href;
+                    form.method = 'POST';
+                    var methodInput = document.createElement('input');
+                    methodInput.type = 'hidden';
+                    methodInput.name = '_method';
+                    methodInput.value = 'DELETE';
+                    form.appendChild(methodInput);
+                    document.body.appendChild(form);
+                    window.submitForm(form);
+                    this.removeEventListener("click", deleteColumn, false);
+                    mapEvents();
+                };
+                menuoptions[mo].addEventListener("click", deleteColumn, false);
+                break;
+            case "make-unique":
+                
+                break;
+            case "add-column":
+                menuoptions[mo].addEventListener("click", function (){window.location = document.getElementById("new-column").getAttribute("href");}, false);
+                break;
+            case "edit-enum":
+                var editEnumButton = contextElement.children[1].children[1];
+                menuoptions[mo].addEventListener("click", function (){window.location = editEnumButton.href;}, false);
+                break;
+            case "add-to-enum":
+                var tableName = contextObject.textContent;
+                menuoptions[mo].addEventListener("click", function (){doAction("NewEnumValue?enumName=" + tableName)}, false);
                 break;
         }
     }
@@ -109,7 +171,15 @@ $(document).bind("mousedown", function (e) {
     // If the clicked element is not the menu
     if (!$(e.target).parents(".custom-menu").length > 0) {
         // Hide it
+        console.log("close " + $(e.target).parents(".custom-menu").length);
         $(".custom-menu").hide(100);
+    }
+});
+
+$(document).bind("click", function (e) {
+    if (e.target.getAttribute("href") != null) {
+        console.log("click");
+        window.location = e.target.getAttribute("href");
     }
 });
 

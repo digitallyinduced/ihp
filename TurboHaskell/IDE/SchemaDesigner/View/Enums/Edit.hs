@@ -9,8 +9,8 @@ import TurboHaskell.IDE.SchemaDesigner.View.Layout
 
 data EditEnumView = EditEnumView
     { statements :: [Statement]
-    , tableName :: Text
-    , tableId :: Int
+    , enumName :: Text
+    , enumId :: Int
     }
 
 instance View EditEnumView ViewContext where
@@ -27,12 +27,12 @@ instance View EditEnumView ViewContext where
     |]
         where
             modalContent = [hsx|
-                <form method="POST" action={UpdateTableAction}>
-                    <input type="hidden" name="tableId" value={tshow tableId}/>
+                <form method="POST" action={UpdateEnumAction}>
+                    <input type="hidden" name="enumId" value={tshow enumId}/>
                     <div class="form-group row">
                         <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
-                            <input name="tableName" type="text" class="form-control" autofocus="autofocus" value={tableName}/>
+                            <input name="enumName" type="text" class="form-control" autofocus="autofocus" value={enumName}/>
                         </div>
                     </div>
 
@@ -43,5 +43,5 @@ instance View EditEnumView ViewContext where
             |]
             modalFooter = mempty 
             modalCloseUrl = pathTo TablesAction
-            modalTitle = "Edit Table"
+            modalTitle = "Edit Enum"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
