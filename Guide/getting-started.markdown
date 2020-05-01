@@ -1350,6 +1350,18 @@ This accepts any kind of image file compatible with imagemagick, resize it, redu
 
 In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
 
+## Checking that the current user has permission to access the action
+
+Use [accessDeniedUnless](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
+
+```haskell
+action EditPostAction { postId } = do
+    post <- fetch postId
+    accessDeniedUnless (get #authorId post == currentUserId)
+    
+    renderHtml EditView { .. }
+```
+
 ## Creating a custom validator
 
 If needed you can just write your own constraint, e.g. like this:
