@@ -1,6 +1,22 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module TurboHaskell.LoginSupport.Helper.Controller (currentUser, currentUserOrNothing, currentUserId, ensureIsUser, HasNewSessionUrl, currentAdmin, currentAdminOrNothing, currentAdminId, ensureIsAdmin, login, sessionKey, logout, CurrentUserRecord, CurrentAdminRecord) where
+module TurboHaskell.LoginSupport.Helper.Controller
+( currentUser
+, currentUserOrNothing
+, currentUserId
+, ensureIsUser
+, HasNewSessionUrl
+, currentAdmin
+, currentAdminOrNothing
+, currentAdminId
+, ensureIsAdmin
+, login
+, sessionKey
+, logout
+, CurrentUserRecord
+, CurrentAdminRecord
+, accessDeniedUnless
+) where
 
 import TurboHaskell.ControllerPrelude
 import TurboHaskell.LoginSupport.Types
@@ -83,3 +99,17 @@ redirectToLogin :: (?requestContext :: RequestContext, FrameworkConfig) => Text 
 redirectToLogin newSessionPath = unsafePerformIO $ do
     redirectToPath newSessionPath
     error "Unreachable"
+
+-- | Stops the action execution with an error message when the access condition is false.
+--
+-- __Example:__ Checking a user is author of a blog post.
+-- 
+-- > action EditPostAction { postId } = do
+-- >     post <- fetch postId
+-- >     accessDeniedUnless (get #authorId post == currentUserId)
+-- >     
+-- >     renderHtml EditView { .. }
+--
+-- This will throw an error and prevent the view from being rendered when the current user is not author of the post.
+accessDeniedUnless :: Bool -> IO ()
+accessDeniedUnless condition = if condition then pure () else fail "Access denied"
