@@ -6,7 +6,7 @@ TASK_MODULE="${TASK_MODULE%.*}"
 
 # Ensure we are in an app dir
 if [ ! -f Main.hs ]; then
-    echo "You have to be in a project directory to run the generator"
+    echo "You have to be in a project directory to run the task"
     exit 1
 fi
 

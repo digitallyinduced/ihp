@@ -1,6 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
-module TurboHaskell.ControllerGenerator where
+module Main where
 
 import ClassyPrelude
 import TurboHaskell.NameSupport
@@ -14,13 +12,17 @@ import qualified Text.Countable as Countable
 import qualified Data.Char as Char
 import qualified TurboHaskell.IDE.SchemaDesigner.Parser as SchemaDesigner
 import TurboHaskell.IDE.SchemaDesigner.Types
+import qualified System.Posix.Env.ByteString as Posix
 
-main' :: [Text] -> IO ()
-main' args = do
+main :: IO ()
+main = do
+    ensureIsInAppDirectory
+
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
 
+    args <- map cs <$> Posix.getArgs
     case headMay args of
         Just "" -> usage
         Just appAndControllerName -> do
@@ -34,8 +36,8 @@ main' args = do
                 [controllerName'] -> if isAlphaOnly controllerName'
                         then gen schema "Web" controllerName'
                         else putStrLn ("Invalid controller name: " <> tshow controllerName')
-                [] -> usage
-        Nothing -> usage
+                _ -> usage
+        _ -> usage
 
 
 isAlphaOnly :: Text -> Bool
@@ -400,3 +402,8 @@ generateViews schema config =
             , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Edit.hs", fileContent = editView }
             , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Index.hs", fileContent = indexView }
             ]
+
+ensureIsInAppDirectory :: IO ()
+ensureIsInAppDirectory = do
+    mainHsExists <- Directory.doesFileExist "Main.hs"
+    unless mainHsExists (fail "You have to be in a project directory to run the generator")

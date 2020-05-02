@@ -40,7 +40,6 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <title>TurboHaskell</title>
 </head>
 <body class="d-flex h-100 flex-row">
-    {contextMenus}
     <div id="nav">
         <div id="nav-logo">
             <div id="nav-logo-lambda">λ</div>

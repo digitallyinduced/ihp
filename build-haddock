@@ -4,7 +4,7 @@
 # After building, you can view the api docs with: open haddock-build/index.html
 mkdir -p haddock-build
 haddock --html -o haddock-build \
-    $(find TurboHaskell -regex '.+\.hs' -not \( -regex '.+GenericController.hs' \) -not \( -regex '.+ApplicationGenerator.hs' \) |xargs) \
+    $(find TurboHaskell -regex '.+\.hs' -not \( -regex '.+GenericController.hs' \) -not \( -regex '.+CLI/.+.hs' \) |xargs) \
     --optghc="-i." \
     --optghc="-XOverloadedStrings" \
     --optghc="-XNoImplicitPrelude" \
