@@ -34,8 +34,8 @@ renderColumnSelector tableName columns = [hsx|
 
 renderColumn :: Column -> Int -> Text -> Html
 renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
-<tr>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{name}</td>
+<tr class="column">
+    <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{name}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{columnType}{renderAllowNull}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderDefault}{renderIsUnique}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderPrimaryKey}</td>
