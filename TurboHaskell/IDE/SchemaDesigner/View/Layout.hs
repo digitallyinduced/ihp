@@ -93,8 +93,15 @@ renderObjectSelector statements activeObjectName = [hsx|
     <div class="d-flex">
         <h5>Objects</h5>
         <div class="toolbox">
-            <a href={NewTableAction} class="btn btn-sm btn-outline-primary m-1">New Table</a>
-            <a href={NewEnumAction} class="btn btn-sm btn-outline-secondary m-1">New Enum</a>
+            <div class="btn-group m-1">
+                <a href={NewTableAction} class="btn btn-sm btn-outline-primary">New Table</a>
+                <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <div class="dropdown-menu">
+                    <a href={NewEnumAction} class="dropdown-item">New Enum</a>
+                </div>
+            </div>
         </div>
     </div>
     {forEach statements (\statement -> renderObject (snd statement) (fst statement))}
