@@ -10,6 +10,7 @@ import TurboHaskell.IDE.SchemaDesigner.View.Layout
 data NewColumnView = NewColumnView
     { statements :: [Statement]
     , tableName :: Text
+    , generatedHaskellCode :: Text
     }
 
 instance View NewColumnView ViewContext where
@@ -22,6 +23,8 @@ instance View NewColumnView ViewContext where
                 {renderObjectSelector (zip [0..] statements) (Just tableName)}
                 {renderColumnSelector tableName  (zip [0..] columns)}
             </div>
+
+            <pre class="generated-haskell-code"><code>{generatedHaskellCode}</code></pre>
         </div>
         {Just modal}
     |]

@@ -130,6 +130,8 @@ instance Controller SchemaDesignerController where
     -- COLUMNS
     action NewColumnAction { tableName } = do
         statements <- readSchema
+        let (Just table) = findTableByName tableName statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         render NewColumnView { .. }
 
     action CreateColumnAction = do
@@ -153,6 +155,8 @@ instance Controller SchemaDesignerController where
         let columnId = param "columnId"
         let name = tableName
         statements <- readSchema
+        let (Just table) = findTableByName name statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
         let column = columns !! columnId

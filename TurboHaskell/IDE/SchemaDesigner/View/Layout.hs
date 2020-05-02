@@ -35,18 +35,23 @@ renderColumnSelector tableName columns = [hsx|
 renderColumn :: Column -> Int -> Text -> Html
 renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
 <tr>
-    <td class="context-column">{name}</td>
-    <td class="context-column">{columnType}{renderAllowNull}</td>
-    <td class="context-column">{renderDefault}{renderIsUnique}</td>
-    <td class="context-column">{renderPrimaryKey}</td>
-    <td>
-        <a href={EditColumnAction tableName id} class="btn btn-primary btn-sm m-1">Edit</a>
-        <a href={DeleteColumnAction tableName id} class="btn btn-danger btn-sm m-1 js-delete">Delete</a>
-        <a href={ToggleColumnUniqueAction tableName id} class="btn btn-outline-secondary btn-sm">Toggle Unique</a>
-    </td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{name}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{columnType}{renderAllowNull}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderDefault}{renderIsUnique}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderPrimaryKey}</td>
 </tr>
+<div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
+    <a href={EditColumnAction tableName id}>Edit Column</a>
+    <a href={DeleteColumnAction tableName id} class="js-delete">Delete Column</a>
+    <div></div>
+    <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button">{toggleButtonText}</button></form>
+    <div></div>
+    <a href={NewColumnAction tableName}>Add Column</a>
+</div>
 |]
     where
+        toggleButtonText = if isUnique then [hsx|Remove Unique|] else [hsx|Make Unique|]
+        contextMenuId = "context-menu-column-" <> tshow id
         renderPrimaryKey = if primaryKey then [hsx|PRIMARY KEY|] else mempty
         renderAllowNull = if notNull then mempty else [hsx|{" | " :: Text}NULL|]
         renderIsUnique = if isUnique then [hsx|IS UNIQUE|] else mempty
@@ -121,9 +126,9 @@ renderObjectSelector statements activeObjectName = [hsx|
                 {name}
             </div>
         </a>
-        <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
+        <div class="custom-menu menu-for-enum shadow backdrop-blur" id={contextMenuId}>
             <a href={EditEnumAction name id}>Edit Enum</a>
-            <a href="#" class="js-delete">Delete Enum</a>
+            <a href={DeleteTableAction id} class="js-delete">Delete Enum</a>
             <div></div>
             <a href={NewEnumValueAction name}>Add Column to Table</a>
             <div></div>

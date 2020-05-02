@@ -107,7 +107,7 @@ body {
     backdrop-filter: blur(20px) saturate(2);
 }
 
-.menu-for-table a, .menu-for-column a, .menu-for-enum a {
+.menu-for-table a, .menu-for-column a, .menu-for-enum a, .link-button  {
     display: block;
     padding: 1px 20px 0px;
     cursor: pointer;
@@ -117,7 +117,14 @@ body {
     color: black;
 }
 
-.menu-for-table a:hover, .menu-for-column a:hover, .menu-for-enum a:hover  {
+.link-button {
+    border: none;
+    text-align: left;
+    width: 100%;
+}
+
+
+.menu-for-table a:hover, .menu-for-column a:hover, .menu-for-enum a:hover, .link-button:hover  {
     background-color: #4f94fc;
     color: #fefefe;
 }
