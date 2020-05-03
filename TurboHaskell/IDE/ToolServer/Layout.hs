@@ -46,7 +46,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
             TurboHaskell
         </div>
         {navItem "SCHEMA" databaseIcon (pathTo TablesAction)}
-        {navItem "DATA" tableIcon "#"}
+        {navItem "DATA" tableIcon (pathTo ShowDatabaseAction)}
         {navItem "REPL" terminalIcon "#"}
         {navItem "CODEGEN" copyIcon "#"}
         {navItem "LOGS" serverIcon (pathTo AppLogsAction)}

@@ -33,6 +33,7 @@ import Network.Wai.Session (withSession, Session)
 
 import TurboHaskell.IDE.SchemaDesigner.Types
 import TurboHaskell.IDE.SchemaDesigner.Controller
+import TurboHaskell.IDE.Data.Controller
 
 import TurboHaskell.IDE.Logs.Controller
 
@@ -96,6 +97,7 @@ instance FrontController ToolServerApplication where
     controllers =
         [ parseRoute @SchemaDesignerController
         , parseRoute @LogsController
+        , parseRoute @DataController
         , catchAll TablesAction
         ]
 
