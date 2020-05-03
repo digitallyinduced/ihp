@@ -17,7 +17,7 @@ findEnumByName enumName statements = find pred statements
 
 renderColumnSelector :: Text -> [(Int, Column)] -> Html
 renderColumnSelector tableName columns = [hsx|
-<div class="col-8 column-selector">
+<div class="col-8 column-selector" oncontextmenu="showContextMenu('context-menu-column-root')">
     <div class="d-flex">
         <h5>Columns</h5>
         <div class="toolbox">
@@ -30,7 +30,12 @@ renderColumnSelector tableName columns = [hsx|
         </tbody>
     </table>
 </div>
+<div class="custom-menu menu-for-column shadow backdrop-blur" id="context-menu-column-root">
+    <a href={NewColumnAction tableName}>Add Column</a>
+</div>
 |]
+
+-- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
 
 renderColumn :: Column -> Int -> Text -> Html
 renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
@@ -89,23 +94,27 @@ renderValue value valueId enumName = [hsx|
 |]
 
 renderObjectSelector statements activeObjectName = [hsx|
-    <div class="col object-selector">
-    <div class="d-flex">
-        <h5>Objects</h5>
-        <div class="toolbox">
-            <div class="btn-group m-1">
-                <a href={NewTableAction} class="btn btn-sm btn-outline-primary">New Table</a>
-                <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <span class="sr-only">Toggle Dropdown</span>
-                </button>
-                <div class="dropdown-menu">
-                    <a href={NewEnumAction} class="dropdown-item">New Enum</a>
+    <div class="col object-selector" oncontextmenu="showContextMenu('context-menu-object-root')">
+        <div class="d-flex">
+            <h5>Objects</h5>
+            <div class="toolbox">
+                <div class="btn-group m-1">
+                    <a href={NewTableAction} class="btn btn-sm btn-outline-primary">New Table</a>
+                    <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <span class="sr-only">Toggle Dropdown</span>
+                    </button>
+                    <div class="dropdown-menu">
+                        <a href={NewEnumAction} class="dropdown-item">New Enum</a>
+                    </div>
                 </div>
             </div>
         </div>
+        {forEach statements (\statement -> renderObject (snd statement) (fst statement))}
     </div>
-    {forEach statements (\statement -> renderObject (snd statement) (fst statement))}
-</div>
+    <div class="custom-menu menu-for-table shadow backdrop-blur" id="context-menu-object-root">
+        <a href={NewTableAction}>Add Table</a>
+        <a href={NewEnumAction}>Add Enum</a>
+    </div>
 |]
     where
         renderObject :: Statement -> Int -> Html
