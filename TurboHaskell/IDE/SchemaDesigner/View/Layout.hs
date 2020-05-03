@@ -44,7 +44,7 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
     <a href={EditColumnAction tableName id}>Edit Column</a>
     <a href={DeleteColumnAction tableName id} class="js-delete">Delete Column</a>
     <div></div>
-    <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button">{toggleButtonText}</button></form>
+    <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button backdrop-blur">{toggleButtonText}</button></form>
     <div></div>
     <a href={NewColumnAction tableName}>Add Column</a>
 </div>
