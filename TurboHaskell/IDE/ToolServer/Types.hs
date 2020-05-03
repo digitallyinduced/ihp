@@ -45,6 +45,10 @@ data SchemaDesignerController
     | ToggleColumnUniqueAction { tableName :: Text, columnId :: Int }
     deriving (Eq, Show, Data)
 
+data DataController
+    = ShowDatabaseAction
+    deriving (Eq, Show, Data)
+
 data LogsController
     = AppLogsAction
     | PostgresLogsAction

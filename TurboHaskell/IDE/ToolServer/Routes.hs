@@ -6,3 +6,4 @@ instance AutoRoute SchemaDesignerController where
     parseArgument = parseTextArgument
 
 instance AutoRoute LogsController
+instance AutoRoute DataController
