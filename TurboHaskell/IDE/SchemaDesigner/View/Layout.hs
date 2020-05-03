@@ -40,7 +40,7 @@ renderColumnSelector tableName columns = [hsx|
 renderColumn :: Column -> Int -> Text -> Html
 renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
 <tr class="column">
-    <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{name}</td>
+    <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{name}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{columnType}{renderAllowNull}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderDefault}{renderIsUnique}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderPrimaryKey}</td>
@@ -119,7 +119,7 @@ renderObjectSelector statements activeObjectName = [hsx|
     where
         renderObject :: Statement -> Int -> Html
         renderObject CreateTable { name } id = [hsx|
-        <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>
+        <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
             <div class="d-flex">
                 {name}
             </div>
@@ -137,7 +137,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             where
                 contextMenuId = "context-menu-" <> tshow id
         renderObject CreateEnumType { name } id = [hsx|
-        <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>
+        <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
             <div class="d-flex">
                 {name}
             </div>
