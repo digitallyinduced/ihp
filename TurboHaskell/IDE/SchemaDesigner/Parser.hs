@@ -3,7 +3,7 @@ Module: TurboHaskell.IDE.SchemaDesigner.Types
 Description: Parser for Application/Schema.sql
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module TurboHaskell.IDE.SchemaDesigner.Parser (parseSchemaSql) where
+module TurboHaskell.IDE.SchemaDesigner.Parser (parseSchemaSql, schemaFilePath) where
 
 import TurboHaskell.Prelude
 import TurboHaskell.IDE.SchemaDesigner.Types

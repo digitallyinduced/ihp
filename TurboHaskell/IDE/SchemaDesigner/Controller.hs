@@ -14,6 +14,7 @@ import TurboHaskell.IDE.SchemaDesigner.View.Enums.Show
 import TurboHaskell.IDE.SchemaDesigner.View.Enums.Edit
 import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.New
 import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.Edit
+import TurboHaskell.IDE.SchemaDesigner.View.Schema.Code
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
@@ -21,8 +22,15 @@ import TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByN
 import qualified TurboHaskell.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import qualified Data.List as List
+import TurboHaskell.IDE.SchemaDesigner.Parser (schemaFilePath)
+import qualified Data.Text.IO as Text
 
 instance Controller SchemaDesignerController where
+    -- CODE
+    action ShowCodeAction = do
+        schema <- Text.readFile schemaFilePath
+        render CodeView { .. }
+
     -- TABLES
     action TablesAction = do
         statements <- readSchema

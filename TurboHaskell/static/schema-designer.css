@@ -82,3 +82,21 @@
     font-size: 10px;
     vertical-align: middle;
 }
+
+.nav-link.active {
+    background-color: #f8f8f8 !important;
+    border-color: #dee2e6 #dee2e6 #f8f8f8 !important;
+    color: #212529 !important;
+}
+
+.nav-link {
+    background-color: #fff !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    color: #6c757d !important;
+}
+
+#editor {
+    position: absolute;
+    width: 100%;
+    height: 95%;
+}

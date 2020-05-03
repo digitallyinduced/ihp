@@ -1,4 +1,4 @@
-module TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector) where
+module TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, visualNav, codeNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector) where
 
 import TurboHaskell.ViewPrelude
 import TurboHaskell.IDE.SchemaDesigner.Types
@@ -14,6 +14,26 @@ findEnumByName enumName statements = find pred statements
     where
         pred CreateEnumType { name } | name == enumName = True
         pred _ = False
+
+visualNav = [hsx|
+<ul class="nav nav-tabs bg-white" id="myTab" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link active" href={pathTo TablesAction}>Visual Editor</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" onclick={"window.location = '" <> pathTo ShowCodeAction <> "';"}>Code Editor</a>
+    </li>
+</ul>|]
+
+codeNav = [hsx|
+<ul class="nav nav-tabs bg-white" id="myTab" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link" href={pathTo TablesAction}>Visual Editor</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link active">Code Editor</a>
+    </li>
+</ul>|]
 
 renderColumnSelector :: Text -> [(Int, Column)] -> Html
 renderColumnSelector tableName columns = [hsx|

@@ -16,6 +16,7 @@ data EditEnumValueView = EditEnumValueView
 
 instance View EditEnumValueView ViewContext where
     html EditEnumValueView { .. } = [hsx|
+        {visualNav}
         <div class="container">
             <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>

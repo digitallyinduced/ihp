@@ -43,6 +43,7 @@ data SchemaDesignerController
     | EditEnumAction { enumName :: Text, enumId :: Int }
     | UpdateEnumAction
     | ToggleColumnUniqueAction { tableName :: Text, columnId :: Int }
+    | ShowCodeAction
     deriving (Eq, Show, Data)
 
 data DataController
