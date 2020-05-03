@@ -136,7 +136,7 @@ instance Controller SchemaDesignerController where
 
     action CreateColumnAction = do
         let tableName = param "tableName"
-        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue") (param "customDefaultValue")
+        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let column = Column
                 { name = param "name"
                 , columnType = param "columnType"
@@ -165,7 +165,7 @@ instance Controller SchemaDesignerController where
     action UpdateColumnAction = do
         statements <- readSchema
         let tableName = param "tableName"
-        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue") (param "customDefaultValue")
+        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
         let columnId = param "columnId"
@@ -266,11 +266,12 @@ replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of
    (before, _:after) -> before ++ (e: after)
 
-getDefaultValue :: Text -> Text -> Text -> Maybe Text
-getDefaultValue columnType value custom = case value of
+getDefaultValue :: Text -> Text -> Maybe Text
+getDefaultValue columnType value = case value of
     "EMPTY" -> Just "''"
     "NULL" -> Just "NULL"
-    "CUSTOM" -> case columnType of
+    "NODEFAULT" -> Nothing
+    custom -> case columnType of
         "TEXT" -> Just ("'" <> custom <> "'")
         "INT" -> Just custom
         "UUID" -> Just ("'" <> custom <> "'")

@@ -73,14 +73,7 @@ instance View NewColumnView ViewContext where
 
                     <div class="form-group row">
                         <label for="inputEmail3" class="col-sm-2 col-form-label">Default Value:</label>
-                        <div class="col-sm-10">
-                            <select onchange="if (event.target.value == 'CUSTOM') { customDefaultValue.style.display = 'block'; } else { customDefaultValue.style.display = 'none'; }" name="defaultValue" class="form-control">
-                                <option value="NODEFAULT">no default</option>
-                                <option value="EMPTY">''</option>
-                                <option value="NULL">null</option>
-                                <option value="CUSTOM">custom</option>
-                            </select>
-                        </div>
+                        {defaultSelector}
                         <div class="col-sm-2"></div>
                         <div class="col-sm-10">
                             <input style="display: none;" name="customDefaultValue" type="text" class="form-control"/>    
@@ -96,6 +89,22 @@ instance View NewColumnView ViewContext where
                     <input type="hidden" name="isUnique" value={inputValue False}/>
                 </form>
             |]
+                where
+                    defaultSelector = preEscapedToHtml [plain|
+                        <div class="col-sm-10">
+                            <select name="defaultValue" class="form-control select2">
+                                <option value="NODEFAULT">no default</option>
+                                <option value="EMPTY">''</option>
+                                <option value="NULL">null</option>
+                            </select>
+                        </div>
+                        <script>
+                            $('.select2').select2({
+                                placeholder: "Select a default value or type in a custom default value",
+                                tags: true
+                            });
+                        </script>
+                    |]
             modalFooter = mempty 
             modalCloseUrl = pathTo ShowTableAction { tableName }
             modalTitle = "New Column"

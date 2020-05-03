@@ -17,6 +17,7 @@ data EditColumnView = EditColumnView
 
 instance View EditColumnView ViewContext where
     html EditColumnView { .. } = [hsx|
+        
         <div class="container">
             <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>
@@ -119,17 +120,19 @@ typeSelector selected = preEscapedToHtml [plain|
 
 defaultSelector selected = preEscapedToHtml [plain|
     <div class="col-sm-10">
-        <select name="defaultValue" class="form-control">
+        <select name="defaultValue" class="form-control select2">
             #{option (selectedType selected) "NODEFAULT" "no default"}
             #{option (selectedType selected) "EMPTY" "''"}
             #{option (selectedType selected) "NULL" "null"}
-            #{option (selectedType selected) "CUSTOM" "custom"}
+            #{maybeCustom selected}
         </select>
     </div>
-    <div class="col-sm-2"></div>
-    <div class="col-sm-10">
-        <input style=#{if selected == "CUSTOM" then "display: block;" else "display: none;"} name="customDefaultValue" type="text" class="form-control" value=#{fromMaybe "" selected}>    
-    </div>
+    <script>
+        $('.select2').select2({
+            placeholder: "Select a default value or type in a custom default value",
+            tags: true
+        });
+    </script>
 |]
     where
         option selected value text = if selected == value
@@ -140,5 +143,10 @@ defaultSelector selected = preEscapedToHtml [plain|
             Just "NULL" -> "NULL"
             Just "null" -> "NULL"
             Nothing -> "NODEFAULT"
-            _ -> "CUSTOM"
-
+            custom -> custom
+        maybeCustom selection = case selection of
+            Just "''" -> mempty
+            Just "NULL" -> mempty
+            Just "null" -> mempty
+            Nothing -> mempty
+            Just custom -> [plain|<option value=#{custom} selected>#{custom}</option>|]

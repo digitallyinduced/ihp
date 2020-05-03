@@ -19,6 +19,8 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
     <link rel="stylesheet" href="/schema-designer.css"/>
 
+    <link rel="stylesheet" href="/vendor/select2.min.css"/>
+
     <script src="/vendor/morphdom-umd.min.js"></script>
     <script src="/vendor/jquery-3.2.1.slim.min.js"></script>
     <script src="/vendor/timeago.js"></script>
@@ -35,6 +37,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src="/helpers.js"></script>
     <script src="/vendor/contextmenu.js"></script>
 
+    <script src="/vendor/select2.min.js"></script>
 
 
     <title>TurboHaskell</title>
