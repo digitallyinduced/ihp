@@ -31,6 +31,13 @@ instance Controller SchemaDesignerController where
         schema <- Text.readFile schemaFilePath
         render CodeView { .. }
 
+    action SaveCodeAction = do
+        let schema = param "schemaSql"
+        putStrLn(schema)
+        Text.writeFile schemaFilePath schema
+        putStrLn("writefile working")
+        redirectTo ShowCodeAction
+
     -- TABLES
     action TablesAction = do
         statements <- readSchema

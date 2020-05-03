@@ -44,6 +44,7 @@ data SchemaDesignerController
     | UpdateEnumAction
     | ToggleColumnUniqueAction { tableName :: Text, columnId :: Int }
     | ShowCodeAction
+    | SaveCodeAction
     deriving (Eq, Show, Data)
 
 data DataController
