@@ -24,12 +24,12 @@ startStatusServer = do
         clients <- newIORef []
         serverRef <- async (pure ()) >>= newIORef
 
-        continueStatusServer StatusServerPaused { .. }
+        continueStatusServer StatusServerPaused { .. } True
 
         dispatch (UpdateStatusServerState (StatusServerStarted { serverRef, clients, standardOutput, errorOutput }))
 
-continueStatusServer :: (?context :: Context) => StatusServerState -> IO ()
-continueStatusServer StatusServerPaused { .. } = do
+continueStatusServer :: (?context :: Context) => StatusServerState -> Bool -> IO ()
+continueStatusServer StatusServerPaused { .. } isCompiling = do
     
         let warpApp = Websocket.websocketsOr
                 Websocket.defaultConnectionOptions
@@ -49,7 +49,7 @@ continueStatusServer StatusServerPaused { .. } = do
         statusServerApp (standardOutput, errorOutput) req respond = do
             currentStandardOutput <- readIORef standardOutput
             currentErrorOutput <- readIORef errorOutput
-            let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput True)
+            let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling)
             let responseHeaders = [(HTTP.hContentType, "text/html")]
             respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
 
