@@ -87,7 +87,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState, liveReloadNotificationServerState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
         s@(StatusServerPaused { .. }) -> do
-            async $ continueStatusServer s False
+            async $ continueStatusServer s
             pure StatusServerStarted { .. }
         o -> pure o
 
@@ -154,7 +154,7 @@ handleAction state@(AppState { codeGenerationState }) SchemaChanged = do
 handleAction state@(AppState { statusServerState, liveReloadNotificationServerState }) (UpdateCodeGenerationState (CodeGenerationRunning {})) = do
     statusServerState' <- case statusServerState of
         s@(StatusServerPaused { .. }) -> do
-            async $ continueStatusServer s True
+            async $ continueStatusServer s
             pure StatusServerStarted { .. }
         s -> pure s
     notifyHaskellChange liveReloadNotificationServerState

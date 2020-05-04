@@ -24,12 +24,12 @@ startStatusServer = do
         clients <- newIORef []
         serverRef <- async (pure ()) >>= newIORef
 
-        continueStatusServer StatusServerPaused { .. } True
+        continueStatusServer StatusServerPaused { .. }
 
         dispatch (UpdateStatusServerState (StatusServerStarted { serverRef, clients, standardOutput, errorOutput }))
 
-continueStatusServer :: (?context :: Context) => StatusServerState -> Bool -> IO ()
-continueStatusServer StatusServerPaused { .. } isCompiling = do
+continueStatusServer :: (?context :: Context) => StatusServerState -> IO ()
+continueStatusServer StatusServerPaused { .. } = do
     
         let warpApp = Websocket.websocketsOr
                 Websocket.defaultConnectionOptions
@@ -47,6 +47,15 @@ continueStatusServer StatusServerPaused { .. } isCompiling = do
     where
         statusServerApp :: (IORef ByteString, IORef ByteString) -> Wai.Application
         statusServerApp (standardOutput, errorOutput) req respond = do
+            devServerState <- ?context
+                |> get #appStateRef
+                |> readIORef
+
+            let isCompiling = case (get #appGHCIState devServerState) of
+                    AppGHCILoading { } -> True
+                    _ -> False
+
+
             currentStandardOutput <- readIORef standardOutput
             currentErrorOutput <- readIORef errorOutput
             let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling)
