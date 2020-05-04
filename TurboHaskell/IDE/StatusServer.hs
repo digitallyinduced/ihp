@@ -47,9 +47,18 @@ continueStatusServer StatusServerPaused { .. } = do
     where
         statusServerApp :: (IORef ByteString, IORef ByteString) -> Wai.Application
         statusServerApp (standardOutput, errorOutput) req respond = do
+            devServerState <- ?context
+                |> get #appStateRef
+                |> readIORef
+
+            let isCompiling = case (get #appGHCIState devServerState) of
+                    AppGHCILoading { } -> True
+                    _ -> False
+
+
             currentStandardOutput <- readIORef standardOutput
             currentErrorOutput <- readIORef errorOutput
-            let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput True)
+            let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling)
             let responseHeaders = [(HTTP.hContentType, "text/html")]
             respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
 
