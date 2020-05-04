@@ -18,6 +18,7 @@ import qualified TurboHaskell.ControllerSupport as ControllerSupport
 import Database.PostgreSQL.Simple
 import qualified TurboHaskell.LoginSupport.Middleware
 import TurboHaskell.Environment (isDevelopment)
+import System.Info
 
 import qualified TurboHaskell.FrameworkConfig as FrameworkConfig
 import TurboHaskell.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
@@ -30,7 +31,9 @@ run = do
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     port <- FrameworkConfig.initAppPort
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    store <- case os of
+        "linux" -> mapStore_
+        _ -> fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let applicationContext = ApplicationContext { modelContext = (ModelContext conn), session }
     let application :: Application = \request respond -> do
             let ?applicationContext = applicationContext

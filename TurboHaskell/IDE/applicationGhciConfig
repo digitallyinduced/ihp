@@ -34,6 +34,7 @@
 :set -XMultiWayIf
 :set -XFunctionalDependencies
 :set -package turbohaskell
+:set -package typerep-map
 :set -fbyte-code
 :set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
