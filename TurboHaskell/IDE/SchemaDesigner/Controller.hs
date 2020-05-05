@@ -15,6 +15,7 @@ import TurboHaskell.IDE.SchemaDesigner.View.Enums.Edit
 import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.New
 import TurboHaskell.IDE.SchemaDesigner.View.EnumValues.Edit
 import TurboHaskell.IDE.SchemaDesigner.View.Schema.Code
+import TurboHaskell.IDE.SchemaDesigner.View.Schema.Error
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
@@ -218,7 +219,7 @@ instance Controller SchemaDesignerController where
 
 readSchema :: _ => _
 readSchema = parseSchemaSql >>= \case
-        Left error -> do renderPlain error; pure []
+        Left error -> do render ErrorView { error }; pure []
         Right statements -> pure statements
 
 getSqlError :: _ => IO (Maybe ByteString)

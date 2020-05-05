@@ -36,10 +36,15 @@
     transition: color 0.1s;
 }
 
-.object-selector, .column-selector {
+.object-selector, .column-selector, .visual-error {
     border: 1px solid #d5d4d5;
     user-select: none;
     min-height: 800px;
+}
+
+.visual-error {
+    margin-top: 5rem;
+    padding: 5rem;
 }
 
 .column-selector {
