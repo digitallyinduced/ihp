@@ -7,9 +7,10 @@ import TurboHaskell.IDE.ToolServer.Layout
 import TurboHaskell.View.Modal
 import TurboHaskell.IDE.SchemaDesigner.View.Layout
 
-data CodeView = CodeView {
-    schema :: Text
-}
+data CodeView = CodeView
+    { schema :: Text
+    , error :: Maybe ByteString
+    }
 
 instance View CodeView ViewContext where
     html CodeView { .. } = [hsx|
@@ -25,6 +26,7 @@ instance View CodeView ViewContext where
             </div>
         </ul>
         {editor}
+        {errorDiv}
         {saveScript}
     |]
         where
@@ -50,6 +52,16 @@ instance View CodeView ViewContext where
                     }
                 </script>
             |]
+            errorDiv = case error of
+                Nothing -> mempty
+                Just error -> preEscapedToHtml [plain|
+                        <style>
+                            #editor { height: 79% !important; }
+                        </style>
+                        <div class="error-box">
+                            <pre class="text-white p-5">#{error}</pre>
+                        </div>
+                    |]
             saveScript = preEscapedToHtml [plain|
                 <script>
                     var saveButton = document.getElementById("save-button");

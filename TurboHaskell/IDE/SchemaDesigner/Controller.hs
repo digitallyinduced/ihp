@@ -29,13 +29,13 @@ instance Controller SchemaDesignerController where
     -- CODE
     action ShowCodeAction = do
         schema <- Text.readFile schemaFilePath
+        error <- getSqlError
+        putStrLn (tshow (fromMaybe "" (error)))
         render CodeView { .. }
 
     action SaveCodeAction = do
         let schema = param "schemaSql"
-        putStrLn(schema)
         Text.writeFile schemaFilePath schema
-        putStrLn("writefile working")
         redirectTo ShowCodeAction
 
     -- TABLES
@@ -220,6 +220,11 @@ readSchema :: _ => _
 readSchema = parseSchemaSql >>= \case
         Left error -> do renderPlain error; pure []
         Right statements -> pure statements
+
+getSqlError :: _ => IO (Maybe ByteString)
+getSqlError = parseSchemaSql >>= \case
+        Left error -> do pure (Just error)
+        Right statements -> do pure Nothing
 
 updateSchema :: _ => _
 updateSchema updateFn = do
