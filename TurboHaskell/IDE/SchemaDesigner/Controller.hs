@@ -18,7 +18,7 @@ import TurboHaskell.IDE.SchemaDesigner.View.Schema.Code
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
 import TurboHaskell.IDE.SchemaDesigner.Types
-import TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName)
+import TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes)
 import qualified TurboHaskell.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import qualified Data.List as List
@@ -297,6 +297,3 @@ getDefaultValue columnType value = case value of
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
     _ -> Nothing
-
-removeQuotes :: [Char] -> Text
-removeQuotes (x:xs) = cs (init xs)

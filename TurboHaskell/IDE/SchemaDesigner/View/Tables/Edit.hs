@@ -31,7 +31,7 @@ instance View EditTableView ViewContext where
                 <form method="POST" action={UpdateTableAction}>
                     <input type="hidden" name="tableId" value={tshow tableId}/>
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
+                        <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="tableName" type="text" class="form-control" autofocus="autofocus" value={tableName}/>
                         </div>

@@ -38,14 +38,14 @@ instance View NewColumnView ViewContext where
                     <input type="hidden" name="tableName" value={tableName}/>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
+                        <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="name" type="text" class="form-control" autofocus="autofocus"/>
                         </div>
                     </div>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Type:</label>
+                        <label class="col-sm-2 col-form-label">Type:</label>
                         <div class="col-sm-10">
                             <select name="columnType" class="form-control">
                                 <option value="TEXT">Text</option>
@@ -73,7 +73,7 @@ instance View NewColumnView ViewContext where
                     </div>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Default Value:</label>
+                        <label class="col-sm-2 col-form-label">Default Value:</label>
                         {defaultSelector}
                         <div class="col-sm-2"></div>
                         <div class="col-sm-10">

@@ -55,14 +55,14 @@ instance View EditColumnView ViewContext where
                     <input type="hidden" name="columnId" value={tshow columnId}/>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
+                        <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="name" type="text" class="form-control" autofocus="autofocus" value={get #name column}/>
                         </div>
                     </div>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Type:</label>
+                        <label class="col-sm-2 col-form-label">Type:</label>
                         <div class="col-sm-10">
                             {typeSelector (get #columnType column)}
                         </div>
@@ -84,7 +84,7 @@ instance View EditColumnView ViewContext where
                     </div>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Default Value:</label>
+                        <label class="col-sm-2 col-form-label">Default Value:</label>
                         {defaultSelector (get #defaultValue column)}
                     </div>
 

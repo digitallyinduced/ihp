@@ -31,7 +31,7 @@ instance View EditEnumView ViewContext where
                 <form method="POST" action={UpdateEnumAction}>
                     <input type="hidden" name="enumId" value={tshow enumId}/>
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
+                        <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="enumName" type="text" class="form-control" autofocus="autofocus" value={enumName}/>
                         </div>

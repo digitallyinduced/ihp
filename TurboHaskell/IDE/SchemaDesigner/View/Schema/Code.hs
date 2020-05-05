@@ -15,7 +15,7 @@ instance View CodeView ViewContext where
     html CodeView { .. } = [hsx|
         <ul class="nav nav-tabs bg-white" id="myTab" role="tablist">
             <li class="nav-item">
-                <a class="nav-link" href={pathTo TablesAction}>Visual Editor</a>
+                <a class="nav-link" href={pathTo TablesAction} target="_self">Visual Editor</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link active">Code Editor</a>
@@ -37,15 +37,26 @@ instance View CodeView ViewContext where
                     var editor = ace.edit("editor");
                     editor.setTheme("ace/theme/solarized_dark");
                     editor.session.setMode("ace/mode/sql");
+                    editor.setShowPrintMargin(false);
                     editor.setOptions({
                         enableBasicAutocompletion: true,
                         enableLiveAutocompletion: true
                     });
+                    window.onbeforeunload = confirmExit;
+                    function confirmExit() {
+                        if (!editor.session.getUndoManager().isClean()) {
+                            return "You have unsaved changes. Do you want to leave the Editor?";
+                        }
+                    }
                 </script>
             |]
             saveScript = preEscapedToHtml [plain|
                 <script>
-                    $('#save-button').click(function saveSchema() {
+                    var saveButton = document.getElementById("save-button");
+                    saveButton.disabled = true;
+                    saveButton.addEventListener("click", function saveSchema() {
+                        editor.session.getUndoManager().markClean()
+                        saveButton.disabled = editor.session.getUndoManager().isClean()
                         var form = document.createElement('form');
                         form.action = "http://localhost:8001/turbohaskell/SaveCode";
                         form.method = 'POST';
@@ -59,7 +70,11 @@ instance View CodeView ViewContext where
                         form.appendChild(methodInput);
 
                         document.body.appendChild(form);
-                        window.submitForm(form);
+                        form.submit();
+                    });
+
+                    editor.on("input", function() {
+                        saveButton.disabled = editor.session.getUndoManager().isClean()
                     });
                 </script>
             |]
