@@ -50,10 +50,10 @@ renderColumnSelector tableName columns = [hsx|
 renderColumn :: Column -> Int -> Text -> Html
 renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
 <tr class="column">
-    <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{name}</td>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{columnType}{renderAllowNull}</td>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderDefault}{renderIsUnique}</td>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>{renderPrimaryKey}</td>
+    <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}><a href={EditColumnAction tableName id} class="d-block text-body nounderline">{name}</a></td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{columnType}{renderAllowNull}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderDefault}{renderIsUnique}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderPrimaryKey}</td>
 </tr>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
     <a href={EditColumnAction tableName id}>Edit Column</a>
