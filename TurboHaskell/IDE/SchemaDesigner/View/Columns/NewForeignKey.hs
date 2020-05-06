@@ -43,7 +43,7 @@ instance View NewForeignKeyView ViewContext where
                     <div class="form-group row">
                         <label class="col-sm-2 col-form-label">Reference Table:</label>
                         <div class="col-sm-10">
-                            <select name="referenceTable" class="form-control" autofocus="autofocus">
+                            <select name="referenceTable" class="form-control select2" autofocus="autofocus">
                                 {forEach tableNames renderTableNameSelector}
                             </select>
                         </div>
@@ -60,9 +60,15 @@ instance View NewForeignKeyView ViewContext where
                         <button type="submit" class="btn btn-primary">Add Constraint</button>
                     </div>
                 </form>
+                {select2}
             |]
                 where
                     renderTableNameSelector tableName = [hsx|<option>{tableName}</option>|]
+                    select2 = preEscapedToHtml [plain|
+                        <script>
+                            $('.select2').select2();
+                        </script>
+                    |]
             modalFooter = mempty 
             modalCloseUrl = pathTo ShowTableAction { tableName }
             modalTitle = "New Foreign Key Constraint"

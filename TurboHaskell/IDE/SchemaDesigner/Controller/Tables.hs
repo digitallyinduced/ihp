@@ -20,7 +20,7 @@ import qualified Data.Text.IO as Text
 import TurboHaskell.IDE.SchemaDesigner.Controller.Schema
 
 instance Controller TablesController where
-    -- TABLES
+    
     action TablesAction = do
         statements <- readSchema
         render IndexView { .. }

@@ -29,7 +29,6 @@ instance Controller SchemaController where
         Text.writeFile schemaFilePath schema
         redirectTo ShowCodeAction
 
-
     -- DB
     action PushToDbAction = do
         Process.system "make db"
