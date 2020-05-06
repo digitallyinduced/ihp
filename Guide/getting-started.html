@@ -1317,7 +1317,7 @@ You can just use the <code>query</code> function for that.</p>
             </span><span class="cr">Left</span><span> </span><span class="va">user</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="va">render</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
             </span><span class="cr">Right</span><span> </span><span class="va">user</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="kw">do</span><span>
                 </span><span class="va">user</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">user</span><span> </span><span class="op">|&gt;</span><span> </span><span class="va">updateRecord</span><span>
-                </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Deine Änderungen wurden gespeichert.&quot;</span><span>
+                </span><span class="va">setSuccessMessage</span><span> </span><span class="st">&quot;Your changes have been saved.&quot;</span><span>
                 </span><span class="va">redirectTo</span><span> </span><span class="cr">EditUserAction</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
 </span></code></pre></div>
 <p>This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the <code>static/uploads</code> folder in the project (directory will be created if it does not exist).</p>
