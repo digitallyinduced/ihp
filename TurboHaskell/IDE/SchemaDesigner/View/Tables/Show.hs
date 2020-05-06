@@ -23,7 +23,7 @@ instance View ShowView ViewContext where
             </form>
             <div class="row no-gutters bg-white">
                 {renderObjectSelector (zip [0..] statements) (Just name)}
-                {renderColumnSelector name (zip [0..] columns)}
+                {renderColumnSelector name (zip [0..] columns) statements}
             </div>
 
             <pre class="generated-haskell-code"><code>{generatedHaskellCode}</code></pre>

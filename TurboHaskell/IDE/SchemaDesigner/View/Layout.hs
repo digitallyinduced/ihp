@@ -25,8 +25,8 @@ visualNav = [hsx|
     </li>
 </ul>|]
 
-renderColumnSelector :: Text -> [(Int, Column)] -> Html
-renderColumnSelector tableName columns = [hsx|
+renderColumnSelector :: Text -> [(Int, Column)] -> [Statement] -> Html
+renderColumnSelector tableName columns statements = [hsx|
 <div class="col-8 column-selector" oncontextmenu="showContextMenu('context-menu-column-root')">
     <div class="d-flex">
         <h5>Columns</h5>
@@ -36,7 +36,7 @@ renderColumnSelector tableName columns = [hsx|
     </div>
     <table class="table table-hover table-sm">
         <tbody>
-            {forEach columns (\column -> renderColumn (snd column) (fst column) tableName)}
+            {forEach columns (\column -> renderColumn (snd column) (fst column) tableName statements)}
         </tbody>
     </table>
 </div>
@@ -47,19 +47,20 @@ renderColumnSelector tableName columns = [hsx|
 
 -- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
 
-renderColumn :: Column -> Int -> Text -> Html
-renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName = [hsx|
+renderColumn :: Column -> Int -> Text -> [Statement] -> Html
+renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName statements = [hsx|
 <tr class="column">
     <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}><a href={EditColumnAction tableName id} class="d-block text-body nounderline">{name}</a></td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{columnType}{renderAllowNull}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderDefault}{renderIsUnique}</td>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderPrimaryKey}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderPrimaryKey}{renderForeignKey}</td>
 </tr>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
     <a href={EditColumnAction tableName id}>Edit Column</a>
     <a href={DeleteColumnAction tableName id} class="js-delete">Delete Column</a>
     <div></div>
     <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button backdrop-blur">{toggleButtonText}</button></form>
+    {foreignKeyOption}
     <div></div>
     <a href={NewColumnAction tableName}>Add Column</a>
 </div>
@@ -74,6 +75,12 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
             case defaultValue of
                 Just value -> [hsx|default: {value} |]
                 Nothing -> mempty
+        renderForeignKey = case findForeignKey statements tableName name of
+            Just AddConstraint { constraint } -> [hsx|FOREIGN KEY: {get #referenceTable constraint}|]
+            Nothing -> mempty
+        foreignKeyOption = case findForeignKey statements tableName name of
+            Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)}>Edit Foreign Key Constraint</a>|]
+            Nothing -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
 
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
 renderEnumSelector enumName values = [hsx|
@@ -179,3 +186,14 @@ renderObjectSelector statements activeObjectName = [hsx|
 
 removeQuotes :: [Char] -> Text
 removeQuotes (x:xs) = cs (init xs)
+
+findForeignKey statements tableName columnName = 
+    find (\statement -> statement == AddConstraint 
+        { tableName = tableName
+        , constraintName = (get #constraintName statement)
+        , constraint = ForeignKeyConstraint
+            { columnName = columnName
+            , referenceTable = (get #referenceTable (get #constraint statement))
+            , referenceColumn = (get #referenceColumn (get #constraint statement))
+            , onDelete = (get #onDelete (get #constraint statement))  }
+            } ) statements

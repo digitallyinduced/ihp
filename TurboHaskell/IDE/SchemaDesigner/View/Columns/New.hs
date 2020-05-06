@@ -22,7 +22,7 @@ instance View NewColumnView ViewContext where
             </form>
             <div class="row no-gutters bg-white">
                 {renderObjectSelector (zip [0..] statements) (Just tableName)}
-                {renderColumnSelector tableName  (zip [0..] columns)}
+                {renderColumnSelector tableName  (zip [0..] columns) statements}
             </div>
 
             <pre class="generated-haskell-code"><code>{generatedHaskellCode}</code></pre>

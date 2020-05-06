@@ -39,6 +39,7 @@ data OnDelete
     deriving (Show, Eq)
 
 data Constraint
+    -- | FOREIGN KEY (columnName) REFERENCES referenceTable (referenceColumn) ON DELETE onDelete;
     = ForeignKeyConstraint
         { columnName :: Text
         , referenceTable :: Text

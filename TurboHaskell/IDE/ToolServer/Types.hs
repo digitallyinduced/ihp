@@ -45,6 +45,10 @@ data SchemaDesignerController
     | ToggleColumnUniqueAction { tableName :: Text, columnId :: Int }
     | ShowCodeAction
     | SaveCodeAction
+    | NewForeignKeyAction { tableName :: Text, columnName :: Text }
+    | CreateForeignKeyAction
+    | EditForeignKeyAction { tableName :: Text, columnName :: Text, constraintName :: Text, referenceTable :: Text }
+    | UpdateForeignKeyAction
     deriving (Eq, Show, Data)
 
 data DataController

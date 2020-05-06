@@ -5,6 +5,8 @@ import TurboHaskell.IDE.ToolServer.Types
 import TurboHaskell.IDE.ToolServer.ViewContext
 import TurboHaskell.IDE.SchemaDesigner.View.Columns.New
 import TurboHaskell.IDE.SchemaDesigner.View.Columns.Edit
+import TurboHaskell.IDE.SchemaDesigner.View.Columns.NewForeignKey
+import TurboHaskell.IDE.SchemaDesigner.View.Columns.EditForeignKey
 import TurboHaskell.IDE.SchemaDesigner.View.Tables.New
 import TurboHaskell.IDE.SchemaDesigner.View.Tables.Show
 import TurboHaskell.IDE.SchemaDesigner.View.Tables.Index
@@ -212,6 +214,49 @@ instance Controller SchemaDesignerController where
         updateSchema (map (toggleUniqueInColumn tableName columnId))
         redirectTo ShowTableAction { .. }
 
+    -- FOREIGN KEYS
+    action NewForeignKeyAction { tableName, columnName } = do
+        let name = tableName
+        statements <- readSchema
+        let (Just table) = findTableByName name statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
+        let tableNames = nameList (getCreateTable statements)
+        render NewForeignKeyView { .. }
+
+    action CreateForeignKeyAction = do
+        let tableName = param "tableName"
+        let columnName = param "columnName"
+        let constraintName = param "constraintName"
+        let referenceTable = param "referenceTable"
+        updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable)
+        redirectTo ShowTableAction { .. }
+
+    action EditForeignKeyAction { tableName, columnName, constraintName, referenceTable } = do
+        let name = tableName
+        statements <- readSchema
+        let (Just table) = findTableByName name statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
+        let tableNames = nameList (getCreateTable statements)
+        render EditForeignKeyView { .. }
+
+    action UpdateForeignKeyAction = do
+        statements <- readSchema
+        let tableName = param "tableName"
+        let columnName = param "columnName"
+        let constraintName = param "constraintName"
+        let referenceTable = param "referenceTable"
+        let constraintId = findIndex (\statement -> statement == AddConstraint { tableName = tableName
+            , constraintName = (get #constraintName statement)
+            , constraint = ForeignKeyConstraint
+                { columnName = columnName
+                , referenceTable = (get #referenceTable (get #constraint statement))
+                , referenceColumn = (get #referenceColumn (get #constraint statement))
+                , onDelete=(get #onDelete (get #constraint statement)) } }) statements
+        case constraintId of
+            Just constraintId -> updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable constraintId)
+            Nothing -> setSuccessMessage ("Error")
+        redirectTo ShowTableAction { .. }
+
     -- DB
     action PushToDbAction = do
         Process.system "make db"
@@ -258,6 +303,12 @@ addEnum enumName list = list <> [CreateEnumType { name = enumName, values = []}]
 deleteTable :: Int -> [Statement] -> [Statement] -- rename to deleteObject/deleteStatement
 deleteTable tableId list = delete (list !! tableId) list
 
+addForeignKeyConstraint :: Text -> Text -> Text -> Text -> [Statement] -> [Statement]
+addForeignKeyConstraint tableName columnName constraintName referenceTable list = list <> [AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete=Nothing } }]
+
+updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> Int -> [Statement] -> [Statement]
+updateForeignKeyConstraint tableName columnName constraintName referenceTable constraintId list = replace constraintId AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete=Nothing } } list
+
 updateColumnInTable :: Text -> Column -> Int -> Statement -> Statement
 updateColumnInTable tableName column columnId (table@CreateTable { name, columns }) | name == tableName =
     table { columns = (replace columnId column columns) }
@@ -303,3 +354,7 @@ getDefaultValue columnType value = case value of
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
     _ -> Nothing
+
+getCreateTable statements = filter (\statement -> statement == CreateTable { name = (get #name statement), columns = (get #columns statement) }) statements
+
+nameList statements = map (get #name) statements
