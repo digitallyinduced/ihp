@@ -48,14 +48,14 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
             <div id="nav-logo-lambda">λ</div>
             TurboHaskell
         </div>
-        {navItem "SCHEMA" databaseIcon (pathTo TablesAction)}
-        {navItem "DATA" tableIcon (pathTo ShowDatabaseAction)}
-        {navItem "REPL" terminalIcon "#"}
-        {navItem "CODEGEN" copyIcon "#"}
-        {navItem "LOGS" serverIcon (pathTo AppLogsAction)}
-        {navItem "LINT" flagIcon "#"}
-        {navItem "DEPLOY" globeIcon "#"}
-        {navItem "DOCU" bookIcon "https://turbohaskell.digitallyinduced.com/getting-started.html"}
+        {schema}
+        {data_}
+        {repl}
+        {codegen}
+        {logs}
+        {lint}
+        {deploy}
+        {docu}
 
         <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
     </div>
@@ -64,15 +64,23 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     </div>
 </body>
 |]  where
-        navItem :: Text -> Html -> Text -> Html
-        navItem label icon action = [hsx|
+        schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isActiveController @SchemaDesignerController)
+        data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActivePath ShowDatabaseAction)
+        repl = navItem "REPL" terminalIcon "#" False
+        codegen = navItem "CODEGEN" copyIcon "#" False
+        logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) False
+        lint = navItem "LINT" flagIcon "#" False
+        deploy = navItem "DEPLOY" globeIcon "#" False
+        docu = navItem "DOCU" bookIcon "https://turbohaskell.digitallyinduced.com/getting-started.html" False
+
+        navItem :: Text -> Html -> Text -> Bool -> Html
+        navItem label icon action active = [hsx|
         <a href={action} class={classes [("nav-item", True), ("active", active)]} target={target}>
             {icon}
             {label}
         </a>
         |]
             where
-                active = isActivePathOrSub action
                 isExternal = "https://" `isPrefixOf` action
                 target :: Text
                 target = if isExternal then "_blank" else "_self"

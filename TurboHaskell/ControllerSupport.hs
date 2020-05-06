@@ -1,6 +1,28 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes #-}
 
-module TurboHaskell.ControllerSupport (Action', cs, (|>), getRequestBody, getRequestUrl, getHeader, RequestContext (..), getRequest, requestHeaders, getFiles, Controller (..), runAction, createRequestContext, ControllerContext, fromControllerContext, maybeFromControllerContext, InitControllerContext (..), runActionWithNewContext, emptyControllerContext, respondAndExit) where
+module TurboHaskell.ControllerSupport
+( Action'
+, (|>)
+, getRequestBody
+, getRequestUrl
+, getHeader
+, RequestContext (..)
+, getRequest
+, requestHeaders
+, getFiles
+, Controller (..)
+, runAction
+, createRequestContext
+, ControllerContext
+, fromControllerContext
+, maybeFromControllerContext
+, InitControllerContext (..)
+, runActionWithNewContext
+, emptyControllerContext
+, respondAndExit
+, ActionType (..)
+) where
+
 import ClassyPrelude
 import TurboHaskell.HaskellSupport
 import Data.String.Conversions (cs)
@@ -17,10 +39,12 @@ import Control.Monad.Reader
 import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified TurboHaskell.ErrorController as ErrorController
+import qualified Data.Typeable as Typeable
 
 type Action' = IO ResponseReceived
 
 newtype ControllerContext = ControllerContext TypeMap.TMap
+newtype ActionType = ActionType Typeable.TypeRep
 
 {-# INLINE fromControllerContext #-}
 fromControllerContext :: forall a. (?controllerContext :: ControllerContext, Typeable a) => a
@@ -59,10 +83,13 @@ runAction controller = do
     (((beforeAction >> action controller >> ErrorController.handleNoResponseReturned controller) `Exception.catch` handleResponseException) `Exception.catch` handlePatternMatchFailure) `Exception.catch` handleGenericException
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    context <- initContext @application (TypeMap.empty |> TypeMap.insert ?application)
+    context <- initContext @application $
+            TypeMap.empty
+            |> TypeMap.insert ?application
+            |> TypeMap.insert (ActionType (Typeable.typeOf controller))
     let ?controllerContext = ControllerContext context
     runAction controller
 
