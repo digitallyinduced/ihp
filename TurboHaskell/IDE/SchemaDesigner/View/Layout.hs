@@ -1,9 +1,10 @@
-module TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes) where
+module TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue) where
 
 import TurboHaskell.ViewPrelude
 import TurboHaskell.IDE.SchemaDesigner.Types
 import TurboHaskell.IDE.ToolServer.Types
 import TurboHaskell.IDE.ToolServer.Layout
+import qualified Data.List as List
 
 findTableByName tableName statements = find pred statements
     where
@@ -197,3 +198,24 @@ findForeignKey statements tableName columnName =
             , referenceColumn = (get #referenceColumn (get #constraint statement))
             , onDelete = (get #onDelete (get #constraint statement))  }
             } ) statements
+
+replace :: Int -> a -> [a] -> [a]
+replace i e xs = case List.splitAt i xs of
+   (before, _:after) -> before ++ (e: after)
+
+getDefaultValue :: Text -> Text -> Maybe Text
+getDefaultValue columnType value = case value of
+    "EMPTY" -> Just "''"
+    "NULL" -> Just "NULL"
+    "NODEFAULT" -> Nothing
+    custom -> case columnType of
+        "TEXT" -> Just ("'" <> custom <> "'")
+        "INT" -> Just custom
+        "UUID" -> Just ("'" <> custom <> "'")
+        "BOOLEAN" -> Just custom
+        "TIMESTAMP WITH TIME ZONE" -> Just ("'" <> custom <> "'")
+        "REAL" -> Just custom
+        "DOUBLE PRECISION" -> Just custom
+        "POINT" -> Just ("'" <> custom <> "'")
+        _ -> Just ("'" <> custom <> "'")
+    _ -> Nothing

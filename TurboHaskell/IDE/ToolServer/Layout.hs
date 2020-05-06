@@ -64,7 +64,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     </div>
 </body>
 |]  where
-        schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isActiveController @SchemaDesignerController)
+        schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isSchemaEditorController)
         data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActivePath ShowDatabaseAction)
         repl = navItem "REPL" terminalIcon "#" False
         codegen = navItem "CODEGEN" copyIcon "#" False
@@ -72,6 +72,13 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         lint = navItem "LINT" flagIcon "#" False
         deploy = navItem "DEPLOY" globeIcon "#" False
         docu = navItem "DOCU" bookIcon "https://turbohaskell.digitallyinduced.com/getting-started.html" False
+        
+        isSchemaEditorController =
+                    (  isActiveController @SchemaController
+                    || isActiveController @TablesController
+                    || isActiveController @ColumnsController
+                    || isActiveController @EnumsController
+                    || isActiveController @EnumValuesController )
 
         navItem :: Text -> Html -> Text -> Bool -> Html
         navItem label icon action active = [hsx|
