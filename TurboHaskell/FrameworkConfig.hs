@@ -7,6 +7,7 @@ import TurboHaskell.Environment
 import TurboHaskell.ControllerSupport
 import TurboHaskell.RouterSupport
 import System.IO.Unsafe (unsafePerformIO)
+import Data.String.Conversions (cs)
 
 defaultPort :: Int
 defaultPort = 8000
