@@ -12,6 +12,7 @@ document.addEventListener('turbolinks:load', function () {
     initBack();
     initToggle();
     initTime();
+    initFileUploadPreview();
 
     unsafeSetTimeout(function () {
         var elements = document.querySelectorAll('.js-scroll-into-view');

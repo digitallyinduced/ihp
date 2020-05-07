@@ -310,22 +310,6 @@
 </li>
 <li>
 <a href="#validation-reference">Validation Reference</a>
-<ul>
-<li>
-<a href="#pure-validations">Pure Validations</a>
-<ul>
-<li>
-<a href="#custom-validators">Custom Validators</a>
-</li>
-</ul>
-</li>
-<li>
-<a href="#uniqueness">Uniqueness</a>
-</li>
-<li>
-<a href="#validate-permissions">Validate Permissions</a>
-</li>
-</ul>
 </li>
 <li>
 <a href="#view-helper-reference">View Helper Reference</a>
@@ -367,6 +351,15 @@
 </li>
 <li>
 <a href="#uploading-a-user-profile-picture">Uploading a user profile picture</a>
+</li>
+<li>
+<a href="#checking-that-the-current-user-has-permission-to-access-the-action">Checking that the current user has permission to access the action</a>
+</li>
+<li>
+<a href="#creating-a-custom-validator">Creating a custom validator</a>
+</li>
+<li>
+<a href="#checking-that-an-email-is-unique">Checking that an email is unique</a>
 </li>
 </ul>
 </li>
@@ -420,7 +413,7 @@
 <tr><td>Config/nix/nixpkgs-config.nix</td><td>Configuration for the nix package manager</td></tr>
 <tr><td>Config/nix/haskell-packages/</td><td>Custom haskell dependencies can be placed here</td></tr>
 <tr><td>Application/</td><td>Your domain logic lives here</td></tr>
-<tr><td>Application/Schema.hs</td><td>Models and database tables are defined here</td></tr>
+<tr><td>Application/Schema.sql</td><td>Models and database tables are defined here</td></tr>
 <tr><td>Web/Controller</td><td>Web application controllers</td></tr>
 <tr><td>Web/View/</td><td>Web application html template files</td></tr>
 <tr><td>Web/Types.hs</td><td>Central place for all web application types</td></tr>
@@ -1124,36 +1117,7 @@ You can just use the <code>query</code> function for that.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">result</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">sqlQuery</span><span> </span><span class="st">&quot;SELECT * FROM projects WHERE id = ?&quot;</span><span> </span><span class="sy">(</span><span class="cr">Only</span><span> </span><span class="va">id</span><span class="sy">)</span><span>
 </span></code></pre></div>
 <h2 id="validation-reference">Validation Reference</h2>
-<h3 id="pure-validations">Pure Validations</h3>
-<p>With <code>validateField</code> you can do simple, pure validations.</p>
-<p>Here are some examples:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
-        </span><span class="va">validateField</span><span> </span><span class="va">#phone</span><span> </span><span class="va">isPhoneNumber</span><span>
-        </span><span class="va">validateField</span><span> </span><span class="va">#email</span><span> </span><span class="va">isEmail</span><span>
-        </span><span class="kw">let</span><span> </span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span> </span><span class="kw">in</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#age</span><span> </span><span class="va">isAge</span><span>
-</span></code></pre></div>
-<h4 id="custom-validators">Custom Validators</h4>
-<p>If needed you can just write your own constraint, e.g. like this:</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="va">nonEmpty</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Text</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
-</span><span class="va">nonEmpty</span><span> </span><span class="st">&quot;&quot;</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Failure</span><span> </span><span class="st">&quot;This field cannot be empty&quot;</span><span>
-</span><span class="va">nonEmpty</span><span> </span><span class="sy">_</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Success</span><span>
-
-</span><span class="va">isAge</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Int</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
-</span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span>
-</span></code></pre></div>
-<h3 id="uniqueness">Uniqueness</h3>
-<p>The function <code>validateIsUnique</code> is usually used to make sure that e.g. a user’s email is unique. Of course it will also work with other model fields.</p>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateIsUnique</span><span> </span><span class="va">#email</span><span>
-</span></code></pre></div>
-<h3 id="validate-permissions">Validate Permissions</h3>
-<div class="source-code"><pre><code class="language-haskell"><span class="kw">instance</span><span> </span><span class="cr">ValidateRecord</span><span> </span><span class="cr">NewPost</span><span> </span><span class="cr">ControllerContext</span><span> </span><span class="kw">where</span><span>
-    </span><span class="va">validateRecord</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
-        </span><span class="va">validateCanView</span><span> </span><span class="va">currentUser</span><span>
-</span></code></pre></div>
+<p><a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateField.html">See the API Documentation</a>.</p>
 <h2 id="view-helper-reference">View Helper Reference</h2>
 <h3 id="time">Time</h3>
 <h4 id="timeago"><code>timeAgo</code></h4>
@@ -1322,6 +1286,25 @@ You can just use the <code>query</code> function for that.</p>
 </span></code></pre></div>
 <p>This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the <code>static/uploads</code> folder in the project (directory will be created if it does not exist).</p>
 <p>In your view, just use the image url like <code>&lt;img src={get #pictureUrl currentUser}/&gt;</code>.</p>
+<h2 id="checking-that-the-current-user-has-permission-to-access-the-action">Checking that the current user has permission to access the action</h2>
+<p>Use <a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-LoginSupport-Helper-Controller.html#v:accessDeniedUnless">accessDeniedUnless</a> like this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">action</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
+    </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
+    </span><span class="va">accessDeniedUnless</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#authorId</span><span> </span><span class="va">post</span><span> </span><span class="op">==</span><span> </span><span class="va">currentUserId</span><span class="sy">)</span><span>
+    
+    </span><span class="va">renderHtml</span><span> </span><span class="cr">EditView</span><span> </span><span class="sy">{</span><span> </span><span class="sy">..</span><span> </span><span class="sy">}</span><span>
+</span></code></pre></div>
+<h2 id="creating-a-custom-validator">Creating a custom validator</h2>
+<p>If needed you can just write your own constraint, e.g. like this:</p>
+<div class="source-code"><pre><code class="language-haskell"><span class="va">nonEmpty</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Text</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
+</span><span class="va">nonEmpty</span><span> </span><span class="st">&quot;&quot;</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Failure</span><span> </span><span class="st">&quot;This field cannot be empty&quot;</span><span>
+</span><span class="va">nonEmpty</span><span> </span><span class="sy">_</span><span> </span><span class="sy">=</span><span> </span><span class="cr">Success</span><span>
+
+</span><span class="va">isAge</span><span> </span><span class="sy">::</span><span> </span><span class="cr">Int</span><span> </span><span class="sy">-&gt;</span><span> </span><span class="cr">ValidatorResult</span><span>
+</span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span>
+</span></code></pre></div>
+<h2 id="checking-that-an-email-is-unique">Checking that an email is unique</h2>
+<p>Use <a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique"><code>validateIsUnique</code></a>.</p>
 </div>
 
     

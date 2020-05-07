@@ -3,7 +3,8 @@
 # Output is placed in directory haddock-build
 # After building, you can view the api docs with: open haddock-build/index.html
 mkdir -p haddock-build
-haddock --html -o haddock-build \
+
+haddock --html --hyperlinked-source --built-in-themes -o haddock-build \
     $(find TurboHaskell -regex '.+\.hs' -not \( -regex '.+GenericController.hs' \) -not \( -regex '.+CLI/.+.hs' \) |xargs) \
     --optghc="-i." \
     --optghc="-XOverloadedStrings" \
