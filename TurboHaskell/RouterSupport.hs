@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase #-}
 module TurboHaskell.RouterSupport (
     CanRoute (..)
     , HasPath (..)
@@ -336,7 +336,7 @@ post path action = do
 {-# INLINE post #-}
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage action = get "" action
+startPage action = get "/" action
 
 {-# INLINE withPrefix #-}
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
