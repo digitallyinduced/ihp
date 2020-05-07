@@ -1342,7 +1342,7 @@ action UpdateUserAction { userId } = do
             Left user -> render EditView { .. }
             Right user -> do
                 user <- user |> updateRecord
-                setSuccessMessage "Deine Änderungen wurden gespeichert."
+                setSuccessMessage "Your changes have been saved."
                 redirectTo EditUserAction { .. }
 ```
 
