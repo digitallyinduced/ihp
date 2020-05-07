@@ -16,6 +16,14 @@ let
 in
     pkgs.stdenv.mkDerivation {
         name = "app";
+        buildPhase = ''
+          make -B build/bin/RunUnoptimizedProdServer
+        '';
+        installPhase = ''
+          mkdir $out
+          cp -r build/bin $out/bin
+        '';
+        dontFixup= true;
         src = gitignore.gitignoreSource [] projectPath;
         buildInputs = builtins.concatLists [[allHaskellPackages] allNativePackages];
         shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
