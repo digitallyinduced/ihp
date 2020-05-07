@@ -58,6 +58,7 @@ mkDerivation {
   src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] ./.;
   isLibrary = true;
   isExecutable = true;
+  allowInconsistentDependencies = true;
   libraryHaskellDepends = [
     cabal-install
     base
