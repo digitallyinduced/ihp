@@ -297,6 +297,7 @@ get :: (Controller action
     , ?applicationContext :: ApplicationContext
     , ?requestContext :: RequestContext
     , Typeable application
+    , Typeable action
     ) => ByteString -> action -> Parser (IO ResponseReceived)
 get path action = do
     method <- getMethod
@@ -325,6 +326,7 @@ post :: (Controller action
     , ?applicationContext :: ApplicationContext
     , ?requestContext :: RequestContext
     , Typeable application
+    , Typeable action
     ) => ByteString -> action -> Parser (IO ResponseReceived)
 post path action = do
     method <- getMethod
