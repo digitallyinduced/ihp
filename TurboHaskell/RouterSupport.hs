@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase #-}
 module TurboHaskell.RouterSupport (
     CanRoute (..)
     , HasPath (..)
@@ -6,6 +6,7 @@ module TurboHaskell.RouterSupport (
     , runAction
     , get
     , post
+    , startPage
     , frontControllerToWAIApp
     , withPrefix
     , ModelControllerMap
@@ -265,52 +266,79 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     |> filter (\(k, v) -> (not . ClassyPrelude.null) k && (not . ClassyPrelude.null) v)
                     |> (\q -> if ClassyPrelude.null q then mempty else renderSimpleQuery True q)
 
-{-# INLINE getMethod #-}
+
+-- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?requestContext :: RequestContext) => Parser StdMethod
 getMethod = 
-    let methodOrError = parseMethod (requestMethod (TurboHaskell.Controller.RequestContext.request ?requestContext))
-    in
-        case methodOrError of
+        ?requestContext
+        |> TurboHaskell.Controller.RequestContext.request
+        |> requestMethod
+        |> parseMethod
+        |> \case
             Left error -> fail (cs error)
             Right method -> pure method
+{-# INLINE getMethod #-}
 
-withMethod :: (?requestContext :: RequestContext) => StdMethod -> RequestContext
-withMethod requestMethod = ?requestContext { request = newRequest }
-    where
-        newRequest = (TurboHaskell.Controller.RequestContext.request ?requestContext) { requestMethod = renderStdMethod requestMethod }
-
-{-# INLINE post #-}
-post action = do
+-- | Routes a given path to an action when requested via GET.
+--
+-- __Example:__
+--
+-- > instance FrontController WebApplication where
+-- >     controllers = [
+-- >             get "/my-custom-page" NewSessionAction
+-- >         ]
+--
+-- The request @GET \/my-custom-page@ is now executing NewSessionAction
+--
+-- Also see 'post'.
+get :: (Controller action
+    , InitControllerContext application
+    , ?application :: application
+    , ?applicationContext :: ApplicationContext
+    , ?requestContext :: RequestContext
+    , Typeable application
+    , Typeable action
+    ) => ByteString -> action -> Parser (IO ResponseReceived)
+get path action = do
     method <- getMethod
     case method of 
-        POST -> pure action
-        _   -> fail "Invalid method, expected POST"
-
-{-# INLINE get #-}
-get action = do
-    method <- getMethod
-    case method of 
-        GET -> pure action
+        GET -> do
+            string path
+            pure (runActionWithNewContext action)
         _   -> fail "Invalid method, expected GET"
+{-# INLINE get #-}
 
-{-# INLINE onGetOrPost #-}
-onGetOrPost getResult postResult = do
+-- | Routes a given path to an action when requested via POST.
+--
+-- __Example:__
+--
+-- > instance FrontController WebApplication where
+-- >     controllers = [
+-- >             post "/do-something" DoSomethingAction
+-- >         ]
+--
+-- The request @POST \/do-something@ is now executing DoSomethingAction
+--
+-- Also see 'get'.
+post :: (Controller action
+    , InitControllerContext application
+    , ?application :: application
+    , ?applicationContext :: ApplicationContext
+    , ?requestContext :: RequestContext
+    , Typeable application
+    , Typeable action
+    ) => ByteString -> action -> Parser (IO ResponseReceived)
+post path action = do
     method <- getMethod
-    case method of
-        GET  -> pure getResult
-        POST -> pure postResult
-        _    -> fail "Invalid method, expected GET or POST"
+    case method of 
+        POST -> do
+            string path
+            pure (runActionWithNewContext action)
+        _   -> fail "Invalid method, expected POST"
+{-# INLINE post #-}
 
-{-# INLINE onGetOrPostOrDelete #-}
-onGetOrPostOrDelete getResult postResult deleteResult = do
-    method <- getMethod
-    case method of
-        GET    -> pure getResult
-        POST   -> pure postResult
-        DELETE -> pure deleteResult
-        _      -> fail "Invalid method, expected GET, POST or DELETE"
-
-
+-- | Defines the start page for a router (when @\/@ is requested).
+startPage action = get "/" action
 
 {-# INLINE withPrefix #-}
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
