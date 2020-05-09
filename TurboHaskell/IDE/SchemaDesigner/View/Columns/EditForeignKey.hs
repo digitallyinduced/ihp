@@ -15,6 +15,7 @@ data EditForeignKeyView = EditForeignKeyView
     , tableNames :: [Text]
     , referenceTable :: Text
     , constraintName :: Text
+    , onDelete :: Text
     }
 
 instance View EditForeignKeyView ViewContext where
@@ -58,6 +59,18 @@ instance View EditForeignKeyView ViewContext where
                         </div>
                     </div>
 
+                    <div class="form-group row">
+                        <label class="col-sm-2 col-form-label">On Delete:</label>
+                        <div class="col-sm-10">
+                            <select name="onDelete" class="form-control select2">
+                                {onDeleteSelector "NoAction"}
+                                {onDeleteSelector "Restrict"}
+                                {onDeleteSelector "SetNull"}
+                                {onDeleteSelector "Cascade"}
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Edit Constraint</button>
                     </div>
@@ -68,6 +81,9 @@ instance View EditForeignKeyView ViewContext where
                     renderTableNameSelector tableName = if tableName == referenceTable
                         then preEscapedToHtml [plain|<option selected>#{tableName}</option>|]
                         else preEscapedToHtml [plain|<option>#{tableName}</option>|]
+                    onDeleteSelector option = if option == onDelete
+                        then preEscapedToHtml [plain|<option selected>#{option}</option>|]
+                        else preEscapedToHtml [plain|<option>#{option}</option>|]
                     select2 = preEscapedToHtml [plain|
                         <script>
                             $('.select2').select2();

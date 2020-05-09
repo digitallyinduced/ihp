@@ -105,7 +105,8 @@ instance Controller ColumnsController where
         let columnName = param "columnName"
         let constraintName = param "constraintName"
         let referenceTable = param "referenceTable"
-        updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable)
+        let onDelete = NoAction
+        updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
         redirectTo ShowTableAction { .. }
 
     action EditForeignKeyAction { tableName, columnName, constraintName, referenceTable } = do
@@ -114,6 +115,13 @@ instance Controller ColumnsController where
         let (Just table) = findTableByName name statements
         let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         let tableNames = nameList (getCreateTable statements)
+        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
+        onDelete <- case (get #onDelete (get #constraint statement)) of
+            Just NoAction -> do pure "NoAction"
+            Just Restrict -> do pure "Restrict"
+            Just SetNull -> do pure "SetNull"
+            Just Cascade -> do pure "Cascade"
+            Nothing -> do pure "NoAction"
         render EditForeignKeyView { .. }
 
     action UpdateForeignKeyAction = do
@@ -129,9 +137,15 @@ instance Controller ColumnsController where
                 , referenceTable = (get #referenceTable (get #constraint statement))
                 , referenceColumn = (get #referenceColumn (get #constraint statement))
                 , onDelete=(get #onDelete (get #constraint statement)) } }) statements
+        let onDeleteParam = param @Text "onDelete"
+        let onDelete = case onDeleteParam of
+                "Restrict" -> Restrict
+                "SetNull" -> SetNull
+                "Cascade" -> Cascade
+                _ -> NoAction
         case constraintId of
-            Just constraintId -> updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable constraintId)
-            Nothing -> setSuccessMessage ("Error")
+            Just constraintId -> updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId)
+            Nothing -> putStrLn ("Error")
         redirectTo ShowTableAction { .. }
 
 addColumnToTable :: Text -> Column -> Statement -> Statement
@@ -154,11 +168,11 @@ deleteColumnInTable tableName columnId (table@CreateTable { name, columns }) | n
     table { columns = delete (columns !! columnId) columns}
 deleteColumnInTable tableName columnId statement = statement
 
-addForeignKeyConstraint :: Text -> Text -> Text -> Text -> [Statement] -> [Statement]
-addForeignKeyConstraint tableName columnName constraintName referenceTable list = list <> [AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete=Nothing } }]
+addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statement] -> [Statement]
+addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } }]
 
-updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> Int -> [Statement] -> [Statement]
-updateForeignKeyConstraint tableName columnName constraintName referenceTable constraintId list = replace constraintId AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete=Nothing } } list
+updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> Int -> [Statement] -> [Statement]
+updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
 
 getCreateTable statements = filter (\statement -> statement == CreateTable { name = (get #name statement), columns = (get #columns statement) }) statements
 
