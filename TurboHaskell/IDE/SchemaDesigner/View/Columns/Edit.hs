@@ -107,7 +107,7 @@ instance View EditColumnView ViewContext where
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
 typeSelector selected = preEscapedToHtml [plain|
-    <select name="columnType" class="form-control">
+    <select name="columnType" class="form-control select2-simple">
         #{option selected "TEXT" "Text"}
         #{option selected "INT" "Int"}
         #{option selected "UUID" "UUID"}
@@ -137,6 +137,7 @@ defaultSelector selected = preEscapedToHtml [plain|
             placeholder: "Select a default value or type in a custom default value",
             tags: true
         });
+        $('.select2-simple').select2();
     </script>
 |]
     where

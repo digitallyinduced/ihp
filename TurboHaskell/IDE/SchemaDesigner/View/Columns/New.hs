@@ -48,7 +48,7 @@ instance View NewColumnView ViewContext where
                     <div class="form-group row">
                         <label class="col-sm-2 col-form-label">Type:</label>
                         <div class="col-sm-10">
-                            <select name="columnType" class="form-control">
+                            <select name="columnType" class="form-control select2-simple">
                                 <option value="TEXT">Text</option>
                                 <option value="INT">Int</option>
                                 <option value="UUID">UUID</option>
@@ -108,6 +108,7 @@ instance View NewColumnView ViewContext where
                                 placeholder: "Select a default value or type in a custom default value",
                                 tags: true
                             });
+                            $('.select2-simple').select2();
                         </script>
                     |]
             modalFooter = mempty 
