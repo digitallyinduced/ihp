@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE UndecidableInstances  #-}
 {-|
 Module: TurboHaskell.ViewSupport
 Description: Provides functions to be used in all views
