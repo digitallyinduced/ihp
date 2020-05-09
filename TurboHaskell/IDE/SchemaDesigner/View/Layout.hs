@@ -208,6 +208,8 @@ getDefaultValue columnType value = case value of
     "EMPTY" -> Just "''"
     "NULL" -> Just "NULL"
     "NODEFAULT" -> Nothing
+    "NOW()" -> Just value
+    "uuid_generate_v4()" -> Just value
     custom -> case columnType of
         "TEXT" -> Just ("'" <> custom <> "'")
         "INT" -> Just custom
