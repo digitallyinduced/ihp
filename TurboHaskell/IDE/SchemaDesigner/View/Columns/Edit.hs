@@ -13,6 +13,7 @@ data EditColumnView = EditColumnView
     , generatedHaskellCode :: Text
     , columnId :: Int
     , column :: Column
+    , primaryKeyExists :: Bool
     }
 
 instance View EditColumnView ViewContext where
@@ -38,8 +39,16 @@ instance View EditColumnView ViewContext where
 
             
             primaryKeyCheckbox = if get #primaryKey column
-                then preEscapedToHtml [plain|<input type="checkbox" name="primaryKey" class="mr-2" checked/>|]
-                else preEscapedToHtml [plain|<input type="checkbox" name="primaryKey" class="mr-2"/>|]
+                then preEscapedToHtml [plain|<label class="col col-form-label">
+                        <input type="checkbox" name="primaryKey" class="mr-2" checked/>
+                            Primary Key
+                        </label>|]
+                else if primaryKeyExists
+                    then mempty
+                    else preEscapedToHtml [plain|<label class="col col-form-label">
+                        <input type="checkbox" name="primaryKey" class="mr-2"/>
+                            Primary Key
+                        </label>|]
             
             allowNullCheckbox = if get #notNull column
                 then preEscapedToHtml [plain|<input type="checkbox" name="allowNull" class="mr-2"/>|]
@@ -67,12 +76,8 @@ instance View EditColumnView ViewContext where
                             {typeSelector (get #columnType column)}
                         </div>
                     </div>
-
                     <div class="form-group row">
-                        <label class="col col-form-label">
-                            {primaryKeyCheckbox}
-                            Primary Key
-                        </label>
+                        {primaryKeyCheckbox}
                         <label class="col col-form-label">
                             {allowNullCheckbox}
                             Allow Null

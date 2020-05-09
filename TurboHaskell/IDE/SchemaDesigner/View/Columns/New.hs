@@ -11,6 +11,7 @@ data NewColumnView = NewColumnView
     { statements :: [Statement]
     , tableName :: Text
     , generatedHaskellCode :: Text
+    , primaryKeyExists :: Bool
     }
 
 instance View NewColumnView ViewContext where
@@ -61,9 +62,7 @@ instance View NewColumnView ViewContext where
                     </div>
 
                     <div class="form-group row">
-                        <label class="col col-form-label">
-                            <input type="checkbox" name="primaryKey" class="mr-2"/>Primary Key
-                        </label>
+                        {primaryKeyCheckbox}
                         <label class="col col-form-label">
                             <input type="checkbox" name="allowNull" class="mr-2"/>Allow Null
                         </label>
@@ -91,6 +90,11 @@ instance View NewColumnView ViewContext where
                 </form>
             |]
                 where
+                    primaryKeyCheckbox = if primaryKeyExists
+                        then mempty
+                        else [hsx|<label class="col col-form-label">
+                            <input type="checkbox" name="primaryKey" class="mr-2"/>Primary Key
+                        </label>|]
                     defaultSelector = preEscapedToHtml [plain|
                         <div class="col-sm-10">
                             <select name="defaultValue" class="form-control select2">

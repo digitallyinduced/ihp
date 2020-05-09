@@ -25,6 +25,7 @@ instance Controller ColumnsController where
         statements <- readSchema
         let (Just table) = findTableByName tableName statements
         let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
+        primaryKeyExists <- hasPrimaryKey table
         render NewColumnView { .. }
 
     action CreateColumnAction = do
@@ -50,6 +51,7 @@ instance Controller ColumnsController where
         statements <- readSchema
         let (Just table) = findTableByName name statements
         let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
+        primaryKeyExists <- hasPrimaryKey table
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
         let column = columns !! columnId
@@ -161,3 +163,15 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable co
 getCreateTable statements = filter (\statement -> statement == CreateTable { name = (get #name statement), columns = (get #columns statement) }) statements
 
 nameList statements = map (get #name) statements
+
+hasPrimaryKey CreateTable { columns } = do
+    let primaryKey = find (\col -> col == Column { name = get #name col
+        , columnType = get #columnType col
+        , primaryKey = True
+        , defaultValue = get #defaultValue col
+        , notNull = get #notNull col
+        , isUnique = get #isUnique col
+        }) columns
+    case primaryKey of
+        Nothing -> pure False
+        _ -> pure True
