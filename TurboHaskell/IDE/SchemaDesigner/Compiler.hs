@@ -11,7 +11,9 @@ import Data.Maybe (fromJust)
 import qualified Data.Text.IO as Text
 
 writeSchema :: [Statement] -> IO ()
-writeSchema !statements = Text.writeFile "Application/Schema.sql" (compileSql statements)
+writeSchema !statements = do
+    let sortedStatements = sortBy compareStatement statements
+    Text.writeFile "Application/Schema.sql" (compileSql sortedStatements)
 
 compileSql :: [Statement] -> Text
 compileSql statements = statements
@@ -49,3 +51,7 @@ compileColumn Column { name, columnType, primaryKey, defaultValue, notNull, isUn
 
 compileDefaultValue :: Text -> Text
 compileDefaultValue value = "DEFAULT " <> value
+
+compareStatement (CreateTable {}) _ = LT
+compareStatement (AddConstraint {}) _ = GT
+compareStatement _ _ = EQ
