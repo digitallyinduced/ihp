@@ -60,7 +60,7 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
     <a href={EditColumnAction tableName id}>Edit Column</a>
     <a href={DeleteColumnAction tableName id} class="js-delete">Delete Column</a>
     <div></div>
-    <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button backdrop-blur">{toggleButtonText}</button></form>
+    <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button">{toggleButtonText}</button></form>
     {foreignKeyOption}
     <div></div>
     <a href={NewColumnAction tableName}>Add Column</a>
@@ -151,7 +151,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             </div>
         </a>
         <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
-            <a href={EditTableAction name id}>Edit Table</a>
+            <a href={EditTableAction name id}>Rename Table</a>
             <a href={DeleteTableAction id} class="js-delete">Delete Table</a>
             <div></div>
             <a href={NewColumnAction name}>Add Column to Table</a>
@@ -169,7 +169,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             </div>
         </a>
         <div class="custom-menu menu-for-enum shadow backdrop-blur" id={contextMenuId}>
-            <a href={EditEnumAction name id}>Edit Enum</a>
+            <a href={EditEnumAction name id}>Rename Enum</a>
             <a href={DeleteTableAction id} class="js-delete">Delete Enum</a>
             <div></div>
             <a href={NewEnumValueAction name}>Add Column to Table</a>
