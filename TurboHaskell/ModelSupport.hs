@@ -27,7 +27,6 @@ import Data.Proxy
 import TurboHaskell.DatabaseSupport.Point
 import Data.Data
 import qualified Control.Newtype.Generics as Newtype
-import TurboHaskell.SchemaTypes
 import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text

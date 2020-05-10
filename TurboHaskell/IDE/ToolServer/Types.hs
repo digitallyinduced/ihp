@@ -18,14 +18,58 @@ data ViewContext = ViewContext
 
 data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context } deriving (Eq)
 
-data SchemaDesignerController
+data SchemaController
+    = SchemaAction
+    | PushToDbAction
+    | ShowCodeAction
+    | SaveCodeAction
+    deriving (Eq, Show, Data)
+
+data TablesController
     = TablesAction
     | ShowTableAction { tableName :: Text }
+    | NewTableAction
+    | CreateTableAction
+    | EditTableAction { tableName :: Text, tableId :: Int }
+    | UpdateTableAction
+    | DeleteTableAction { tableId :: Int }
+    deriving (Eq, Show, Data)
+
+data ColumnsController
+    = ColumnsAction
     | NewColumnAction { tableName :: Text }
     | CreateColumnAction
-    | PushToDbAction
-    | CreateTableAction
-    | NewTableAction
+    | EditColumnAction { tableName :: Text, columnId :: Int }
+    | UpdateColumnAction
+    | DeleteColumnAction { tableName :: Text, columnId :: Int }
+    | ToggleColumnUniqueAction { tableName :: Text, columnId :: Int }
+    | NewForeignKeyAction { tableName :: Text, columnName :: Text }
+    | CreateForeignKeyAction
+    | EditForeignKeyAction { tableName :: Text, columnName :: Text, constraintName :: Text, referenceTable :: Text }
+    | UpdateForeignKeyAction
+    deriving (Eq, Show, Data)
+
+data EnumsController
+    = EnumsAction
+    | ShowEnumAction { enumName :: Text }
+    | NewEnumAction
+    | CreateEnumAction
+    | EditEnumAction { enumName :: Text, enumId :: Int }
+    | UpdateEnumAction
+    deriving (Eq, Show, Data)
+
+data EnumValuesController
+    = EnumValuesAction
+    | NewEnumValueAction { enumName :: Text }
+    | CreateEnumValueAction
+    | EditEnumValueAction { enumName :: Text, valueId :: Int }
+    | UpdateEnumValueAction
+    | DeleteEnumValueAction { enumName :: Text, valueId :: Int }
+    deriving (Eq, Show, Data)
+
+
+data DataController
+    = ShowDatabaseAction
     deriving (Eq, Show, Data)
 
 data LogsController

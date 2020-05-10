@@ -95,9 +95,9 @@ dump_db:
 ghci:
 	ghci -threaded -i. -iTurboHaskell -fexternal-interpreter
 
-build/Generated: Application/Schema.hs TurboHaskell/TurboHaskell/SchemaCompiler.hs
+build/Generated: Application/Schema.sql TurboHaskell/TurboHaskell/SchemaCompiler.hs
 	rm -rf build/Generated && mkdir -p build/Generated
-	ghci -e ':script TurboHaskell/TurboHaskell/IDE/compileModels'
+	build-generated-code
 
 build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated
 	mkdir -p build/RunUnoptimizedProdServer

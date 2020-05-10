@@ -27,6 +27,7 @@ data Column = Column
     , primaryKey :: Bool
     , defaultValue :: Maybe Text
     , notNull :: Bool
+    , isUnique :: Bool
     }
     deriving (Eq, Show)
 
@@ -38,6 +39,7 @@ data OnDelete
     deriving (Show, Eq)
 
 data Constraint
+    -- | FOREIGN KEY (columnName) REFERENCES referenceTable (referenceColumn) ON DELETE onDelete;
     = ForeignKeyConstraint
         { columnName :: Text
         , referenceTable :: Text

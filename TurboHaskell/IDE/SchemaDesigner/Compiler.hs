@@ -11,7 +11,9 @@ import Data.Maybe (fromJust)
 import qualified Data.Text.IO as Text
 
 writeSchema :: [Statement] -> IO ()
-writeSchema !statements = Text.writeFile "Application/Schema.sql" (compileSql statements)
+writeSchema !statements = do
+    let sortedStatements = sortBy compareStatement statements
+    Text.writeFile "Application/Schema.sql" (compileSql sortedStatements)
 
 compileSql :: [Statement] -> Text
 compileSql statements = statements
@@ -37,14 +39,19 @@ compileOnDelete (Just SetNull) = "ON DELETE SET NULL"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: Column -> Text
-compileColumn Column { name, columnType, primaryKey, defaultValue, notNull } =
+compileColumn Column { name, columnType, primaryKey, defaultValue, notNull, isUnique } =
     "    " <> unwords (catMaybes
         [ Just name
         , Just columnType
         , fmap compileDefaultValue defaultValue
         , if primaryKey then Just "PRIMARY KEY" else Nothing
         , if notNull then Just "NOT NULL" else Nothing
+        , if isUnique then Just "UNIQUE" else Nothing
         ])
 
 compileDefaultValue :: Text -> Text
 compileDefaultValue value = "DEFAULT " <> value
+
+compareStatement (CreateTable {}) _ = LT
+compareStatement (AddConstraint {}) _ = GT
+compareStatement _ _ = EQ

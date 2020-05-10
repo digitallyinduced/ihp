@@ -9,6 +9,14 @@
     opacity: 0.8;
 }
 
+.column-selector h5 {
+    font-size: 14px;
+    padding-left: 0.5rem;
+    padding-top: 0.5rem;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
 .object {
     font-size: 14px;
     padding-left: 0.5rem;
@@ -28,8 +36,15 @@
     transition: color 0.1s;
 }
 
-.object-selector, .column-selector {
+.object-selector, .column-selector, .visual-error {
     border: 1px solid #d5d4d5;
+    user-select: none;
+    min-height: 800px;
+}
+
+.visual-error {
+    margin-top: 5rem;
+    padding: 5rem;
 }
 
 .column-selector {
@@ -40,7 +55,61 @@
     border-top: 0;
 }
 
-
 .column-selector {
     font-size: 14px;
+}
+
+.toolbox {
+    margin-left:auto;
+    margin-right:2px;
+}
+
+.generated-haskell-code {
+    background-color: hsla(192, 81%, 3%, 1);
+    color: hsla(196, 13%, 90%, 1);
+    padding: 1rem;
+    font-size: 12px;
+    margin-top: 2rem;
+}
+
+.column-selector .column {
+    color: #808080;
+}
+
+.column-selector .column td:first-child {
+    color: black;
+    font-size: 14px;
+}
+
+.column-selector .column td {
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-size: 10px;
+    vertical-align: middle;
+}
+
+.nav-link.active {
+    background-color: #f8f8f8 !important;
+    border-color: #dee2e6 #dee2e6 #f8f8f8 !important;
+    color: #212529 !important;
+}
+
+.nav-link {
+    background-color: #fff !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    color: #6c757d !important;
+}
+
+#editor {
+    width: 100%;
+    height: 95%;
+}
+
+.nounderline {
+    text-decoration: none !important
+}
+
+.error-box {
+    background-color: black;
+    color: white;
 }

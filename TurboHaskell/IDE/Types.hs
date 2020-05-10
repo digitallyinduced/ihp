@@ -41,14 +41,12 @@ data Action =
     | AppModulesLoaded { success :: Bool }
     | AppStarted
     | ReceiveAppOutput { line :: OutputLine }
-    | ReceiveCodeGenerationOutput { line :: OutputLine }
     | AssetChanged
     | HaskellFileChanged
     | SchemaChanged
     | UpdateStatusServerState StatusServerState
     | UpdateLiveReloadNotificationServerState LiveReloadNotificationServerState
     | UpdateFileWatcherState FileWatcherState
-    | UpdateCodeGenerationState CodeGenerationState
     | UpdateToolServerState ToolServerState
     | PauseApp
     deriving (Show)
@@ -120,18 +118,6 @@ instance Show ToolServerState where
     show ToolServerStarted {} = "Started"
 
 
-data CodeGenerationState
-    = CodeGenerationNotStarted
-    | CodeGenerationReady { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
-    | CodeGenerationRunning { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
-    | CodeGenerationFailed { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
-
-instance Show CodeGenerationState where
-    show CodeGenerationNotStarted = "NotStarted"
-    show CodeGenerationReady { } = "Ready"
-    show CodeGenerationRunning { } = "Running"
-    show CodeGenerationFailed { } = "Failed"
-
 instance Show (IORef x) where show _ = "(..)"
 instance Show ProcessHandle where show _ = "(..)"
 instance Show (Async ()) where show _ = "(..)"
@@ -142,7 +128,6 @@ data AppState = AppState
     , statusServerState :: StatusServerState
     , liveReloadNotificationServerState :: LiveReloadNotificationServerState
     , fileWatcherState :: FileWatcherState
-    , codeGenerationState :: CodeGenerationState
     , toolServerState :: ToolServerState
     } deriving (Show)
 
@@ -153,7 +138,6 @@ emptyAppState = AppState
     , statusServerState = StatusServerNotStarted
     , liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted
     , fileWatcherState = FileWatcherNotStarted
-    , codeGenerationState = CodeGenerationNotStarted
     , toolServerState = ToolServerNotStarted
     }
 

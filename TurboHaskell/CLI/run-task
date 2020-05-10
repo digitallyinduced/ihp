@@ -6,7 +6,7 @@ TASK_MODULE="${TASK_MODULE%.*}"
 
 # Ensure we are in an app dir
 if [ ! -f Main.hs ]; then
-    echo "You have to be in a project directory to run the generator"
+    echo "You have to be in a project directory to run the task"
     exit 1
 fi
 
@@ -21,7 +21,7 @@ trap "rm $GHCI_SCRIPT" EXIT
 echo ":script $FRAMEWORKDIR/TurboHaskell/IDE/applicationGhciConfig" > "$GHCI_SCRIPT"
 
 if [ -d TurboHaskell ]; then
-    echo ":l TurboHaskell/TurboHaskell/TaskSupport.hs Application/Schema.hs $TASK_PATH" >> "$GHCI_SCRIPT"
+    echo ":l TurboHaskell/TurboHaskell/TaskSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"
 else
     echo "import TurboHaskell.TaskSupport" >> "$GHCI_SCRIPT"
 fi
