@@ -112,5 +112,6 @@ mkDerivation {
   license = stdenv.lib.licenses.bsd3;
   postInstall = ''
     cp TurboHaskell/CLI/run-task $out/bin/run-task
+    cp Makefile.dist $out
   '';
 }
