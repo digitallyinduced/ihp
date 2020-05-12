@@ -12,7 +12,7 @@ let
 
     ghc = pkgs.haskell.packages.${compiler};
     allHaskellPackages = ghc.ghcWithPackages (p: haskellDeps p);
-    allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [pkgs.darwin.apple_sdk.frameworks.Cocoa] else [pkgs.llvm_39]) ];
+    allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [pkgs.darwin.apple_sdk.frameworks.Cocoa] else []) ];
 in
     pkgs.stdenv.mkDerivation {
         name = "app";
