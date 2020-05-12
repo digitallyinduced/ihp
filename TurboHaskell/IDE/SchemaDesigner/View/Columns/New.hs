@@ -60,9 +60,15 @@ instance View NewColumnView ViewContext where
                             <option value="POINT">Point</option>
                         </select>
 
-                        <label class="text-muted d-block ml-auto mt-1" style="font-size: 12px; width: fit-content">
-                            <input type="checkbox" name="allowNull" class="mr-2"/> Nullable
-                        </label>
+                        <div class="mt-1 text-muted">
+                            <label style="font-size: 12px">
+                                <input type="checkbox" name="allowNull" class="mr-2"/> References users
+                            </label>
+
+                            <label style="font-size: 12px">
+                                <input type="checkbox" name="allowNull" class="mr-2"/> Nullable
+                            </label>
+                        </div>
                     </div>
 
                     <div class="form-group row">
