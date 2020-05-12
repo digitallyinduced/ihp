@@ -11,12 +11,13 @@ data NewTableView = NewTableView { statements :: [Statement] }
 
 instance View NewTableView ViewContext where
     html NewTableView { .. } = [hsx|
+        {visualNav}
         <div class="container">
             <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
                 <button type="submit" class="btn btn-primary my-3">Push to DB</button>
             </form>
-            <div class="row no-gutters">
-                {renderObjectSelector statements Nothing}
+            <div class="row no-gutters bg-white">
+                {renderObjectSelector (zip [0..] statements) Nothing}
             </div>
         </div>
         {Just modal}
@@ -26,14 +27,14 @@ instance View NewTableView ViewContext where
                 <form method="POST" action={CreateTableAction}>
 
                     <div class="form-group row">
-                        <label for="inputEmail3" class="col-sm-2 col-form-label">Name:</label>
+                        <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="tableName" type="text" class="form-control" autofocus="autofocus"/>
                         </div>
                     </div>
 
                     <div class="text-right">
-                        <button type="submit" class="btn btn-primary">Create Column</button>
+                        <button type="submit" class="btn btn-primary">Create Table</button>
                     </div>
                 </form>
             |]

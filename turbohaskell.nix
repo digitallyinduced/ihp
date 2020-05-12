@@ -112,9 +112,7 @@ mkDerivation {
   ];
   license = stdenv.lib.licenses.bsd3;
   postInstall = ''
-    mkdir -p $out/shared
-    cp TurboHaskell/ControllerGenerator.hs $out/shared/ControllerGenerator.hs
-    cp gen/controller $out/bin/new-controller
-    cp run-task $out/bin/run-task
+    cp TurboHaskell/CLI/run-task $out/bin/run-task
+    cp Makefile.dist $out
   '';
 }

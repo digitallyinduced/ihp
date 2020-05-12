@@ -103,7 +103,7 @@ Here is a short overview of the whole structure:
 | Config/nix/nixpkgs-config.nix | Configuration for the nix package manager                                   |
 | Config/nix/haskell-packages/  | Custom haskell dependencies can be placed here                              |
 | Application/                          | Your domain logic lives here                                           |
-| Application/Schema.hs           | Models and database tables are defined here                                 |
+| Application/Schema.sql           | Models and database tables are defined here                                 |
 | Web/Controller       | Web application controllers                                                             |
 | Web/View/            | Web application html template files                                                         |
 | Web/Types.hs            | Central place for all web application types                                                         |
@@ -1342,7 +1342,7 @@ action UpdateUserAction { userId } = do
             Left user -> render EditView { .. }
             Right user -> do
                 user <- user |> updateRecord
-                setSuccessMessage "Deine Änderungen wurden gespeichert."
+                setSuccessMessage "Your changes have been saved."
                 redirectTo EditUserAction { .. }
 ```
 

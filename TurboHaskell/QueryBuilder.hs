@@ -20,7 +20,6 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.OverloadedLabels
 import TurboHaskell.ModelSupport
-import qualified TurboHaskell.SchemaTypes as Schema
 import qualified Data.ByteString.Builder as ByteStringBuilder
 
 -- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.

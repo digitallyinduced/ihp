@@ -32,7 +32,12 @@ import Network.Wai.Middleware.Static
 import Network.Wai.Session (withSession, Session)
 
 import TurboHaskell.IDE.SchemaDesigner.Types
-import TurboHaskell.IDE.SchemaDesigner.Controller
+import TurboHaskell.IDE.SchemaDesigner.Controller.EnumValues
+import TurboHaskell.IDE.SchemaDesigner.Controller.Enums
+import TurboHaskell.IDE.SchemaDesigner.Controller.Columns
+import TurboHaskell.IDE.SchemaDesigner.Controller.Schema
+import TurboHaskell.IDE.SchemaDesigner.Controller.Tables
+import TurboHaskell.IDE.Data.Controller
 
 import TurboHaskell.IDE.Logs.Controller
 
@@ -94,8 +99,13 @@ openUrl url = do
 
 instance FrontController ToolServerApplication where
     controllers =
-        [ parseRoute @SchemaDesignerController
+        [ parseRoute @SchemaController
+        , parseRoute @TablesController
+        , parseRoute @ColumnsController
+        , parseRoute @EnumsController
+        , parseRoute @EnumValuesController
         , parseRoute @LogsController
+        , parseRoute @DataController
         , catchAll TablesAction
         ]
 

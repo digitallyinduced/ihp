@@ -1,22 +1,28 @@
-{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
-module TurboHaskell.ControllerGenerator where
+module Main where
 
 import ClassyPrelude
 import TurboHaskell.NameSupport
-import TurboHaskell.SchemaSupport
 import Data.String.Conversions (cs)
 import Data.Text.IO (appendFile)
 import qualified System.Directory as Directory
 import qualified System.Exit as Exit
-import TurboHaskell.SchemaTypes
 import TurboHaskell.HaskellSupport
 import qualified Data.Text as Text
 import qualified Text.Countable as Countable
 import qualified Data.Char as Char
+import qualified TurboHaskell.IDE.SchemaDesigner.Parser as SchemaDesigner
+import TurboHaskell.IDE.SchemaDesigner.Types
+import qualified System.Posix.Env.ByteString as Posix
 
-main' :: [Table] -> [Text] -> IO ()
-main' database args = do
+main :: IO ()
+main = do
+    ensureIsInAppDirectory
+
+    schema <- SchemaDesigner.parseSchemaSql >>= \case
+        Left parserError -> pure []
+        Right statements -> pure statements
+
+    args <- map cs <$> Posix.getArgs
     case headMay args of
         Just "" -> usage
         Just appAndControllerName -> do
@@ -24,31 +30,31 @@ main' database args = do
                 [applicationName, controllerName'] -> do
                     if isAlphaOnly applicationName
                         then if isAlphaOnly controllerName'
-                            then gen database (ucfirst applicationName) controllerName'
+                            then gen schema (ucfirst applicationName) controllerName'
                             else putStrLn ("Invalid controller name: " <> tshow controllerName')
                         else putStrLn ("Invalid application name: " <> tshow applicationName)
                 [controllerName'] -> if isAlphaOnly controllerName'
-                        then gen database "Web" controllerName'
+                        then gen schema "Web" controllerName'
                         else putStrLn ("Invalid controller name: " <> tshow controllerName')
-                [] -> usage
-        Nothing -> usage
+                _ -> usage
+        _ -> usage
 
 
 isAlphaOnly :: Text -> Bool
 isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
-gen database applicationName controllerName' = do
+gen schema applicationName controllerName' = do
     let modelName = tableNameToModelName controllerName'
     let controllerName = Countable.pluralize modelName
     let config = ControllerConfig { modelName, controllerName, applicationName }
     let generate =
-            [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController database config) }
+            [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
             , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
             , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
             , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
             , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller") }
             ]
-            <> generateViews database config
+            <> generateViews schema config
     evalActions generate
 
 data ControllerConfig = ControllerConfig
@@ -115,13 +121,17 @@ describePlan' AppendToFile { filePath, fileContent } = "APPEND " <> filePath <> 
 describePlan' AppendToMarker { marker, filePath, fileContent } = "APPEND MARKER " <> marker <> " => " <> filePath <> ": " <> fileContent
 describePlan' EnsureDirectory { directory } = "DIRECTORY " <> directory
 
-getTable :: [Table] -> Text -> Maybe Table
-getTable database name = find (\(Table n _) -> n == name) database
+getTable :: [Statement] -> Text -> Maybe Statement
+getTable schema name = find isTable schema
+    where
+        isTable :: Statement -> Bool
+        isTable table@(CreateTable { name = name' }) | name == name' = True
+        isTable _ = False
 
-fieldsForTable :: [Table] -> Text -> [Text]
+fieldsForTable :: [Statement] -> Text -> [Text]
 fieldsForTable database name =
     case getTable database name of
-        Just (Table _ attributes) -> map (\(Field name _) -> columnNameToFieldName name) (fieldsWithoutDefaultValue $ fieldsOnly attributes)
+        Just (CreateTable { columns }) -> map (get #name) (filter (\col -> isNothing (get #defaultValue col)) columns)
         Nothing -> []
 
 
@@ -144,8 +154,8 @@ generateControllerData config =
         <> "    | Delete" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    deriving (Eq, Show, Data)\n"
 
-generateController :: [Table] -> ControllerConfig -> Text
-generateController database config =
+generateController :: [Statement] -> ControllerConfig -> Text
+generateController schema config =
     let
         applicationName = get #applicationName config
         name = config |> get #controllerName
@@ -191,7 +201,7 @@ generateController database config =
             <> "        render EditView { .. }\n"
 
         modelFields :: [Text]
-        modelFields = fieldsForTable database modelVariablePlural
+        modelFields = fieldsForTable schema modelVariablePlural
 
         updateAction =
             ""
@@ -236,12 +246,11 @@ generateController database config =
 
 
         fromParamsInstanceHeadArgs = 
-            case getTable database (lcfirst name) of
-                Just (Table _ attributes) ->
-                    attributes
-                    |> fieldsOnly
-                    |> fieldsWithDefaultValue
-                    |> map (\(Field fieldName _) -> columnNameToFieldName fieldName)
+            case getTable schema (lcfirst name) of
+                Just (CreateTable { columns }) ->
+                    columns
+                    |> filter (\col -> isJust (get #defaultValue col))
+                    |> map (\(Column { name }) -> columnNameToFieldName name)
                     |> Text.unwords
                 Nothing -> ""
         fromParamsInstanceHead = "NewOrSaved" <> singularName <> " " <> fromParamsInstanceHeadArgs 
@@ -276,8 +285,8 @@ qualifiedViewModuleName config viewName =
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
 
-generateViews :: [Table] -> ControllerConfig -> [GeneratorAction]
-generateViews database config =
+generateViews :: [Statement] -> ControllerConfig -> [GeneratorAction]
+generateViews schema config =
         let
             name = config |> get #controllerName
             singularName = config |> get #modelName
@@ -294,7 +303,7 @@ generateViews database config =
             indexAction = Countable.pluralize singularName <> "Action"
 
             modelFields :: [Text]
-            modelFields = fieldsForTable database pluralVariableName
+            modelFields = fieldsForTable schema pluralVariableName
 
             showView = 
                 viewHeader "Show"
@@ -393,3 +402,8 @@ generateViews database config =
             , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Edit.hs", fileContent = editView }
             , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Index.hs", fileContent = indexView }
             ]
+
+ensureIsInAppDirectory :: IO ()
+ensureIsInAppDirectory = do
+    mainHsExists <- Directory.doesFileExist "Main.hs"
+    unless mainHsExists (fail "You have to be in a project directory to run the generator")
