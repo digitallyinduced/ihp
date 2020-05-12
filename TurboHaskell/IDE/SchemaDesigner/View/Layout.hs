@@ -77,7 +77,7 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
                 Just value -> [hsx|default: {value} |]
                 Nothing -> mempty
         renderForeignKey = case findForeignKey statements tableName name of
-            Just AddConstraint { constraint } -> [hsx|FOREIGN KEY: {get #referenceTable constraint}|]
+            Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)} class="d-block nounderline" style="color: #808080;">FOREIGN KEY: {get #referenceTable constraint}</a>|]
             Nothing -> mempty
         foreignKeyOption = case findForeignKey statements tableName name of
             Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)}>Edit Foreign Key Constraint</a>|]
