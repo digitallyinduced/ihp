@@ -38,6 +38,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src="/vendor/contextmenu.js"></script>
 
     <script src="/vendor/select2.min.js"></script>
+    <script src="/turbohaskell-schemadesigner.js"></script>
 
 
     <title>TurboHaskell</title>
