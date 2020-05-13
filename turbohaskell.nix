@@ -38,7 +38,6 @@
 , mime-mail-ses
 , tz
 , attoparsec
-, time_1_9_3
 , case-insensitive
 , haskell-src-exts
 , containers
@@ -96,7 +95,6 @@ mkDerivation {
     mime-mail-ses
     tz
     attoparsec
-    time_1_9_3
     case-insensitive
     haskell-src-exts
     containers
