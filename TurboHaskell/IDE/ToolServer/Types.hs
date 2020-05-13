@@ -23,6 +23,7 @@ data SchemaController
     | PushToDbAction
     | ShowCodeAction
     | SaveCodeAction
+    | ShowGeneratedCodeAction { tableName :: Text }
     deriving (Eq, Show, Data)
 
 data TablesController

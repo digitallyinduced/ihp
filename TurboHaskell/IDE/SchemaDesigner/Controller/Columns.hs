@@ -24,7 +24,6 @@ instance Controller ColumnsController where
     action NewColumnAction { tableName } = do
         statements <- readSchema
         let (Just table) = findTableByName tableName statements
-        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         primaryKeyExists <- hasPrimaryKey table
         render NewColumnView { .. }
 
@@ -50,7 +49,6 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let (Just table) = findTableByName name statements
-        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         primaryKeyExists <- hasPrimaryKey table
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
@@ -95,8 +93,6 @@ instance Controller ColumnsController where
     action NewForeignKeyAction { tableName, columnName } = do
         let name = tableName
         statements <- readSchema
-        let (Just table) = findTableByName name statements
-        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         let tableNames = nameList (getCreateTable statements)
         render NewForeignKeyView { .. }
 
@@ -112,8 +108,6 @@ instance Controller ColumnsController where
     action EditForeignKeyAction { tableName, columnName, constraintName, referenceTable } = do
         let name = tableName
         statements <- readSchema
-        let (Just table) = findTableByName name statements
-        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         let tableNames = nameList (getCreateTable statements)
         let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
         onDelete <- case (get #onDelete (get #constraint statement)) of

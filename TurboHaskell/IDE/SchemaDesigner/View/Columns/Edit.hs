@@ -10,7 +10,6 @@ import TurboHaskell.IDE.SchemaDesigner.View.Layout
 data EditColumnView = EditColumnView
     { statements :: [Statement]
     , tableName :: Text
-    , generatedHaskellCode :: Text
     , columnId :: Int
     , column :: Column
     , primaryKeyExists :: Bool
@@ -27,8 +26,6 @@ instance View EditColumnView ViewContext where
                 {renderObjectSelector (zip [0..] statements) (Just tableName)}
                 {renderColumnSelector tableName (zip [0..] columns) statements}
             </div>
-
-            <pre class="generated-haskell-code"><code>{generatedHaskellCode}</code></pre>
         </div>
         {Just modal}
     |]
