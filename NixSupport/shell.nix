@@ -1,6 +1,6 @@
 let
 	pkgs = import ./pkgs.nix;
-	ghc = pkgs.haskell.packages.ghc865;
+	ghc = pkgs.haskell.packages.ghc883;
 	haskellDeps = ghc.ghcWithPackages (p: with p; [
 	    cabal-install
 	    base
@@ -34,7 +34,6 @@ let
 	    concurrent-extra
 	    interpolate
 	    uri-encode
-	    generic-lens
 	    websockets
 	    wai-websockets
 	    mime-mail
@@ -43,7 +42,6 @@ let
 	    tz
 	    attoparsec
 	    lens
-	    time_1_9_3
 	    case-insensitive
 	    haskell-src-exts
 	    containers

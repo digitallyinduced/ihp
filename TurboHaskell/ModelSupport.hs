@@ -73,18 +73,6 @@ instance InputValue UTCTime where
         let fullDateTime = cs (iso8601Show time)
         in fullDateTime
 
-instance InputValue ClassyPrelude.UTCTime where
-    inputValue time = inputValue ((unsafeCoerce time) :: UTCTime)
-
-instance Default ClassyPrelude.UTCTime where
-    def = ClassyPrelude.UTCTime (unsafeCoerce 0) 0
-
-instance FromField UTCTime where
-    fromField = unsafeCoerce (fromField @ClassyPrelude.UTCTime)
-
-instance ToField UTCTime where
-    toField = unsafeCoerce (toField @ClassyPrelude.UTCTime)
-
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""

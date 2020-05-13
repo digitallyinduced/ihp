@@ -1,6 +1,6 @@
 {-|
 Module: TurboHaskell.ValidationSupport.ValidateField
-Description: Side-effect free validations for records
+Description: Validation for records
 Copyright: (c) digitally induced GmbH, 2020
 
 Use 'validateField' and 'validateFieldIO' together with the validation functions to do simple validations.
