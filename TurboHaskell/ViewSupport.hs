@@ -102,6 +102,12 @@ classes !classNameBoolPairs =
     |> unwords
 {-# INLINE classes #-}
 
+-- | Allows `("my-class", True)` to be written as `"my-class"`
+--
+-- Useful together with 'classes'
+instance IsString (Text, Bool) where
+    fromString string = (cs string, True)
+
 class CreateViewContext viewContext where
     type ViewApp viewContext
     createViewContext :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext

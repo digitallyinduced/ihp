@@ -38,6 +38,8 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src="/vendor/contextmenu.js"></script>
 
     <script src="/vendor/select2.min.js"></script>
+    <script src="/vendor/src-min/ace.js"></script>
+    <script src="/vendor/src-min/ext-language_tools.js"></script>
     <script src="/turbohaskell-schemadesigner.js"></script>
 
 
@@ -69,7 +71,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActivePath ShowDatabaseAction)
         repl = navItem "REPL" terminalIcon "#" False
         codegen = navItem "CODEGEN" copyIcon "#" False
-        logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) False
+        logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
         deploy = navItem "DEPLOY" globeIcon "#" False
         docu = navItem "DOCU" bookIcon "https://turbohaskell.digitallyinduced.com/getting-started.html" False
@@ -93,10 +95,6 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                 target :: Text
                 target = if isExternal then "_blank" else "_self"
 
-schemaDesignerLayout :: Html -> Html
-schemaDesignerLayout inner = [hsx|
-    
-|]
 
 -- | https://github.com/encharm/Font-Awesome-SVG-PNG/blob/master/white/svg/database.svg
 databaseIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M896 768q237 0 443-43t325-127v170q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-170q119 84 325 127t443 43zm0 768q237 0 443-43t325-127v170q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-170q119 84 325 127t443 43zm0-384q237 0 443-43t325-127v170q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-170q119 84 325 127t443 43zm0-1152q208 0 385 34.5t280 93.5 103 128v128q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-128q0-69 103-128t280-93.5 385-34.5z" fill="#fff"/></svg>|]

@@ -49,4 +49,59 @@ function initSchemaDesigner() {
     });
 }
 
+function initCodeEditor() {
+    var editorEl = document.getElementById('editor');
+    if (!editorEl) return;
+
+    var editor;
+    function initAce() {
+        ace.require("ace/ext/language_tools");
+        editor = ace.edit(editorEl);
+        editor.setTheme("ace/theme/solarized_dark");
+        editor.session.setMode("ace/mode/sql");
+        editor.setShowPrintMargin(false);
+        editor.setOptions({
+            enableBasicAutocompletion: true,
+            enableLiveAutocompletion: true
+        });
+        window.onbeforeunload = confirmExit;
+        function confirmExit() {
+            if (!editor.session.getUndoManager().isClean()) {
+                return "You have unsaved changes. Do you want to leave the Editor?";
+            }
+        }
+    }
+
+    function initSaveButton() {
+        var saveButton = document.getElementById("save-button");
+        saveButton.disabled = true;
+        saveButton.addEventListener("click", function saveSchema() {
+            editor.session.getUndoManager().markClean()
+            saveButton.disabled = editor.session.getUndoManager().isClean()
+            var form = document.createElement('form');
+            form.action = "http://localhost:8001/turbohaskell/SaveCode";
+            form.method = 'POST';
+
+            var methodInput = document.createElement('input');
+            console.log(form.action);
+            methodInput.type = 'hidden';
+            methodInput.name = 'schemaSql';
+            methodInput.value = editor.getValue();
+
+            form.appendChild(methodInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        });
+
+        editor.on("input", function() {
+            saveButton.disabled = editor.session.getUndoManager().isClean()
+        });
+    }
+
+    initAce();
+    initSaveButton();
+}
+
 document.addEventListener('turbolinks:load', initSchemaDesigner);
+document.addEventListener('turbolinks:load', initCodeEditor);
