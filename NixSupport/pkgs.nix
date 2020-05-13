@@ -21,7 +21,7 @@ let
     nixPkgsRev = "b6ef10f6a81d1653b27bd8cff0593b55a7081106";
     nixPkgsSha256 = "1dvqrhp0c85n7n9n79gv3hkyw6i32gwhpqgdyxkaqzf13ckmdrjm";
 
-    compiler = "ghc865";
+    compiler = "ghc883";
 
           generatedOverrides = haskellPackagesNew: haskellPackagesOld:
             let

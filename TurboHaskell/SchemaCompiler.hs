@@ -16,6 +16,7 @@ import TurboHaskell.HaskellSupport
 import qualified Text.Countable as Countable
 import qualified TurboHaskell.IDE.SchemaDesigner.Parser as SchemaDesigner
 import TurboHaskell.IDE.SchemaDesigner.Types
+import Control.Monad.Fail
 
 compile :: IO ()
 compile = do

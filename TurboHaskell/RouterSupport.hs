@@ -45,6 +45,7 @@ import TurboHaskell.HaskellSupport hiding (get)
 import qualified Data.Typeable as Typeable
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Char as Char
+import Control.Monad.Fail
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]

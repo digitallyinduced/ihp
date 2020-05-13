@@ -13,6 +13,7 @@ import qualified Data.Char as Char
 import qualified TurboHaskell.IDE.SchemaDesigner.Parser as SchemaDesigner
 import TurboHaskell.IDE.SchemaDesigner.Types
 import qualified System.Posix.Env.ByteString as Posix
+import Control.Monad.Fail
 
 main :: IO ()
 main = do

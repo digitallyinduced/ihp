@@ -110,7 +110,6 @@ library TurboHaskellFramework
         , TurboHaskell.Controller.Render
         , TurboHaskell.Controller.RequestContext
         , TurboHaskell.Controller.Session
-        , TurboHaskell.DatabaseSupport.Point
         , TurboHaskell.HtmlSupport.Parser
         , TurboHaskell.HtmlSupport.QQ
         , TurboHaskell.HtmlSupport.ToHtml

@@ -16,6 +16,7 @@ import Data.String.Conversions (cs)
 import TurboHaskell.HtmlSupport.ToHtml
 import qualified Debug.Trace
 import qualified Language.Haskell.Exts.Syntax as HS
+import Control.Monad.Fail
 
 
 hsx :: QuasiQuoter

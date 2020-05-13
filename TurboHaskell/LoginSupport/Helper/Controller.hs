@@ -26,6 +26,7 @@ import qualified TurboHaskell.ModelSupport as ModelSupport
 import TurboHaskell.ControllerSupport
 import TurboHaskell.FrameworkConfig
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Monad.Fail
 
 type family CurrentUserRecord
 type family CurrentAdminRecord
