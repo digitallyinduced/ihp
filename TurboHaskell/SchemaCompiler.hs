@@ -60,7 +60,6 @@ haskellType table column@(Column { columnType, notNull }) =
                 "BOOLEAN"   -> "Bool"
                 "TIMESTAMP WITH TIME ZONE" -> "UTCTime"
                 "UUID" -> "UUID"
-                "POINT" -> "Point"
                 "FLOAT" -> "Float"
                 "DOUBLE PRECISION" -> "Double"
                 customType -> tableNameToModelName customType
@@ -117,7 +116,6 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified TurboHaskell.QueryBuilder as QueryBuilder\n"
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
-                  <> "import TurboHaskell.DatabaseSupport.Point\n"
                   <> "import Data.Data\n"
                   <> "import Database.PostgreSQL.Simple.Types (Query (Query))\n"
 

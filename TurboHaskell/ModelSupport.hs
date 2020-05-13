@@ -24,7 +24,6 @@ import GHC.OverloadedLabels
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
-import TurboHaskell.DatabaseSupport.Point
 import Data.Data
 import qualified Control.Newtype.Generics as Newtype
 import Control.Applicative (Const)
@@ -97,13 +96,6 @@ instance Default Text where
 instance Default Bool where
     {-# INLINE def #-}
     def = False
-
-instance Default Point where
-    {-# INLINE def #-}
-    def = Point 0 0
-
-
-
 
 type FieldName = ByteString
 
