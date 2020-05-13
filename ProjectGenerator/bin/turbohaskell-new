@@ -23,8 +23,15 @@ if ! [ -x "$(command -v direnv)" ]; then
 	echo -e "Learn more about direnv here: \e[4mhttps://direnv.net/\e[0m"
 	echo ""
 	echo ""
-	echo -e "\e[1mWe will install direnv for you now. Continue? (Type y to proceed) \e[0m"
+	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
 	read -n1 choice
+	echo ""
+	case "$choice" in 
+	  y|Y ) nix-env -i cachix;;
+	  * ) echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"; exit 1;;
+	esac
+	echo -e "\e[1mWe will install direnv for you now. Continue? (Type y to proceed) \e[0m"
+	read -n1 choice_direnv
 	echo ""
 	case "$choice" in 
 	  y|Y ) nix-env -i direnv;;
