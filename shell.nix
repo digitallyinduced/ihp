@@ -10,7 +10,7 @@ let
       , countable-inflections, data-default, directory, fsnotify
       , ghc-prim, haskell-src-exts, haskell-src-meta, http-client
       , http-media, http-types, inflections, interpolate, megaparsec, mtl
-      , network, network-uri, newtype-generics, parsec, postgresql-simple
+      , network, network-uri, newtype-generics, postgresql-simple
       , process, pwstore-fast, random-strings, split, stdenv
       , string-conversions, template-haskell, text, time, typerep-map
       , unix, unliftio, uuid, vault, wai, wai-extra
@@ -29,7 +29,7 @@ let
           cookie countable-inflections data-default directory ghc-prim
           haskell-src-exts haskell-src-meta http-client http-media http-types
           inflections interpolate megaparsec mtl network-uri newtype-generics
-          parsec postgresql-simple process pwstore-fast random-strings split
+          postgresql-simple process pwstore-fast random-strings split
           string-conversions template-haskell text time typerep-map uuid
           vault wai wai-extra wai-middleware-static wai-session
           wai-session-clientsession wai-util warp
@@ -40,7 +40,7 @@ let
           cookie countable-inflections data-default directory fsnotify
           ghc-prim haskell-src-exts haskell-src-meta http-client http-media
           http-types inflections interpolate megaparsec mtl network
-          network-uri newtype-generics parsec postgresql-simple process
+          network-uri newtype-generics postgresql-simple process
           pwstore-fast random-strings split string-conversions
           template-haskell text time typerep-map unix unliftio uuid vault wai
           wai-extra wai-middleware-static wai-session

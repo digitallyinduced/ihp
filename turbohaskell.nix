@@ -26,7 +26,6 @@
 , wai-session-clientsession
 , clientsession
 , pwstore-fast
-, parsec
 , template-haskell
 , haskell-src-meta
 , random-strings
@@ -83,7 +82,6 @@ mkDerivation {
     wai-session-clientsession
     clientsession
     pwstore-fast
-    parsec
     template-haskell
     haskell-src-meta
     random-strings

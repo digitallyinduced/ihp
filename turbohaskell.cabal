@@ -45,7 +45,6 @@ common shared-properties
             , random-strings
             , uuid
             , time
-            , parsec
             , attoparsec
             , ghc-prim
             , case-insensitive

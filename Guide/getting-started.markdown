@@ -638,7 +638,6 @@ let
             aeson
             uuid
             hlint
-            parsec
             template-haskell
             interpolate
             uri-encode

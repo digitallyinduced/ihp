@@ -27,7 +27,6 @@ let
 	    wai-session-clientsession
 	    clientsession
 	    pwstore-fast
-	    parsec
 	    template-haskell
 	    haskell-src-meta
 	    random-strings

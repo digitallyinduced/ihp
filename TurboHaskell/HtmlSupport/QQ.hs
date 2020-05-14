@@ -17,7 +17,7 @@ import TurboHaskell.HtmlSupport.ToHtml
 import qualified Debug.Trace
 import qualified Language.Haskell.Exts.Syntax as HS
 import Control.Monad.Fail
-
+import qualified Text.Megaparsec as Megaparsec
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
@@ -29,13 +29,17 @@ hsx = QuasiQuoter {
 
 quoteHsxExpression :: String -> TH.ExpQ
 quoteHsxExpression code = do
-        expression <- monadicParseHsx code
+        hsxPosition <- findHSXPosition
+        expression <- case parseHsx hsxPosition (cs code) of
+                Left error   -> fail (Megaparsec.errorBundlePretty error)
+                Right result -> pure result
         compileToHaskell expression
     where
-        monadicParseHsx code =
-            case parseHsx code of
-                Left error   -> fail (show error)
-                Right result -> pure result
+
+        findHSXPosition = do
+            loc <- TH.location
+            let (line, col) = TH.loc_start loc
+            pure $ Megaparsec.SourcePos (TH.loc_filename loc) (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 
 compileToHaskell :: Node -> TH.ExpQ
 compileToHaskell (Node name attributes children) =
@@ -52,11 +56,11 @@ compileToHaskell (Children children) =
         renderedChildren = TH.listE $ map compileToHaskell children
     in [| foldl' (>>) mempty $(renderedChildren) |]
 
-compileToHaskell (TextNode value) = [| Html5.string value |]
+compileToHaskell (TextNode value) = let value' :: String = cs value in [| Html5.string value' |]
 compileToHaskell (SplicedNode code) =
-    case parseExp code of
+    case parseExp (cs code) of
         Right expression -> let patched = patchExpr expression in [| toHtml $(pure patched) |]
-        Left error -> fail ("compileToHaskell(" <> code <> "): " <> show error)
+        Left error -> fail ("compileToHaskell(" <> (cs code) <> "): " <> show error)
 
 patchExpr :: TH.Exp -> TH.Exp
 patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.VarE labelValue)) | hash == TH.mkName "#" = TH.AppE (TH.VarE varName) fromLabel
@@ -100,21 +104,20 @@ patchExpr e = e
 -- UInfixE (UInfixE (VarE tshow) (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
 
 
-toStringAttribute :: (String, AttributeValue) -> TH.ExpQ
-toStringAttribute (name, TextValue value) = do
+toStringAttribute :: (Text, AttributeValue) -> TH.ExpQ
+toStringAttribute (name', TextValue value) = do
+    let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then pure () else fail ("Invalid attribute: " <> name)
-
     if null value
         then [| (attribute name nameWithSuffix) mempty |]
-        else [| (attribute name nameWithSuffix) (value :: Html5.AttributeValue) |]
+        else [| (attribute name nameWithSuffix) (cs value :: Html5.AttributeValue) |]
 
-toStringAttribute (name, ExpressionValue code) = do
+toStringAttribute (name', ExpressionValue code) = do
+    let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
-    if name `elem` attributes || ("data-" `isPrefixOf` name) || ("aria-" `isPrefixOf` name) then pure () else fail ("Invalid attribute: " <> name)
-    case parseExp code of
+    case parseExp (cs code) of
         Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(pure patched)) |]
-        Left error -> fail ("toStringAttribute.compileToHaskell(" <> code <> "): " <> show error)
+        Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
 
 
 {-# INLINE applyAttributes #-}
@@ -123,83 +126,24 @@ applyAttributes !el [] = el
 applyAttributes !el (x:xs) = applyAttributes (el ! x) xs
 
 {-# INLINE makeElement #-}
-makeElement :: String -> [Html] -> Html
-makeElement !name !children =
+makeElement :: Text -> [Html] -> Html
+makeElement name' children =
     let
+        name :: String
+        name = cs name'
         {-# INLINE element #-}
         element :: Html -> Html
         element = (Parent (fromString name) (fromString $ "<" <> name) (fromString $ "</" <> name <> ">"))
         {-# INLINE leaf #-}
         leaf = (Leaf (fromString name) (fromString $ "<" <> name) (fromString $ ">"))
-    in if name `elem` parents then
+    in if name' `elem` parents then
             let !children' = case length children of
                     0 -> mempty
                     1 -> unsafeHead children
                     _ -> (foldl' (<>) (unsafeHead children) (unsafeTail children))
             in element children'
         else
-            if name `elem` leafs then
+            if name' `elem` leafs then
                 leaf ()
             else
                 error ("makeElement: Unknown tag "  <> show name)
-
-attributes =
-        [ "accept", "accept-charset", "accesskey", "action", "alt", "async"
-        , "autocomplete", "autofocus", "autoplay", "challenge", "charset"
-        , "checked", "cite", "class", "cols", "colspan", "content"
-        , "contenteditable", "contextmenu", "controls", "coords", "data"
-        , "datetime", "defer", "dir", "disabled", "draggable", "enctype", "for"
-        , "form", "formaction", "formenctype", "formmethod", "formnovalidate"
-        , "formtarget", "headers", "height", "hidden", "high", "href"
-        , "hreflang", "http-equiv", "icon", "id", "ismap", "item", "itemprop"
-        , "itemscope", "itemtype"
-        , "keytype", "label", "lang", "list", "loop", "low", "manifest", "max"
-        , "maxlength", "media", "method", "min", "multiple", "name"
-        , "novalidate", "onbeforeonload", "onbeforeprint", "onblur", "oncanplay"
-        , "oncanplaythrough", "onchange", "oncontextmenu", "onclick"
-        , "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave"
-        , "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied"
-        , "onended", "onerror", "onfocus", "onformchange", "onforminput"
-        , "onhaschange", "oninput", "oninvalid", "onkeydown", "onkeyup"
-        , "onload", "onloadeddata", "onloadedmetadata", "onloadstart"
-        , "onmessage", "onmousedown", "onmousemove", "onmouseout", "onmouseover"
-        , "onmouseup", "onmousewheel", "ononline", "onpagehide", "onpageshow"
-        , "onpause", "onplay", "onplaying", "onprogress", "onpropstate"
-        , "onratechange", "onreadystatechange", "onredo", "onresize", "onscroll"
-        , "onseeked", "onseeking", "onselect", "onstalled", "onstorage"
-        , "onsubmit", "onsuspend", "ontimeupdate", "onundo", "onunload"
-        , "onvolumechange", "onwaiting", "open", "optimum", "pattern", "ping"
-        , "placeholder", "preload", "pubdate", "radiogroup", "readonly", "rel"
-        , "required", "reversed", "rows", "rowspan", "sandbox", "scope"
-        , "scoped", "seamless", "selected", "shape", "size", "sizes", "span"
-        , "spellcheck", "src", "srcdoc", "start", "step", "style", "subject"
-        , "summary", "tabindex", "target", "title", "type", "usemap", "value"
-        , "width", "wrap", "xmlns"
-        , "ontouchstart", "download"
-        , "allowtransparency", "minlength", "maxlength", "property"
-        , "role"
-        , "d", "viewBox", "fill", "cx", "cy", "r", "x", "y", "text-anchor", "alignment-baseline"
-        , "line-spacing", "letter-spacing"
-        , "integrity", "crossorigin", "poster"
-        ]
-
-
-parents =
-        [ "a", "abbr", "address", "article", "aside", "audio", "b"
-        , "bdo", "blockquote", "body", "button", "canvas", "caption", "cite"
-        , "code", "colgroup", "command", "datalist", "dd", "del", "details"
-        , "dfn", "div", "dl", "dt", "em", "fieldset", "figcaption", "figure"
-        , "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header"
-        , "hgroup", "html", "i", "iframe", "ins", "kbd", "label"
-        , "legend", "li", "main", "map", "mark", "menu", "meter", "nav"
-        , "noscript", "object", "ol", "optgroup", "option", "output", "p"
-        , "pre", "progress", "q", "rp", "rt", "ruby", "samp", "script"
-        , "section", "select", "small", "span", "strong", "style", "sub"
-        , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
-        , "thead", "time", "title", "tr", "u", "ul", "var", "video"
-        , "svg", "path", "text", "circle"
-        ]
-
-leafs =
-        [ "area", "br", "col", "hr", "link", "img", "input",  "meta", "param"
-        ]
