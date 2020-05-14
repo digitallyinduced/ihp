@@ -55,24 +55,17 @@ instance View NewColumnView ViewContext where
 
                         <div class="mt-1 text-muted">
                             <label style="font-size: 12px">
-                                <input type="checkbox" name="allowNull" class="mr-2"/> References users
+                                <input id="allowNull" type="checkbox" name="allowNull" class="mr-2"/> Nullable
                             </label>
-
-                            <label style="font-size: 12px">
-                                <input type="checkbox" name="allowNull" class="mr-2"/> Nullable
+                            <label class="ml-1" style="font-size: 12px">
+                                <input type="checkbox" name="isUnique" class="mr-2"/> Unique
                             </label>
+                            {primaryKeyCheckbox}
                         </div>
                     </div>
 
-                    <div class="form-group row">
-                        {primaryKeyCheckbox}
-
-                        <input type="hidden" name="isUnique" value={inputValue False}/>
-                    </div>
-
                     <div class="form-group">
-                        {defaultSelector}
-                        <input style="display: none;" name="customDefaultValue" type="text" class="form-control"/>    
+                        {defaultSelector}   
                     </div>
 
                     <div class="text-right">
@@ -87,14 +80,13 @@ instance View NewColumnView ViewContext where
                 where
                     primaryKeyCheckbox = if primaryKeyExists
                         then mempty
-                        else [hsx|<label class="col col-form-label">
-                            <input type="checkbox" name="primaryKey" class="mr-2"/>Primary Key
+                        else [hsx|<label class="ml-1" style="font-size: 12px">
+                            <input type="checkbox" name="primaryKey" class="mr-2"/> Primary Key  
                         </label>|]
                     defaultSelector = preEscapedToHtml [plain|
                         <select id="defaultSelector" name="defaultValue" class="form-control select2">
                             <option value="NODEFAULT">no default</option>
                             <option value="EMPTY">''</option>
-                            <option value="NULL">null</option>
                         </select>
                     |]
             modalFooter = mempty 
