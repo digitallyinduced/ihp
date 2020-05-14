@@ -26,7 +26,6 @@
 , wai-session-clientsession
 , clientsession
 , pwstore-fast
-, parsec
 , template-haskell
 , haskell-src-meta
 , random-strings
@@ -38,7 +37,6 @@
 , mime-mail-ses
 , tz
 , attoparsec
-, time_1_9_3
 , case-insensitive
 , haskell-src-exts
 , containers
@@ -84,7 +82,6 @@ mkDerivation {
     wai-session-clientsession
     clientsession
     pwstore-fast
-    parsec
     template-haskell
     haskell-src-meta
     random-strings
@@ -96,7 +93,6 @@ mkDerivation {
     mime-mail-ses
     tz
     attoparsec
-    time_1_9_3
     case-insensitive
     haskell-src-exts
     containers

@@ -14,7 +14,6 @@ import TurboHaskell.Controller.RequestContext
 import qualified Network.Wai as Wai
 import qualified Data.UUID as UUID
 import qualified TurboHaskell.ModelSupport as ModelSupport
-import TurboHaskell.DatabaseSupport.Point
 import qualified Data.ByteString.Char8 as Char8
 import TurboHaskell.ValidationSupport
 import GHC.TypeLits
@@ -206,19 +205,6 @@ instance FromParameter UTCTime where
                 Just value -> Right value
                 Nothing -> Left "FromParameter UTCTime: Failed parsing"
             Just value -> Right value
-
-instance FromParameter Point where
-    {-# INLINE fromParameter #-}
-    fromParameter "" = Left "FromParameter Point: Parameter missing"
-    fromParameter byteString =
-        let [x, y] = Char8.split ',' byteString
-        in 
-            case (Data.Text.Read.rational $ cs x) of
-                Left error -> Left (cs error)
-                Right (x, _) ->
-                    case (Data.Text.Read.rational $ cs y) of
-                        Left error -> Left (cs error)
-                        Right (y, _) -> Right (Point x y)
 
 instance {-# OVERLAPS #-} FromParameter (ModelSupport.Id' model') where
     {-# INLINE fromParameter #-}

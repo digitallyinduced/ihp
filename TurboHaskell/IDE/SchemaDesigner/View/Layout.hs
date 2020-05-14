@@ -1,10 +1,33 @@
-module TurboHaskell.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue) where
+module TurboHaskell.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue) where
 
 import TurboHaskell.ViewPrelude
 import TurboHaskell.IDE.SchemaDesigner.Types
 import TurboHaskell.IDE.ToolServer.Types
 import TurboHaskell.IDE.ToolServer.Layout
 import qualified Data.List as List
+
+schemaDesignerLayout :: Html -> Html
+schemaDesignerLayout inner = toolServerLayout [hsx|
+<div class="container">
+    <div class="row pt-5">
+        <div class="col" style="display: flex; align-self: center;">
+            {visualNav}
+        </div>
+
+        <div class="col" style="display: flex; align-self: center; justify-content: center">
+            Application/Schema.sql
+        </div>
+
+        <div class="col">
+            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
+                <button type="submit" class="btn btn-primary">Push to DB</button>
+            </form>
+        </div>
+    </div>
+
+    {inner}
+</div>
+|]
 
 findTableByName tableName statements = find pred statements
     where
@@ -16,15 +39,18 @@ findEnumByName enumName statements = find pred statements
         pred CreateEnumType { name } | name == enumName = True
         pred _ = False
 
-visualNav = [hsx|
-<ul class="nav nav-tabs bg-white" id="myTab" role="tablist">
-    <li class="nav-item">
-        <a class="nav-link active" href={pathTo TablesAction}>Visual Editor</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" onclick={"window.location = '" <> pathTo ShowCodeAction <> "';"}>Code Editor</a>
-    </li>
-</ul>|]
+visualNav :: Html
+visualNav =
+
+    if isActivePath ShowCodeAction
+        then [hsx|<a class="custom-control custom-switch visual-switch" href={TablesAction}>
+                <input type="checkbox" class="custom-control-input" id="visual-switch" checked="checked"/>
+                <label class="custom-control-label" for="visual-switch">Code Editor</label>
+            </a>|]
+        else [hsx|<a class="custom-control custom-switch visual-switch" href={ShowCodeAction}>
+                <input type="checkbox" class="custom-control-input" id="visual-switch"/>
+                <label class="custom-control-label text-muted" for="visual-switch">Code Editor</label>
+            </a>|]
 
 renderColumnSelector :: Text -> [(Int, Column)] -> [Statement] -> Html
 renderColumnSelector tableName columns statements = [hsx|

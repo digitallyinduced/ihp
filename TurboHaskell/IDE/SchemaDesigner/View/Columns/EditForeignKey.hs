@@ -18,16 +18,12 @@ data EditForeignKeyView = EditForeignKeyView
     }
 
 instance View EditForeignKeyView ViewContext where
+    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+
     html EditForeignKeyView { .. } = [hsx|
-        {visualNav}
-        <div class="container">
-            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
-                <button type="submit" class="btn btn-primary my-3">Push to DB</button>
-            </form>
-            <div class="row no-gutters bg-white">
-                {renderObjectSelector (zip [0..] statements) (Just tableName)}
-                {renderColumnSelector tableName  (zip [0..] columns) statements}
-            </div>
+        <div class="row no-gutters bg-white">
+            {renderObjectSelector (zip [0..] statements) (Just tableName)}
+            {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
         {Just modal}
     |]

@@ -45,7 +45,6 @@ common shared-properties
             , random-strings
             , uuid
             , time
-            , parsec
             , attoparsec
             , ghc-prim
             , case-insensitive
@@ -110,7 +109,6 @@ library TurboHaskellFramework
         , TurboHaskell.Controller.Render
         , TurboHaskell.Controller.RequestContext
         , TurboHaskell.Controller.Session
-        , TurboHaskell.DatabaseSupport.Point
         , TurboHaskell.HtmlSupport.Parser
         , TurboHaskell.HtmlSupport.QQ
         , TurboHaskell.HtmlSupport.ToHtml
