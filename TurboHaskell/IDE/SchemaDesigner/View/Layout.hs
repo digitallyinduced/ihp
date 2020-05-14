@@ -180,6 +180,8 @@ renderObjectSelector statements activeObjectName = [hsx|
             <a href={EditTableAction name id}>Rename Table</a>
             <a href={DeleteTableAction id} class="js-delete">Delete Table</a>
             <div></div>
+            <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
+            <div></div>
             <a href={NewColumnAction name}>Add Column to Table</a>
             <div></div>
             <a href={NewTableAction}>Add Table</a>

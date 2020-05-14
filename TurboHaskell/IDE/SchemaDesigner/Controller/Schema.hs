@@ -6,6 +6,7 @@ import TurboHaskell.IDE.ToolServer.ViewContext
 
 import TurboHaskell.IDE.SchemaDesigner.View.Schema.Code
 import TurboHaskell.IDE.SchemaDesigner.View.Schema.Error
+import TurboHaskell.IDE.SchemaDesigner.View.Schema.GeneratedCode
 
 import TurboHaskell.IDE.SchemaDesigner.Parser
 import TurboHaskell.IDE.SchemaDesigner.Compiler
@@ -33,6 +34,14 @@ instance Controller SchemaController where
     action PushToDbAction = do
         Process.system "make db"
         redirectTo TablesAction
+
+
+    -- GENERATED HASKELL CODE
+    action ShowGeneratedCodeAction { tableName } = do
+        statements <- readSchema
+        let (Just table) = findTableByName tableName statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
+        render GeneratedCodeView { .. }
 
 readSchema :: _ => _
 readSchema = parseSchemaSql >>= \case

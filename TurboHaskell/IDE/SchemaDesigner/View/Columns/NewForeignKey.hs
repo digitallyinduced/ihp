@@ -11,7 +11,6 @@ data NewForeignKeyView = NewForeignKeyView
     { statements :: [Statement]
     , tableName :: Text
     , columnName :: Text
-    , generatedHaskellCode :: Text
     , tableNames :: [Text]
     }
 

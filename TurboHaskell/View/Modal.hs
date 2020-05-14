@@ -27,9 +27,7 @@ renderModal Modal { modalContent, modalFooter, modalCloseUrl, modalTitle } show 
             modalInner = [hsx|
             <div class="modal-dialog" role="document" id="modal-inner">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">{modalTitle}</h5>
-                    </div>
+                    {renderModalHeader modalTitle modalCloseUrl}
                     <div class="modal-body">{modalContent}</div>
                     <div class="modal-footer">{modalFooter}</div>
                 </div>

@@ -10,7 +10,6 @@ import TurboHaskell.IDE.SchemaDesigner.View.Layout
 data EditColumnView = EditColumnView
     { statements :: [Statement]
     , tableName :: Text
-    , generatedHaskellCode :: Text
     , columnId :: Int
     , column :: Column
     , primaryKeyExists :: Bool

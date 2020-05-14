@@ -10,7 +10,6 @@ import TurboHaskell.IDE.SchemaDesigner.View.Layout
 data NewColumnView = NewColumnView
     { statements :: [Statement]
     , tableName :: Text
-    , generatedHaskellCode :: Text
     , primaryKeyExists :: Bool
     }
 

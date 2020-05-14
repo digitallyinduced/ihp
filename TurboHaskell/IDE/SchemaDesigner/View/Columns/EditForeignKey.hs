@@ -11,7 +11,6 @@ data EditForeignKeyView = EditForeignKeyView
     { statements :: [Statement]
     , tableName :: Text
     , columnName :: Text
-    , generatedHaskellCode :: Text
     , tableNames :: [Text]
     , referenceTable :: Text
     , constraintName :: Text
