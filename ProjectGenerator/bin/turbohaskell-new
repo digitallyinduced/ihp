@@ -23,13 +23,6 @@ if ! [ -x "$(command -v direnv)" ]; then
 	echo -e "Learn more about direnv here: \e[4mhttps://direnv.net/\e[0m"
 	echo ""
 	echo ""
-	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
-	read -n1 choice
-	echo ""
-	case "$choice" in 
-	  y|Y ) nix-env -i cachix;;
-	  * ) echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"; exit 1;;
-	esac
 	echo -e "\e[1mWe will install direnv for you now. Continue? (Type y to proceed) \e[0m"
 	read -n1 choice_direnv
 	echo ""
@@ -45,6 +38,21 @@ if ! [ -x "$(command -v direnv)" ]; then
 	case "$choice" in 
 	  y|Y ) echo "Great!";;
 	  * ) echo -e "\e[31mPlease make sure direnv is set up correctly and then re-run this program. See https://direnv.net/#README for help.\e[0m"; exit 1;;
+	esac
+fi
+
+if ! [ -x "$(command -v cachix)" ]; then
+	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
+	echo -e "TurboHaskell uses cachix as a binary cache.";
+	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
+	echo ""
+	echo ""
+	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
+	read -n1 choice
+	echo ""
+	case "$choice" in 
+	  y|Y ) nix-env -i cachix;;
+	  * ) echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 fi
 
