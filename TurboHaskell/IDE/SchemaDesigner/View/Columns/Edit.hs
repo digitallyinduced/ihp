@@ -117,7 +117,6 @@ defaultSelector selected = preEscapedToHtml [plain|
     <div class="col-sm-10">
         <select id="defaultSelector" name="defaultValue" class="form-control select2">
             #{option (selectedType selected) "NODEFAULT" "no default"}
-            #{option (selectedType selected) "EMPTY" "''"}
             #{maybeCustom selected}
         </select>
     </div>
@@ -133,8 +132,9 @@ defaultSelector selected = preEscapedToHtml [plain|
             Nothing -> "NODEFAULT"
             custom -> custom
         maybeCustom selection = case selection of
-            Just "''" -> mempty
+            Just "''" -> [plain|<option value="EMPTY" selected>''</option>|]
             Just "NULL" -> [plain|<option value="NULL" selected>null</option>|]
             Just "null" -> [plain|<option value="NULL" selected>null</option>|]
+            Just "EMPTY" -> [plain|<option value="EMPTY" selected>''</option>|]
             Nothing -> mempty
             _ -> [plain|<option value=#{fromMaybe "" selection} selected>#{fromMaybe "" selection}</option>|]
