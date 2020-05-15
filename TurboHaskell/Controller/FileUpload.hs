@@ -68,7 +68,6 @@ data ImageUploadOptions = ImageUploadOptions {
 -- The uploaded image path is now stored in #pictureUrl.
 uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
         ?requestContext :: RequestContext
-        , ?modelContext :: ModelSupport.ModelContext
         , ?controllerContext :: context
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -119,7 +118,6 @@ uploadImageWithOptions options _ user =
 --
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
         ?requestContext :: RequestContext
-        , ?modelContext :: ModelSupport.ModelContext
         , ?controllerContext :: context
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -139,7 +137,7 @@ uploadImageFile ext _ user =
             (fileContent file) |> LBS.writeFile (cs $ uploadDir <> imagePath)
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
-                |> return
+                |> pure
         _ -> pure user
 
 -- | Saves an uploaded png file. No validation or transformation applied.
