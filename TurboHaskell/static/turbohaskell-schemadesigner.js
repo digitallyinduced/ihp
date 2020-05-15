@@ -25,26 +25,34 @@ function initSchemaDesigner() {
         switch (this.value) {
             case "UUID":
                 $('#defaultSelector').empty()
-                .append(new Option("no default", "NODEFAULT", true, true))
-                .append(new Option("uuid_generate_v4()", 'uuid_generate_v4()', false, false))
-                .append(new Option("''", "EMPTY", false, false))
-                .append(new Option("null", "NULL", false, false))
+                .append(new Option("uuid_generate_v4()", 'uuid_generate_v4()', true, true))
+                .append(new Option("no default", "NODEFAULT", false, false))
                 .trigger('change');
                 break;
             case "TIMESTAMP WITH TIME ZONE":
                 $('#defaultSelector').empty()
                 .append(new Option("NOW()", 'NOW()', true, true))
                 .append(new Option("no default", "NODEFAULT", false, false))
-                .append(new Option("null", "NULL", false, false))
+                .trigger('change');
+                break;
+            case "TEXT":
+                $('#defaultSelector').empty()
+                .append(new Option("''", "EMPTY", true, true))
+                .append(new Option("no default", "NODEFAULT", false, false))
                 .trigger('change');
                 break;
             default:
                 $('#defaultSelector').empty()
                 .append(new Option("no default", "NODEFAULT", true, true))
-                .append(new Option("''", "EMPTY", false, false))
-                .append(new Option("null", "NULL", false, false))
                 .trigger('change');
                 break;
+        }
+    });
+    $('#allowNull').change(function() {
+        if ($('#allowNull').is(":checked")) {
+            $('#defaultSelector').append(new Option("null", "NULL", true, true));
+        } else {
+            $("#defaultSelector option[value='NULL']").remove();
         }
     });
 }

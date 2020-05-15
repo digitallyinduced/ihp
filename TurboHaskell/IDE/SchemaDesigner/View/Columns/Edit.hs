@@ -32,20 +32,18 @@ instance View EditColumnView ViewContext where
 
             
             primaryKeyCheckbox = if get #primaryKey column
-                then preEscapedToHtml [plain|<label class="col col-form-label">
-                        <input type="checkbox" name="primaryKey" class="mr-2" checked/>
-                            Primary Key
+                then preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
+                            <input type="checkbox" name="primaryKey" class="mr-2" checked> Primary Key  
                         </label>|]
                 else if primaryKeyExists
                     then mempty
-                    else preEscapedToHtml [plain|<label class="col col-form-label">
-                        <input type="checkbox" name="primaryKey" class="mr-2"/>
-                            Primary Key
+                    else preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
+                            <input type="checkbox" name="primaryKey" class="mr-2"/> Primary Key  
                         </label>|]
             
             allowNullCheckbox = if get #notNull column
-                then preEscapedToHtml [plain|<input type="checkbox" name="allowNull" class="mr-2"/>|]
-                else preEscapedToHtml [plain|<input type="checkbox" name="allowNull" class="mr-2" checked/>|]
+                then preEscapedToHtml [plain|<input id="allowNull" type="checkbox" name="allowNull" class="mr-2"/>|]
+                else preEscapedToHtml [plain|<input id="allowNull" type="checkbox" name="allowNull" class="mr-2" checked/>|]
 
             isUniqueCheckbox = if get #isUnique column
                 then preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2" checked/>|]
@@ -56,33 +54,31 @@ instance View EditColumnView ViewContext where
                     <input type="hidden" name="tableName" value={tableName}/>
                     <input type="hidden" name="columnId" value={tshow columnId}/>
 
-                    <div class="form-group row">
-                        <label class="col-sm-2 col-form-label">Name:</label>
-                        <div class="col-sm-10">
-                            <input name="name" type="text" class="form-control" autofocus="autofocus" value={get #name column}/>
+                    <div class="form-group">
+                        <input
+                            name="name"
+                            type="text"
+                            class="form-control"
+                            autofocus="autofocus"
+                            value={get #name column}
+                            />
+                    </div>
+
+                    <div class="form-group">
+                        {typeSelector (get #columnType column)}
+
+                        <div class="mt-1 text-muted">
+                            <label style="font-size: 12px">
+                                {allowNullCheckbox} Nullable
+                            </label>
+                            <label class="ml-1" style="font-size: 12px">
+                                {isUniqueCheckbox} Unique
+                            </label>
+                            {primaryKeyCheckbox}
                         </div>
                     </div>
 
                     <div class="form-group row">
-                        <label class="col-sm-2 col-form-label">Type:</label>
-                        <div class="col-sm-10">
-                            {typeSelector (get #columnType column)}
-                        </div>
-                    </div>
-                    <div class="form-group row">
-                        {primaryKeyCheckbox}
-                        <label class="col col-form-label">
-                            {allowNullCheckbox}
-                            Allow Null
-                        </label>
-                        <label class="col col-form-label">
-                            {isUniqueCheckbox}
-                            Unique
-                        </label>
-                    </div>
-
-                    <div class="form-group row">
-                        <label class="col-sm-2 col-form-label">Default Value:</label>
                         {defaultSelector (get #defaultValue column)}
                     </div>
 
@@ -105,7 +101,7 @@ typeSelector selected = preEscapedToHtml [plain|
         #{option selected "INT" "Int"}
         #{option selected "UUID" "UUID"}
         #{option selected "BOOLEAN" "Bool"}
-        #{option selected "TIMESTAMP WITH TIME ZONE" "Timestamp"}
+        #{option selected "'TIMESTAMP WITH TIME ZONE'" "Timestamp"}
         #{option selected "REAL" "Float"}
         #{option selected "DOUBLE PRECISION" "Double"}
     </select>
@@ -115,54 +111,19 @@ typeSelector selected = preEscapedToHtml [plain|
             then [plain|<option value=#{value} selected>#{text}</option>|]
             else [plain|<option value=#{value}>#{text}</option>|]
 
+defaultSelector :: Maybe Text -> Html
 defaultSelector selected = preEscapedToHtml [plain|
     <div class="col-sm-10">
         <select id="defaultSelector" name="defaultValue" class="form-control select2">
             #{option (selectedType selected) "NODEFAULT" "no default"}
-            #{option (selectedType selected) "EMPTY" "''"}
-            #{option (selectedType selected) "NULL" "null"}
             #{maybeCustom selected}
         </select>
     </div>
-    <script>
-        $('.select2').select2({
-            placeholder: "Select a default value or type in a custom default value",
-            tags: true
-        });
-        $('.select2-simple').select2();
-        $('#typeSelector').change(function () {
-            switch (this.value) {
-                case "UUID":
-                    $('#defaultSelector').empty()
-                    .append(new Option("uuid_generate_v4()", 'uuid_generate_v4()', true, true))
-                    .append(new Option("no default", "NODEFAULT", false, false))
-                    .append(new Option("''", "EMPTY", false, false))
-                    .append(new Option("null", "NULL", false, false))
-                    .trigger('change');
-                    break;
-                case "TIMESTAMP WITH TIME ZONE":
-                    $('#defaultSelector').empty()
-                    .append(new Option("created at", 'NOW()', true, true))
-                    .append(new Option("no default", "NODEFAULT", false, false))
-                    .append(new Option("''", "EMPTY", false, false))
-                    .append(new Option("null", "NULL", false, false))
-                    .trigger('change');
-                    break;
-                default:
-                    $('#defaultSelector').empty()
-                    .append(new Option("no default", "NODEFAULT", true, true))
-                    .append(new Option("''", "EMPTY", false, false))
-                    .append(new Option("null", "NULL", false, false))
-                    .trigger('change');
-                    break;
-            }
-        });
-    </script>
 |]
     where
         option selected value text = if selected == value
-            then [plain|<option value=#{value} selected>#{text}</option>|]
-            else [plain|<option value=#{value}>#{text}</option>|]
+            then [plain|<option value=#{tshow (fromMaybe "" value)} selected>#{text}</option>|]
+            else [plain|<option value=#{tshow (fromMaybe "" value)}>#{text}</option>|]
         selectedType selection = case selection of
             Just "''" -> "EMPTY"
             Just "NULL" -> "NULL"
@@ -170,8 +131,9 @@ defaultSelector selected = preEscapedToHtml [plain|
             Nothing -> "NODEFAULT"
             custom -> custom
         maybeCustom selection = case selection of
-            Just "''" -> mempty
-            Just "NULL" -> mempty
-            Just "null" -> mempty
+            Just "''" -> [plain|<option value="EMPTY" selected>''</option>|]
+            Just "NULL" -> [plain|<option value="NULL" selected>null</option>|]
+            Just "null" -> [plain|<option value="NULL" selected>null</option>|]
+            Just "EMPTY" -> [plain|<option value="EMPTY" selected>''</option>|]
             Nothing -> mempty
-            Just custom -> [plain|<option value=#{custom} selected>#{custom}</option>|]
+            _ -> [plain|<option value=#{fromMaybe "" selection} selected>#{fromMaybe "" selection}</option>|]
