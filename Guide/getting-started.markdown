@@ -836,6 +836,67 @@ Of course now we also have to pass the `postId` to that view.
 
 TODO: Show example using traceShowId
 
+# Tasks
+
+Tasks provide a way to run simple scripts inside the framework context, but outside of the usual web request response lifecycle.
+
+Common use-cases include:
+
+- Sending periodic email reminders
+- Sending invoices
+- Anything to be run as a cronjob
+- Background job-queue processing
+
+## Creating a new task
+
+Tasks are located in the `Application/Tasks/` directory. You can create a new task by running e.g. `new-task HelloWorldToAllUsers`. This will create a file at `Application/Tasks/HelloWorldToAllUsers.hs` like this:
+
+```haskell
+#!/usr/bin/env run-task
+module Application.Tasks.HelloWorldToAllUsers where
+
+import Application.Tasks.Prelude
+
+run :: Task
+run = do
+```
+
+The `run` function is our entrypoint. There we can write our logic, just like inside an action. This means we can call other framework functions, access the database using the usual way, send emails, render views, etc.
+
+Let's print out an hello world to all our users in the console:
+
+
+```haskell
+#!/usr/bin/env run-task
+module Application.Tasks.HelloWorldToAllUsers where
+
+import Application.Tasks.Prelude
+
+run :: Task
+run = do
+    users <- query @User |> fetch
+    forEach users \user -> do
+        putStrLn "Hello World, " <> get #firstname user <> "!"
+```
+
+This will fetch all users and then print out "Hello World, Firstname!".
+
+## Running a task
+
+Tasks are executable by default. You can just run them like a bash script:
+
+```bash
+./Application/Tasks/HelloWorldToAllUsers.hs
+...
+Hello World, A!
+Hello World, B!
+Hello World, C!
+```
+
+This is made possible because of the [she-bang line](https://en.wikipedia.org/wiki/Shebang_%28Unix%29) `#!/usr/bin/env run-task` at the top of the task file.
+
+In case you get a permission error, try to add the executable flag via `chmod +x Application/Tasks/HelloWorldToAllUsers.hs`.
+
 # Architecture
 
 This section tries to answer common questions on where to place your code. These are recommendations found by digitally induced to be working well.
