@@ -13,7 +13,7 @@ instance View ShowDatabaseView ViewContext where
     html ShowDatabaseView = [hsx|
         <div class="container">
             <div class="alert alert-primary mt-5">
-                This feature is not ready yet. Use{" " :: Text}<code>make psql</code>{" " :: Text} from the terminal to access the database.
+                This feature is not ready yet. Use <code>make psql</code> from the terminal to access the database.
             </div>
         </div>
     |]

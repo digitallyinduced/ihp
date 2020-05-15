@@ -39,17 +39,20 @@ parser = do
 
 hsxElement = try hsxSelfClosingElement <|> hsxNormalElement
 
-manyHsxElement = Children <$> many hsxChild
+manyHsxElement = do
+    children <- many hsxChild
+    pure (Children (stripTextNodeWhitespaces children))
 
 hsxSelfClosingElement = do
     _ <- char '<'
     name <- hsxElementName
     attributes <- hsxNodeAttributes (string "/>")
+    space
     pure (Node name attributes [])
 
 hsxNormalElement = do
     (name, attributes) <- hsxOpeningElement
-    children <- manyTill (try hsxChild) (hsxClosingElement name)
+    children <- stripTextNodeWhitespaces <$> manyTill (try hsxChild) (hsxClosingElement name)
     pure (Node name attributes children)
 
 hsxOpeningElement = do
@@ -112,9 +115,10 @@ hsxChild = hsxElement <|> hsxSplicedNode <|> hsxText
 hsxText :: Parser Node
 hsxText = do
     value <- takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}' && c /= '<' && c /= '>')
-    space
-    pure (TextNode (Text.strip value))
-
+    let isWhitespaceTextOnly = Text.null (Text.strip value)
+    pure if isWhitespaceTextOnly
+        then TextNode ""
+        else TextNode (collapseSpace value)
 
 data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
 
@@ -215,3 +219,32 @@ leafs =
         [ "area", "br", "col", "hr", "link", "img", "input",  "meta", "param"
         ]
 
+stripTextNodeWhitespaces nodes = stripLastTextNodeWhitespaces (stripFirstTextNodeWhitespaces nodes)
+
+stripLastTextNodeWhitespaces nodes = 
+    let strippedLastElement = if List.length nodes > 0
+            then case List.last nodes of
+                TextNode text -> Just $ TextNode (Text.stripEnd text)
+                otherwise -> Nothing
+            else Nothing
+    in case strippedLastElement of
+        Just last -> (fst $ List.splitAt ((List.length nodes) - 1) nodes) <> [last]
+        Nothing -> nodes
+
+stripFirstTextNodeWhitespaces nodes = 
+    let strippedFirstElement = if List.length nodes > 0
+            then case List.head nodes of
+                TextNode text -> Just $ TextNode (Text.stripStart text)
+                otherwise -> Nothing
+            else Nothing
+    in case strippedFirstElement of
+        Just first -> first:(List.tail nodes)
+        Nothing -> nodes
+
+-- | Replaces multiple space characters with a single one
+collapseSpace :: Text -> Text
+collapseSpace text = Text.intercalate " " (filterDuplicateSpaces $ Text.split Char.isSpace text)
+    where
+        filterDuplicateSpaces ("":"":rest) = (filterDuplicateSpaces ("":rest))
+        filterDuplicateSpaces (a:rest) = a:(filterDuplicateSpaces rest)
+        filterDuplicateSpaces [] = []
