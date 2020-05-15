@@ -13,6 +13,7 @@ data ViewContext = ViewContext
     , flashMessages :: [Session.FlashMessage]
     , layout :: ViewSupport.Layout
     , controllerContext :: ControllerSupport.ControllerContext
+    , appUrl :: Text
     }
 
 
