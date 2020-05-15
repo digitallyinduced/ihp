@@ -58,6 +58,10 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 RUNGHC=runghc
 
+doNothing:
+	@echo "The Makefile is not being used to start the DevServer anymore."
+	@echo "Please use the ./start.sh"
+
 run: .envrc build/Generated static/prod.js static/prod.css
 	RunDevServer
 
