@@ -110,5 +110,6 @@ mkDerivation {
   postInstall = ''
     cp TurboHaskell/CLI/run-task $out/bin/run-task
     cp Makefile.dist $out
+    cp TurboHaskell/static $out
   '';
 }
