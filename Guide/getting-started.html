@@ -428,7 +428,7 @@
 <h3 id="2-hello-world">2. Hello, World!</h3>
 <p>You now already have a working haskell app ready to be started.
 You can start the development server by running this in the <code>Blog</code> directory:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="fu">make</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">./start.sh</span>
 </code></pre></div>
 <p>Your app is now running at <a href="http://localhost:8000/">http://localhost:8000</a>.
 The server can be stopped by pressing CTRL+C.</p>
@@ -802,7 +802,6 @@ Don’t worry, the local development postgresql server is already running. The d
 <span>            aeson</span>
 <span>            uuid</span>
 <span>            hlint</span>
-<span>            parsec</span>
 <span>            template-haskell</span>
 <span>            interpolate</span>
 <span>            uri-encode</span>
@@ -981,13 +980,13 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>In general we follow an approach where most of the business logic resides on the haskell server. Only for small interactions we try to use a small isolated bit of javascript.</p>
 <p>Your global, non-page specific, javascript code can be placed in <code>app.js</code>.</p>
 <p>E.g. the <code>app.js</code> could look like this:</p>
-<div class="source-code"><pre><code class="language-javascript"><span class="at">$</span><span>(</span><span class="kw">function</span><span> () </span><span class="op">{</span>
-<span>    </span><span class="at">initNavbarEffects</span><span>()</span><span class="op">;</span>
-<span class="op">}</span><span>)</span><span class="op">;</span>
+<div class="source-code"><pre><code class="language-javascript"><span>$(</span><span class="kw">function</span><span> () {</span>
+<span>    initNavbarEffects()</span><span class="op">;</span>
+<span>})</span><span class="op">;</span>
 
-<span class="kw">function</span><span> </span><span class="at">initNavbarEffects</span><span>() </span><span class="op">{</span>
+<span class="kw">function</span><span> </span><span class="fu">initNavbarEffects</span><span>() {</span>
 <span>    </span><span class="co">// ...</span>
-<span class="op">}</span>
+<span>}</span>
 </code></pre></div>
 <p>In your <code>Web.View.Layout</code> just import the <code>app.js</code>:</p>
 <div class="source-code"><pre><code class="language-html"><span class="kw">&lt;script</span><span class="ot"> src=</span><span class="st">&quot;/app.js&quot;</span><span class="kw">&gt;&lt;/script&gt;</span>
