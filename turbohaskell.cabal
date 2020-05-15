@@ -176,3 +176,7 @@ executable new-controller
         unix
         , fsnotify
         , websockets
+
+executable new-task
+    import: shared-properties
+    main-is: TurboHaskell/CLI/NewTask.hs
