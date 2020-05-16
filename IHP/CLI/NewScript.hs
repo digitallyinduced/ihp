@@ -12,7 +12,7 @@ main = do
     args <- getArgs
     case headMay args of
         Just taskName | not (Text.null taskName) -> do
-            let taskPath = "Application/Scripts/" <> cs taskName <> ".hs"
+            let taskPath = "Application/Script/" <> cs taskName <> ".hs"
             Text.writeFile taskPath (taskTemplate taskName)
             _ <- Process.system ("chmod +x " <> taskPath)
             putStrLn $ "+ " <> cs taskPath
@@ -24,9 +24,9 @@ usage = putStrLn "Usage: new-application APPLICATION_NAME"
 
 taskTemplate :: Text -> Text
 taskTemplate taskName' = cs [plain|#!/usr/bin/env run-script
-module Application.Scripts.#{taskName} where
+module Application.Script.#{taskName} where
 
-import Application.Scripts.Prelude
+import Application.Script.Prelude
 
 run :: Script
 run = do

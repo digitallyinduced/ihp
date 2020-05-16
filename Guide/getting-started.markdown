@@ -849,13 +849,13 @@ Common use-cases include:
 
 ## Creating a new script
 
-Scripts are located in the `Application/Scripts/` directory. You can create a new script by running e.g. `new-script HelloWorldToAllUsers`. This will create a file at `Application/Scripts/HelloWorldToAllUsers.hs` like this:
+Scripts are located in the `Application/Script/` directory. You can create a new script by running e.g. `new-script HelloWorldToAllUsers`. This will create a file at `Application/Script/HelloWorldToAllUsers.hs` like this:
 
 ```haskell
 #!/usr/bin/env run-script
-module Application.Scripts.HelloWorldToAllUsers where
+module Application.Script.HelloWorldToAllUsers where
 
-import Application.Scripts.Prelude
+import Application.Script.Prelude
 
 run :: Script
 run = do
@@ -868,9 +868,9 @@ Let's print out an hello world to all our users in the console:
 
 ```haskell
 #!/usr/bin/env run-script
-module Application.Scripts.HelloWorldToAllUsers where
+module Application.Script.HelloWorldToAllUsers where
 
-import Application.Scripts.Prelude
+import Application.Script.Prelude
 
 run :: Script
 run = do
@@ -886,7 +886,7 @@ This will fetch all users and then print out "Hello World, Firstname!".
 Scripts are executable by default. You can just run them like a bash script:
 
 ```bash
-./Application/Scripts/HelloWorldToAllUsers.hs
+./Application/Script/HelloWorldToAllUsers.hs
 ...
 Hello World, A!
 Hello World, B!
@@ -895,7 +895,7 @@ Hello World, C!
 
 This is made possible because of the [she-bang line](https://en.wikipedia.org/wiki/Shebang_%28Unix%29) `#!/usr/bin/env run-script` at the top of the task file.
 
-In case you get a permission error, try to add the executable flag via `chmod +x Application/Scripts/HelloWorldToAllUsers.hs`.
+In case you get a permission error, try to add the executable flag via `chmod +x Application/Script/HelloWorldToAllUsers.hs`.
 
 # Architecture
 

@@ -27,7 +27,7 @@ else
 fi
 
 echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
-echo "import qualified Application.Scripts.$TASK_MODULE as Script" >> "$GHCI_SCRIPT"
+echo "import qualified Application.Script.$TASK_MODULE as Script" >> "$GHCI_SCRIPT"
 echo "IHP.ScriptSupport.runScript Script.run" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
