@@ -108,7 +108,7 @@ mkDerivation {
   ];
   license = stdenv.lib.licenses.bsd3;
   postInstall = ''
-    cp IHP/CLI/run-task $out/bin/run-task
+    cp IHP/CLI/run-script $out/bin/run-script
     cp Makefile.dist $out
     cp -r IHP/static $out
   '';

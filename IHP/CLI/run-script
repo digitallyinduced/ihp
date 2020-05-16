@@ -6,7 +6,7 @@ TASK_MODULE="${TASK_MODULE%.*}"
 
 # Ensure we are in an app dir
 if [ ! -f Main.hs ]; then
-    echo "You have to be in a project directory to run the task"
+    echo "You have to be in a project directory to run the script"
     exit 1
 fi
 
@@ -21,14 +21,14 @@ trap "rm $GHCI_SCRIPT" EXIT
 echo ":script $FRAMEWORKDIR/IHP/IDE/applicationGhciConfig" > "$GHCI_SCRIPT"
 
 if [ -d IHP ]; then
-    echo ":l IHP/IHP/TaskSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"
+    echo ":l IHP/IHP/ScriptSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"
 else
-    echo "import IHP.TaskSupport" >> "$GHCI_SCRIPT"
+    echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
 fi
 
-echo "import IHP.TaskSupport" >> "$GHCI_SCRIPT"
-echo "import qualified Application.Tasks.$TASK_MODULE as Task" >> "$GHCI_SCRIPT"
-echo "IHP.TaskSupport.runTask Task.run" >> "$GHCI_SCRIPT"
+echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
+echo "import qualified Application.Scripts.$TASK_MODULE as Script" >> "$GHCI_SCRIPT"
+echo "IHP.ScriptSupport.runScript Script.run" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
 ghci -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"

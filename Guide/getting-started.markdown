@@ -1,7 +1,7 @@
 # Getting Started With Turbo Haskell
 Turbo Haskell is a full stack framework focused on rapid application development while striving for robust code quality.
 
-This guide covers everything you need to ship software with interactive lambda. 
+This guide covers everything you need to ship software with IHP. 
 
 ##### Feature Overview
 
@@ -76,7 +76,7 @@ For other shells, [take a look at the direnv documentation](https://direnv.net/#
 
 ### 2. Installing IHP
 
-You can now install interactive lambda by running:
+You can now install IHP by running:
 
 ```bash
 $ nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
@@ -836,9 +836,9 @@ Of course now we also have to pass the `postId` to that view.
 
 TODO: Show example using traceShowId
 
-# Tasks
+# Scripts
 
-Tasks provide a way to run simple scripts inside the framework context, but outside of the usual web request response lifecycle.
+Scripts provide a way to run simple scripts inside the framework context, but outside of the usual web request response lifecycle.
 
 Common use-cases include:
 
@@ -847,17 +847,17 @@ Common use-cases include:
 - Anything to be run as a cronjob
 - Background job-queue processing
 
-## Creating a new task
+## Creating a new script
 
-Tasks are located in the `Application/Tasks/` directory. You can create a new task by running e.g. `new-task HelloWorldToAllUsers`. This will create a file at `Application/Tasks/HelloWorldToAllUsers.hs` like this:
+Scripts are located in the `Application/Scripts/` directory. You can create a new script by running e.g. `new-script HelloWorldToAllUsers`. This will create a file at `Application/Scripts/HelloWorldToAllUsers.hs` like this:
 
 ```haskell
-#!/usr/bin/env run-task
-module Application.Tasks.HelloWorldToAllUsers where
+#!/usr/bin/env run-script
+module Application.Scripts.HelloWorldToAllUsers where
 
-import Application.Tasks.Prelude
+import Application.Scripts.Prelude
 
-run :: Task
+run :: Script
 run = do
 ```
 
@@ -867,12 +867,12 @@ Let's print out an hello world to all our users in the console:
 
 
 ```haskell
-#!/usr/bin/env run-task
-module Application.Tasks.HelloWorldToAllUsers where
+#!/usr/bin/env run-script
+module Application.Scripts.HelloWorldToAllUsers where
 
-import Application.Tasks.Prelude
+import Application.Scripts.Prelude
 
-run :: Task
+run :: Script
 run = do
     users <- query @User |> fetch
     forEach users \user -> do
@@ -881,21 +881,21 @@ run = do
 
 This will fetch all users and then print out "Hello World, Firstname!".
 
-## Running a task
+## Running a script
 
-Tasks are executable by default. You can just run them like a bash script:
+Scripts are executable by default. You can just run them like a bash script:
 
 ```bash
-./Application/Tasks/HelloWorldToAllUsers.hs
+./Application/Scripts/HelloWorldToAllUsers.hs
 ...
 Hello World, A!
 Hello World, B!
 Hello World, C!
 ```
 
-This is made possible because of the [she-bang line](https://en.wikipedia.org/wiki/Shebang_%28Unix%29) `#!/usr/bin/env run-task` at the top of the task file.
+This is made possible because of the [she-bang line](https://en.wikipedia.org/wiki/Shebang_%28Unix%29) `#!/usr/bin/env run-script` at the top of the task file.
 
-In case you get a permission error, try to add the executable flag via `chmod +x Application/Tasks/HelloWorldToAllUsers.hs`.
+In case you get a permission error, try to add the executable flag via `chmod +x Application/Scripts/HelloWorldToAllUsers.hs`.
 
 # Architecture
 

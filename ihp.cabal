@@ -145,7 +145,7 @@ library IHPFramework
         , IHP.RouterSupport
         , IHP.Prelude
         , IHP.ErrorController
-        , IHP.TaskSupport
+        , IHP.ScriptSupport
 
 executable RunDevServer
     import: shared-properties
@@ -179,4 +179,4 @@ executable new-controller
 
 executable new-task
     import: shared-properties
-    main-is: IHP/CLI/NewTask.hs
+    main-is: IHP/CLI/NewScript.hs
