@@ -173,7 +173,7 @@ startFilewatcher = do
         handleFileChange event = do
             let filePath = getEventFilePath event
             if isHaskellFile filePath
-                then if "Application/Schema.hs" `isSuffixOf` filePath
+                then if "Application/Schema.sql" `isSuffixOf` filePath
                     then dispatch SchemaChanged
                     else do
                         dispatch HaskellFileChanged
