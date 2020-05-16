@@ -28,7 +28,7 @@ import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 -- default value instead of an exception, or 'paramOrNothing' to get @Nothing@
 -- when the parameter is missing.
 --
--- You can define a custom parameter parser by defining a 'FromParameter' instance.
+-- You can define a custom parameter parser by defining a 'ParamReader' instance.
 --
 -- __Example:__ Accessing a query parameter.
 --
@@ -77,13 +77,13 @@ import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 -- exception to be thrown with:
 -- 
 -- > param: Parameter 'firstname' not found
-param :: (?requestContext :: RequestContext) => (FromParameter valueType) => ByteString -> valueType
+param :: (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
 param !name =
     let
         notFoundMessage = "param: Parameter '" <> cs name <> "' not found"
         parserErrorMessage = "param: Parameter '" <> cs name <> "' is invalid"
     in case paramOrNothing name of
-        Just value -> Either.fromRight (error parserErrorMessage) (fromParameter value)
+        Just value -> Either.fromRight (error parserErrorMessage) (readParameter value)
         Nothing -> error notFoundMessage
 {-# INLINE param #-}
 
@@ -142,7 +142,7 @@ hasParam = isJust . queryOrBodyParam
 -- >     let page :: Int = paramOrDefault "page" 0
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
-paramOrDefault :: (?requestContext :: RequestContext) => FromParameter a => a -> ByteString -> a
+paramOrDefault :: (?requestContext :: RequestContext) => ParamReader a => a -> ByteString -> a
 paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 {-# INLINE paramOrDefault #-}
 
@@ -159,9 +159,9 @@ paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 -- >     let page :: Maybe Int = paramOrNothing "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
-paramOrNothing :: (?requestContext :: RequestContext) => FromParameter a => ByteString -> Maybe a
+paramOrNothing :: (?requestContext :: RequestContext) => ParamReader a => ByteString -> Maybe a
 paramOrNothing !name = case queryOrBodyParam name of
-    Just value -> case fromParameter value of
+    Just value -> case readParameter value of
         Left error -> Nothing
         Right value -> Just value
     Nothing -> Nothing
@@ -182,44 +182,44 @@ queryOrBodyParam !name =
 --
 -- Parses the input bytestring. Returns @Left "some error"@ when there is an error parsing the value.
 -- Returns @Right value@ when the parsing succeeded.
-class FromParameter a where
-    fromParameter :: ByteString -> Either ByteString a
+class ParamReader a where
+    readParameter :: ByteString -> Either ByteString a
 
-instance FromParameter ByteString where
-    {-# INLINE fromParameter #-}
-    fromParameter byteString = pure byteString
+instance ParamReader ByteString where
+    {-# INLINE readParameter #-}
+    readParameter byteString = pure byteString
 
-instance FromParameter Int where
-    {-# INLINE fromParameter #-}
-    fromParameter byteString =
+instance ParamReader Int where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("FromParameter Int: " <> cs error)
+            Left error -> Left ("ParamReader Int: " <> cs error)
 
-instance FromParameter Text where
-    {-# INLINE fromParameter #-}
-    fromParameter byteString = pure (cs byteString)
+instance ParamReader Text where
+    {-# INLINE readParameter #-}
+    readParameter byteString = pure (cs byteString)
 
 -- | Parses a boolean.
 --
 -- Html form checkboxes usually use @on@ or @off@ for representation. These
 -- values are supported here.
-instance FromParameter Bool where
-    {-# INLINE fromParameter #-}
-    fromParameter on | on == cs (ModelSupport.inputValue True) = pure True
-    fromParameter _ = pure False
+instance ParamReader Bool where
+    {-# INLINE readParameter #-}
+    readParameter on | on == cs (ModelSupport.inputValue True) = pure True
+    readParameter _ = pure False
 
-instance FromParameter UUID where
-    {-# INLINE fromParameter #-}
-    fromParameter byteString =
+instance ParamReader UUID where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
         case UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
             Nothing -> Left "FromParamter UUID: Parse error"
 
-instance FromParameter UTCTime where
-    {-# INLINE fromParameter #-}
-    fromParameter "" = Left "FromParameter UTCTime: Parameter missing"
-    fromParameter byteString =
+instance ParamReader UTCTime where
+    {-# INLINE readParameter #-}
+    readParameter "" = Left "ParamReader UTCTime: Parameter missing"
+    readParameter byteString =
         let
             input = (cs byteString)
             dateTime = parseTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
@@ -227,20 +227,20 @@ instance FromParameter UTCTime where
         in case dateTime of
             Nothing -> case date of
                 Just value -> Right value
-                Nothing -> Left "FromParameter UTCTime: Failed parsing"
+                Nothing -> Left "ParamReader UTCTime: Failed parsing"
             Just value -> Right value
 
-instance {-# OVERLAPS #-} FromParameter (ModelSupport.Id' model') where
-    {-# INLINE fromParameter #-}
-    fromParameter uuid =
-        case (fromParameter uuid) :: Either ByteString UUID of
+instance {-# OVERLAPS #-} ParamReader (ModelSupport.Id' model') where
+    {-# INLINE readParameter #-}
+    readParameter uuid =
+        case (readParameter uuid) :: Either ByteString UUID of
             Right uuid -> pure (ModelSupport.Id uuid)
             Left error -> Left error
 
-instance FromParameter param => FromParameter (Maybe param) where
-    {-# INLINE fromParameter #-}
-    fromParameter param =
-        case (fromParameter param) :: Either ByteString param of
+instance ParamReader param => ParamReader (Maybe param) where
+    {-# INLINE readParameter #-}
+    readParameter param =
+        case (readParameter param) :: Either ByteString param of
             Right value -> Right (Just value)
             Left error -> Left error
 
@@ -252,19 +252,19 @@ instance FromParameter param => FromParameter (Maybe param) where
 -- >     myParam <- param "hello"
 --
 -- Now a custom type error will be shown telling the user to use @let myParam = param "hello"@ instead of do-notation.
-instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \"..\"'" :: Symbol))) => FromParameter  (IO param) where
-    fromParameter _ = error "Unreachable"
+instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \"..\"'" :: Symbol))) => ParamReader  (IO param) where
+    readParameter _ = error "Unreachable"
 
--- | Can be used as a default implementation for 'fromParameter' for enum structures
+-- | Can be used as a default implementation for 'readParameter' for enum structures
 --
 -- __Example:__
 --
 -- > data Color = Yellow | Red | Blue deriving (Enum)
 -- > 
--- > instance FromParameter Color
--- >     fromParameter = enumFromParameter
-enumFromParameter :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => ByteString -> Either ByteString parameter
-enumFromParameter string =
+-- > instance ParamReader Color
+-- >     readParameter = enumParamReader
+enumParamReader :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => ByteString -> Either ByteString parameter
+enumParamReader string =
         case find (\value -> ModelSupport.inputValue value == string') allValues of
             Just value -> Right value
             Nothing -> Left "Invalid value"
@@ -307,7 +307,7 @@ instance FillParams ('[]) record where
 instance (FillParams rest record
     , KnownSymbol fieldName
     , SetField fieldName record fieldType
-    , FromParameter fieldType
+    , ParamReader fieldType
     , HasField "meta" record ModelSupport.MetaBag
     , SetField "meta" record ModelSupport.MetaBag
     ) => FillParams (fieldName:rest) record where
@@ -315,7 +315,7 @@ instance (FillParams rest record
         let name :: ByteString = cs $! (symbolVal (Proxy @fieldName))
         case paramOrNothing name of
             Just !paramValue ->
-                case fromParameter paramValue of
+                case readParameter paramValue of
                     Left !error -> fill @rest (attachFailure (Proxy @fieldName) (cs error) record)
                     Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
             Nothing -> fill @rest record
