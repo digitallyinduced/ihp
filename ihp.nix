@@ -110,6 +110,6 @@ mkDerivation {
   postInstall = ''
     cp IHP/CLI/run-task $out/bin/run-task
     cp Makefile.dist $out
-    cp IHP/static $out
+    cp -r IHP/static $out
   '';
 }

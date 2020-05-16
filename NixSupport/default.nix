@@ -1,9 +1,7 @@
 { compiler, ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./. }:
 
 let
-    pkgs = import "${projectPath}/Config/nix/nixpkgs-config.nix" {
-        ihp = ihp;
-    };
+    pkgs = import "${projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; };
 
     gitignore = pkgs.callPackage (pkgs.fetchFromGitHub {
         owner = "siers";
