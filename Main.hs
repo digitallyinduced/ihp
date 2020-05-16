@@ -1,12 +1,12 @@
 module Main where
 
-import TurboHaskell.Prelude
-import TurboHaskell.Environment
-import TurboHaskell.FrameworkConfig
-import qualified TurboHaskell.Server
-import TurboHaskell.RouterSupport
-import TurboHaskell.ControllerPrelude
---import TurboHaskell.GenericController
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import qualified IHP.Server
+import IHP.RouterSupport
+import IHP.ControllerPrelude
+--import IHP.GenericController
 
 data DemoController = DemoAction deriving (Eq, Show)
 
@@ -25,4 +25,4 @@ instance FrameworkConfig where
 	baseUrl = "http://localhost:8000"
 
 main :: IO ()
-main = TurboHaskell.Server.run
+main = IHP.Server.run

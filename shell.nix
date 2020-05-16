@@ -18,7 +18,7 @@ let
       , wai-util, wai-websockets, warp, websockets
       }:
       mkDerivation {
-        pname = "turbohaskell";
+        pname = "ihp";
         version = "0.1.0.0";
         src = ./.;
         isLibrary = false;

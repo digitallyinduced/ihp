@@ -11,7 +11,7 @@ let
     doJailbreakPackages = [
         "ghc-mod"
         "filesystem-conduit"
-        "turbohaskell"
+        "ihp"
         "http-media"
         "countable-inflections"
     ];
@@ -48,7 +48,7 @@ let
 
     # More exotic overrides go here
     manualOverrides = haskellPackagesNew: haskellPackagesOld: {
-      turbohaskell = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.allowInconsistentDependencies haskellPackagesOld.turbohaskell);
+      ihp = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.allowInconsistentDependencies haskellPackagesOld.ihp);
       time_1_9_3 = pkgs.haskell.lib.dontCheck haskellPackagesOld.time_1_9_3;
     };
 

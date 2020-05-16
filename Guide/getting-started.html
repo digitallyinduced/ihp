@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <title>TurboHaskell Guide</title>
+    <title>IHP Guide</title>
 
     <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
   </head>
@@ -72,7 +72,7 @@
 </ul>
 </li>
 <li>
-<a href="#2-installing-turbohaskell">2. Installing TurboHaskell</a>
+<a href="#2-installing-ihp">2. Installing IHP</a>
 </li>
 </ul>
 </li>
@@ -388,7 +388,7 @@
 <h5 id="windows">Windows</h5>
 <p>Sorry, we don’t support windows yet.</p>
 <h3 id="2-direnv">2. Direnv</h3>
-<p>TurboHaskell uses <code>direnv</code> to speed up the development shell. As it needs to be hooked into your shell, it needs to be installed manually.</p>
+<p>IHP uses <code>direnv</code> to speed up the development shell. As it needs to be hooked into your shell, it needs to be installed manually.</p>
 <p>Install it via nix:</p>
 <div class="source-code"><pre><code class="language-bash"><span class="ex">nix-env</span><span> -i direnv</span>
 </code></pre></div>
@@ -403,14 +403,14 @@
 </code></pre></div>
 <h5 id="other-shell">Other shell</h5>
 <p>For other shells, <a href="https://direnv.net/#README">take a look at the direnv documentation</a>.</p>
-<h3 id="2-installing-turbohaskell">2. Installing TurboHaskell</h3>
+<h3 id="2-installing-ihp">2. Installing IHP</h3>
 <p>You can now install interactive lambda by running:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">nix-env</span><span> -f https://turbohaskell.digitallyinduced.com/turbohaskell-new.tar.gz -i turbohaskell-new</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">nix-env</span><span> -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new</span>
 </code></pre></div>
 <h1 id="creating-your-first-project">Creating Your First Project</h1>
 <h3 id="1-project-setup">1. Project Setup</h3>
 <p>This guide will lead you to create a small blog application. To set up the project, open a terminal and type:</p>
-<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">turbohaskell-new</span><span> blog</span>
+<div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">ihp-new</span><span> blog</span>
 </code></pre></div>
 <p>The new <code>blog</code> directory now contains a couple of auto-generated files and directories that make up your app.</p>
 <p>Here is a short overview of the whole structure:</p>
@@ -446,7 +446,7 @@ The server can be stopped by pressing CTRL+C.</p>
 <p>The built-in development server automatically starts a PostgreSQL database connected to your application. So you don’t need to worry about manually setting up the database.</p>
 <h3 id="3-data-structures-postgresql">3. Data Structures &amp; PostgreSQL</h3>
 <h5 id="schema-modeling">Schema Modeling</h5>
-<p>For our blog we’re going to deal with posts. A post has a title and a body and of course also an id. TurboHaskell is using UUIDs instead of the typical numerics ids.</p>
+<p>For our blog we’re going to deal with posts. A post has a title and a body and of course also an id. IHP is using UUIDs instead of the typical numerics ids.</p>
 <p><strong>A <code>posts</code> table in a PostgreSQL database could loke like this:</strong></p>
 <table>
 <thead>
@@ -461,7 +461,7 @@ The server can be stopped by pressing CTRL+C.</p>
 Open <code>Application/Schema.hs</code> and add the following code:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Application.Schema</span><span> </span><span class="kw">where</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">ClassyPrelude</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="sy">(</span><span class="op">&lt;&gt;</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="cr">Bool</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">)</span><span>
-</span><span class="kw">import</span><span> </span><span class="cr">TurboHaskell.SchemaSupport</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">IHP.SchemaSupport</span><span>
 
 </span><span class="va">database</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[</span><span>
     </span><span class="va">table</span><span> </span><span class="st">&quot;posts&quot;</span><span>
@@ -552,7 +552,7 @@ Don’t worry, the local development postgresql server is already running. The d
 </tbody>
 </table>
 <h3 id="4-apps-controllers-views">4. Apps, Controllers, Views</h3>
-<p>TurboHaskell uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.</p>
+<p>IHP uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.</p>
 <p>A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.</p>
 <p>We can run the code generator like this:</p>
 <div class="source-code"><pre><code class="language-bash"><span>$ </span><span class="ex">new-controller</span><span> posts</span>
@@ -740,7 +740,7 @@ Don’t worry, the local development postgresql server is already running. The d
     </span><span class="op">|&gt;</span><span> </span><span class="va">validateField</span><span> </span><span class="va">#title</span><span> </span><span class="va">nonEmpty</span><span>
 </span></code></pre></div>
 <p>Now open <a href="http://localhost:8000/Posts/new">http://localhost:8000/Posts/new</a> and click “Save Post” without filling the text fields. You will get a “This field cannot be empty”.</p>
-<p>That’s how easy it is, to validate your models with TurboHaskell.</p>
+<p>That’s how easy it is, to validate your models with IHP.</p>
 <h4 id="timestamps">Timestamps</h4>
 <p>It would be nice to always show the latest post on the index view. Let’s add a timestamp to do exactly that.</p>
 <p>Before we change our database schema, it’s time to quickly save our current database state. For that you can just run <code>make dumpdb</code>:</p>
@@ -793,7 +793,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>To deal with markdown, instead of implementing our own markdown parser, let’s just use an existing package. There’s the excellt <code>mmark</code> package we can use.</p>
 <p>To install this package, open the <code>default.nix</code> file and append <code>mmark</code> to the <code>haskellDeps</code> list. The file will now look like this:</p>
 <div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
-<span>    </span><span class="ex">haskellEnv</span><span> = import ./TurboHaskell/NixSupport/default.nix {</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import ./IHP/NixSupport/default.nix {</span>
 <span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc844&quot;</span><span class="kw">;</span>
 <span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
 <span>            cabal-install</span>
@@ -818,7 +818,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <span>            uri-encode</span>
 <span>            generic-lens</span>
 <span>            tz</span>
-<span>            turbohaskell</span>
+<span>            ihp</span>
 <span>            mmark</span>
 <span>        ];</span>
 <span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
@@ -893,7 +893,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <p>The <code>Application/Schema.hs</code> will now look like this:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Application.Schema</span><span> </span><span class="kw">where</span><span>
 </span><span class="kw">import</span><span> </span><span class="cr">ClassyPrelude</span><span> </span><span class="sy">(</span><span class="cr">Maybe</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="sy">(</span><span class="op">&lt;&gt;</span><span class="sy">)</span><span class="sy">,</span><span> </span><span class="cr">Bool</span><span> </span><span class="sy">(</span><span class="sy">..</span><span class="sy">)</span><span class="sy">)</span><span>
-</span><span class="kw">import</span><span> </span><span class="cr">TurboHaskell.SchemaSupport</span><span>
+</span><span class="kw">import</span><span> </span><span class="cr">IHP.SchemaSupport</span><span>
 
 </span><span class="va">database</span><span> </span><span class="sy">=</span><span> </span><span class="sy">[</span><span>
     </span><span class="va">table</span><span> </span><span class="st">&quot;posts&quot;</span><span>
@@ -925,7 +925,7 @@ Don’t worry, the local development postgresql server is already running. The d
 <hr>
 <p>After this change, the dev server will show some errors like this:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="cr">Web</span><span class="op">/</span><span class="cr">View</span><span class="op">/</span><span class="cr">Comments</span><span class="op">/</span><span class="va">Show.hs</span><span class="sy">:</span><span class="it">8</span><span class="sy">:</span><span class="it">33</span><span class="sy">:</span><span> </span><span class="va">error</span><span class="sy">:</span><span>
-    </span><span class="op">•</span><span> </span><span class="cr">Could</span><span> </span><span class="va">not</span><span> </span><span class="va">deduce</span><span> </span><span class="sy">(</span><span class="cr">TurboHaskell.RouterSupport.AutoRoute</span><span> </span><span class="cr">CommentsController</span><span class="sy">)</span><span>
+    </span><span class="op">•</span><span> </span><span class="cr">Could</span><span> </span><span class="va">not</span><span> </span><span class="va">deduce</span><span> </span><span class="sy">(</span><span class="cr">IHP.RouterSupport.AutoRoute</span><span> </span><span class="cr">CommentsController</span><span class="sy">)</span><span>
 </span></code></pre></div>
 <p>E.g. in the <code>Show.hs</code> the error is triggered by this line:</p>
 <div class="source-code"><pre><code class="language-html"><span class="kw">&lt;li</span><span class="ot"> class=</span><span class="st">&quot;breadcrumb-item&quot;</span><span class="kw">&gt;&lt;a</span><span class="ot"> href=</span><span class="st">{CommentsAction}</span><span class="kw">&gt;</span><span>Comments</span><span class="kw">&lt;/a&gt;&lt;/li&gt;</span>
@@ -1001,7 +1001,7 @@ Background job-queue processing
 <h5 id="where-to-place-a-custom-type">Where to place a custom type?</h5>
 <p>Place it in <code>Web/Types.hs</code>.</p>
 <h5 id="next-to-my-main-web-application-im-building-an-admin-backend-application-where-to-place-it">Next to my main web application, I’m building an admin backend application. Where to place it?</h5>
-<p>A TurboHaskell project can consist of multiple applications. Run <code>new-application admin</code> to generate a new admin application. The logic for the new application is located in the <code>Admin/</code> directory. On the web you can find it at <code>http://localhost:8000/admin/</code> (all actions are prefixed with <code>/admin/</code>).</p>
+<p>A IHP project can consist of multiple applications. Run <code>new-application admin</code> to generate a new admin application. The logic for the new application is located in the <code>Admin/</code> directory. On the web you can find it at <code>http://localhost:8000/admin/</code> (all actions are prefixed with <code>/admin/</code>).</p>
 <h5 id="how-to-structure-my-css">How to structure my CSS?</h5>
 <p>CSS files, as all your other static assets, should be place in the <code>static</code> directory.</p>
 <p>Create an <code>static/app.css</code>. In there use CSS imports to import your other stylesheets. An example <code>app.css</code> could look like this:</p>
@@ -1015,7 +1015,7 @@ Background job-queue processing
 <div class="source-code"><pre><code class="language-html"><span class="kw">&lt;link</span><span class="ot"> rel=</span><span class="st">&quot;stylesheet&quot;</span><span class="ot"> href=</span><span class="st">&quot;/app.css&quot;</span><span class="kw">/&gt;</span>
 </code></pre></div>
 <h6 id="pagespecific-css-rules">Page-specific CSS rules</h6>
-<p>Place page-specific CSS used by e.g. views of the <code>Web.Controller.Users</code> controller in the <code>users.css</code>. Use <a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ViewSupport.html#v:currentViewId">currentViewId</a> to scope your css rules to the view.</p>
+<p>Place page-specific CSS used by e.g. views of the <code>Web.Controller.Users</code> controller in the <code>users.css</code>. Use <a href="https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:currentViewId">currentViewId</a> to scope your css rules to the view.</p>
 <p>Given the view:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="kw">module</span><span> </span><span class="cr">Web.View.Projects.Show</span><span> </span><span class="kw">where</span><span>
 
@@ -1178,7 +1178,7 @@ You can just use the <code>query</code> function for that.</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">result</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">sqlQuery</span><span> </span><span class="st">&quot;SELECT * FROM projects WHERE id = ?&quot;</span><span> </span><span class="sy">(</span><span class="cr">Only</span><span> </span><span class="va">id</span><span class="sy">)</span><span>
 </span></code></pre></div>
 <h2 id="validation-reference">Validation Reference</h2>
-<p><a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateField.html">See the API Documentation</a>.</p>
+<p><a href="https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html">See the API Documentation</a>.</p>
 <h2 id="view-helper-reference">View Helper Reference</h2>
 <h3 id="time">Time</h3>
 <h4 id="timeago"><code>timeAgo</code></h4>
@@ -1266,15 +1266,15 @@ You can just use the <code>query</code> function for that.</p>
 </span></code></pre></div>
 <p>Now the terms can be reached at <code>/terms</code> instead of <code>/Terms</code>. The about is at <code>/about</code> now, instead of <code>/About</code>.</p>
 <h2 id="adding-a-native-dependency">Adding a native dependency</h2>
-<p>Sometimes your project uses some other software tool which is not bundled with TurboHaskell by default. Because we’re using nix, we can easily manage that dependency for our project.</p>
+<p>Sometimes your project uses some other software tool which is not bundled with IHP by default. Because we’re using nix, we can easily manage that dependency for our project.</p>
 <p>Let’s say we want to add imagemagick to transform and resize images uploaded by the users of our application.</p>
 <p>All dependencies of our project are listed in <code>default.nix</code> at the root of the project directory. The file looks like this:</p>
 <div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
-<span>    </span><span class="ex">turboHaskell</span><span> = builtins.fetchGit {</span>
+<span>    </span><span class="ex">ihp</span><span> = builtins.fetchGit {</span>
 <span>        </span><span class="ex">url</span><span> = </span><span class="st">&quot;https://github.com/digitallyinduced/haskellframework.git&quot;</span><span class="kw">;</span>
 <span>        </span><span class="fu">rev</span><span> = </span><span class="st">&quot;c6d40612697bb7905802f23b7753702d33b9e2c1&quot;</span><span class="kw">;</span>
 <span>    };</span>
-<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${turboHaskell}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${ihp}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
 <span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc865&quot;</span><span class="kw">;</span>
 <span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
 <span>            cabal-install</span>
@@ -1283,7 +1283,7 @@ You can just use the <code>query</code> function for that.</p>
 <span>            wai</span>
 <span>            text</span>
 <span>            hlint</span>
-<span>            turbohaskell</span>
+<span>            ihp</span>
 <span>            wreq</span>
 <span>        ];</span>
 <span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
@@ -1295,11 +1295,11 @@ You can just use the <code>query</code> function for that.</p>
 </code></pre></div>
 <p>We now just have to add <code>imagemagick</code> to <code>otherDeps</code>:</p>
 <div class="source-code"><pre><code class="language-nix"><span class="bu">let</span>
-<span>    </span><span class="ex">turboHaskell</span><span> = builtins.fetchGit {</span>
+<span>    </span><span class="ex">ihp</span><span> = builtins.fetchGit {</span>
 <span>        </span><span class="ex">url</span><span> = </span><span class="st">&quot;https://github.com/digitallyinduced/haskellframework.git&quot;</span><span class="kw">;</span>
 <span>        </span><span class="fu">rev</span><span> = </span><span class="st">&quot;c6d40612697bb7905802f23b7753702d33b9e2c1&quot;</span><span class="kw">;</span>
 <span>    };</span>
-<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${turboHaskell}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
+<span>    </span><span class="ex">haskellEnv</span><span> = import </span><span class="st">&quot;</span><span class="va">${ihp}</span><span class="st">/NixSupport/default.nix&quot;</span><span> {</span>
 <span>        </span><span class="ex">compiler</span><span> = </span><span class="st">&quot;ghc865&quot;</span><span class="kw">;</span>
 <span>        </span><span class="ex">haskellDeps</span><span> = p: with p</span><span class="kw">;</span><span class="bu"> [</span>
 <span>            cabal-install</span>
@@ -1308,7 +1308,7 @@ You can just use the <code>query</code> function for that.</p>
 <span>            wai</span>
 <span>            text</span>
 <span>            hlint</span>
-<span>            turbohaskell</span>
+<span>            ihp</span>
 <span>            wreq</span>
 <span>        ];</span>
 <span>        otherDeps </span><span class="ot">=</span><span> p: with p; [</span>
@@ -1348,7 +1348,7 @@ You can just use the <code>query</code> function for that.</p>
 <p>This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the <code>static/uploads</code> folder in the project (directory will be created if it does not exist).</p>
 <p>In your view, just use the image url like <code>&lt;img src={get #pictureUrl currentUser}/&gt;</code>.</p>
 <h2 id="checking-that-the-current-user-has-permission-to-access-the-action">Checking that the current user has permission to access the action</h2>
-<p>Use <a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-LoginSupport-Helper-Controller.html#v:accessDeniedUnless">accessDeniedUnless</a> like this:</p>
+<p>Use <a href="https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedUnless">accessDeniedUnless</a> like this:</p>
 <div class="source-code"><pre><code class="language-haskell"><span class="va">action</span><span> </span><span class="cr">EditPostAction</span><span> </span><span class="sy">{</span><span> </span><span class="va">postId</span><span> </span><span class="sy">}</span><span> </span><span class="sy">=</span><span> </span><span class="kw">do</span><span>
     </span><span class="va">post</span><span> </span><span class="sy">&lt;-</span><span> </span><span class="va">fetch</span><span> </span><span class="va">postId</span><span>
     </span><span class="va">accessDeniedUnless</span><span> </span><span class="sy">(</span><span class="va">get</span><span> </span><span class="va">#authorId</span><span> </span><span class="va">post</span><span> </span><span class="op">==</span><span> </span><span class="va">currentUserId</span><span class="sy">)</span><span>
@@ -1365,7 +1365,7 @@ You can just use the <code>query</code> function for that.</p>
 </span><span class="va">isAge</span><span> </span><span class="sy">=</span><span> </span><span class="va">isInRange</span><span> </span><span class="sy">(</span><span class="it">0</span><span class="sy">,</span><span> </span><span class="it">100</span><span class="sy">)</span><span>
 </span></code></pre></div>
 <h2 id="checking-that-an-email-is-unique">Checking that an email is unique</h2>
-<p>Use <a href="https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique"><code>validateIsUnique</code></a>.</p>
+<p>Use <a href="https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique"><code>validateIsUnique</code></a>.</p>
 </div>
 
     

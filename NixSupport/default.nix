@@ -1,8 +1,8 @@
-{ compiler, turboHaskell, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./. }:
+{ compiler, ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./. }:
 
 let
     pkgs = import "${projectPath}/Config/nix/nixpkgs-config.nix" {
-        turboHaskell = turboHaskell;
+        ihp = ihp;
     };
 
     gitignore = pkgs.callPackage (pkgs.fetchFromGitHub {
@@ -22,7 +22,7 @@ in
           make -B build/bin/RunUnoptimizedProdServer
         '';
         installPhase = ''
-          mkdir $out
+          mkdir -p $out
           cp -r build/bin $out/bin
         '';
         dontFixup= true;

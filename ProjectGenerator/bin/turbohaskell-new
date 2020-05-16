@@ -6,7 +6,7 @@ LIB_DIR="$BIN_DIR/../lib"
 BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/haskellframework-boilerplate.git"
 
 if [ "$#" -ne "1" ]; then
-	echo "Usage: turbohaskell-new PROJECT_NAME\n"
+	echo "Usage: ihp-new PROJECT_NAME\n"
 	exit 1
 fi
 
@@ -18,7 +18,7 @@ fi
 
 if ! [ -x "$(command -v direnv)" ]; then
 	echo -e "\e[1m\e[35mDIRENV MISSING\e[0m"
-	echo -e "TurboHaskell uses direnv to manage env variables.";
+	echo -e "IHP uses direnv to manage env variables.";
 	echo -e "Learn more about direnv here: \e[4mhttps://direnv.net/\e[0m"
 	echo ""
 	echo ""
@@ -42,7 +42,7 @@ fi
 
 if ! [ -x "$(command -v cachix)" ]; then
 	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
-	echo -e "TurboHaskell uses cachix as a binary cache.";
+	echo -e "IHP uses cachix as a binary cache.";
 	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
 	echo ""
 	echo ""

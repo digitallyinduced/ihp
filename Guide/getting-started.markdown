@@ -44,7 +44,7 @@ Sorry, we don't support windows yet.
 
 ### 2. Direnv
 
-TurboHaskell uses `direnv` to speed up the development shell. As it needs to be hooked into your shell, it needs to be installed manually.
+IHP uses `direnv` to speed up the development shell. As it needs to be hooked into your shell, it needs to be installed manually.
 
 Install it via nix:
 
@@ -74,12 +74,12 @@ eval "$(direnv hook zsh)"
 
 For other shells, [take a look at the direnv documentation](https://direnv.net/#README).
 
-### 2. Installing TurboHaskell
+### 2. Installing IHP
 
 You can now install interactive lambda by running:
 
 ```bash
-$ nix-env -f https://turbohaskell.digitallyinduced.com/turbohaskell-new.tar.gz -i turbohaskell-new
+$ nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
 
 
@@ -89,7 +89,7 @@ $ nix-env -f https://turbohaskell.digitallyinduced.com/turbohaskell-new.tar.gz -
 This guide will lead you to create a small blog application. To set up the project, open a terminal and type:
 
 ```bash
-$ turbohaskell-new blog
+$ ihp-new blog
 ```
 
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
@@ -134,7 +134,7 @@ The built-in development server automatically starts a PostgreSQL database conne
 
 ##### Schema Modeling
 
-For our blog we're going to deal with posts. A post has a title and a body and of course also an id. TurboHaskell is using UUIDs instead of the typical numerics ids.
+For our blog we're going to deal with posts. A post has a title and a body and of course also an id. IHP is using UUIDs instead of the typical numerics ids.
 
 **A `posts` table in a PostgreSQL database could loke like this:**
 
@@ -152,7 +152,7 @@ Open `Application/Schema.hs` and add the following code:
 ```haskell
 module Application.Schema where
 import ClassyPrelude (Maybe (..), (<>), Bool (..))
-import TurboHaskell.SchemaSupport
+import IHP.SchemaSupport
 
 database = [
     table "posts"
@@ -248,7 +248,7 @@ By specificing the above schema, the framework automatically provides several ty
 
 ### 4. Apps, Controllers, Views
 
-TurboHaskell uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.
+IHP uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.
 
 A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
@@ -533,7 +533,7 @@ buildPost post = post
 
 Now open [http://localhost:8000/Posts/new](http://localhost:8000/Posts/new) and click "Save Post" without filling the text fields. You will get a "This field cannot be empty".
 
-That's how easy it is, to validate your models with TurboHaskell.
+That's how easy it is, to validate your models with IHP.
 
 #### Timestamps
 
@@ -618,7 +618,7 @@ To install this package, open the `default.nix` file and append `mmark` to the `
 
 ```nix
 let
-    haskellEnv = import ./TurboHaskell/NixSupport/default.nix {
+    haskellEnv = import ./IHP/NixSupport/default.nix {
         compiler = "ghc844";
         haskellDeps = p: with p; [
             cabal-install
@@ -643,7 +643,7 @@ let
             uri-encode
             generic-lens
             tz
-            turbohaskell
+            ihp
             mmark
         ];
         otherDeps = p: with p; [
@@ -761,7 +761,7 @@ The `Application/Schema.hs` will now look like this:
 ```haskell
 module Application.Schema where
 import ClassyPrelude (Maybe (..), (<>), Bool (..))
-import TurboHaskell.SchemaSupport
+import IHP.SchemaSupport
 
 database = [
     table "posts"
@@ -811,7 +811,7 @@ After this change, the dev server will show some errors like this:
 
 ```haskell
 Web/View/Comments/Show.hs:8:33: error:
-    • Could not deduce (TurboHaskell.RouterSupport.AutoRoute CommentsController)
+    • Could not deduce (IHP.RouterSupport.AutoRoute CommentsController)
 ```
 
 E.g. in the `Show.hs` the error is triggered by this line:
@@ -919,7 +919,7 @@ Place it in `Web/Types.hs`.
 
 ##### Next to my main web application, I'm building an admin backend application. Where to place it?
 
-A TurboHaskell project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
+A IHP project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
 
 ##### How to structure my CSS?
 
@@ -943,7 +943,7 @@ In your `Web.View.Layout` just import the `app.css`:
 
 ###### Page-specific CSS rules
 
-Place page-specific CSS used by e.g. views of the `Web.Controller.Users` controller in the `users.css`. Use [currentViewId](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ViewSupport.html#v:currentViewId) to scope your css rules to the view.
+Place page-specific CSS used by e.g. views of the `Web.Controller.Users` controller in the `users.css`. Use [currentViewId](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:currentViewId) to scope your css rules to the view.
 
 Given the view:
 
@@ -1192,7 +1192,7 @@ result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 
 ## Validation Reference
 
-[See the API Documentation](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateField.html).
+[See the API Documentation](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html).
 
 ## View Helper Reference
 
@@ -1312,7 +1312,7 @@ Now the terms can be reached at `/terms` instead of `/Terms`. The about is at `/
 
 ## Adding a native dependency
 
-Sometimes your project uses some other software tool which is not bundled with TurboHaskell by default. Because we're using nix, we can easily manage that dependency for our project.
+Sometimes your project uses some other software tool which is not bundled with IHP by default. Because we're using nix, we can easily manage that dependency for our project.
 
 Let's say we want to add imagemagick to transform and resize images uploaded by the users of our application.
 
@@ -1320,11 +1320,11 @@ All dependencies of our project are listed in `default.nix` at the root of the p
 
 ```nix
 let
-    turboHaskell = builtins.fetchGit {
+    ihp = builtins.fetchGit {
         url = "https://github.com/digitallyinduced/haskellframework.git";
         rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
     };
-    haskellEnv = import "${turboHaskell}/NixSupport/default.nix" {
+    haskellEnv = import "${ihp}/NixSupport/default.nix" {
         compiler = "ghc865";
         haskellDeps = p: with p; [
             cabal-install
@@ -1333,7 +1333,7 @@ let
             wai
             text
             hlint
-            turbohaskell
+            ihp
             wreq
         ];
         otherDeps = p: with p; [
@@ -1348,11 +1348,11 @@ We now just have to add `imagemagick` to `otherDeps`:
 
 ```nix
 let
-    turboHaskell = builtins.fetchGit {
+    ihp = builtins.fetchGit {
         url = "https://github.com/digitallyinduced/haskellframework.git";
         rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
     };
-    haskellEnv = import "${turboHaskell}/NixSupport/default.nix" {
+    haskellEnv = import "${ihp}/NixSupport/default.nix" {
         compiler = "ghc865";
         haskellDeps = p: with p; [
             cabal-install
@@ -1361,7 +1361,7 @@ let
             wai
             text
             hlint
-            turbohaskell
+            ihp
             wreq
         ];
         otherDeps = p: with p; [
@@ -1412,7 +1412,7 @@ In your view, just use the image url like `<img src={get #pictureUrl currentUser
 
 ## Checking that the current user has permission to access the action
 
-Use [accessDeniedUnless](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
+Use [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
 
 ```haskell
 action EditPostAction { postId } = do
@@ -1437,4 +1437,4 @@ isAge = isInRange (0, 100)
 
 ## Checking that an email is unique
 
-Use [`validateIsUnique`](https://turbohaskell.digitallyinduced.com/api-docs/TurboHaskell-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).
+Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).

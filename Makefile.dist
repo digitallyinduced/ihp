@@ -40,7 +40,7 @@ GHC_OPTIONS=-threaded -i. -ibuild -iConfig
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
-GHC_OPTIONS+= -package turbohaskell
+GHC_OPTIONS+= -package ihp
 
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
 PROD_GHC_OPTIONS+= -optc-O3
@@ -66,7 +66,7 @@ run: .envrc build/Generated static/prod.js static/prod.css
 	RunDevServer
 
 
-.envrc: default.nix TurboHaskell/NixSupport/default.nix
+.envrc: default.nix IHP/NixSupport/default.nix
 	rm -f .envrc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	direnv allow
@@ -97,9 +97,9 @@ dump_db:
 	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
 ghci:
-	ghci -threaded -i. -iTurboHaskell -fexternal-interpreter
+	ghci -threaded -i. -iIHP -fexternal-interpreter
 
-build/Generated: Application/Schema.sql TurboHaskell/TurboHaskell/SchemaCompiler.hs
+build/Generated: Application/Schema.sql IHP/IHP/SchemaCompiler.hs
 	rm -rf build/Generated && mkdir -p build/Generated
 	build-generated-code
 
@@ -119,7 +119,7 @@ build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.c
 
 clean:
 	rm -rf build/bin
-	rm -rf TurboHaskell/TurboHaskell/static/node_modules
+	rm -rf IHP/IHP/static/node_modules
 	rm -rf build/db
 	rm -f .envrc
 

@@ -1,10 +1,10 @@
-module TurboHaskell.MailerPrelude (
-    module TurboHaskell.Prelude,
+module IHP.MailerPrelude (
+    module IHP.Prelude,
     module Network.Mail.Mime,
     module Generated.Types,
 ) where
 
-import TurboHaskell.Prelude
+import IHP.Prelude
 import Generated.Types
 import Network.Mail.Mime
 
