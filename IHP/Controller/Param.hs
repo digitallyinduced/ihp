@@ -85,7 +85,31 @@ param !name =
     in case paramOrNothing name of
         Just value -> Either.fromRight (error parserErrorMessage) (fromParameter value)
         Nothing -> error notFoundMessage
-{-# INLINE param #-}            
+{-# INLINE param #-}
+
+-- | Specialisied version of param for 'Text'.
+--
+-- This way you don't need to know about the type application syntax.
+paramText :: (?requestContext :: RequestContext) => ByteString -> Text
+paramText = param @Text
+
+-- | Specialisied version of param for 'Int'.
+--
+-- This way you don't need to know about the type application syntax.
+paramInt :: (?requestContext :: RequestContext) => ByteString -> Int
+paramInt = param @Int
+
+-- | Specialisied version of param for 'Bool'.
+--
+-- This way you don't need to know about the type application syntax.
+paramBool :: (?requestContext :: RequestContext) => ByteString -> Bool
+paramBool = param @Bool
+
+-- | Specialisied version of param for 'UUID'.
+--
+-- This way you don't need to know about the type application syntax.
+paramUUID :: (?requestContext :: RequestContext) => ByteString -> UUID
+paramUUID = param @UUID
 
 -- | Returns @True@ when a parameter is given in the request via the query or request body.
 --
@@ -231,15 +255,22 @@ instance FromParameter param => FromParameter (Maybe param) where
 instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \"..\"'" :: Symbol))) => FromParameter  (IO param) where
     fromParameter _ = error "Unreachable"
 
-
-instance {-# OVERLAPPABLE #-} (Enum parameter, ModelSupport.InputValue parameter) => FromParameter parameter where
-    fromParameter string =
-            case find (\value -> ModelSupport.inputValue value == string') allValues of
-                Just value -> Right value
-                Nothing -> Left "Invalid value"
-        where
-            string' = cs string
-            allValues = enumFrom (toEnum 0) :: [parameter]
+-- | Can be used as a default implementation for 'fromParameter' for enum structures
+--
+-- __Example:__
+--
+-- > data Color = Yellow | Red | Blue deriving (Enum)
+-- > 
+-- > instance FromParameter Color
+-- >     fromParameter = enumFromParameter
+enumFromParameter :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => ByteString -> Either ByteString parameter
+enumFromParameter string =
+        case find (\value -> ModelSupport.inputValue value == string') allValues of
+            Just value -> Right value
+            Nothing -> Left "Invalid value"
+    where
+        string' = cs string
+        allValues = enumFrom (toEnum 0) :: [parameter]
 
 
 -- | Provides the 'fill' function for mass-assignment of multiple parameters to a record
