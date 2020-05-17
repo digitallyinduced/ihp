@@ -348,7 +348,7 @@ compileFromRowInstance table@(CreateTable { name, columns }) =
             <> ("fromRow = do id <- field; " <> modelName <> " <$> " <>  (intercalate " <*> " $ map compileField (dataFields table))) <> ";\n"
     where
         modelName = tableNameToModelName name
-        columnNames = map (get #name) columns
+        columnNames = map (columnNameToFieldName . get #name) columns
 
 
 
