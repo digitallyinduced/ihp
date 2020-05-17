@@ -26,6 +26,7 @@ compile = do
         Right statements -> do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
+            Directory.createDirectoryIfMissing True "build/Generated"
             writeIfDifferent typesFilePath (compileTypes options (Schema statements))
 
 typesFilePath :: FilePath
