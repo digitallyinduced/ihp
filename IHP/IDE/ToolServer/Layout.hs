@@ -16,9 +16,9 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
+    <link rel="shortcut icon" type="image/x-icon" href="/ihp-logo.svg"/>
     <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
     <link rel="stylesheet" href="/schema-designer.css"/>
-
     <link rel="stylesheet" href="/vendor/select2.min.css"/>
 
     <script src="/vendor/morphdom-umd.min.js"></script>
