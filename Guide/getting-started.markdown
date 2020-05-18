@@ -850,6 +850,60 @@ Of course now we also have to pass the `postId` to that view.
 
 ### Login & Logout
 
+# The Basics
+
+## Architecture
+
+## Directory Structure
+
+## Naming Conventions
+
+## Routing
+
+## Controller & Actions
+
+## Views
+
+## Session
+
+## Cookies
+
+## Validation
+
+## Frontend
+
+### HSX
+
+### Layouts
+
+### Static Assets
+
+## Security
+
+### Authentication
+
+### Authorization
+
+## Database
+
+### Getting Started
+
+### The Schema
+
+### Retrieving Records
+
+### Insert / Create
+
+### Update
+
+### Delete
+
+### Relationships
+
+### Advanced Queries With the Query Builder
+
+### Raw Sql Queries
+
 # Debuging
 
 TODO: Show example using traceShowId
