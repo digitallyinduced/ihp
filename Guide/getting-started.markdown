@@ -28,7 +28,26 @@ For example postgresql and the haskell compiler are both dependencies of your ap
 
 That's why we first need to make sure that you have nix installed.
 
-##### MacOS, Linux
+##### Mac
+Run this commands in your terminal to install nix on your machine.
+
+```bash
+echo 'nix' | sudo tee -a /etc/synthetic.conf
+sudo diskutil apfs addVolume disk1 APFSX Nix -mountpoint /nix #maybe use other diskX if u set up your harddrives a different way
+sudo diskutil enableOwnership /nix
+sudo chflags hidden /nix  # Don't show the Nix volume on the desktop
+echo "LABEL=Nix /nix apfs rw" | sudo tee -a /etc/fstab
+
+sh <(curl https://nixos.org/nix/install) --daemon
+```
+
+This will create an extra volume which is then mounted on `/nix`.
+We need to use this trick because MacOs Catalina does protect the root directory.
+
+This method is taken from the following Github Comment:
+[https://github.com/NixOS/nix/issues/2925#issuecomment-539570232](https://github.com/NixOS/nix/issues/2925#issuecomment-539570232)
+
+##### Linux
 
 Install nix by running the following command in your shell and follow the instructions on the screen:
 
@@ -37,7 +56,6 @@ curl https://nixos.org/nix/install | sh
 ```
 
 There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
-
 
 ##### Windows
 Sorry, we don't support windows yet.

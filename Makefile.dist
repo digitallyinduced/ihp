@@ -1,4 +1,4 @@
-.PHONY: run
+.PHONY: help
 
 .SHELLFLAGS := -eu -o pipefail -c  
 .ONESHELL:
@@ -55,18 +55,10 @@ PROD_GHC_OPTIONS+= -fmax-worker-args=200
 PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 
-
+.DEFAULT_GOAL := help
 RUNGHC=runghc
 
-doNothing:
-	@echo "The Makefile is not being used to start the DevServer anymore."
-	@echo "Please use the ./start.sh"
-
-run: .envrc build/Generated static/prod.js static/prod.css
-	RunDevServer
-
-
-.envrc: default.nix IHP/NixSupport/default.nix
+.envrc: default.nix IHP/NixSupport/default.nix ## Rebuild nix packages and .envrc
 	rm -f .envrc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	direnv allow
@@ -74,63 +66,59 @@ run: .envrc build/Generated static/prod.js static/prod.css
 build/bin:
 	mkdir -p build/bin
 
-run-production: build/bin/RunProdServer build/Generated
+run-production: build/bin/RunProdServer build/Generated ## Run Production Server
 	build/bin/RunProdServer
 
-psql:
+psql: ## Connects to the running postgresql server
 	@psql -h $$PWD/build/db -d app
 
-Application/Schema.sql:
-	touch $@
-
-Application/Fixtures.sql:
-	touch $@
-
-initdb: db
-db: Application/Schema.sql Application/Fixtures.sql
+db: Application/Schema.sql Application/Fixtures.sql ## Creates a new database with the current Schema and imports Fixtures.sql
 	echo "drop schema public cascade; create schema public;" | psql -h $$PWD/build/db -d app
 	psql -h $$PWD/build/db -d app < Application/Schema.sql
 	psql -h $$PWD/build/db -d app < Application/Fixtures.sql
 
-dumpdb: dump_db
-dump_db:
+dumpdb: dump_db ## Saves the current database state into the Fixtures.sql
+dump_db: ## Saves the current database state into the Fixtures.sql
 	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
-ghci:
+ghci: ## Opens a new ghci session with the project and framework already loaded
 	ghci -threaded -i. -iIHP -fexternal-interpreter
 
-build/Generated: Application/Schema.sql IHP/IHP/SchemaCompiler.hs
+build/Generated: Application/Schema.sql IHP/IHP/SchemaCompiler.hs ## Rebuilds generated types
 	rm -rf build/Generated && mkdir -p build/Generated
 	build-generated-code
 
-build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated
+build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated ## Quickly does a production build (all compiler optimizations disabled)
 	mkdir -p build/RunUnoptimizedProdServer
 	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<
 	rm -f build/bin/RunProdServer
 	ln -s `basename $@` build/bin/RunProdServer
 
-build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css
+build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css ## Full production build with all ghc optimizations (takes a while)
 	mkdir -p build/RunOptimizedProdServer
 	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
 	chmod +x $<
 	rm -f build/bin/RunProdServer
 	ln -s `basename $@` build/bin/RunProdServer
 
-clean:
+clean: ## Resets all build and temporary files
 	rm -rf build/bin
 	rm -rf IHP/IHP/static/node_modules
 	rm -rf build/db
 	rm -f .envrc
 
-static/prod.js: $(JS_FILES)
+static/prod.js: $(JS_FILES) ## Builds the production js bundle
 	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@
 
-static/prod.css: $(CSS_FILES)
+static/prod.css: $(CSS_FILES) ## Builds the production css bundle
 	cat $(CSS_FILES) > $@
 
-print-ghc-options:
+print-ghc-options: ## Prints all used ghc options. Useful for scripting
 	@echo ${GHC_OPTIONS}
 
-print-ghc-extensions:
+print-ghc-extensions: ## Prints all used ghc extensions. Useful for scripting
 	@echo ${GHC_EXTENSIONS}
+
+help: ## This help page
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
