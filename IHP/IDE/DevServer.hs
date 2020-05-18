@@ -69,7 +69,13 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
                 PostgresStarted {} -> do
                     let appGHCIState' = AppGHCIModulesLoaded { .. }
                     startLoadedApp appGHCIState'
-                    pure state { appGHCIState = appGHCIState' }
+
+                    stopStatusServer statusServerState
+                    let statusServerState' = case statusServerState of
+                            StatusServerStarted { .. } -> StatusServerPaused { .. }
+                            _ -> statusServerState
+                    
+                    pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
                 _ -> do
                     putStrLn "Cannot start app as postgres is not ready yet"
                     pure state
