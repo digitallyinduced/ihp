@@ -136,7 +136,6 @@ library IHPFramework
         , IHP.NameSupport
         , IHP.QueryBuilder
         , IHP.RouterPrelude
-        , IHP.SchemaCompiler
         , IHP.Server
         , IHP.ValidationSupport
         , IHP.ViewErrorMessages
