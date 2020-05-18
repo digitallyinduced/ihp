@@ -136,7 +136,6 @@ library IHPFramework
         , IHP.NameSupport
         , IHP.QueryBuilder
         , IHP.RouterPrelude
-        , IHP.SchemaCompiler
         , IHP.Server
         , IHP.ValidationSupport
         , IHP.ViewErrorMessages
@@ -177,6 +176,6 @@ executable new-controller
         , fsnotify
         , websockets
 
-executable new-task
+executable new-script
     import: shared-properties
     main-is: IHP/CLI/NewScript.hs
