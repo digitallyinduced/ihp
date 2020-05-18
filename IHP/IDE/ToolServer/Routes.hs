@@ -19,4 +19,5 @@ instance AutoRoute EnumValuesController where
 
 
 instance AutoRoute LogsController
-instance AutoRoute DataController
+instance AutoRoute DataController where
+    parseArgument = parseTextArgument
