@@ -101,10 +101,10 @@ handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotifi
     let state' = case statusServerState of
             StatusServerStarted { .. } -> state { statusServerState = StatusServerPaused { .. } }
             _ -> state
+    notifyHaskellChange liveReloadNotificationServerState
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> pure state' { appGHCIState = RunningAppGHCI { .. } }
         RunningAppGHCI { } -> do
-            notifyHaskellChange liveReloadNotificationServerState
             pure state'
         otherwise -> pure state'
     
@@ -173,21 +173,21 @@ startFilewatcher = do
         handleFileChange event = do
             let filePath = getEventFilePath event
             if isHaskellFile filePath
-                then if "Application/Schema.sql" `isSuffixOf` filePath
+                then dispatch HaskellFileChanged
+                else if "Application/Schema.sql" `isSuffixOf` filePath
                     then dispatch SchemaChanged
-                    else do
-                        dispatch HaskellFileChanged
-                else if isAssetFile filePath
-                    then dispatch AssetChanged
-                    else mempty
+                    else if isAssetFile filePath
+                        then dispatch AssetChanged
+                        else mempty
 
         shouldActOnFileChange :: FS.ActionPredicate
         shouldActOnFileChange event =
             let path = getEventFilePath event
-            in isHaskellFile path || isAssetFile path
+            in isHaskellFile path || isAssetFile path || isSQLFile path
 
         isHaskellFile = isSuffixOf ".hs"
         isAssetFile = isSuffixOf ".css"
+        isSQLFile = isSuffixOf ".sql"
 
         getEventFilePath :: FS.Event -> FilePath
         getEventFilePath event = case event of
@@ -227,15 +227,15 @@ startAppGHCI = do
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
                 if "Server started" `isInfixOf` line
                     then dispatch AppStarted
-                    else if "modules loaded." `isInfixOf` line
-                        then do
-                            writeIORef needsErrorRecovery False
-                            dispatch AppModulesLoaded { success = True }
-                        else if "Failed," `isInfixOf` line
+                    else if "Failed," `isInfixOf` line
                             then do
                                 writeIORef needsErrorRecovery True
                                 dispatch AppModulesLoaded { success = False }
-                            else dispatch ReceiveAppOutput { line = StandardOutput line }
+                            else if "modules loaded." `isInfixOf` line
+                                then do
+                                    writeIORef needsErrorRecovery False
+                                    dispatch AppModulesLoaded { success = True }
+                                else dispatch ReceiveAppOutput { line = StandardOutput line }
 
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
         if "cannot find object file for module" `isInfixOf` line
