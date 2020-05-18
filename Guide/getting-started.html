@@ -50,10 +50,10 @@
 <a href="#1-nix-package-manager">1. Nix Package Manager</a>
 <ul>
 <li>
-<a href="#linux">Linux</a>
+<a href="#mac">Mac</a>
 </li>
 <li>
-<a href="#mac">Mac</a>
+<a href="#linux">Linux</a>
 </li>
 <li>
 <a href="#windows">Windows</a>
@@ -383,16 +383,8 @@
 <p>The framework uses the nix package manager to manage the whole set of dependencies of your application</p>
 <p>For example postgresql and the haskell compiler are both dependencies of your app. as well as all the haskell or javascript packages you want to use. we use nix to make sure that these dependencies are available to the app - in development, as well as in production.</p>
 <p>That’s why we first need to make sure that you have nix installed.</p>
-<h5 id="linux">Linux</h5>
-<p>Install nix by running the following command in your shell and follow the instructions on the screen:</p>
-<div class="source-code"><pre><code class="language-bash"><span class="ex">curl</span><span> https://nixos.org/nix/install </span><span class="kw">|</span><span> </span><span class="fu">sh</span>
-</code></pre></div>
-<p>There are also other ways to install nix, <a href="https://nixos.org/nix/download.html">take a look at the documentation</a>.</p>
 <h5 id="mac">Mac</h5>
-<p>Before MacOs Catalina you could use the normal way of installing nix:</p>
-<div class="source-code"><pre><code class="language-bash"><span class="ex">curl</span><span> https://nixos.org/nix/install </span><span class="kw">|</span><span> </span><span class="fu">sh</span>
-</code></pre></div>
-<p>But MacOs Catalina does protect the root directory so we need to use a trick to create <code>/nix</code>:</p>
+<p>Run this commands in your terminal to install nix on your machine.</p>
 <div class="source-code"><pre><code class="language-bash"><span class="bu">echo</span><span> </span><span class="st">&#39;nix&#39;</span><span> </span><span class="kw">|</span><span> </span><span class="fu">sudo</span><span> tee -a /etc/synthetic.conf</span>
 <span class="fu">sudo</span><span> diskutil apfs addVolume disk1 APFSX Nix -mountpoint /nix </span><span class="co">#maybe use other diskX if u set up your harddrives a different way</span>
 <span class="fu">sudo</span><span> diskutil enableOwnership /nix</span>
@@ -401,9 +393,15 @@
 
 <span class="fu">sh</span><span> </span><span class="op">&lt;(</span><span class="ex">curl</span><span> https://nixos.org/nix/install</span><span class="op">)</span><span> --daemon</span>
 </code></pre></div>
-<p>This will create an extra volume which is then mounted on <code>/nix</code>.</p>
+<p>This will create an extra volume which is then mounted on <code>/nix</code>.
+We need to use this trick because MacOs Catalina does protect the root directory.</p>
 <p>This method is taken from the following Github Comment:
 <a href="https://github.com/NixOS/nix/issues/2925#issuecomment-539570232">https://github.com/NixOS/nix/issues/2925#issuecomment-539570232</a></p>
+<h5 id="linux">Linux</h5>
+<p>Install nix by running the following command in your shell and follow the instructions on the screen:</p>
+<div class="source-code"><pre><code class="language-bash"><span class="ex">curl</span><span> https://nixos.org/nix/install </span><span class="kw">|</span><span> </span><span class="fu">sh</span>
+</code></pre></div>
+<p>There are also other ways to install nix, <a href="https://nixos.org/nix/download.html">take a look at the documentation</a>.</p>
 <h5 id="windows">Windows</h5>
 <p>Sorry, we don’t support windows yet.</p>
 <h3 id="2-direnv">2. Direnv</h3>
