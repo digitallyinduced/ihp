@@ -8,7 +8,10 @@
     <title>IHP Guide</title>
 
     <link rel="shortcut icon" type="image/x-icon" href="ihp-logo.svg"/>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous"/>
+    <link rel="stylesheet" href="bootstrap.css" crossorigin="anonymous"/>
+    <!-- For local: -->
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <!-- -->
   </head>
   <body class="d-flex">
         <div class="text-right nav-column">
@@ -18,12 +21,12 @@
             </div>
 
             <nav class="nav flex-column primary-nav">
-                <a class="nav-link headline" href="getting-started.html">Getting Started</a>
+                <a class="nav-link headline" href="intro.html">Getting Started</a>
                 <a class="nav-link secondary" href="intro.html">Intro</a>
                 <a class="nav-link secondary" href="installation.html">Installing IHP</a>
                 <a class="nav-link secondary" href="your-first-project.html">Your First Project</a>
 
-                <a class="nav-link headline" href="getting-started.html">The Basics</a>
+                <a class="nav-link headline" href="architecture.html">The Basics</a>
                 <a class="nav-link secondary" href="architecture.html">Architecture</a>
                 <a class="nav-link secondary" href="#">Naming Conventions</a>
                 <a class="nav-link secondary" href="#">Routing</a>
@@ -65,12 +68,14 @@
 
     <style>
         html, body {
-            min-height: 100%
+            min-height: 100%;
+            color: #073642;
         }
 
         * {
             -webkit-font-smoothing: antialiased;
             text-rendering: optimizeLegibility;
+            scroll-behavior: smooth;
         }
 
         .nav-logo-lambda, .nav-logo-name {
@@ -113,6 +118,7 @@
             padding-top: 4px;
             padding-bottom: 4px;
             padding-right: 0;
+            transition: all 0.05s;
         }
 
         .primary-nav .nav-link.headline {
@@ -133,40 +139,66 @@
             color: #073642;
         }
 
-      .source-code {
-        background-color: #002b36;
-        
-        border-radius: 3px;
-      }
-      .language-haskell, .language-bash, .language-sql, .language-html, .language-nix, .language-css, .language-javascript {
-        color: #839496;
-        display: block;
-        padding: 1rem;
-      }
+        .primary-nav .nav-link.secondary.active {
+            color: #268BD2;
+        }
 
-      code {
-        background-color: rgba(0, 43, 54, 0.11);
-        color: #002b36;
-      }
+        a {
+            color: hsla(192, 81%, 26%, 1);
+        }
 
-      code .cr {
-        color: #93a1a1
-        font-weight: bold;
-      }
+        h1, h2, h3, h4, h5 { color: #073642; }
 
-      code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
-      code.language-haskell .st { color: #2aa198; }
+        .source-code {
+          background-color: #002b36;
+          
+          border-radius: 3px;
+        }
+        .language-haskell, .language-bash, .language-sql, .language-html, .language-nix, .language-css, .language-javascript {
+          color: #839496 !important;
+          display: block;
+          padding: 1rem;
+        }
+  
+        code {
+          background-color: rgba(0, 43, 54, 0.11);
+          color: #002b36 !important;
+        }
+  
+        code .cr {
+          color: #93a1a1 !important;
+          font-weight: bold;
+        }
+  
+        code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
+        code.language-haskell .st { color: #2aa198; }
+  
+        pre { overflow: scroll; }
+  
+        img { width: 100%; }
 
-      pre { overflow: scroll; }
+        /* TOC */
+        main > ul { list-style: none; padding-left: 0; }
+        main ul a {
+            color: #839496;
+            font-size: 12px;
+        }
 
-      img { width: 100%; }
+        main h2, main h3, main h4 { margin-top: 4rem; }
+        main h2 + h3 { margin-top: 0 }
     </style>
 
     <script>
+        /* Add bootstrap css class table to all markdown tables */
         var tables = document.querySelectorAll('table');
         for (let table of tables) {
           table.classList.add('table');
         }
+    </script>
+    <script>
+        /* Add css class active to current navigation item */
+        var activeNavItem = document.querySelector('.nav-link.secondary[href="' + location.pathname.split('/').pop() + '"]');
+        if (activeNavItem) { activeNavItem.classList.add('active'); }
     </script>
   </body>
 </html>

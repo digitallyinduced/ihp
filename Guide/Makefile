@@ -13,7 +13,7 @@ HTML_FILES+= querybuilder.html
 HTML_FILES+= view.html
 HTML_FILES+= form.html
 
-all: $(HTML_FILES)
+all: $(HTML_FILES) bootstrap.css
 
 %.html: %.markdown layout.html
 	mmark -i $< -o $@ --template layout.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 2-6
@@ -24,3 +24,6 @@ watch: all
 
 clean:
 	rm $(HTML_FILES)
+
+bootstrap.css:
+	curl https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css --output $@
