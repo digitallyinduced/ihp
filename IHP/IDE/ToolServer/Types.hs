@@ -72,12 +72,19 @@ data EnumValuesController
 
 data DataController
     = ShowDatabaseAction
+    | ShowTableRowsAction { tableName :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController
     = AppLogsAction
     | PostgresLogsAction
     deriving (Eq, Show, Data)
+
+
+data DynamicField = DynamicField
+    { fieldValue :: Maybe ByteString
+    , fieldName :: ByteString
+    } deriving (Show)
 
 instance FrameworkConfig where 
     environment = Development

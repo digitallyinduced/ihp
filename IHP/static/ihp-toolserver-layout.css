@@ -181,3 +181,11 @@ body {
     padding-left: 0 !important;
     color: #495057;
 }
+
+.data-rows-table {
+    font-size: 14px;
+}
+
+.data-rows-table [data-fieldname$="id"] { font-size: 8px }
+.data-rows-table [data-fieldname="created_at"] { font-size: 8px }
+.data-rows-table [data-fieldname="password_hash"] { font-size: 8px }

@@ -41,7 +41,6 @@ findEnumByName enumName statements = find pred statements
 
 visualNav :: Html
 visualNav =
-
     if isActivePath ShowCodeAction
         then [hsx|<a class="custom-control custom-switch visual-switch" href={TablesAction}>
                 <input type="checkbox" class="custom-control-input" id="visual-switch" checked="checked"/>
