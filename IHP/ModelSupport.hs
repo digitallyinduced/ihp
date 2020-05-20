@@ -3,6 +3,7 @@
 module IHP.ModelSupport where
 
 import IHP.HaskellSupport
+import qualified Prelude
 import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
 import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
@@ -161,6 +162,9 @@ instance Newtype.Newtype (Id' model) where
     type O (Id' model) = UUID
     pack = Id
     unpack (Id uuid) = uuid
+
+instance IsString (Id' model) where
+    fromString uuid = Id (Prelude.read uuid)
 
 instance Default (Id' model) where
     {-# INLINE def #-}
