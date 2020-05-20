@@ -70,13 +70,13 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 |]  where
         app = navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
         schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isSchemaEditorController)
-        data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActivePath ShowDatabaseAction)
+        data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActiveController @DataController)
         repl = navItem "REPL" terminalIcon "#" False
         codegen = navItem "CODEGEN" copyIcon "#" False
         logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
         deploy = navItem "DEPLOY" globeIcon "#" False
-        docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/getting-started.html" False
+        docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/Guide/intro.html" False
         
         isSchemaEditorController =
                     (  isActiveController @SchemaController
