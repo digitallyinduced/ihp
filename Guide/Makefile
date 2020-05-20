@@ -12,6 +12,7 @@ HTML_FILES+= debugging.html
 HTML_FILES+= querybuilder.html
 HTML_FILES+= view.html
 HTML_FILES+= form.html
+HTML_FILES+= hsx.html
 
 all: $(HTML_FILES) bootstrap.css
 
