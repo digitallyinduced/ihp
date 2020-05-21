@@ -295,6 +295,16 @@ compileCreate table@(CreateTable { name, columns }) =
 
         bindings :: [Text]
         bindings = mapMaybe toBinding columns
+
+        createManyFieldValues :: Text
+        createManyFieldValues = if null bindings
+                then ""
+                else "(List.concat $ List.map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)"
+
+        createManyQueryFn :: Text
+        createManyQueryFn = "Database.PostgreSQL.Simple." <> if null bindings
+                then "query_"
+                else "query"
     in
         "instance CanCreate " <> modelName <> " where\n"
         <> indent (
@@ -306,7 +316,7 @@ compileCreate table@(CreateTable { name, columns }) =
                     )
                 <> "createMany models = do\n"
                 <> indent ("let (ModelContext conn) = ?modelContext\n"
-                    <> "Database.PostgreSQL.Simple.query conn (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") (List.concat $ List.map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)\n"
+                    <> createManyQueryFn <> " conn (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
                     )
             )
 
