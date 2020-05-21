@@ -32,6 +32,7 @@ import Network.Wai.Middleware.Static
 import Network.Wai.Session (withSession, Session)
 import qualified System.Directory as Directory
 
+import qualified IHP.FrameworkConfig as Config
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.SchemaDesigner.Controller.EnumValues
 import IHP.IDE.SchemaDesigner.Controller.Enums
@@ -63,6 +64,8 @@ startToolServer = do
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
 startToolServer' port = do
+    writeIORef Config.portRef port
+
     session <- Vault.newKey
     store <- case os of
         "linux" -> mapStore_
@@ -94,7 +97,7 @@ stopToolServer ToolServerNotStarted = pure ()
 
 openUrl :: Text -> IO ()
 openUrl url = do
-    when (os /= "linux") $ Process.callCommand (cs $ "open " <> url)
+    when (os /= "linux") do Process.callCommand (cs $ "open " <> url)
     pure ()
 
 instance FrontController ToolServerApplication where

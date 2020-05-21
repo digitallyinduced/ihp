@@ -259,6 +259,10 @@ startAppGHCI = do
                 dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
             else dispatch ReceiveAppOutput { line = ErrorOutput line }
 
+
+    -- Compile Schema before loading the app
+    SchemaCompiler.compile
+
     forEach loadAppCommands (sendGhciCommand process)
 
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
