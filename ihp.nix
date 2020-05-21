@@ -110,8 +110,8 @@ mkDerivation {
   postInstall = ''
     cp IHP/CLI/run-script $out/bin/run-script
 
-    mkdir -p $out/lib/ihp
-    cp Makefile.dist $out/lib/ihp
-    cp -r IHP/static $out/lib/ihp
+    mkdir -p $out/lib/IHP
+    cp Makefile.dist $out/lib/IHP
+    cp -r lib/IHP/* $out/lib/IHP
   '';
 }
