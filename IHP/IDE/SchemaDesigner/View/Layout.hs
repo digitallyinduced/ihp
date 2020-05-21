@@ -247,4 +247,3 @@ getDefaultValue columnType value = case value of
         "DOUBLE PRECISION" -> Just custom
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
-    _ -> Nothing

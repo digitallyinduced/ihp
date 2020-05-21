@@ -48,7 +48,10 @@ run = do
                 }
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie session
     let logMiddleware :: Middleware = logStdoutDev
-    let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase "IHP/IHP/static/")
+
+    libDirectory <- cs <$> FrameworkConfig.findLibDirectory
+    let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
+
     let runServer = if isDevelopment FrameworkConfig.environment
             then
                 let settings = Warp.defaultSettings
