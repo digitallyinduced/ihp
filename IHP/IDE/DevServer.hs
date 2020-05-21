@@ -152,13 +152,12 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
 
 start :: (?context :: Context) => IO ()
 start = do
+    async startToolServer
     async startStatusServer
     async startLiveReloadNotificationServer
     async startAppGHCI
     async startPostgres
     async startFilewatcher
-    async startToolServer
-
     pure ()
 
 stop :: AppState -> IO ()
