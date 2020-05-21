@@ -15,7 +15,7 @@ git clone git@github.com:digitallyinduced/haskellframework.git IHP
 The best workflow is to use `ghci` to load your application together with the framework version in `IHP`:
 
 ```
-make ghci
+ghci
 :l Main
 ```
 

@@ -230,6 +230,12 @@ startAppGHCI = do
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
+    let loadAppCommands =
+            [ ":script IHP/IHP/IDE/applicationGhciConfig"
+            , "import qualified ClassyPrelude"
+            , ":l Main.hs"
+            ]
+
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
                 if "Server started" `isInfixOf` line
                     then dispatch AppStarted
@@ -246,11 +252,11 @@ startAppGHCI = do
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
         if "cannot find object file for module" `isInfixOf` line
             then do
-                sendGhciCommand process ":script IHP/IHP/IDE/loadAppModules"
+                forEach loadAppCommands (sendGhciCommand process)
                 dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
             else dispatch ReceiveAppOutput { line = ErrorOutput line }
 
-    sendGhciCommand process ":script IHP/IHP/IDE/loadAppModules"
+    forEach loadAppCommands (sendGhciCommand process)
 
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
 
@@ -259,15 +265,15 @@ startLoadedApp :: AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     recover <- readIORef needsErrorRecovery
     firstStart <- readIORef isFirstStart
-    let theScript =
+    let commands =
             if recover
-                then "startDevServerGhciScriptAfterError"
+                then [":r", "app <- ClassyPrelude.async main"]
                 else if firstStart
-                    then "startDevServerGhciScript"
-                    else "startDevServerGhciScriptRec"
-    sendGhciCommand process (":script IHP/IHP/IDE/" <> theScript)
+                    then ["app <- ClassyPrelude.async (ClassyPrelude.pure ())", "app <- ClassyPrelude.async main"]
+                    else ["app <- ClassyPrelude.async main"]
+    forEach commands (sendGhciCommand process)
     when firstStart (writeIORef isFirstStart False)
-startLoadedApp (RunningAppGHCI { .. }) = sendGhciCommand process (":script IHP/IHP/IDE/startDevServerGhciScriptRec")
+startLoadedApp (RunningAppGHCI { .. }) = sendGhciCommand process "app <- ClassyPrelude.async main"
 startLoadedApp _ = putStrLn "startLoadedApp: App not running"
 
 
@@ -277,5 +283,5 @@ stopAppGHCI AppGHCIModulesLoaded { process } = cleanupManagedProcess process
 stopAppGHCI _ = pure ()
 
 pauseAppGHCI :: AppGHCIState -> IO ()
-pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process ":script IHP/IHP/IDE/pauseDevServer"
+pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
 pauseAppGHCI _ = pure ()

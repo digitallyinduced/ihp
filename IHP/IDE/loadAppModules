@@ -1,3 +1,0 @@
-:script IHP/IHP/IDE/applicationGhciConfig
-import qualified ClassyPrelude
-:l Main.hs

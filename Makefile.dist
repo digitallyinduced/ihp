@@ -81,9 +81,6 @@ dumpdb: dump_db ## Saves the current database state into the Fixtures.sql
 dump_db: ## Saves the current database state into the Fixtures.sql
 	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
-ghci: ## Opens a new ghci session with the project and framework already loaded
-	ghci -threaded -i. -iIHP -fexternal-interpreter
-
 build/Generated: Application/Schema.sql IHP/IHP/SchemaCompiler.hs ## Rebuilds generated types
 	rm -rf build/Generated && mkdir -p build/Generated
 	build-generated-code
