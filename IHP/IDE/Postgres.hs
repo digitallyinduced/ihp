@@ -38,7 +38,6 @@ redirectHandleToVariable handle = do
     ref <- newIORef ""
     async $ forever $ do
         line <- ByteString.hGetLine handle
-        ByteString.putStrLn line
         modifyIORef ref (\log -> log <> "\n" <> line)
     pure ref
 
@@ -55,25 +54,25 @@ initDatabase :: IO ()
 initDatabase = do
     currentDir <- Directory.getCurrentDirectory
     Directory.createDirectoryIfMissing True "build/db"
-    Directory.withCurrentDirectory "build/db" do
-        Process.callProcess "initdb" ["state"]
 
-        process <- createManagedProcess (Process.proc "postgres" ["-D", "state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
-                    { Process.std_in = Process.CreatePipe
-                    , Process.std_out = Process.CreatePipe
-                    , Process.std_err = Process.CreatePipe
-                    }
+    Process.callProcess "initdb" ["build/db/state"]
 
-        waitUntilReady process do
-            Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
-            let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < ../../" <> file)
-            importSql "Application/Schema.sql"
-            importSql "Application/Fixtures.sql"
+    process <- createManagedProcess (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
+                { Process.std_in = Process.CreatePipe
+                , Process.std_out = Process.CreatePipe
+                , Process.std_err = Process.CreatePipe
+                }
 
-            let ManagedProcess { processHandle } = process
-            Process.terminateProcess processHandle
-            _ <- Process.waitForProcess processHandle
-            pure ()
+    waitUntilReady process do
+        Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
+        let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < " <> file)
+        importSql "Application/Schema.sql"
+        importSql "Application/Fixtures.sql"
+
+        let ManagedProcess { processHandle } = process
+        Process.terminateProcess processHandle
+        _ <- Process.waitForProcess processHandle
+        pure ()
 
 waitUntilReady process callback = do
     let ManagedProcess { errorHandle } = process
