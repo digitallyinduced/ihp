@@ -18,6 +18,7 @@ import IHP.IDE.ToolServer
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Environment as Env
 import System.Info
+import Data.String.Conversions (cs)
 
 main :: IO ()
 main = do
@@ -230,8 +231,10 @@ startAppGHCI = do
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
+    libDirectory <- findLibDirectory
+
     let loadAppCommands =
-            [ ":script IHP/IHP/IDE/applicationGhciConfig"
+            [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
             , "import qualified ClassyPrelude"
             , ":l Main.hs"
             ]

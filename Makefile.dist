@@ -1,4 +1,4 @@
-.PHONY: help
+.PHONY: help all
 
 .SHELLFLAGS := -eu -o pipefail -c  
 .ONESHELL:
@@ -57,6 +57,8 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 .DEFAULT_GOAL := help
 RUNGHC=runghc
+
+all: build/ihp-lib
 
 .envrc: default.nix IHP/NixSupport/default.nix ## Rebuild nix packages and .envrc
 	rm -f .envrc
@@ -119,3 +121,13 @@ print-ghc-extensions: ## Prints all used ghc extensions. Useful for scripting
 
 help: ## This help page
 	@grep -h -E '^[a-zA-Z_///-\.]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+ifneq ($(wildcard IHP/.*),)
+IHP_LIB = ../IHP/lib/IHP
+else
+IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
+endif
+
+build/ihp-lib: # Used by application .ghci
+	rm -f build/ihp-lib
+	ln -s ${IHP_LIB} build/ihp-lib

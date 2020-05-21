@@ -56,8 +56,6 @@ startToolServer = do
             |> get #toolServerPort
             |> fromIntegral
 
-
-
     thread <- async (startToolServer' port)
 
     openUrl ("http://localhost:" <> tshow port <> "/ihp/")
@@ -83,8 +81,8 @@ startToolServer' port = do
             let ?requestContext = requestContext
             frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
             
-    staticBase <- findStaticDirectory
-    let staticMiddleware :: Wai.Middleware = staticPolicy (addBase staticBase)
+    libDirectory <- findLibDirectory
+    let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
 
     let warpSettings = Warp.defaultSettings |> Warp.setPort port
     
@@ -98,23 +96,6 @@ openUrl :: Text -> IO ()
 openUrl url = do
     when (os /= "linux") $ Process.callCommand (cs $ "open " <> url)
     pure ()
-
--- | Finds the static directory to use for serving css and js
---
--- The location depends on whether the framework is installed through nix
--- or checked out from git inside the current project directory.
---
--- When it's installed with nix, the static dir is located at @lib/ihp/static@
--- while the dev server binary is located at @bin/RunDevServer@.
-findStaticDirectory :: IO String
-findStaticDirectory = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
-    if frameworkMountedLocally
-        then pure "IHP/IHP/static/"
-        else do
-            binDir <- Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-            pure (binDir <> "/../lib/ihp/static")
-
 
 instance FrontController ToolServerApplication where
     controllers =

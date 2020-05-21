@@ -18,7 +18,7 @@ fi
 GHCI_SCRIPT="$(mktemp)"
 trap "rm $GHCI_SCRIPT" EXIT
 
-echo ":script $FRAMEWORKDIR/IHP/IDE/applicationGhciConfig" > "$GHCI_SCRIPT"
+echo ":script $FRAMEWORKDIR/lib/IHP/applicationGhciConfig" > "$GHCI_SCRIPT"
 
 if [ -d IHP ]; then
     echo ":l IHP/IHP/ScriptSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"

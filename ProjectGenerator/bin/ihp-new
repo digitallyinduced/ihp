@@ -59,7 +59,7 @@ fi
 git clone --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 rm -rf ".git"
-nix-shell --run 'new-application Web'
+nix-shell --run 'make all; new-application Web'
 echo "🚀 Project created, happy coding :)"
 echo "You can start the server by running:"
 echo "  cd $PROJECT_NAME"
