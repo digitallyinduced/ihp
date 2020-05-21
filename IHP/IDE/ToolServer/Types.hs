@@ -88,3 +88,4 @@ data DynamicField = DynamicField
 
 instance FrameworkConfig where 
     environment = Development
+    appHostname = "localhost"
