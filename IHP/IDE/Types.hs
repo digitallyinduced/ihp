@@ -161,7 +161,7 @@ dispatch = let Context { .. } = ?context in putMVar actionVar
 -- while the dev server binary is located at @bin/RunDevServer@.
 findLibDirectory :: IO Text
 findLibDirectory = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHPa"
+    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
     if frameworkMountedLocally
         then pure "IHP/lib/IHP/"
         else do
