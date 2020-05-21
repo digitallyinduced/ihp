@@ -9,7 +9,6 @@ import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.PortConfig
 import Data.String.Conversions (cs)
-import qualified System.Directory as Directory
 import qualified Data.Text as Text
 
 data ManagedProcess = ManagedProcess
@@ -151,21 +150,4 @@ data Context = Context
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
-
--- | Finds the lib
---
--- The location depends on whether the framework is installed through nix
--- or checked out from git inside the current project directory.
---
--- When it's installed with nix, the lib dir is located at @lib/ihp@
--- while the dev server binary is located at @bin/RunDevServer@.
-findLibDirectory :: IO Text
-findLibDirectory = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
-    if frameworkMountedLocally
-        then pure "IHP/lib/IHP/"
-        else do
-            binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-            pure (Text.strip binDir <> "/../lib/IHP/")
-
 

@@ -19,6 +19,7 @@ import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Environment as Env
 import System.Info
 import Data.String.Conversions (cs)
+import qualified IHP.FrameworkConfig as Config
 
 main :: IO ()
 main = do
@@ -231,7 +232,7 @@ startAppGHCI = do
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
-    libDirectory <- findLibDirectory
+    libDirectory <- Config.findLibDirectory
 
     let loadAppCommands =
             [ ":script " <> cs libDirectory <> "/applicationGhciConfig"

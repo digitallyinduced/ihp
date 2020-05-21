@@ -84,7 +84,7 @@ startToolServer' port = do
             let ?requestContext = requestContext
             frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
             
-    libDirectory <- cs <$> findLibDirectory
+    libDirectory <- cs <$> Config.findLibDirectory
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
 
     let warpSettings = Warp.defaultSettings |> Warp.setPort port
