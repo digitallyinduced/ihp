@@ -1,4 +1,4 @@
-{ compiler, ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./. }:
+{ compiler ? "ghc883", ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./. }:
 
 let
     pkgs = import "${projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; };
