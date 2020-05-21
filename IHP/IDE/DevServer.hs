@@ -225,15 +225,13 @@ startAppGHCI = do
             |> fromIntegral
     Env.setEnv "PORT" (show appPort)
 
-    isFirstStart <- newIORef True
-    needsErrorRecovery <- newIORef False
     process <- startGHCI
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
     libDirectory <- Config.findLibDirectory
 
-    let loadAppCommands =
+    let loadAppCommands = 
             [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
             , "import qualified ClassyPrelude"
             , ":l Main.hs"
@@ -244,11 +242,9 @@ startAppGHCI = do
                     then dispatch AppStarted
                     else if "Failed," `isInfixOf` line
                             then do
-                                writeIORef needsErrorRecovery True
                                 dispatch AppModulesLoaded { success = False }
                             else if "modules loaded." `isInfixOf` line
                                 then do
-                                    writeIORef needsErrorRecovery False
                                     dispatch AppModulesLoaded { success = True }
                                 else dispatch ReceiveAppOutput { line = StandardOutput line }
 
@@ -270,16 +266,12 @@ startAppGHCI = do
 
 startLoadedApp :: AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
-    recover <- readIORef needsErrorRecovery
-    firstStart <- readIORef isFirstStart
     let commands =
-            if recover
-                then [":r", "app <- ClassyPrelude.async main"]
-                else if firstStart
-                    then ["app <- ClassyPrelude.async (ClassyPrelude.pure ())", "app <- ClassyPrelude.async main"]
-                    else ["app <- ClassyPrelude.async main"]
+            [ "ClassyPrelude.uninterruptibleCancel app"
+            , ":r"
+            , "app <- ClassyPrelude.async main"
+            ]
     forEach commands (sendGhciCommand process)
-    when firstStart (writeIORef isFirstStart False)
 startLoadedApp (RunningAppGHCI { .. }) = sendGhciCommand process "app <- ClassyPrelude.async main"
 startLoadedApp _ = putStrLn "startLoadedApp: App not running"
 

@@ -64,9 +64,9 @@ instance Show PostgresState where
 
 data AppGHCIState
     = AppGHCINotStarted
-    | AppGHCILoading { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
-    | AppGHCIModulesLoaded { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
-    | RunningAppGHCI { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
+    | AppGHCILoading { process :: ManagedProcess }
+    | AppGHCIModulesLoaded { process :: ManagedProcess }
+    | RunningAppGHCI { process :: ManagedProcess }
 
 instance Show AppGHCIState where
     show AppGHCINotStarted = "NotStarted"
