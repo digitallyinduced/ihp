@@ -79,7 +79,7 @@ filesToCreate applicationName =
             <> "        [ parseRoute @WelcomeController\n"
             <> "        -- Generator Marker\n"
             <> "        ]\n\n"
-            <> "instance InitControllerContext " <> applicationName <> "\n"
+            <> "instance InitControllerContext " <> applicationName <> "Application\n"
         controllerPreludeHs = 
             "module " <> applicationName <> ".Controller.Prelude\n"
             <> "( module " <> applicationName <> ".Types\n"
