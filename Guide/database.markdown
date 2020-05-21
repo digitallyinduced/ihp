@@ -5,21 +5,21 @@
 
 ## Introduction
 
-IHP provides a few basic functions to access the database. We try to provide a thin layer on top of Postgres SQL, to make it easy to do all the common tasks your web application usually does.
+IHP provides a few basic functions to access the database. On top of Postgres SQL we try to provide a thin layer to make it easy to do all the common tasks your web application usually does.
 
-The only supported database platform is Postgres. Focusing on Postgres allows us to better integrate advanced postgres specific solutions into your application.
+The only supported database platform is Postgres. Focussing on Postgres allows us to better integrate advanced postgres specific solutions into your application.
 
-In development you do not need to set up anything to use postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development postgres servers is only listening on a unix socket and not available via TCP.
+In development you do not need to set up anything to use postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development postgres servers is only listening on a unix socket and is not available via TCP.
 
-When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. From the terminal you can also use `make psql` when inside the project directory, to open a postgres REPL connected to the development database. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ihp/ShowDatabase](http://localhost:8001/ihp/ShowDatabase).
+When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ihp/ShowDatabase](http://localhost:8001/ihp/ShowDatabase).
 
 Haskell data structures and types are generated automatically based on your database schema.
 
 ### Schema.sql
 
-Once you have created your project, the first step is define a database schema. The database schema is basically just a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
+Once you have created your project, the first step is to define a database schema. The database schema is basically just a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project this file will look pretty empty, like this:
+In a new project this file will look pretty empty. Like this:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -27,7 +27,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 The single line just activates the UUID extension for your database.
 
-To define your database schema, add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
+To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -47,9 +47,9 @@ Because the SQL syntax is sometimes hard to remember, the framework provides a G
 
 ![The Schema Designer in Visual Mode](images/database/schema-designer-visual.png)
 
-Keep in mind, that the Schema Editor also only modifies the `Schema.sql`. This works by parsing the SQL DDL-statements, applying transformations on the AST and the compiling and writing it back to `Schema.sql`. When there is an syntax error in the `Schema.sql` file, the visual mode will be unavailable and you have to work with the code editor to fix the problem.
+Keep in mind that the Schema Editor also only modifies the `Schema.sql`. This works by parsing the SQL DDL-statements and applying transformations on the AST and the compiling and writing it back to `Schema.sql`. When there is an syntax error in the `Schema.sql` file the visual mode will be unavailable and you have to work with the code editor to fix the problem.
 
-You can add tables, columns, foreing key constraints and enums. You can also edit these objects by right clicking them. New tables have a `id` column by default. Lots of opinionated short-cuts for rapid application development, like automatically offering to add foreign key constraints, are built-in.
+You can add tables, columns, foreing key constraints, and enums. You can also edit these objects by right clicking them. New tables have a `id` column by default. Lots of opinionated short-cuts for rapid application development like automatically offering to add foreign key constraints are built-in.
 
 ![An example of using the context menu for editing a table](images/database/schema-designer-context-menu.png)
 
@@ -65,7 +65,7 @@ Afer we have added a few data structures to our `Schema.sql`, our running Postgr
 
 ![Push to DB Button](images/database/schema-designer-push-to-db.png)
 
-**In the command line:** Run `make db`.
+**In the command line:** Run `make db` while the server is running.
 
 This will delete and re-create the current database and import the `Schema.sql`. After importing the Schema, it will also import the `Application/Fixtures.sql` which is used for prepopulating the empty database with some data. It's equivalent to running `psql < Schema.sql; psql < Fixtures.sql` inside an empty database.
 
@@ -83,15 +83,15 @@ You can dump your current database state into the `Fixtures.sql` by running `mak
 
 ### Model Context
 
-In a pure functional programming language like haskell, we need to pass the database connection to all functions which need to access the database. We use a implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The `ModelContext` data structure is basically just a wrapper around the actually database connection.
+In a pure functional programming language like haskell we need to pass the database connection to all functions which need to access the database. We use a implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The `ModelContext` data structure is basically just a wrapper around the actually database connection.
 
 An implicit paramter is a parameter which is automatically passed to certain functions, it just needs to be available in the current scope.
 
-This means that all functions which are running database queries, will need to be called from an function which has this implicit parameter in scope. A function doing something with the database, will always have a type signature specifing that it requires the `?modelContext` to be available, like this:
+This means that all functions which are running database queries will need to be called from an function which has this implicit parameter in scope. A function doing something with the database, will always have a type signature specifing that it requires the `?modelContext` to be available, like this:
 
 ```haskell
 myFunc :: (?modelContext :: ModelContext) => IO SomeResult
-````
+```
 
 All controller actions already have `?modelContext` in scope and thus can run database queries. Other application entry-points, like e.g. Scripts, also have this in scope.
 
@@ -178,6 +178,11 @@ do
 ```
 
 You might need to specify the expected result type, as type inference might not be able to guess it.
+
+```haskell
+do
+    Project :: result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+```
 
 You can query any kind of information, not only records:
 
