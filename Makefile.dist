@@ -129,5 +129,6 @@ IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
 endif
 
 build/ihp-lib: # Used by application .ghci
+	mkdir -p build
 	rm -f build/ihp-lib
 	ln -s ${IHP_LIB} build/ihp-lib
