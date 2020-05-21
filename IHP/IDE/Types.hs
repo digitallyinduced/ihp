@@ -10,6 +10,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.PortConfig
 import Data.String.Conversions (cs)
 import qualified System.Directory as Directory
+import qualified Data.Text as Text
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -158,13 +159,13 @@ dispatch = let Context { .. } = ?context in putMVar actionVar
 --
 -- When it's installed with nix, the lib dir is located at @lib/ihp@
 -- while the dev server binary is located at @bin/RunDevServer@.
-findLibDirectory :: IO String
+findLibDirectory :: IO Text
 findLibDirectory = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
+    frameworkMountedLocally <- Directory.doesDirectoryExist "IHPa"
     if frameworkMountedLocally
         then pure "IHP/lib/IHP/"
         else do
-            binDir <- Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-            pure (binDir <> "/../lib/IHP/")
+            binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
+            pure (Text.strip binDir <> "/../lib/IHP/")
 
 
