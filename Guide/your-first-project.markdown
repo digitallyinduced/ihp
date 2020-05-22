@@ -65,46 +65,15 @@ For our blog we're going to deal with posts. A post has a title and a body and o
 
 
 To work with posts in our application, we now have to declare this data schema.
-Open `Application/Schema.hs` and add the following code:
+Open `http://localhost:8001/ihp/Tables` and add a new table with for example `title` and `body` as text column.
+The `id` colum is generated automatically.
 
-
-```haskell
-module Application.Schema where
-import ClassyPrelude (Maybe (..), (<>), Bool (..))
-import IHP.SchemaSupport
-
-database = [
-    table "posts"
-        + field "id" primaryKey
-        + field "title" text
-        + field "body" text
-    ]
-```
+![Schema Designer First Table](images/first-project/first_table.png)
 
         
 #### Loading the Schema
 
-Next we need to create the `posts` table in our local postgresql database.
-Don't worry, the local development postgresql server is already running. The dev server has conveniently already started it.
-
-Take a look at `Application/Schema.sql`. The dev server has auto-generated a `CREATE TABLE`-statement for us:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Please don't make any modifications to this file as it's auto generated. Use Application/Schema.hs to change the schema
-CREATE TABLE posts (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL
-);
-```
-
-We just need to load this sql statement into our database. Open your terminal and run:
-
-```bash
-$ make db
-```
+To really create the table in our database we need to click `Push to DB`.
 
 The `posts` table has been created now. Let's quickly connect to our database and see that everything is correct:
 
@@ -116,7 +85,7 @@ Type "help" for help.
 
 -- Let's do a query to check that the table is there
 
-app=# select * from posts;
+app=# Select * From posts;
 
  id | title | body
 ----+-------+------
