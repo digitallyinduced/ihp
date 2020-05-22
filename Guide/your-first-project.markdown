@@ -65,7 +65,8 @@ For our blog we're going to deal with posts. A post has a title and a body and o
 
 
 To work with posts in our application, we now have to declare this data schema.
-Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new table with  `title` and `body` as text column.
+Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new table with `title` and `body` as text column. To do this either click the button `New` in the table view
+or right click inside of it and use `Add Column`.
 The `id` column is generated automatically.
 
 ![Schema Designer First Table](images/first-project/first_table.png)
@@ -73,7 +74,21 @@ The `id` column is generated automatically.
         
 #### Loading the Schema
 
-To really create the table in our database we need to click `Push to DB`.
+Next we need to make sure that our database schema with our `posts` table is imported into the local postgresql database. Don't worry, the local development postgresql server is already running. The dev server has conveniently already started it.
+
+Open the `Application/Schema.sql` in your code editor to see the SQL queries which make up the database schema:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE posts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL
+);
+```
+
+To load the table into our local postgres server, we need to click `Push to DB`.
 
 The `posts` table has been created now. Let's quickly connect to our database and see that everything is correct:
 
