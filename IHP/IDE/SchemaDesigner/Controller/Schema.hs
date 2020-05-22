@@ -35,6 +35,10 @@ instance Controller SchemaController where
         Process.system "make db"
         redirectTo TablesAction
 
+    action DumpDbAction = do
+        Process.system "make dumpdb"
+        redirectTo TablesAction
+
 
     -- GENERATED HASKELL CODE
     action ShowGeneratedCodeAction { tableName } = do

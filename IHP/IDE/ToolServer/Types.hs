@@ -22,6 +22,7 @@ data ToolServerApplication = ToolServerApplication { devServerContext :: DevServ
 data SchemaController
     = SchemaAction
     | PushToDbAction
+    | DumpDbAction
     | ShowCodeAction
     | SaveCodeAction
     | ShowGeneratedCodeAction { tableName :: Text }

@@ -16,9 +16,8 @@ instance View ShowEnumView ViewContext where
     html ShowEnumView { .. } = [hsx|
         {visualNav}
         <div class="container">
-            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
-                <button type="submit" class="btn btn-primary my-3">Push to DB</button>
-            </form>
+            {databaseControls}
+        </div>
             <div class="row no-gutters bg-white">
                 {renderObjectSelector (zip [0..] statements) (Just name)}
                 {renderEnumSelector name (zip [0..] values)}
