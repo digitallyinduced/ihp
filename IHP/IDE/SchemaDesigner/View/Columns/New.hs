@@ -6,11 +6,13 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
+import qualified Text.Countable as Countable
 
 data NewColumnView = NewColumnView
     { statements :: [Statement]
     , tableName :: Text
     , primaryKeyExists :: Bool
+    , tableNames :: [Text]
     }
 
 instance View NewColumnView ViewContext where
@@ -33,6 +35,7 @@ instance View NewColumnView ViewContext where
 
                     <div class="form-group">
                         <input
+                            id="colName"
                             name="name"
                             type="text"
                             class="form-control"
@@ -53,13 +56,15 @@ instance View NewColumnView ViewContext where
                         </select>
 
                         <div class="mt-1 text-muted">
-                            <label style="font-size: 12px">
-                                <input id="allowNull" type="checkbox" name="allowNull" class="mr-2"/> Nullable
+                            {generateReferenceCheckboxes}
+                            <label class="mx-2" style="font-size: 12px">
+                                <input id="allowNull" type="checkbox" name="allowNull" class="mr-1"/>Nullable
                             </label>
-                            <label class="ml-1" style="font-size: 12px">
-                                <input type="checkbox" name="isUnique" class="mr-2"/> Unique
+                            <label class="mx-2" style="font-size: 12px">
+                                <input type="checkbox" name="isUnique" class="mr-1"/>Unique
                             </label>
                             {primaryKeyCheckbox}
+                            
                         </div>
                     </div>
 
@@ -74,13 +79,22 @@ instance View NewColumnView ViewContext where
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
                     <input type="hidden" name="isUnique" value={inputValue False}/>
+                    <input type="hidden" name="isReference" value={inputValue False}/>
+                    <input type="hidden" name="referenceTable" value=""/>
                 </form>
             |]
                 where
+
+                    generateReferenceCheckboxes = [hsx|<span id="checkboxes">{forEach tableNames checkbox}</span>|]
+                        where checkbox tableName = [hsx|
+                                    <label class="mx-2 ref" style="font-size: 12px; display: none;" data-attribute={(Countable.singularize tableName) <> "_id"} data-table={tableName}>
+                                        <input id="reference" type="checkbox" name="isReference" class="mr-1"/>
+                                        <a id="refText">References {tableName}</a>
+                                    </label>|]
                     primaryKeyCheckbox = if primaryKeyExists
                         then mempty
-                        else [hsx|<label class="ml-1" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-2"/> Primary Key  
+                        else [hsx|<label class="mx-2" style="font-size: 12px">
+                            <input type="checkbox" name="primaryKey" class="mr-1"/>Primary Key  
                         </label>|]
                     defaultSelector = preEscapedToHtml [plain|
                         <select id="defaultSelector" name="defaultValue" class="form-control select2">
