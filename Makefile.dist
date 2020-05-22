@@ -60,7 +60,7 @@ RUNGHC=runghc
 
 all: build/ihp-lib
 
-.envrc: default.nix IHP/NixSupport/default.nix ## Rebuild nix packages and .envrc
+.envrc: default.nix ## Rebuild nix packages and .envrc
 	rm -f .envrc
 	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
 	direnv allow

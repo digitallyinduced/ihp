@@ -252,7 +252,7 @@ startAppGHCI = do
 
 
     -- Compile Schema before loading the app
-    SchemaCompiler.compile
+    SchemaCompiler.compile `catch` (\(e :: SomeException) -> putStrLn (tshow e))
 
     forEach loadAppCommands (sendGhciCommand process)
 
