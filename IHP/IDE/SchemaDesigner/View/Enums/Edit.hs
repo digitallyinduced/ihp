@@ -17,14 +17,7 @@ instance View EditEnumView ViewContext where
     html EditEnumView { .. } = [hsx|
         {visualNav}
         <div class="container">
-            <div class="d-flex justify-content-end col">
-                <form class="p-2" action={pathTo DumpDbAction}>
-                    <button type="submit" class="btn btn-primary">Dump DB</button>
-                </form>
-                <form class="p-2" style="padding-right: 0 !important;" action={pathTo PushToDbAction}>
-                    <button type="submit" class="btn btn-primary">Push to DB</button>
-                </form>
-            </div>
+            {databaseControls}
             <div class="row no-gutters bg-white">
                 {renderObjectSelector (zip [0..] statements) Nothing}
             </div>
