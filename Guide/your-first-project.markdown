@@ -65,7 +65,7 @@ For our blog we're going to deal with posts. A post has a title and a body and o
 
 
 To work with posts in our application, we now have to declare this data schema.
-Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new table with for example `title` and `body` as text column.
+Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new table with  `title` and `body` as text column.
 The `id` column is generated automatically.
 
 ![Schema Designer First Table](images/first-project/first_table.png)
