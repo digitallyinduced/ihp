@@ -5,6 +5,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.ShowTableRows
+import IHP.IDE.Data.View.ShowQuery
 
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
@@ -26,6 +27,14 @@ instance Controller DataController where
 
         PG.close connection
         render ShowTableRowsView { .. }
+
+    action ShowQueryAction { query } = do
+        connection <- connectToAppDb
+
+        rows :: [[DynamicField]] <- PG.query_ connection (fromString (cs query))
+
+        PG.close connection
+        render ShowQueryView { .. }
 
 connectToAppDb = do
     databaseUrl <- Config.appDatabaseUrl
