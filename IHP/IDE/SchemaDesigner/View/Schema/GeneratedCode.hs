@@ -16,9 +16,14 @@ instance View GeneratedCodeView ViewContext where
     html GeneratedCodeView { .. } = [hsx|
         {visualNav}
         <div class="container">
-            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
-                <button type="submit" class="btn btn-primary my-3">Push to DB</button>
-            </form>
+            <div class="d-flex justify-content-end col">
+                <form class="p-2" action={pathTo DumpDbAction}>
+                    <button type="submit" class="btn btn-primary">Dump DB</button>
+                </form>
+                <form class="p-2" style="padding-right: 0 !important;" action={pathTo PushToDbAction}>
+                    <button type="submit" class="btn btn-primary">Push to DB</button>
+                </form>
+            </div>
             <div class="row no-gutters bg-white">
                 {renderObjectSelector (zip [0..] statements) Nothing}
             </div>
