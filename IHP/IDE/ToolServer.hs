@@ -40,10 +40,8 @@ import IHP.IDE.SchemaDesigner.Controller.Columns
 import IHP.IDE.SchemaDesigner.Controller.Schema
 import IHP.IDE.SchemaDesigner.Controller.Tables
 import IHP.IDE.Data.Controller
-
 import IHP.IDE.Logs.Controller
-
-
+import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Types
 import Control.Concurrent.Async
 import IHP.IDE.ToolServer.Routes
@@ -109,6 +107,7 @@ instance FrontController ToolServerApplication where
         , parseRoute @EnumValuesController
         , parseRoute @LogsController
         , parseRoute @DataController
+        , parseRoute @CodeGenController
         , catchAll TablesAction
         ]
 

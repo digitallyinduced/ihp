@@ -1,4 +1,4 @@
-module Main where
+module IHP.IDE.CodeGen.ControllerGenerator where
 
 import ClassyPrelude
 import IHP.NameSupport
@@ -15,58 +15,52 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified System.Posix.Env.ByteString as Posix
 import Control.Monad.Fail
 
-main :: IO ()
-main = do
-    ensureIsInAppDirectory
-
+buildPlan :: Text -> IO (Either Text [GeneratorAction])
+buildPlan appAndControllerName = do
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
 
-    args <- map cs <$> Posix.getArgs
-    case headMay args of
-        Just "" -> usage
-        Just appAndControllerName -> do
-            case Text.splitOn "." appAndControllerName of
-                [applicationName, controllerName'] -> do
-                    if isAlphaOnly applicationName
-                        then if isAlphaOnly controllerName'
-                            then gen schema (ucfirst applicationName) controllerName'
-                            else putStrLn ("Invalid controller name: " <> tshow controllerName')
-                        else putStrLn ("Invalid application name: " <> tshow applicationName)
-                [controllerName'] -> if isAlphaOnly controllerName'
-                        then gen schema "Web" controllerName'
-                        else putStrLn ("Invalid controller name: " <> tshow controllerName')
-                _ -> usage
-        _ -> usage
+    pure case Text.splitOn "." appAndControllerName of
+        [applicationName, controllerName'] -> do
+            if isAlphaOnly applicationName
+                then if isAlphaOnly controllerName'
+                    then Right $ buildPlan' schema (ucfirst applicationName) controllerName'
+                    else Left ("Invalid controller name: " <> tshow controllerName')
+                else Left ("Invalid application name: " <> tshow applicationName)
+        [controllerName'] -> if isAlphaOnly controllerName'
+                then Right $ buildPlan' schema "Web" controllerName'
+                else Left ("Invalid controller name: " <> tshow controllerName')
+        _ -> Left "Name should be either 'ControllerName' or 'ApplicationName.ControllerName'"
 
 
-isAlphaOnly :: Text -> Bool
-isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
 
-buildPlan schema applicationName controllerName' = do
-    let modelName = tableNameToModelName controllerName'
-    let controllerName = Countable.pluralize modelName
-    let config = ControllerConfig { modelName, controllerName, applicationName }
-    let generate =
-            [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
-            , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
-            , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
-            , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
-            , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller") }
-            ]
-            <> generateViews schema config
+buildPlan' schema applicationName controllerName' =
+    let
+        modelName = tableNameToModelName controllerName'
+        controllerName = Countable.pluralize modelName
+        config = ControllerConfig { modelName, controllerName, applicationName }
+    in
+        [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
+        , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
+        , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
+        , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
+        , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller") }
+        ]
+        <> generateViews schema config
 
-gen schema applicationName controllerName' = evalActions (buildPlan schema applicationName controllerName' )
+buildAndExecutePlan :: Text -> IO ()
+buildAndExecutePlan appAndControllerName = do
+    plan <- buildPlan appAndControllerName
+    case plan of
+        Left error -> fail (cs error)
+        Right actions -> evalActions actions
 
 data ControllerConfig = ControllerConfig
     { controllerName :: Text 
     , applicationName :: Text
     , modelName :: Text
     } deriving (Eq, Show, Generic)
-
-usage :: IO ()
-usage = putStrLn "Usage: new-controller RESOURCE_NAME"
 
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
@@ -405,7 +399,8 @@ generateViews schema config =
             , CreateFile { filePath = get #applicationName config <> "/View/" <> name <> "/Index.hs", fileContent = indexView }
             ]
 
-ensureIsInAppDirectory :: IO ()
-ensureIsInAppDirectory = do
-    mainHsExists <- Directory.doesFileExist "Main.hs"
-    unless mainHsExists (fail "You have to be in a project directory to run the generator")
+
+
+isAlphaOnly :: Text -> Bool
+isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
+
