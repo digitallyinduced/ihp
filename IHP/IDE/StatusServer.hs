@@ -123,7 +123,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
 
             websocketHandler = preEscapedToHtml [plain|
                 var socket = new WebSocket("ws://localhost:" + window.location.port);
-                socket.onclose = function () { window.location.reload(); }
+                socket.onclose = function () { setTimeout(() => window.location.reload(), 500); }
                 socket.onmessage = function (event) {
                     if (event.data === 'clear') {
                         stdout.innerText = '';

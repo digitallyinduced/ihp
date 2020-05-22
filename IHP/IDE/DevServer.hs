@@ -28,7 +28,6 @@ main = do
     portConfig <- case os of
         "linux" -> pure PortConfig { appPort = 8000, toolServerPort = 8001, liveReloadNotificationPort = 8002 }
         _ -> findAvailablePortConfig
-    putStrLn $ tshow $ portConfig
     let ?context = Context { actionVar, portConfig, appStateRef }
 
     threadId <- myThreadId
@@ -70,9 +69,10 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
             case postgresState of
                 PostgresStarted {} -> do
                     let appGHCIState' = AppGHCIModulesLoaded { .. }
-                    startLoadedApp appGHCIState'
 
                     stopStatusServer statusServerState
+                    startLoadedApp appGHCIState
+
                     let statusServerState' = case statusServerState of
                             StatusServerStarted { .. } -> StatusServerPaused { .. }
                             _ -> statusServerState
@@ -105,16 +105,11 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState, l
     pure state { statusServerState = statusServerState', appGHCIState = newAppGHCIState }
 
 handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotificationServerState }) AppStarted = do
-    stopStatusServer statusServerState
-    let state' = case statusServerState of
-            StatusServerStarted { .. } -> state { statusServerState = StatusServerPaused { .. } }
-            _ -> state
     notifyHaskellChange liveReloadNotificationServerState
     case appGHCIState of
-        AppGHCIModulesLoaded { .. } -> pure state' { appGHCIState = RunningAppGHCI { .. } }
-        RunningAppGHCI { } -> do
-            pure state'
-        otherwise -> pure state'
+        AppGHCIModulesLoaded { .. } -> pure state { appGHCIState = RunningAppGHCI { .. } }
+        RunningAppGHCI { } -> pure state
+        otherwise -> pure state
     
 handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged = do
     notifyAssetChange liveReloadNotificationServerState
@@ -268,11 +263,11 @@ startLoadedApp :: AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     let commands =
             [ "ClassyPrelude.uninterruptibleCancel app"
-            , ":r"
             , "app <- ClassyPrelude.async main"
             ]
     forEach commands (sendGhciCommand process)
-startLoadedApp (RunningAppGHCI { .. }) = sendGhciCommand process "app <- ClassyPrelude.async main"
+startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
+startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async main"
 startLoadedApp _ = putStrLn "startLoadedApp: App not running"
 
 
