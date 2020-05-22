@@ -18,8 +18,11 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
             Application/Schema.sql
         </div>
 
-        <div class="col">
-            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
+        <div class="d-flex justify-content-end col">
+            <form class="p-2" action={pathTo DumpDbAction}>
+                <button type="submit" class="btn btn-primary">Dump DB</button>
+            </form>
+            <form class="p-2" style="padding-right: 0 !important;" action={pathTo PushToDbAction}>
                 <button type="submit" class="btn btn-primary">Push to DB</button>
             </form>
         </div>
