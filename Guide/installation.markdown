@@ -16,6 +16,7 @@ Run this commands in your terminal to install nix on your machine.
 
 ```bash
 echo 'nix' | sudo tee -a /etc/synthetic.conf
+reboot #actually reboot your system
 sudo diskutil apfs addVolume disk1 APFSX Nix -mountpoint /nix #maybe use other diskX if u set up your harddrives a different way
 sudo diskutil enableOwnership /nix
 sudo chflags hidden /nix  # Don't show the Nix volume on the desktop
@@ -23,7 +24,7 @@ echo "LABEL=Nix /nix apfs rw" | sudo tee -a /etc/fstab
 
 sh <(curl https://nixos.org/nix/install) --daemon
 ```
-
+After this restart your terminal.
 This will create an extra volume which is then mounted on `/nix`.
 We need to use this trick because MacOs Catalina does protect the root directory.
 
