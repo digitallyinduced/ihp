@@ -75,7 +75,7 @@ eval "$(direnv hook zsh)"
 
 For other shells, [take a look at the direnv documentation](https://direnv.net/#README).
 
-## 2. Installing IHP
+## 3. Installing IHP
 
 You can now install IHP by running:
 
