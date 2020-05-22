@@ -65,7 +65,7 @@ For our blog we're going to deal with posts. A post has a title and a body and o
 
 
 To work with posts in our application, we now have to declare this data schema.
-Open `http://localhost:8001/ihp/Tables` and add a new table with for example `title` and `body` as text column.
+Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new table with for example `title` and `body` as text column.
 The `id` colum is generated automatically.
 
 ![Schema Designer First Table](images/first-project/first_table.png)
@@ -85,7 +85,7 @@ Type "help" for help.
 
 -- Let's do a query to check that the table is there
 
-app=# Select * From posts;
+app=# SELECT * FROM posts;
 
  id | title | body
 ----+-------+------
@@ -445,26 +445,16 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 All our existing posts are saved here. You can also commit this file to git to share your fixtures with your team mates. We will need the saved fixtures in a moment.
 
-Let's add our timestamp column. Open `Application/Schema.hs` and add `+ field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }` to the `posts` table. We set the column value to `NOW()` by default, so the `created_at` field is automatically set to the current time.
+Let's add our timestamp column. Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new Timestamp
+column
 
-```haskell
-table "posts"
-    + field "id" primaryKey
-    + field "title" text
-    + field "body" text
-    + field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }
-```
+![Schema Designer Timestamp column](images/first-project/timestamp_column.png)
 
 Now open the browser again. You will see `Something went wrong`. In the dev server console you will see something along `mismatch between number of columns to convert and number in target type`.
 
-The application now expects the `created_at` field to be set inside the database. Our `posts` table does not know about that column yet.
+You need to press `Push to DB` to update the database.
 
-Run the following command to fix that:
-```bash
-$ make db
-```
-
-This command will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
+This button will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
@@ -633,42 +623,21 @@ Create a new post with just `#` (a headline without any text) as the content to 
 
 It's time to add comments to our blog. For that open the `Schema.hs` and add a new table `comments` with the fields `id`, `post_id`, `author` and `body`:
 
-```haskell
-table "comments"
-    + field "id" primaryKey
-    + field "post_id" uuid { references = Just "posts", onDelete = Cascade }
-    + field "author" text
-    + field "body" text
-```
+![Schema Designer Comments](images/first-project/post_table.png)
 
-The `uuid { references = Just "posts", onDelete = Cascade }` column type specifies that we have a uuid column including a foreign key constraint to the `posts` table. The `onDelete` option is set to cascade to tell our database to delete the comments when the post is removed.
+To create the foreign key Constraint add the post\_id column as UUID:
 
-The `Application/Schema.hs` will now look like this:
+![Schema Designer post id](images/first-project/new_column_post_id.png)
 
+and then right click on the column post\_id to create the constraint through `Add foreign key constraint`:
 
-```haskell
-module Application.Schema where
-import ClassyPrelude (Maybe (..), (<>), Bool (..))
-import IHP.SchemaSupport
+![Schema Designer foreign key constraint](images/first-project/foreign_key.png)
 
-database = [
-    table "posts"
-        + field "id" primaryKey
-        + field "title" text
-        + field "body" text
-        + field "created_at" timestamp { defaultValue = Just (SqlDefaultValue "NOW()") }
-        ,
-    table "comments"
-        + field "id" primaryKey
-        + field "post_id" uuid { references = Just "posts", onDelete = Cascade }
-        + field "author" text
-        + field "body" text
-    ]
-```
+The `onDelete` option is set to cascade to tell our database to delete the comments when the post is removed.
 
 ### 6.2 Loading the Schema
 
-Run `make dump_db` and `make db` to save our current posts to `Application/Fixtures.sql` and to rebuild the database to add our new `comments` table.
+Run `make dump_db` and press the `Push to DB`-button to save our current posts to `Application/Fixtures.sql` and to rebuild the database to add our new `comments` table.
 
 
 ### 6.3 The Controller
