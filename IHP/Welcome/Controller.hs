@@ -7,7 +7,7 @@ import IHP.ViewPrelude
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 
-data WelcomeController = WelcomeAction deriving (Eq, Show)
+data WelcomeController = WelcomeAction deriving (Eq, Show, Data)
 
 instance CanRoute WelcomeController where
     parseRoute' = (string "/" <|> string "") *> endOfInput $> WelcomeAction

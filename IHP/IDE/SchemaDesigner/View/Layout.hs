@@ -1,4 +1,4 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
@@ -18,15 +18,23 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
             Application/Schema.sql
         </div>
 
-        <div class="col">
-            <form class="w-100 d-flex justify-content-end" action={pathTo PushToDbAction}>
-                <button type="submit" class="btn btn-primary">Push to DB</button>
-            </form>
-        </div>
+        {databaseControls}
     </div>
 
     {inner}
 </div>
+|]
+
+databaseControls :: Html
+databaseControls = [hsx|
+    <div class="d-flex justify-content-end col">
+        <form class="p-2" action={pathTo DumpDbAction}>
+            <button type="submit" class="btn btn-primary">DB to Fixtures</button>
+        </form>
+        <form class="p-2" style="padding-right: 0 !important;" action={pathTo PushToDbAction}>
+            <button type="submit" class="btn btn-primary">Push to DB</button>
+        </form>
+    </div>
 |]
 
 findTableByName tableName statements = find pred statements
@@ -247,4 +255,3 @@ getDefaultValue columnType value = case value of
         "DOUBLE PRECISION" -> Just custom
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
-    _ -> Nothing

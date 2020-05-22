@@ -9,6 +9,7 @@ import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.PortConfig
 import Data.String.Conversions (cs)
+import qualified Data.Text as Text
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -63,9 +64,9 @@ instance Show PostgresState where
 
 data AppGHCIState
     = AppGHCINotStarted
-    | AppGHCILoading { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
-    | AppGHCIModulesLoaded { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
-    | RunningAppGHCI { process :: ManagedProcess, needsErrorRecovery :: IORef Bool, isFirstStart :: IORef Bool }
+    | AppGHCILoading { process :: ManagedProcess }
+    | AppGHCIModulesLoaded { process :: ManagedProcess }
+    | RunningAppGHCI { process :: ManagedProcess }
 
 instance Show AppGHCIState where
     show AppGHCINotStarted = "NotStarted"
@@ -149,5 +150,4 @@ data Context = Context
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
-
 

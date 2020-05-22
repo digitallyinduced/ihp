@@ -18,15 +18,16 @@ import IHP.IDE.ToolServer
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Environment as Env
 import System.Info
+import Data.String.Conversions (cs)
+import qualified IHP.FrameworkConfig as Config
 
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
     appStateRef <- newIORef emptyAppState
     portConfig <- case os of
-        "linux" -> return $ PortConfig { appPort = 8000, toolServerPort = 8001, liveReloadNotificationPort = 8002 }
+        "linux" -> pure PortConfig { appPort = 8000, toolServerPort = 8001, liveReloadNotificationPort = 8002 }
         _ -> findAvailablePortConfig
-    putStrLn $ tshow $ portConfig
     let ?context = Context { actionVar, portConfig, appStateRef }
 
     threadId <- myThreadId
@@ -68,9 +69,10 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
             case postgresState of
                 PostgresStarted {} -> do
                     let appGHCIState' = AppGHCIModulesLoaded { .. }
-                    startLoadedApp appGHCIState'
 
                     stopStatusServer statusServerState
+                    startLoadedApp appGHCIState
+
                     let statusServerState' = case statusServerState of
                             StatusServerStarted { .. } -> StatusServerPaused { .. }
                             _ -> statusServerState
@@ -103,16 +105,11 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState, l
     pure state { statusServerState = statusServerState', appGHCIState = newAppGHCIState }
 
 handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotificationServerState }) AppStarted = do
-    stopStatusServer statusServerState
-    let state' = case statusServerState of
-            StatusServerStarted { .. } -> state { statusServerState = StatusServerPaused { .. } }
-            _ -> state
     notifyHaskellChange liveReloadNotificationServerState
     case appGHCIState of
-        AppGHCIModulesLoaded { .. } -> pure state' { appGHCIState = RunningAppGHCI { .. } }
-        RunningAppGHCI { } -> do
-            pure state'
-        otherwise -> pure state'
+        AppGHCIModulesLoaded { .. } -> pure state { appGHCIState = RunningAppGHCI { .. } }
+        RunningAppGHCI { } -> pure state
+        otherwise -> pure state
     
 handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged = do
     notifyAssetChange liveReloadNotificationServerState
@@ -150,13 +147,12 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
 
 start :: (?context :: Context) => IO ()
 start = do
+    async startToolServer
     async startStatusServer
     async startLiveReloadNotificationServer
     async startAppGHCI
     async startPostgres
     async startFilewatcher
-    async startToolServer
-
     pure ()
 
 stop :: AppState -> IO ()
@@ -224,50 +220,54 @@ startAppGHCI = do
             |> fromIntegral
     Env.setEnv "PORT" (show appPort)
 
-    isFirstStart <- newIORef True
-    needsErrorRecovery <- newIORef False
     process <- startGHCI
 
     let ManagedProcess { outputHandle, errorHandle } = process
+
+    libDirectory <- Config.findLibDirectory
+
+    let loadAppCommands = 
+            [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
+            , "import qualified ClassyPrelude"
+            , ":l Main.hs"
+            ]
 
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
                 if "Server started" `isInfixOf` line
                     then dispatch AppStarted
                     else if "Failed," `isInfixOf` line
                             then do
-                                writeIORef needsErrorRecovery True
                                 dispatch AppModulesLoaded { success = False }
                             else if "modules loaded." `isInfixOf` line
                                 then do
-                                    writeIORef needsErrorRecovery False
                                     dispatch AppModulesLoaded { success = True }
                                 else dispatch ReceiveAppOutput { line = StandardOutput line }
 
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
         if "cannot find object file for module" `isInfixOf` line
             then do
-                sendGhciCommand process ":script IHP/IHP/IDE/loadAppModules"
+                forEach loadAppCommands (sendGhciCommand process)
                 dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
             else dispatch ReceiveAppOutput { line = ErrorOutput line }
 
-    sendGhciCommand process ":script IHP/IHP/IDE/loadAppModules"
+
+    -- Compile Schema before loading the app
+    SchemaCompiler.compile `catch` (\(e :: SomeException) -> putStrLn (tshow e))
+
+    forEach loadAppCommands (sendGhciCommand process)
 
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
 
 
 startLoadedApp :: AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
-    recover <- readIORef needsErrorRecovery
-    firstStart <- readIORef isFirstStart
-    let theScript =
-            if recover
-                then "startDevServerGhciScriptAfterError"
-                else if firstStart
-                    then "startDevServerGhciScript"
-                    else "startDevServerGhciScriptRec"
-    sendGhciCommand process (":script IHP/IHP/IDE/" <> theScript)
-    when firstStart (writeIORef isFirstStart False)
-startLoadedApp (RunningAppGHCI { .. }) = sendGhciCommand process (":script IHP/IHP/IDE/startDevServerGhciScriptRec")
+    let commands =
+            [ "ClassyPrelude.uninterruptibleCancel app"
+            , "app <- ClassyPrelude.async main"
+            ]
+    forEach commands (sendGhciCommand process)
+startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
+startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async main"
 startLoadedApp _ = putStrLn "startLoadedApp: App not running"
 
 
@@ -277,5 +277,5 @@ stopAppGHCI AppGHCIModulesLoaded { process } = cleanupManagedProcess process
 stopAppGHCI _ = pure ()
 
 pauseAppGHCI :: AppGHCIState -> IO ()
-pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process ":script IHP/IHP/IDE/pauseDevServer"
+pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
 pauseAppGHCI _ = pure ()

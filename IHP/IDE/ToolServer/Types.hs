@@ -22,6 +22,7 @@ data ToolServerApplication = ToolServerApplication { devServerContext :: DevServ
 data SchemaController
     = SchemaAction
     | PushToDbAction
+    | DumpDbAction
     | ShowCodeAction
     | SaveCodeAction
     | ShowGeneratedCodeAction { tableName :: Text }
@@ -88,4 +89,4 @@ data DynamicField = DynamicField
 
 instance FrameworkConfig where 
     environment = Development
-    baseUrl = "http://localhost:8001"
+    appHostname = "localhost"

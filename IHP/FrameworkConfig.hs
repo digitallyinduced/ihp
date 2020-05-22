@@ -8,6 +8,9 @@ import IHP.ControllerSupport
 import IHP.RouterSupport
 import System.IO.Unsafe (unsafePerformIO)
 import Data.String.Conversions (cs)
+import qualified System.Directory as Directory
+import qualified Data.Text as Text
+import qualified System.Process as Process
 
 defaultPort :: Int
 defaultPort = 8000
@@ -44,3 +47,19 @@ appDatabaseUrl = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     (Environment.lookupEnv "DATABASE_URL") >>= (pure . maybe defaultDatabaseUrl cs )
+
+-- | Finds the lib
+--
+-- The location depends on whether the framework is installed through nix
+-- or checked out from git inside the current project directory.
+--
+-- When it's installed with nix, the lib dir is located at @lib/ihp@
+-- while the dev server binary is located at @bin/RunDevServer@.
+findLibDirectory :: IO Text
+findLibDirectory = do
+    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
+    if frameworkMountedLocally
+        then pure "IHP/lib/IHP/"
+        else do
+            binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
+            pure (Text.strip binDir <> "/../lib/IHP/")

@@ -83,5 +83,5 @@ For other shells, [take a look at the direnv documentation](https://direnv.net/#
 You can now install IHP by running:
 
 ```bash
-$ nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
