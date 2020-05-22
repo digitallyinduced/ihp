@@ -28,10 +28,10 @@ instance Controller DataController where
         PG.close connection
         render ShowTableRowsView { .. }
 
-    action ShowQueryAction { query } = do
+    action ShowQueryAction = do
         connection <- connectToAppDb
-
-        rows :: [[DynamicField]] <- PG.query_ connection (fromString (cs query))
+        let query = cs (param @Text "query")
+        rows :: [[DynamicField]] <- PG.query_ connection (fromString query)
 
         PG.close connection
         render ShowQueryView { .. }

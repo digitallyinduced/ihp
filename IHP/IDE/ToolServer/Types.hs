@@ -73,7 +73,7 @@ data EnumValuesController
 data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
-    | ShowQueryAction { query :: Text }
+    | ShowQueryAction
     deriving (Eq, Show, Data)
 
 data LogsController

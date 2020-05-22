@@ -8,6 +8,7 @@ import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
+import IHP.IDE.Data.View.Layout
 
 data ShowTableRowsView = ShowTableRowsView
     { tableNames :: [Text]
@@ -17,13 +18,14 @@ data ShowTableRowsView = ShowTableRowsView
 
 instance View ShowTableRowsView ViewContext where
     html ShowTableRowsView { .. } = [hsx|
-        <div class="bg-white">
+        <div class="container pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
                 <div class="col">
                     {renderRows}
                 </div>
             </div>
+            {customQuery}
         </div>
     |]
         where

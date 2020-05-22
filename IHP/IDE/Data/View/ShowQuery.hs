@@ -8,24 +8,20 @@ import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
+import IHP.IDE.Data.View.Layout
 
 data ShowQueryView = ShowQueryView
     { rows :: [[DynamicField]] }
 
 instance View ShowQueryView ViewContext where
     html ShowQueryView { .. } = [hsx|
-        <div class="bg-white">
+        <div class="container pt-5">
             <div class="row no-gutters bg-white">
                 <div class="col">
                     {renderRows}
                 </div>
-                <div>
-                    <form action={ShowQueryAction}>
-                        <input type="text" name="query"></input>
-                        <button type="submit">Query</button>
-                    </form>
-                </div>
             </div>
+            {customQuery}
         </div>
     |]
         where
