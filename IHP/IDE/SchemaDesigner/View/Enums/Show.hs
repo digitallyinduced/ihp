@@ -17,7 +17,6 @@ instance View ShowEnumView ViewContext where
         {visualNav}
         <div class="container">
             {databaseControls}
-        </div>
             <div class="row no-gutters bg-white">
                 {renderObjectSelector (zip [0..] statements) (Just name)}
                 {renderEnumSelector name (zip [0..] values)}
