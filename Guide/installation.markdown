@@ -24,11 +24,9 @@ echo "LABEL=Nix /nix apfs rw" | sudo tee -a /etc/fstab
 
 sh <(curl https://nixos.org/nix/install) --daemon
 ```
-
+After this restart your terminal.
 This will create an extra volume which is then mounted on `/nix`.
 We need to use this trick because MacOs Catalina does protect the root directory.
-
-To start using nix you need to restart your terminal to update your $PATH.
 
 This method is taken from the following Github Comment:
 [https://github.com/NixOS/nix/issues/2925#issuecomment-539570232](https://github.com/NixOS/nix/issues/2925#issuecomment-539570232)
