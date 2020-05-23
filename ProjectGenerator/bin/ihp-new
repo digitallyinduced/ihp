@@ -63,4 +63,4 @@ nix-shell --run 'make all; new-application Web'
 echo "🚀 Project created, happy coding :)"
 echo "You can start the server by running:"
 echo "  cd $PROJECT_NAME"
-echo "  ./start.sh"
+echo "  ./start"
