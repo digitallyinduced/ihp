@@ -106,7 +106,7 @@ mkDerivation {
     typerep-map
     basic-prelude
   ];
-  license = stdenv.lib.licenses.bsd3;
+  license = stdenv.lib.licenses.mit;
   postInstall = ''
     cp IHP/CLI/run-script $out/bin/run-script
 
