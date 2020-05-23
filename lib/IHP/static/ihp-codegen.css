@@ -5,6 +5,7 @@
     max-width: 650px;
     margin-left: auto;
     margin-right: auto;
+    margin-bottom: 2rem;
 }
 
 .generators-list .generator:first-child {
@@ -93,4 +94,14 @@
     border-radius: 4px;
     border: 1px solid #c0c0c0;
     margin-bottom: 2rem;
+}
+
+.code-generator.new-controller .controller-name {
+    font-size: 24px;
+    padding-bottom: 12px;
+    padding-top: 12px;
+    padding-left: 12px;
+    border-bottom: 1px solid #c0c0c0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 }

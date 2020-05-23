@@ -19,27 +19,39 @@ instance View NewControllerView ViewContext where
         <div class="generators">
             <div class="container pt-5">
                 <div class="code-generator new-controller">
-                    <form
-                        method="POST"
-                        action={NewControllerAction}
-                    >
-                        <input
-                            type="text"
-                            name="name"
-                            placeholder="Controller name"
-                            class="form-control"
-                            autofocus="autofocus"
-                            value={controllerName}
-                            />
-                    </form>
-
-
-                    {renderPlan plan}
+                    {if isEmpty then renderEmpty else renderPreview}
+                    {unless isEmpty (renderPlan plan)}
                 </div>
             </div>
         </div>
     |]
         where
+            renderEmpty = [hsx|<form method="POST" action={NewControllerAction} class="d-flex">
+                    <input
+                        type="text"
+                        name="name"
+                        placeholder="Controller name"
+                        class="form-control"
+                        autofocus="autofocus"
+                        value={controllerName}
+                        />
+
+                    <button class="btn btn-primary" type="submit">Preview</button>
+                </form>|]
+
+            renderPreview = [hsx|
+                <form method="POST" action={CreateControllerAction} class="d-flex">
+                    <div class="controller-name flex-grow-1">{controllerName}</div>
+
+                    <input type="hidden" name="name" value={controllerName}/>
+
+                    <button class="btn btn-primary" type="submit">Generate</button>
+                </form>
+            |]
+
+
+            isEmpty = null controllerName
+
             renderPlan (Left error) = [hsx|{error}|]
             renderPlan (Right actions) = [hsx|<div class="generator-actions">{forEach actions renderGeneratorAction}</div>|]
 

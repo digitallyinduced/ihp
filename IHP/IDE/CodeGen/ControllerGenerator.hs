@@ -60,7 +60,7 @@ data ControllerConfig = ControllerConfig
     { controllerName :: Text 
     , applicationName :: Text
     , modelName :: Text
-    } deriving (Eq, Show, Generic)
+    } deriving (Eq, Show)
 
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName, applicationName } =

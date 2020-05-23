@@ -13,6 +13,7 @@ instance View GeneratorsView ViewContext where
     html GeneratorsView = [hsx|
         <div class="generators">
             <div class="container pt-5">
+                {renderFlashMessages}
                 <div class="generators-list">
                     <a href={NewControllerAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>

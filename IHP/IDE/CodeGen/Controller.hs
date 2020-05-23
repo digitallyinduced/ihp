@@ -15,3 +15,9 @@ instance Controller CodeGenController where
         let controllerName = paramOrDefault "" "name"
         plan <- ControllerGenerator.buildPlan controllerName
         render NewControllerView { .. }
+
+    action CreateControllerAction = do
+        let controllerName = param "name"
+        ControllerGenerator.buildAndExecutePlan controllerName
+        setSuccessMessage "Controller generated"
+        redirectTo GeneratorsAction
