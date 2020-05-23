@@ -39,7 +39,7 @@ You now already have a working haskell app ready to be started.
 You can start the development server by running this in the `Blog` directory:
 
 ```bash
-$ ./start.sh
+$ ./start
 ```
 
 

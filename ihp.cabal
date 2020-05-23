@@ -63,6 +63,15 @@ common shared-properties
             , basic-prelude
             , megaparsec
             , async
+            , network
+            , unliftio
+            , basic-prelude
+            , megaparsec
+            , async
+            , unix
+            , fsnotify
+            , websockets
+            , wai-websockets
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -149,16 +158,6 @@ library IHPFramework
 executable RunDevServer
     import: shared-properties
     main-is: IHP/IDE/DevServer.hs
-    build-depends:
-        network
-        , unliftio
-        , basic-prelude
-        , megaparsec
-        , async
-        , unix
-        , fsnotify
-        , websockets
-        , wai-websockets
 
 executable new-application
     import: shared-properties
@@ -171,10 +170,6 @@ executable build-generated-code
 executable new-controller
     import: shared-properties
     main-is: IHP/CLI/NewController.hs
-    build-depends:
-        unix
-        , fsnotify
-        , websockets
 
 executable new-script
     import: shared-properties

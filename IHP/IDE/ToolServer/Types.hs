@@ -81,6 +81,14 @@ data LogsController
     | PostgresLogsAction
     deriving (Eq, Show, Data)
 
+data CodeGenController
+    = GeneratorsAction
+    | NewControllerAction
+    | NewScriptAction
+    | CreateControllerAction
+    | CreateScriptAction
+    deriving (Eq, Show, Data)
+
 
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString

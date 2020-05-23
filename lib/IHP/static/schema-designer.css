@@ -1,5 +1,6 @@
 @import "/ihp-toolserver-layout.css";
 @import "/toolserver-logs.css";
+@import "/ihp-codegen.css";
 
 .object-selector h5 {
     font-size: 14px;
