@@ -6,6 +6,7 @@ import qualified System.Directory as Directory
 import qualified System.Posix.Env.ByteString as Posix
 import Control.Monad.Fail
 import IHP.IDE.CodeGen.ControllerGenerator
+import IHP.IDE.CodeGen.Controller (executePlan)
 
 main :: IO ()
 main = do
@@ -15,7 +16,10 @@ main = do
     case headMay args of
         Just "" -> usage
         Just appAndControllerName -> do
-            buildAndExecutePlan appAndControllerName
+            planOrError <- buildPlan appAndControllerName
+            case planOrError of
+                Left error -> putStrLn error
+                Right plan -> executePlan plan
         _ -> usage
 
 

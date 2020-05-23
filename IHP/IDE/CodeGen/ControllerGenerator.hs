@@ -1,10 +1,9 @@
-module IHP.IDE.CodeGen.ControllerGenerator where
+module IHP.IDE.CodeGen.ControllerGenerator (buildPlan) where
 
 import ClassyPrelude
 import IHP.NameSupport
 import Data.String.Conversions (cs)
 import Data.Text.IO (appendFile)
-import qualified System.Directory as Directory
 import qualified System.Exit as Exit
 import IHP.HaskellSupport
 import qualified Data.Text as Text
@@ -14,6 +13,7 @@ import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import qualified System.Posix.Env.ByteString as Posix
 import Control.Monad.Fail
+import IHP.IDE.CodeGen.Types
 
 buildPlan :: Text -> IO (Either Text [GeneratorAction])
 buildPlan appAndControllerName = do
@@ -49,13 +49,6 @@ buildPlan' schema applicationName controllerName' =
         ]
         <> generateViews schema config
 
-buildAndExecutePlan :: Text -> IO ()
-buildAndExecutePlan appAndControllerName = do
-    plan <- buildPlan appAndControllerName
-    case plan of
-        Left error -> fail (cs error)
-        Right actions -> evalActions actions
-
 data ControllerConfig = ControllerConfig
     { controllerName :: Text 
     , applicationName :: Text
@@ -67,55 +60,7 @@ controllerInstance ControllerConfig { controllerName, modelName, applicationName
     "instance AutoRoute " <> controllerName <> "Controller\n"
     <> "type instance ModelControllerMap " <> applicationName <> "Application " <> modelName <> " = " <> controllerName <> "Controller\n\n"
 
-data GeneratorAction
-    = CreateFile { filePath :: Text, fileContent :: Text }
-    | AppendToFile { filePath :: Text, fileContent :: Text }
-    | AppendToMarker { marker :: Text, filePath :: Text, fileContent :: Text }
-    | EnsureDirectory { directory :: Text }
-    deriving (Show, Eq)
-
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
-
-evalActions :: [GeneratorAction] -> IO ()
-evalActions actions = forM_ actions evalAction
-    where
-        evalAction' CreateFile { filePath, fileContent } = do
-            putStrLn (">>>>>>>>>>>> CREATE " <> filePath)
-            putStrLn fileContent
-            putStrLn "\n\n"
-        evalAction' AppendToFile { filePath, fileContent } = do
-            putStrLn (">>>>>>>>>>>> APPEND " <> filePath)
-            putStrLn fileContent
-            putStrLn "\n\n"
-        evalAction' AppendToMarker { marker, filePath, fileContent } = do
-            putStrLn (">>>>>>>>>>>> APPEND " <> marker <> " => " <> filePath)
-            putStrLn fileContent
-            putStrLn "\n\n"
-        evalAction' otherwise = do
-            putStrLn $ ">>>>>>>>>>>>" <> tshow otherwise
-
-        evalAction CreateFile { filePath, fileContent } = do
-            writeFile (cs filePath) (cs fileContent)
-            putStrLn ("+ " <> filePath)
-        evalAction AppendToFile { filePath, fileContent } = do
-            appendFile (cs filePath) fileContent
-            putStrLn ("* " <> filePath)
-        evalAction AppendToMarker { marker, filePath, fileContent } = do
-            content <- readFile (cs filePath)
-            let newContent = Text.replace marker (marker <> "\n" <> cs fileContent) (cs content)
-            writeFile (cs filePath) (cs newContent)
-            putStrLn ("* " <> filePath <> " (import)")
-        evalAction EnsureDirectory { directory } = do
-            Directory.createDirectoryIfMissing True (cs directory)
-
-describePlan :: [GeneratorAction] -> Text
-describePlan actions = intercalate "\n" (map describePlan' actions)
-
-describePlan' :: GeneratorAction -> Text
-describePlan' CreateFile { filePath, fileContent } = "CREATE " <> filePath
-describePlan' AppendToFile { filePath, fileContent } = "APPEND " <> filePath <> ": " <> fileContent
-describePlan' AppendToMarker { marker, filePath, fileContent } = "APPEND MARKER " <> marker <> " => " <> filePath <> ": " <> fileContent
-describePlan' EnsureDirectory { directory } = "DIRECTORY " <> directory
 
 getTable :: [Statement] -> Text -> Maybe Statement
 getTable schema name = find isTable schema

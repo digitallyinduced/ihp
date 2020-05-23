@@ -83,7 +83,9 @@ data LogsController
 data CodeGenController
     = GeneratorsAction
     | NewControllerAction
+    | NewScriptAction
     | CreateControllerAction
+    | CreateScriptAction
     deriving (Eq, Show, Data)
 
 

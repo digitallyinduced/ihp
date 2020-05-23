@@ -52,12 +52,12 @@
     border-bottom: 1px solid #337bf6;
 }
 
-.code-generator.new-controller {
+.code-generator {
     min-height: 200px;
     background-color: #ebebeb;
 }
 
-.code-generator.new-controller input[name="name"] {
+.code-generator input[name="name"] {
     font-size: 24px;
     outline: none;
     border-top-left-radius: 8px;
@@ -68,14 +68,14 @@
     background-color: #ebebeb;
 }
 
-.code-generator.new-controller input[name="name"]:focus {
+.code-generator input[name="name"]:focus {
     outline: none !important;
     border-bottom: 1px solid #c0c0c0;
     box-shadow: none;
     background-color: #ebebeb;
 }
 
-.code-generator.new-controller input[name="name"]::placeholder {
+.code-generator input[name="name"]::placeholder {
     color: #ababaa;
 }
 
@@ -96,7 +96,7 @@
     margin-bottom: 2rem;
 }
 
-.code-generator.new-controller .controller-name {
+.code-generator .object-name {
     font-size: 24px;
     padding-bottom: 12px;
     padding-top: 12px;
