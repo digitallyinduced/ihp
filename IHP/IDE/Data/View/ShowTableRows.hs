@@ -9,6 +9,7 @@ import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
+import Data.Maybe
 
 data ShowTableRowsView = ShowTableRowsView
     { tableNames :: [Text]
@@ -40,7 +41,14 @@ instance View ShowTableRowsView ViewContext where
             renderColumnHead name = [hsx|<th>{name}</th>|]
 
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
-            renderRow fields = [hsx|<tr>{forEach fields renderField}</tr>|]
+            renderRow fields = [hsx|<tr>{forEach fields renderField}
+                <td>
+                    <form method="POST" action={DeleteEntryAction (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields))))) tableName}>
+                        <button type="submit">Delete</button>
+                        <input type="hidden" name="_method" value="DELETE"/>
+                    </form>
+                </td>
+            </tr>|]
             renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{fieldValue}</span></td>|]
 
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))

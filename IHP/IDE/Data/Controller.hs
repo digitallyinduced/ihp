@@ -11,6 +11,7 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified IHP.FrameworkConfig as Config
+import qualified Data.UUID as UUID
 
 instance Controller DataController where
     action ShowDatabaseAction = do
@@ -35,6 +36,15 @@ instance Controller DataController where
 
         PG.close connection
         render ShowQueryView { .. }
+
+    action DeleteEntryAction { fieldValue, tableName } = do
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+        let (Just id) = UUID.fromText fieldValue
+        let query = "DELETE FROM " <> tableName <> " WHERE id = ?"
+        PG.execute connection (PG.Query . cs $! query) (PG.Only id)
+        PG.close connection
+        redirectTo ShowTableRowsAction { .. }
 
 connectToAppDb = do
     databaseUrl <- Config.appDatabaseUrl

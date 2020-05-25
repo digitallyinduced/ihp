@@ -75,6 +75,7 @@ data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
     | ShowQueryAction
+    | DeleteEntryAction { fieldValue :: Text, tableName :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController
