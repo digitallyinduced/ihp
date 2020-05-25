@@ -76,23 +76,32 @@ class InitControllerContext application where
 runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let handlePatternMatchFailure (e :: Exception.PatternMatchFail) = ErrorController.handlePatternMatchFailure e controller
-    let handleGenericException (e :: Exception.SomeException) = ErrorController.handleGenericException e controller
     let (RequestContext _ respond _ _ _) = ?requestContext
+    
+    let doRunAction = do
+        beforeAction
+        (action controller)
+        ErrorController.handleNoResponseReturned controller
+
     let handleResponseException  (ResponseException response) = respond response
-    (((beforeAction >> action controller >> ErrorController.handleNoResponseReturned controller) `Exception.catch` handleResponseException) `Exception.catch` handlePatternMatchFailure) `Exception.catch` handleGenericException
+        
+    doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    context <- initContext @application $
-            TypeMap.empty
+    let context = TypeMap.empty
             |> TypeMap.insert ?application
             |> TypeMap.insert (ActionType (Typeable.typeOf controller))
-    let ?controllerContext = ControllerContext context
-    runAction controller
 
+    try (initContext @application context) >>= \case
+        Left exception -> do
+            -- Calling `initContext` might fail, so we provide a bit better error messages here
+            ErrorController.displayException exception controller " while calling initContext"
+        Right context -> do
+            let ?controllerContext = ControllerContext context
+            runAction controller
 
 {-# INLINE getRequestBody #-}
 getRequestBody :: (?requestContext :: RequestContext) => IO ByteString
@@ -142,4 +151,4 @@ instance Exception ResponseException
 
 {-# INLINE respondAndExit #-}
 respondAndExit :: Response -> IO ()
-respondAndExit response = Exception.throw (ResponseException response)
+respondAndExit response = Exception.throwIO (ResponseException response)

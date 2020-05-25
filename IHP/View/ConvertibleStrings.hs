@@ -13,7 +13,6 @@ import Data.Text
 import Data.ByteString
 import qualified Text.Blaze.Html5        as Html5
 import qualified Data.ByteString.Lazy as LBS
-import IHP.RouterSupport (HasPath (..))
 
 instance ConvertibleStrings String Html5.AttributeValue where
     {-# INLINE convertString #-}
@@ -38,6 +37,3 @@ instance ConvertibleStrings LBS.ByteString Html5.AttributeValue where
 instance ConvertibleStrings Text Html5.Html where
     {-# INLINE convertString #-}
     convertString = Html5.text
-
-instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action AttributeValue where
-    convertString action = textValue (pathTo action)

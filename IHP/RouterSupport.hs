@@ -46,6 +46,8 @@ import qualified Data.Typeable as Typeable
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Char as Char
 import Control.Monad.Fail
+import Data.String.Conversions (ConvertibleStrings (convertString), cs)
+import qualified Text.Blaze.Html5 as Html5
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
@@ -373,3 +375,6 @@ catchAll action = do
     string (actionPrefix @action)
     _ <- takeByteString
     pure (runActionWithNewContext @application action)
+
+instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
+    convertString action = Html5.textValue (pathTo action)

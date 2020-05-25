@@ -1,6 +1,6 @@
-module IHP.ErrorController where
+module IHP.ErrorController (displayException, handleNoResponseReturned, handleNotFound) where
 
-import IHP.Prelude
+import IHP.Prelude hiding (displayException)
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import IHP.Controller.RequestContext
@@ -12,48 +12,119 @@ import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import qualified Database.PostgreSQL.Simple.FromField as PG
 
-handlePatternMatchFailure :: (Show controller, ?requestContext :: RequestContext) => Exception.PatternMatchFail -> controller -> IO ResponseReceived
-handlePatternMatchFailure exception controller = do
-    let (controllerPath, _) = Text.breakOn ":" (tshow exception)
-    let errorMessage = ("Missing action case for " <> tshow controller <> ".\n\nYou can fix this by adding an action handler like this to the controller '" <> controllerPath <> "':\n\n    action (" <> tshow controller <> ") = do\n        renderPlain \"Hello World\"\n\nGHC Exception: " <> tshow exception)
-    putStr errorMessage
-    let (RequestContext _ respond _ _ _) = ?requestContext
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError "Missing action" errorMessage))
+import IHP.HtmlSupport.QQ (hsx)
 
+import Database.PostgreSQL.Simple.FromField (ResultError (..))
 
 
 handleNoResponseReturned :: (Show controller, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
-    let errorMessage = ("No response was returned while running the action " <> tshow controller <> ".\n\nYou can fix this by calling 'render MyView { .. }' at the end of your action.")
-    putStr errorMessage
-    let (RequestContext _ respond _ _ _) = ?requestContext
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError "No response returned" errorMessage))
+    let codeSample :: Text = "render MyView { .. }"
+    let errorMessage = [hsx|
+            <h2>Possible Solutions</h2>
+            <p>You can fix this by calling '{codeSample}' at the end of your action.</p>
 
-
-handleGenericException :: (Show controller, ?requestContext :: RequestContext) => Exception.SomeException -> controller -> IO ResponseReceived
-handleGenericException exception controller = do
-    let errorMessage = ("An exception was raised while running the action " <> tshow controller <> ".\n\n")
+            <h2>Details</h2>
+            <p style="font-size: 16px">No response was returned while running the action {tshow controller}</p>
+            
+        |]
+    let title = [hsx|No response returned in {tshow controller}|]
     let (RequestContext _ respond _ _ _) = ?requestContext
-    let title = H.text (tshow exception)
-    putStrLn (tshow exception)
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 handleNotFound :: (?requestContext :: RequestContext) => IO ResponseReceived
 handleNotFound = do
-    let errorMessage = "Router failed to find an action to handle this request.\n\n"
+    let errorMessage = [hsx|Router failed to find an action to handle this request.|]
     let title = H.text "Action Not Found"
     let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
+displayException :: (Show action, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
+displayException exception action additionalInfo = do
+    let allHandlers = [ postgresHandler, patternMatchFailureHandler ]
+    let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
+    supportingHandlers
+        |> head
+        |> fromMaybe (genericHandler exception action additionalInfo)
+
+genericHandler :: (Show controller, ?requestContext :: RequestContext) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
+genericHandler exception controller additionalInfo = do
+    let errorMessage = [hsx|An exception was raised while running the action {tshow controller}{additionalInfo}|]
+    let (RequestContext _ respond _ _ _) = ?requestContext
+    let title = H.text (tshow exception)
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+postgresHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+postgresHandler exception controller additionalInfo = do
+    case fromException exception of
+        Just (exception :: PG.ResultError) -> Just do
+            let errorMessage = [hsx|
+                        <h2>Possible Solutions</h2>
+                        <div style="margin-bottom: 2rem; font-weight: 400;">
+                            Have you clicked on
+                            <form method="POST" action="http://localhost:8001/ihp/PushToDb" target="_blank" style="display: inline">
+                                <button type="submit">Push to DB</button>
+                            </form>
+                            after updating the Schema?
+                        </div>
+
+                        <h2>Details</h2>
+                        <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
+                        <p style="font-family: monospace; font-size: 16px">{exception}</p>
+                    |]
+            let (RequestContext _ respond _ _ _) = ?requestContext
+            let title = H.text "Database looks outdated. The database result does not match the expected type"
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+        Nothing -> Nothing
+
+
+patternMatchFailureHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+patternMatchFailureHandler exception controller additionalInfo = do
+    case fromException exception of
+        Just (exception :: Exception.PatternMatchFail) -> Just do
+            let (controllerPath, _) = Text.breakOn ":" (tshow exception)
+            let errorMessage = [hsx|
+                    <h2>Possible Solutions</h2>
+                    <p>a) Maybe the action function is missing for {tshow controller}? You can fix this by adding an action handler like this to the controller '{controllerPath}':</p>
+                    <pre>{codeSample}</pre>
+                    <p style="margin-bottom: 2rem">b) A pattern match like 'let (Just value) = ...' failed. Please see the details section.</p>
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+                    where
+                        codeSample = "    action (" <> tshow controller <> ") = do\n        renderPlain \"Hello World\""
+
+            let title = [hsx|Pattern match failed while executing {tshow controller}|]
+            let (RequestContext _ respond _ _ _) = ?requestContext
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+        Nothing -> Nothing
+
 renderError :: _
-renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ do
-    H.head do
-        H.meta ! A.charset "utf-8"
-        H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1, shrink-to-fit=no"
-        H.title "Error"
-    H.body ! A.style "margin: 0; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", Arial, sans-serif;" $ do
-        H.div ! A.style "background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1)" $ do
-            H.div ! A.style "max-width: 800px; margin-left: auto; margin-right: auto" $ do
-                H.h1 ! A.style "margin-bottom: 2rem; font-size: 2rem; font-weight: 300; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)" $ errorTitle
-                H.pre ! A.style "margin-top: 1rem; font-size: 1.25rem; font-weight: 600; color:hsla(196, 13%, 80%, 1)" $ H.text view
+renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+
+    <title>IHP Error</title>
+    <style>{layoutStyle}</style>
+</head>
+<body style={bodyStyle}>
+    <div style="background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1)">
+        <div style="max-width: 800px; margin-left: auto; margin-right: auto">
+            <h1 style="margin-bottom: 2rem; font-size: 2rem; font-weight: 500; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)">{errorTitle}</h1>
+            <div style="margin-top: 1rem; font-size: 1.25rem; color:hsla(196, 13%, 80%, 1)">
+                {view}
+            </div>
+        </div>
+    </div>
+</body>
+    |]
+        where
+            bodyStyle :: Text
+            bodyStyle = "margin: 0; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", Arial, sans-serif;"
+
+            layoutStyle :: Text
+            layoutStyle = "* { -webkit-font-smoothing: antialiased } h2 { color: white; font-size: 1.25rem; }"
