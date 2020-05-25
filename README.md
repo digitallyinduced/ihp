@@ -1,4 +1,8 @@
-# IHP
+# IHP: Integrated Haskell Platform
+
+*IHP is a modern batteries-included Web Framework, built on top of Haskell and Nix.*
+
+![](https://raw.githubusercontent.com/digitallyinduced/haskellframework-website/master/undraw_experience_design_eq3j.svg?token=AAPZ46MR63WGPD46U7DFFUC62U43G)
 
 # Contributing
 
