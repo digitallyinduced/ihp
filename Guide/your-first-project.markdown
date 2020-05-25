@@ -36,26 +36,34 @@ Here is a short overview of the whole structure:
 ## 2. Hello, World!
 
 You now already have a working haskell app ready to be started.
-You can start the development server by running this in the `Blog` directory:
+
+Switch to the `blog` directory before doing the next steps:
+
+```bash
+$ cd blog
+```
+
+Start the development server by running this in the `blog` directory:
 
 ```bash
 $ ./start
 ```
 
-
-Your app is now running at [http://localhost:8000](http://localhost:8000).
+Your application is starting now. The development server will automatically launch the built-in IDE.
 The server can be stopped by pressing CTRL+C.
 
-The built-in development server automatically starts a PostgreSQL database connected to your application. So you don't need to worry about manually setting up the database.
+In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
 
 
 ## 3. Data Structures & PostgreSQL
 
 ### Schema Modeling
 
-For our blog we're going to deal with posts. A post has a title and a body and of course also an id. IHP is using UUIDs instead of the typical numerics ids.
+For our blog project, let's first build a way to manage posts.
 
-**A `posts` table in a PostgreSQL database could loke like this:**
+For working with posts, we first need to create a `posts` table inside our database. A single post has a title and a body and of course also an id. IHP is using UUIDs instead of the typical numerics ids.
+
+**This is how our `posts` table can look like for our blog:**
 
 
 | id :: UUID                           | title :: Text                                          | body :: Text                                                                                                       |
@@ -64,10 +72,25 @@ For our blog we're going to deal with posts. A post has a title and a body and o
 | b739bc7c-5ed1-43f4-944c-385aea80f182 | Deploying Private GitHub Repositories To NixOS Servers | In a previous post I’ve already shared a way to deploy private git repositories to a NixOS based server. While ... |
 
 
-To work with posts in our application, we now have to declare this data schema.
-Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new table with `title` and `body` as text column. To do this either click the button `New` in the table view
-or right click inside of it and use `Add Column`.
-The `id` column is generated automatically.
+To work with posts in our application, we now have to define this data schema.
+
+**For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly built the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the Postgresql syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consist of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree and then writes it back into the `Application/Schema.sql`. If you love your VIM, can you always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
+
+Open the [IHP Schema Designer](http://localhost:8001/ihp/Tables) and add a new table with `title` and `body` as text column. To do this click on the `New` button in the table view.
+
+TODO: Screenshot vom New Table view
+
+Enter the table name `posts` and click on `Create Table`.
+
+In the right pane, you can see the columns of the newly created table. The id column has been automatically created for us.
+
+Right click into the Columns pane and select `Add Column`:
+
+TODO: Screenshot Context Menu mit aktiven Add Column
+
+Use this dialog to create the title and body columns.
+
+After that, your schema should look like this:
 
 ![Schema Designer First Table](images/first-project/first_table.png)
 
@@ -88,7 +111,7 @@ CREATE TABLE posts (
 );
 ```
 
-To load the table into our local postgres server, we need to click `Push to DB`.
+To load the table into our local postgres server, we need to click `Push to DB` in the Schema Designer (use `make db` from the command line).
 
 The `posts` table has been created now. Let's quickly connect to our database and see that everything is correct:
 
@@ -121,33 +144,21 @@ Now our database is ready to be consumed by our app.
 
 By specificing the above schema, the framework automatically provides several types for us. Here is a short overview:
 
-|        Type | `Post' id title body`                                                      |
+|        Type | `Post`                                                                     |
 |------------:|----------------------------------------------------------------------------|
-|  Definition | `data Post' id title body = Post {id :: id, title :: title, body :: body}` |
-| Description | A helper type used by all the "real" types. All the content is variable    |
-| Example     | `Post { id = (), title = "Hello", body = () } :: Post' () Text ()`         |
-
-
-|        Type | `Post`                                                                                               |
-|-------------|------------------------------------------------------------------------------------------------------|
-|  Definition | `type Post = Post' (Id Post) Text Text`                                    |
-| Description | A Post record from the database                                                                      |
+|  Definition | `data Post = Post { id :: Id Post, title :: Text, body :: Text }` |
+| Description | A single record from the `posts` table                                                                      |
 | Example     | `Post { id = cfefdc6c-c097-414c-91c0-cbc9a79fbe4f, title = "Hello World", body = "Some body text" } :: Post` |
 
 
-|        Type | `NewPost`                                                                                  |
-|-------------|--------------------------------------------------------------------------------------------|
-|  Definition | `type NewPost = Post' (FieldWithDefault (Id Post)) Text Text` |
-| Description | Post which is not yet saved to the database                                                |
-| Example     | `Post { id = Default, title = "My new Post", body = "Hello World" } :: NewPost`                       |
-
-  
-
 |        Type | `Id Post`                                                               |
-|-------------|-------------------------------------------------------------------------|
+|------------:|-------------------------------------------------------------------------|
 |  Definition | `newtype Id Post = Id UUID`                                             |
 | Description | Type for the `id` field                                                 |
-| Example     | `pack (read "5a8d1be2-33e3-4d3f-9812-b16576fe6a38" :: UUID) :: Id Post` |
+| Example     | `"5a8d1be2-33e3-4d3f-9812-b16576fe6a38" :: Id Post` |
+
+
+To dig deeper into the generated code, open the Schema Designer, right-click a table and click "Show Haskell Code".
 
 ## 4. Apps, Controllers, Views
 
@@ -157,13 +168,13 @@ A controller belongs to an application. Your whole project can consistent of mul
 
 To generate the controller we can use the visual code generator:
 
-![Code_Gen_1](images/first-project/code_gen_1.png)
+![](images/first-project/code_gen_1.png)
 
-![Code_Gen_2](images/first-project/code_gen_2_posts.png)
+![](images/first-project/code_gen_2_posts.png)
 
 Before the generator saves your code you can see a preview of your code:
 
-![Code_Gen_3](images/first-project/code_gen_3_posts.png)
+![](images/first-project/code_gen_3_posts.png)
 
 You can see that lot's of files have been created and updated.
 
@@ -655,13 +666,13 @@ Press `DB to Fixtures` to save our current posts to `Application/Fixtures.sql` a
 
 It's time to also add a new controller for our comments. We can use the visual code generator for this:
 
-![Code_Gen_1](images/first-project/code_gen_1.png)
+![](images/first-project/code_gen_1.png)
 
-![Code_Gen_2](images/first-project/code_gen_2.png)
+![](images/first-project/code_gen_2.png)
 
 Before the generator saves your code you can see a preview of your code:
 
-![Code_Gen_3](images/first-project/code_gen_3.png)
+![](images/first-project/code_gen_3.png)
 
 
 This will generate a new working controller for us. We now need to do some adjustments to better integrate the comments into the posts.
