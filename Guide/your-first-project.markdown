@@ -644,7 +644,9 @@ To create the foreign key Constraint add the post\_id column as UUID:
 
 ![Schema Designer post id](images/first-project/new_column_post_id.png)
 
-and then right click on the column post\_id to create the constraint through `Add foreign key constraint`:
+The foreign key constraint is created automatically. If you did not follow the naming you can add it by right clicking the column and selecting `Add Foreign Key`:
+
+![Schema Designer Add foreign key constraint](images/first-project/add_foreign_key.png)
 
 ![Schema Designer foreign key constraint](images/first-project/foreign_key.png)
 
