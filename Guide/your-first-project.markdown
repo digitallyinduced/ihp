@@ -155,21 +155,15 @@ IHP uses controllers to deal with incoming requests. We can use the built-in cod
 
 A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
-We can run the code generator like this:
+To generate the controller we can use the visual code generator:
 
-```bash
-$ new-controller posts
+![Code_Gen_1](images/first-project/code_gen_1.png)
 
-+ Web/Controller/Posts.hs
-* Web/Routes.hs
-* Web/Types.hs
-* Web/App.hs (import)
-* Web/App.hs (import)
-+ Web/View/Posts/Show.hs
-+ Web/View/Posts/New.hs
-+ Web/View/Posts/Edit.hs
-+ Web/View/Posts/Index.hs
-``` 
+![Code_Gen_2](images/first-project/code_gen_2_posts.png)
+
+Before the generator saves your code you can see a preview of your code:
+
+![Code_Gen_3](images/first-project/code_gen_3_posts.png)
 
 You can see that lot's of files have been created and updated.
 
@@ -644,7 +638,9 @@ To create the foreign key Constraint add the post\_id column as UUID:
 
 ![Schema Designer post id](images/first-project/new_column_post_id.png)
 
-and then right click on the column post\_id to create the constraint through `Add foreign key constraint`:
+The foreign key constraint is created automatically. If you did not follow the naming you can add it by right clicking the column and selecting `Add Foreign Key`:
+
+![Schema Designer Add foreign key constraint](images/first-project/add_foreign_key.png)
 
 ![Schema Designer foreign key constraint](images/first-project/foreign_key.png)
 
@@ -652,16 +648,21 @@ The `onDelete` option is set to cascade to tell our database to delete the comme
 
 ### 6.2 Loading the Schema
 
-Run `make dump_db` and press the `Push to DB`-button to save our current posts to `Application/Fixtures.sql` and to rebuild the database to add our new `comments` table.
+Press `DB to Fixtures` to save our current posts to `Application/Fixtures.sql` and press the `Push to DB`-button to rebuild the database to add our new `comments` table.
 
 
 ### 6.3 The Controller
 
-It's time to also add a new controller for our comments. For that call the controller generator like this:
+It's time to also add a new controller for our comments. We can use the visual code generator for this:
 
-```bash
-$ new-controller comments
-```
+![Code_Gen_1](images/first-project/code_gen_1.png)
+
+![Code_Gen_2](images/first-project/code_gen_2.png)
+
+Before the generator saves your code you can see a preview of your code:
+
+![Code_Gen_3](images/first-project/code_gen_3.png)
+
 
 This will generate a new working controller for us. We now need to do some adjustments to better integrate the comments into the posts.
 
