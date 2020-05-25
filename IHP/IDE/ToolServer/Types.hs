@@ -22,6 +22,7 @@ data ToolServerApplication = ToolServerApplication { devServerContext :: DevServ
 data SchemaController
     = SchemaAction
     | PushToDbAction
+    | DumpDbAction
     | ShowCodeAction
     | SaveCodeAction
     | ShowGeneratedCodeAction { tableName :: Text }
@@ -81,6 +82,14 @@ data LogsController
     | PostgresLogsAction
     deriving (Eq, Show, Data)
 
+data CodeGenController
+    = GeneratorsAction
+    | NewControllerAction
+    | NewScriptAction
+    | CreateControllerAction
+    | CreateScriptAction
+    deriving (Eq, Show, Data)
+
 
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString
@@ -89,4 +98,4 @@ data DynamicField = DynamicField
 
 instance FrameworkConfig where 
     environment = Development
-    baseUrl = "http://localhost:8001"
+    appHostname = "localhost"

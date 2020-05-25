@@ -1,2 +1,0 @@
-app <- ClassyPrelude.async (ClassyPrelude.pure ())
-app <- ClassyPrelude.async main

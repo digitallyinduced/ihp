@@ -79,7 +79,7 @@ filesToCreate applicationName =
             <> "        [ parseRoute @WelcomeController\n"
             <> "        -- Generator Marker\n"
             <> "        ]\n\n"
-            <> "instance InitControllerContext " <> applicationName <> "\n"
+            <> "instance InitControllerContext " <> applicationName <> "Application\n"
         controllerPreludeHs = 
             "module " <> applicationName <> ".Controller.Prelude\n"
             <> "( module " <> applicationName <> ".Types\n"
@@ -222,14 +222,14 @@ addImport' file = appendLineAfter file ("import" `isPrefixOf`)
 
 addMountControllerStatement' :: Text -> Text -> Maybe Text
 addMountControllerStatement' applicationName file =
-    let withMaybeMountedFrontController = appendLineAfter file ("mountFrontController" `isInfixOf`) ["        , mountFrontController @" <> applicationName <> "Application"]
+    let withMaybeMountedFrontController = appendLineAfter file ("mountFrontController" `isInfixOf`) ["        , mountFrontController " <> applicationName <> "Application"]
     in
         case withMaybeMountedFrontController of
             Just result -> Just result
             Nothing -> Just (Text.replace needle replacement file)
                 where
                     needle =  "    controllers = []"
-                    replacement = "    controllers = [\n            mountFrontController @" <> applicationName <> "Application" <> "\n        ]"
+                    replacement = "    controllers = [\n            mountFrontController " <> applicationName <> "Application" <> "\n        ]"
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =

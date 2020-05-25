@@ -3,7 +3,7 @@ let
     compiler = "ghc883";
     ihp = builtins.fetchGit {
         url = "https://github.com/digitallyinduced/haskellframework.git";
-        rev = "ff2db29833d500ae58837d9dc80c267dee5e8b55";
+        rev = "26a3ec4096bb2e9e58590bb99afbbe6421de5e66";
     };
 in
     pkgs.haskell.packages."${compiler}".callPackage ./ihp.nix { }

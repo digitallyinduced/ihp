@@ -3,7 +3,7 @@ Module: IHP.View.TimeAgo
 Description: View Helpers for dealing with Time and Dates
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.View.TimeAgo (timeAgo, dateTime) where
+module IHP.View.TimeAgo (timeAgo, dateTime, date) where
 
 import IHP.Prelude
 import Data.Time.Format.ISO8601 (iso8601Show)
@@ -53,6 +53,27 @@ timeAgo = timeElement "time-ago"
 -- <div><time class="date-time">31.08.2007, 16:47 Uhr</div>
 dateTime :: UTCTime -> Html
 dateTime = timeElement "date-time"
+
+-- | __Display date like @31.08.2007@__
+--
+-- Render's a @\<time\>@ HTML-Element for displaying the date.
+-- 
+-- Requires the javascript helpers to be available. Then the date will displayed in the current browser
+-- locale format and timezone.
+--
+-- The js helper uses `toLocaleDateString` to display the date in the browsers locale format.
+--
+-- __Example:__ Generated HTML
+--
+-- >>> <div>{date (get #createdAt project)}</div>
+-- <div><time class="date">2007-08-31T16:47+00:00</div>
+--
+-- __Example:__ HTML after javascript helpers have been applied
+--
+-- >>> <div>{date (get #createdAt project)}</div>
+-- <div><time class="date">31.08.2007</div>
+date :: UTCTime -> Html
+date = timeElement "date"
 
 timeElement :: Text -> UTCTime-> Html
 timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (iso8601Show dateTime)

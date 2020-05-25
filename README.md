@@ -15,7 +15,7 @@ git clone git@github.com:digitallyinduced/haskellframework.git IHP
 The best workflow is to use `ghci` to load your application together with the framework version in `IHP`:
 
 ```
-make ghci
+ghci
 :l Main
 ```
 
@@ -30,6 +30,31 @@ main
 ```
 
 After you have made modifications to files inside `IHP`, you need to press `CTRL + C` to stop the process running in `ghci` and then type `:r` to refresh the haskell modules. Now type `main` to start the server again.
+
+## Working on the documentation
+
+To work on the documentation locally, open a nix shell inside the framework directory:
+
+```
+cd IHP
+nix-shell NixSupport/shell.nix
+```
+
+Then switch to the `Guide` directory:
+
+```
+cd Guide
+```
+
+To rebuild the html files from the markdown files on every file change, run:
+
+```
+make watch
+```
+
+This will automatically open a browser window with the compiled html of the documentation. You can now make changes to the markdown files and they are reflected in the browser after a page refresh.
+
+When adding a new markdown page, also add it to the `Makefile`, otherwise it will not be built.
 
 ## Code Guidelines
 

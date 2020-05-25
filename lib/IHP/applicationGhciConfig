@@ -1,6 +1,8 @@
-:set -isrc
+:set -i.
 :set -iConfig
 :set -ibuild
+:set -iIHP
+:set -threaded
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
 :set -XImplicitParams

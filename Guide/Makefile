@@ -1,8 +1,30 @@
-.PHONY: watch
+.PHONY: watch all clean
 
-getting-started.html: getting-started.markdown index.html
-	mmark -i getting-started.markdown -o getting-started.html --template index.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 1-6
+HTML_FILES=
+HTML_FILES+= recipes.html
+HTML_FILES+= architecture.html
+HTML_FILES+= scripts.html
+HTML_FILES+= your-first-project.html
+HTML_FIELS+= installation.html
+HTML_FILES+= intro.html
+HTML_FILES+= database.html
+HTML_FILES+= debugging.html
+HTML_FILES+= querybuilder.html
+HTML_FILES+= view.html
+HTML_FILES+= form.html
+HTML_FILES+= hsx.html
 
-watch:
-	ls * | entr make
+all: $(HTML_FILES) bootstrap.css
 
+%.html: %.markdown layout.html
+	mmark -i $< -o $@ --template layout.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 2-6
+
+watch: all
+	open $$PWD/intro.html
+	ls *.markdown layout.html | entr make
+
+clean:
+	rm $(HTML_FILES)
+
+bootstrap.css:
+	curl https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css --output $@

@@ -41,6 +41,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src="/vendor/src-min/ace.js"></script>
     <script src="/vendor/src-min/ext-language_tools.js"></script>
     <script src="/ihp-schemadesigner.js"></script>
+    <script src="/ihp-codegen.js"></script>
 
 
     <title>IHP</title>
@@ -70,13 +71,13 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 |]  where
         app = navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
         schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isSchemaEditorController)
-        data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActivePath ShowDatabaseAction)
+        data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActiveController @DataController)
         repl = navItem "REPL" terminalIcon "#" False
-        codegen = navItem "CODEGEN" copyIcon "#" False
+        codegen = navItem "CODEGEN" copyIcon (pathTo GeneratorsAction) (isActiveController @CodeGenController)
         logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
         deploy = navItem "DEPLOY" globeIcon "#" False
-        docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/getting-started.html" False
+        docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/Guide/intro.html" False
         
         isSchemaEditorController =
                     (  isActiveController @SchemaController
@@ -111,7 +112,7 @@ tableIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://w
 terminalIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M649 983l-466 466q-10 10-23 10t-23-10l-50-50q-10-10-10-23t10-23l393-393-393-393q-10-10-10-23t10-23l50-50q10-10 23-10t23 10l466 466q10 10 10 23t-10 23zm1079 457v64q0 14-9 23t-23 9h-960q-14 0-23-9t-9-23v-64q0-14 9-23t23-9h960q14 0 23 9t9 23z" fill="#fff"/></svg>|]
 
 -- | https://github.com/encharm/Font-Awesome-SVG-PNG/blob/master/white/svg/copy.svg
-copyIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M1696 384q40 0 68 28t28 68v1216q0 40-28 68t-68 28h-960q-40 0-68-28t-28-68v-288h-544q-40 0-68-28t-28-68v-672q0-40 20-88t48-76l408-408q28-28 76-48t88-20h416q40 0 68 28t28 68v328q68-40 128-40h416zm-544 213l-299 299h299v-299zm-640-384l-299 299h299v-299zm196 647l316-316v-416h-384v416q0 40-28 68t-68 28h-416v640h512v-256q0-40 20-88t48-76zm956 804v-1152h-384v416q0 40-28 68t-68 28h-416v640h896z" fill="#fff"/></svg>|]
+copyIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M1696 384q40 0 68 28t28 68v1216q0 40-28 68t-68 28h-960q-40 0-68-28t-28-68v-288h-544q-40 0-68-28t-28-68v-672q0-40 20-88t48-76l408-408q28-28 76-48t88-20h416q40 0 68 28t28 68v328q68-40 128-40h416zm-544 213l-299 299h299v-299zm-640-384l-299 299h299v-299zm196 647l316-316v-416h-384v416q0 40-28 68t-68 28h-416v640h512v-256q0-40 20-88t48-76zm956 804v-1152h-384v416q0 40-28 68t-68 28h-416v640h896z" fill="currentColor"/></svg>|]
 
 -- | https://github.com/encharm/Font-Awesome-SVG-PNG/blob/master/white/svg/server.svg
 serverIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M128 1408h1024v-128h-1024v128zm0-512h1024v-128h-1024v128zm1568 448q0-40-28-68t-68-28-68 28-28 68 28 68 68 28 68-28 28-68zm-1568-960h1024v-128h-1024v128zm1568 448q0-40-28-68t-68-28-68 28-28 68 28 68 68 28 68-28 28-68zm0-512q0-40-28-68t-68-28-68 28-28 68 28 68 68 28 68-28 28-68zm96 832v384h-1792v-384h1792zm0-512v384h-1792v-384h1792zm0-512v384h-1792v-384h1792z" fill="#fff"/></svg>|]

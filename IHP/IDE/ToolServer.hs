@@ -30,7 +30,9 @@ import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static
 import Network.Wai.Session (withSession, Session)
+import qualified System.Directory as Directory
 
+import qualified IHP.FrameworkConfig as Config
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.SchemaDesigner.Controller.EnumValues
 import IHP.IDE.SchemaDesigner.Controller.Enums
@@ -38,10 +40,8 @@ import IHP.IDE.SchemaDesigner.Controller.Columns
 import IHP.IDE.SchemaDesigner.Controller.Schema
 import IHP.IDE.SchemaDesigner.Controller.Tables
 import IHP.IDE.Data.Controller
-
 import IHP.IDE.Logs.Controller
-
-
+import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Types
 import Control.Concurrent.Async
 import IHP.IDE.ToolServer.Routes
@@ -55,8 +55,6 @@ startToolServer = do
             |> get #toolServerPort
             |> fromIntegral
 
-
-
     thread <- async (startToolServer' port)
 
     openUrl ("http://localhost:" <> tshow port <> "/ihp/")
@@ -64,6 +62,8 @@ startToolServer = do
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
 startToolServer' port = do
+    writeIORef Config.portRef port
+
     session <- Vault.newKey
     store <- case os of
         "linux" -> mapStore_
@@ -82,7 +82,8 @@ startToolServer' port = do
             let ?requestContext = requestContext
             frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
             
-    let staticMiddleware :: Wai.Middleware = staticPolicy (addBase "IHP/IHP/static/")
+    libDirectory <- cs <$> Config.findLibDirectory
+    let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
 
     let warpSettings = Warp.defaultSettings |> Warp.setPort port
     
@@ -94,7 +95,7 @@ stopToolServer ToolServerNotStarted = pure ()
 
 openUrl :: Text -> IO ()
 openUrl url = do
-    when (os /= "linux") $ Process.callCommand (cs $ "open " <> url)
+    when (os /= "linux") do Process.callCommand (cs $ "open " <> url)
     pure ()
 
 instance FrontController ToolServerApplication where
@@ -106,6 +107,7 @@ instance FrontController ToolServerApplication where
         , parseRoute @EnumValuesController
         , parseRoute @LogsController
         , parseRoute @DataController
+        , parseRoute @CodeGenController
         , catchAll TablesAction
         ]
 

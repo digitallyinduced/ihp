@@ -25,6 +25,7 @@ instance Controller ColumnsController where
         statements <- readSchema
         let (Just table) = findTableByName tableName statements
         primaryKeyExists <- hasPrimaryKey table
+        let tableNames = nameList (getCreateTable statements)
         render NewColumnView { .. }
 
     action CreateColumnAction = do
@@ -42,6 +43,12 @@ instance Controller ColumnsController where
             setSuccessMessage ("Column Name can not be empty")
             redirectTo ShowTableAction { tableName }
         updateSchema (map (addColumnToTable tableName column))
+        when (param "isReference") do
+            let columnName = param "name"
+            let constraintName = tableName <> "_ref_" <> columnName
+            let referenceTable = param "referenceTable"
+            let onDelete = NoAction
+            updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
         redirectTo ShowTableAction { .. }
 
     action EditColumnAction { .. } = do
