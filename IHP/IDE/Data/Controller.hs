@@ -6,9 +6,12 @@ import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.ShowTableRows
 import IHP.IDE.Data.View.ShowQuery
+import IHP.IDE.Data.View.NewRow
+import IHP.IDE.Data.View.EditRow
 
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
+import qualified Database.PostgreSQL.Simple.FromRow as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified IHP.FrameworkConfig as Config
 import qualified Data.UUID as UUID
@@ -46,6 +49,56 @@ instance Controller DataController where
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
+    action NewRowAction { tableName } = do
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+
+        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
+
+        tableCols <- fetchTableCols connection tableName
+
+        PG.close connection
+        render NewRowView { .. }
+
+    action CreateRowAction = do
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+        let tableName = param "tableName"
+        tableCols <- fetchTableCols connection tableName
+        let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
+        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
+        putStrLn (query)
+        putStrLn (query)
+        PG.execute_ connection (PG.Query . cs $! query)
+        PG.close connection
+        redirectTo ShowTableRowsAction { .. }
+
+    action EditRowAction { tableName, id } = do
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+
+        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
+
+        tableCols <- fetchTableCols connection tableName
+        values <- fetchRowValues connection (cs tableName) (cs id)
+        let (Just rowValues) = head values
+        PG.close connection
+        render EditRowView { .. }
+        
+    action UpdateRowAction = do
+        let id :: String = cs (param @Text "id")
+        let tableName = param "tableName"
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+        tableCols <- fetchTableCols connection tableName
+        let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
+        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
+        putStrLn (query)
+        putStrLn (query)
+        PG.execute_ connection (PG.Query . cs $! query)
+        PG.close connection
+        redirectTo ShowTableRowsAction { .. }
+
 connectToAppDb = do
     databaseUrl <- Config.appDatabaseUrl
     PG.connectPostgreSQL databaseUrl
@@ -55,7 +108,20 @@ fetchTableNames connection = do
     values :: [[Text]] <- PG.query_ connection "SELECT tablename FROM pg_catalog.pg_tables where schemaname = 'public'"
     pure (join values)
 
+fetchTableCols :: PG.Connection -> Text -> IO [ColumnDefinition]
+fetchTableCols connection tableName = do
+    values :: [ColumnDefinition] <- PG.query connection "SELECT column_name,data_type,column_default FROM information_schema.columns where table_name = ?" (PG.Only tableName)
+    pure (values)
+
+fetchRowValues :: PG.Connection -> String -> String -> IO [[DynamicField]]
+fetchRowValues connection tableName rowId = do
+    values :: [[DynamicField]] <- PG.query_ connection (fromString ("SELECT * FROM " <> tableName <> " where id = '" <> rowId <> "'"))
+    pure (values)
+
 instance PG.FromField DynamicField where
     fromField field fieldValue = pure DynamicField { .. }
         where
             fieldName = fromMaybe "" (PG.name field)
+
+instance PG.FromRow ColumnDefinition where
+    fromRow = ColumnDefinition <$> PG.field <*> PG.field <*> PG.field

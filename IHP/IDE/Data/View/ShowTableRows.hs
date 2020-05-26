@@ -37,18 +37,23 @@ instance View ShowTableRowsView ViewContext where
                 </table>
             |]
 
-            tableHead = [hsx|<thead><tr>{forEach columnNames renderColumnHead}</tr></thead>|]
+            tableHead = [hsx|<thead><tr>{forEach columnNames renderColumnHead}
+                <td><a href={NewRowAction tableName} class="btn btn-primary btn-sm">Add</a></td>
+            </tr></thead>|]
             renderColumnHead name = [hsx|<th>{name}</th>|]
 
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
-            renderRow fields = [hsx|<tr>{forEach fields renderField}
-                <td>
-                    <form method="POST" action={DeleteEntryAction (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields))))) tableName}>
-                        <button type="submit">Delete</button>
-                        <input type="hidden" name="_method" value="DELETE"/>
-                    </form>
-                </td>
-            </tr>|]
+            renderRow fields = [hsx|<tr oncontextmenu={"showContextMenu('" <> contextMenuId <> "');"}>{forEach fields renderField}
+            </tr>
+            <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
+                <a href={EditRowAction tableName id}>Edit Row</a>
+                <a href={DeleteEntryAction id tableName} class="js-delete">Delete Row</a>
+                <div></div>
+                <a href={NewRowAction tableName}>Add Row</a>
+            </div>|]
+                where
+                    contextMenuId = "context-menu-column-" <> tshow id
+                    id = (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields)))))
             renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{fieldValue}</span></td>|]
 
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))
