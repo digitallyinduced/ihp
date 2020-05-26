@@ -58,18 +58,18 @@ nix-env -i direnv
 
 ##### Bash
 
-If you use bash, add the following line at the end of the `~/.bashrc` file:
+If you use bash, run this command to install direnv to bash:
 
 ```bash
-eval "$(direnv hook bash)"
+echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
 ```
 
 ##### ZSH
 
-If you use zsh, add the following line at the end of the `~/.zshrc` file:
+If you use zsh, run this command to install direnv to zsh:
 
 ```bash
-eval "$(direnv hook zsh)"
+echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
 ```
 
 ##### Other shell
