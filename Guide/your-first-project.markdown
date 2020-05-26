@@ -78,7 +78,7 @@ To work with posts in our application, we now have to define this data schema.
 
 Open the [IHP Schema Designer](http://localhost:8001/ihp/Tables) and add a new table with `title` and `body` as text column. To do this click on the `New` button in the table view.
 
-TODO: Screenshot vom New Table view
+![Schema Designer New Table](images/first-project/new_table_view.png)
 
 Enter the table name `posts` and click on `Create Table`.
 
@@ -86,7 +86,7 @@ In the right pane, you can see the columns of the newly created table. The id co
 
 Right click into the Columns pane and select `Add Column`:
 
-TODO: Screenshot Context Menu mit aktiven Add Column
+![Schema Designer Add Column menu](images/first-project/add_column_menu.png)
 
 Use this dialog to create the title and body columns.
 
@@ -443,7 +443,7 @@ buildPost post = post
 
 Now open [http://localhost:8000/Posts/new](http://localhost:8000/Posts/new) and click "Save Post" without filling the text fields. You will get a "This field cannot be empty".
 
-TODO: add screenshot with the above validation error
+![Schema Designer Title non empty](images/first-project/title_non_empty.png)
 
 That's how easy it is, to validate your models with IHP.
 
@@ -469,7 +469,7 @@ Let's add a new `created_at` column. Open [http://localhost:8001/ihp/Tables](htt
 
 Now open the `/Posts` again inside your browser. You will see an error `Database looks outdated. The database result does not match the expected type`.
 
-TODO: Screenshot mit der Fehlermeldung "Database looks outdated. The database result does not match the expected type"
+![Schema Designer database error](images/first-project/database_error.png)
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
@@ -505,7 +505,7 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
 
 Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of javascript to automatically displays the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58 Uhr`), just use `dateTime` instead of `timeAgo`.
 
-TODO: Add screenshot of the changed view in the browser :)
+![Schema Designer created at view](images/first-project/created_at_view.png)
 
 ### Markdown
 
