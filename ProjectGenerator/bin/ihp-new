@@ -3,7 +3,7 @@ echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
 
-BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/haskellframework-boilerplate.git"
+BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/ihp-boilerplate.git"
 
 if [ "$#" -ne "1" ]; then
 	echo "Usage: ihp-new PROJECT_NAME"
