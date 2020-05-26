@@ -189,6 +189,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             <div></div>
             <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
             <a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>
+            <a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>
             <div></div>
             <a href={NewColumnAction name}>Add Column to Table</a>
             <div></div>

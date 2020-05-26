@@ -13,6 +13,7 @@ import qualified System.Process as Process
 import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import qualified Text.Inflections as Inflector
 
 instance Controller CodeGenController where
     action GeneratorsAction = do
@@ -41,6 +42,12 @@ instance Controller CodeGenController where
         executePlan plan
         setSuccessMessage "Script generated"
         redirectTo GeneratorsAction
+
+    action OpenControllerAction = do
+        let name = param "name"
+        case name |> Inflector.toCamelCased True of
+            Left error -> renderPlain "Failed to transform name to camel case"
+            Right indexActionName-> redirectToUrl ("http://localhost:8000/" <> indexActionName)
 
 
 executePlan :: [GeneratorAction] -> IO ()

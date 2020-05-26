@@ -87,6 +87,7 @@ data CodeGenController
     | NewScriptAction
     | CreateControllerAction
     | CreateScriptAction
+    | OpenControllerAction
     deriving (Eq, Show, Data)
 
 
