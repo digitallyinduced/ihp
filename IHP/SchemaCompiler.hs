@@ -287,7 +287,7 @@ compileCreate table@(CreateTable { name, columns }) =
         columnNames = commaSep (map (get #name) columns)
         values = commaSep (map toValue columns)
 
-        toValue Column { defaultValue = Just theDefaultValue } = theDefaultValue
+        toValue Column { defaultValue = Just theDefaultValue } = "DEFAULT"
         toValue _ = "?"
 
         toBinding Column { defaultValue = Just theDefaultValue } = Nothing
