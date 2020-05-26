@@ -79,9 +79,9 @@ runAction controller = do
     let (RequestContext _ respond _ _ _) = ?requestContext
     
     let doRunAction = do
-        beforeAction
-        (action controller)
-        ErrorController.handleNoResponseReturned controller
+            beforeAction
+            (action controller)
+            ErrorController.handleNoResponseReturned controller
 
     let handleResponseException  (ResponseException response) = respond response
         

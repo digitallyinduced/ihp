@@ -95,7 +95,7 @@ After that, your schema should look like this:
 ![Schema Designer First Table](images/first-project/first_table.png)
 
         
-#### Loading the Schema
+### Loading the Schema
 
 Next we need to make sure that our database schema with our `posts` table is imported into the local postgresql database. Don't worry, the local development postgresql server is already running. The dev server has conveniently already started it.
 
@@ -140,7 +140,7 @@ app=# \q
 
 Now our database is ready to be consumed by our app.
 
-#### Record Types
+### Record Types
 
 By specificing the above schema, the framework automatically provides several types for us. Here is a short overview:
 
@@ -158,31 +158,33 @@ By specificing the above schema, the framework automatically provides several ty
 | Example     | `"5a8d1be2-33e3-4d3f-9812-b16576fe6a38" :: Id Post` |
 
 
-To dig deeper into the generated code, open the Schema Designer, right-click a table and click "Show Haskell Code".
+**For the curious:** To dig deeper into the generated code, open the Schema Designer, right-click a table and click "Show Haskell Code".
 
 ## 4. Apps, Controllers, Views
 
-IHP uses controllers to deal with incoming requests. We can use the built-in code generators to generate an empty controller for our posts.
+IHP follows the well-known MVC structure. Controllers and actions are used to deal with incoming requests.
 
-A controller belongs to an application. Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
+A controller belongs to an application. The default application is called `Web` (that's why all controller and views are located there). Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
-To generate the controller we can use the visual code generator:
+We can use the built-in code generators to generate an controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/ihp/Generators). There you can see everything that can be generated. Click on Controller:
 
 ![](images/first-project/code_gen_1.png)
 
+You need to enter the controller name. Enter `Posts` and click preview:
+
 ![](images/first-project/code_gen_2_posts.png)
 
-Before the generator saves your code you can see a preview of your code:
+The preview will show you all the files which are going to be created or modified. Take a look and when you are ready, click on `Generate`.
 
 ![](images/first-project/code_gen_3_posts.png)
 
-You can see that lot's of files have been created and updated.
+After the files have been created as in the preview, your controller is already ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.
 
-Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.
-
-Here's how the new controller looks like:
+Here's how the new `/Posts` page looks like:
 
 ![Screenshot of the /Posts view](images/Posts.png)
+
+Next we're going to dig a bit deeper into all the changes made by the controller generator.
 
 ### New Types
 
@@ -214,9 +216,7 @@ We have one constructor for each possible action. Here you can see a short descr
 | `DeletePostAction { postId = someId }` | `DELETE /DeletePost?postId={someId}`   | Deletes the post                   |
 
 
-A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`" can be represented like `ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }`.
-
-The type `Id Post` is just a UUID, but wrapped within a newtype (`newtype Id model = Id UUID`).
+A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`" can be represented like `ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }`. Basically, the IHP router always maps a HTTP request to such an action data type. (By the way: The type `Id Post` is just a UUID, but wrapped within a newtype, `newtype Id model = Id UUID`).
 
 
 ### Controller Implementation: `Web/Controller/Posts.hs`
@@ -312,6 +312,7 @@ In the error case (`Left post ->`) we just re-render the `EditView`. The `EditVi
 
 In the success case (`Right post ->`) we save the updated post to the database (with `updateRecord`). Then we set a success message and redirect the user back to the edit view.
 
+##### Create Action
 
 ```haskell
     action CreatePostAction = do
@@ -329,6 +330,8 @@ In the success case (`Right post ->`) we save the updated post to the database (
 Our create action, dealing with `POST /CreatePost` requests.
 
 It's pretty much like the update action. When the validation succeeded, it saves the record to the database using `createRecord`.
+
+##### Delete Action
 
 ```haskell
     action DeletePostAction { postId } = do
@@ -362,8 +365,7 @@ import Web.View.Prelude
 
 data ShowView = ShowView { post :: Post }
 
-instance View ShowView where
-    type ViewContextForView ShowView = ViewContext
+instance View ShowView ViewContext where
     html ShowView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">
@@ -375,7 +377,7 @@ instance View ShowView where
     |]
 ```
 
-We can see that the `ShowView` is just a data definition. There is also an `View ShowView` instance. The html-like syntax inside the `html` function is, what we call it, `hsx` code. It's just like react's jsx. You can write html code as usual there. Everything inside the `[hsx|my html|]` block is also type-checked and converted to haskell code at compile-time.
+We can see that the `ShowView` is just a data definition. There is also an `View ShowView` instance. The html-like syntax inside the `html` function is `hsx` code. It's just like react's jsx. You can write html code as usual there. Everything inside the `[hsx|my html|]` block is also type-checked and converted to haskell code at compile-time.
 
 Now that we have a rough overview of all the parts belonging to our `Post`, it's time to do some coding ourselves.
 
@@ -441,19 +443,15 @@ buildPost post = post
 
 Now open [http://localhost:8000/Posts/new](http://localhost:8000/Posts/new) and click "Save Post" without filling the text fields. You will get a "This field cannot be empty".
 
+TODO: add screenshot with the above validation error
+
 That's how easy it is, to validate your models with IHP.
 
 ### Timestamps
 
 It would be nice to always show the latest post on the index view. Let's add a timestamp to do exactly that.
 
-Before we change our database schema, it's time to quickly save our current database state. For that you can just run `make dumpdb`:
-
-```bash
-$ make dumpdb
-```
-
-Take a look at `Application/Fixtures.sql`, the file should look like this now:
+Before we change our database schema, it's time to quickly save our current database state. [Open the schema designer](http://localhost:8001/ihp/Tables) and click the `DB to Fixtures` button (from the terminal: `make dumpdb`). After that, take a look at `Application/Fixtures.sql`. The file should look like this:
 
 ```sql
 -- .......
@@ -463,18 +461,21 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 ```
 
-All our existing posts are saved here. You can also commit this file to git to share your fixtures with your team mates. We will need the saved fixtures in a moment.
+All our existing posts are saved here. You should also commit this file to git to share your fixtures with your team mates. We will need these saved fixtures in a moment, when we want to update the database schema.
 
-Let's add our timestamp column. Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables) and add a new Timestamp
-column
+Let's add a new `created_at` column. Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables), enter `created_at` and select Timestamp for the type. Also set the default value to `NOW()`.
 
 ![Schema Designer Timestamp column](images/first-project/timestamp_column.png)
 
-Now open the browser again. You will see `Something went wrong`. In the dev server console you will see something along `mismatch between number of columns to convert and number in target type`.
+Now open the `/Posts` again inside your browser. You will see an error `Database looks outdated. The database result does not match the expected type`.
 
-You need to press `Push to DB` to update the database.
+TODO: Screenshot mit der Fehlermeldung "Database looks outdated. The database result does not match the expected type"
 
-This button will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
+This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
+
+To update the local postgres server, open the Schema Designer and click the `Push to DB` button. This button will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
+
+In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql`, Save database state with `DB to Fixtures`, Update Database with `Push to DB`.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
@@ -503,6 +504,8 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
 ```
 
 Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of javascript to automatically displays the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58 Uhr`), just use `dateTime` instead of `timeAgo`.
+
+TODO: Add screenshot of the changed view in the browser :)
 
 ### Markdown
 
@@ -553,7 +556,7 @@ in
     haskellEnv
 ```
 
-Now restart the development server by pressing CTRL+C and then typing `make` again. We will see that mmark is going to be installed.
+Now restart the development server by pressing CTRL+C and then typing `./start` again. We will see that mmark is going to be installed.
 
 #### Markdown Rendering
 

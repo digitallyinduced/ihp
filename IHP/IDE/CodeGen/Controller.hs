@@ -44,7 +44,7 @@ instance Controller CodeGenController where
 
 
 executePlan :: [GeneratorAction] -> IO ()
-executePlan actions = forM_ actions evalAction
+executePlan actions = forEach actions evalAction
     where
         evalAction CreateFile { filePath, fileContent } = do
             Text.writeFile (cs filePath) (cs fileContent)
