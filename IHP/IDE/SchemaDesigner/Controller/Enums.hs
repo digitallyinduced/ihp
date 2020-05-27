@@ -45,9 +45,16 @@ instance Controller EnumsController where
         updateSchema (updateEnum enumId enumName)
         redirectTo ShowEnumAction { .. }
 
+    action DeleteEnumAction { .. } = do
+        let tableId = param "tableId"
+        updateSchema (deleteEnum tableId)
+        redirectTo TablesAction
 
 updateEnum :: Int -> Text -> [Statement] -> [Statement]
 updateEnum enumId enumName list = replace enumId CreateEnumType { name = enumName, values = (get #values (list !! enumId))} list
 
 addEnum :: Text -> [Statement] -> [Statement]
 addEnum enumName list = list <> [CreateEnumType { name = enumName, values = []}]
+
+deleteEnum :: Int -> [Statement] -> [Statement]
+deleteEnum tableId list = delete (list !! tableId) list
