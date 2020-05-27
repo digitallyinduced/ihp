@@ -10,13 +10,11 @@ import IHP.IDE.SchemaDesigner.View.Layout
 data NewEnumView = NewEnumView { statements :: [Statement] }
 
 instance View NewEnumView ViewContext where
+    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+
     html NewEnumView { .. } = [hsx|
-        {visualNav}
-        <div class="container">
-            {databaseControls}
-            <div class="row no-gutters bg-white">
-                {renderObjectSelector (zip [0..] statements) Nothing}
-            </div>
+        <div class="row no-gutters bg-white">
+            {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
         {Just modal}
     |]

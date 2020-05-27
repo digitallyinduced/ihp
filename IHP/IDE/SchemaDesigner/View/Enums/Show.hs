@@ -12,15 +12,14 @@ data ShowEnumView = ShowEnumView
     , name :: Text
     }
 
+
 instance View ShowEnumView ViewContext where
+    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+
     html ShowEnumView { .. } = [hsx|
-        {visualNav}
-        <div class="container">
-            {databaseControls}
-            <div class="row no-gutters bg-white">
-                {renderObjectSelector (zip [0..] statements) (Just name)}
-                {renderEnumSelector name (zip [0..] values)}
-            </div>
+        <div class="row no-gutters bg-white">
+            {renderObjectSelector (zip [0..] statements) (Just name)}
+            {renderEnumSelector name (zip [0..] values)}
         </div>
     |]
         where
