@@ -68,6 +68,7 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
+        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
@@ -79,7 +80,7 @@ instance Controller DataController where
         rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
 
         tableCols <- fetchTableCols connection tableName
-        values <- fetchRowValues connection (cs tableName) ("'" <> cs id <> "'")
+        values <- fetchTable connection (cs tableName) ("'" <> cs id <> "'")
         let (Just rowValues) = head values
         PG.close connection
         render EditRowView { .. }
@@ -90,13 +91,9 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         tableCols <- fetchTableCols connection tableName
-        putStrLn ("test")
         let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
-        putStrLn ("test")
         let columns :: [Text] = map (\col -> cs (get #columnName col)) tableCols
-        putStrLn ("test")
         let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns values)) <> " WHERE id = " <> cs id
-        putStrLn ("\n\nSQL QUERY: " <> query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
@@ -123,13 +120,11 @@ fetchTableNames connection = do
 
 fetchTableCols :: PG.Connection -> Text -> IO [ColumnDefinition]
 fetchTableCols connection tableName = do
-    values :: [ColumnDefinition] <- PG.query connection "SELECT column_name,data_type,column_default FROM information_schema.columns where table_name = ?" (PG.Only tableName)
-    pure (values)
+    PG.query connection "SELECT column_name,data_type,column_default FROM information_schema.columns where table_name = ?" (PG.Only tableName)
 
-fetchRowValues :: PG.Connection -> String -> String -> IO [[DynamicField]]
-fetchRowValues connection tableName rowId = do
-    values :: [[DynamicField]] <- PG.query_ connection (fromString ("SELECT * FROM " <> tableName <> " where id = " <> rowId))
-    pure (values)
+fetchTable :: PG.Connection -> String -> String -> IO [[DynamicField]]
+fetchTable connection tableName rowId = do
+    PG.query_ connection (fromString ("SELECT * FROM " <> tableName <> " where id = " <> rowId))
 
 updateValues list = map (\elem -> fst elem <> " = " <> snd elem) list
 

@@ -24,7 +24,7 @@ instance View NewRowView ViewContext where
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
                 <div class="col">
-                    {renderRows}
+                    {renderRows rows tableBody tableName}
                 </div>
             </div>
             {customQuery}
@@ -32,28 +32,9 @@ instance View NewRowView ViewContext where
         {Just modal}
     |]
         where
-            renderRows = [hsx|
-                <table class="table table-sm table-hover table-striped data-rows-table">
-                    {tableHead}
-                    {tableBody}
-                </table>
-            |]
-
-            tableHead = [hsx|<thead><tr>{forEach columnNames renderColumnHead}</tr></thead>|]
-            renderColumnHead name = [hsx|<th>{name}</th>|]
-
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
-            renderRow fields = [hsx|<tr>{forEach fields renderField}
-                <td>
-                    <form method="POST" action={DeleteEntryAction (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields))))) tableName}>
-                        <button type="submit">Delete</button>
-                        <input type="hidden" name="_method" value="DELETE"/>
-                    </form>
-                </td>
-            </tr>|]
+            renderRow fields = [hsx|<tr>{forEach fields renderField}</tr>|]
             renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{fieldValue}</span></td>|]
-
-            columnNames = map (get #fieldName) (fromMaybe [] (head rows))
 
             modalContent = [hsx|
                 <form method="POST" action={CreateRowAction}>
