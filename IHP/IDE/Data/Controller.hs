@@ -36,6 +36,8 @@ instance Controller DataController where
     action ShowQueryAction = do
         connection <- connectToAppDb
         let query = (param @Text "query")
+        when (query == "") do
+            redirectTo ShowDatabaseAction
         rows :: [[DynamicField]] <- PG.query_ connection (fromString (cs query))
 
         PG.close connection
