@@ -35,7 +35,7 @@ data TablesController
     | CreateTableAction
     | EditTableAction { tableName :: Text, tableId :: Int }
     | UpdateTableAction
-    | DeleteTableAction { tableId :: Int }
+    | DeleteTableAction { tableId :: Int, tableName :: Text }
     deriving (Eq, Show, Data)
 
 data ColumnsController
@@ -50,6 +50,7 @@ data ColumnsController
     | CreateForeignKeyAction
     | EditForeignKeyAction { tableName :: Text, columnName :: Text, constraintName :: Text, referenceTable :: Text }
     | UpdateForeignKeyAction
+    | DeleteForeignKeyAction { constraintName :: Text, tableName :: Text }
     deriving (Eq, Show, Data)
 
 data EnumsController
@@ -59,6 +60,7 @@ data EnumsController
     | CreateEnumAction
     | EditEnumAction { enumName :: Text, enumId :: Int }
     | UpdateEnumAction
+    | DeleteEnumAction { tableId :: Int }
     deriving (Eq, Show, Data)
 
 data EnumValuesController

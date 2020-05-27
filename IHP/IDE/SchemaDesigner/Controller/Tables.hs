@@ -54,7 +54,9 @@ instance Controller TablesController where
 
     action DeleteTableAction { .. } = do
         let tableId = param "tableId"
+        let tableName = param "tableName"
         updateSchema (deleteTable tableId)
+        updateSchema (deleteForeignKeyConstraints tableName)
         redirectTo TablesAction
 
 
@@ -73,3 +75,6 @@ updateTable tableId tableName list = replace tableId CreateTable { name = tableN
 
 deleteTable :: Int -> [Statement] -> [Statement]
 deleteTable tableId list = delete (list !! tableId) list
+
+deleteForeignKeyConstraints :: Text -> [Statement] -> [Statement]
+deleteForeignKeyConstraints tableName list = filter (\con -> not (con == AddConstraint { tableName = tableName, constraintName = get #constraintName con, constraint = get #constraint con })) list

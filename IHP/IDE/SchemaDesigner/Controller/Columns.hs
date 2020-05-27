@@ -149,6 +149,11 @@ instance Controller ColumnsController where
             Nothing -> putStrLn ("Error")
         redirectTo ShowTableAction { .. }
 
+    action DeleteForeignKeyAction { constraintName, tableName } = do
+        statements <- readSchema
+        updateSchema (deleteForeignKeyConstraint constraintName)
+        redirectTo ShowTableAction { .. }
+
 addColumnToTable :: Text -> Column -> Statement -> Statement
 addColumnToTable tableName column (table@CreateTable { name, columns }) | name == tableName =
     table { columns = columns <> [column] }
@@ -174,6 +179,9 @@ addForeignKeyConstraint tableName columnName constraintName referenceTable onDel
 
 updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> Int -> [Statement] -> [Statement]
 updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
+
+deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
+deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
 getCreateTable statements = filter (\statement -> statement == CreateTable { name = (get #name statement), columns = (get #columns statement) }) statements
 
