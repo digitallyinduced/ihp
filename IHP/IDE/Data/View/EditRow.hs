@@ -58,9 +58,8 @@ instance View EditRowView ViewContext where
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))
 
             modalContent = [hsx|
-                <form method="POST" action={CreateRowAction}>
+                <form method="POST" action={UpdateRowAction}>
                     <input type="hidden" name="tableName" value={tableName}/>
-                    <input type="hidden" name="id" value={id}/>
                     {forEach (zip tableCols rowValues) renderFormField}
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Edit Row</button>

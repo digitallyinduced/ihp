@@ -8,6 +8,7 @@ import IHP.IDE.Data.View.ShowTableRows
 import IHP.IDE.Data.View.ShowQuery
 import IHP.IDE.Data.View.NewRow
 import IHP.IDE.Data.View.EditRow
+import IHP.IDE.Data.View.EditValue
 
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
@@ -67,8 +68,6 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
-        putStrLn (query)
-        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
@@ -80,7 +79,7 @@ instance Controller DataController where
         rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
 
         tableCols <- fetchTableCols connection tableName
-        values <- fetchRowValues connection (cs tableName) (cs id)
+        values <- fetchRowValues connection (cs tableName) ("'" <> cs id <> "'")
         let (Just rowValues) = head values
         PG.close connection
         render EditRowView { .. }
@@ -91,13 +90,27 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         tableCols <- fetchTableCols connection tableName
+        putStrLn ("test")
         let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
-        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
-        putStrLn (query)
-        putStrLn (query)
+        putStrLn ("test")
+        let columns :: [Text] = map (\col -> cs (get #columnName col)) tableCols
+        putStrLn ("test")
+        let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns values)) <> " WHERE id = " <> cs id
+        putStrLn ("\n\nSQL QUERY: " <> query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
+
+    action EditRowValueAction { tableName, targetName, id } = do
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+        
+        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
+
+        let targetId = cs id
+        PG.close connection
+        render EditValueView { .. }
+        
 
 connectToAppDb = do
     databaseUrl <- Config.appDatabaseUrl
@@ -115,8 +128,10 @@ fetchTableCols connection tableName = do
 
 fetchRowValues :: PG.Connection -> String -> String -> IO [[DynamicField]]
 fetchRowValues connection tableName rowId = do
-    values :: [[DynamicField]] <- PG.query_ connection (fromString ("SELECT * FROM " <> tableName <> " where id = '" <> rowId <> "'"))
+    values :: [[DynamicField]] <- PG.query_ connection (fromString ("SELECT * FROM " <> tableName <> " where id = " <> rowId))
     pure (values)
+
+updateValues list = map (\elem -> fst elem <> " = " <> snd elem) list
 
 instance PG.FromField DynamicField where
     fromField field fieldValue = pure DynamicField { .. }

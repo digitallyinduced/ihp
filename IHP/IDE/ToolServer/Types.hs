@@ -80,6 +80,7 @@ data DataController
     | NewRowAction { tableName :: Text }
     | EditRowAction { tableName :: Text, id :: Text }
     | UpdateRowAction
+    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController

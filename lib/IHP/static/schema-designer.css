@@ -118,3 +118,8 @@
 .row-form {
     font-size: 14px;
 }
+
+.no-link {
+    color: #000;
+    text-decoration: none !important;
+}
