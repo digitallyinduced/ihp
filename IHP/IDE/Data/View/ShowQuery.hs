@@ -11,17 +11,19 @@ import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 
 data ShowQueryView = ShowQueryView
-    { rows :: [[DynamicField]] }
+    { rows :: [[DynamicField]]
+    , query :: Text
+    }
 
 instance View ShowQueryView ViewContext where
     html ShowQueryView { .. } = [hsx|
         <div class="container pt-5">
+            {customQuery query}
             <div class="row no-gutters bg-white">
-                <div class="col">
+                <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows}
                 </div>
             </div>
-            {customQuery}
         </div>
     |]
         where
