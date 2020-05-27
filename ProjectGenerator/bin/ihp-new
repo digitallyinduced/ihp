@@ -23,7 +23,7 @@ if ! [ -x "$(command -v direnv)" ]; then
 	echo ""
 	echo ""
 	echo -e "\e[1mWe will install direnv for you now. Continue? (Type y to proceed) \e[0m"
-	read -n1 choice_direnv
+	read -n1 choice
 	echo ""
 	case "$choice" in
 	  y|Y ) nix-env -i direnv;;
