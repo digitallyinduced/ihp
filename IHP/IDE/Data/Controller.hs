@@ -28,7 +28,7 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
 
-        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
+        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ? ORDER BY id" (PG.Only (PG.Identifier tableName))
 
         PG.close connection
         render ShowTableRowsView { .. }
@@ -54,7 +54,7 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
 
-        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
+        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ? ORDER BY id" (PG.Only (PG.Identifier tableName))
 
         tableCols <- fetchTableCols connection tableName
 
@@ -77,7 +77,7 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
 
-        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
+        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ? ORDER BY id" (PG.Only (PG.Identifier tableName))
 
         tableCols <- fetchTableCols connection tableName
         values <- fetchTable connection (cs tableName) ("'" <> cs id <> "'")
@@ -102,7 +102,7 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         
-        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ?" (PG.Only (PG.Identifier tableName))
+        rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ? ORDER BY id" (PG.Only (PG.Identifier tableName))
 
         let targetId = cs id
         PG.close connection

@@ -22,7 +22,7 @@ instance View ShowTableRowsView ViewContext where
         <div class="container pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
-                <div class="col">
+                <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>

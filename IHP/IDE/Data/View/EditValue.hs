@@ -24,12 +24,13 @@ instance View EditValueView ViewContext where
         <div class="container pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
-                <div class="col">
+                <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>
             {customQuery}
         </div>
+        {script}
     |]
         where
 
@@ -49,10 +50,20 @@ instance View EditValueView ViewContext where
             renderField id fields DynamicField { .. } = if (tshow targetName) == (tshow fieldName) && targetId == id
                 then [hsx|<td>
                 <form method="POST" action={UpdateRowAction}>
-                    <input type="text" name={fieldName} value={"'" <> fromMaybe "" fieldValue <> "'"}/>
+                    <input id="editField" autofocus="autofocus" type="text" name={fieldName} value={"'" <> fromMaybe "" fieldValue <> "'"}/>
                     {forEach fields renderValue}
                     <input type="hidden" name="tableName" value={tableName}/>
                     <button type="submit" class="d-none">Edit</button>
                 </form></td>|]
                 else [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{fieldValue}</a></span></td>|]
             renderValue DynamicField { .. } = [hsx|<input type="hidden" name={fieldName} value={"'" <> fromMaybe "" fieldValue <> "'"}/>|]
+            script = preEscapedToHtml [plain|
+                <script>
+                    onClickHandler = () => {
+                        window.location = "#{pathTo (ShowTableRowsAction tableName)}";
+                    }
+                    document.addEventListener('click', onClickHandler);
+                    var editField = document.getElementById("editField");
+                    editField.addEventListener('click', function (event) {event.stopPropagation();});
+                </script>
+            |]
