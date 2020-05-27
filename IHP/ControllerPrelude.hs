@@ -22,12 +22,12 @@ import IHP.Controller.FileUpload
 import IHP.Controller.Render
 import IHP.Controller.Session
 import IHP.ControllerSupport
-import IHP.ValidationSupport hiding (Success)
+import IHP.ValidationSupport
 import IHP.HaskellSupport
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.FetchRelated
-import Data.Aeson
+import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo, fileContent)
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
