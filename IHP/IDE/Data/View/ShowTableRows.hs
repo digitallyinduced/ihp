@@ -20,13 +20,13 @@ data ShowTableRowsView = ShowTableRowsView
 instance View ShowTableRowsView ViewContext where
     html ShowTableRowsView { .. } = [hsx|
         <div class="container pt-5">
+            {customQuery ""}
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>
-            {customQuery}
         </div>
     |]
         where

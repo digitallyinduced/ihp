@@ -5,12 +5,8 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 
-customQuery :: Html
-customQuery = [hsx|
-<form method="POST" action={pathTo ShowQueryAction}>
-    <input class="form-control" type="text" name="query" placeholder="SELECT * FROM table"/>
-    <button class="d-none" type="submit">Query</button>
-</form>|]
+customQuery :: Text -> Html
+customQuery input = [hsx|<div class="p-2 rounded mb-2" style="background-color: #002B36;"><div id="queryInput">{input}</div></div>|]
 
 tableHead :: [[DynamicField]] -> Text -> Html
 tableHead rows tableName = [hsx|<thead><tr>{forEach (columnNames rows) renderColumnHead}
