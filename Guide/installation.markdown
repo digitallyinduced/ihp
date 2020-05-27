@@ -22,7 +22,7 @@ sudo diskutil enableOwnership /nix
 sudo chflags hidden /nix  # Don't show the Nix volume on the desktop
 echo "LABEL=Nix /nix apfs rw" | sudo tee -a /etc/fstab
 
-sh <(curl https://nixos.org/nix/install) --daemon
+sh <(curl https://nixos.org/nix/install)
 ```
 After this restart your terminal.
 This will create an extra volume which is then mounted on `/nix`.
