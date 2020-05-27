@@ -14,13 +14,11 @@ data EditEnumView = EditEnumView
     }
 
 instance View EditEnumView ViewContext where
+    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+
     html EditEnumView { .. } = [hsx|
-        {visualNav}
-        <div class="container">
-            {databaseControls}
-            <div class="row no-gutters bg-white">
-                {renderObjectSelector (zip [0..] statements) Nothing}
-            </div>
+        <div class="row no-gutters bg-white">
+            {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
         {Just modal}
     |]
