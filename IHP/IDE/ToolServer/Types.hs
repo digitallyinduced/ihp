@@ -74,6 +74,13 @@ data EnumValuesController
 data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
+    | ShowQueryAction
+    | DeleteEntryAction { fieldValue :: Text, tableName :: Text }
+    | CreateRowAction
+    | NewRowAction { tableName :: Text }
+    | EditRowAction { tableName :: Text, id :: Text }
+    | UpdateRowAction
+    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController
@@ -94,6 +101,12 @@ data CodeGenController
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString
     , fieldName :: ByteString
+    } deriving (Show)
+
+data ColumnDefinition = ColumnDefinition
+    { columnName :: Text
+    , columnType :: Text
+    , columnDefault :: Maybe Text
     } deriving (Show)
 
 instance FrameworkConfig where 
