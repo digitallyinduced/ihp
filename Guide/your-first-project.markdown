@@ -420,7 +420,7 @@ instance View ShowView ViewContext where
 
 ```
 
-After you saved the changes, you should see that the changes have been reflected in the browser already. In the background the page has been refreshed automatically (technically the page has been patched using a vdom library).
+After you saved the changes, you should see that the changes have been reflected in the browser already. In the background the page has been refreshed automatically. This refresh is using a diff based approach by using [morphdom](https://github.com/patrick-steele-idem/morphdom).
 
 ### Display all posts
 
