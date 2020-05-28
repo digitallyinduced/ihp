@@ -53,6 +53,7 @@ instance View NewColumnView ViewContext where
                             <option value="TIMESTAMP WITH TIME ZONE">Timestamp</option>
                             <option value="REAL">Float</option>
                             <option value="DOUBLE PRECISION">Double</option>
+                            <option value="DATE">Date</option>
                         </select>
 
                         <div class="mt-1 text-muted">
