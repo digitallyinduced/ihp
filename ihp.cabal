@@ -172,6 +172,10 @@ executable new-controller
     import: shared-properties
     main-is: IHP/CLI/NewController.hs
 
+executable delete-controller
+    import: shared-properties
+    main-is: IHP/CLI/DeleteController.hs
+
 executable new-script
     import: shared-properties
     main-is: IHP/CLI/NewScript.hs

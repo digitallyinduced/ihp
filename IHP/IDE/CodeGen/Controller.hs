@@ -15,6 +15,7 @@ import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
+import Control.Exception
 
 instance Controller CodeGenController where
     action GeneratorsAction = do
@@ -70,3 +71,27 @@ executePlan actions = forEach actions evalAction
         evalAction RunShellCommand { shellCommand } = do
             _ <- Process.system (cs shellCommand)
             putStrLn ("* " <> shellCommand)
+
+undoPlan :: [GeneratorAction] -> IO()
+undoPlan actions = forEach actions evalAction
+    where
+        evalAction CreateFile { filePath, fileContent } = do
+            (Directory.removeFile (cs filePath)) `catch` handleError
+            putStrLn ("- " <> filePath)
+        evalAction AppendToFile { filePath, fileContent } = do
+            deleteTextFromFile (cs filePath) fileContent `catch` handleError
+            putStrLn ("* " <> filePath)
+        evalAction AppendToMarker { marker, filePath, fileContent } = do
+            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
+            putStrLn ("* " <> filePath <> " (import)")
+        evalAction EnsureDirectory { directory } = do
+            (Directory.removeDirectory (cs directory)) `catch` handleError
+        evalAction RunShellCommand { shellCommand } = pure ()
+        handleError :: SomeException -> IO ()
+        handleError ex = putStrLn (tshow ex)
+
+deleteTextFromFile :: Text -> Text -> IO ()
+deleteTextFromFile filePath lineContent = do
+    fileContent <- Text.readFile (cs filePath)
+    let replacedContent = Text.replace lineContent "" fileContent
+    Text.writeFile (cs filePath) replacedContent
