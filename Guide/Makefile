@@ -13,6 +13,7 @@ HTML_FILES+= querybuilder.html
 HTML_FILES+= view.html
 HTML_FILES+= form.html
 HTML_FILES+= hsx.html
+HTML_FILES+= validation.html
 
 all: $(HTML_FILES) bootstrap.css
 
