@@ -54,6 +54,8 @@ instance View NewColumnView ViewContext where
                             <option value="REAL">Float</option>
                             <option value="DOUBLE PRECISION">Double</option>
                             <option value="DATE">Date</option>
+                            <option value="BINARY">Binary</option>
+                            <option value="TIME">Time</option>
                         </select>
 
                         <div class="mt-1 text-muted">

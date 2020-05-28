@@ -105,6 +105,8 @@ typeSelector selected = preEscapedToHtml [plain|
         #{option selected "REAL" "Float"}
         #{option selected "DOUBLE PRECISION" "Double"}
         #{option selected "DATE" "Date"}
+        #{option selected "BINARY" "Binary"}
+        #{option selected "Time" "Time"}
     </select>
 |]
     where

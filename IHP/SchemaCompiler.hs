@@ -65,6 +65,8 @@ haskellType table column@(Column { columnType, notNull }) =
                 "FLOAT" -> "Float"
                 "DOUBLE PRECISION" -> "Double"
                 "DATE" -> "Date"
+                "BINARY" -> "Binary"
+                "TIME" -> "TimeOfDay"
                 customType -> tableNameToModelName customType
         actualType =
             case findForeignKeyConstraint table column of
@@ -120,7 +122,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
                   <> "import Data.Data\n"
-                  <> "import Database.PostgreSQL.Simple.Types (Query (Query))\n"
+                  <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary { .. })\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
