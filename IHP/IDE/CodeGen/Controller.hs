@@ -75,7 +75,7 @@ undoPlan :: [GeneratorAction] -> IO()
 undoPlan actions = forEach actions evalAction
     where
         evalAction CreateFile { filePath, fileContent } = do
-            catch (Directory.removeFile (cs filePath)) handler
+            (Directory.removeFile (cs filePath)) `catch` handleError
             putStrLn ("- " <> filePath)
         evalAction AppendToFile { filePath, fileContent } = do
             catch (deleteTextFromFile (cs filePath) fileContent) handler
