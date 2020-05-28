@@ -6,6 +6,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.Data.View.Layout
 
 data ShowDatabaseView = ShowDatabaseView {
         tableNames :: [Text]
@@ -14,6 +15,7 @@ data ShowDatabaseView = ShowDatabaseView {
 instance View ShowDatabaseView ViewContext where
     html ShowDatabaseView { .. } = [hsx|
         <div class="container pt-5">
+            {customQuery ""}
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames ""}
             </div>

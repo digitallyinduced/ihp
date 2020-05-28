@@ -15,14 +15,12 @@ data EditEnumValueView = EditEnumValueView
     }
 
 instance View EditEnumValueView ViewContext where
+    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+
     html EditEnumValueView { .. } = [hsx|
-        {visualNav}
-        <div class="container">
-            {databaseControls}
-            <div class="row no-gutters bg-white">
-                {renderObjectSelector (zip [0..] statements) (Just enumName)}
-                {renderEnumSelector enumName (zip [0..] values)}
-            </div>
+        <div class="row no-gutters bg-white">
+            {renderObjectSelector (zip [0..] statements) (Just enumName)}
+            {renderEnumSelector enumName (zip [0..] values)}
         </div>
         {Just modal}
     |]

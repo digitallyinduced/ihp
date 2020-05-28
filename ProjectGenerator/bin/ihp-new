@@ -3,7 +3,7 @@ echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
 
-BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/haskellframework-boilerplate.git"
+BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/ihp-boilerplate.git"
 
 if [ "$#" -ne "1" ]; then
 	echo "Usage: ihp-new PROJECT_NAME"
@@ -23,7 +23,7 @@ if ! [ -x "$(command -v direnv)" ]; then
 	echo ""
 	echo ""
 	echo -e "\e[1mWe will install direnv for you now. Continue? (Type y to proceed) \e[0m"
-	read -n1 choice_direnv
+	read -n1 choice
 	echo ""
 	case "$choice" in
 	  y|Y ) nix-env -i direnv;;

@@ -113,7 +113,9 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
             Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)} class="d-block nounderline" style="color: #808080;">FOREIGN KEY: {get #referenceTable constraint}</a>|]
             Nothing -> mempty
         foreignKeyOption = case findForeignKey statements tableName name of
-            Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)}>Edit Foreign Key Constraint</a>|]
+            Just addConstraint@AddConstraint { constraint } ->
+                [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)}>Edit Foreign Key Constraint</a>
+                <a href={DeleteForeignKeyAction (get #constraintName addConstraint) tableName} class="js-delete">Delete Foreign Key Constraint</a>|]
             Nothing -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
 
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
@@ -185,10 +187,11 @@ renderObjectSelector statements activeObjectName = [hsx|
         </a>
         <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
             <a href={EditTableAction name id}>Rename Table</a>
-            <a href={DeleteTableAction id} class="js-delete">Delete Table</a>
+            <a href={DeleteTableAction id name} class="js-delete">Delete Table</a>
             <div></div>
             <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
             <a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>
+            <a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>
             <div></div>
             <a href={NewColumnAction name}>Add Column to Table</a>
             <div></div>
@@ -206,7 +209,7 @@ renderObjectSelector statements activeObjectName = [hsx|
         </a>
         <div class="custom-menu menu-for-enum shadow backdrop-blur" id={contextMenuId}>
             <a href={EditEnumAction name id}>Rename Enum</a>
-            <a href={DeleteTableAction id} class="js-delete">Delete Enum</a>
+            <a href={DeleteEnumAction id} class="js-delete">Delete Enum</a>
             <div></div>
             <a href={NewEnumValueAction name}>Add Column to Table</a>
             <div></div>

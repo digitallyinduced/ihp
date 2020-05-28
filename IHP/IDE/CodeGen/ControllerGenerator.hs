@@ -72,7 +72,10 @@ getTable schema name = find isTable schema
 fieldsForTable :: [Statement] -> Text -> [Text]
 fieldsForTable database name =
     case getTable database name of
-        Just (CreateTable { columns }) -> map (get #name) (filter (\col -> isNothing (get #defaultValue col)) columns)
+        Just (CreateTable { columns }) -> columns
+                |> filter (\col -> isNothing (get #defaultValue col))
+                |> map (get #name)
+                |> map columnNameToFieldName
         Nothing -> []
 
 
@@ -181,7 +184,8 @@ generateController schema config =
         fromParams =
             ""
             <> "build" <> singularName <> " :: _ => " <> modelVariableSingular <> " -> " <> modelVariableSingular <> "\n"
-            <> "build" <> singularName <> " = fill " <> toTypeLevelList modelFields <> "\n"
+            <> "build" <> singularName <> " " <> modelVariableSingular <> " = " <> modelVariableSingular <> "\n"
+            <> "    |> fill " <> toTypeLevelList modelFields <> "\n"
 
         toTypeLevelList values = "@" <> (if length values < 2 then "'" else "") <> tshow values
 

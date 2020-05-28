@@ -35,7 +35,7 @@ data TablesController
     | CreateTableAction
     | EditTableAction { tableName :: Text, tableId :: Int }
     | UpdateTableAction
-    | DeleteTableAction { tableId :: Int }
+    | DeleteTableAction { tableId :: Int, tableName :: Text }
     deriving (Eq, Show, Data)
 
 data ColumnsController
@@ -50,6 +50,7 @@ data ColumnsController
     | CreateForeignKeyAction
     | EditForeignKeyAction { tableName :: Text, columnName :: Text, constraintName :: Text, referenceTable :: Text }
     | UpdateForeignKeyAction
+    | DeleteForeignKeyAction { constraintName :: Text, tableName :: Text }
     deriving (Eq, Show, Data)
 
 data EnumsController
@@ -59,6 +60,7 @@ data EnumsController
     | CreateEnumAction
     | EditEnumAction { enumName :: Text, enumId :: Int }
     | UpdateEnumAction
+    | DeleteEnumAction { tableId :: Int }
     deriving (Eq, Show, Data)
 
 data EnumValuesController
@@ -74,6 +76,13 @@ data EnumValuesController
 data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
+    | ShowQueryAction
+    | DeleteEntryAction { fieldValue :: Text, tableName :: Text }
+    | CreateRowAction
+    | NewRowAction { tableName :: Text }
+    | EditRowAction { tableName :: Text, id :: Text }
+    | UpdateRowAction
+    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController
@@ -87,12 +96,19 @@ data CodeGenController
     | NewScriptAction
     | CreateControllerAction
     | CreateScriptAction
+    | OpenControllerAction
     deriving (Eq, Show, Data)
 
 
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString
     , fieldName :: ByteString
+    } deriving (Show)
+
+data ColumnDefinition = ColumnDefinition
+    { columnName :: Text
+    , columnType :: Text
+    , columnDefault :: Maybe Text
     } deriving (Show)
 
 instance FrameworkConfig where 
