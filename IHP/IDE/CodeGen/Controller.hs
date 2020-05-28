@@ -84,9 +84,7 @@ undoPlan actions = forEach actions evalAction
             putStrLn ("* " <> filePath <> " (import)")
         evalAction EnsureDirectory { directory } = do
             Directory.removeDirectory (cs directory)
-        evalAction RunShellCommand { shellCommand } = do
-            _ <- Process.system (cs shellCommand)
-            putStrLn ("* " <> shellCommand)
+        evalAction RunShellCommand { shellCommand } = pure ()
 
 deleteTextFromFile :: Text -> Text -> IO ()
 deleteTextFromFile filePath lineContent = do
