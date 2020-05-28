@@ -154,6 +154,7 @@ library IHPFramework
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
+        , IHP.IDE.ToolServer.Helper.Controller
 
 executable RunDevServer
     import: shared-properties

@@ -9,18 +9,13 @@ import IHP.ModelSupport
 import qualified IHP.ViewSupport as ViewSupport
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.IDE.PortConfig
 import IHP.IDE.Types
+import IHP.IDE.ToolServer.Helper.Controller
 
 instance ViewSupport.CreateViewContext ViewContext where
     type ViewApp ViewContext = ToolServerApplication
     createViewContext = do
         flashMessages <- Session.getAndClearFlashMessages
-
-        let appPort = (fromControllerContext @ToolServerApplication)
-                |> get #devServerContext
-                |> get #portConfig
-                |> get #appPort
 
         let viewContext = ViewContext {
                 requestContext = ?requestContext,
