@@ -62,3 +62,28 @@ executePlan actions = forM_ actions evalAction
         evalAction RunShellCommand { shellCommand } = do
             _ <- Process.system (cs shellCommand)
             putStrLn ("* " <> shellCommand)
+
+undoPlan :: [GeneratorAction] -> IO()
+undoPlan actions = forEach actions evalAction
+    where
+        evalAction CreateFile { filePath, fileContent } = do
+            Directory.removeFile (cs filePath) 
+            putStrLn ("- " <> filePath)
+        evalAction AppendToFile { filePath, fileContent } = do
+            deleteLineFromFile (cs filePath) fileContent
+            putStrLn ("* " <> filePath)
+        evalAction AppendToMarker { marker, filePath, fileContent } = do
+            deleteLineFromFile (cs filePath) fileContent
+            putStrLn ("* " <> filePath <> " (import)")
+        evalAction EnsureDirectory { directory } = do
+            Directory.removeDirectory (cs directory)
+        evalAction RunShellCommand { shellCommand } = do
+            _ <- Process.system (cs shellCommand)
+            putStrLn ("* " <> shellCommand)
+
+deleteLineFromFile :: Text -> Text -> IO ()
+deleteLineFromFile filePath lineContent = do
+    fileContent <- Text.readFile (cs filePath)
+    let lineWithNewline :: Text  = lineContent <> "\n"
+    let replacedContent = Text.replace lineWithNewline "" fileContent
+    Text.writeFile (cs filePath) replacedContent
