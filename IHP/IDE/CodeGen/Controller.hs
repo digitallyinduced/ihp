@@ -77,10 +77,10 @@ undoPlan actions = forEach actions evalAction
             Directory.removeFile (cs filePath) 
             putStrLn ("- " <> filePath)
         evalAction AppendToFile { filePath, fileContent } = do
-            deleteLineFromFile (cs filePath) fileContent
+            deleteTextFromFile (cs filePath) fileContent
             putStrLn ("* " <> filePath)
         evalAction AppendToMarker { marker, filePath, fileContent } = do
-            deleteLineFromFile (cs filePath) fileContent
+            deleteTextFromFile (cs filePath) (fileContent <> "\n")
             putStrLn ("* " <> filePath <> " (import)")
         evalAction EnsureDirectory { directory } = do
             Directory.removeDirectory (cs directory)
@@ -88,9 +88,8 @@ undoPlan actions = forEach actions evalAction
             _ <- Process.system (cs shellCommand)
             putStrLn ("* " <> shellCommand)
 
-deleteLineFromFile :: Text -> Text -> IO ()
-deleteLineFromFile filePath lineContent = do
+deleteTextFromFile :: Text -> Text -> IO ()
+deleteTextFromFile filePath lineContent = do
     fileContent <- Text.readFile (cs filePath)
-    let lineWithNewline :: Text  = lineContent <> "\n"
-    let replacedContent = Text.replace lineWithNewline "" fileContent
+    let replacedContent = Text.replace lineContent "" fileContent
     Text.writeFile (cs filePath) replacedContent

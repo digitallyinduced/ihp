@@ -6,7 +6,8 @@ import qualified System.Directory as Directory
 import qualified System.Posix.Env.ByteString as Posix
 import Control.Monad.Fail
 import IHP.IDE.CodeGen.ControllerGenerator
-import IHP.IDE.CodeGen.Controller (executePlan)
+import IHP.IDE.CodeGen.Controller (undoPlan)
+import qualified Data.Text as Text
 
 main :: IO ()
 main = do
@@ -34,10 +35,10 @@ ensureIsInAppDirectory = do
 
 ensureControllerExists :: Text -> IO ()
 ensureControllerExists appAndControllerName = do
-    pure case Text.splitOn "." appAndControllerName of
+     case Text.splitOn "." appAndControllerName of
         [applicationName, controllerName'] -> do
-            controllerFileExists <- Directory.doesFileExist (applicationName <> "/Controller/" <> controllerName' <> ".hs")
+            controllerFileExists <- Directory.doesFileExist $ cs (applicationName <> "/Controller/" <> controllerName' <> ".hs")
             unless controllerFileExists (fail "Controller does not exist.")
         [controllerName'] -> do
-            controllerFileExists <- Directory.doesFileExist ("Web/Controller/" <> controllerName' <> ".hs")
+            controllerFileExists <- Directory.doesFileExist $ cs ("Web/Controller/" <> controllerName' <> ".hs")
             unless controllerFileExists (fail "Controller does not exist.")
