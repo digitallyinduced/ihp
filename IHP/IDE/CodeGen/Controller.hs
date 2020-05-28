@@ -78,16 +78,16 @@ undoPlan actions = forEach actions evalAction
             (Directory.removeFile (cs filePath)) `catch` handleError
             putStrLn ("- " <> filePath)
         evalAction AppendToFile { filePath, fileContent } = do
-            catch (deleteTextFromFile (cs filePath) fileContent) handler
+            deleteTextFromFile (cs filePath) fileContent `catch` handleError
             putStrLn ("* " <> filePath)
         evalAction AppendToMarker { marker, filePath, fileContent } = do
-            catch (deleteTextFromFile (cs filePath) (fileContent <> "\n")) handler
+            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
             putStrLn ("* " <> filePath <> " (import)")
         evalAction EnsureDirectory { directory } = do
-            catch (Directory.removeDirectory (cs directory)) handler
+            (Directory.removeDirectory (cs directory)) `catch` handleError
         evalAction RunShellCommand { shellCommand } = pure ()
-        handler :: SomeException -> IO ()
-        handler ex = putStrLn (tshow ex)
+        handleError :: SomeException -> IO ()
+        handleError ex = putStrLn (tshow ex)
 
 deleteTextFromFile :: Text -> Text -> IO ()
 deleteTextFromFile filePath lineContent = do
