@@ -10,7 +10,7 @@ To work on the framework in your application, you need to clone this repository 
 git clone git@github.com:digitallyinduced/haskellframework.git IHP
 ```
 
-The best workflow is to use `ghci` to load your application together with the framework version in `IHP`:
+The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. To make sure that the symlink is loaded run `make all` before that.:
 
 ```
 ghci
