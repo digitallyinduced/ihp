@@ -11,6 +11,8 @@ This guide will lead you to create a small blog application. To set up the proje
 $ ihp-new blog
 ```
 
+The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding on how nix works.
+
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
 Here is a short overview of the whole structure:
