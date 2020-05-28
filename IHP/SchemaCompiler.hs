@@ -64,6 +64,7 @@ haskellType table column@(Column { columnType, notNull }) =
                 "UUID" -> "UUID"
                 "FLOAT" -> "Float"
                 "DOUBLE PRECISION" -> "Double"
+                "DATE" -> "Date"
                 customType -> tableNameToModelName customType
         actualType =
             case findForeignKeyConstraint table column of

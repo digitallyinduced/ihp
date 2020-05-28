@@ -257,5 +257,6 @@ getDefaultValue columnType value = case value of
         "TIMESTAMP WITH TIME ZONE" -> Just ("'" <> custom <> "'")
         "REAL" -> Just custom
         "DOUBLE PRECISION" -> Just custom
+        "DATE" -> Just ("'" <> custom <> "'")
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
