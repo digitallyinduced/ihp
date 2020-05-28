@@ -1,5 +1,7 @@
 .PHONY: help all
 
+# Use bash as we sometimes use bash specific syntax, like pipefail below
+SHELL=/bin/bash
 .SHELLFLAGS := -eu -o pipefail -c  
 .ONESHELL:
 
