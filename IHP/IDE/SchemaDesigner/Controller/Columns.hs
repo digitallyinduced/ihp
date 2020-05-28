@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, getDefaultValue)
+import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, getDefaultValue, reservedCheck)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -31,17 +31,21 @@ instance Controller ColumnsController where
     action CreateColumnAction = do
         let tableName = param "tableName"
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
+        let columnName = param "name"
+        when (columnName == "") do
+            (setSuccessMessage ("Name can not be empty"))
+            redirectTo ShowTableAction { .. }
+        when (reservedCheck columnName) do
+            (setSuccessMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
+            redirectTo ShowTableAction { .. }
         let column = Column
-                { name = param "name"
+                { name = columnName
                 , columnType = param "columnType"
                 , primaryKey = (param "primaryKey")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
                 }
-        when ((get #name column) == "") do
-            setSuccessMessage ("Column Name can not be empty")
-            redirectTo ShowTableAction { tableName }
         updateSchema (map (addColumnToTable tableName column))
         when (param "isReference") do
             let columnName = param "name"
@@ -65,12 +69,19 @@ instance Controller ColumnsController where
     action UpdateColumnAction = do
         statements <- readSchema
         let tableName = param "tableName"
+        let columnName = param "name"
+        when (columnName == "") do
+            (setSuccessMessage ("Name can not be empty"))
+            redirectTo ShowTableAction { .. }
+        when (reservedCheck columnName) do
+            (setSuccessMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
+            redirectTo ShowTableAction { .. }
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
         let columnId = param "columnId"
         let column = Column
-                { name = param "name"
+                { name = columnName
                 , columnType = param "columnType"
                 , primaryKey = (param "primaryKey")
                 , defaultValue = defaultValue
