@@ -87,7 +87,7 @@ undoPlan actions = forEach actions evalAction
             catch (Directory.removeDirectory (cs directory)) handler
         evalAction RunShellCommand { shellCommand } = pure ()
         handler :: SomeException -> IO ()
-        handler ex = putStrLn $ "Warning: Could not delete something. May have been deleted before: " ++ show ex
+        handler ex = putStrLn (tshow ex)
 
 deleteTextFromFile :: Text -> Text -> IO ()
 deleteTextFromFile filePath lineContent = do
