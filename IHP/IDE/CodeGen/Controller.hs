@@ -14,6 +14,7 @@ import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
+import Control.Exception
 
 instance Controller CodeGenController where
     action GeneratorsAction = do
@@ -74,17 +75,19 @@ undoPlan :: [GeneratorAction] -> IO()
 undoPlan actions = forEach actions evalAction
     where
         evalAction CreateFile { filePath, fileContent } = do
-            Directory.removeFile (cs filePath) 
+            catch (Directory.removeFile (cs filePath)) handler
             putStrLn ("- " <> filePath)
         evalAction AppendToFile { filePath, fileContent } = do
-            deleteTextFromFile (cs filePath) fileContent
+            catch (deleteTextFromFile (cs filePath) fileContent) handler
             putStrLn ("* " <> filePath)
         evalAction AppendToMarker { marker, filePath, fileContent } = do
-            deleteTextFromFile (cs filePath) (fileContent <> "\n")
+            catch (deleteTextFromFile (cs filePath) (fileContent <> "\n")) handler
             putStrLn ("* " <> filePath <> " (import)")
         evalAction EnsureDirectory { directory } = do
-            Directory.removeDirectory (cs directory)
+            catch (Directory.removeDirectory (cs directory)) handler
         evalAction RunShellCommand { shellCommand } = pure ()
+        handler :: SomeException -> IO ()
+        handler ex = putStrLn $ "Warning: Could not delete something. May have been deleted before: " ++ show ex
 
 deleteTextFromFile :: Text -> Text -> IO ()
 deleteTextFromFile filePath lineContent = do

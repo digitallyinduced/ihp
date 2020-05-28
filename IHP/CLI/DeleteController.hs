@@ -32,13 +32,3 @@ ensureIsInAppDirectory :: IO ()
 ensureIsInAppDirectory = do
     mainHsExists <- Directory.doesFileExist "Main.hs"
     unless mainHsExists (fail "You have to be in a project directory to run the generator")
-
-ensureControllerExists :: Text -> IO ()
-ensureControllerExists appAndControllerName = do
-     case Text.splitOn "." appAndControllerName of
-        [applicationName, controllerName'] -> do
-            controllerFileExists <- Directory.doesFileExist $ cs (applicationName <> "/Controller/" <> controllerName' <> ".hs")
-            unless controllerFileExists (fail "Controller does not exist.")
-        [controllerName'] -> do
-            controllerFileExists <- Directory.doesFileExist $ cs ("Web/Controller/" <> controllerName' <> ".hs")
-            unless controllerFileExists (fail "Controller does not exist.")
