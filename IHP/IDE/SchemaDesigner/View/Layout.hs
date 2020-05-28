@@ -258,5 +258,7 @@ getDefaultValue columnType value = case value of
         "REAL" -> Just custom
         "DOUBLE PRECISION" -> Just custom
         "DATE" -> Just ("'" <> custom <> "'")
+        "BINARY" -> Just ("'" <> custom <> "'")
+        "TIME" -> Just ("'" <> custom <> "'")
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")

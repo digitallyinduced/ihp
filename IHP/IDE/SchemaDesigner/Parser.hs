@@ -131,6 +131,8 @@ sqlType = choice
         , (try $ lexeme "TIMESTAMP WITH TIME ZONE")
         , (try $ lexeme "DOUBLE PRECISION")
         , (try $ lexeme "DATE")
+        , (try $ lexeme "BINARY")
+        , (try $ lexeme "TIME")
         , (try $ takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
         ]
 
