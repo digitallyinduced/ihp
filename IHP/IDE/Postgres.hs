@@ -55,7 +55,12 @@ initDatabase = do
     currentDir <- Directory.getCurrentDirectory
     Directory.createDirectoryIfMissing True "build/db"
 
-    Process.callProcess "initdb" ["build/db/state"]
+    Process.callProcess "initdb" [
+                "build/db/state"
+                , "--no-locale" -- Avoid issues with impure host system locale in dev mode
+                , "--encoding"
+                , "UTF8"
+            ]
 
     process <- createManagedProcess (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
                 { Process.std_in = Process.CreatePipe
