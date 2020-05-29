@@ -121,7 +121,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
                   <> "import Data.Data\n"
-                  <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary { .. })\n"
+                  <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
