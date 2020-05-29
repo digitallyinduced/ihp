@@ -15,7 +15,6 @@ import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
 import Data.String.Conversions (cs)
 import IHP.HtmlSupport.ToHtml
 import qualified Debug.Trace
-import qualified Language.Haskell.Exts.Syntax as HS
 import Control.Monad.Fail
 import qualified Text.Megaparsec as Megaparsec
 

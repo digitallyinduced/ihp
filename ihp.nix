@@ -94,8 +94,6 @@ mkDerivation {
     tz
     attoparsec
     case-insensitive
-    haskell-src-exts
-    containers
     http-media
     cookie
     process
