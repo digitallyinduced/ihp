@@ -9,7 +9,6 @@ import IHP.NameSupport (tableNameToModelName, columnNameToFieldName)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
-import qualified Data.Set
 import Data.List ((!!), (\\))
 import Data.List.Split
 import IHP.HaskellSupport
