@@ -57,7 +57,7 @@ startToolServer = do
 
     thread <- async (startToolServer' port)
 
-    openUrl ("http://localhost:" <> tshow port <> "/ihp/")
+    openUrl ("http://localhost:" <> tshow port <> "/")
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
@@ -95,7 +95,11 @@ stopToolServer ToolServerNotStarted = pure ()
 
 openUrl :: Text -> IO ()
 openUrl url = do
-    when (os /= "linux") do Process.callCommand (cs $ "open " <> url)
+    let openUrl = case os of
+            "linux" -> "xdg-open"
+            "darwin" -> "open"
+
+    Process.callCommand (cs $ openUrl <> " " <> url)
     pure ()
 
 instance FrontController ToolServerApplication where
