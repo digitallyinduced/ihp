@@ -19,7 +19,6 @@
 , postgresql-simple
 , wai-middleware-static
 , wai-util
-, http-client
 , aeson
 , uuid
 , wai-session
@@ -35,11 +34,8 @@
 , wai-websockets
 , mime-mail
 , mime-mail-ses
-, tz
 , attoparsec
 , case-insensitive
-, haskell-src-exts
-, containers
 , http-media
 , cookie
 , process
@@ -49,6 +45,7 @@
 , countable-inflections
 , typerep-map
 , basic-prelude
+, data-default
 }:
 mkDerivation {
   pname = "ihp";
@@ -75,7 +72,6 @@ mkDerivation {
     postgresql-simple
     wai-middleware-static
     wai-util
-    http-client
     aeson
     uuid
     wai-session
@@ -91,7 +87,6 @@ mkDerivation {
     wai-websockets
     mime-mail
     mime-mail-ses
-    tz
     attoparsec
     case-insensitive
     http-media
@@ -103,6 +98,7 @@ mkDerivation {
     countable-inflections
     typerep-map
     basic-prelude
+    data-default
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
