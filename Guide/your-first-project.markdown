@@ -11,7 +11,7 @@ This guide will lead you to create a small blog application. To set up the proje
 $ ihp-new blog
 ```
 
-The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding on how nix works.
+The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding on how Nix works.
 
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
@@ -21,15 +21,15 @@ Here is a short overview of the whole structure:
 |-------------------------------|-----------------------------------------------------------------------------|
 | Config/                       |                                                                             |
 | Config/Config.hs              | Configuration for the framework and your application                        |
-| Config/nix/nixpkgs-config.nix | Configuration for the nix package manager                                   |
-| Config/nix/haskell-packages/  | Custom haskell dependencies can be placed here                              |
+| Config/nix/nixpkgs-config.nix | Configuration for the Nix package manager                                   |
+| Config/nix/haskell-packages/  | Custom Haskell dependencies can be placed here                              |
 | Application/                          | Your domain logic lives here                                           |
 | Application/Schema.sql           | Models and database tables are defined here                                 |
 | Web/Controller       | Web application controllers                                                             |
 | Web/View/            | Web application html template files                                                         |
 | Web/Types.hs            | Central place for all web application types                                                         |
 | static/                       | Images, css and javascript files                                            |
-| .ghci                         | Default config file for the haskell interpreter                             |
+| .ghci                         | Default config file for the Haskell interpreter                             |
 | .gitignore                    | List of files to be ignored by git                                          |
 | App.cabal, Setup.hs           | Config for the cabal package manager (TODO: maybe move to Config/App.cabal) |
 | default.nix                   | Declares your app dependencies (like package.json or composer.json)         |
@@ -37,7 +37,7 @@ Here is a short overview of the whole structure:
 
 ## 2. Hello, World!
 
-You now already have a working haskell app ready to be started.
+You now already have a working Haskell app ready to be started.
 
 Switch to the `blog` directory before doing the next steps:
 
@@ -88,7 +88,7 @@ Enter the table name `posts` and click on `Create Table`.
 
 In the right pane, you can see the columns of the newly created table. The id column has been automatically created for us.
 
-Right click into the Columns pane and select `Add Column`:
+Right click into the `Columns` pane and select `Add Column`:
 
 ![Schema Designer Add Column menu](images/first-project/add_column_menu.png)
 
@@ -162,19 +162,19 @@ By specificing the above schema, the framework automatically provides several ty
 | Example     | `"5a8d1be2-33e3-4d3f-9812-b16576fe6a38" :: Id Post` |
 
 
-**For the curious:** To dig deeper into the generated code, open the Schema Designer, right-click a table and click "Show Haskell Code".
+**For the curious:** To dig deeper into the generated code, open the Schema Designer, right-click a table and click `Show Haskell Code` or look into `build/Generated/Types.hs`.
 
 ## 4. Apps, Controllers, Views
 
-IHP follows the well-known MVC structure. Controllers and actions are used to deal with incoming requests.
+IHP follows the well-known [MVC](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller) (Model-View-Controller) structure. Controllers and actions are used to deal with incoming requests.
 
-A controller belongs to an application. The default application is called `Web` (that's why all controller and views are located there). Your whole project can consistent of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
+A controller belongs to an application. The default application is called `Web` (that's why all controller and views are located there). Your whole project can consis of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
-We can use the built-in code generators to generate an controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/ihp/Generators). There you can see everything that can be generated. Click on Controller:
+We can use the built-in code generators to generate a controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/ihp/Generators). There you can see everything that can be generated. Click on `Controller`:
 
 ![](images/first-project/code_gen_1.png)
 
-You need to enter the controller name. Enter `Posts` and click preview:
+You need to enter the controller name. Enter `Posts` and click `Preview`:
 
 ![](images/first-project/code_gen_2_posts.png)
 
@@ -182,7 +182,7 @@ The preview will show you all the files which are going to be created or modifie
 
 ![](images/first-project/code_gen_3_posts.png)
 
-After the files have been created as in the preview, your controller is already ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual CRUD actions going.
+After the files have been created as in the preview, your controller is already ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Created, Read, Update, Delete) actions going.
 
 Here's how the new `/Posts` page looks like:
 
@@ -192,7 +192,7 @@ Next we're going to dig a bit deeper into all the changes made by the controller
 
 ### New Types
 
-Let's first take a closer look at the changes in `Web/Types.hs`. Here a new data structures was created:
+Let's first take a closer look at the changes in `Web/Types.hs`. Here a new data structure was created:
 
 
 ```haskell
@@ -220,7 +220,7 @@ We have one constructor for each possible action. Here you can see a short descr
 | `DeletePostAction { postId = someId }` | `DELETE /DeletePost?postId={someId}`   | Deletes the post                   |
 
 
-A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`" can be represented like `ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }`. Basically, the IHP router always maps a HTTP request to such an action data type. (By the way: The type `Id Post` is just a UUID, but wrapped within a newtype, `newtype Id model = Id UUID`).
+A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`" can be represented like `ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }`. Basically, the IHP router always maps an HTTP request to such an action data type. (By the way: The type `Id Post` is just a UUID, but wrapped within a newtype, `newtype Id model = Id UUID`).
 
 
 ### Controller Implementation: `Web/Controller/Posts.hs`
@@ -239,7 +239,7 @@ import Web.View.Posts.Edit
 import Web.View.Posts.Show
 ```
 
-In the header we just see some imports. Controllers always import a special `Web.Controller.Prelude` module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just "normal" haskell modules.
+In the header we just see some imports. Controllers always import a special `Web.Controller.Prelude` module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just "normal" Haskell modules.
 
 #### Controller Instance
 
@@ -279,7 +279,7 @@ This is our endpoint for `/NewPost`. It just creates an empty new post and then 
         post <- fetch postId
         render ShowView { .. }
 ```
-This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Then we just pass that post to the view.
+This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get the post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Then we just pass that post to the view.
 
 #### Edit Action
 
@@ -381,7 +381,7 @@ instance View ShowView ViewContext where
     |]
 ```
 
-We can see that the `ShowView` is just a data definition. There is also an `View ShowView` instance. The html-like syntax inside the `html` function is `hsx` code. It's just like react's jsx. You can write html code as usual there. Everything inside the `[hsx|my html|]` block is also type-checked and converted to haskell code at compile-time.
+We can see that the `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the `html` function is `hsx` code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the `[hsx|...|]` block is also type-checked and converted to Haskell code at compile-time.
 
 Now that we have a rough overview of all the parts belonging to our `Post`, it's time to do some coding ourselves.
 
@@ -391,15 +391,15 @@ The generated controller already feels close to a super simple blog. Now it's ti
 
 ### Creating a Post
 
-First we quickly need to create a new blog post. Open [http://localhost:8000/Posts](http://localhost:8000/Posts) and click on "+ New". Then enter `Hello World!` into the "Title" field and `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam` into "Body".
+First we quickly need to create a new blog post. Open [http://localhost:8000/Posts](http://localhost:8000/Posts) and click on `+ New`. Then enter `Hello World!` into the "Title" field and `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam` into "Body".
 
-Click "Save Post". You should now see the new post listed on the index view.
+Click `Save Post`. You should now see the new post listed on the `index` view.
 
-TODO: Add screenshot of the index view the content
+![Index View](images/first-project/index_view.png)
 
 ### Displaying a Post
 
-Let's first improve the show view. Right now the headline is "Show Post", and the actual Post body is never shown.
+Let's first improve the `show` view. Right now the headline is "Show Post", and the actual post body is never shown.
 
 Open the `Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{get #title post}</h1>`. Also add a `<div>{get #body post}</div>` below the `<h1>`.
 
@@ -442,7 +442,7 @@ Now we can also remove the "Show" link. We can do that by removing the next line
 
 ### Adding Validation
 
-Let's make sure that every post has atleast a title. Validations can be defined inside our controller `Web/Controller/Posts.hs`.
+Let's make sure that every post has at least a title. Validations can be defined inside our controller `Web/Controller/Posts.hs`.
 
 Right now at the bottom of the file we have this:
 
@@ -459,7 +459,7 @@ buildPost post = post
     |> validateField #title nonEmpty
 ```
 
-Now open [http://localhost:8000/Posts/new](http://localhost:8000/Posts/new) and click "Save Post" without filling the text fields. You will get a "This field cannot be empty".
+Now open [http://localhost:8000/Posts/new](http://localhost:8000/Posts/new) and click `Save Post` without filling the text fields. You will get a "This field cannot be empty" error message next to the empty title field.
 
 ![Schema Designer Title non empty](images/first-project/title_non_empty.png)
 
@@ -491,9 +491,9 @@ Now open the `/Posts` again inside your browser. You will see this error:
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
-To update the local postgres server, open the Schema Designer and click the `Push to DB` button. This button will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
+To update the local database, open the Schema Designer and click the `Push to DB` button. This button will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
 
-In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql`, Save database state with `DB to Fixtures`, Update Database with `Push to DB`.
+In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql`, save database state with `DB to Fixtures`, update Database with `Push to DB`.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
@@ -521,17 +521,17 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
 <div>{get #body post}</div>
 ```
 
-Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of javascript to automatically displays the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58 Uhr`), just use `dateTime` instead of `timeAgo`.
+Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58 Uhr`), just use `dateTime` instead of `timeAgo`.
 
 ![Schema Designer created at view](images/first-project/created_at_view.png)
 
 ### Markdown
 
-Right now our posts can only be plain text. Let's make it more powerful by adding support for markdown.
+Right now our posts can only be plain text. Let's make it more powerful by adding support for Markdown.
 
 #### Adding a Markdown Library
 
-To deal with markdown, instead of implementing our own markdown parser, let's just use an existing package. There's the excellt `mmark` package we can use.
+To deal with Markdown, instead of implementing our own Markdown parser, let's just use an existing package. There's the excellent `mmark` package we can use.
 
 To install this package, open the `default.nix` file and append `mmark` to the `haskellDeps` list. The file will now look like this:
 
@@ -561,11 +561,14 @@ in
     haskellEnv
 ```
 
-Update the local development environment by running `make -B .envrc`. This will download and install the mmark package. Now restart the development server by pressing CTRL+C and then typing `./start` again.
+Stop the development server by pressing CTRL+C. Then update the local development environment by running `make -B .envrc`. This will download and install the mmark package. Now restart the development server by typing `./start` again.
 
 #### Markdown Rendering
 
-Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: Add `import qualified Text.MMark as MMark` to the top of `Web/View/Posts/Show.hs`.
+Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: Add the following line to the top of `Web/View/Posts/Show.hs`:
+```haskell
+import qualified Text.MMark as MMark
+```
 
 Next change `{get #body post}` to `{get #body post |> renderMarkdown}`. This pipes the body field through a function `renderMarkdown`. Of course we also have to define the function now.
 
@@ -574,12 +577,12 @@ Add the following to the bottom of the show view:
 renderMarkdown text = text
 ```
 
-This function now does nothing except return it's input text. Our markdown package provides two functions, `MMark.parse` and `MMark.render` to deal with the markdown. Let's first deal with parsing:
+This function now does nothing except return its input text. Our Markdown package provides two functions, `MMark.parse` and `MMark.render` to deal with the Markdown. Let's first deal with parsing:
 
 ```haskell
 renderMarkdown text = text |> MMark.parse ""
 ```
-The empty string we pass to `MMark.parse` is usually the file name of the `.markdown` file, as we don't have any markdown file, we just pass an empty string.
+The empty string we pass to `MMark.parse` is usually the file name of the `.markdown` file. As we don't have any Markdown file, we just pass an empty string.
 
 Now open the web app and take a look at a blog post. You will see something like this:
 
@@ -587,7 +590,7 @@ Now open the web app and take a look at a blog post. You will see something like
 Right MMark {..}
 ```
 
-This is the parsed representation of the markdown. Of course that's not very helpful. We also have to connect it with `MMark.render` to get html code for our markdown. Replace the `renderMarkdown` with the following code:
+This is the parsed representation of the Markdown. Of course that's not very helpful. We also have to connect it with `MMark.render` to get html code for our Markdown. Replace the `renderMarkdown` with the following code:
 
 ```haskell
 renderMarkdown text =
@@ -596,26 +599,26 @@ renderMarkdown text =
         Right markdown -> MMark.render markdown |> tshow |> preEscapedToHtml
 ```
 
-The show view will now show real formatted text, as we would have expected.
+The `show` view will now show real formatted text, as we would have expected.
 
 #### Forms & Validation
 
 Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a textarea to support multi line text.
 
-Open `Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use markdown here"} }`.
+Open `Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports Markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use Markdown here"} }`.
 
 ```haskell
 renderForm :: Post -> Html
 renderForm post = formFor post [hsx|
     {textField #title}
-    {(textareaField #body) { helpText = "You can use markdown here"} }
+    {(textareaField #body) { helpText = "You can use Markdown here"} }
     {submitButton}
 |]
 ```
 
 After that, do the same in `Web/View/Posts/New.hs`.
 
-We can also add an error message when the user tries to save invalid markdown. We can quickly write a custom validator for that:
+We can also add an error message when the user tries to save invalid Markdown. We can quickly write a custom validator for that:
 
 Open `Web/Controller/Posts.hs` and import `MMark` at the top:
 
@@ -629,7 +632,7 @@ Then add this custom validator to the bottom of the file:
 isMarkdown :: Text -> ValidatorResult
 isMarkdown text =
     case MMark.parse "" text of
-        Left _ -> Failure "Please provide valid markdown"
+        Left _ -> Failure "Please provide valid Markdown"
         Right _ -> Success
 ```
 
@@ -653,9 +656,9 @@ It's time to add comments to our blog. For that open the Schema Designer and add
 
 ![Schema Designer Comments](images/first-project/post_table.png)
 
-When adding the post\_id column, it will automatically set the type to UUID. Unless you unselect the Checkbox `References posts` it will also automatically create a foreign key constraint for this column:
+When adding the post\_id column, it will automatically set the type to UUID. Unless you unselect the checkbox `References posts` it will also automatically create a foreign key constraint for this column:
 
-By default the foreign key constraint has set it's `ON DELETE` behavior to `NO ACTION`. To change the `ON DELETE`, click on the `FOREIGN KEY: posts` next to the `post_id` field.
+By default the foreign key constraint has set its `ON DELETE` behavior to `NO ACTION`. To change the `ON DELETE`, click on the `FOREIGN KEY: posts` next to the `post_id` field.
 
 ### 6.2 Loading the Schema
 
@@ -672,7 +675,7 @@ Use `Comments` as the controller name:
 
 ![](images/first-project/code_gen_2.png)
 
-Click generate:
+Click `Generate`:
 
 ![](images/first-project/code_gen_3.png)
 
