@@ -172,6 +172,7 @@ actionPrefix :: forall controller. Typeable controller => ByteString
 actionPrefix =
         case appModule of
             "Web" -> "/"
+            "IHP" -> "/"
             "" -> "/"
             appName -> "/" <> ByteString.map Char.toLower appName <> "/"
     where
