@@ -25,9 +25,7 @@ main :: IO ()
 main = do
     actionVar <- newEmptyMVar
     appStateRef <- newIORef emptyAppState
-    portConfig <- case os of
-        "linux" -> pure PortConfig { appPort = 8000, toolServerPort = 8001, liveReloadNotificationPort = 8002 }
-        _ -> findAvailablePortConfig
+    portConfig <- findAvailablePortConfig
     let ?context = Context { actionVar, portConfig, appStateRef }
 
     threadId <- myThreadId
