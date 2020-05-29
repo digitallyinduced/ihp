@@ -8,7 +8,7 @@
 
 **CLOSED BETA**: IHP is still in a closed beta. Contact hi@digitallyinduced.com to join the closed beta program :)
 
-[Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/intro.html) 🚀
+[Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
 ## Why?
 
