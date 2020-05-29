@@ -12,7 +12,9 @@ import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
+import qualified Data.ByteString.Char8 as ByteString
 
 import IHP.HtmlSupport.QQ (hsx)
 
@@ -58,9 +60,14 @@ genericHandler exception controller additionalInfo = do
 
 postgresHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
-    case fromException exception of
-        Just (exception :: PG.ResultError) -> Just do
-            let errorMessage = [hsx|
+    let (RequestContext _ respond _ _ _) = ?requestContext
+
+    let
+        handlePostgresError :: Show exception => exception -> Text -> IO ResponseReceived
+        handlePostgresError exception errorText =
+            let
+                title = H.text ("Database looks outdated. " <> errorText)
+                errorMessage = [hsx|
                         <h2>Possible Solutions</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
                             Have you clicked on
@@ -72,13 +79,19 @@ postgresHandler exception controller additionalInfo = do
 
                         <h2>Details</h2>
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
-                        <p style="font-family: monospace; font-size: 16px">{exception}</p>
+                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            let (RequestContext _ respond _ _ _) = ?requestContext
-            let title = H.text "Database looks outdated. The database result does not match the expected type"
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
-        Nothing -> Nothing
-
+            in
+                respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+    case fromException exception of
+        Just (exception :: PG.ResultError) -> Just (handlePostgresError exception "The database result does not match the expected type.")
+        Nothing -> case fromException exception of
+            -- Catching  `relation "..." does not exist`
+            Just (exception :: PG.SqlError)
+                |  "relation" `ByteString.isPrefixOf` (get #sqlErrorMsg exception)
+                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg exception)
+                -> Just (handlePostgresError exception "A table is missing.")
+            Nothing -> Nothing
 
 patternMatchFailureHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 patternMatchFailureHandler exception controller additionalInfo = do
