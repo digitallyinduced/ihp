@@ -26,6 +26,7 @@ module IHP.ViewSupport
 , fetch
 , query
 , isActiveController
+, renderFlashMessages
 ) where
 
 import IHP.Prelude
@@ -44,6 +45,8 @@ import IHP.RouterSupport
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport
+import qualified IHP.Controller.Session as Session
+import IHP.HtmlSupport.QQ (hsx)
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 
@@ -273,3 +276,30 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
 
+-- | Displays the flash messages for the current request.
+--
+-- You can add a flash message to the next request by calling 'IHP.Controller.Session.setSuccessMessage' or 'IHP.Controller.Session.setErrorMessage':
+--
+-- > action CreateProjectAction = do
+-- >     ...
+-- >     setSuccessMessage "Your project has been created successfully"
+-- >     redirectTo ShowProjectAction { .. }
+--
+--
+-- > action CreateTeamAction = do
+-- >     unless userOnPaidPlan do
+-- >         setErrorMessage "This requires you to be on the paid plan"
+-- >         redirectTo NewTeamAction
+-- >
+-- >     ...
+--
+-- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
+-- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
+renderFlashMessages :: forall viewContext. (?viewContext :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage]) => Html5.Html
+renderFlashMessages =
+    let
+        flashMessages = (getField @"flashMessages" ?viewContext) :: [Session.FlashMessage]
+        renderFlashMessage (Session.SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
+        renderFlashMessage (Session.ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
+    in
+        forEach flashMessages renderFlashMessage
