@@ -27,7 +27,7 @@ attachFailure field !message = modify #meta prependAnnotation
         annotation = (Text.pack (symbolVal field), message)
 
 {-# INLINE getValidationFailure #-}
-getValidationFailure :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> model -> Maybe Text
+getValidationFailure :: (KnownSymbol field, HasField "meta" model MetaBag) => Proxy field -> model -> Maybe Text
 getValidationFailure field model =
         model
             |> get #meta
