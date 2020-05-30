@@ -186,6 +186,7 @@ compileData table@(CreateTable { name, columns }) =
             |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
             |> commaSep
         <> "} deriving (Eq, Show)\n"
+        <> "instance InputValue " <> modelName <> " where inputValue = IHP.ModelSupport.recordToInputValue\n"
     where
         modelName = tableNameToModelName name
         typeArguments :: Text

@@ -137,12 +137,12 @@ instance InputValue (Id' model') where
     {-# INLINE inputValue #-}
     inputValue = inputValue . Newtype.unpack
 
-instance {-# OVERLAPPABLE #-} (HasField "id" entity (Id entity)) => InputValue entity where
-    {-# INLINE inputValue #-}
-    inputValue entity =
-        getField @"id" entity
-        |> Newtype.unpack
-        |> Data.UUID.toText
+recordToInputValue :: (HasField "id" entity (Id entity)) => entity -> Text
+recordToInputValue entity =
+    getField @"id" entity
+    |> Newtype.unpack
+    |> Data.UUID.toText
+{-# INLINE recordToInputValue #-}
 
 instance FromField (Id' model) where
     {-# INLINE fromField #-}
