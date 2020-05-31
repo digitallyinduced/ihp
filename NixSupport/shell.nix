@@ -46,6 +46,8 @@ let
 	    countable-inflections
 	    typerep-map
 	    mmark-cli
+	    data-default
+	    hspec
 	]);
 in
     pkgs.stdenv.mkDerivation {

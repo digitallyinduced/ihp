@@ -3,7 +3,11 @@ Module: IHP.IDE.SchemaDesigner.Types
 Description: Parser for Application/Schema.sql
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.IDE.SchemaDesigner.Parser (parseSchemaSql, schemaFilePath) where
+module IHP.IDE.SchemaDesigner.Parser
+( parseSchemaSql
+, schemaFilePath
+, parseDDL
+) where
 
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
