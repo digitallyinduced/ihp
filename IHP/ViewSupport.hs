@@ -264,8 +264,13 @@ addStyle :: (ConvertibleStrings string Text) => string -> Html5.Markup
 addStyle style = Html5.style (Html5.preEscapedText (cs style))
 {-# INLINE addStyle #-}
 
-class ViewParamHelpMessage where param :: a
+-- | This class provides helpful compile-time error messages when you use common
+-- controller functions inside of your views.
+class ViewParamHelpMessage where
+    param :: a
+
 instance (T.TypeError (T.Text "‘param‘ can only be used inside your controller actions.\nYou have to run the ‘param \"my_param\"‘ call inside your controller and then pass the resulting value to your view.\n\nController Example:\n\n    module Web.Controller.Projects\n\n    instance Controller ProjectsController where\n        action ProjectsAction = do\n            let showDetails = param \"showDetails\"\n            render ProjectsView { showDetails }\n\nView Example:\n\n    module Web.View.Projects.Index\n\n    data ProjectsView = ProjectsView { showDetails :: Bool }\n    instance View ProjectsView ViewContext where\n        html ProjectsView { .. } = [hsx|Show details: {showDetails}|]\n\n")) => ViewParamHelpMessage where
+    param = error "unreachable"
 
 -- | This class provides helpful compile-time error messages when you use common
 -- controller functions inside of your views.
@@ -273,8 +278,11 @@ class ViewFetchHelpMessage where
     fetch :: a
     query :: a
 instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used inside your controller actions. You have to call it from your controller action and then pass the result to the view.")) => ViewFetchHelpMessage where
+    fetch = error "unreachable"
+    query = error "unreachable"
 
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
+    a == b = error "unreachable"
 
 -- | Displays the flash messages for the current request.
 --

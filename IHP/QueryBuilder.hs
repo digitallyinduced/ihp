@@ -422,6 +422,7 @@ instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' mo
     fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
     {-# INLINE fetchOne #-}
     fetchOne (Just a) = genericFetchIdOne a
+    fetchOne Nothing = error "Fetchable (Maybe Id): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
 
 instance (model ~ GetModelById (Id' model'), value ~ Id' model', HasField "id" model value) => Fetchable [Id' model'] model where
     type FetchResult [Id' model'] model = [model]

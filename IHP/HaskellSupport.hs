@@ -153,9 +153,9 @@ instance IsString string => IsString (Maybe string) where
 
 -- | Example:
 -- forEach users \user -> putStrLn (tshow user)
+forEach :: (MonoFoldable mono, Applicative m) => mono -> (Element mono -> m ()) -> m ()
+forEach elements function = forM_ elements function
 {-# INLINE forEach #-}
-forEach :: _ => _
-forEach = forM_
 
 -- | Parses a text to an int. Returns @Nothing@ on failure.
 --

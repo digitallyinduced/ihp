@@ -73,8 +73,8 @@ getAndClearFlashMessages = do
     errorMessage <- getSession errorMessageKey
     case successMessage of
         Just value | value /= "" -> setSuccessMessage ""
-        Nothing -> pure ()
+        _ -> pure ()
     case errorMessage of
         Just value | value /= "" -> setErrorMessage ""
-        Nothing -> pure ()
+        _ -> pure ()
     pure $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])

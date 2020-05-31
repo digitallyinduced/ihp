@@ -1,4 +1,4 @@
-{-# LANGUAGE  UndecidableInstances, OverlappingInstances #-}
+{-# LANGUAGE  UndecidableInstances #-}
 
 module IHP.HtmlSupport.ToHtml where
 import qualified Text.Blaze.Html5              as Html5
@@ -28,11 +28,11 @@ instance ToHtml Data.ByteString.ByteString where
     {-# INLINE toHtml #-}
     toHtml value = toHtml (cs value :: Text)
 
-instance Show a => ToHtml (Maybe a) where
+instance {-# OVERLAPPABLE #-} Show a => ToHtml (Maybe a) where
     {-# INLINE toHtml #-}
     toHtml maybeValue = maybe mempty toHtml maybeValue
 
-instance Show a => ToHtml a where
+instance {-# OVERLAPPABLE #-} Show a => ToHtml a where
     {-# INLINE toHtml #-}
     toHtml value = cs (show value)
 

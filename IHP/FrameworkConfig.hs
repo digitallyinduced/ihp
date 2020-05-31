@@ -30,8 +30,6 @@ class FrameworkConfig where
 
 data RootApplication = RootApplication deriving (Eq, Show)
 
-instance Controller RootApplication where
-
 initAppPort :: IO Int
 initAppPort = do
     portStr <- Environment.lookupEnv "PORT"

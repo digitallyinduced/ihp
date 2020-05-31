@@ -107,7 +107,7 @@ runActionWithNewContext controller = do
 getRequestBody :: (?requestContext :: RequestContext) => IO ByteString
 getRequestBody =
     let (RequestContext request _ _ _ _) = ?requestContext
-    in Network.Wai.requestBody request
+    in Network.Wai.getRequestBodyChunk request
 
 {-# INLINE getRequestUrl #-}
 getRequestUrl :: (?requestContext :: RequestContext) => ByteString

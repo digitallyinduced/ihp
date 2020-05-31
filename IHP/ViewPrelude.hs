@@ -8,25 +8,17 @@ module IHP.ViewPrelude (
     module IHP.Prelude,
     module IHP.View.TimeAgo,
     stringValue,
-    isActivePath,
     module IHP.View.Form,
-    viewContext,
     hsx,
     toHtml,
-    isActivePathOrSub,
     preEscapedToHtml,
     module IHP.View.Modal,
     module IHP.ValidationSupport,
-    addStyle,
-    css,
     pathTo,
     module IHP.ViewSupport,
     module IHP.ModelSupport,
     (!),
     module Data.Data,
-    param,
-    fetch,
-    query
 ) where
 
 import IHP.Prelude

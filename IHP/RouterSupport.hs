@@ -19,6 +19,7 @@ module IHP.RouterSupport (
     , parseTextArgument
 ) where
 
+import qualified Prelude
 import ClassyPrelude hiding (index, delete, take)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ApplicationContext
@@ -29,7 +30,7 @@ import IHP.Controller.RequestContext
 import Network.Wai
 import Data.String.Conversions (cs)
 import IHP.ControllerSupport
-import Data.Attoparsec.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
+import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import GHC.TypeLits
 import Data.Data
 import qualified Data.UUID as UUID
@@ -69,7 +70,7 @@ class Data controller => AutoRoute controller where
     autoRoute  =
         let
             allConstructors :: [Constr]
-            allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: controller))
+            allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
             parseCustomAction :: Constr -> Parser controller
             parseCustomAction constructor = string prefix >> (string actionPath <* endOfInput >> checkRequestMethod action)
@@ -210,7 +211,7 @@ createAction = fmap fromConstr createConstructor
         createConstructor = find isCreateConstructor allConstructors
 
         allConstructors :: [Constr]
-        allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: controller))
+        allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
         isCreateConstructor :: Constr -> Bool
         isCreateConstructor constructor = "Create" `isPrefixOf` showConstr constructor && ClassyPrelude.null (constrFields constructor)
@@ -236,7 +237,7 @@ updateAction =
             )) constructor) 0
 
         allConstructors :: [Constr]
-        allConstructors = dataTypeConstrs (dataTypeOf (ClassyPrelude.undefined :: controller))
+        allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
         isUpdateConstructor :: Constr -> Bool
         isUpdateConstructor constructor = "Update" `isPrefixOf` (showConstr constructor) && (length (constrFields constructor) == 1)
