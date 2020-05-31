@@ -30,6 +30,16 @@ main
 
 After you have made modifications to files inside `IHP`, you need to press `CTRL + C` to stop the process running in `ghci` and then type `:r` to refresh the haskell modules. Now type `main` to start the server again.
 
+### Running the development server
+
+When making changes to the development tooling, follow the setup above. Instead of starting your application, start the development server:
+
+```
+ghci
+:l IHP/IHP/IDE/DevServer.hs
+main
+```
+
 ## Working on the documentation
 
 To work on the documentation locally open a nix shell inside the framework directory:
