@@ -37,6 +37,10 @@ view = [hsx|
 
 <div style="max-width: 800px; margin-left: auto; margin-right: auto; margin-top: 4rem">
     {icon}
+
+    <p style="color: hsla(196, 13%, 50%, 1)" style="margin-top: 4rem">
+        You can change this start page by updating 'startPage WelcomeAction' in 'Web/FrontController.hs'.
+    </p>
 </div>
 |]
 

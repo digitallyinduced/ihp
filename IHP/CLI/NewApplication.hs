@@ -76,7 +76,7 @@ filesToCreate applicationName =
             <> "import IHP.Welcome.Controller\n\n"
             <> "instance FrontController " <> applicationName <> "Application where\n"
             <> "    controllers = \n"
-            <> "        [ parseRoute @WelcomeController\n"
+            <> "        [ startPage WelcomeAction\n"
             <> "        -- Generator Marker\n"
             <> "        ]\n\n"
             <> "instance InitControllerContext " <> applicationName <> "Application\n"
