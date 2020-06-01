@@ -203,6 +203,18 @@ let message = post |> ifValid \case
 putStrLn message
 ```
 
+### Customizing Error Messages
+
+Use `withCustomErrorMessage` to customize the error message when validation failed:
+
+```haskell
+user
+    |> fill @'["firstname"]
+    |> validateField #firstname (nonEmpty |> withCustomErrorMessage "Please enter your firstname")
+```
+
+In this example, when the `nonEmpty` adds an error to the user, the message `Please enter your firstname` will be used instead of the default `This field cannot be empty`.
+
 ## Internals
 
 IHP's validation is built with a few small operations.
