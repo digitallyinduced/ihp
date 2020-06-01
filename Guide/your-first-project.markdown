@@ -448,7 +448,8 @@ Right now at the bottom of the file we have this:
 
 
 ```haskell
-buildPost = fill @["title","body"]
+buildPost post = post
+    |> fill @["title","body"]
 ```
 
 Replace the implementation with this:
@@ -507,7 +508,7 @@ action PostsAction = do
     render IndexView { .. }
 ```
 
-Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`. There we add `<p>{timeAgo (get #createdAt post)}</p>` below the title:
+Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`. There we add `<p>{get #createdAt post |> timeAgo}</p>` below the title:
 
 ```html
 <nav>
@@ -517,7 +518,7 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
     </ol>
 </nav>
 <h1>{get #title post}</h1>
-<p>{timeAgo (get #createdAt post)}</p>
+<p>{get #createdAt post |> timeAgo}</p>
 <div>{get #body post}</div>
 ```
 
@@ -648,9 +649,7 @@ buildPost post = post
 
 Create a new post with just `#` (a headline without any text) as the content to see our new error message.
 
-## 6. A Second Model
-
-### 6.1 Schema Modeling
+## 6. Adding Comments
 
 It's time to add comments to our blog. For that open the Schema Designer and add a new table `comments` with the fields `id`, `post_id`, `author` and `body`:
 
@@ -660,14 +659,12 @@ When adding the post\_id column, it will automatically set the type to UUID. Unl
 
 By default the foreign key constraint has set its `ON DELETE` behavior to `NO ACTION`. To change the `ON DELETE`, click on the `FOREIGN KEY: posts` next to the `post_id` field.
 
-### 6.2 Loading the Schema
-
 Press `DB to Fixtures` to save our current posts to `Application/Fixtures.sql` and press the `Push to DB`-button to rebuild the database to add our new `comments` table.
 
 
-### 6.3 The Controller
+### The Controller
 
-It's time to add a controller for our comments. We can use the visual code generator for this:
+Let's add a controller for our comments. We can use the visual code generator for this:
 
 ![](images/first-project/code_gen_1.png)
 
@@ -681,3 +678,308 @@ Click `Generate`:
 
 
 The controller is generated now. But we need to do some adjustments to better integrate the comments into the posts.
+
+### "Add comment"
+
+First we need to make it possible to create a new comment for a post. Open `Web/View/Posts/Show.hs` and append `<a href={NewCommentAction}>Add Comment</a>` to the HSX code:
+
+```html
+instance View ShowView ViewContext where
+    html ShowView { .. } = [hsx|
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
+                <li class="breadcrumb-item active">Show Post</li>
+            </ol>
+        </nav>
+        <h1>{get #title post}</h1>
+        <p>{get #createdAt post |> timeAgo}</p>
+        <div>{get #body post |> renderMarkdown}</div>
+
+        <a href={NewCommentAction}>Add Comment</a>
+    |]
+```
+
+This creates a `Add Comment` link, which links to the New Comment Form we just generated. After clicking the `Add Comment` link, we can see this:
+
+![Pretty empty](images/first-project/new_comment.png)
+
+We can see, there is a post id field which is field with a lot of 0s. When we try to submit this form, it will fail because there is no post with this id. Let's first make it possible, that the post id is automtaically set to the post where we originally clicked on "New Comment".
+
+For that, open `Web/Types.hs`. We can see the definition of `CommentsController`:
+
+```haskell
+data CommentsController
+    = CommentsAction
+    | NewCommentAction
+    | ShowCommentAction { commentId :: !(Id Comment) }
+    | CreateCommentAction
+    | EditCommentAction { commentId :: !(Id Comment) }
+    | UpdateCommentAction { commentId :: !(Id Comment) }
+    | DeleteCommentAction { commentId :: !(Id Comment) }
+    deriving (Eq, Show, Data)
+```
+
+Let's add a argument `postId :: !(Id Post)` to `NewCommentAction`:
+
+```haskell
+data CommentsController
+    -- ...
+    | NewCommentAction { postId :: !(Id Post) }
+    -- ...
+```
+
+After making this change, we can see some type errors in the browser. This is, because now all references to `NewCommentAction` now need to be passed the `postId` value. Think of these type errors as a todo list of changes to be made, reported to us by the compiler. 
+
+Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment</a>` to:
+
+```haskell
+<a href={NewCommentAction (get #id post)}>Add Comment</a>
+```
+
+After that, another type error is in the `Web/View/Comments/Index.hs`. In this auto-generated view we have a `New Comment` button at the top:
+
+```haskell
+<h1>Comments <a href={pathTo NewCommentAction} class="btn btn-primary ml-4">+ New</a></h1>
+```
+
+Let's just remove this button by changing this line to:
+
+```haskell
+<h1>Comments</h1>
+```
+
+Now we see another type error:
+
+```haskell
+Web/Controller/Comments.hs:14:12: error:
+    • The constructor ‘NewCommentAction’ should have 1 argument, but has been given none
+    • In the pattern: NewCommentAction
+      In an equation for ‘action’:
+          action NewCommentAction
+            = do let comment = ...
+                 render NewView {..}
+      In the instance declaration for ‘Controller CommentsController’
+   |
+14 |     action NewCommentAction = do
+   |            ^^^^^^^^^^^^^^^^
+```
+
+Open `Web/Controller/Comments` and add the missing `{ postId }` in the pattern match at line 14:
+
+```haskell
+    action NewCommentAction { postId } = do
+        let comment = newRecord
+        render NewView { .. }
+```
+
+Now all type errors should be fixed.
+
+Open http://localhost:8000/Posts and open the Show View of a post by clicking `Show`. Now Click `Add Comment`. Now take a look at the URL, it will something like:
+
+```html
+http://localhost:8000/NewComment?postId=7f37115f-c850-4fcb-838f-1971cea0544e
+```
+
+You can see that the `postId` has been passed as a query parameter. In the form, the post id field is still filled with 0s. Let's fix this. Open `Web/Controller/Comments.hs` and change the `NewCommentAction` to this:
+
+```haskell
+    action NewCommentAction { postId } = do
+        let comment = newRecord
+                |> set #postId postId
+        render NewView { .. }
+```
+
+This will set the `postId` of our new comment record to the `postId` given to the action.
+
+Now take a look at your form. The `postId` will be prefilled now:
+![Pretty empty](images/first-project/new_comment_with_postid.png)
+
+
+Of course, seeing the UUID is not very human-friendly. Let's better just show the post title to our user. For that, we have to fetch and pass the post to our form and then make the `postId` a hidden field.
+
+Append `post <- fetch postId` to fetch the post to the `NewCommentAction`:
+
+```haskell
+    action NewCommentAction { postId } = do
+        let comment = newRecord
+                |> set #postId postId
+        post <- fetch postId
+        render NewView { .. }
+```
+
+Because the error view is rendering our `NewView` in an error case, we also have to update the `CreateCommentAction`:
+
+```haskell
+    action CreateCommentAction = do
+        -- ...
+                Left comment -> do
+                    post <- fetch (get #postId comment) -- <---- NEW
+                    render NewView { .. } 
+                Right comment -> - ....
+```
+
+Inside the `Web/View/Comments/New.hs` retrieve the `post` variable from the action by updating the `NewView`:
+
+```haskell
+data NewView = NewView
+    { comment :: NewComment
+    , post :: Post
+    }
+```
+
+This way the post is passed from the action to our view.
+
+Now we can use the `post` variable to show the post title. Change `<h1>New Comment</h1>` to:
+
+```haskell
+<h1>New Comment for <q>{get #title post}</q></h1>
+```
+
+Let's also make the text field for `postId` a hidden field:
+
+```haskell
+renderForm :: NewComment -> Html
+renderForm comment = formFor comment [hsx|
+    {hiddenField #postId}
+    {textField #author}
+    {textField #body}
+    {submitButton}
+|]
+```
+
+Our form is complete now :-) Time to take a look:
+
+![New Comment View after our changes](images/first-project/new_comment_hidden_field.png)
+
+Great, let's add our first comment:
+
+![Creating Our New Comment](images/first-project/new_comment_created.png)
+
+It works. We're redirected to the `CommentsAction`. If you look at the table, we can see that our `postId` has been set successfully.
+
+Let's change our `CreateCommentAction` to make it redirect back to our Post again after commenting. Open `Web/Controller/Comments.hs` and take a look at the `CreateCommentAction`.
+
+In the success case (`Right comment -> ...`) we see:
+```haskell
+redirectTo CommentsAction
+```
+Change this to:
+```haskell
+redirectTo ShowPostAction { postId = get #postId comment }
+```
+
+Open the browser and create a new comment to verify that this redirect is working:
+
+![Redirect is working](images/first-project/new_comment_redirected_to_post.png)
+
+### Show Comments of a Post
+
+Next we're going to display our comments below the post. Open `Web/View/Posts/Show.hs` and append the following code to the HSX block:
+
+```haskell
+<div>{get #comments post}</div>
+```
+
+It will display something like this:
+
+![Redirect is working](images/first-project/show_post_comments_querybuilder.png)
+
+This is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")`. But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to acutally fetch them for us.
+
+Inside the `Show.hs` we need to update the type signature to tell our action what we want. Right now we have:
+```haskell
+data ShowView = ShowView { post :: Post }
+```
+
+Add a `Include "comments"` like this:
+```haskell
+data ShowView = ShowView { post :: Include "comments" Post }
+```
+
+This specifies that our view requires a post and also including it's comments. This will trigger a type error to be shown in the browser because our `ShowPostAction` is not passing the comments yet.
+
+To archive this, open `Web/Controller/Posts.hs` and take a look at the`ShowPostAction`. Right now we have a `fetch` call:
+```haskell
+post <- fetch postId
+```
+
+We need to extend our fetch to also include comments. We can use `fetchRelated` for this:
+```haskell
+post <- fetch postId
+    >>= fetchRelated #comments
+```
+
+The type of `post` has changed from `Post` to `Include "comments" Post`. In general, when you're dealing with has-many relationships, use `Include "relatedRecords"` and `fetchRelated` to specify and and fetch data according to your needs.
+
+The type error is fixed now. When opening the Show View of a post, you will see that the comments are displayed. When you take a look at the [`Logs` in the Dev tools](http://localhost:8001/AppLogs) you can see, that when opening a Post, two sql queries will be fired:
+
+```haskell
+("SELECT posts.* FROM posts WHERE id = ?  LIMIT 1",[Plain "'7f37115f-c850-4fcb-838f-1971cea0544e'"])
+("SELECT comments.* FROM comments WHERE post_id = ?  ",[Plain "'7f37115f-c850-4fcb-838f-1971cea0544e'"])
+```
+
+Right now the view is displaying the comments as a string. Let's make it more beautiful. Open `Web/View/Posts/Show.hs`.
+
+Let's first change the `{get #comments post}` to make a `<div>` for each comment:
+```haskell
+<div>{forEach (get #comments post) renderComment}</div>
+```
+
+We also need to define the `renderComment` at the end of the file:
+```haskell
+renderComment comment = [hsx|<div>{comment}</div>|]
+```
+
+Let's also add some more structure to displaying the comments:
+```haskell
+renderComment comment = [hsx|
+        <div class="mt-4">
+            <h5>{get #author comment}</h5>
+            <p>{get #body comment}</p>
+        </div>
+    |]
+```
+
+This is how it looks now:
+
+![Post with comments](images/first-project/post_with_comments.png)
+
+### Ordering Comments
+
+Right now comments are displayed in the order they're stored in the database. So updating a comment will change the order. Let's change this, so that the newest comment is always displayed first.
+
+[Open the Schema Designer](http://localhost:8001/). Select the `comments` Table. Right click in the Columns Pane, Click `Add Column`. Enter `created_at`. The column type will be auto selected, and the default value automatically sets to `NOW()`. Click `Create Column`.
+
+Now click `DB to Fixtures` and `Push to DB` to save the fixtures and then rebuild the database.
+
+Now we have a `created_at` timestamp we can use for ordering. Open `Web/Controller/Posts.hs` and change the action from:
+
+```haskell
+    action ShowPostAction { postId } = do
+        post <- fetch postId
+            >>= fetchRelated #comments
+        render ShowView { .. }
+```
+
+To the following:
+
+```haskell
+    action ShowPostAction { postId } = do
+        post <- fetch postId
+            >>= pure . modify #comments (orderByDesc #createdAt)
+            >>= fetchRelated #comments
+        render ShowView { .. }
+```
+
+The `modify #comments (orderByDesc #createdAt)` basically just does a `|> orderByDesc #createdAt` to the query builder inside the `#comments` field. Then it just writes it back to the field. The `fetchRelated #comments` will then use the query builder stored inside `#comments` to fetch the comments, thus using the `ORDER BY` we added to the query.
+
+That's it already. Taking a look at our post, we can see that the newest comment is shown first now.
+
+![Post with ordered comments](images/first-project/post_with_ordered_comments.png)
+
+## Have Fun!
+
+You should have a rough understanding of IHP now. The best way to continue is to start building things. Take a look at the `The Basics` Section to learn more about all the provided modules.
+
+[Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
