@@ -100,7 +100,7 @@ Rendering `{textField #title}`, the input will have the css class `is-invalid` a
 
 ## Forms Are Also HSX
 
-It's important to understand that the while the form helpers like `{textField #title}` are called by `formFor`, you can still use HSX there. So you can just add any kind of HSX code inside your form:
+It's important to understand that while the form helpers like `{textField #title}` are called by `formFor`, you can still use HSX there. So you can just add any kind of HSX code inside your form:
 
 ```html
 renderForm :: Post -> Html
