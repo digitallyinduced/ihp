@@ -383,3 +383,23 @@ You can get very far with the built-in form helpers. But sometimes you might nee
 ## CSRF
 
 IHP by default sets its session cookies using the Lax [SameSite](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite) option. While `Lax` sounds not very secure, this protects against all common CSRF vectors. This browser-based CSRF protection works with all modern browsers, therefore a token-based protection is not used in IHP applications.
+
+## Javascript Helpers
+
+By default your form will be submitted using AJAX and [TurboLinks](https://github.com/turbolinks/turbolinks) instead of a real browser based form submission. It's implemented this way to support [SPA](https://en.wikipedia.org/wiki/Single-page_application)-like page transitions using TurboLinks and [morphdom](https://github.com/patrick-steele-idem/morphdom).
+
+Additional to integrate the form submission into TurboLinks, the javascript helpers will also disable the form submit button after the form has been submitted. Also any flash messages inside the form are removed.
+
+When the IHP javascript helpers are included in a page, it will automatically hook into your form submissions. You can also call `window.submitForm(formElement)` to trigger a form submission from javascript.
+
+
+The form helpers are designed to improve the User Experience for browser where javascript is enabled. In case javascript is not enabled or blocked by a plugin, the form submission will still work as expected.
+
+You can disable the form helpers by removing the IHP javascript helpers from your layout. In `Web/View/Layout.hs` remove the following line:
+```html
+<script src="/helpers.js"></script>
+```
+
+This way no special behavior will be attach to your forms.
+
+To dig deeper into the javascript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
