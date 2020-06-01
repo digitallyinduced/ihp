@@ -183,7 +183,6 @@ generateController schema config =
 
         fromParams =
             ""
-            <> "build" <> singularName <> " :: _ => " <> modelVariableSingular <> " -> " <> modelVariableSingular <> "\n"
             <> "build" <> singularName <> " " <> modelVariableSingular <> " = " <> modelVariableSingular <> "\n"
             <> "    |> fill " <> toTypeLevelList modelFields <> "\n"
 
