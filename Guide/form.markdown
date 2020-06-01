@@ -403,3 +403,7 @@ You can disable the form helpers by removing the IHP javascript helpers from you
 This way no special behavior will be attach to your forms.
 
 To dig deeper into the javascript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
+
+## Working with other CSS Frameworks
+
+TODO: This section still has to be implemented. The gist of how rendering can be completly overriden to support a different layout or CSS framework can be found in the implementation of [horizontalFormFor](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:horizontalFormFor) (renders a bootstrap 4 form in a horizontal way).
