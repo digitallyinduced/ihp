@@ -241,7 +241,7 @@ The following options are not commonly used, but are useful sometimes.
 
 #### Adding custom attributes to the input element
 
-Form rendering is built on top of blaze html. So you need to import the blaze html functions for this. Add this at the top of your module:
+Form rendering is built on top of [blaze html](https://hackage.haskell.org/package/blaze-html). So you need to import the blaze html functions for this. Add this at the top of your module:
 
 ```haskell
 import qualified Text.Blaze.Html5 as H
