@@ -96,6 +96,20 @@ validateFieldIO fieldProxy customValidation model = do
     pure (attachValidatorResult fieldProxy result model)
 {-# INLINE validateFieldIO #-}
 
+-- | Overrides the error message of a given validator function.
+--
+-- >>> (nonEmpty |> withCustomErrorMessage "Custom error message") ""
+-- Failure "Custom error message"
+--
+--
+-- >>> (isEmail |> withCustomErrorMessage "We only accept valid email addresses") "not valid email"
+-- Failure "We only accept valid email addresses"
+withCustomErrorMessage :: Text -> (value -> ValidatorResult) -> value -> ValidatorResult
+withCustomErrorMessage errorMessage validator value =
+    case validator value of
+        Failure _ -> Failure errorMessage
+        Success -> Success
+
 -- | Validates value is not empty
 --
 -- >>> nonEmpty "hello world"
