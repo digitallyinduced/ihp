@@ -116,10 +116,10 @@ withCustomErrorMessage errorMessage validator value =
 
 -- | Validates that value passes at least one of the given validators
 --
--- >>> "ihp@example.com" |> validateAny([empty, isEmail])
+-- >>> "ihp@example.com" |> validateAny([isEmptyValue, isEmail])
 -- Success
 --
--- >>> "" |> validateAny([empty, isEmail])
+-- >>> "" |> validateAny([isEmptyValue, isEmail])
 -- Success
 --
 -- >>> "no spam plz" |> validateAny([empty, isEmail])
@@ -169,21 +169,21 @@ nonEmpty _ = Success
 
 -- | Validates that value is empty
 --
--- >>> empty "hello world"
+-- >>> isEmptyValue "hello world"
 -- Failure "This field must be empty"
 --
--- >>> empty ""
+-- >>> ieEmptyValue ""
 -- Success
 --
--- >>> empty (Just "hello")
+-- >>> isEmptyValue (Just "hello")
 -- Failure "This field must be empty"
 --
--- >>> empty Nothing
+-- >>> isEmptyValue Nothing
 -- Success
-empty :: MonoFoldable value => value -> ValidatorResult
-empty value | null value = Success
-empty _ = Failure "This field must be empty"
-{-# INLINE empty #-}
+isEmptyValue :: MonoFoldable value => value -> ValidatorResult
+isEmptyValue value | null value = Success
+isEmptyValue _ = Failure "This field must be empty"
+{-# INLINE isEmptyValue #-}
 
 
 -- | Validates that value looks like a phone number

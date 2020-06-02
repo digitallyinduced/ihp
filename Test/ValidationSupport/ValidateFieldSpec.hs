@@ -29,13 +29,13 @@ main = hspec do
             nonEmpty ("" :: Text) `shouldSatisfy` isFailure
             nonEmpty Nothing `shouldSatisfy` isFailure
 
-    describe "The empty validator" do
+    describe "The isEmptyValue validator" do
         it "should handle trivial cases" do
-            empty ("" :: Text) `shouldBe` Success
-            empty Nothing `shouldBe` Success
+            isEmptyValue ("" :: Text) `shouldBe` Success
+            isEmptyValue Nothing `shouldBe` Success
             
-            empty ("hi" :: Text) `shouldSatisfy` isFailure
-            empty (Just "hi") `shouldSatisfy` isFailure
+            isEmptyValue ("hi" :: Text) `shouldSatisfy` isFailure
+            isEmptyValue (Just "hi") `shouldSatisfy` isFailure
 
     describe "The isPhoneNumber validator" do
         it "should handle trivial cases" do
@@ -186,7 +186,7 @@ main = hspec do
 
     describe "The validateAny validator" do
         it "should handle trivial cases" do
-            validateAny [empty, isEmail] "" `shouldBe` Success
+            validateAny [isEmptyValue, isEmail] "" `shouldBe` Success
             validateAny [isGreaterThan(10), isLessThan(5)] 1 `shouldBe` Success
             validateAny [isGreaterThan(10), isLessThan(5)] 11 `shouldBe` Success
             validateAny [isGreaterThan(10), isLessThan(5)] 7 `shouldSatisfy` isFailure
