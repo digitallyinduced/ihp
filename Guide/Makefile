@@ -14,6 +14,7 @@ HTML_FILES+= view.html
 HTML_FILES+= form.html
 HTML_FILES+= hsx.html
 HTML_FILES+= validation.html
+HTML_FILES+= session.html
 
 all: $(HTML_FILES) bootstrap.css
 
