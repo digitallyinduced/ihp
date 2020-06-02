@@ -65,6 +65,7 @@
     border-bottom: 1px solid #c0c0c0;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
     background-color: #ebebeb;
 }
 
@@ -77,6 +78,12 @@
 
 .code-generator input[name="name"]::placeholder {
     color: #ababaa;
+}
+
+.code-generator input[type="submit"] {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .generator-actions {
