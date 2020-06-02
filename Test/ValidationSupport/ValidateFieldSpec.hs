@@ -183,3 +183,15 @@ main = hspec do
 
             isUrl "ihp.digitallyinduced.com" `shouldSatisfy` isFailure
             isUrl "gopher://ihp.digitallyinduced.com/" `shouldSatisfy` isFailure
+
+    describe "The validateAny validator" do
+        it "should handle trivial cases" do
+            validateAny [empty, isEmail] "" `shouldBe` Success
+            validateAny [isGreaterThan(10), isLessThan(5)] 1 `shouldBe` Success
+            validateAny [isGreaterThan(10), isLessThan(5)] 11 `shouldBe` Success
+            validateAny [isGreaterThan(10), isLessThan(5)] 7 `shouldSatisfy` isFailure
+
+    describe "The validateAll validator" do
+        it "should handle trivial cases" do
+            validateAll [isGreaterThan(1900), isLessThan(2020)] 2016 `shouldBe` Success
+            validateAll [isGreaterThan(1900), isLessThan(2020)] 2050 `shouldSatisfy` isFailure
