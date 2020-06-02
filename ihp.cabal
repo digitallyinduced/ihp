@@ -72,6 +72,7 @@ common shared-properties
             , fsnotify
             , websockets
             , wai-websockets
+            , regex-tdfa
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

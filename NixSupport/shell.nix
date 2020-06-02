@@ -48,6 +48,7 @@ let
 	    mmark-cli
 	    data-default
 	    hspec
+	    regex-tdfa
 	]);
 in
     pkgs.stdenv.mkDerivation {
