@@ -60,7 +60,7 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 .DEFAULT_GOAL := help
 RUNGHC=runghc
 
-all: build/ihp-lib
+all: build/ihp-lib build/Generated/Types.hs
 
 .envrc: default.nix ## Rebuild nix packages and .envrc
 	rm -f .envrc
@@ -70,7 +70,7 @@ all: build/ihp-lib
 build/bin:
 	mkdir -p build/bin
 
-run-production: build/bin/RunProdServer build/Generated ## Run Production Server
+run-production: build/bin/RunProdServer build/Generated/Types.hs ## Run Production Server
 	build/bin/RunProdServer
 
 psql: ## Connects to the running postgresql server
@@ -85,11 +85,11 @@ dumpdb: dump_db ## Saves the current database state into the Fixtures.sql
 dump_db: ## Saves the current database state into the Fixtures.sql
 	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
-build/Generated: Application/Schema.sql IHP/IHP/SchemaCompiler.hs ## Rebuilds generated types
-	rm -rf build/Generated && mkdir -p build/Generated
+build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
+	mkdir -p build/Generated
 	build-generated-code
 
-build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated ## Quickly does a production build (all compiler optimizations disabled)
+build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Quickly does a production build (all compiler optimizations disabled)
 	mkdir -p build/RunUnoptimizedProdServer
 	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<
