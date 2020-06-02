@@ -195,3 +195,11 @@ main = hspec do
         it "should handle trivial cases" do
             validateAll [isGreaterThan(1900), isLessThan(2020)] 2016 `shouldBe` Success
             validateAll [isGreaterThan(1900), isLessThan(2020)] 2050 `shouldSatisfy` isFailure
+
+    describe "The isInList validator" do
+        it "should handle trivial cases" do
+            isInList [1954, 1974, 1990, 2014] 2014 `shouldBe` Success
+            isInList [1954, 1974, 1990, 2014] 2018 `shouldSatisfy` isFailure
+
+            isInList ["C", "Haskell", "Rust"] "Haskell" `shouldBe` Success
+            isInList ["C", "Haskell", "Rust"] "JavaScript" `shouldSatisfy` isFailure -- rightly!
