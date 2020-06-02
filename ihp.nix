@@ -46,6 +46,7 @@
 , typerep-map
 , basic-prelude
 , data-default
+, regex-tdfa
 }:
 mkDerivation {
   pname = "ihp";
@@ -99,6 +100,7 @@ mkDerivation {
     typerep-map
     basic-prelude
     data-default
+    regex-tdfa
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
