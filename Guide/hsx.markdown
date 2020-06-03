@@ -47,6 +47,35 @@ in
     [hsx|<input type="text" value={inputValue}/>|]
 ```
 
+### Boolean Attribute Values
+
+HSX has special handling for boolean values to make it easy to deal with html boolean attributes like `disabled`, `readonly`, `checked`, etc.
+
+You can write
+
+```html
+<input disabled={True}/>
+```
+
+a a short form for:
+
+```html
+<input disabled="disabled"/>
+```
+
+Writing `False`:
+
+```html
+<input disabled={False}/>
+```
+
+This will not render the attribute:
+
+```html
+<input/>
+```
+
+
 ### Syntax Rules
 
 While most html is also valid HSX, there are some difference you need to be aware of:

@@ -12,7 +12,7 @@ import qualified Text.Blaze.Html5              as Html5
 import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
-import Data.String.Conversions (cs)
+import Data.String.Conversions
 import IHP.HtmlSupport.ToHtml
 import qualified Debug.Trace
 import Control.Monad.Fail
@@ -108,21 +108,21 @@ toStringAttribute (name', TextValue value) = do
     let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
     if null value
-        then [| (attribute name nameWithSuffix) mempty |]
-        else [| (attribute name nameWithSuffix) (cs value :: Html5.AttributeValue) |]
+        then [| \h -> h ! ((attribute name nameWithSuffix) mempty) |]
+        else [| \h -> h ! ((attribute name nameWithSuffix) (cs value :: Html5.AttributeValue)) |]
 
 toStringAttribute (name', ExpressionValue code) = do
     let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
     case parseExp (cs code) of
-        Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(pure patched)) |]
+        Right expression -> let patched = patchExpr expression in [| applyAttribute name nameWithSuffix $(pure patched) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
 
 
-{-# INLINE applyAttributes #-}
-applyAttributes :: Html5.Html -> [Html5.Attribute] -> Html5.Html
+applyAttributes :: Html5.Html -> [Html5.Html -> Html5.Html] -> Html5.Html
 applyAttributes !el [] = el
-applyAttributes !el (x:xs) = applyAttributes (el ! x) xs
+applyAttributes !el (x:xs) = applyAttributes (x el) xs
+{-# INLINE applyAttributes #-}
 
 {-# INLINE makeElement #-}
 makeElement :: Text -> [Html] -> Html
@@ -146,3 +146,24 @@ makeElement name' children =
                 leaf ()
             else
                 error ("makeElement: Unknown tag "  <> show name)
+
+class ApplyAttribute value where
+    applyAttribute :: Text -> Text -> value -> (Html5.Html -> Html5.Html)
+
+instance ApplyAttribute Bool where
+    applyAttribute attr attr' True h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (Html5.textValue attr))
+    applyAttribute attr attr' false h = h
+    {-# INLINE applyAttribute #-}
+
+instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
+    applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (cs value))
+    {-# INLINE applyAttribute #-}
+-- class ApplyAttribute value where
+--     makeAttribute :: Html5.Tag -> Html5.Tag -> value -> Html5.Attribute
+-- 
+-- instance MakeAttribute Bool where
+--     makeAttribute name nameWithSuffix value = attribute name nameWithSuffix value
+-- 
+-- instance MakeAttribute AttributeValue where
+--     makeAttribute name nameWithSuffix value = attribute name nameWithSuffix value
+-- 
