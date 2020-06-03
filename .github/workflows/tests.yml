@@ -15,5 +15,5 @@ jobs:
         # Only needed for private caches
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: |
-          cd ihp
+          cd IHP
           ls .
