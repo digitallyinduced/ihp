@@ -1,0 +1,20 @@
+name: "Running Tests"
+on:
+  pull_request:
+    branches:
+      - master
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: cachix/install-nix-action@v9
+    - uses: cachix/cachix-action@v6
+      with:
+        name: digitallyinduced
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: |
+          for test in $(find Test -name '*.hs'); do
+              nix-shell ./NixSupport/shell.nix --run "runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) "$test"" || break
+          done
