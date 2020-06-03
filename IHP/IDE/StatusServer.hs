@@ -103,7 +103,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
         <html lang="en">
             <head>
                 <meta charset="utf-8"/>
-                <title>Compilation Error</title>
+                {title}
                 <style>{style}</style>
             </head>
             <body style="background-color: #002b36; color: #839496">
@@ -117,6 +117,10 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
         </html>
     |]
         where
+            title = if isCompiling
+                then [hsx|<title>Compiling...</title>|]
+                else [hsx|<title>Compilation Error</title>|]
+
             inner = if isCompiling
                 then [hsx|<h1>Is compiling</h1>|]
                 else [hsx|<h1>Error while compiling</h1>|]
