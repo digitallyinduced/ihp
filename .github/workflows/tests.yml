@@ -15,5 +15,4 @@ jobs:
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: |
-          echo "Run Tests"
           nix-shell ./NixSupport/shell.nix --run "runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) ./Test/IDE/SchemaDesigner/ParserSpec.hs"
