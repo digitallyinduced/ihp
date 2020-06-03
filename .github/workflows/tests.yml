@@ -15,5 +15,5 @@ jobs:
         # Only needed for private caches
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: |
-          cd IHP
-          ls .
+          echo "Run Tests"
+          nix-shell ./NixSupport/shell.nix --run "runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) ./Test/IDE/SchemaDesigner/ParserSpec.hs"
