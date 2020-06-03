@@ -47,6 +47,7 @@ import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport
 import qualified IHP.Controller.Session as Session
 import IHP.HtmlSupport.QQ (hsx)
+import Data.Text (concat)
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 
@@ -110,6 +111,47 @@ classes !classNameBoolPairs =
 -- Useful together with 'classes'
 instance IsString (Text, Bool) where
     fromString string = (cs string, True)
+
+
+-- | Helper for dynamically generating attribute.
+--
+-- If given two lists, the first consisting of (key, value) tuples like
+--
+-- > [("type", "button"), ("value", "Submit")]
+--
+-- and the second consisting of (key, Bool) values like
+--
+-- > [("disabled", True)]
+--
+-- builds an attributes string consisting of all key value parts from the first list
+-- and the parts from the second list where the second value is @True@.
+--
+-- E.g.
+--
+-- >>> attributes [("type", "button"), ("value", "Submit")] ["btn", ("disabled", True)]
+-- "type=\"button\" value=\"Submit\" btn disabled"
+--
+-- >>> attributes [("type", "button"), ("value", "Submit")] ["btn", ("disabled", False)]
+-- "type=\"button\" value=\"Submit\" btn"
+--
+-- __Example:__
+--
+-- >>> <a {attributes [("role", "button")] [("hidden", True)]}>
+-- <a role="button" hidden>
+attributes :: [(Text, Text)] ->  [(Text, Bool)] -> Text
+attributes attrNameValuePairs !attrNameBoolPairs = let
+    attrNameValue =
+        attrNameValuePairs
+        |> map (\nv -> Data.Text.concat [fst nv, "=", show $ snd nv])
+
+    attrName =
+        attrNameBoolPairs
+        |> filter snd
+        |> map fst
+    in
+        unwords $ attrNameValue <> attrName
+{-# INLINE attributes #-}
+
 
 class CreateViewContext viewContext where
     type ViewApp viewContext
