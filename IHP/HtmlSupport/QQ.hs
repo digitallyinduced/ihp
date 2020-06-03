@@ -158,12 +158,3 @@ instance ApplyAttribute Bool where
 instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
     applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (cs value))
     {-# INLINE applyAttribute #-}
--- class ApplyAttribute value where
---     makeAttribute :: Html5.Tag -> Html5.Tag -> value -> Html5.Attribute
--- 
--- instance MakeAttribute Bool where
---     makeAttribute name nameWithSuffix value = attribute name nameWithSuffix value
--- 
--- instance MakeAttribute AttributeValue where
---     makeAttribute name nameWithSuffix value = attribute name nameWithSuffix value
--- 
