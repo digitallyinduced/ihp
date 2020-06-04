@@ -85,6 +85,57 @@ When this action is called without the `maxItems` parameter being set (or when i
 
 There is also `paramOrNothing` which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
 
+### Passing Data from the Action to the View
+
+A common task is to pass data from the action to the view for rendering. You can do this by extending the view data structure by the required data.
+
+
+Given an action like this:
+
+```haskell
+action ExampleAction = do
+    render ExampleView { .. }
+```
+
+And an `ExampleView` like this:
+
+```haskell
+data ExampleView = ExampleView { }
+
+instance View ExampleView ViewContext where
+    html ExampleView { .. } = [hsx|Hello World!|]
+```
+
+Now we want to pass the user's firstname to the view, to make the hello world a bit more personal. We can just do it by adding a `firstname :: Text` field to the `ExampleView` data structure and then adding a `{firstname}` to the HSX:
+
+```haskell
+data ExampleView = ExampleView { firstname :: Text }
+
+instance View ExampleView ViewContext where
+    html ExampleView { .. } = [hsx|Hello World, {firstname}!|]
+```
+
+By now, the compiler will already tell us that we have not defined the `firstname` field inside the action. So we also need to update the action:
+```haskell
+action ExampleAction = do
+    let firstname = "Tester"
+    render ExampleView { .. } -- Remember: ExampleView { .. } is just short for ExampleView { firstname = firstname }
+```
+
+This will pass the firstname `"Tester"` to our view.
+
+We can also make it more dynamically and allow the user to specify the firstname via a query parameter:
+```haskell
+action ExampleAction = do
+    let firstname = paramOrDefault @Text "firstname" "Unnamed"
+    render ExampleView { .. }
+```
+
+This will render `Hello World, Unnamed!` when the `ExampleAction` is called without a `firstname` parameter.
+
+
+
+
 ### Advanced: Working with Custom Types
 
 Rarely you might want to work with a custom scalar value which is not yet supported with `param`. Define a custom `ParamReader` instance to be able to use the `param` functions with your custom value type. [For that, take a look at the existing instances of `ParamReader`.](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader)
