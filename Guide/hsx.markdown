@@ -57,7 +57,7 @@ You can write
 <input disabled={True}/>
 ```
 
-a a short form for:
+as a short form for:
 
 ```html
 <input disabled="disabled"/>
