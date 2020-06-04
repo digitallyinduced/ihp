@@ -86,6 +86,22 @@
     border-bottom-right-radius: 0;
 }
 
+.code-generator select {
+    font-size: 24px;
+    background-color: #ebebeb;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+.code-generator select:focus {
+    border-bottom: 1px solid #c0c0c0;
+    background-color: #ebebeb;
+}
+
+.code-generator select:first-child {
+    color: lightgray;
+}
+
 .generator-actions {
     padding-top: 1rem;
     padding-left: 0.5rem;
