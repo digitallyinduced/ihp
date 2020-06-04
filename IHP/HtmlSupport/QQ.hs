@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies, BangPatterns #-}
+{-# LANGUAGE TemplateHaskell, UndecidableInstances, BangPatterns #-}
 
 module IHP.HtmlSupport.QQ (hsx) where
 
