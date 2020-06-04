@@ -983,3 +983,5 @@ That's it already. Taking a look at our post, we can see that the newest comment
 You should have a rough understanding of IHP now. The best way to continue is to start building things. Take a look at the `The Basics` Section to learn more about all the provided modules.
 
 [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
+
+[To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
