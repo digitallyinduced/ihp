@@ -44,11 +44,9 @@ compileToHaskell :: Node -> TH.ExpQ
 compileToHaskell (Node name attributes children) =
     let
         renderedChildren = TH.listE $ map compileToHaskell children
-    in case attributes of
-        StaticAttributes attributes ->
-            let
-                stringAttributes = TH.listE $ map toStringAttribute attributes
-            in [| (applyAttributes (makeElement name $(renderedChildren)) $(stringAttributes)) |]
+        stringAttributes = TH.listE $ map toStringAttribute attributes
+    in
+        [| (applyAttributes (makeElement name $(renderedChildren)) $(stringAttributes)) |]
 
 compileToHaskell (Children children) =
     let
@@ -103,21 +101,27 @@ patchExpr e = e
 -- UInfixE (UInfixE (VarE tshow) (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
 
 
-toStringAttribute :: (Text, AttributeValue) -> TH.ExpQ
-toStringAttribute (name', TextValue value) = do
+toStringAttribute :: Attribute -> TH.ExpQ
+toStringAttribute (StaticAttribute name' (TextValue value)) = do
     let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
     if null value
         then [| \h -> h ! ((attribute name nameWithSuffix) mempty) |]
         else [| \h -> h ! ((attribute name nameWithSuffix) (cs value :: Html5.AttributeValue)) |]
 
-toStringAttribute (name', ExpressionValue code) = do
+toStringAttribute (StaticAttribute name' (ExpressionValue code)) = do
     let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
     case parseExp (cs code) of
         Right expression -> let patched = patchExpr expression in [| applyAttribute name nameWithSuffix $(pure patched) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
 
+toStringAttribute (SpreadAttributes code) = case parseExp (cs code) of
+        Right expression -> let patched = patchExpr expression in [| spreadAttributes $(pure patched) |]
+        Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
+
+spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Html5.Html -> Html5.Html
+spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (name <> "=\"") value) attributes
 
 applyAttributes :: Html5.Html -> [Html5.Html -> Html5.Html] -> Html5.Html
 applyAttributes !el [] = el

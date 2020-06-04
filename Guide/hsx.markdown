@@ -75,6 +75,15 @@ This will not render the attribute:
 <input/>
 ```
 
+### Spread Values
+
+For dynamic use cases you can use `{...attributeList}`:
+
+```html
+<div { ...[ ("data-my-attribute", "Hello World!") ] } />
+<div { ...[ ("data-user-" <> tshow userId, tshow userFirstname) ] } />
+<div { ...someVariable } />
+```
 
 ### Syntax Rules
 
