@@ -1,4 +1,12 @@
-module IHP.HtmlSupport.Parser (parseHsx, Node (..), Attributes (..), AttributeValue (..), attributes, parents, leafs) where
+module IHP.HtmlSupport.Parser
+( parseHsx
+, Node (..)
+, Attribute (..)
+, AttributeValue (..)
+, attributes
+, parents
+, leafs
+) where
 
 import CorePrelude
 import Text.Megaparsec
@@ -13,9 +21,10 @@ import Control.Monad (unless)
 import Prelude (show)
 
 data AttributeValue = TextValue !Text | ExpressionValue !Text deriving (Show)
-data Attributes = SplicedAttributes !Text | StaticAttributes ![(Text, AttributeValue)] deriving (Show)
 
-data Node = Node !Text !Attributes ![Node]
+data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes Text deriving (Show)
+
+data Node = Node !Text ![Attribute] ![Node]
     | TextNode !Text
     | SplicedNode !Text
     | Children ![Node]
@@ -62,20 +71,25 @@ hsxOpeningElement = do
     attributes <- hsxNodeAttributes (char '>')
     pure (name, attributes)
 
-hsxNodeAttributes end = (do s <- hsxSplicedAttributes; end; pure s) <|> staticAttributes
+hsxNodeAttributes :: Parser a -> Parser [Attribute]
+hsxNodeAttributes end = staticAttributes
     where
         staticAttributes = do
-            attributes <- manyTill hsxNodeAttribute end 
-            let keys = List.map fst attributes
+            attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end 
+            let staticAttributes = List.filter isStaticAttribute attributes
+            let keys = List.map (\(StaticAttribute name _) -> name) staticAttributes
             let uniqueKeys = List.nub keys
             unless (keys == uniqueKeys) (fail $ "Duplicate attribute found in tag: " <> show (keys List.\\ uniqueKeys))
-            pure (StaticAttributes attributes)
+            pure attributes
 
-hsxSplicedAttributes :: Parser Attributes
+isStaticAttribute (StaticAttribute _ _) = True
+isStaticAttribute _ = False
+
+hsxSplicedAttributes :: Parser Attribute
 hsxSplicedAttributes = do
     name <- between (string "{...") (string "}") (takeWhile1P Nothing (\c -> c /= '}'))
     space
-    pure (SplicedAttributes name)
+    pure (SpreadAttributes name)
 
 hsxNodeAttribute = do
     key <- hsxAttributeName
@@ -84,7 +98,7 @@ hsxNodeAttribute = do
     space
     value <- hsxQuotedValue <|> hsxSplicedValue
     space
-    pure (key, value)
+    pure (StaticAttribute key value)
 
 hsxAttributeName :: Parser Text
 hsxAttributeName = choice ([dataAttribute, ariaAttribute] <> (List.map string attributes))
