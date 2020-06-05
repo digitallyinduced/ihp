@@ -42,7 +42,7 @@ This implementation for `ShowPostAction` responds with a simple plain text messa
 
 ## Reading Query and Body Parameters
 
-Inside the action you can access request parameters using the `param` function. A parameter can either be a url parameter like `?paramName=paramValue` (*this is also called a query parameter*), or given as a form field like `<form><input name="paramName" value="paramValue"/></form>` (*in that case we're talking about a body parameter*). The `param` function will work with query and body parameters, so you don't have to worry about that.
+Inside the action you can access request parameters using the `param` function. A parameter can either be a url parameter like `?paramName=paramValue` (*this is also called a query parameter*), or given as a form field like `<form><input name="paramName" value="paramValue"/></form>` (*in that case we're talking about a body parameter*). The `param` function will work with query and body parameters, so you don't have to worry about that (in case a query and body parameter is set with the same name, the body parameter will take priority).
 
 Given a request like `GET /UsersAction?maxItems=50`, you can access the `maxItems` like this:
 
