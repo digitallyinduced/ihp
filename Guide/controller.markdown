@@ -25,7 +25,7 @@ data PostsController
     deriving (Eq, Show, Data)
 ```
 
-This define a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The arguent `postId` will later be filled with the `postId` parameter of the request url. This is done automatically by the IHP router. IHP also requires the controller to have `Eq`, `Show` and `Data` instances. Therefore we derive them here.
+This defines a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The arguent `postId` will later be filled with the `postId` parameter of the request url. This is done automatically by the IHP router. IHP also requires the controller to have `Eq`, `Show` and `Data` instances. Therefore we derive them here.
 
 After we have defined the "interface" for our controller, we need to implement the actual request handling logic. IHP expects to find this inside the `action` function of the [`Controller`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:Controller) instance. We can define this instance in `Web/Controller/Posts.hs`:
 
