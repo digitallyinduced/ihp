@@ -61,7 +61,7 @@ git clone --quiet --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 rm -rf ".git"
 
-grep -q "$CACHIX_TOKEN" ~/.config/cachix/cachix.dhall || {
+grep -s -q "$CACHIX_TOKEN" ~/.config/cachix/cachix.dhall || {
 	cachix authtoken "$CACHIX_TOKEN" > /dev/null
 	cachix use digitallyinduced > /dev/null
 }
