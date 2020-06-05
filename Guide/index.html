@@ -14,7 +14,19 @@
     <!-- -->
   </head>
   <body class="d-flex">
-        <div class="text-right nav-column">
+        <nav class="navbar  navbar-light" id="mobile-navbar">
+            <a class="navbar-brand" href="#">
+                <span class="nav-logo">
+                    <span class="nav-logo-lambda">λ</span>
+                    <span class="nav-logo-name">IHP</span>
+                </span>
+            </a>
+            <button class="navbar-toggler" type="button" onclick="document.querySelector('.nav-column').classList.toggle('visible')">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </nav>
+
+        <div class="text-right nav-column navbar-collapse">
             <div class="nav-logo">
                 <div class="nav-logo-lambda">λ</div>
                 <div class="nav-logo-name">IHP</div>
@@ -30,7 +42,7 @@
                 <a class="nav-link secondary" href="architecture.html">Architecture</a>
                 <a class="nav-link secondary" href="naming-conventions.html">Naming Conventions</a>
                 <a class="nav-link secondary" href="#">Routing</a>
-                <a class="nav-link secondary" href="#">Controller & Actions</a>
+                <a class="nav-link secondary" href="controller.html">Controller & Actions</a>
                 <a class="nav-link secondary" href="view.html">Views</a>
                 <a class="nav-link secondary" href="hsx.html">HSX</a>
                 <a class="nav-link secondary" href="form.html">Forms</a>
@@ -126,19 +138,17 @@
         }
 
         .nav-column {
-            padding-right: 4rem;
             background-color: hsla(192, 81%, 5%, 0.04);
             padding-top: 2rem;
             position: sticky;
             height: 100vh;
             top: 0;
-            width: 25%;
         }
 
         main {
-            width: 75%;
-            padding: 4rem;
-            max-width: 800px
+            padding: 1rem;
+            width: 100%;
+            margin-top: 70px;
         }
 
         .primary-nav .nav-link {
@@ -214,6 +224,50 @@
 
         main h2, main h3, main h4 { margin-top: 4rem; }
         main h2 + h3 { margin-top: 0 }
+
+        #mobile-navbar {
+            position: absolute;
+            width: 100%;
+        }
+
+        .nav-column {
+            display: none;
+            transition: all 0.2s;
+            padding-right: 20px;
+            overflow-y: scroll;
+        }
+        .nav-column.visible {
+            display: block;
+            position: absolute;
+            width: 100%;
+            height: fit-content;
+            margin-top: 70px;
+            padding-top: 0;
+        }
+        .nav-column.visible, #mobile-navbar {
+            background-color: #f5f6f6;
+        }
+        .nav-column.visible .nav-logo { display: none }
+
+        #mobile-navbar .nav-logo .nav-logo-lambda { font-size: 2rem; }
+        #mobile-navbar .nav-logo .nav-logo-name { font-size: 1rem; }
+
+        @media (min-width: 768px) {
+            #mobile-navbar { display: none }
+            .nav-column {
+                display: block;
+                width: 25%;
+                max-width: 25%;
+                padding-right: 4rem;
+            }
+
+            main {
+                width: 75%;
+                max-width: 800px;
+                padding: 4rem;
+            }
+        }
+
     </style>
 
     <script>

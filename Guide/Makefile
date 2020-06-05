@@ -16,6 +16,7 @@ HTML_FILES+= hsx.html
 HTML_FILES+= validation.html
 HTML_FILES+= session.html
 HTML_FILES+= naming-conventions.html
+HTML_FILES+= controller.html
 
 all: $(HTML_FILES) bootstrap.css
 
