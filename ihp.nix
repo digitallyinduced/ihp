@@ -56,7 +56,6 @@ mkDerivation {
   isExecutable = true;
   allowInconsistentDependencies = true;
   libraryHaskellDepends = [
-    cabal-install
     base
     classy-prelude
     directory
@@ -83,11 +82,9 @@ mkDerivation {
     haskell-src-meta
     random-strings
     interpolate
-    uri-encode
     websockets
     wai-websockets
     mime-mail
-    mime-mail-ses
     attoparsec
     case-insensitive
     http-media

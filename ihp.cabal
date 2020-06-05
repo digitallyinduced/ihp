@@ -32,7 +32,6 @@ common shared-properties
             , postgresql-simple
             , wai-middleware-static
             , wai-util
-            , http-client
             , bytestring
             , network-uri
             , aeson
