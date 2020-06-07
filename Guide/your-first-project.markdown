@@ -985,3 +985,8 @@ You should have a rough understanding of IHP now. The best way to continue is to
 [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
 
 [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
+
+Questions, or need help with haskell type errors? Join our Gitter Chat:
+
+[![Gitter](https://badges.gitter.im/digitallyinduced/ihp.svg)](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[(IRC available)](https://irc.gitter.im/)
