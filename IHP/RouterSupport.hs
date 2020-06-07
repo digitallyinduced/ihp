@@ -17,6 +17,7 @@ module IHP.RouterSupport (
     , createAction
     , updateAction
     , parseTextArgument
+    , urlTo
 ) where
 
 import qualified Prelude
@@ -49,12 +50,34 @@ import qualified Data.Char as Char
 import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
+import qualified IHP.FrameworkConfig as FrameworkConfig
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
 
 class HasPath controller where
+    -- | Returns the path to a given action
+    --
+    -- >>> pathTo UsersAction
+    -- "/Users"
+    --
+    -- >>> pathTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
+    -- "/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
     pathTo :: controller -> Text    
+
+-- | Returns the url to a given action.
+--
+-- Uses the baseUrl configured in @Config/Config.hs@. When no @baseUrl@
+-- is configured in development mode, it will automatically detect the
+-- correct @baseUrl@ value.
+--
+-- >>> urlTo UsersAction
+-- "http://localhost:8000/Users"
+--
+-- >>> urlTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
+-- "http://localhost:8000/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
+urlTo :: (HasPath action, FrameworkConfig.FrameworkConfig) => action -> Text
+urlTo action = FrameworkConfig.baseUrl <> pathTo action
 
 class HasPath controller => CanRoute controller where
     parseRoute' :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
