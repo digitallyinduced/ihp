@@ -59,7 +59,7 @@ instance Controller CodeGenController where
 
     action CreateViewAction = do
         let viewName = paramOrDefault "" "name"
-        let applicationName = paramOrDefault "" "applicationName"
+        let applicationName = paramOrDefault "" "Web"
         let controllerName = paramOrDefault "" "controllerName"
         (Right plan) <- ViewGenerator.buildPlan viewName applicationName controllerName
         executePlan plan
