@@ -19,6 +19,8 @@ sh <(curl https://nixos.org/nix/install) --darwin-use-unencrypted-nix-store-volu
 ```
 After this restart your terminal.
 
+If you get an error like `error: refusing to create Nix store volume because the boot volume is FileVault encrypted, but encryption-at-rest is not available.`, follow the steps described [in this GitHub Issue](https://github.com/digitallyinduced/ihp/issues/93#issuecomment-639611313). We're working on improving this step.
+
 ##### Linux
 
 Install nix by running the following command in your shell and follow the instructions on the screen:
