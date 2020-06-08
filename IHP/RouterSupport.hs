@@ -1,23 +1,25 @@
 {-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase #-}
 module IHP.RouterSupport (
-    CanRoute (..)
-    , HasPath (..)
-    , AutoRoute (..)
-    , runAction
-    , get
-    , post
-    , startPage
-    , frontControllerToWAIApp
-    , withPrefix
-    , ModelControllerMap
-    , FrontController (..)
-    , parseRoute 
-    , catchAll
-    , mountFrontController
-    , createAction
-    , updateAction
-    , parseTextArgument
-    , urlTo
+CanRoute (..)
+, HasPath (..)
+, AutoRoute (..)
+, runAction
+, get
+, post
+, startPage
+, frontControllerToWAIApp
+, withPrefix
+, ModelControllerMap
+, FrontController (..)
+, parseRoute 
+, catchAll
+, mountFrontController
+, createAction
+, updateAction
+, parseTextArgument
+, urlTo
+, parseUUID
+, parseId
 ) where
 
 import qualified Prelude
@@ -403,3 +405,18 @@ catchAll action = do
 
 instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
     convertString action = Html5.textValue (pathTo action)
+
+
+-- | Parses and returns an UUID
+parseUUID :: Parser UUID
+parseUUID = do
+        uuid <- take 36
+        case fromASCIIBytes uuid of 
+            Just theUUID -> pure theUUID
+            Nothing -> fail "not uuid"
+{-# INLINE parseUUID #-}
+
+-- | Parses an UUID, afterwards wraps it in an Id
+parseId :: Parser (ModelSupport.Id record)
+parseId = ModelSupport.Id <$> parseUUID
+{-# INLINE parseId #-}

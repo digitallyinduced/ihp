@@ -150,13 +150,72 @@ instance CanRoute PostsController where
     parseRoute' = string "/posts" <* endOfInput >> pure ShowAllMyPostsAction
 ```
 
-The `parseRoute'` function is a parser which reads an url and returns an action of type `PostsController`. The router uses [attoparsec](https://hackage.haskell.org/package/attoparsec). Take a look at the attoparsec documentation to get a good understanding on how to parse complex urls.
+The `parseRoute'` function is a parser which reads an url and returns an action of type `PostsController`. The router uses [attoparsec](https://hackage.haskell.org/package/attoparsec). See below for examples on how to use this for building beautiful urls.
 
 Next to the routing itself, we also need implement the url generation:
 
 ```haskell
 instance HasPath PostsController where
     pathTo ShowAllMyPostsAction = "/posts"
+```
+
+### Beautiful URLs
+
+Let's say we want to give our blog post application a beautiful url structures for SEO reasons. Our controller is defined as:
+
+```haskell
+data PostsController
+    = ShowPostAction { postId :: !(Id Post) }
+```
+
+We want our urls to look like this:
+
+```html
+/posts/an-example-blog-post
+```
+
+Additionally we also want to accept permalinks with the id like this:
+
+```
+/posts/f85dc0bc-fc11-4341-a4e3-e047074a7982
+```
+
+To accept urls like this, we first need to make some changes to our data structure. We have to make the `postId` optional. Additonally we need to have a parameter for the url slug:
+
+```haskell
+data PostsController
+    = ShowPostAction { postId :: !(Maybe (Id Post)), slug :: !(Maybe Text) }
+```
+
+This will also require us to make changes to our action implementation:
+
+```haskell
+action ShowPostAction { postId, slug } = do 
+    post <- case slug of
+            Just slug -> query @Post |> filterWhere (#slug, slug) |> fetchOne
+            Nothing   -> fetchOne postId
+    -- ...
+```
+
+This expects the `posts` table to have a field `slug :: Text`.
+
+Now we define our `CanRoute` instance like this:
+
+```haskell
+instance CanRoute PostsController where
+    parseRoute' = do
+        string "/posts/"
+        let postById = do id <- parseId; endOfInput; pure ShowPostAction { postId, slug = Nothing }
+        let postBySlug = do slug <- getInput; pure ShowPostAction { postId = Nothing, slug }
+        postById <|> postBySlug
+```
+
+Additionally we also have to implement the `HasPath` instance:
+
+```haskell
+instance HasPath PostsController where
+    pathTo ShowPostAction { postId = Just id, slug = Nothing } = "/posts/" <> tshow id
+    pathTo ShowPostAction { postId = Nothing, slug = Just slug } = "/posts/" <> slug
 ```
 
 ### Real-World Example
