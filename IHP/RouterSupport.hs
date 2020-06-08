@@ -17,6 +17,8 @@ CanRoute (..)
 , createAction
 , updateAction
 , parseTextArgument
+, parseIntArgument
+, parseUUIDArgument
 , urlTo
 , parseUUID
 , parseId
@@ -34,6 +36,7 @@ import Network.Wai
 import Data.String.Conversions (cs)
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
+import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import GHC.TypeLits
 import Data.Data
 import qualified Data.UUID as UUID
@@ -138,11 +141,7 @@ class Data controller => AutoRoute controller where
         in choice (map parseCustomAction allConstructors)
 
     parseArgument :: forall d. Data d => ByteString -> ByteString -> d
-    parseArgument field value =
-        value
-        |> fromASCIIBytes
-        |> fromMaybe (error "AutoRoute: Failed parsing UUID")
-        |> unsafeCoerce
+    parseArgument = parseUUIDArgument
     {-# INLINE parseArgument #-}
 
     -- | Specifies the allowed HTTP methods for a given action
@@ -187,6 +186,37 @@ class Data controller => AutoRoute controller where
 -- >     parseArgument = parseTextArgument
 parseTextArgument :: forall d. Data d => ByteString -> ByteString -> d
 parseTextArgument field value = unsafeCoerce ((cs value) :: Text)
+{-# INLINE parseTextArgument #-}
+
+-- | When the arguments for your AutoRoute based actions are Integers instead
+-- of UUIDs, you can override the 'parseArgument' function of your 'AutoRoute' instance
+-- with 'parseIntArgument' to receive them as a @Int@
+--
+-- __Example:__
+--
+-- >
+-- > data HelloWorldController = HelloAction { page :: Int }
+-- >     deriving (Eq, Show, Data)
+-- >
+-- > instance AutoRoute HelloWorldController where
+-- >     parseArgument = parseIntArgument
+parseIntArgument :: forall d. Data d => ByteString -> ByteString -> d
+parseIntArgument field value =
+    value
+    |> Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput)
+    |> \case
+        Right value -> unsafeCoerce value
+        Left _ -> error "AutoRoute: Failed parsing Int"
+{-# INLINE parseIntArgument #-}
+
+-- | The default implementation for 'parseArgument' in 'AutoRoute'.
+parseUUIDArgument :: forall d. Data d => ByteString -> ByteString -> d
+parseUUIDArgument field value =
+    value
+    |> fromASCIIBytes
+    |> fromMaybe (error "AutoRoute: Failed parsing UUID")
+    |> unsafeCoerce
+{-# INLINE parseUUIDArgument #-}
 
 -- | Returns the url prefix for a controller. The prefix is based on the
 -- module where the controller is defined.

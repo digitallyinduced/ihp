@@ -133,6 +133,39 @@ When using multiple application in your IHP project, e.g. having an admin backen
 
 This prefixing has special handling for the `Web` module, so that all controllers in the default `Web` module don't have a prefix.
 
+### Advanced: Custom parseArgument
+
+It's possible to use a custom data type as a routing parameter with AutoRoute. Now might be a good point to switch to a custom routing implementation (described later in this Guide) instead of hacking this into AutoRouting. If this warning can't stop you, go ahead.
+
+A `parseArgument` function has the signature:
+```haskell
+parseArgument :: forall d. Data d => ByteString -> ByteString -> d
+```
+
+The first bytestring argument is the field name of the action argument we are dealing with. The second argument is the value of the query string:
+```html
+MyAction?{firstArgument}={secondArgument}
+```
+
+The last argument `d` cannot be implemented in a typesafe way. This is implemented by calling `unsafeCoerce` on our result value before returning it. The result of this is later used with [`fromConstrM`](http://hackage.haskell.org/package/base-4.14.0.0/docs/Data-Data.html#fromConstrM). Therefore misusing `parseArgument` can result in a runtime crash. Again, consider not using this API.
+
+Given we have a custom argument type in the format `ID-{numeric}` like `ID-0`, `ID-1`, etc. We can define a custom `parseCustomIdArgument` like this:
+
+```haskell
+import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
+import qualified Data.ByteString.Char8 as ByteString
+
+parseCustomIdArgument :: forall d. Data d => ByteString -> ByteString -> d
+parseCustomIdArgument field value =
+    value
+    |> ByteString.stripPrefix "ID-"
+    |> fromMaybe (error "Failed to parse custom id, ID- missing")
+    |> Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput)
+    |> \case
+        Right value -> unsafeCoerce value
+        Left _ -> error "AutoRoute: Failed to parse custom id, numeric part invalid"
+```
+
 ## Custom Routing
 
 Sometimes you have special needs for your routing. For this case IHP provides a lower-level routing API on which `AutoRoute` is built on.
