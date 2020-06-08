@@ -194,7 +194,7 @@ instance HasPath PostsController where
 
 ### Beautiful URLs
 
-Let's say we want to give our blog post application a beautiful url structures for SEO reasons. Our controller is defined as:
+Let's say we want to give our blog post application a beautiful url structure for SEO reasons. Our controller is defined as:
 
 ```haskell
 data PostsController
