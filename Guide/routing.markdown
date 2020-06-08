@@ -74,7 +74,7 @@ The urls are very close to the actual action which is called. Action parameters 
 
 ### AutoRoute & Beautiful Urls
 
-Lots of modern browser don't even show the full url bar anymore (e.g. Safari and most mobile browsers). Therefore AutoRoute doesn't aim to generate the "most" beautiful urls out of the box. It's rather optimized for the needs of developers. If you need beautiful urls for SEO reasons, instead of using AutoRoute you can use the more manual APIs of IHP Routing. 
+Lots of modern browser don't even show the full url bar anymore (e.g. Safari and most mobile browsers). Therefore AutoRoute doesn't aim to generate the "most" beautiful urls out of the box. It's rather optimized for the needs of developers. If you need beautiful urls for SEO reasons, instead of using AutoRoute you can use the more manual APIs of IHP Routing. See the section "[Beautiful URLs](#beautiful-urls)" for details.
 
 ### Multiple Parameters
 
