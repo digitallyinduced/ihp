@@ -44,7 +44,7 @@ urlTo NewUserAction
 
 ## AutoRoute
 
-Let's say our `PostsController` is define in `Web/Types.hs` like this:
+Let's say our `PostsController` is defined in `Web/Types.hs` like this:
 
 ```haskell
 data PostsController
@@ -92,7 +92,7 @@ GET /EditPost?postId={postId}&userId={userId} => EditPostAction { postId, userId
 
 ### Parameter Types
 
-AutoRoute by default only works with UUID arguments (and Id types like `Id Post`). If you have a controller like `data HelloWorldController = HelloAction { name :: Text }` where you have text parameter, you have to configure AutoRoute like this:
+AutoRoute by default only works with UUID arguments (and Id types like `Id Post`). If you have a controller like `data HelloWorldController = HelloAction { name :: Text }` where you have a text parameter, you have to configure AutoRoute like this:
 
 ```haskell
 instance AutoRoute HelloWorldController where
@@ -129,7 +129,7 @@ instance AutoRoute HelloWorldController where
 
 ### Application Prefix
 
-When using multiple application in your IHP project, e.g. having an admin backend, AutoRoute will prefix with action urls with the application name. E.g. a controller `HelloWorldController` defined in `Admin/Types.hs` will be automatically be prefixed with `/admin` and generate urls such as `/admin/HelloAction`.
+When using multiple application in your IHP project, e.g. having an admin backend, AutoRoute will prefix the action urls with the application name. E.g. a controller `HelloWorldController` defined in `Admin/Types.hs` will be automatically prefixed with `/admin` and generate urls such as `/admin/HelloAction`.
 
 This prefixing has special handling for the `Web` module, so that all controllers in the default `Web` module don't have a prefix.
 
@@ -161,7 +161,7 @@ instance HasPath PostsController where
 
 ### Real-World Example
 
-Here is an real world example of a custom routing implementation for a custom Apple Web Service interface implemented at digitally induced:
+Here is a real world example of a custom routing implementation for a custom Apple Web Service interface implemented at digitally induced:
 
 ```haskell
 instance CanRoute RegistrationsController where
