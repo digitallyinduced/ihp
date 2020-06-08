@@ -31,6 +31,13 @@ instance View NewViewView ViewContext where
     |]
         where
             renderEmpty = [hsx|<form method="POST" action={NewViewAction} class="d-flex">
+                    <select 
+                        name="controllerName"
+                        class="form-control select2-simple"
+                        size="1"
+                    >
+                        {renderOptions}
+                    </select>
                     <input
                         type="text"
                         name="name"
@@ -39,20 +46,12 @@ instance View NewViewView ViewContext where
                         autofocus="autofocus"
                         value={viewName}
                         />
-                    <select 
-                        name="controllerName"
-                        class="form-control"
-                        size="1"
-                    >
-                        <option value="" disabled="disabled" selected="selected">controllerName</option>
-                        {renderOptions}
-                    </select>
                     <button class="btn btn-primary" type="submit">Preview</button>
                 </form>|]
             renderOptions = forM_ listOfControllers (\x -> [hsx|<option>{x}</option>|])
             renderPreview = [hsx|
                 <form method="POST" action={CreateViewAction} class="d-flex">
-                    <div class="object-name flex-grow-1">{viewName}</div>
+                    <div class="object-name flex-grow-1">{controllerName}.{viewName}</div>
 
                     <input type="hidden" name="name" value={viewName}/>
 
