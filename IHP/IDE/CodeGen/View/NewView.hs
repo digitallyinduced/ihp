@@ -15,7 +15,7 @@ data NewViewView = NewViewView
     { plan :: Either Text [GeneratorAction]
     , viewName :: Text
     , controllerName :: Text
-    , listOfControllers :: [Text]
+    , controllers :: [Text]
     }
 
 instance View NewViewView ViewContext where
