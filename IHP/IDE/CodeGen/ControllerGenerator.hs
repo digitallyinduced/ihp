@@ -233,9 +233,9 @@ generateViews :: [Statement] -> ControllerConfig -> [GeneratorAction]
 generateViews schema config =
         let
             name = config |> get #controllerName
-            singularName = config |> get #modelName
-            singularVariableName = lcfirst singularName
-            pluralVariableName = lcfirst name
+            singularName = config |> get #modelName --Post
+            singularVariableName = lcfirst singularName --post
+            pluralVariableName = lcfirst name --posts
 
             viewHeader moduleName =
                 ""

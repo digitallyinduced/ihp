@@ -1,4 +1,4 @@
-module IHP.IDE.CodeGen.View.NewScript where
+module IHP.IDE.CodeGen.View.NewView where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
@@ -8,14 +8,18 @@ import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.View.Generators (renderPlan)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 
-data NewScriptView = NewScriptView
+data NewViewView = NewViewView
     { plan :: Either Text [GeneratorAction]
-    , scriptName :: Text
+    , viewName :: Text
+    , controllerName :: Text
+    , controllers :: [Text]
     }
 
-instance View NewScriptView ViewContext where
-    html NewScriptView { .. } = [hsx|
+instance View NewViewView ViewContext where
+    html NewViewView { .. } = [hsx|
         <div class="generators">
             <div class="container pt-5">
                 <div class="code-generator new-script">
@@ -26,28 +30,33 @@ instance View NewScriptView ViewContext where
         </div>
     |]
         where
-            renderEmpty = [hsx|<form method="POST" action={NewScriptAction} class="d-flex">
+            renderEmpty = [hsx|<form method="POST" action={NewViewAction} class="d-flex">
+                    <select 
+                        name="controllerName"
+                        class="form-control select2-simple"
+                        size="1"
+                    >
+                        {renderOptions}
+                    </select>
                     <input
                         type="text"
                         name="name"
-                        placeholder="Script name"
+                        placeholder="View name"
                         class="form-control"
                         autofocus="autofocus"
-                        value={scriptName}
+                        value={viewName}
                         />
-
                     <button class="btn btn-primary" type="submit">Preview</button>
                 </form>|]
-
+            renderOptions = forM_ listOfControllers (\x -> [hsx|<option>{x}</option>|])
             renderPreview = [hsx|
-                <form method="POST" action={CreateScriptAction} class="d-flex">
-                    <div class="object-name flex-grow-1">{scriptName}</div>
+                <form method="POST" action={CreateViewAction} class="d-flex">
+                    <div class="object-name flex-grow-1">{controllerName}.{viewName}</div>
 
-                    <input type="hidden" name="name" value={scriptName}/>
+                    <input type="hidden" name="name" value={viewName}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
             |]
 
-
-            isEmpty = null scriptName
+            isEmpty = null viewName    

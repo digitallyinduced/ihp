@@ -94,8 +94,10 @@ data CodeGenController
     = GeneratorsAction
     | NewControllerAction
     | NewScriptAction
+    | NewViewAction
     | CreateControllerAction
     | CreateScriptAction
+    | CreateViewAction
     | OpenControllerAction
     deriving (Eq, Show, Data)
 
