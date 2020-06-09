@@ -114,7 +114,6 @@ main = hspec do
                     }
 
         it "should parse a CREATE TABLE with quoted identifiers" do
-            pending
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` CreateTable { name = "quoted name", columns = [] }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
