@@ -131,7 +131,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
     pure state { appGHCIState = appGHCIState' }
 
 handleAction state SchemaChanged = do
-    SchemaCompiler.compile
+    SchemaCompiler.compile `catch` (\(exception :: SomeException) -> putStrLn (tshow exception))
     pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
