@@ -53,7 +53,7 @@ instance Controller CodeGenController where
         let viewName = paramOrDefault "" "name"
         let applicationName = "Web"
         let controllerName = paramOrDefault "" "controllerName"
-        listOfControllers <- listOfWebControllers
+        controllers <- listOfWebControllers
         plan <- ViewGenerator.buildPlan viewName applicationName controllerName
         render NewViewView { .. }
 

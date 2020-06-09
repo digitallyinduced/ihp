@@ -15,7 +15,7 @@ import IHP.QueryBuilder
 -- __Example:__ Validate that an email is unique
 --
 -- > action CreateUserAction = do
--- >     let user = newRecord @NewUser
+-- >     let user = newRecord @User
 -- >     user
 -- >         |> fill @'["email"]
 -- >         |> validateIsUnique #email

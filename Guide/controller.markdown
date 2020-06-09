@@ -148,7 +148,7 @@ Here is an example of using `fill`:
 
 ```haskell
 action CreatePostAction = do
-    let post = newRecord @NewPost
+    let post = newRecord @Post
     post
         |> fill @'["title", "body"]
         |> ifValid \case

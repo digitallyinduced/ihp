@@ -228,8 +228,6 @@ deleteRecords records = do
 
 type family Include (name :: GHC.Types.Symbol) model
 
-type family New model
-
 type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
@@ -243,8 +241,12 @@ class Record model where
 
 -- | Helper type to deal with models where relations are included or that are only partially fetched
 -- Examples:
--- NormalizeModel (Include "author_id" Post) = Post
--- NormalizeModel NewPost = Post
+--
+-- >>> NormalizeModel (Include "author_id" Post)
+-- Post
+--
+-- >>> NormalizeModel Post
+-- Post
 type NormalizeModel model = GetModelByTableName (GetTableName model)
 
 -- | Returns the ids for a list of models

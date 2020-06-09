@@ -48,7 +48,7 @@ instance View NewViewView ViewContext where
                         />
                     <button class="btn btn-primary" type="submit">Preview</button>
                 </form>|]
-            renderOptions = forM_ listOfControllers (\x -> [hsx|<option>{x}</option>|])
+            renderOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
             renderPreview = [hsx|
                 <form method="POST" action={CreateViewAction} class="d-flex">
                     <div class="object-name flex-grow-1">{controllerName}.{viewName}</div>

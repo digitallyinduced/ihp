@@ -20,7 +20,7 @@ passwordStrength = 17
 -- __Example:__
 -- 
 -- > action CreateUserAction = do
--- >     newRecord @NewUser
+-- >     newRecord @User
 -- >         |> fill @'["passwordHash"]
 -- >         |> validateField nonEmpty #passwordHash
 -- >         |> ifValid \case

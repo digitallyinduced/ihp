@@ -15,7 +15,7 @@ Let's asume we have generated a `Posts` controller using the code generator. Our
 
 ```haskell
     action CreatePostAction = do
-        let post = newRecord @NewPost
+        let post = newRecord @Post
         post
             |> buildPost
             |> ifValid \case
@@ -56,7 +56,7 @@ To make sure that the `title` and `body` are not empty, we can `validateField ..
 
 ```haskell
     action CreatePostAction = do
-        let post = newRecord @NewPost
+        let post = newRecord @Post
         post
             |> buildPost
             |> validateField #title nonEmpty
@@ -122,7 +122,7 @@ This function does IO, so any further arrows have to be `>>=`, like this:
 
 ```haskell
 action CreateUserAction = do
-    let user = newRecord @NewUser
+    let user = newRecord @User
     user
         |> fill @'["email"]
         |> validateIsUnique #email
@@ -141,7 +141,7 @@ Here is how this can look:
 
 ```haskell
     action CreatePostAction = do
-        let post = newRecord @NewPost
+        let post = newRecord @Post
         post
             |> buildPost
             -- <------------ Here we removed the `validateField ...`
