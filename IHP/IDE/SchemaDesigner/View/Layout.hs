@@ -4,6 +4,7 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
+import IHP.IDE.SchemaDesigner.Compiler (reservedKeywordEscaper)
 import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html
@@ -39,12 +40,14 @@ databaseControls = [hsx|
 
 findTableByName tableName statements = find pred statements
     where
-        pred CreateTable { name } | name == tableName = True
+        pred CreateTable { name } | (toUpper name) == (toUpper tableName) = True
+        pred CreateTable { name } | (toUpper name) == (toUpper (tshow tableName)) = True
         pred _ = False
 
 findEnumByName enumName statements = find pred statements
     where
-        pred CreateEnumType { name } | name == enumName = True
+        pred CreateEnumType { name } | (toUpper name) == (toUpper enumName) = True
+        pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow enumName)) = True
         pred _ = False
 
 visualNav :: Html

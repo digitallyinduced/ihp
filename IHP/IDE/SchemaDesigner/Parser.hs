@@ -157,7 +157,7 @@ stringExpr = do
 
 identifier :: Parser Text
 identifier = do
-    i <- takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
+    i <- (between (char '"') (char '"') (takeWhile1P Nothing (\c -> c /= '"'))) <|> takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
     space
     pure i
 
