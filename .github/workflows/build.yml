@@ -1,4 +1,4 @@
-name: Building binary cache
+name: Linux Build
 on:
   pull_request:
     branches:
