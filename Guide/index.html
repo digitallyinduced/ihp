@@ -7,50 +7,283 @@
 
     <title>IHP Guide</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+    <link rel="shortcut icon" type="image/x-icon" href="ihp-logo.svg"/>
+    <link rel="stylesheet" href="bootstrap.css" crossorigin="anonymous"/>
+    <!-- For local: -->
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <!-- -->
   </head>
-  <body style="max-width: 800px; margin-left: auto; margin-right: auto; margin-top: 3rem">
+  <body class="d-flex">
+        <nav class="navbar  navbar-light" id="mobile-navbar">
+            <a class="navbar-brand" href="#">
+                <span class="nav-logo">
+                    <span class="nav-logo-lambda">λ</span>
+                    <span class="nav-logo-name">IHP</span>
+                </span>
+            </a>
+            <button class="navbar-toggler" type="button" onclick="document.querySelector('.nav-column').classList.toggle('visible')">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </nav>
+
+        <div class="text-right nav-column navbar-collapse">
+            <div class="nav-logo">
+                <div class="nav-logo-lambda">λ</div>
+                <div class="nav-logo-name">IHP</div>
+            </div>
+
+            <nav class="nav flex-column primary-nav">
+                <a class="nav-link headline" href="index.html">Getting Started</a>
+                <a class="nav-link secondary" href="index.html">Intro</a>
+                <a class="nav-link secondary" href="installation.html">Installing IHP</a>
+                <a class="nav-link secondary" href="your-first-project.html">Your First Project</a>
+
+                <a class="nav-link headline" href="architecture.html">The Basics</a>
+                <a class="nav-link secondary" href="architecture.html">Architecture</a>
+                <a class="nav-link secondary" href="naming-conventions.html">Naming Conventions</a>
+                <a class="nav-link secondary" href="routing.html">Routing</a>
+                <a class="nav-link secondary" href="controller.html">Controller & Actions</a>
+                <a class="nav-link secondary" href="view.html">Views</a>
+                <a class="nav-link secondary" href="hsx.html">HSX</a>
+                <a class="nav-link secondary" href="form.html">Forms</a>
+                <a class="nav-link secondary" href="validation.html">Validation</a>
+                <a class="nav-link secondary" href="session.html">Session</a>
+                <a class="nav-link secondary" href="#">Cookies</a>
+                <a class="nav-link secondary" href="scripts.html">Scripts</a>
+                <a class="nav-link secondary" href="debugging.html">Debugging</a>
 
 
-    <div class="container mt-5">{{& output }}</div>
+                <a class="nav-link headline" href="#">Frontend</a>
+                <a class="nav-link secondary" href="#">Static Assets</a>
+                <a class="nav-link secondary" href="#">Form Customization</a>
+
+                <a class="nav-link headline" href="database.html">Database</a>
+                <a class="nav-link secondary" href="database.html">Basics</a>
+                <a class="nav-link secondary" href="database.html">Relationships</a>
+                <a class="nav-link secondary" href="querybuilder.html">Query Builder</a>
+                <a class="nav-link secondary" href="database.html">Advanced</a>
+
+
+                <a class="nav-link headline" href="#">Auth</a>
+                <a class="nav-link secondary" href="#">Login & Logout</a>
+                <a class="nav-link secondary" href="#">Permissions</a>
+
+                <a class="nav-link headline" href="recipes.html">Recipes</a>
+                <a class="nav-link headline" href="https://ihp.digitallyinduced.com/api-docs/" target="_blank">API Docs</a>
+            </nav>
+        </div>
+        <main>
+            <h1 id="getting-started-with-integrated-haskell-platform">Getting Started With Integrated Haskell Platform</h1>
+<p>IHP is a full stack framework focused on rapid application development while striving for robust code quality.</p>
+<p>We believe that functional programing is the future of software development and want to make functional programing with haskell and nix available to anyone. We try to offer a solution which can be used by developers who have not worked with haskell yet. IHP comes with everything you need to build great web applications with haskell and nix. We have made a lot of pragmatic decision to get you started faster. This way you can just pick up haskell along the way :-)</p>
+<h2 id="feature-overview">Feature Overview</h2>
+<ul>
+<li>
+<strong>Fully managed dev environment:</strong> Works on any machine because all dependencies (including PostgreSQL) are managed using the nix package manager. You only need to know a single command to start the app.
+</li>
+<li>
+<strong>Auto live reload using virtual dom in dev mode:</strong> Each code change automatically triggers the web page to refresh. The refresh uses a diff based patch to avoid resetting the page state. This means: Changes are reflected instantly.
+</li>
+<li>
+<strong>Build robust, type-safe applications:</strong> With the power of haskell your application are going to be a lot more robust. Pretty much no runtime errors in production. You can refactor with confidence.
+</li>
+<li>
+<strong>Fast dev enviroment:</strong> While we use a compiled language, the built-in dev server automatically reloads your code changes using the fastest way possible. Usually changes are reflected in less than 50ms (alot faster than your average webpack setup).
+</li>
+<li>
+<strong>Faster production environment:</strong> Production response times around 30ms. With help of <a href="http://instantclick.io/">instant click</a> it is faster than most single page applications.
+</li>
+<li>
+<strong>Integrated dev tooling:</strong> You only need a text editor, everything else is taken care of.
+</li>
+<li>
+<strong>Scalable Application Architecture:</strong> IHP is the result of building lots of real world applications with haskell.
+</li>
+</ul>
+<h2 id="example-project">Example Project</h2>
+<p>Take a look <a href="https://github.com/digitallyinduced/ihp-blog-example-app">at the example blog application project</a> to get to see some code. Follow the documentation to build this application yourself in the section “Your First Project”.</p>
+<p><a href="https://ihp.digitallyinduced.com/Guide/installation.html">Next: Installing IHP</a></p>
+
+        </main>
 
     
 
     <style>
-      .source-code {
-        background-color: #002b36;
-        
-        border-radius: 3px;
-      }
-      .language-haskell, .language-bash, .language-sql, .language-html, .language-nix, .language-css, .language-javascript {
-        color: #839496;
-        display: block;
-        padding: 1rem;
-      }
+        html, body {
+            min-height: 100%;
+            color: #073642;
+        }
 
-      code {
-        background-color: rgba(0, 43, 54, 0.11);
-        color: #002b36;
-      }
+        * {
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            scroll-behavior: smooth;
+        }
 
-      code .cr {
-        color: #93a1a1
-        font-weight: bold;
-      }
+        .nav-logo-lambda, .nav-logo-name {
+            display: inline-block;
+        }
 
-      code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
-      code.language-haskell .st { color: #2aa198; }
+        .nav-logo-lambda {
+            font-size: 4rem;
+            font-weight: 600;
+        }
 
-      pre { overflow: scroll; }
+        .nav-logo-name {
+            font-size: 2rem;
+        }
 
-      img { width: 100%; }
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            color: #073642;
+        }
+
+        .nav-column {
+            background-color: hsla(192, 81%, 5%, 0.04);
+            padding-top: 2rem;
+            position: sticky;
+            height: 100vh;
+            top: 0;
+        }
+
+        main {
+            padding: 1rem;
+            width: 100%;
+            margin-top: 70px;
+        }
+
+        .primary-nav .nav-link {
+            font-size: 12px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+            padding-right: 0;
+            transition: all 0.05s;
+        }
+
+        .primary-nav .nav-link.headline {
+            font-weight: 700;
+            color: #073642;
+            text-transform: uppercase;
+            margin-top: 20px;
+
+        }
+
+        .primary-nav .nav-link.secondary {
+            font-weight: 500;
+            color: hsla(192, 81%, 26%, 0.8);
+            text-transform: initial;
+        }
+
+        .primary-nav .nav-link.secondary:hover {
+            color: #073642;
+        }
+
+        .primary-nav .nav-link.secondary.active {
+            color: #268BD2;
+        }
+
+        a {
+            color: hsla(192, 81%, 26%, 1);
+        }
+
+        h1, h2, h3, h4, h5 { color: #073642; }
+
+        .source-code {
+          background-color: #002b36;
+          
+          border-radius: 3px;
+        }
+        .language-haskell, .language-bash, .language-sql, .language-html, .language-nix, .language-css, .language-javascript {
+          color: #839496 !important;
+          display: block;
+          padding: 1rem;
+        }
+  
+        code {
+          background-color: rgba(0, 43, 54, 0.11);
+          color: #002b36 !important;
+        }
+  
+        code .cr {
+          color: #93a1a1 !important;
+          font-weight: bold;
+        }
+  
+        code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
+        code.language-haskell .st { color: #2aa198; }
+  
+        pre { overflow: scroll; }
+  
+        img { max-width: 100%; }
+
+        /* TOC */
+        main > ul { list-style: none; padding-left: 0; }
+        main ul a {
+            color: #839496;
+            font-size: 12px;
+        }
+
+        main h2, main h3, main h4 { margin-top: 4rem; }
+        main h2 + h3 { margin-top: 0 }
+
+        #mobile-navbar {
+            position: absolute;
+            width: 100%;
+        }
+
+        .nav-column {
+            display: none;
+            transition: all 0.2s;
+            padding-right: 20px;
+            overflow-y: scroll;
+        }
+        .nav-column.visible {
+            display: block;
+            position: absolute;
+            width: 100%;
+            height: fit-content;
+            margin-top: 70px;
+            padding-top: 0;
+        }
+        .nav-column.visible, #mobile-navbar {
+            background-color: #f5f6f6;
+        }
+        .nav-column.visible .nav-logo { display: none }
+
+        #mobile-navbar .nav-logo .nav-logo-lambda { font-size: 2rem; }
+        #mobile-navbar .nav-logo .nav-logo-name { font-size: 1rem; }
+
+        @media (min-width: 768px) {
+            #mobile-navbar { display: none }
+            .nav-column {
+                display: block;
+                width: 25%;
+                max-width: 25%;
+                padding-right: 4rem;
+            }
+
+            main {
+                width: 75%;
+                max-width: 800px;
+                padding: 4rem;
+            }
+        }
+
     </style>
 
     <script>
+        /* Add bootstrap css class table to all markdown tables */
         var tables = document.querySelectorAll('table');
         for (let table of tables) {
-          table.classList.add('table');
+          table.classList.add('table', 'table-sm', 'table-striped');
         }
+    </script>
+    <script>
+        /* Add css class active to current navigation item */
+        var activeNavItem = document.querySelector('.nav-link.secondary[href="' + location.pathname.split('/').pop() + '"]');
+        if (activeNavItem) { activeNavItem.classList.add('active'); }
     </script>
   </body>
 </html>

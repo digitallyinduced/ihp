@@ -21,6 +21,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.OverloadedLabels
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as ByteStringBuilder
+import IHP.HtmlSupport.ToHtml
 
 -- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.
 -- Used togehter with the other functions to compose a sql query.
@@ -77,7 +78,11 @@ data Condition = VarCondition !Text !Action | OrCondition !Condition !Condition 
 
 deriving instance Show (QueryBuilder a)
 
--- This hack is to allow Eq instances for models with hasMany relations
+-- | Display QueryBuilder's as their sql query inside HSX
+instance KnownSymbol (GetTableName a) => ToHtml (QueryBuilder a) where
+    toHtml queryBuilder = toHtml (toSQL queryBuilder)
+
+-- | This hack is to allow Eq instances for models with hasMany relations
 instance Eq (IHP.QueryBuilder.QueryBuilder model) where a == b = True
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
@@ -422,6 +427,7 @@ instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' mo
     fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
     {-# INLINE fetchOne #-}
     fetchOne (Just a) = genericFetchIdOne a
+    fetchOne Nothing = error "Fetchable (Maybe Id): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
 
 instance (model ~ GetModelById (Id' model'), value ~ Id' model', HasField "id" model value) => Fetchable [Id' model'] model where
     type FetchResult [Id' model'] model = [model]

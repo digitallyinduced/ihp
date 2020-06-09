@@ -27,10 +27,10 @@ instance View GeneratorsView ViewContext where
                         <div class="generator-name">Action</div>
                     </div>
                     
-                    <div class="generator">
+                    <a href="#" class="generator">
                         <div class="generator-icon">{copyIcon}</div>
                         <div class="generator-name">View</div>
-                    </div>
+                    </a>
 
                     <a href={NewScriptAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>
@@ -68,6 +68,14 @@ renderGeneratorAction AppendToMarker { .. } = [hsx|
         <div class="file-content">{Text.strip fileContent}</div>
     </div>
 |]
+
+renderGeneratorAction AddImport { .. } = [hsx|
+    <div class="generator-action AddImport">
+        <div class="file-path">Append to {filePath}</div>
+        <div class="file-content">import {Text.strip fileContent}</div>
+    </div>
+|]
+
 renderGeneratorAction EnsureDirectory {} = mempty
 renderGeneratorAction RunShellCommand {} = mempty
 

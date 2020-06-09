@@ -1,6 +1,8 @@
 .PHONY: help all
 
-.SHELLFLAGS := -eu -o pipefail -c  
+# Use bash as we sometimes use bash specific syntax, like pipefail below
+#SHELL=/bin/bash
+#.SHELLFLAGS := -eu -o pipefail -c  
 .ONESHELL:
 
 MAKEFLAGS += --warn-undefined-variables
@@ -25,7 +27,7 @@ GHC_EXTENSIONS+= -XScopedTypeVariables
 GHC_EXTENSIONS+= -XRecordWildCards
 GHC_EXTENSIONS+= -XTypeApplications
 GHC_EXTENSIONS+= -XDataKinds
-GHC_OPTIONS+= -XInstanceSigs
+GHC_EXTENSIONS+= -XInstanceSigs
 GHC_EXTENSIONS+= -XDeriveGeneric
 GHC_EXTENSIONS+= -XMultiParamTypeClasses
 GHC_EXTENSIONS+= -XTypeOperators
@@ -35,6 +37,25 @@ GHC_EXTENSIONS+= -XUndecidableInstances
 GHC_EXTENSIONS+= -XBlockArguments
 GHC_EXTENSIONS+= -XPartialTypeSignatures
 GHC_EXTENSIONS+= -XLambdaCase
+GHC_EXTENSIONS+= -Wno-unsafe
+GHC_EXTENSIONS+= -Wno-name-shadowing
+GHC_EXTENSIONS+= -Wno-monomorphism-restriction
+GHC_EXTENSIONS+= -Wno-safe
+GHC_EXTENSIONS+= -Wno-missing-local-signatures
+GHC_EXTENSIONS+= -Wno-missing-home-modules
+GHC_EXTENSIONS+= -XDefaultSignatures
+GHC_EXTENSIONS+= -XEmptyDataDeriving
+GHC_EXTENSIONS+= -XBangPatterns
+GHC_EXTENSIONS+= -XBlockArguments
+GHC_EXTENSIONS+= -XMultiWayIf
+GHC_EXTENSIONS+= -XFunctionalDependencies
+GHC_EXTENSIONS+= -fbyte-code
+GHC_EXTENSIONS+= -Wno-partial-type-signatures
+GHC_EXTENSIONS+= -XPartialTypeSignatures
+GHC_EXTENSIONS+= -XStandaloneDeriving
+GHC_EXTENSIONS+= -XDerivingVia
+GHC_EXTENSIONS+= -Werror=missing-fields
+GHC_EXTENSIONS+= -fwarn-incomplete-patterns
 
 GHC_OPTIONS=-threaded -i. -ibuild -iConfig
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
@@ -58,17 +79,17 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 .DEFAULT_GOAL := help
 RUNGHC=runghc
 
-all: build/ihp-lib
+all: build/ihp-lib build/Generated/Types.hs
 
 .envrc: default.nix ## Rebuild nix packages and .envrc
 	rm -f .envrc
-	echo "PATH_add $$(nix-shell --run 'echo $$PATH')" > .envrc
+	echo "PATH_add $$(nix-shell -j auto --cores 0 --run 'echo $$PATH')" > .envrc
 	direnv allow
 
 build/bin:
 	mkdir -p build/bin
 
-run-production: build/bin/RunProdServer build/Generated ## Run Production Server
+run-production: build/bin/RunProdServer build/Generated/Types.hs ## Run Production Server
 	build/bin/RunProdServer
 
 psql: ## Connects to the running postgresql server
@@ -83,11 +104,11 @@ dumpdb: dump_db ## Saves the current database state into the Fixtures.sql
 dump_db: ## Saves the current database state into the Fixtures.sql
 	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
-build/Generated: Application/Schema.sql IHP/IHP/SchemaCompiler.hs ## Rebuilds generated types
-	rm -rf build/Generated && mkdir -p build/Generated
+build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
+	mkdir -p build/Generated
 	build-generated-code
 
-build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated ## Quickly does a production build (all compiler optimizations disabled)
+build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Quickly does a production build (all compiler optimizations disabled)
 	mkdir -p build/RunUnoptimizedProdServer
 	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
 	chmod +x $<

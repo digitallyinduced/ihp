@@ -18,11 +18,8 @@ Run this commands in your terminal to install nix on your machine.
 sh <(curl https://nixos.org/nix/install) --darwin-use-unencrypted-nix-store-volume
 ```
 After this restart your terminal.
-This will create an extra volume which is then mounted on `/nix`.
-We need to use this trick because MacOs Catalina does protect the root directory.
 
-This method is taken from the following Github Comment:
-[https://github.com/NixOS/nix/issues/2925#issuecomment-539570232](https://github.com/NixOS/nix/issues/2925#issuecomment-539570232)
+If you get an error like `error: refusing to create Nix store volume because the boot volume is FileVault encrypted, but encryption-at-rest is not available.`, follow the steps described [in this GitHub Issue](https://github.com/digitallyinduced/ihp/issues/93#issuecomment-639611313). We're working on improving this step.
 
 ##### Linux
 

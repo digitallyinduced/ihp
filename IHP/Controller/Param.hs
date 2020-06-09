@@ -222,8 +222,8 @@ instance ParamReader UTCTime where
     readParameter byteString =
         let
             input = (cs byteString)
-            dateTime = parseTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
-            date = parseTime defaultTimeLocale "%Y-%-m-%d" input
+            dateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
+            date = parseTimeM True defaultTimeLocale "%Y-%-m-%d" input
         in case dateTime of
             Nothing -> case date of
                 Just value -> Right value

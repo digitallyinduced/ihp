@@ -32,7 +32,6 @@ common shared-properties
             , postgresql-simple
             , wai-middleware-static
             , wai-util
-            , http-client
             , bytestring
             , network-uri
             , aeson
@@ -72,6 +71,7 @@ common shared-properties
             , fsnotify
             , websockets
             , wai-websockets
+            , regex-tdfa
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -154,7 +154,6 @@ library IHPFramework
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
-        , IHP.IDE.ToolServer.Helper.Controller
 
 executable RunDevServer
     import: shared-properties

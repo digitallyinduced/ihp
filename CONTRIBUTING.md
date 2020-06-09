@@ -10,9 +10,10 @@ To work on the framework in your application, you need to clone this repository 
 git clone git@github.com:digitallyinduced/haskellframework.git IHP
 ```
 
-The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. To make sure that the symlink is loaded run `make all`. Then:
+The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. Then:
 
 ```
+make all #only needs to be run once
 ghci
 $ghci> :l Main
 ```
@@ -28,6 +29,16 @@ main
 ```
 
 After you have made modifications to files inside `IHP`, you need to press `CTRL + C` to stop the process running in `ghci` and then type `:r` to refresh the haskell modules. Now type `main` to start the server again.
+
+### Running the development server
+
+When making changes to the development tooling, follow the setup above. Instead of starting your application, start the development server:
+
+```
+ghci
+:l IHP/IHP/IDE/DevServer.hs
+main
+```
 
 ## Working on the documentation
 

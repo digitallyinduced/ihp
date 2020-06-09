@@ -65,6 +65,7 @@
     border-bottom: 1px solid #c0c0c0;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
     background-color: #ebebeb;
 }
 
@@ -77,6 +78,37 @@
 
 .code-generator input[name="name"]::placeholder {
     color: #ababaa;
+}
+
+.code-generator input[type="submit"] {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.code-generator .select2 .select2-selection__rendered {
+    font-size: 24px;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    line-height: 35px !important;
+}
+
+.code-generator .select2-container--default .select2-selection--single .select2-selection__arrow {
+    top: 7px;
+    right: 5px;
+}
+
+.code-generator .select2.select2-container .select2-selection--single {
+    height: 50px !important;
+    border: 1px solid #ced4da;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    background-color: #ebebeb;
+}
+
+.code-generator .select2:focus {
+    border-bottom: 1px solid #c0c0c0;
+    background-color: #ebebeb;
 }
 
 .generator-actions {

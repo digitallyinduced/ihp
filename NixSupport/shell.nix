@@ -19,7 +19,6 @@ let
 	    postgresql-simple
 	    wai-middleware-static
 	    wai-util
-	    http-conduit
 	    http-client
 	    aeson
 	    uuid
@@ -30,30 +29,26 @@ let
 	    template-haskell
 	    haskell-src-meta
 	    random-strings
-	    concurrent-extra
 	    interpolate
 	    uri-encode
 	    websockets
 	    wai-websockets
 	    mime-mail
 	    mime-mail-ses
-	    temporary
-	    tz
 	    attoparsec
-	    lens
 	    case-insensitive
-	    haskell-src-exts
-	    containers
 	    http-media
 	    cookie
 	    process
 	    newtype-generics
 	    unix
 	    fsnotify
-	    concurrent-extra
 	    countable-inflections
 	    typerep-map
 	    mmark-cli
+	    data-default
+	    hspec
+	    regex-tdfa
 	]);
 in
     pkgs.stdenv.mkDerivation {

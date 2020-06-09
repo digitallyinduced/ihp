@@ -8,7 +8,14 @@
 
 **CLOSED BETA**: IHP is still in a closed beta. Contact hi@digitallyinduced.com to join the closed beta program :)
 
-[Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/intro.html) 🚀
+[Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
+
+[📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
+
+Questions, or need help with haskell type errors? Join our Gitter Chat:
+
+[![Gitter](https://badges.gitter.im/digitallyinduced/ihp.svg)](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[(IRC available)](https://irc.gitter.im/)
 
 ## Why?
 

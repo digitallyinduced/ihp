@@ -9,7 +9,6 @@ import IHP.NameSupport (tableNameToModelName, columnNameToFieldName)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
-import qualified Data.Set
 import Data.List ((!!), (\\))
 import Data.List.Split
 import IHP.HaskellSupport
@@ -122,7 +121,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
                   <> "import Data.Data\n"
-                  <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary { .. })\n"
+                  <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
@@ -187,6 +186,7 @@ compileData table@(CreateTable { name, columns }) =
             |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
             |> commaSep
         <> "} deriving (Eq, Show)\n"
+        <> "instance InputValue " <> modelName <> " where inputValue = IHP.ModelSupport.recordToInputValue\n"
     where
         modelName = tableNameToModelName name
         typeArguments :: Text

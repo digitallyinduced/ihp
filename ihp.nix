@@ -19,7 +19,6 @@
 , postgresql-simple
 , wai-middleware-static
 , wai-util
-, http-client
 , aeson
 , uuid
 , wai-session
@@ -35,11 +34,8 @@
 , wai-websockets
 , mime-mail
 , mime-mail-ses
-, tz
 , attoparsec
 , case-insensitive
-, haskell-src-exts
-, containers
 , http-media
 , cookie
 , process
@@ -49,6 +45,8 @@
 , countable-inflections
 , typerep-map
 , basic-prelude
+, data-default
+, regex-tdfa
 }:
 mkDerivation {
   pname = "ihp";
@@ -58,7 +56,6 @@ mkDerivation {
   isExecutable = true;
   allowInconsistentDependencies = true;
   libraryHaskellDepends = [
-    cabal-install
     base
     classy-prelude
     directory
@@ -75,7 +72,6 @@ mkDerivation {
     postgresql-simple
     wai-middleware-static
     wai-util
-    http-client
     aeson
     uuid
     wai-session
@@ -86,16 +82,11 @@ mkDerivation {
     haskell-src-meta
     random-strings
     interpolate
-    uri-encode
     websockets
     wai-websockets
     mime-mail
-    mime-mail-ses
-    tz
     attoparsec
     case-insensitive
-    haskell-src-exts
-    containers
     http-media
     cookie
     process
@@ -105,6 +96,8 @@ mkDerivation {
     countable-inflections
     typerep-map
     basic-prelude
+    data-default
+    regex-tdfa
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

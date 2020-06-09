@@ -44,8 +44,13 @@ redirectHandleToVariable handle = do
 ensureNoOtherPostgresIsRunning :: IO ()
 ensureNoOtherPostgresIsRunning = do
     pidFileExists <- Directory.doesPathExist "build/db/state/postmaster.pid"
+    let stopFailedHandler (exception :: SomeException) = do
+            -- pg_ctl: could not send stop signal (PID: 123456765432): No such process
+            if ("No such process" `isInfixOf` (tshow exception))
+                then Directory.removeFile "build/db/state/postmaster.pid"
+                else putStrLn "Found postgres lockfile at 'build/db/state/postmaster.pid'. Could not bring the other postgres instance to halt. Please stop the running postgres manually and then restart this dev server"
     when pidFileExists do
-        Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]
+        (Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]) `catch` stopFailedHandler
 
 needsDatabaseInit :: IO Bool
 needsDatabaseInit = not <$> Directory.doesDirectoryExist "build/db"
@@ -55,7 +60,12 @@ initDatabase = do
     currentDir <- Directory.getCurrentDirectory
     Directory.createDirectoryIfMissing True "build/db"
 
-    Process.callProcess "initdb" ["build/db/state"]
+    Process.callProcess "initdb" [
+                "build/db/state"
+                , "--no-locale" -- Avoid issues with impure host system locale in dev mode
+                , "--encoding"
+                , "UTF8"
+            ]
 
     process <- createManagedProcess (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
                 { Process.std_in = Process.CreatePipe

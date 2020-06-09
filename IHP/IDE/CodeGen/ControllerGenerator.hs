@@ -183,7 +183,6 @@ generateController schema config =
 
         fromParams =
             ""
-            <> "build" <> singularName <> " :: _ => " <> modelVariableSingular <> " -> " <> modelVariableSingular <> "\n"
             <> "build" <> singularName <> " " <> modelVariableSingular <> " = " <> modelVariableSingular <> "\n"
             <> "    |> fill " <> toTypeLevelList modelFields <> "\n"
 
@@ -234,9 +233,9 @@ generateViews :: [Statement] -> ControllerConfig -> [GeneratorAction]
 generateViews schema config =
         let
             name = config |> get #controllerName
-            singularName = config |> get #modelName
-            singularVariableName = lcfirst singularName
-            pluralVariableName = lcfirst name
+            singularName = config |> get #modelName --Post
+            singularVariableName = lcfirst singularName --post
+            pluralVariableName = lcfirst name --posts
 
             viewHeader moduleName =
                 ""

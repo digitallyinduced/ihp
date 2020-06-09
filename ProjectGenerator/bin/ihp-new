@@ -2,8 +2,9 @@
 echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
+CACHIX_TOKEN="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1JDU4MDAiLCJqdGkiOiI2ODI2MzM3Ny04ZjA0LTQzNjQtOTc5Zi0yMTdkNDg2MGFjODciLCJzY29wZXMiOiJ0eCJ9.nb37o2CQBt1Fz3MBMppNACdaWDQsjbPvYpPMLgeJ7RI"
 
-BOILERPLATE_GIT_URL="git@github.com:digitallyinduced/ihp-boilerplate.git"
+BOILERPLATE_GIT_URL="https://github.com/digitallyinduced/ihp-boilerplate.git"
 
 if [ "$#" -ne "1" ]; then
 	echo "Usage: ihp-new PROJECT_NAME"
@@ -56,15 +57,16 @@ if ! [ -x "$(command -v cachix)" ]; then
 fi
 
 
-git clone --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
+git clone --quiet --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 rm -rf ".git"
 
-echo "Start using cachix"
-cachix authtoken eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1JDU4MDAiLCJqdGkiOiI2ODI2MzM3Ny04ZjA0LTQzNjQtOTc5Zi0yMTdkNDg2MGFjODciLCJzY29wZXMiOiJ0eCJ9.nb37o2CQBt1Fz3MBMppNACdaWDQsjbPvYpPMLgeJ7RI
-cachix use digitallyinduced
+grep -s -q "$CACHIX_TOKEN" ~/.config/cachix/cachix.dhall || {
+	cachix authtoken "$CACHIX_TOKEN" > /dev/null
+	cachix use digitallyinduced > /dev/null
+}
 
-nix-shell --run 'make all; new-application Web'
+nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
 echo "🚀 Project created, happy coding :)"
 echo "You can start the server by running:"
 echo "  cd $PROJECT_NAME"

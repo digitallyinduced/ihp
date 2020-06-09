@@ -8,17 +8,18 @@ import IHP.RouterSupport
 import IHP.ControllerPrelude
 --import IHP.GenericController
 
-data DemoController = DemoAction deriving (Eq, Show)
+data DemoController = DemoAction deriving (Eq, Show, Data)
 
-instance HasPath RootApplication where
-	pathTo _ = ""
-instance CanRoute RootApplication () where
-    parseRoute = parseRoute @DemoController
+instance AutoRoute DemoController
+instance InitControllerContext RootApplication
+instance FrontController RootApplication where
+    controllers =
+        [ parseRoute @DemoController
+        , startPage DemoAction
+        ]
 
-instance HasPath DemoController where
-	pathTo _ = ""
-instance CanRoute DemoController () where
-    parseRoute = pure (renderPlain "test")
+instance Controller DemoController where
+    action DemoAction = renderPlain "Hello World!"
 
 instance FrameworkConfig where 
 	environment = Development

@@ -77,7 +77,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
         deploy = navItem "DEPLOY" globeIcon "#" False
-        docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/Guide/intro.html" False
+        docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/Guide/" False
         
         isSchemaEditorController =
                     (  isActiveController @SchemaController

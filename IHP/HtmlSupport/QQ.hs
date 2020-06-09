@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies, BangPatterns #-}
+{-# LANGUAGE TemplateHaskell, UndecidableInstances, BangPatterns #-}
 
 module IHP.HtmlSupport.QQ (hsx) where
 
@@ -12,10 +12,9 @@ import qualified Text.Blaze.Html5              as Html5
 import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
-import Data.String.Conversions (cs)
+import Data.String.Conversions
 import IHP.HtmlSupport.ToHtml
 import qualified Debug.Trace
-import qualified Language.Haskell.Exts.Syntax as HS
 import Control.Monad.Fail
 import qualified Text.Megaparsec as Megaparsec
 
@@ -45,11 +44,9 @@ compileToHaskell :: Node -> TH.ExpQ
 compileToHaskell (Node name attributes children) =
     let
         renderedChildren = TH.listE $ map compileToHaskell children
-    in case attributes of
-        StaticAttributes attributes ->
-            let
-                stringAttributes = TH.listE $ map toStringAttribute attributes
-            in [| (applyAttributes (makeElement name $(renderedChildren)) $(stringAttributes)) |]
+        stringAttributes = TH.listE $ map toStringAttribute attributes
+    in
+        [| (applyAttributes (makeElement name $(renderedChildren)) $(stringAttributes)) |]
 
 compileToHaskell (Children children) =
     let
@@ -104,26 +101,32 @@ patchExpr e = e
 -- UInfixE (UInfixE (VarE tshow) (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
 
 
-toStringAttribute :: (Text, AttributeValue) -> TH.ExpQ
-toStringAttribute (name', TextValue value) = do
+toStringAttribute :: Attribute -> TH.ExpQ
+toStringAttribute (StaticAttribute name' (TextValue value)) = do
     let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
     if null value
-        then [| (attribute name nameWithSuffix) mempty |]
-        else [| (attribute name nameWithSuffix) (cs value :: Html5.AttributeValue) |]
+        then [| \h -> h ! ((attribute name nameWithSuffix) mempty) |]
+        else [| \h -> h ! ((attribute name nameWithSuffix) (cs value :: Html5.AttributeValue)) |]
 
-toStringAttribute (name', ExpressionValue code) = do
+toStringAttribute (StaticAttribute name' (ExpressionValue code)) = do
     let name :: String = cs name'
     let nameWithSuffix = " " <> name <> "=\""
     case parseExp (cs code) of
-        Right expression -> let patched = patchExpr expression in [| (attribute name nameWithSuffix) (cs $(pure patched)) |]
+        Right expression -> let patched = patchExpr expression in [| applyAttribute name nameWithSuffix $(pure patched) |]
         Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
 
+toStringAttribute (SpreadAttributes code) = case parseExp (cs code) of
+        Right expression -> let patched = patchExpr expression in [| spreadAttributes $(pure patched) |]
+        Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
 
-{-# INLINE applyAttributes #-}
-applyAttributes :: Html5.Html -> [Html5.Attribute] -> Html5.Html
+spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Html5.Html -> Html5.Html
+spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (name <> "=\"") value) attributes
+
+applyAttributes :: Html5.Html -> [Html5.Html -> Html5.Html] -> Html5.Html
 applyAttributes !el [] = el
-applyAttributes !el (x:xs) = applyAttributes (el ! x) xs
+applyAttributes !el (x:xs) = applyAttributes (x el) xs
+{-# INLINE applyAttributes #-}
 
 {-# INLINE makeElement #-}
 makeElement :: Text -> [Html] -> Html
@@ -147,3 +150,15 @@ makeElement name' children =
                 leaf ()
             else
                 error ("makeElement: Unknown tag "  <> show name)
+
+class ApplyAttribute value where
+    applyAttribute :: Text -> Text -> value -> (Html5.Html -> Html5.Html)
+
+instance ApplyAttribute Bool where
+    applyAttribute attr attr' True h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (Html5.textValue attr))
+    applyAttribute attr attr' false h = h
+    {-# INLINE applyAttribute #-}
+
+instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
+    applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (cs value))
+    {-# INLINE applyAttribute #-}

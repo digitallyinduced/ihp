@@ -5,7 +5,6 @@ import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
 import IHP.ControllerSupport
-import IHP.RouterSupport
 import System.IO.Unsafe (unsafePerformIO)
 import Data.String.Conversions (cs)
 import qualified System.Directory as Directory
@@ -29,8 +28,6 @@ class FrameworkConfig where
     baseUrl = let port = appPort in "http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else "")
 
 data RootApplication = RootApplication deriving (Eq, Show)
-
-instance Controller RootApplication where
 
 initAppPort :: IO Int
 initAppPort = do

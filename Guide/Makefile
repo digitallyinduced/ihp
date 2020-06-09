@@ -6,13 +6,18 @@ HTML_FILES+= architecture.html
 HTML_FILES+= scripts.html
 HTML_FILES+= your-first-project.html
 HTML_FILES+= installation.html
-HTML_FILES+= intro.html
+HTML_FILES+= index.html
 HTML_FILES+= database.html
 HTML_FILES+= debugging.html
 HTML_FILES+= querybuilder.html
 HTML_FILES+= view.html
 HTML_FILES+= form.html
 HTML_FILES+= hsx.html
+HTML_FILES+= validation.html
+HTML_FILES+= session.html
+HTML_FILES+= naming-conventions.html
+HTML_FILES+= controller.html
+HTML_FILES+= routing.html
 
 all: $(HTML_FILES) bootstrap.css
 
@@ -20,7 +25,7 @@ all: $(HTML_FILES) bootstrap.css
 	mmark -i $< -o $@ --template layout.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 2-6
 
 watch: all
-	open $$PWD/intro.html
+	open $$PWD/index.html
 	ls *.markdown layout.html | entr make
 
 clean:
