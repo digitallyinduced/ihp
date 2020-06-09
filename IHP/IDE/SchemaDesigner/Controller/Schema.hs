@@ -18,11 +18,9 @@ import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 
 instance Controller SchemaController where
-    
     action ShowCodeAction = do
         schema <- Text.readFile schemaFilePath
         error <- getSqlError
-        putStrLn (tshow (fromMaybe "" (error)))
         render CodeView { .. }
 
     action SaveCodeAction = do
@@ -30,7 +28,6 @@ instance Controller SchemaController where
         Text.writeFile schemaFilePath schema
         redirectTo ShowCodeAction
 
-    -- DB
     action PushToDbAction = do
         Process.system "make db"
         redirectTo TablesAction
@@ -39,8 +36,6 @@ instance Controller SchemaController where
         Process.system "make dumpdb"
         redirectTo TablesAction
 
-
-    -- GENERATED HASKELL CODE
     action ShowGeneratedCodeAction { tableName } = do
         statements <- readSchema
         let (Just table) = findTableByName tableName statements

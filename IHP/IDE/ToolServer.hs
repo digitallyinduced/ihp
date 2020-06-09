@@ -112,7 +112,7 @@ instance FrontController ToolServerApplication where
         , parseRoute @LogsController
         , parseRoute @DataController
         , parseRoute @CodeGenController
-        , catchAll TablesAction
+        , startPage TablesAction
         ]
 
 instance ControllerSupport.InitControllerContext ToolServerApplication where
