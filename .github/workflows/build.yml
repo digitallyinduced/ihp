@@ -15,6 +15,7 @@ jobs:
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: |
+          nix-env -i direnv
           nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
           echo "Starting building"
           ihp-new blog
