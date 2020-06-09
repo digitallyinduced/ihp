@@ -1,22 +1,27 @@
 {-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase #-}
 module IHP.RouterSupport (
-    CanRoute (..)
-    , HasPath (..)
-    , AutoRoute (..)
-    , runAction
-    , get
-    , post
-    , startPage
-    , frontControllerToWAIApp
-    , withPrefix
-    , ModelControllerMap
-    , FrontController (..)
-    , parseRoute 
-    , catchAll
-    , mountFrontController
-    , createAction
-    , updateAction
-    , parseTextArgument
+CanRoute (..)
+, HasPath (..)
+, AutoRoute (..)
+, runAction
+, get
+, post
+, startPage
+, frontControllerToWAIApp
+, withPrefix
+, ModelControllerMap
+, FrontController (..)
+, parseRoute 
+, catchAll
+, mountFrontController
+, createAction
+, updateAction
+, parseTextArgument
+, parseIntArgument
+, parseUUIDArgument
+, urlTo
+, parseUUID
+, parseId
 ) where
 
 import qualified Prelude
@@ -31,6 +36,7 @@ import Network.Wai
 import Data.String.Conversions (cs)
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
+import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import GHC.TypeLits
 import Data.Data
 import qualified Data.UUID as UUID
@@ -49,12 +55,34 @@ import qualified Data.Char as Char
 import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
+import qualified IHP.FrameworkConfig as FrameworkConfig
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
 
 class HasPath controller where
+    -- | Returns the path to a given action
+    --
+    -- >>> pathTo UsersAction
+    -- "/Users"
+    --
+    -- >>> pathTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
+    -- "/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
     pathTo :: controller -> Text    
+
+-- | Returns the url to a given action.
+--
+-- Uses the baseUrl configured in @Config/Config.hs@. When no @baseUrl@
+-- is configured in development mode, it will automatically detect the
+-- correct @baseUrl@ value.
+--
+-- >>> urlTo UsersAction
+-- "http://localhost:8000/Users"
+--
+-- >>> urlTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
+-- "http://localhost:8000/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
+urlTo :: (HasPath action, FrameworkConfig.FrameworkConfig) => action -> Text
+urlTo action = FrameworkConfig.baseUrl <> pathTo action
 
 class HasPath controller => CanRoute controller where
     parseRoute' :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
@@ -113,11 +141,7 @@ class Data controller => AutoRoute controller where
         in choice (map parseCustomAction allConstructors)
 
     parseArgument :: forall d. Data d => ByteString -> ByteString -> d
-    parseArgument field value =
-        value
-        |> fromASCIIBytes
-        |> fromMaybe (error "AutoRoute: Failed parsing UUID")
-        |> unsafeCoerce
+    parseArgument = parseUUIDArgument
     {-# INLINE parseArgument #-}
 
     -- | Specifies the allowed HTTP methods for a given action
@@ -162,6 +186,37 @@ class Data controller => AutoRoute controller where
 -- >     parseArgument = parseTextArgument
 parseTextArgument :: forall d. Data d => ByteString -> ByteString -> d
 parseTextArgument field value = unsafeCoerce ((cs value) :: Text)
+{-# INLINE parseTextArgument #-}
+
+-- | When the arguments for your AutoRoute based actions are Integers instead
+-- of UUIDs, you can override the 'parseArgument' function of your 'AutoRoute' instance
+-- with 'parseIntArgument' to receive them as a @Int@
+--
+-- __Example:__
+--
+-- >
+-- > data HelloWorldController = HelloAction { page :: Int }
+-- >     deriving (Eq, Show, Data)
+-- >
+-- > instance AutoRoute HelloWorldController where
+-- >     parseArgument = parseIntArgument
+parseIntArgument :: forall d. Data d => ByteString -> ByteString -> d
+parseIntArgument field value =
+    value
+    |> Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput)
+    |> \case
+        Right value -> unsafeCoerce value
+        Left _ -> error "AutoRoute: Failed parsing Int"
+{-# INLINE parseIntArgument #-}
+
+-- | The default implementation for 'parseArgument' in 'AutoRoute'.
+parseUUIDArgument :: forall d. Data d => ByteString -> ByteString -> d
+parseUUIDArgument field value =
+    value
+    |> fromASCIIBytes
+    |> fromMaybe (error "AutoRoute: Failed parsing UUID")
+    |> unsafeCoerce
+{-# INLINE parseUUIDArgument #-}
 
 -- | Returns the url prefix for a controller. The prefix is based on the
 -- module where the controller is defined.
@@ -380,3 +435,18 @@ catchAll action = do
 
 instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
     convertString action = Html5.textValue (pathTo action)
+
+
+-- | Parses and returns an UUID
+parseUUID :: Parser UUID
+parseUUID = do
+        uuid <- take 36
+        case fromASCIIBytes uuid of 
+            Just theUUID -> pure theUUID
+            Nothing -> fail "not uuid"
+{-# INLINE parseUUID #-}
+
+-- | Parses an UUID, afterwards wraps it in an Id
+parseId :: Parser (ModelSupport.Id record)
+parseId = ModelSupport.Id <$> parseUUID
+{-# INLINE parseId #-}
