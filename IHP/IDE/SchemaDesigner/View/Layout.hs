@@ -27,14 +27,48 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
 
 databaseControls :: Html
 databaseControls = [hsx|
-    <div class="d-flex justify-content-end col">
-        <form class="p-2" action={pathTo DumpDbAction}>
-            <button type="submit" class="btn btn-primary">DB to Fixtures</button>
-        </form>
-        <form class="p-2" style="padding-right: 0 !important;" action={pathTo PushToDbAction}>
-            <button type="submit" class="btn btn-primary">Push to DB</button>
-        </form>
+<div class="d-flex justify-content-end col">
+    <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
+    <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
+    <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
+    <div class="btn-group">
+        <button
+            type="submit"
+            form="update-db-form"
+            class="btn btn-primary"
+            data-toggle="tooltip"
+            data-placement="bottom"
+            data-html="true"
+            title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
+            >Update DB</button>
+
+        <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <span class="sr-only">Toggle Dropdown</span>
+        </button>
+
+
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuLink">
+            <button
+                type="submit"
+                class="dropdown-item"
+                form="db-to-fixtures-form"
+                data-toggle="tooltip"
+                data-placement="left"
+                data-html="true"
+                title="Saves the content of all tables to Application/Fixtures.sql"
+                >Save DB to Fixtures</button>
+            <button
+                type="submit"
+                class="dropdown-item"
+                form="push-to-db-form"
+                data-toggle="tooltip"
+                data-placement="left"
+                data-html="true"
+                title="Delete the DB and recreate using Application/Schema.sql and Application/Fixture.sql<br><br><strong class=text-danger>Save DB to Fixtures before using this to avoid data loss</strong>"
+                >Push to DB</button>
+        </div>
     </div>
+</div>
 |]
 
 findTableByName tableName statements = find pred statements
