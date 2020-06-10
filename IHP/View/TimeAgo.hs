@@ -19,12 +19,12 @@ import qualified Text.Blaze.Html5.Attributes as A
 -- Requires the javascript helpers to be available. Then the time will displayed in the current browser
 -- timezone.
 --
--- When the js helper is not available, a raw ISO8601 time will be shown instead.
+-- When the js helper is not available, the time will be displayed with the format: DD.MM.YYYY, HH:MM
 --
 -- __Example:__ Generated HTML
 --
 -- >>> <div>{timeAgo (get #createdAt project)}</div>
--- <div><time class="time-ago">2007-08-31T16:47+00:00</div>
+-- <div><time class="time-ago">31.08.2007, 16:47</div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
@@ -45,7 +45,7 @@ timeAgo = timeElement "time-ago"
 -- __Example:__ Generated HTML
 --
 -- >>> <div>{dateTime (get #createdAt project)}</div>
--- <div><time class="date-time">2007-08-31T16:47+00:00</div>
+-- <div><time class="date-time">31.08.2007, 16:47</div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
@@ -66,7 +66,7 @@ dateTime = timeElement "date-time"
 -- __Example:__ Generated HTML
 --
 -- >>> <div>{date (get #createdAt project)}</div>
--- <div><time class="date">2007-08-31T16:47+00:00</div>
+-- <div><time class="date">31.08.2007, 16:47</div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
@@ -75,5 +75,8 @@ dateTime = timeElement "date-time"
 date :: UTCTime -> Html
 date = timeElement "date"
 
-timeElement :: Text -> UTCTime-> Html
-timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (iso8601Show dateTime)
+timeElement :: Text -> UTCTime -> Html
+timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (beautifyUtcTime dateTime)
+
+beautifyUtcTime :: UTCTime -> String
+beautifyUtcTime utcTime = formatTime defaultTimeLocale "%d.%m.%Y, %H:%M" utcTime
