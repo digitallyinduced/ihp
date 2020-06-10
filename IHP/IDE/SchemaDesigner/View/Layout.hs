@@ -47,7 +47,7 @@ databaseControls = [hsx|
         </button>
 
 
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuLink">
+        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuLink">
             <button
                 type="submit"
                 class="dropdown-item"
