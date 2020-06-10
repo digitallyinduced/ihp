@@ -26,3 +26,9 @@ We believe that functional programing is the future of software development and 
 We are happy to merge your pull requests!
 
 See [CONTRIBUTING.md for more info](CONTRIBUTING.md).
+
+## Releases
+
+During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
+
+[📧 Subscribe to the IHP release emails to stay in the loop.](http://eepurl.com/g51zq1)
