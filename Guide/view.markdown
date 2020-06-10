@@ -3,7 +3,7 @@
 ```toc
 ```
 
-# Introduction
+## Introduction
 
 IHP views are usually represented as HTML, but can also be represented a json or other formats.
 
@@ -109,4 +109,28 @@ timeAgo (get #createdAt post) -- "1 minute ago"
 
 ```haskell
 dateTime (get #createdAt post) -- "10.6.2019, 15:58 Uhr"
+```
+
+## Diff-Based DOM Updates
+
+When in development, your views will automatically refresh on code changes. This works by re-requesting the view from the server via AJAX and then using [morphdom](https://github.com/patrick-steele-idem/morphdom) to update the visible DOM.
+
+## TurboLinks
+
+In production mode your application is using a custom integration of morphdom and [TurboLinks](https://github.com/turbolinks/turbolinks) together with [InstantClick](http://instantclick.io/). TurboLinks makes navigating the application even faster because it's not doing a full page refresh. We've integrated TurboLinks with morphdom to only update the parts of your HTML that have actually changed. This was inspired by react.js's DOM patch approach and allows for e.g. CSS animations to run on a page transition. Using this makes your app feel like a [SPA](https://en.wikipedia.org/wiki/Single-page_application) without you writing any javascript code.
+
+To improve latency, TurboLinks is configured to prefetch the URL on mouse-hover already. Usually the time between a mouse-hover of a link and mouse click is 100ms - 200ms. As long as the server responds in less than 100ms, the response is already there when the click event is fired. This makes your app faster than most single page application (most SPAs still need to fetch some data after clicking).
+
+This setup is designed as a progressive enhancement. Your application is still usable when javascript is disabled.
+Even when disabled, your application will still be amazingly fast.
+
+You can disable this behavior by removing the following code from your `Web/Layout.hs`:
+
+```haskell
+    when (isProduction FrameworkConfig.environment) [hsx|
+            <script src="/vendor/turbolinks.js"></script>
+            <script src="/vendor/morphdom-umd.min.js"></script>
+            <script src="/vendor/turbolinksMorphdom.js"></script>
+            <script src="/vendor/turbolinksInstantClick.js"></script>
+        |]
 ```
