@@ -3,7 +3,7 @@ Module: IHP.IDE.SchemaDesigner.Compiler
 Description: Compiles AST of SQL to DDL
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.IDE.SchemaDesigner.Compiler (compileSql, writeSchema, reservedKeywordEscaper) where
+module IHP.IDE.SchemaDesigner.Compiler (compileSql, writeSchema, compileIdentifier) where
 
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
@@ -21,15 +21,15 @@ compileSql statements = statements
     |> unlines
 
 compileStatement :: Statement -> Text
-compileStatement CreateTable { name, columns } = "CREATE TABLE " <> reservedKeywordEscaper name <> " (\n" <> intercalate ",\n" (map compileColumn columns) <> "\n);"
-compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> reservedKeywordEscaper name <> " AS ENUM (" <> intercalate ", " values <> ");"
-compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> reservedKeywordEscaper name <> "\";"
-compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> reservedKeywordEscaper tableName <> " ADD CONSTRAINT " <> reservedKeywordEscaper constraintName <> " " <> compileConstraint constraint <> ";"
+compileStatement CreateTable { name, columns } = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map compileColumn columns) <> "\n);"
+compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " values <> ");"
+compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
+compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
 compileStatement UnknownStatement { raw } = raw
 
 compileConstraint :: Constraint -> Text
-compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> reservedKeywordEscaper columnName <> ") REFERENCES " <> reservedKeywordEscaper referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
+compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
 
 compileOnDelete :: Maybe OnDelete -> Text
 compileOnDelete Nothing = ""
@@ -41,7 +41,7 @@ compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 compileColumn :: Column -> Text
 compileColumn Column { name, columnType, primaryKey, defaultValue, notNull, isUnique } =
     "    " <> unwords (catMaybes
-        [ Just (reservedKeywordEscaper name)
+        [ Just (compileIdentifier name)
         , Just columnType
         , fmap compileDefaultValue defaultValue
         , if primaryKey then Just "PRIMARY KEY" else Nothing
@@ -56,8 +56,8 @@ compareStatement (CreateTable {}) _ = LT
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
-reservedKeywordEscaper :: _ -> Text
-reservedKeywordEscaper keyword = case (IHP.Prelude.toUpper keyword) of
+compileIdentifier :: _ -> Text
+compileIdentifier keyword = case (IHP.Prelude.toUpper keyword) of
     "ABORT" -> tshow "ABORT"
     "ABSOLUTE" -> tshow "ABSOLUTE"
     "ACCESS" -> tshow "ACCESS"

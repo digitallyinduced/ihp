@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, getDefaultValue, reservedCheck)
+import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, getDefaultValue, isIllegalKeyword)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -35,7 +35,7 @@ instance Controller ColumnsController where
         when (columnName == "") do
             (setSuccessMessage ("Name can not be empty"))
             redirectTo ShowTableAction { .. }
-        when (reservedCheck columnName) do
+        when (isIllegalKeyword columnName) do
             (setSuccessMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowTableAction { .. }
         let column = Column
@@ -73,7 +73,7 @@ instance Controller ColumnsController where
         when (columnName == "") do
             (setSuccessMessage ("Name can not be empty"))
             redirectTo ShowTableAction { .. }
-        when (reservedCheck columnName) do
+        when (isIllegalKeyword columnName) do
             (setSuccessMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowTableAction { .. }
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")

@@ -11,7 +11,7 @@ import IHP.IDE.SchemaDesigner.View.Enums.Edit
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, reservedCheck)
+import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, isIllegalKeyword)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -34,7 +34,7 @@ instance Controller EnumsController where
         when (enumName == "") do
             (setSuccessMessage ("Name can not be empty"))
             redirectTo TablesAction
-        when (reservedCheck enumName) do
+        when (isIllegalKeyword enumName) do
             (setSuccessMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
             redirectTo TablesAction
         updateSchema (addEnum enumName)
@@ -50,7 +50,7 @@ instance Controller EnumsController where
         when (enumName == "") do
             (setSuccessMessage ("Name can not be empty"))
             redirectTo ShowEnumAction { .. }
-        when (reservedCheck enumName) do
+        when (isIllegalKeyword enumName) do
             (setSuccessMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowEnumAction { .. }
         let enumId = param "enumId"

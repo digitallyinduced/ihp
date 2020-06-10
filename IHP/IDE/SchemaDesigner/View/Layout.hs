@@ -1,10 +1,10 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, reservedCheck) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.Compiler (reservedKeywordEscaper)
+import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier)
 import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html
@@ -266,8 +266,8 @@ getDefaultValue columnType value = case value of
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
 
-reservedCheck :: Text -> Bool
-reservedCheck input = case (toUpper input) of
+isIllegalKeyword :: Text -> Bool
+isIllegalKeyword input = case (toUpper input) of
     "BIGINT" -> True
     "BIT" -> True
     "BOOLEAN" -> True
