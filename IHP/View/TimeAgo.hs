@@ -75,5 +75,8 @@ dateTime = timeElement "date-time"
 date :: UTCTime -> Html
 date = timeElement "date"
 
-timeElement :: Text -> UTCTime-> Html
-timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (iso8601Show dateTime)
+timeElement :: Text -> UTCTime -> Html
+timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (beautifyUtcTime dateTime)
+
+beautifyUtcTime :: UTCTime -> String
+beautifyUtcTime utcTime = formatTime defaultTimeLocale "%d.%m.%Y, %H:%M" utcTime
