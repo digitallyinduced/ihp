@@ -30,10 +30,18 @@ instance Controller SchemaController where
 
     action PushToDbAction = do
         Process.system "make db"
+        setSuccessMessage "Recreated DB"
         redirectTo TablesAction
 
     action DumpDbAction = do
         Process.system "make dumpdb"
+        setSuccessMessage "Database State saved to Application/Fixtures.sql"
+        redirectTo TablesAction
+
+    action UpdateDbAction = do
+        Process.system "make dumpdb"
+        Process.system "make db"
+        setSuccessMessage "DB Update successful"
         redirectTo TablesAction
 
     action ShowGeneratedCodeAction { tableName } = do

@@ -23,6 +23,7 @@ data SchemaController
     = SchemaAction
     | PushToDbAction
     | DumpDbAction
+    | UpdateDbAction
     | ShowCodeAction
     | SaveCodeAction
     | ShowGeneratedCodeAction { tableName :: Text }
