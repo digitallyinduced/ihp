@@ -2,6 +2,7 @@ module IHP.IDE.SchemaDesigner.View.Columns.Edit where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
+import IHP.IDE.SchemaDesigner.Compiler (compileExpression)
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.View.Modal
@@ -114,29 +115,18 @@ typeSelector selected = preEscapedToHtml [plain|
             then [plain|<option value=#{value} selected>#{text}</option>|]
             else [plain|<option value=#{value}>#{text}</option>|]
 
-defaultSelector :: Maybe Text -> Html
-defaultSelector selected = preEscapedToHtml [plain|
+defaultSelector :: Maybe Expression -> Html
+defaultSelector defValue = preEscapedToHtml [hsx|
     <div class="col-sm-10">
         <select id="defaultSelector" name="defaultValue" class="form-control select2">
-            #{option (selectedType selected) "NODEFAULT" "no default"}
-            #{maybeCustom selected}
+            {forEach values renderValue}
         </select>
     </div>
 |]
     where
-        option selected value text = if selected == value
-            then [plain|<option value=#{tshow (fromMaybe "" value)} selected>#{text}</option>|]
-            else [plain|<option value=#{tshow (fromMaybe "" value)}>#{text}</option>|]
-        selectedType selection = case selection of
-            Just "''" -> "EMPTY"
-            Just "NULL" -> "NULL"
-            Just "null" -> "NULL"
-            Nothing -> "NODEFAULT"
-            custom -> custom
-        maybeCustom selection = case selection of
-            Just "''" -> [plain|<option value="EMPTY" selected>''</option>|]
-            Just "NULL" -> [plain|<option value="NULL" selected>null</option>|]
-            Just "null" -> [plain|<option value="NULL" selected>null</option>|]
-            Just "EMPTY" -> [plain|<option value="EMPTY" selected>''</option>|]
-            Nothing -> mempty
-            _ -> [plain|<option value=#{fromMaybe "" selection} selected>#{fromMaybe "" selection}</option>|]
+        suggestedValues = [Nothing, Just (TextExpression ""), Just (VarExpression "null"), Just (CallExpression "NOW" [])]
+        values = if defValue `elem` suggestedValues then suggestedValues else defValue:suggestedValues
+
+        renderValue :: Maybe Expression -> Html
+        renderValue e@(Just expression) = [hsx|<option value={compileExpression expression} selected={e == defValue}>{compileExpression expression}</option>|]
+        renderValue Nothing = [hsx|<option value="NODEFAULT" selected={Nothing == defValue}>No default</option>|]

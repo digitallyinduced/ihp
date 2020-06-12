@@ -18,6 +18,7 @@ import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
+import GHC.IO (evaluate)
 
 
 main :: IO ()
@@ -50,7 +51,7 @@ main = hspec do
                             { name = "id"
                             , columnType = "UUID"
                             , primaryKey = True
-                            , defaultValue = Just "uuid_generate_v4()"
+                            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
                             , isUnique = False
                             }
@@ -106,7 +107,7 @@ main = hspec do
                             { name = "created_at"
                             , columnType = "TIMESTAMP WITH TIME ZONE"
                             , primaryKey = False
-                            , defaultValue = Just "NOW()"
+                            , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
                             , isUnique = False
                             }
@@ -175,6 +176,12 @@ main = hspec do
                         , onDelete = Nothing
                         }
                     }
+
+        it "should parse CREATE TYPE .. AS ENUM" do
+            parseSql "CREATE TYPE colors AS ENUM ('yellow', 'red', 'green');" `shouldBe` CreateEnumType { name = "colors", values = ["yellow", "red", "green"] }
+        
+        it "should fail on CREATE TYPE .. AS ENUM without values" do
+            evaluate (parseSql "CREATE TYPE colors AS ENUM ();") `shouldThrow` anyErrorCall
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

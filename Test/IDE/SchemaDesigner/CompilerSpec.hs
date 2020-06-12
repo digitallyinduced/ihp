@@ -51,7 +51,7 @@ main = hspec do
                             { name = "id"
                             , columnType = "UUID"
                             , primaryKey = True
-                            , defaultValue = Just "uuid_generate_v4()"
+                            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
                             , isUnique = False
                             }
@@ -107,7 +107,7 @@ main = hspec do
                             { name = "created_at"
                             , columnType = "TIMESTAMP WITH TIME ZONE"
                             , primaryKey = False
-                            , defaultValue = Just "NOW()"
+                            , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
                             , isUnique = False
                             }
@@ -116,7 +116,7 @@ main = hspec do
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with quoted identifiers" do
-            compileSql [CreateTable { name = tshow "quoted name", columns = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+            compileSql [CreateTable { name = "quoted name", columns = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
@@ -182,3 +182,29 @@ main = hspec do
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ;\n"
+
+
+        it "should compile a CREATE TABLE with text default value in columns" do
+            let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
+            let statement = CreateTable
+                    { name = "a"
+                    , columns = [
+                        Column
+                            { name = "content"
+                            , columnType = "TEXT"
+                            , primaryKey = False
+                            , defaultValue = Just (TextExpression "example text")
+                            , notNull = True
+                            , isUnique = False
+                            }
+                        ]
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TYPE .. AS ENUM" do
+            let sql = cs [plain|CREATE TYPE colors AS ENUM ('yellow', 'red', 'blue');\n|]
+            let statement = CreateEnumType
+                    { name = "colors"
+                    , values = ["yellow", "red", "blue"]
+                    }
+            compileSql [statement] `shouldBe` sql           

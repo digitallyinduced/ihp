@@ -35,7 +35,7 @@ instance Controller EnumValuesController where
         let enumName = param "enumName"
         let enum = findEnumByName enumName statements
         let values = maybe [] (get #values) enum
-        let value = removeQuotes (cs (values !! valueId))
+        let value = (cs (values !! valueId))
         render EditEnumValueView { .. }
 
     action UpdateEnumValueAction = do
@@ -61,12 +61,12 @@ instance Controller EnumValuesController where
 
 addValueToEnum :: Text -> Text -> Statement -> Statement
 addValueToEnum enumName enumValueName (table@CreateEnumType { name, values }) | name == enumName =
-    table { values = values <> ["'" <> enumValueName <> "'"] }
+    table { values = values <> [enumValueName] }
 addValueToEnum enumName enumValueName statement = statement
 
 updateValueInEnum :: Text -> Text -> Int -> Statement -> Statement
 updateValueInEnum enumName value valueId (table@CreateEnumType { name, values }) | name == enumName =
-    table { values = (replace valueId ("'" <> value <> "'") values) }
+    table { values = (replace valueId value values) }
 updateValueInEnum enumName value valueId statement = statement
 
 deleteValueInEnum :: Text -> Int -> Statement -> Statement
