@@ -32,7 +32,58 @@ curl https://nixos.org/nix/install | sh
 There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
 
 ##### Windows
-Sorry, we don't support windows yet.
+Running nix on Windows requires the Windows Subsystem for Linux, which first needs manual activation via **Powershell with Administrator Privileges**:
+
+```bash
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+```
+
+Enabling this Feature needs a restart.
+
+To download a Linux Distribution, open the Microsoft Store and search for Ubuntu or Debian. We recommend Ubuntu, since it works best with nix on Windows.
+
+Note: You **do not** need a Microsoft account to download. You can simply cancel or close the login forms and the download will continue.
+
+With the Distro Downloaded, run it and update it using your package manager. In Ubuntu you would use:
+
+```bash
+sudo apt-get update
+sudo apt-get upgrade
+```
+
+Now, create a folder for nix:
+
+```bash
+sudo mkdir -p /etc/nix
+```
+
+To make nix usable on Windows, we need to create and add the following lines to the file `/etc/nix/nix.conf`:
+
+```bash
+sandbox = false
+use-sqlite-wal = false
+```
+
+After saving the file, you can now install nix:
+
+```bash
+curl https://nixos.org/nix/install | sh
+```
+
+When the installation finishes successfuly, you will be prompted to either reload your environment with the given command, or restart your shell. 
+
+If in doubt, just close and reopen Ubuntu/Your Distro.
+
+**NOTES FOR WINDOWS USERS**:
+###### Windows Firewall
+When using Windows, you will be asked if tasks like ghc-iserv or rundevserver should be allowed by the firewall. This is needed to access the devserver interface and the webapp itself.
+###### Windows System Paths
+WSL will add your Windows System Paths in your Linux Subsystem. These tend to generate errors due to spaces and brackets in folder names. To remove all Windows paths on load, just add this line to the end of your `.bashrc`
+```bash
+PATH=$(/usr/bin/printenv PATH | /usr/bin/perl -ne 'print join(":", grep { !/\/mnt\/[a-z]/ } split(/:/));')
+```
+
+Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/nix-on-windows/).
 
 ## 2. Dependency: Direnv
 
