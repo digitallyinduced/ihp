@@ -16,7 +16,8 @@ instance View IndexView ViewContext where
 
     html IndexView { .. } = [hsx|
         {renderFlashMessages}
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white mb-4">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
+        {renderFlashMessages}
     |]

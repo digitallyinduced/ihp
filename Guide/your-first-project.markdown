@@ -320,7 +320,7 @@ In the success case (`Right post ->`) we save the updated post to the database (
 
 ```haskell
     action CreatePostAction = do
-        let post = newRecord @NewPost
+        let post = newRecord @Post
         post
             |> buildPost
             |> ifValid \case
@@ -823,7 +823,7 @@ Inside the `Web/View/Comments/New.hs` retrieve the `post` variable from the acti
 
 ```haskell
 data NewView = NewView
-    { comment :: NewComment
+    { comment :: Comment
     , post :: Post
     }
 ```
@@ -839,7 +839,7 @@ Now we can use the `post` variable to show the post title. Change `<h1>New Comme
 Let's also make the text field for `postId` a hidden field:
 
 ```haskell
-renderForm :: NewComment -> Html
+renderForm :: Comment -> Html
 renderForm comment = formFor comment [hsx|
     {hiddenField #postId}
     {textField #author}

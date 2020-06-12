@@ -7,7 +7,7 @@ module IHP.ControllerSupport
 , getRequestUrl
 , getHeader
 , RequestContext (..)
-, getRequest
+, request
 , requestHeaders
 , getFiles
 , Controller (..)
@@ -33,7 +33,8 @@ import IHP.ApplicationContext (ApplicationContext (..))
 import qualified IHP.ApplicationContext as ApplicationContext
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import IHP.Controller.RequestContext
+import qualified IHP.Controller.RequestContext as RequestContext
+import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
 import Control.Monad.Reader
 import qualified Data.TMap as TypeMap
@@ -76,7 +77,7 @@ class InitControllerContext application where
 runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let (RequestContext _ respond _ _ _) = ?requestContext
+    let respond = ?requestContext |> get #respond
     
     let doRunAction = do
             beforeAction
@@ -105,39 +106,32 @@ runActionWithNewContext controller = do
 
 {-# INLINE getRequestBody #-}
 getRequestBody :: (?requestContext :: RequestContext) => IO ByteString
-getRequestBody =
-    let (RequestContext request _ _ _ _) = ?requestContext
-    in Network.Wai.getRequestBodyChunk request
+getRequestBody = Network.Wai.getRequestBodyChunk request
 
 {-# INLINE getRequestUrl #-}
 getRequestUrl :: (?requestContext :: RequestContext) => ByteString
-getRequestUrl =
-    let (RequestContext request _ _ _ _) = ?requestContext
-    in Network.Wai.rawPathInfo request
+getRequestUrl = Network.Wai.rawPathInfo request
 
 {-# INLINE getHeader #-}
 getHeader :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
-getHeader name =
-    let (RequestContext request _ _ _ _) = ?requestContext
-    in lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
+getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
 
-{-# INLINE getRequest #-}
-getRequest :: (?requestContext :: RequestContext) => Network.Wai.Request
-getRequest =
-    let (RequestContext request _ _ _ _) = ?requestContext
-    in request
+-- | Returns the current HTTP request.
+--
+-- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
+request :: (?requestContext :: RequestContext) => Network.Wai.Request
+request = ?requestContext |> get #request
+{-# INLINE request #-}
 
 {-# INLINE getFiles #-}
 getFiles :: (?requestContext :: RequestContext) => [File Data.ByteString.Lazy.ByteString]
-getFiles =
-    let (RequestContext _ _ _ files _) = ?requestContext
-    in files
+getFiles = ?requestContext |> get #files
 
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
 createRequestContext ApplicationContext { session } request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
-    pure (RequestContext request respond params files session)
+    pure RequestContext.RequestContext { request, respond, params, files, vault = session }
 
 
 

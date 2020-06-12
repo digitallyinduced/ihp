@@ -1,3 +1,4 @@
 *.html
 !layout.html
 bootstrap.css
+instantclick.js

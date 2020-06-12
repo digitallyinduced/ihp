@@ -35,7 +35,7 @@ type Validator valueType = valueType -> ValidatorResult
 --
 -- __Example:__ 'nonEmpty' validation for a record
 --
--- > let project :: NewProject = newRecord
+-- > let project :: Project = newRecord
 -- > project
 -- >     |> validateField #name nonEmpty
 -- >     |> getValidationFailure #name -- Just "This field cannot be empty"
@@ -49,7 +49,7 @@ type Validator valueType = valueType -> ValidatorResult
 --
 -- __Example:__ Using 'IHP.Controller.Param.ifValid' for branching
 --
--- > let project :: NewProject = newRecord
+-- > let project :: Project = newRecord
 -- >
 -- > project
 -- >     |> validateField #name nonEmpty

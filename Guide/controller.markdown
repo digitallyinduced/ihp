@@ -148,7 +148,7 @@ Here is an example of using `fill`:
 
 ```haskell
 action CreatePostAction = do
-    let post = newRecord @NewPost
+    let post = newRecord @Post
     post
         |> fill @'["title", "body"]
         |> ifValid \case
@@ -192,13 +192,13 @@ Inside the `beforeAction` and `action` you can access the current action using t
 
 ## Accessing the Current Request
 
-IHP uses the Haskell WAI standard for dealing with HTTP request and responses. You can get access to the Wai Request data structure by calling `getRequest`:
+IHP uses the Haskell WAI standard for dealing with HTTP request and responses. You can get access to the Wai Request data structure by using `request`:
 
 Take a look at [the Wai documentation](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html) to see what you can do with the Wai `Request`:
 
 ```
 action ExampleAction = do
-    let requestBody = getRequest |> getRequestBodyChunk
+    let requestBody = request |> getRequestBodyChunk
 ```
 
 IHP provides a few shortcuts for commonly used request data:
@@ -212,7 +212,7 @@ action ExampleAction = do
     body <- getRequestBody
 
     -- Get a request
-
+    let theRequest = request
 ```
 
 ### Request Headers

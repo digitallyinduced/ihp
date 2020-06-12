@@ -163,7 +163,7 @@ generateController schema config =
         createAction =
             ""
             <> "    action Create" <> singularName <> "Action = do\n"
-            <> "        let " <> modelVariableSingular <> " = newRecord @New"  <> model <> "\n"
+            <> "        let " <> modelVariableSingular <> " = newRecord @"  <> model <> "\n"
             <> "        " <> modelVariableSingular <> "\n" 
             <> "            |> build" <> singularName <> "\n"
             <> "            |> ifValid \\case\n"
@@ -187,17 +187,6 @@ generateController schema config =
             <> "    |> fill " <> toTypeLevelList modelFields <> "\n"
 
         toTypeLevelList values = "@" <> (if length values < 2 then "'" else "") <> tshow values
-
-
-        fromParamsInstanceHeadArgs = 
-            case getTable schema (lcfirst name) of
-                Just (CreateTable { columns }) ->
-                    columns
-                    |> filter (\col -> isJust (get #defaultValue col))
-                    |> map (\(Column { name }) -> columnNameToFieldName name)
-                    |> Text.unwords
-                Nothing -> ""
-        fromParamsInstanceHead = "NewOrSaved" <> singularName <> " " <> fromParamsInstanceHeadArgs 
     in
         ""
         <> "module " <> moduleName <> " where" <> "\n"
@@ -266,7 +255,7 @@ generateViews schema config =
 
             newView = 
                 viewHeader "New"
-                <> "data NewView = NewView { " <> singularVariableName <> " :: New" <> singularName <> " }\n"
+                <> "data NewView = NewView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
                 <> "instance View NewView ViewContext where\n"
                 <> "    html NewView { .. } = [hsx|\n"
@@ -280,7 +269,7 @@ generateViews schema config =
                 <> "        {renderForm " <> singularVariableName <> "}\n"
                 <> "    |]\n"
                 <> "\n"
-                <> "renderForm :: New" <> singularName <> " -> Html\n"
+                <> "renderForm :: " <> singularName <> " -> Html\n"
                 <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
                 <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"

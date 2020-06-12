@@ -19,13 +19,13 @@ HTML_FILES+= naming-conventions.html
 HTML_FILES+= controller.html
 HTML_FILES+= routing.html
 
-all: $(HTML_FILES) bootstrap.css
+all: $(HTML_FILES) bootstrap.css instantclick.js
 
 %.html: %.markdown layout.html
 	mmark -i $< -o $@ --template layout.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 2-6
 
 watch: all
-	open $$PWD/index.html
+	nix-shell -p haskellPackages.wai-app-static --command "warp; open \"http://localhost:3000/index.html\"" & 
 	ls *.markdown layout.html | entr make
 
 clean:
@@ -33,3 +33,6 @@ clean:
 
 bootstrap.css:
 	curl https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css --output $@
+
+instantclick.js:
+	curl http://instantclick.io/v3.1.0/instantclick.min.js --output $@

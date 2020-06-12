@@ -130,7 +130,6 @@ compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
 compileStatement CompilerOptions { compileGetAndSetFieldInstances } table@(CreateTable {}) =
     compileData table
     <> compileTypeAlias table
-    <> compileNewTypeAlias table
     <> compileFromRowInstance table
     <> compileHasTableNameInstance table
     <> compileGetModelName table
@@ -164,11 +163,6 @@ compileTypeAlias table@(CreateTable { name, columns }) =
         hasManyDefaults = columnsReferencingTable name
                 |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder " <> tableNameToModelName tableName <> ")")
                 |> unwords
-
-compileNewTypeAlias :: Statement -> Text
-compileNewTypeAlias table@(CreateTable { name, columns }) =
-        "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
-        <> "type New" <> tableNameToModelName name <> " = " <> tableNameToModelName name <> "\n"
 
 primaryKeyTypeName :: Statement -> Text
 primaryKeyTypeName CreateTable { name } = primaryKeyTypeName' name
@@ -436,7 +430,9 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
 toDefaultValueExpr _ = "def"
 
 compileHasTableNameInstance :: (?schema :: Schema) => Statement -> Text
-compileHasTableNameInstance table@(CreateTable { name }) = "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
+compileHasTableNameInstance table@(CreateTable { name }) =
+    "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
+    <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compileGetModelName :: (?schema :: Schema) => Statement -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
