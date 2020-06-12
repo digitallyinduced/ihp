@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.View.Tables.Edit
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace)
+import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, isIllegalKeyword)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -38,6 +38,12 @@ instance Controller TablesController where
 
     action CreateTableAction = do
         let tableName = param "tableName"
+        when (tableName == "") do
+            (setErrorMessage ("Name can not be empty"))
+            redirectTo TablesAction
+        when (isIllegalKeyword tableName) do
+            (setErrorMessage (tshow tableName <> " is a reserved keyword and can not be used as a name"))
+            redirectTo TablesAction
         updateSchema (addTable tableName)
         redirectTo ShowTableAction { .. }
     
@@ -49,6 +55,12 @@ instance Controller TablesController where
     action UpdateTableAction = do
         let tableName = param "tableName"
         let tableId = param "tableId"
+        when (tableName == "") do
+            (setErrorMessage ("Name can not be empty"))
+            redirectTo ShowTableAction { .. }
+        when (isIllegalKeyword tableName) do
+            (setErrorMessage (tshow tableName <> " is a reserved keyword and can not be used as a name"))
+            redirectTo ShowTableAction { .. }
         updateSchema (updateTable tableId tableName)
         redirectTo ShowTableAction { .. }
 

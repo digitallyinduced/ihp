@@ -1,9 +1,10 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
+import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier)
 import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html
@@ -73,12 +74,14 @@ databaseControls = [hsx|
 
 findTableByName tableName statements = find pred statements
     where
-        pred CreateTable { name } | name == tableName = True
+        pred CreateTable { name } | (toUpper name) == (toUpper tableName) = True
+        pred CreateTable { name } | (toUpper name) == (toUpper (tshow tableName)) = True
         pred _ = False
 
 findEnumByName enumName statements = find pred statements
     where
-        pred CreateEnumType { name } | name == enumName = True
+        pred CreateEnumType { name } | (toUpper name) == (toUpper enumName) = True
+        pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow enumName)) = True
         pred _ = False
 
 visualNav :: Html
@@ -296,3 +299,137 @@ getDefaultValue columnType value = case value of
         "TIME" -> Just ("'" <> custom <> "'")
         "POINT" -> Just ("'" <> custom <> "'")
         _ -> Just ("'" <> custom <> "'")
+
+isIllegalKeyword :: Text -> Bool
+isIllegalKeyword input = case (toUpper input) of
+    "BIGINT" -> True
+    "BIT" -> True
+    "BOOLEAN" -> True
+    "CHAR" -> True
+    "CHARACTER" -> True
+    "COALESCE" -> True
+    "CONVERT" -> True
+    "DEC" -> True
+    "DECIMAL" -> True
+    "EXISTS" -> True
+    "EXTRACT" -> True
+    "FLOAT" -> True
+    "GREATEST" -> True
+    "INOUT" -> True
+    "INT" -> True
+    "INTEGER" -> True
+    "INTERVAL" -> True
+    "LEAST" -> True
+    "NATIONAL" -> True
+    "NCHAR" -> True
+    "NONE" -> True
+    "NULLIF" -> True
+    "NUMERIC" -> True
+    "OUT" -> True
+    "OVERLAY" -> True
+    "POSITION" -> True
+    "PRECISION" -> True
+    "REAL" -> True
+    "ROW" -> True
+    "SETOF" -> True
+    "SMALLINT" -> True
+    "SUBSTRING" -> True
+    "TIME" -> True
+    "TIMESTAMP" -> True
+    "TREAT" -> True
+    "TRIM" -> True
+    "VARCHAR" -> True
+    "ALL" -> True
+    "ANALYSE" -> True
+    "ANALYZE" -> True
+    "AND" -> True
+    "ANY" -> True
+    "ARRAY" -> True
+    "AS" -> True
+    "ASC" -> True
+    "ASYMMETRIC" -> True
+    "BOTH" -> True
+    "CASE" -> True
+    "CAST" -> True
+    "CHECK" -> True
+    "COLLATE" -> True
+    "COLUMN" -> True
+    "CONSTRAINT" -> True
+    "CREATE" -> True
+    "CURRENT_DATE" -> True
+    "CURRENT_ROLE" -> True
+    "CURRENT_TIME" -> True
+    "CURRENT_TIMESTAMP" -> True
+    "CURRENT_USER" -> True
+    "DEFAULT" -> True
+    "DEFERRABLE" -> True
+    "DESC" -> True
+    "DISTINCT" -> True
+    "DO" -> True
+    "ELSE" -> True
+    "END" -> True
+    "EXCEPT" -> True
+    "FALSE" -> True
+    "FOR" -> True
+    "FOREIGN" -> True
+    "FROM" -> True
+    "GRANT" -> True
+    "GROUP" -> True
+    "HAVING" -> True
+    "IN" -> True
+    "INITIALLY" -> True
+    "INTERSECT" -> True
+    "INTO" -> True
+    "LEADING" -> True
+    "LIMIT" -> True
+    "LOCALTIME" -> True
+    "LOCALTIMESTAMP" -> True
+    "NEW" -> True
+    "NOT" -> True
+    "NULL" -> True
+    "OFF" -> True
+    "OFFSET" -> True
+    "OLD" -> True
+    "ON" -> True
+    "ONLY" -> True
+    "OR" -> True
+    "ORDER" -> True
+    "PLACING" -> True
+    "PRIMARY" -> True
+    "REFERENCES" -> True
+    "SELECT" -> True
+    "SESSION_USER" -> True
+    "SOME" -> True
+    "SYMMETRIC" -> True
+    "TABLE" -> True
+    "THEN" -> True
+    "TO" -> True
+    "TRAILING" -> True
+    "TRUE" -> True
+    "UNION" -> True
+    "UNIQUE" -> True
+    "USER" -> True
+    "USING" -> True
+    "WHEN" -> True
+    "WHERE" -> True
+    "AUTHORIZATION" -> True
+    "BETWEEN" -> True
+    "BINARY" -> True
+    "CROSS" -> True
+    "FREEZE" -> True
+    "FULL" -> True
+    "ILIKE" -> True
+    "INNER" -> True
+    "IS" -> True
+    "ISNULL" -> True
+    "JOIN" -> True
+    "LEFT" -> True
+    "LIKE" -> True
+    "NATURAL" -> True
+    "NOTNULL" -> True
+    "OUTER" -> True
+    "OVERLAPS" -> True
+    "RIGHT" -> True
+    "SIMILAR" -> True
+    "VERBOSE" -> True
+    _ -> False

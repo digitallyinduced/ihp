@@ -17,6 +17,7 @@ instance View ShowView ViewContext where
     beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
 
     html ShowView { .. } = [hsx|
+        {renderFlashMessages}
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just name)}
             {renderColumnSelector name (zip [0..] columns) statements}

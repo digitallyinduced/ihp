@@ -17,6 +17,7 @@ instance View ShowEnumView ViewContext where
     beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
 
     html ShowEnumView { .. } = [hsx|
+        {renderFlashMessages}
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just name)}
             {renderEnumSelector name (zip [0..] values)}

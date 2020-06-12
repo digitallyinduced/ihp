@@ -15,6 +15,7 @@ instance View IndexView ViewContext where
     beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
 
     html IndexView { .. } = [hsx|
+        {renderFlashMessages}
         <div class="row no-gutters bg-white mb-4">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>

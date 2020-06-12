@@ -1,20 +1,20 @@
 {-|
-Module: Test.IDE.SchemaDesigner.ParserSpec
+Module: Test.IDE.SchemaDesigner.CompilerSpec
 Copyright: (c) digitally induced GmbH, 2020
 
 When in the IHP directory, you can run this file like:
 
  > nix-shell NixSupport/shell.nix
  > ghci
- > :l Test/IDE/SchemaDesigner/ParserSpec.hs
+ > :l Test/IDE/SchemaDesigner/CompilerSpec.hs
  > main
 
 -}
-module Test.IDE.SchemaDesigner.ParserSpec where
+module Test.IDE.SchemaDesigner.CompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
@@ -22,28 +22,29 @@ import qualified Text.Megaparsec as Megaparsec
 
 main :: IO ()
 main = hspec do
-    describe "The Schema.sql Parser" do
-        it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` CreateTable { name = "users", columns = [] }
+    describe "The Schema.sql Compiler" do
+        it "should compile an empty CREATE TABLE statement" do
+            compileSql [CreateTable { name = "users", columns = [] }] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
-        it "should parse an CREATE EXTENSION for the UUID extension" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+        it "should compile a CREATE EXTENSION for the UUID extension" do
+            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
-        it "should parse a line comment" do
-            parseSql "-- Comment value" `shouldBe` Comment { content = "Comment value" }
+        it "should compile a line comment" do
+            compileSql [Comment { content = "Comment value" }] `shouldBe` "-- Comment value\n"
 
-        it "should parse a CREATE TABLE with columns" do
+        it "should compile a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
-                    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-                    firstname TEXT NOT NULL,
-                    lastname TEXT NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    email TEXT NOT NULL,
-                    company_id UUID NOT NULL,
-                    picture_url TEXT,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-                ); |]
-            parseSql sql `shouldBe` CreateTable
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    firstname TEXT NOT NULL,
+    lastname TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    email TEXT NOT NULL,
+    company_id UUID NOT NULL,
+    picture_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+|]
+            let statement = CreateTable
                     { name = "users"
                     , columns = [
                         Column
@@ -112,12 +113,13 @@ main = hspec do
                             }
                         ]
                     }
+            compileSql [statement] `shouldBe` sql
 
-        it "should parse a CREATE TABLE with quoted identifiers" do
-            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` CreateTable { name = "quoted name", columns = [] }
+        it "should compile a CREATE TABLE with quoted identifiers" do
+            compileSql [CreateTable { name = tshow "quoted name", columns = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
-        it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
-            parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
+        it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
+            let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint 
@@ -127,9 +129,10 @@ main = hspec do
                         , onDelete = Just Cascade
                         }
                     }
+            compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;\n"
        
-        it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
-            parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;" `shouldBe` AddConstraint
+        it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
+            let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint 
@@ -139,9 +142,10 @@ main = hspec do
                         , onDelete = Just SetNull
                         }
                     }
+            compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;\n"
 
-        it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE RESTRICT" do
-            parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE RESTRICT;" `shouldBe` AddConstraint
+        it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE RESTRICT" do
+            let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint 
@@ -151,9 +155,10 @@ main = hspec do
                         , onDelete = Just Restrict
                         }
                     }
+            compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE RESTRICT;\n"
 
-        it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE NO ACTION" do
-            parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE NO ACTION;" `shouldBe` AddConstraint
+        it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE NO ACTION" do
+            let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint 
@@ -163,9 +168,10 @@ main = hspec do
                         , onDelete = Just NoAction
                         }
                     }
+            compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE NO ACTION;\n"
 
-        it "should parse ALTER TABLE .. ADD FOREIGN KEY .. (without ON DELETE)" do
-            parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id);" `shouldBe` AddConstraint
+        it "should compile ALTER TABLE .. ADD FOREIGN KEY .. (without ON DELETE)" do
+            let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint 
@@ -175,12 +181,4 @@ main = hspec do
                         , onDelete = Nothing
                         }
                     }
-
-parseSql :: Text -> Statement
-parseSql sql = let [statement] = parseSqlStatements sql in statement
-
-parseSqlStatements :: Text -> [Statement]
-parseSqlStatements sql =
-    case Megaparsec.runParser Parser.parseDDL "input" sql of
-            Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError) -- For better error reporting in hspec
-            Right statements -> statements
+            compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ;\n"
