@@ -33,10 +33,10 @@ instance Controller ColumnsController where
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let columnName = param "name"
         when (columnName == "") do
-            (setSuccessMessage ("Name can not be empty"))
+            (setErrorMessage ("Name can not be empty"))
             redirectTo ShowTableAction { .. }
         when (isIllegalKeyword columnName) do
-            (setSuccessMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
+            (setErrorMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowTableAction { .. }
         let column = Column
                 { name = columnName
@@ -71,10 +71,10 @@ instance Controller ColumnsController where
         let tableName = param "tableName"
         let columnName = param "name"
         when (columnName == "") do
-            (setSuccessMessage ("Name can not be empty"))
+            (setErrorMessage ("Name can not be empty"))
             redirectTo ShowTableAction { .. }
         when (isIllegalKeyword columnName) do
-            (setSuccessMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
+            (setErrorMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowTableAction { .. }
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let table = findTableByName tableName statements
@@ -89,7 +89,7 @@ instance Controller ColumnsController where
                 , isUnique = param "isUnique"
                 }
         when ((get #name column) == "") do
-            setSuccessMessage ("Column Name can not be empty")
+            setErrorMessage ("Column Name can not be empty")
             redirectTo ShowTableAction { tableName }
         updateSchema (map (updateColumnInTable tableName column columnId))
         redirectTo ShowTableAction { .. }

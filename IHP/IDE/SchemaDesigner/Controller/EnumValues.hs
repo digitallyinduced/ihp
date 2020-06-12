@@ -47,7 +47,7 @@ instance Controller EnumValuesController where
         let values = maybe [] (get #values) enum
         let value = values !! valueId
         when (newValue == "") do
-            setSuccessMessage ("Column Name can not be empty")
+            setErrorMessage ("Column Name can not be empty")
             redirectTo ShowEnumAction { enumName }
         updateSchema (map (updateValueInEnum enumName newValue valueId))
         redirectTo ShowEnumAction { .. }

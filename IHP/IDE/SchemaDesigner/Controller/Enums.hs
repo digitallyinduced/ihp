@@ -32,10 +32,10 @@ instance Controller EnumsController where
     action CreateEnumAction = do
         let enumName = param "enumName"
         when (enumName == "") do
-            (setSuccessMessage ("Name can not be empty"))
+            (setErrorMessage ("Name can not be empty"))
             redirectTo TablesAction
         when (isIllegalKeyword enumName) do
-            (setSuccessMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
+            (setErrorMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
             redirectTo TablesAction
         updateSchema (addEnum enumName)
         redirectTo ShowEnumAction { .. }
@@ -48,10 +48,10 @@ instance Controller EnumsController where
     action UpdateEnumAction = do
         let enumName = param "enumName"
         when (enumName == "") do
-            (setSuccessMessage ("Name can not be empty"))
+            (setErrorMessage ("Name can not be empty"))
             redirectTo ShowEnumAction { .. }
         when (isIllegalKeyword enumName) do
-            (setSuccessMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
+            (setErrorMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowEnumAction { .. }
         let enumId = param "enumId"
         updateSchema (updateEnum enumId enumName)
