@@ -57,8 +57,6 @@ startToolServer = do
 
     thread <- async (startToolServer' port)
 
-    openUrl ("http://localhost:" <> tshow port <> "/")
-
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
 startToolServer' port = do
@@ -85,7 +83,10 @@ startToolServer' port = do
     libDirectory <- cs <$> Config.findLibDirectory
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
 
-    let warpSettings = Warp.defaultSettings |> Warp.setPort port
+    let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
+    let warpSettings = Warp.defaultSettings
+            |> Warp.setPort port
+            |> Warp.setBeforeMainLoop openAppUrl
     
     Warp.runSettings warpSettings $ 
             staticMiddleware $ logStdoutDev $ methodOverridePost $ sessionMiddleware $ application
