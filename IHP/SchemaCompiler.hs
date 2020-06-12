@@ -260,7 +260,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum)\n"
         <> "instance FromField " <> modelName <> " where\n"
         <> indent (unlines (map compileFromFieldInstanceForValue values))
-        <> "    fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
+        <> "    fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\"\n"
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
         <> "instance Default " <> modelName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
