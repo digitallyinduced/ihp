@@ -1,14 +1,6 @@
 {-|
 Module: Test.IDE.SchemaDesigner.CompilerSpec
 Copyright: (c) digitally induced GmbH, 2020
-
-When in the IHP directory, you can run this file like:
-
- > nix-shell NixSupport/shell.nix
- > ghci
- > :l Test/IDE/SchemaDesigner/CompilerSpec.hs
- > main
-
 -}
 module Test.IDE.SchemaDesigner.CompilerSpec where
 
@@ -20,8 +12,7 @@ import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 
 
-main :: IO ()
-main = hspec do
+tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
             compileSql [CreateTable { name = "users", columns = [] }] `shouldBe` "CREATE TABLE users (\n\n);\n"

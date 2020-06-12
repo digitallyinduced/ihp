@@ -1,14 +1,6 @@
 {-|
 Module: Test.IDE.SchemaDesigner.ParserSpec
 Copyright: (c) digitally induced GmbH, 2020
-
-When in the IHP directory, you can run this file like:
-
- > nix-shell NixSupport/shell.nix
- > ghci
- > :l Test/IDE/SchemaDesigner/ParserSpec.hs
- > main
-
 -}
 module Test.IDE.SchemaDesigner.ParserSpec where
 
@@ -21,8 +13,7 @@ import qualified Text.Megaparsec as Megaparsec
 import GHC.IO (evaluate)
 
 
-main :: IO ()
-main = hspec do
+tests = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
             parseSql "CREATE TABLE users ();"  `shouldBe` CreateTable { name = "users", columns = [] }
