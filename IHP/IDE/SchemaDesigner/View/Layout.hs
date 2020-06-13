@@ -102,7 +102,7 @@ renderColumnSelector tableName columns statements = [hsx|
     <div class="d-flex">
         <h5>Columns</h5>
         <div class="toolbox">
-            <a href={NewColumnAction tableName} class="btn btn-sm btn-outline-primary m-1" id="new-column">New</a>
+            <a href={NewColumnAction tableName} class="btn btn-sm btn-outline-primary m-1" id="new-column">New Column</a>
         </div>
     </div>
     <table class="table table-hover table-sm">
