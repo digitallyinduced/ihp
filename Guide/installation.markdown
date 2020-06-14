@@ -11,7 +11,7 @@ For example postgresql and the haskell compiler are both dependencies of your ap
 
 That's why we first need to make sure that you have nix installed.
 
-##### Mac
+### Mac
 Run this commands in your terminal to install nix on your machine.
 
 ```bash
@@ -21,7 +21,9 @@ After this restart your terminal.
 
 If you get an error like `error: refusing to create Nix store volume because the boot volume is FileVault encrypted, but encryption-at-rest is not available.`, follow the steps described [in this GitHub Issue](https://github.com/digitallyinduced/ihp/issues/93#issuecomment-639611313). We're working on improving this step.
 
-##### Linux
+### Linux
+
+**For NixOS Users:** If you're on NixOS, of course you don't need to install nix anymore :-) Just skip this step.
 
 Install nix by running the following command in your shell and follow the instructions on the screen:
 
@@ -31,7 +33,7 @@ curl https://nixos.org/nix/install | sh
 
 There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
 
-##### Windows
+### Windows
 Running nix on Windows requires the Windows Subsystem for Linux, which first needs manual activation via **Powershell with Administrator Privileges**:
 
 ```bash
@@ -124,3 +126,17 @@ You can now install IHP by running:
 ```bash
 nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
+
+#### NixOS specific
+
+If you get the following error during this step on NixOS:
+
+```bash
+MustBeRoot "Run command as root OR execute: $ echo \"trusted-users = root $USER\" | sudo tee -a /etc/nix/nix.conf && sudo pkill nix-daemon"
+```
+
+You have to add this to your NixOS configuration:
+```bash
+nix.trustedUsers = [ "root" "USERNAME_HERE" ];
+```
+
