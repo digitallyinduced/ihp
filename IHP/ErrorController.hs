@@ -71,7 +71,7 @@ postgresHandler exception controller additionalInfo = do
                         <h2>Possible Solutions</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
                             Have you clicked on
-                            <form method="POST" action="http://localhost:8001/ihp/PushToDb" target="_blank" style="display: inline">
+                            <form method="POST" action="http://localhost:8001/PushToDb" target="_blank" style="display: inline">
                                 <button type="submit">Push to DB</button>
                             </form>
                             after updating the Schema?

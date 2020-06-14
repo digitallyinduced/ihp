@@ -7,6 +7,7 @@ module IHP.IDE.SchemaDesigner.Parser
 ( parseSchemaSql
 , schemaFilePath
 , parseDDL
+, expression
 ) where
 
 import IHP.Prelude
@@ -78,7 +79,7 @@ createEnumType = do
     name <- identifier
     lexeme "AS"
     lexeme "ENUM"
-    values <- between (char '(' >> space) (char ')' >> space) (stringExpr `sepBy` (char ',' >> space))
+    values <- between (char '(' >> space) (char ')' >> space) (textExpr' `sepBy1` (char ',' >> space))
     char ';'
     pure CreateEnumType { name, values }
 
@@ -119,8 +120,7 @@ column = do
     space
     defaultValue <- optional do
         lexeme "DEFAULT"
-        value <- expression
-        pure (cs value)
+        expression
     primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
     notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
     isUnique <- isJust <$> optional (lexeme "UNIQUE")
@@ -141,23 +141,26 @@ sqlType = choice
         ]
 
 
+expression :: Parser Expression
 expression = do
-    e <- try callExpr <|> varExpr <|> stringExpr 
+    e <- try callExpr <|> varExpr <|> textExpr 
     space 
     pure e
 
-varExpr :: Parser Text
-varExpr = identifier
+varExpr :: Parser Expression
+varExpr = VarExpression <$> identifier
 
+callExpr :: Parser Expression
 callExpr = do
     func <- identifier
     args <- between (char '(') (char ')') (expression `sepBy` char ',')
-    pure (func <> "(" <> intercalate ", " args <> ")")
+    pure (CallExpression func args)
 
-stringExpr :: Parser Text
-stringExpr = do
-    str <- cs <$> (char '\'' *> manyTill Lexer.charLiteral (char '\''))
-    pure ("'" <> str <> "'")
+textExpr :: Parser Expression
+textExpr = TextExpression <$> textExpr'
+
+textExpr' :: Parser Text
+textExpr' = cs <$> (char '\'' *> manyTill Lexer.charLiteral (char '\''))
 
 identifier :: Parser Text
 identifier = do

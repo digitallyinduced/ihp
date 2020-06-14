@@ -1,14 +1,6 @@
 {-|
 Module: Test.ValidationSupport.ValidateFieldSpec
 Copyright: (c) digitally induced GmbH, 2020
-
-When in the IHP directory, you can run this file like:
-
- > nix-shell NixSupport/shell.nix
- > ghci
- > :l Test/ValidationSupport/ValidateFieldSpec.hs
- > main
-
 -}
 module Test.ValidationSupport.ValidateFieldSpec where
 
@@ -19,8 +11,7 @@ import IHP.ValidationSupport.Types
 import IHP.ViewPrelude (cs, plain)
 import Data.Text (Text, length)
 
-main :: IO ()
-main = hspec do
+tests = do
     describe "The nonEmpty validator" do
         it "should handle trivial cases" do
             nonEmpty ("hi" :: Text) `shouldBe` Success

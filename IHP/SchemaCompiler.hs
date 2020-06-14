@@ -260,7 +260,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum)\n"
         <> "instance FromField " <> modelName <> " where\n"
         <> indent (unlines (map compileFromFieldInstanceForValue values))
-        <> "    fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\""
+        <> "    fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\"\n"
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
         <> "instance Default " <> modelName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
@@ -317,6 +317,7 @@ compileCreate table@(CreateTable { name, columns }) =
                     )
             )
 
+commaSep :: [Text] -> Text
 commaSep = intercalate ", "
 
 toBinding :: Text -> Column -> Text
@@ -328,7 +329,7 @@ compileUpdate table@(CreateTable { name, columns }) =
         modelName = tableNameToModelName name
         values = commaSep (map toValue columns)
 
-        toValue Column { defaultValue = Just theDefaultValue } = theDefaultValue
+        toValue Column { defaultValue = Just theDefaultValue } = "DEFAULT"
         toValue _ = "?"
 
         bindings :: Text
@@ -347,7 +348,6 @@ compileUpdate table@(CreateTable { name, columns }) =
                     <> "pure (List.head result)\n"
                 )
             )
-
 
 compileFromRowInstance :: (?schema :: Schema) => Statement -> Text
 compileFromRowInstance table@(CreateTable { name, columns }) =
@@ -420,12 +420,16 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                 wrapNull False value = "(Just " <> value <> ")"
                 wrapNull True value = value
             in
-                if theDefaultValue == "null"
+                if theDefaultValue == VarExpression "null"
                     then "Nothing"
                     else
                         case columnType of
-                            "TEXT" -> wrapNull notNull (tshow theDefaultValue)
-                            "BOOl" -> wrapNull notNull (tshow (toLower theDefaultValue == "true"))
+                            "TEXT" -> case theDefaultValue of
+                                TextExpression value -> wrapNull notNull (tshow value)
+                                otherwise            -> error ("toDefaultValueExpr: TEXT column needs to have a TextExpression as default value. Got: " <> show otherwise)
+                            "BOOl" -> case theDefaultValue of
+                                VarExpression value -> wrapNull notNull (tshow (toLower value == "true"))
+                                otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
                             _ -> "def"
 toDefaultValueExpr _ = "def"
 

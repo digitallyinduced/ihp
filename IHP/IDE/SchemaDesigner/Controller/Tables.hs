@@ -77,7 +77,7 @@ addTable tableName list = list <> [CreateTable { name = tableName, columns = [Co
                 { name = "id"
                 , columnType = "UUID"
                 , primaryKey = True
-                , defaultValue = "uuid_generate_v4()"
+                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                 , notNull = True
                 , isUnique = False
                 }] }]
