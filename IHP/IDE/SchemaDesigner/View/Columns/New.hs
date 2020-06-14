@@ -99,10 +99,10 @@ instance View NewColumnView ViewContext where
                         else [hsx|<label class="mx-2" style="font-size: 12px">
                             <input type="checkbox" name="primaryKey" class="mr-1"/>Primary Key  
                         </label>|]
-                    defaultSelector = preEscapedToHtml [plain|
+                    defaultSelector = [hsx|
                         <select id="defaultSelector" name="defaultValue" class="form-control select2">
-                            <option value="NODEFAULT">no default</option>
-                            <option value="EMPTY">''</option>
+                            <option value="" selected={True}>no default</option>
+                            <option value="''">""</option>
                         </select>
                     |]
             modalFooter = mempty 

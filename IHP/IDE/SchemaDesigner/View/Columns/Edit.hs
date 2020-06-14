@@ -116,7 +116,7 @@ typeSelector selected = preEscapedToHtml [plain|
             else [plain|<option value=#{value}>#{text}</option>|]
 
 defaultSelector :: Maybe Expression -> Html
-defaultSelector defValue = preEscapedToHtml [hsx|
+defaultSelector defValue = [hsx|
     <div class="col-sm-10">
         <select id="defaultSelector" name="defaultValue" class="form-control select2">
             {forEach values renderValue}
@@ -128,5 +128,9 @@ defaultSelector defValue = preEscapedToHtml [hsx|
         values = if defValue `elem` suggestedValues then suggestedValues else defValue:suggestedValues
 
         renderValue :: Maybe Expression -> Html
-        renderValue e@(Just expression) = [hsx|<option value={compileExpression expression} selected={e == defValue}>{compileExpression expression}</option>|]
-        renderValue Nothing = [hsx|<option value="NODEFAULT" selected={Nothing == defValue}>No default</option>|]
+        renderValue e@(Just expression) = [hsx|<option value={compileExpression expression} selected={e == defValue}>{displayedValue}</option>|]
+            where
+                displayedValue = case expression of
+                    TextExpression "" -> "\"\""
+                    _ -> compileExpression expression
+        renderValue Nothing = [hsx|<option value="" selected={Nothing == defValue}>No default</option>|]
