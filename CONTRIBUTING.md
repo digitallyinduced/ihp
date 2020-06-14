@@ -7,13 +7,13 @@ We are happy to merge your pull requests!
 To work on the framework in your application, you need to clone this repository inside your application directory:
 
 ```
-git clone git@github.com:digitallyinduced/haskellframework.git IHP
+git clone git@github.com:digitallyinduced/ihp.git IHP
 ```
 
-The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. Then:
+The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. Then, in your app directory (NOT the IHP directory):
 
 ```
-make all #only needs to be run once
+make # only needs to be run once
 ghci
 $ghci> :l Main
 ```
