@@ -25,7 +25,7 @@ data Column = Column
     { name :: Text
     , columnType :: Text
     , primaryKey :: Bool
-    , defaultValue :: Maybe Text
+    , defaultValue :: Maybe Expression
     , notNull :: Bool
     , isUnique :: Bool
     }
@@ -46,4 +46,13 @@ data Constraint
         , referenceColumn :: Maybe Text
         , onDelete :: Maybe OnDelete
         }
+    deriving (Eq, Show)
+
+data Expression =
+    -- | Sql string like @'hello'@
+    TextExpression Text
+    -- | Simple variable like @users@
+    | VarExpression Text
+    -- | Simple call, like @COALESCE(name, 'unknown name')@
+    | CallExpression Text [Expression]
     deriving (Eq, Show)

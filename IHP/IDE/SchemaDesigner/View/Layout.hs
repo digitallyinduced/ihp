@@ -4,7 +4,9 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier)
+import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compileExpression)
+import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html
@@ -144,7 +146,7 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
         renderIsUnique = if isUnique then [hsx|IS UNIQUE|] else mempty
         renderDefault =
             case defaultValue of
-                Just value -> [hsx|default: {value} |]
+                Just value -> [hsx|default: {compileExpression value} |]
                 Nothing -> mempty
         renderForeignKey = case findForeignKey statements tableName name of
             Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)} class="d-block nounderline" style="color: #808080;">FOREIGN KEY: {get #referenceTable constraint}</a>|]
@@ -178,7 +180,7 @@ renderValue :: Text -> Int -> Text -> Html
 renderValue value valueId enumName = [hsx|
 <tr class="column">
     <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
-        {removeQuotes (cs value)}
+        {value}
     </td>
 </tr>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
@@ -279,26 +281,10 @@ replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of
    (before, _:after) -> before ++ (e: after)
 
-getDefaultValue :: Text -> Text -> Maybe Text
-getDefaultValue columnType value = case value of
-    "EMPTY" -> Just "''"
-    "NULL" -> Just "NULL"
-    "NODEFAULT" -> Nothing
-    "NOW()" -> Just value
-    "uuid_generate_v4()" -> Just value
-    custom -> case columnType of
-        "TEXT" -> Just ("'" <> custom <> "'")
-        "INT" -> Just custom
-        "UUID" -> Just ("'" <> custom <> "'")
-        "BOOLEAN" -> Just custom
-        "TIMESTAMP WITH TIME ZONE" -> Just ("'" <> custom <> "'")
-        "REAL" -> Just custom
-        "DOUBLE PRECISION" -> Just custom
-        "DATE" -> Just ("'" <> custom <> "'")
-        "BINARY" -> Just ("'" <> custom <> "'")
-        "TIME" -> Just ("'" <> custom <> "'")
-        "POINT" -> Just ("'" <> custom <> "'")
-        _ -> Just ("'" <> custom <> "'")
+getDefaultValue :: Text -> Text -> Maybe Expression
+getDefaultValue columnType value = case Megaparsec.runParser Parser.expression "" value of
+        Left _ -> Nothing
+        Right expression -> Just expression
 
 isIllegalKeyword :: Text -> Bool
 isIllegalKeyword input = case (toUpper input) of
