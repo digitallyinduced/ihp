@@ -13,6 +13,12 @@ We believe that functional programing is the future of software development and 
 - **Integrated dev tooling:** You only need a text editor, everything else is taken care of.
 - **Scalable Application Architecture:** IHP is the result of building lots of real world applications with haskell.
 
+## Professional Use
+
+Before open sourcing, IHP has already been used in production by [digitally induced](https://www.digitallyinduced.com/) since 2017. Therefore you can expect continious support and development in the future.
+
+Additionally IHP is used by companies such as [Prokapi](https://prokapi.com/) and [CodeKarussell (rausgegangen.de)](https://rausgegangen.de/).
+
 ## Example Project
 
 Take a look [at the example blog application project](https://github.com/digitallyinduced/ihp-blog-example-app) to get to see some code. Follow the documentation to build this application yourself in the section "Your First Project".
