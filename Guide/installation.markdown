@@ -140,3 +140,4 @@ You have to add this to your NixOS configuration:
 nix.trustedUsers = [ "root" "USERNAME_HERE" ];
 ```
 
+[See the documentation for `nix.trustedUsers` to learn more about what this is doing](https://github.com/NixOS/nixpkgs/blob/db31e48c5c8d99dcaf4e5883a96181f6ac4ad6f6/nixos/modules/services/misc/nix-daemon.nix#L319).
