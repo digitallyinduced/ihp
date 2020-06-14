@@ -539,7 +539,7 @@ To install this package, open the `default.nix` file and append `mmark` to the `
 ```nix
 let
     ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/haskellframework.git";
+        url = "https://github.com/digitallyinduced/ihp.git";
         rev = "0d2924bcd4cde09e9f219f5e7eca888ad473094a";
     };
     haskellEnv = import "${ihp}/NixSupport/default.nix" {

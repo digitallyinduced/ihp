@@ -58,7 +58,7 @@ All dependencies of our project are listed in `default.nix` at the root of the p
 ```nix
 let
     ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/haskellframework.git";
+        url = "https://github.com/digitallyinduced/ihp.git";
         rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
     };
     haskellEnv = import "${ihp}/NixSupport/default.nix" {
@@ -86,7 +86,7 @@ We now just have to add `imagemagick` to `otherDeps`:
 ```nix
 let
     ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/haskellframework.git";
+        url = "https://github.com/digitallyinduced/ihp.git";
         rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
     };
     haskellEnv = import "${ihp}/NixSupport/default.nix" {

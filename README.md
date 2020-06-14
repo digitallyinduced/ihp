@@ -2,7 +2,7 @@
 
 *IHP is a modern batteries-included Web Framework, built on top of Haskell and Nix.*
 
-![](https://github.com/digitallyinduced/haskellframework/blob/master/Guide/images/ihp-logo.png?raw=true)
+![](https://github.com/digitallyinduced/ihp/blob/master/Guide/images/ihp-logo.png?raw=true)
 
 ## Getting Started
 
