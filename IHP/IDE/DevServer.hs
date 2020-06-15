@@ -80,10 +80,8 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
                     putStrLn "Cannot start app as postgres is not ready yet"
                     pure state
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
-        AppGHCINotStarted -> error "Unreachable"
-        AppGHCIModulesLoaded { } -> do
-            startLoadedApp appGHCIState
-            pure state
+        AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
+        AppGHCIModulesLoaded { } -> error "Unreachable AppGHCIModulesLoaded"
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState, liveReloadNotificationServerState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
         s@(StatusServerPaused { .. }) -> do
@@ -131,7 +129,8 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
     pure state { appGHCIState = appGHCIState' }
 
 handleAction state SchemaChanged = do
-    SchemaCompiler.compile `catch` (\(exception :: SomeException) -> putStrLn (tshow exception))
+    async do
+        SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do putStrLn (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
     pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
