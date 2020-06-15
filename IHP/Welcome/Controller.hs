@@ -50,6 +50,8 @@ renderLayout view = H.docTypeHtml ! A.lang "en" $ [hsx|
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
     <title>Welcome to IHP</title>
+
+    <script id="livereload-script" src="/livereload.js"></script>
 </head>
 <body style={bodyStyle}>{view}</body>
 |]
