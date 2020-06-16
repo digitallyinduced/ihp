@@ -492,7 +492,7 @@ Now open the `/Posts` again inside your browser. You will see this error:
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
-To update the local database, open the Schema Designer and click the `Update DB` button. This button will destroy the database, reload the schema and then insert the fixtures.
+To update the local database, open the Schema Designer and click the `Update DB` button. This button will save the current database content to the fixtures, destroy the database, reload the schema and then insert the fixtures.
 
 In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Push to DB`.
 
