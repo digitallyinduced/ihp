@@ -18,6 +18,8 @@ HTML_FILES+= session.html
 HTML_FILES+= naming-conventions.html
 HTML_FILES+= controller.html
 HTML_FILES+= routing.html
+HTML_FILES+= authentication.html
+HTML_FILES+= authorization.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 
@@ -25,8 +27,9 @@ all: $(HTML_FILES) bootstrap.css instantclick.js
 	mmark -i $< -o $@ --template layout.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 2-6
 
 watch: all
-	nix-shell -p haskellPackages.wai-app-static --command "warp; open \"http://localhost:3000/index.html\"" & 
-	ls *.markdown layout.html | entr make
+	@echo "Server is starting at: http://localhost:3000/index.html"
+	@nix-shell -p haskellPackages.wai-app-static --command "warp" & 
+	@ls *.markdown layout.html | entr make
 
 clean:
 	rm $(HTML_FILES)
