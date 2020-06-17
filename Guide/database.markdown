@@ -79,6 +79,18 @@ You can manually add `INSERT INTO` statements to this file. You can also *migrat
 
 You can dump your current database state into the `Fixtures.sql` by running `make dumpdb`. This way you can regularly commit the database state to git, so other developers have the same data inside their local development database as you have.
 
+### Update DB
+
+You can also update the database while keeping its contents.
+
+**In the Schema Designer:** Click on `Update DB`:
+
+![Push to DB Button](images/database/schema-designer-push-to-db.png)
+
+**In the command line:** Run `make dumbdb` and after that `make db`.
+
+When dumping the database into the `Fixtures.sql` first and then rebuilding the database with the dump, the contents will be kept when changing the schema.
+
 ## Haskell Bindings
 
 ### Model Context

@@ -470,7 +470,7 @@ You can find [a list of all available validator functions in the API Documentati
 
 It would be nice to always show the latest post on the index view. Let's add a timestamp to do exactly that.
 
-Before we change our database schema, it's time to quickly save our current database state. [Open the schema designer](http://localhost:8001/ihp/Tables) and click the `DB to Fixtures` button (from the terminal: `make dumpdb`). After that, take a look at `Application/Fixtures.sql`. The file should look like this:
+Take a look at `Application/Fixtures.sql`. The file should look like this:
 
 ```sql
 -- .......
@@ -492,9 +492,9 @@ Now open the `/Posts` again inside your browser. You will see this error:
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
-To update the local database, open the Schema Designer and click the `Push to DB` button. This button will destroy the database, reload the schema and then insert the fixtures. The last step is the reason why we saved our database state to `Application/Fixtures.sql` a moment ago.
+To update the local database, open the Schema Designer and click the `Update DB` button. This button will save the current database content to the fixtures, destroy the database, reload the schema and then insert the fixtures.
 
-In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql`, save database state with `DB to Fixtures`, update Database with `Push to DB`.
+In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Push to DB`.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
@@ -951,7 +951,7 @@ Right now comments are displayed in the order they're stored in the database. So
 
 [Open the Schema Designer](http://localhost:8001/). Select the `comments` Table. Right click in the Columns Pane, Click `Add Column`. Enter `created_at`. The column type will be auto selected, and the default value automatically sets to `NOW()`. Click `Create Column`.
 
-Now click `DB to Fixtures` and `Push to DB` to save the fixtures and then rebuild the database.
+Now click `Update DB` to save the fixtures and then rebuild the database.
 
 Now we have a `created_at` timestamp we can use for ordering. Open `Web/Controller/Posts.hs` and change the action from:
 
