@@ -23,6 +23,7 @@ module IHP.HaskellSupport (
 , forEach
 , textToInt
 , isWeekend
+, debug
 ) where
 
 import ClassyPrelude
@@ -36,6 +37,7 @@ import GHC.OverloadedLabels
 import qualified GHC.Records as Record
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs)
+import qualified Debug.Trace
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
@@ -184,3 +186,10 @@ isWeekend = do
     let today = Data.Time.utctDay now
     let weekday = Data.Time.dayOfWeek today
     return ((weekday == Data.Time.Saturday) || (weekday == Data.Time.Sunday))
+
+-- | Debug-print a value during evaluation
+--
+-- Alias for 'Debug.Trace.traceShowId'
+debug :: Show value => value -> value
+debug value = Debug.Trace.traceShowId value
+{-# INLINE debug #-}
