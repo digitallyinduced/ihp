@@ -13,6 +13,7 @@ data NewColumnView = NewColumnView
     , tableName :: Text
     , primaryKeyExists :: Bool
     , tableNames :: [Text]
+    , enumNames :: [Text]
     }
 
 instance View NewColumnView ViewContext where
@@ -56,6 +57,7 @@ instance View NewColumnView ViewContext where
                             <option value="DATE">Date</option>
                             <option value="BINARY">Binary</option>
                             <option value="TIME">Time</option>
+                            {forEach enumNames renderEnumOption}
                         </select>
 
                         <div class="mt-1 text-muted">
@@ -87,7 +89,7 @@ instance View NewColumnView ViewContext where
                 </form>
             |]
                 where
-
+                    renderEnumOption enum = [hsx|<option value={enum}>{enum}</option>|]
                     generateReferenceCheckboxes = [hsx|<span id="checkboxes">{forEach tableNames checkbox}</span>|]
                         where checkbox tableName = [hsx|
                                     <label class="mx-2 ref" style="font-size: 12px; display: none;" data-attribute={(Countable.singularize tableName) <> "_id"} data-table={tableName}>
