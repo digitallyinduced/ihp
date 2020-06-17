@@ -23,6 +23,14 @@ If you get an error like `error: refusing to create Nix store volume because the
 
 ### Linux
 
+Before installing nix and IHP, you need `curl` and `git` if you don't have them already. If you are unsure, run this:
+
+```bash
+sudo apt update
+sudo apt upgrade
+sudo apt install curl git -y
+```
+
 **For NixOS Users:** If you're on NixOS, of course you don't need to install nix anymore :-) Just skip this step.
 
 Install nix by running the following command in your shell and follow the instructions on the screen:
@@ -126,6 +134,8 @@ You can now install IHP by running:
 ```bash
 nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
+
+If you don't already use cachix, you will be prompted to install it. You don't need it, but it is highly recommended, as it reduces build time dramatically. Learn more about cachix [here](https://cachix.org/).
 
 #### NixOS specific
 
