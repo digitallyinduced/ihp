@@ -65,6 +65,7 @@ instance Controller ColumnsController where
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
         let column = columns !! columnId
+        let enumNames = nameList (getCreateEnum statements)
         render EditColumnView { .. }
 
     action UpdateColumnAction = do
