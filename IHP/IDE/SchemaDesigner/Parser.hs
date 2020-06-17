@@ -79,7 +79,7 @@ createEnumType = do
     name <- identifier
     lexeme "AS"
     lexeme "ENUM"
-    values <- between (char '(' >> space) (char ')' >> space) (textExpr' `sepBy1` (char ',' >> space))
+    values <- between (char '(' >> space) (char ')' >> space) (textExpr' `sepBy` (char ',' >> space))
     char ';'
     pure CreateEnumType { name, values }
 

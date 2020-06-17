@@ -171,8 +171,8 @@ tests = do
         it "should parse CREATE TYPE .. AS ENUM" do
             parseSql "CREATE TYPE colors AS ENUM ('yellow', 'red', 'green');" `shouldBe` CreateEnumType { name = "colors", values = ["yellow", "red", "green"] }
         
-        it "should fail on CREATE TYPE .. AS ENUM without values" do
-            evaluate (parseSql "CREATE TYPE colors AS ENUM ();") `shouldThrow` anyErrorCall
+        it "should parse CREATE TYPE .. AS ENUM without values" do
+            evaluate (parseSql "CREATE TYPE colors AS ENUM ();") `shouldBe` CreateEnumType { name = "colors", values = [] }
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

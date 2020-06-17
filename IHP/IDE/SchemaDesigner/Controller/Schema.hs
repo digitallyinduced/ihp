@@ -50,6 +50,12 @@ instance Controller SchemaController where
         let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         render GeneratedCodeView { .. }
 
+    action ShowGeneratedEnumCodeAction { enumName } = do
+        statements <- readSchema
+        let (Just enum) = findEnumByName enumName statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements enum
+        render GeneratedCodeView { .. }
+
 readSchema :: _ => _
 readSchema = parseSchemaSql >>= \case
         Left error -> do render ErrorView { error }; pure []

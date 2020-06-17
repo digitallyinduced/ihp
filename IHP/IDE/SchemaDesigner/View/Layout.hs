@@ -250,6 +250,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             <a href={EditEnumAction name id}>Rename Enum</a>
             <a href={DeleteEnumAction id} class="js-delete">Delete Enum</a>
             <div></div>
+            <a href={ShowGeneratedEnumCodeAction name}>Show Generated Haskell Code</a>
             <a href={NewEnumValueAction name}>Add Column to Table</a>
             <div></div>
             <a href={NewTableAction}>Add Table</a>
