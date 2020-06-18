@@ -160,8 +160,11 @@ class Data controller => AutoRoute controller where
     -- >>> allowedMethodsForAction @ProjectsController "CreateProjectAction"
     -- [POST]
     --
+    -- >>> allowedMethodsForAction @ProjectsController "ShowProjectAction"
+    -- [GET, HEAD]
+    --
     -- >>> allowedMethodsForAction @ProjectsController "HelloAction"
-    -- [GET, POST]
+    -- [GET, POST, HEAD]
     --
     allowedMethodsForAction :: String -> [StdMethod]
     allowedMethodsForAction actionName =
@@ -169,7 +172,8 @@ class Data controller => AutoRoute controller where
                 a | "Delete" `isPrefixOf` a -> [DELETE]
                 a | "Update" `isPrefixOf` a -> [POST, PATCH]
                 a | "Create" `isPrefixOf` a -> [POST]
-                _ -> [GET, POST]
+                a | "Show"   `isPrefixOf` a -> [GET, HEAD]
+                _ -> [GET, POST, HEAD]
     {-# INLINE allowedMethodsForAction #-}
 
 -- | When the arguments for your AutoRoute based actions are not UUIDs or IDs

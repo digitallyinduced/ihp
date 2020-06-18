@@ -117,7 +117,8 @@ When a an action is named a certain way, AutoRoute will pick a certain request m
 Delete_Action => DELETE
 Update_Action => POST, PATCH
 Create_Action => POST
-otherwise     => GET, POST
+Show_Action   => GET, HEAD
+otherwise     => GET, POST, HEAD
 ```
 
 If you need more strong rules, consider using the other routing APIs available or overriding the `allowedMethodsForAction` like this:
