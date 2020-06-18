@@ -196,9 +196,13 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable on
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
-getCreateTable statements = filter (\statement -> statement == CreateTable { name = (get #name statement), columns = (get #columns statement) }) statements
+getCreateTable statements = filter isCreateTable statements
+isCreateTable CreateTable {} = True
+isCreateTable _ = False
 
-getCreateEnum statements = filter (\statement -> statement == CreateEnumType { name = (get #name statement), values = (get #values statement) }) statements
+getCreateEnum statements = filter isCreateEnumType statements
+isCreateEnumType CreateEnumType {} = True
+isCreateEnumType _ = False
 
 nameList statements = map (get #name) statements
 

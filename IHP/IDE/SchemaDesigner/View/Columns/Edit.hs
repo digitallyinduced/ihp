@@ -67,7 +67,7 @@ instance View EditColumnView ViewContext where
                     </div>
 
                     <div class="form-group">
-                        {typeSelector (get #columnType column)}
+                        {typeSelector (Just (get #columnType column)) enumNames}
 
                         <div class="mt-1 text-muted">
                             <label style="font-size: 12px">
@@ -97,26 +97,30 @@ instance View EditColumnView ViewContext where
             modalTitle = "Edit Column"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
-            typeSelector selected = preEscapedToHtml [plain|
-                <select id="typeSelector" name="columnType" class="form-control select2-simple">
-                    #{option selected "TEXT" "Text"}
-                    #{option selected "INT" "Int"}
-                    #{option selected "UUID" "UUID"}
-                    #{option selected "BOOLEAN" "Bool"}
-                    #{option selected "'TIMESTAMP WITH TIME ZONE'" "Timestamp"}
-                    #{option selected "REAL" "Float"}
-                    #{option selected "DOUBLE PRECISION" "Double"}
-                    #{option selected "DATE" "Date"}
-                    #{option selected "BINARY" "Binary"}
-                    #{option selected "Time" "Time"}
-                    #{renderEnumType}
-                </select>
-            |]
-                where
-                    renderEnumType = intercalate "\n" $ map (\e -> tshow $ option selected e e) enumNames
-                    option selected value text = if selected == value
-                        then [plain|<option value=#{value} selected>#{text}</option>|]
-                        else [plain|<option value=#{value}>#{text}</option>|]
+typeSelector :: Maybe Text -> [Text] -> Html
+typeSelector selected enumNames = [hsx|
+        <select id="typeSelector" name="columnType" class="form-control select2-simple">
+            {option selected "TEXT" "Text"}
+            {option selected "INT" "Int"}
+            {option selected "UUID" "UUID"}
+            {option selected "BOOLEAN" "Bool"}
+            {option selected "'TIMESTAMP WITH TIME ZONE'" "Timestamp"}
+            {option selected "REAL" "Float"}
+            {option selected "DOUBLE PRECISION" "Double"}
+            {option selected "DATE" "Date"}
+            {option selected "BINARY" "Binary"}
+            {option selected "Time" "Time"}
+            {forEach enumNames renderEnumType}
+        </select>
+|]
+    where
+        renderEnumType enum = option selected enum enum
+        option selected value text = case selected of
+            Nothing -> preEscapedToHtml [plain|<option value=#{value}>#{text}</option>|]
+            Just selection ->
+                if selection == value
+                    then preEscapedToHtml [plain|<option value=#{value} selected="selected">#{text}</option>|]
+                    else preEscapedToHtml [plain|<option value=#{value}>#{text}</option>|]      
 
 defaultSelector :: Maybe Expression -> Html
 defaultSelector defValue = [hsx|
