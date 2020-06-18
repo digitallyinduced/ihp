@@ -16,7 +16,7 @@ action PostsAction = do
 
 When someone is trying to access the `PostsAction` but is not logged in, the browser will be redirected to the login page. After the login succeeded, the user will be redirected back to the `PostsAction`.
 
-It's common to restrict all actions inside a controller to logged in users only. Place the `ensureIsUser` inside the `beforeAction` hook to apply automatically apply it to all actions:
+It's common to restrict all actions inside a controller to logged in users only. Place the `ensureIsUser` inside the `beforeAction` hook to automatically apply it to all actions:
 
 ```haskell
 instance Controller PostsController where
