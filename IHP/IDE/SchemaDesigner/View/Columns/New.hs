@@ -7,12 +7,14 @@ import IHP.IDE.ToolServer.Layout
 import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import qualified Text.Countable as Countable
+import IHP.IDE.SchemaDesigner.View.Columns.Edit (typeSelector)
 
 data NewColumnView = NewColumnView
     { statements :: [Statement]
     , tableName :: Text
     , primaryKeyExists :: Bool
     , tableNames :: [Text]
+    , enumNames :: [Text]
     }
 
 instance View NewColumnView ViewContext where
@@ -45,18 +47,7 @@ instance View NewColumnView ViewContext where
                     </div>
 
                     <div class="form-group">
-                        <select id="typeSelector" name="columnType" class="form-control select2-simple">
-                            <option value="TEXT">Text</option>
-                            <option value="INT">Int</option>
-                            <option value="UUID">UUID</option>
-                            <option value="BOOLEAN">Bool</option>
-                            <option value="TIMESTAMP WITH TIME ZONE">Timestamp</option>
-                            <option value="REAL">Float</option>
-                            <option value="DOUBLE PRECISION">Double</option>
-                            <option value="DATE">Date</option>
-                            <option value="BINARY">Binary</option>
-                            <option value="TIME">Time</option>
-                        </select>
+                        {typeSelector Nothing enumNames}
 
                         <div class="mt-1 text-muted">
                             {generateReferenceCheckboxes}
@@ -87,7 +78,6 @@ instance View NewColumnView ViewContext where
                 </form>
             |]
                 where
-
                     generateReferenceCheckboxes = [hsx|<span id="checkboxes">{forEach tableNames checkbox}</span>|]
                         where checkbox tableName = [hsx|
                                     <label class="mx-2 ref" style="font-size: 12px; display: none;" data-attribute={(Countable.singularize tableName) <> "_id"} data-table={tableName}>

@@ -26,6 +26,7 @@ instance Controller ColumnsController where
         let (Just table) = findTableByName tableName statements
         primaryKeyExists <- hasPrimaryKey table
         let tableNames = nameList (getCreateTable statements)
+        let enumNames = nameList (getCreateEnum statements)
         render NewColumnView { .. }
 
     action CreateColumnAction = do
@@ -64,6 +65,7 @@ instance Controller ColumnsController where
         let table = findTableByName tableName statements
         let columns = maybe [] (get #columns) table
         let column = columns !! columnId
+        let enumNames = nameList (getCreateEnum statements)
         render EditColumnView { .. }
 
     action UpdateColumnAction = do
@@ -194,7 +196,13 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable on
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
-getCreateTable statements = filter (\statement -> statement == CreateTable { name = (get #name statement), columns = (get #columns statement) }) statements
+getCreateTable statements = filter isCreateTable statements
+isCreateTable CreateTable {} = True
+isCreateTable _ = False
+
+getCreateEnum statements = filter isCreateEnumType statements
+isCreateEnumType CreateEnumType {} = True
+isCreateEnumType _ = False
 
 nameList statements = map (get #name) statements
 
