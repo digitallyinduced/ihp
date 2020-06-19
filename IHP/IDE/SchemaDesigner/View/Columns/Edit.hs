@@ -27,7 +27,7 @@ instance View EditColumnView ViewContext where
         {Just modal}
     |]
         where
-            table = findTableByName tableName statements
+            table = findStatementByName tableName statements
             columns = maybe [] (get #columns) table
 
 

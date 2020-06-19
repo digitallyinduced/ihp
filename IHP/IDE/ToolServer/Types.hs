@@ -26,8 +26,7 @@ data SchemaController
     | UpdateDbAction
     | ShowCodeAction
     | SaveCodeAction
-    | ShowGeneratedCodeAction { tableName :: Text }
-    | ShowGeneratedEnumCodeAction { enumName :: Text }
+    | ShowGeneratedCodeAction { statementName :: Text }
     deriving (Eq, Show, Data)
 
 data TablesController

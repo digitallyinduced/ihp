@@ -11,7 +11,7 @@ import IHP.IDE.SchemaDesigner.View.Schema.GeneratedCode
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace)
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -44,16 +44,10 @@ instance Controller SchemaController where
         setSuccessMessage "DB Update successful"
         redirectTo TablesAction
 
-    action ShowGeneratedCodeAction { tableName } = do
+    action ShowGeneratedCodeAction { statementName } = do
         statements <- readSchema
-        let (Just table) = findTableByName tableName statements
-        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
-        render GeneratedCodeView { .. }
-
-    action ShowGeneratedEnumCodeAction { enumName } = do
-        statements <- readSchema
-        let (Just enum) = findEnumByName enumName statements
-        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements enum
+        let (Just statement) = findStatementByName statementName statements
+        let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements statement
         render GeneratedCodeView { .. }
 
 readSchema :: _ => _

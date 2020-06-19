@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, getDefaultValue, isIllegalKeyword)
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, getDefaultValue, isIllegalKeyword)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -23,7 +23,7 @@ instance Controller ColumnsController where
     
     action NewColumnAction { tableName } = do
         statements <- readSchema
-        let (Just table) = findTableByName tableName statements
+        let (Just table) = findStatementByName tableName statements
         primaryKeyExists <- hasPrimaryKey table
         let tableNames = nameList (getCreateTable statements)
         render NewColumnView { .. }
@@ -59,9 +59,9 @@ instance Controller ColumnsController where
         let columnId = param "columnId"
         let name = tableName
         statements <- readSchema
-        let (Just table) = findTableByName name statements
+        let (Just table) = findStatementByName name statements
         primaryKeyExists <- hasPrimaryKey table
-        let table = findTableByName tableName statements
+        let table = findStatementByName tableName statements
         let columns = maybe [] (get #columns) table
         let column = columns !! columnId
         render EditColumnView { .. }
@@ -77,7 +77,7 @@ instance Controller ColumnsController where
             (setErrorMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowTableAction { .. }
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
-        let table = findTableByName tableName statements
+        let table = findStatementByName tableName statements
         let columns = maybe [] (get #columns) table
         let columnId = param "columnId"
         let column = Column

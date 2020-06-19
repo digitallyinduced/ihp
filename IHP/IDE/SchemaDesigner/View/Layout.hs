@@ -1,4 +1,4 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findTableByName, findEnumByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
@@ -74,16 +74,12 @@ databaseControls = [hsx|
 </div>
 |]
 
-findTableByName tableName statements = find pred statements
+findStatementByName statementName statements = find pred statements
     where
-        pred CreateTable { name } | (toUpper name) == (toUpper tableName) = True
-        pred CreateTable { name } | (toUpper name) == (toUpper (tshow tableName)) = True
-        pred _ = False
-
-findEnumByName enumName statements = find pred statements
-    where
-        pred CreateEnumType { name } | (toUpper name) == (toUpper enumName) = True
-        pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow enumName)) = True
+        pred CreateTable { name } | (toUpper name) == (toUpper statementName) = True
+        pred CreateTable { name } | (toUpper name) == (toUpper (tshow statementName)) = True
+        pred CreateEnumType { name } | (toUpper name) == (toUpper statementName) = True
+        pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow statementName)) = True
         pred _ = False
 
 visualNav :: Html
@@ -250,7 +246,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             <a href={EditEnumAction name id}>Rename Enum</a>
             <a href={DeleteEnumAction id} class="js-delete">Delete Enum</a>
             <div></div>
-            <a href={ShowGeneratedEnumCodeAction name}>Show Generated Haskell Code</a>
+            <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
             <a href={NewEnumValueAction name}>Add Column to Table</a>
             <div></div>
             <a href={NewTableAction}>Add Table</a>
