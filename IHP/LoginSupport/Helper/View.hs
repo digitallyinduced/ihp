@@ -1,4 +1,8 @@
-module IHP.LoginSupport.Helper.View where
+module IHP.LoginSupport.Helper.View
+( currentUser
+, currentUserOrNothing
+)
+where
 
 import IHP.Prelude
 

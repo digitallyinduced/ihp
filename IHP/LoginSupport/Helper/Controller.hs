@@ -15,7 +15,8 @@ module IHP.LoginSupport.Helper.Controller
 , logout
 , CurrentUserRecord
 , CurrentAdminRecord
-, accessDeniedUnless
+, module IHP.AuthSupport.Authorization
+, module IHP.AuthSupport.Authentication
 ) where
 
 import IHP.ControllerPrelude
@@ -27,6 +28,8 @@ import IHP.ControllerSupport
 import IHP.FrameworkConfig
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.Fail
+import IHP.AuthSupport.Authorization
+import IHP.AuthSupport.Authentication
 
 type family CurrentUserRecord
 type family CurrentAdminRecord
@@ -37,7 +40,9 @@ currentUser = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) currentU
 
 {-# INLINE currentUserOrNothing #-}
 currentUserOrNothing :: forall user. (?controllerContext :: ControllerContext, ?requestContext :: RequestContext, FrameworkConfig, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => (Maybe user)
-currentUserOrNothing = fromControllerContext @(Maybe user)
+currentUserOrNothing = case maybeFromControllerContext @(Maybe user) of
+    Just user -> user
+    Nothing -> error "currentUserOrNothing: initAuthentication @User has not been called in initContext inside FrontController of this application"
 
 {-# INLINE currentUserId #-}
 currentUserId :: forall user userId. (?controllerContext :: ControllerContext, ?requestContext :: RequestContext, FrameworkConfig, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
@@ -56,7 +61,9 @@ currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) curren
 
 {-# INLINE currentAdminOrNothing #-}
 currentAdminOrNothing :: forall admin. (?controllerContext :: ControllerContext, ?requestContext :: RequestContext, FrameworkConfig, HasNewSessionUrl admin, Typeable admin) => (Maybe admin)
-currentAdminOrNothing = fromControllerContext @(Maybe admin)
+currentAdminOrNothing = case maybeFromControllerContext @(Maybe admin) of
+    Just admin -> admin
+    Nothing -> error "currentAdminOrNothing: initAuthentication @Admin has not been called in initContext inside FrontController of this application"
 
 {-# INLINE currentAdminId #-}
 currentAdminId :: forall admin adminId. (?controllerContext :: ControllerContext, ?requestContext :: RequestContext, FrameworkConfig, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin) => adminId
@@ -101,16 +108,3 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
     redirectToPath newSessionPath
     error "Unreachable"
 
--- | Stops the action execution with an error message when the access condition is false.
---
--- __Example:__ Checking a user is author of a blog post.
--- 
--- > action EditPostAction { postId } = do
--- >     post <- fetch postId
--- >     accessDeniedUnless (get #authorId post == currentUserId)
--- >     
--- >     renderHtml EditView { .. }
---
--- This will throw an error and prevent the view from being rendered when the current user is not author of the post.
-accessDeniedUnless :: Bool -> IO ()
-accessDeniedUnless condition = if condition then pure () else fail "Access denied"

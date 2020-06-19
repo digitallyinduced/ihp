@@ -2,7 +2,7 @@ module IHP.AuthSupport.Lockable where
 
 import IHP.Prelude
 
-lock :: forall user modelContext. (?modelContext :: ModelContext, CanUpdate user, UpdateField "lockedAt" user user (Maybe UTCTime) (Maybe UTCTime)) => user -> IO user
+lock :: forall user. (?modelContext :: ModelContext, CanUpdate user, UpdateField "lockedAt" user user (Maybe UTCTime) (Maybe UTCTime)) => user -> IO user
 lock user = do
     now <- getCurrentTime
     let currentLockedAt :: Maybe UTCTime = getField @"lockedAt" user

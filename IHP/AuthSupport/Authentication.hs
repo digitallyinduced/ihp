@@ -3,7 +3,7 @@ Module: IHP.AuthSupport.Authentication
 Description: Authentication functions
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.AuthSupport.Authentication (verifyPassword, hashPassword, generateAuthenticationToken, Lockable (maxSignInAttemps)) where
+module IHP.AuthSupport.Authentication (verifyPassword, hashPassword, generateAuthenticationToken, Lockable (maxSignInAttemps), VerifiyPassword (..)) where
 
 import IHP.Prelude
 import qualified Crypto.PasswordStore
@@ -26,11 +26,11 @@ passwordStrength = 17
 -- >         |> ifValid \case
 -- >             Left user -> ..
 -- >             Right user -> do
--- >                 user <- get #passwordHash user |> cs |> liftIO . hashPassword
+-- >                 user <- get #passwordHash user |> liftIO . hashPassword
 -- >                 user <- createRecord user
 -- > 
-hashPassword :: ByteString -> IO Text
-hashPassword plainText = cs <$> Crypto.PasswordStore.makePassword plainText passwordStrength
+hashPassword :: Text -> IO Text
+hashPassword plainText = cs <$> Crypto.PasswordStore.makePassword (cs plainText) passwordStrength
 {-# INLINE hashPassword #-}
 
 
