@@ -10,7 +10,7 @@ import IHP.IDE.SchemaDesigner.View.EnumValues.Edit
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace)
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -33,7 +33,7 @@ instance Controller EnumValuesController where
         statements <- readSchema
         let valueId = param "valueId"
         let enumName = param "enumName"
-        let enum = findEnumByName enumName statements
+        let enum = findStatementByName enumName statements
         let values = maybe [] (get #values) enum
         let value = (cs (values !! valueId))
         render EditEnumValueView { .. }
@@ -43,7 +43,7 @@ instance Controller EnumValuesController where
         let enumName = param "enumName"
         let valueId = param "valueId"
         let newValue = param "enumValueName" :: Text
-        let enum = findEnumByName enumName statements
+        let enum = findStatementByName enumName statements
         let values = maybe [] (get #values) enum
         let value = values !! valueId
         when (newValue == "") do

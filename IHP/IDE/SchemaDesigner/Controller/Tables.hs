@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.View.Tables.Edit
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findTableByName, findEnumByName, removeQuotes, replace, isIllegalKeyword)
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, isIllegalKeyword)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -28,7 +28,7 @@ instance Controller TablesController where
     action ShowTableAction { tableName } = do
         let name = tableName
         statements <- readSchema
-        let (Just table) = findTableByName name statements
+        let (Just table) = findStatementByName name statements
         let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements table
         render ShowView { .. }
 

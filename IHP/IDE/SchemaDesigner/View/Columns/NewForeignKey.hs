@@ -24,7 +24,7 @@ instance View NewForeignKeyView ViewContext where
         {Just modal}
     |]
         where
-            table = findTableByName tableName statements
+            table = findStatementByName tableName statements
             columns = maybe [] (get #columns) table
 
             modalContent = [hsx|

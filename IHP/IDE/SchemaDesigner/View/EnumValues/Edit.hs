@@ -25,7 +25,7 @@ instance View EditEnumValueView ViewContext where
         {Just modal}
     |]
         where
-            enum = findEnumByName enumName statements
+            enum = findStatementByName enumName statements
             values = maybe [] (get #values) enum
             
             modalContent = [hsx|

@@ -24,5 +24,5 @@ instance View ShowEnumView ViewContext where
         </div>
     |]
         where
-            table = findEnumByName name statements
+            table = findStatementByName name statements
             values = maybe [] (get #values) table
