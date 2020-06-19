@@ -115,12 +115,13 @@ typeSelector selected enumNames = [hsx|
 |]
     where
         renderEnumType enum = option selected enum enum
+        option :: Maybe Text -> Text -> Text -> Html
         option selected value text = case selected of
-            Nothing -> preEscapedToHtml [plain|<option value=#{value}>#{text}</option>|]
+            Nothing -> [hsx|<option value={value}>{text}</option>|]
             Just selection ->
                 if selection == value
-                    then preEscapedToHtml [plain|<option value=#{value} selected="selected">#{text}</option>|]
-                    else preEscapedToHtml [plain|<option value=#{value}>#{text}</option>|]      
+                    then [hsx|<option value={value} selected="selected">{text}</option>|]
+                    else [hsx|<option value={value}>{text}</option>|]      
 
 defaultSelector :: Maybe Expression -> Html
 defaultSelector defValue = [hsx|
