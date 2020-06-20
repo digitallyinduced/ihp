@@ -316,7 +316,7 @@ generateViews schema config =
                 <> "                    <th></th>\n"
                 <> "                </tr>\n"
                 <> "            </thead>\n"
-                <> "            <tbody>{forM_ " <> pluralVariableName <> " render" <> singularName <> "}</tbody>\n"
+                <> "            <tbody>{forEach " <> pluralVariableName <> " render" <> singularName <> "}</tbody>\n"
                 <> "        </table>\n"
                 <> "    |]\n"
                 <> "\n\n"
