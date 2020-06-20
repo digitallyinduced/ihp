@@ -40,6 +40,17 @@ ghci
 main
 ```
 
+#### Debugging the development server
+
+You can enable additonal debug logging for the development server by setting the env variable `DEBUG=1`. Like this:
+
+```
+export DEBUG=1
+ghci
+:l IHP/IHP/IDE/DevServer.hs
+main
+```
+
 ## Working on the documentation
 
 To work on the documentation locally open a nix shell inside the framework directory:

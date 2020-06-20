@@ -55,11 +55,13 @@ startToolServer = do
             |> get #toolServerPort
             |> fromIntegral
 
-    thread <- async (startToolServer' port)
+    let isDebugMode = ?context |> get #isDebugMode
+
+    thread <- async (startToolServer' port isDebugMode)
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
-startToolServer' port = do
+startToolServer' port isDebugMode = do
     writeIORef Config.portRef port
 
     session <- Vault.newKey
@@ -87,9 +89,11 @@ startToolServer' port = do
     let warpSettings = Warp.defaultSettings
             |> Warp.setPort port
             |> Warp.setBeforeMainLoop openAppUrl
+
+    let logMiddleware = if isDebugMode then logStdoutDev else IHP.Prelude.id
     
     Warp.runSettings warpSettings $ 
-            staticMiddleware $ logStdoutDev $ methodOverridePost $ sessionMiddleware $ application
+            staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware $ application
 
 stopToolServer ToolServerStarted { thread } = uninterruptibleCancel thread
 stopToolServer ToolServerNotStarted = pure ()

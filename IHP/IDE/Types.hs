@@ -28,9 +28,9 @@ createManagedProcess config = do
 cleanupManagedProcess :: ManagedProcess -> IO ()
 cleanupManagedProcess (ManagedProcess { .. }) = Process.cleanupProcess (Just inputHandle, Just outputHandle, Just errorHandle, processHandle)
 
-sendGhciCommand :: ManagedProcess -> ByteString -> IO ()
+sendGhciCommand :: (?context :: Context) => ManagedProcess -> ByteString -> IO ()
 sendGhciCommand ManagedProcess { inputHandle } command = do
-    putStrLn ("GHCI: " <> cs command)
+    when (isDebugMode ?context) (putStrLn ("GHCI: " <> cs command))
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
@@ -146,6 +146,7 @@ data Context = Context
     { actionVar :: MVar Action
     , portConfig :: PortConfig
     , appStateRef :: IORef AppState
+    , isDebugMode :: Bool
     } deriving (Eq)
 
 dispatch :: (?context :: Context) => Action -> IO ()

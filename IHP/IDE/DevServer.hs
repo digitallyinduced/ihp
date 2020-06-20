@@ -26,7 +26,11 @@ main = do
     actionVar <- newEmptyMVar
     appStateRef <- newIORef emptyAppState
     portConfig <- findAvailablePortConfig
-    let ?context = Context { actionVar, portConfig, appStateRef }
+
+    -- Start the dev server in Debug mode by setting the env var DEBUG=1
+    -- Like: $ DEBUG=1 ./start
+    isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
 
     threadId <- myThreadId
     let catchHandler = do
@@ -38,9 +42,9 @@ main = do
     start
     forever do
         appState <- readIORef appStateRef
-        putStrLn $ " ===> " <> (tshow appState)
+        when isDebugMode (putStrLn $ " ===> " <> (tshow appState))
         action <- takeMVar actionVar
-        putStrLn $ tshow action
+        when isDebugMode (putStrLn $ tshow action)
         nextAppState <- handleAction appState action
         writeIORef appStateRef nextAppState
 
@@ -152,9 +156,9 @@ start = do
     async startFilewatcher
     pure ()
 
-stop :: AppState -> IO ()
+stop :: (?context :: Context) => AppState -> IO ()
 stop AppState { .. } = do
-    putStrLn "Stop called"
+    when (get #isDebugMode ?context) (putStrLn "Stop called")
     stopAppGHCI appGHCIState
     stopPostgres postgresState
     stopStatusServer statusServerState
@@ -210,6 +214,7 @@ startGHCI = do
 
 startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
+    let isDebugMode = ?context |> get #isDebugMode
     -- The app is using the `PORT` env variable for it's web server
     let appPort :: Int = ?context
             |> get #portConfig
@@ -230,6 +235,7 @@ startAppGHCI = do
             ]
 
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
+                unless isDebugMode (ByteString.putStrLn line)
                 if "Server started" `isInfixOf` line
                     then dispatch AppStarted
                     else if "Failed," `isInfixOf` line
@@ -241,6 +247,7 @@ startAppGHCI = do
                                 else dispatch ReceiveAppOutput { line = StandardOutput line }
 
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
+        unless isDebugMode (ByteString.putStrLn line)
         if "cannot find object file for module" `isInfixOf` line
             then do
                 forEach loadAppCommands (sendGhciCommand process)
@@ -256,7 +263,7 @@ startAppGHCI = do
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
 
 
-startLoadedApp :: AppGHCIState -> IO ()
+startLoadedApp :: (?context :: Context) => AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     let commands =
             [ "ClassyPrelude.uninterruptibleCancel app"
@@ -265,7 +272,7 @@ startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     forEach commands (sendGhciCommand process)
 startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
 startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async main"
-startLoadedApp _ = putStrLn "startLoadedApp: App not running"
+startLoadedApp _ = when (get #isDebugMode ?context) (putStrLn "startLoadedApp: App not running")
 
 
 stopAppGHCI :: AppGHCIState -> IO ()
@@ -273,6 +280,6 @@ stopAppGHCI RunningAppGHCI { process } = cleanupManagedProcess process
 stopAppGHCI AppGHCIModulesLoaded { process } = cleanupManagedProcess process
 stopAppGHCI _ = pure ()
 
-pauseAppGHCI :: AppGHCIState -> IO ()
+pauseAppGHCI :: (?context :: Context) => AppGHCIState -> IO ()
 pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
 pauseAppGHCI _ = pure ()

@@ -38,7 +38,6 @@ broadcast :: ByteString -> LiveReloadNotificationServerState -> IO ()
 broadcast message LiveReloadNotificationServerStarted { server, clients } = do
     async do
         clients' <- readIORef clients
-        putStrLn $ "SENDING " <> tshow (length clients')
         let sendMessage connection = ((Websocket.sendTextData connection message) `catch` (\(e :: SomeException) -> putStrLn (tshow e)))
         mapM_ sendMessage clients'
     pure ()
