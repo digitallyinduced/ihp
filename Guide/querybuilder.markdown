@@ -3,9 +3,11 @@
 ```toc
 ```
 
-You can compose database queries using the QueryBuilder module.
+## Introduction
 
-### Creating a new query
+The QueryBuilder module allows you to compose database queries in a type-safe way. Below you find a short reference to all the commonly used functions.
+
+## Creating a new query
 To query the database for some records, you first need to build a query.
 You can just use the `query` function for that.
 
@@ -19,11 +21,11 @@ You can optionally specify the model you want to query:
 let myProjectQueryBuilder = query @Project
 ```
 
-### Running a query
+## Running a query
 
 You can run a query using `fetch`, `fetchOneOrNothing` or `fetchOne`:
 
-#### many rows: `fetch`
+### many rows: `fetch`
 To run a query which will return many rows use `fetch`:
 ```haskell
 example :: IO [Project]
@@ -33,7 +35,7 @@ example = do
     return projects
 ```
 
-#### maybe single row: `fetchOneOrNothing`
+### maybe single row: `fetchOneOrNothing`
 To run a query which will maybe return a single row use `fetchOneOrNothing`:
 ```haskell
 example :: IO (Maybe Project)
@@ -43,7 +45,7 @@ example = do
     return project
 ```
 
-#### single row: `fetchOne`
+### single row: `fetchOne`
 To run a query which will return a single and **throws an error if no record is found** row use `fetchOne`:
 ```haskell
 example :: IO Project
@@ -53,7 +55,7 @@ example = do
     return project
 ```
 
-### Where Conditions
+## Where Conditions
 
 To specify `WHERE` conditions, you can use `filterWhere`:
 
@@ -68,7 +70,7 @@ projectsByUser userId = do
     return projects
 ```
 
-### Order By
+## Order By
 
 You can just use `orderBy #field`:
 ```haskell
@@ -78,7 +80,7 @@ projects <- query @Project
 -- Query: `SELECT * FROM projects ORDER BY created_at`
 ```
 
-### Or
+## Or
 
 ```haskell
 projects <- query @Project
@@ -88,7 +90,7 @@ projects <- query @Project
 -- Query: `SELECT * FROM projects WHERE (user_id = ?) OR (team_id = ?)`
 ```
 
-### Union / Merging two queries
+## Union / Merging two queries
 
 Two query builders of the same type can be merged like this:
 
@@ -103,8 +105,8 @@ let personalProjects :: QueryBuilder Project = query @Project |> filterWhere (#t
 let projects :: QueryBuilder Project = queryUnion teamProjects personalProjects
 ```
 
-### Shortcuts
-#### `findBy #field value`
+## Shortcuts
+### `findBy #field value`
 Just a shortcut for `filterWhere (#field, value) |> fetchOne`
 
 ```haskell
@@ -114,7 +116,7 @@ project <- query @Project |> filterWhere (#userId, userId) |> fetchOne
 project <- query @Project |> findBy #userId userId
 ```
 
-#### `findMaybeBy #field value`
+### `findMaybeBy #field value`
 Just a shortcut for `filterWhere (#field, value) |> fetchOneOrNothing`
 
 ```haskell
@@ -124,17 +126,7 @@ project <- query @Project |> filterWhere (#userId, userId) |> fetchOneOrNothing
 project <- query @Project |> findMaybeBy #userId userId
 ```
 
-#### `findById id`
-Just a shortcut for `filterWhere (#id, id) |> fetchOne`
-
-```haskell
--- Long version
-project <- query @Project |> filterWhere (#id, id) |> fetchOne
--- Shorter version
-project <- query @Project |> findOneById #id id
-```
-
-#### `findManyBy #field value`
+### `findManyBy #field value`
 Just a shortcut for `filterWhere (#field, value) |> fetch`
 
 ```haskell
@@ -144,7 +136,7 @@ projects <- query @Project |> filterWhere (#userId, userId) |> fetch
 projects <- query @Project |> findManyBy #userId userId
 ```
 
-### `projectId |> fetch`
+## `projectId |> fetch`
 Ids also have `fetch` implementations, that way you can just run:
 
 ```haskell
