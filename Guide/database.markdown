@@ -179,6 +179,38 @@ do
 
 This will run the SQL query `SELECT * FROM users WHERE id IN (...)`. The results in `users` have type `[User]`.
 
+## Fetching a `Maybe (Id record)`
+
+Sometimes you have an optional id field, like e.g. when having a database schema like this:
+
+```sql
+CREATE TABLE tasks (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    description TEXT,
+    assigned_user_id UUID
+);
+```
+
+In this case the field `assigned_user_id` can be null. In our action we want to fetch user when it's not null, and return `Nothing` otherwise:
+
+```haskell
+action ShowTask { taskId } = do
+    task <- fetch taskId
+    assignedUser <- case get #assignedUserId task of
+            Just userId -> do
+                user <- fetch userId
+                pure (Just user)
+            Nothing -> pure Nothing
+```
+
+This contains a lot of boilerplate for wrapping and unwrapping the `Maybe` value. Therefore you can just call `fetchOneOrNothing` directly on the `Maybe (Id User)` value:
+
+```haskell
+action ShowTask { taskId } = do
+    task <- fetch taskId
+    assignedUser <- fetchOneOrNothing (get #assignedUserId task)
+```
+
 
 ## Raw SQL Queries
 
@@ -326,12 +358,67 @@ DELETE FROM users WHERE id IN (...)
 ```
 
 
-## Query Builder
+## Enums
 
-## Changing the Schema
+It's possible to define and use custom enum types with IHP. A enum can be created using the Schema Designer. The process is pretty much the same as when creating a table.
 
-## Relationships
+### Adding enums via the Schema Designer
 
-## Advanced Queries With the Query Builder
+Open the Schema Designer, right click into the `Objects` Pane and then select `Add Enum`:
 
+![](/images/database/schema-designer-context-menu.png)
 
+You have to give a name to your enum type. The name should be in plural form, like with table names. E.g. we could name our enum `colors`.
+
+Next add the enum values by right clicking into the `Values` pane and click on `Add Value`. Here we could add values such as `red`, `blue` and `yellow`.
+
+### Adding enums via SQL
+
+Instead of using the Schema Designer you can also just add the requires SQL statement manually into `Application/Schema.hs`:
+
+```sql
+CREATE TYPE colors AS ENUM ('blue', 'red', 'yellow');
+```
+
+### Using enums in the Haskell Code
+
+The above `colors` example will allow us to access the enum like this:
+
+```haskell
+let blue :: Colors = Blue
+let red :: Colors = Red
+let yellow :: Colors = Yellow
+```
+
+You can use the enum as a field type for another record. E.g. we can have `posts` table and there give each post a color:
+
+```sql
+CREATE TABLE posts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    body TEXT NOT NULL,
+    color colors
+);
+```
+
+You can use `fill` even with custom enums:
+
+```haskell
+    action CreatePostAction = do
+        let post = newRecord @Post
+        post
+            |> fill @["body", "color"]
+            |> ifValid \case
+                Left post -> render NewView { .. } 
+                Right post -> do
+                    post <- post |> createRecord
+                    setSuccessMessage "Post created"
+                    redirectTo PostsAction
+```
+
+In your views, use `inputValue` to get a textual representation for your enum which works with `fill`:
+
+```html
+[hsx|
+    <input type="text" value={inputValue Blue}/>
+|]
+```
