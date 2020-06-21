@@ -10,7 +10,7 @@
 
 [Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
-[📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
+[📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1) Or follow [digitally induced on twitter.](https://twitter.com/digitallyinduce)
 
 Questions, or need help with haskell type errors? Join our Gitter Chat:
 
