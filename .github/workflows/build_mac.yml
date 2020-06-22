@@ -1,10 +1,10 @@
-name: Linux Build
+name: Mac Build
 on:
   push:
     branches: [master]
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v9
