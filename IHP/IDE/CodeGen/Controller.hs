@@ -59,7 +59,7 @@ instance Controller CodeGenController where
 
     action CreateViewAction = do
         let viewName = paramOrDefault "" "name"
-        let applicationName = paramOrDefault "" "Web"
+        let applicationName = "Web"
         let controllerName = paramOrDefault "" "controllerName"
         (Right plan) <- ViewGenerator.buildPlan viewName applicationName controllerName
         executePlan plan
@@ -126,7 +126,7 @@ deleteTextFromFile filePath lineContent = do
 addImport :: Text -> [Text] -> IO ()
 addImport file importStatements = do
     content :: Text <- Text.readFile (cs file)
-    case addImport' file importStatements of
+    case addImport' content importStatements of
         Just newContent -> Text.writeFile (cs file) (cs newContent)
         Nothing -> putStrLn ("Could not automatically add " <> tshow importStatements <> " to " <> file)
     pure ()

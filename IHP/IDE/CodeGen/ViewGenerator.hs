@@ -33,7 +33,7 @@ buildPlan viewName applicationName controllerName =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    get #applicationName config <> ".View." <> Countable.pluralize (get #controllerName config) <> "." <> viewName
+    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
 generateGenericView :: [Statement] -> ViewConfig -> [GeneratorAction]
 generateGenericView schema config = 
@@ -70,5 +70,5 @@ generateGenericView schema config =
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
             , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> name <> ".hs", fileContent = genericView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = qualifiedViewModuleName config name }
+            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
             ]
