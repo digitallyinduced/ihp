@@ -83,7 +83,7 @@ all: build/ihp-lib build/Generated/Types.hs
 
 .envrc: default.nix ## Rebuild nix packages and .envrc
 	rm -f .envrc
-	echo "PATH_add $$(nix-shell -j auto --cores 0 --run 'echo $$PATH')" > .envrc
+	echo "PATH_add $$(nix-shell -j auto --cores 0 --pure --run 'echo $$PATH')" > .envrc
 	direnv allow
 
 build/bin:
