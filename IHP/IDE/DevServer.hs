@@ -85,7 +85,10 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
                     pure state
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
-        AppGHCIModulesLoaded { } -> error "Unreachable AppGHCIModulesLoaded"
+        AppGHCIModulesLoaded { } -> do
+            -- You can trigger this case by running: $ while true; do touch test.hs; done;
+            when (get #isDebugMode ?context) (putStrLn "AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event")
+            pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState, liveReloadNotificationServerState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
         s@(StatusServerPaused { .. }) -> do

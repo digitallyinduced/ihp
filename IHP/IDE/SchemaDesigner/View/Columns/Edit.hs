@@ -104,7 +104,7 @@ typeSelector selected enumNames = [hsx|
             {option selected "INT" "Int"}
             {option selected "UUID" "UUID"}
             {option selected "BOOLEAN" "Bool"}
-            {option selected "'TIMESTAMP WITH TIME ZONE'" "Timestamp"}
+            {option selected "TIMESTAMP WITH TIME ZONE" "Timestamp"}
             {option selected "REAL" "Float"}
             {option selected "DOUBLE PRECISION" "Double"}
             {option selected "DATE" "Date"}
