@@ -176,7 +176,7 @@ tests = do
         -- Catching empty Enums results in the "Create Enum" UI button being useless.
         -- Thats why empty Enums will not throw errors.
         it "should parse CREATE TYPE .. AS ENUM without values" do
-            evaluate (parseSql "CREATE TYPE colors AS ENUM ();") `shouldBe` CreateEnumType { name = "colors", values = [] }
+            parseSql "CREATE TYPE colors AS ENUM ();" `shouldBe` CreateEnumType { name = "colors", values = [] }
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

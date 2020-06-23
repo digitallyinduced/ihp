@@ -27,7 +27,7 @@ instance View GeneratorsView ViewContext where
                         <div class="generator-name">Action</div>
                     </div>
                     
-                    <a href="#" class="generator">
+                    <a href={NewViewAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>
                         <div class="generator-name">View</div>
                     </a>
