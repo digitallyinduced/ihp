@@ -324,7 +324,7 @@ generateViews schema config =
                 <> "    <tr>\n"
                 <> "        <td>{" <> singularVariableName <> "}</td>\n"
                 <> "        <td><a href={Show" <> singularName <> "Action (get #id " <> singularVariableName <> ")}>Show</a></td>\n"
-                <> "        <td><a href={Edit" <> singularName <> "Action (get #id " <> singularVariableName <> ")} class=\"text-muted\">edit</a></td>\n"
+                <> "        <td><a href={Edit" <> singularName <> "Action (get #id " <> singularVariableName <> ")} class=\"text-muted\">Edit</a></td>\n"
                 <> "        <td><a href={Delete" <> singularName <> "Action (get #id " <> singularVariableName <> ")} class=\"js-delete text-muted\">Delete</a></td>\n"
                 <> "    </tr>\n"
                 <> "|]\n"
