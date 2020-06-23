@@ -15,7 +15,7 @@ That's why we first need to make sure that you have nix installed.
 Run this commands in your terminal to install nix on your machine.
 
 ```bash
-sh <(curl https://nixos.org/nix/install) --darwin-use-unencrypted-nix-store-volume
+sh <(curl -L https://nixos.org/nix/install) --darwin-use-unencrypted-nix-store-volume
 ```
 After this restart your terminal.
 
@@ -36,7 +36,7 @@ sudo apt install curl git -y
 Install nix by running the following command in your shell and follow the instructions on the screen:
 
 ```bash
-curl https://nixos.org/nix/install | sh
+curl -L https://nixos.org/nix/install | sh
 ```
 
 There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
@@ -77,7 +77,7 @@ use-sqlite-wal = false
 After saving the file, you can now install nix:
 
 ```bash
-curl https://nixos.org/nix/install | sh
+curl -L https://nixos.org/nix/install | sh
 ```
 
 When the installation finishes successfuly, you will be prompted to either reload your environment with the given command, or restart your shell. 
