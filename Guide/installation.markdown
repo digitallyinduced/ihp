@@ -28,7 +28,7 @@ Before installing nix and IHP, you need `curl` and `git` if you don't have them 
 ```bash
 sudo apt update
 sudo apt upgrade
-sudo apt install git curl -y
+sudo apt install git curl make -y
 ```
 
 **For NixOS Users:** If you're on NixOS, of course you don't need to install nix anymore :-) Just skip this step.
@@ -64,7 +64,7 @@ With the Distro Downloaded, run it and update it using your package manager. In 
 ```bash
 sudo apt update
 sudo apt upgrade
-sudo apt install git curl -y
+sudo apt install git curl make -y
 ```
 
 WSL will add your Windows System Paths in your Linux Subsystem. These tend to generate errors due to spaces and brackets in folder names. Also, due to Linux not loading the `.profile`, we need to add the nix.sh manually. To fix these two issues, just add these lines to the end of your `.bashrc`
