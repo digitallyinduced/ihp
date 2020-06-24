@@ -105,7 +105,7 @@ So in your `projects.css` you can just do rules like
 
 ###### SASS & Webpack
 
-We discourage the use of tools like SASS or webpack because they have to much overhead.
+We discourage the use of tools like SASS or webpack because they have too much overhead.
 
 ###### Library CSS
 
@@ -145,7 +145,7 @@ In the views, just import the javascript with `<script src="/users.js"></script>
 
 ###### Webpack
 
-We discourage the use of webpack or any other bundler because they have to much overhead. Of course this advice only applies if you follow the approach to use as few javascript as possible.
+We discourage the use of webpack or any other bundler because they have too much overhead. Of course this advice only applies if you follow the approach to use as little javascript as possible.
 
 ###### Library JS
 
