@@ -226,7 +226,7 @@ parents =
         , "section", "select", "small", "span", "strong", "style", "sub"
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
         , "thead", "time", "title", "tr", "u", "ul", "var", "video"
-        , "svg", "path", "text", "circle", "marquee"
+        , "svg", "path", "text", "circle", "marquee", "blink"
         ]
 
 leafs :: [Text]
