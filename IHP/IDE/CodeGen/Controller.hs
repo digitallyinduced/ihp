@@ -66,6 +66,23 @@ instance Controller CodeGenController where
         setSuccessMessage "View generated"
         redirectTo GeneratorsAction
 
+    action NewActionAction = do
+        let actionName = paramOrDefault "" "name"
+        let applicationName = "Web"
+        let controllerName = paramOrDefault "" "controllerName"
+        controllers <- listOfWebControllers
+        plan <- ActionGenerator.buildPlan viewName applicationName controllerName
+        render NewViewView { .. }
+
+    action CreateActionAction = do
+        let actionName = paramOrDefault "" "name"
+        let applicationName = "Web"
+        let controllerName = paramOrDefault "" "controllerName"
+        (Right plan) <- ActionGenerator.buildPlan viewName applicationName controllerName
+        executePlan plan
+        setSuccessMessage "Action generated"
+        redirectTo GeneratorsAction
+
     action OpenControllerAction = do
         let name = param "name"
         case name |> Inflector.toCamelCased True of
@@ -89,6 +106,9 @@ executePlan actions = forEach actions evalAction
             putStrLn ("* " <> filePath <> " (import)")
         evalAction AddImport { filePath, fileContent } = do
             addImport filePath [fileContent]
+            putStrLn ("* " <> filePath <> " (import)")
+        evalAction AddAction { filePath, fileContent } = do
+            addAction filePath fileContent
             putStrLn ("* " <> filePath <> " (import)")
         evalAction EnsureDirectory { directory } = do
             Directory.createDirectoryIfMissing True (cs directory)
@@ -133,6 +153,17 @@ addImport file importStatements = do
 
 addImport' :: Text -> [Text] -> Maybe Text
 addImport' file = appendLineAfter file ("import" `isPrefixOf`)
+
+addAction :: Text -> Text -> IO ()
+addAction filePath content = do
+    fileContent <- Text.readFile (cs filePath)
+    case addAction' fileContent content of
+        Just newContent -> Text.writeFile (cs filePath) (cs newContent)
+        Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
+    pure ()
+
+addAction' :: Text -> Text -> Maybe Text
+addAction' fileContent = appendLineAfter fileContent ("")
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =
