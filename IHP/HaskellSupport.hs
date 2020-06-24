@@ -23,6 +23,7 @@ module IHP.HaskellSupport (
 , forEach
 , textToInt
 , isWeekend
+, todayIsWeekend
 , debug
 ) where
 
@@ -180,12 +181,26 @@ textToInt text = case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.end
 -- > do
 -- >     todayIsWeekend <- isWeekend
 -- >     when todayIsWeekend (putStrLn "It's weekend!")
-isWeekend :: IO Bool
-isWeekend = do
+todayIsWeekend :: IO Bool
+todayIsWeekend = do
     now <- Data.Time.getCurrentTime
     let today = Data.Time.utctDay now
-    let weekday = Data.Time.dayOfWeek today
-    return ((weekday == Data.Time.Saturday) || (weekday == Data.Time.Sunday))
+    return (isWeekend today)
+
+-- | Returns @True@ when day is Saturday or Sunday.
+--
+-- __Example:__
+--
+-- >>> isWeekend $ fromGregorian 2019 10 7
+-- False
+--
+-- >>> isWeekend $ fromGregorian 2020 6 13
+-- True
+isWeekend :: Day -> Bool
+isWeekend day =
+  weekday == Data.Time.Saturday || weekday == Data.Time.Sunday
+  where
+    weekday = Data.Time.dayOfWeek day
 
 -- | Debug-print a value during evaluation
 --
