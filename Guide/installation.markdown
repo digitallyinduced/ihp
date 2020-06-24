@@ -28,7 +28,7 @@ Before installing nix and IHP, you need `curl` and `git` if you don't have them 
 ```bash
 sudo apt update
 sudo apt upgrade
-sudo apt install curl git -y
+sudo apt install git curl make -y
 ```
 
 **For NixOS Users:** If you're on NixOS, of course you don't need to install nix anymore :-) Just skip this step.
@@ -37,6 +37,11 @@ Install nix by running the following command in your shell and follow the instru
 
 ```bash
 curl -L https://nixos.org/nix/install | sh
+```
+
+Due to Linux not loading the `.profile` file, nix will not be loaded. To fix that, we need to add this line to the rc file of your shell (usually `.bashrc`). Open it, and add this line
+```bash
+. ~/.nix-profile/etc/profile.d/nix.sh
 ```
 
 There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
@@ -57,8 +62,15 @@ Note: You **do not** need a Microsoft account to download. You can simply cancel
 With the Distro Downloaded, run it and update it using your package manager. In Ubuntu you would use:
 
 ```bash
-sudo apt-get update
-sudo apt-get upgrade
+sudo apt update
+sudo apt upgrade
+sudo apt install git curl make -y
+```
+
+WSL will add your Windows System Paths in your Linux Subsystem. These tend to generate errors due to spaces and brackets in folder names. Also, due to Linux not loading the `.profile`, we need to add the nix.sh manually. To fix these two issues, just add these lines to the end of your `.bashrc`
+```bash
+PATH=$(/usr/bin/printenv PATH | /usr/bin/perl -ne 'print join(":", grep { !/\/mnt\/[a-z]/ } split(/:/));')
+. ~/.nix-profile/etc/profile.d/nix.sh
 ```
 
 Now, create a folder for nix:
@@ -87,11 +99,6 @@ If in doubt, just close and reopen Ubuntu/Your Distro.
 **NOTES FOR WINDOWS USERS**:
 ###### Windows Firewall
 When using Windows, you will be asked if tasks like ghc-iserv or rundevserver should be allowed by the firewall. This is needed to access the devserver interface and the webapp itself.
-###### Windows System Paths
-WSL will add your Windows System Paths in your Linux Subsystem. These tend to generate errors due to spaces and brackets in folder names. To remove all Windows paths on load, just add this line to the end of your `.bashrc`
-```bash
-PATH=$(/usr/bin/printenv PATH | /usr/bin/perl -ne 'print join(":", grep { !/\/mnt\/[a-z]/ } split(/:/));')
-```
 
 Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/nix-on-windows/).
 
