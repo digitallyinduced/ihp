@@ -225,7 +225,7 @@ You might need to specify the expected result type, as type inference might not 
 
 ```haskell
 do
-    Project :: result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+    result :: Project <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
 You can query any kind of information, not only records:
