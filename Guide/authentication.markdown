@@ -3,6 +3,20 @@
 ```toc
 ```
 
+## Note
+
+The current (pre-)release of IHP has some bugs that prevent the following documentation from working. In order to follow along you need to use a more recent version of IHP. Open `default.nix` and change the IHP dependency to point to a working git commit, e.g. `cd715f951b7325ba24dd690669d4fea2c91b1aad`:
+
+```
+    ihp = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/ihp.git";
+        rev = "cd715f951b7325ba24dd690669d4fea2c91b1aad";
+    };
+```
+
+After that, run `make -B .envrc` to recompile.
+
+
 ## Introduction
 
 IHP provides a basic authentication toolkit out of the box.
@@ -90,16 +104,28 @@ import IHP.LoginSupport.Helper.View
 
 #### Activating the Session
 
-Open `Web/FrontController.hs`. Add an import for `IHP.LoginSupport.Middleware`:
+Open `Web/FrontController.hs`. Add an import for `IHP.LoginSupport.Middleware` and `Web.Controller.Sessions`:
 
 ```haskell
 import IHP.LoginSupport.Middleware
+import import Web.Controller.Sessions
+```
+
+We then need to mount our session controller by adding `parseRoute @SessionController`:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ startPage WelcomeAction
+        , parseRoute @SessionsController -- <--------------- add this
+        -- Generator Marker
+        ]
 ```
 
 At the end of the file there is a line like:
 
 ```haskell
-instance InitControllerContext WebApplication where
+instance InitControllerContext WebApplication
 ```
 
 We need to extend this function with the following code:
@@ -116,7 +142,16 @@ This will fetch the user from the database when a `userId` is given in the sessi
 
 In the last step we need to add a new controller which will deal with the login and logout. We call this the `SessionsController`.
 
-First we add the type definitions to `Web/Types.hs`:
+First we have to update `Web/Types.hs`. The auth module directs users to the login page automatically if required by a view, to set this up we add the following to `Web/Types.hs`:
+
+```haskell
+import IHP.LoginSupport.Types
+
+instance HasNewSessionUrl User where
+    newSessionUrl _ = "/NewSession"
+```
+
+You also need to add the type definitions for the SessionsController:
 
 ```haskell
 data SessionsController
