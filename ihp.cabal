@@ -154,6 +154,8 @@ library IHPFramework
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
+        , IHP.AuthSupport.View.Sessions.New
+        , IHP.AuthSupport.Controller.Sessions
 
 executable RunDevServer
     import: shared-properties
