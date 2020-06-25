@@ -28,12 +28,10 @@ function spoilify () {
                 case "windows":
                     currentSection = "windows";
                     break;
-                case "windows-firewall":
-                    break;
-                case "":
-                    break;
                 default:
-                    if (section[i].nodeName = "H2") {
+                    if (section[i].nodeName == "H6") {
+                        break;
+                    } else if (section[i].nodeName == "H2") {
                         return;
                     }
             }
