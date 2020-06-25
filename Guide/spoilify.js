@@ -1,4 +1,5 @@
 function spoilify () {
+    if (document.getElementById("mac") == null) {return;}
     var mac = document.getElementById("mac");
     var linux = document.getElementById("linux");
     var windows = document.getElementById("windows");
