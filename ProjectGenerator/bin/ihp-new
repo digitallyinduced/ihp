@@ -75,7 +75,7 @@ if ! [ -x "$(command -v make)" ]; then
 	echo -e "IHP uses make for the building process.";
 	echo ""
 	echo ""
-	echo -e "\e[1mWe will install make for you now. Continue? (Type y to proceed) \e[0m"
+	echo -e "\e[1mWe will install make for you now using 'nix-env -i gnumake'. Continue? (Type y to proceed) \e[0m"
 	read -n1 choice
 	echo ""
 	case "$choice" in
