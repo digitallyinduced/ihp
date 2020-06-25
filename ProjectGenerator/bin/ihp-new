@@ -65,7 +65,7 @@ if ! [ -x "$(command -v git)" ]; then
 	read -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -iA nixpkgs.git;;
+	  y|Y ) nix-env -i git;;
 	  * ) echo -e "\e[31mPlease install git manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 fi
@@ -79,7 +79,7 @@ if ! [ -x "$(command -v make)" ]; then
 	read -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -iA nixpkgs.gnumake;;
+	  y|Y ) nix-env -i gnumake;;
 	  * ) echo -e "\e[31mPlease install make manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 fi
