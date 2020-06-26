@@ -178,4 +178,4 @@ Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-Validatio
 
 ## Using IHP with Visual Studio Code / VSCode
 
-When using VSCode, you need to install a plugin which loads the `.envrc` in your project. Otherwise the wrong GHC will be picked up. Take a look at [vscode-direnv](https://github.com/rubymaniac/vscode-direnv).
+When using VSCode you need to install a plugin which loads the `.envrc` in your project. Otherwise the wrong GHC will be picked up. Take a look at [vscode-direnv](https://github.com/rubymaniac/vscode-direnv).
