@@ -175,3 +175,7 @@ isAge = isInRange (0, 100)
 ## Checking that an email is unique
 
 Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).
+
+## Using IHP with Visual Studio Code / VSCode
+
+When using VSCode, you need to install a plugin which loads the `.envrc` in your project. Otherwise the wrong GHC will be picked up. Take a look at [vscode-direnv](https://github.com/rubymaniac/vscode-direnv).
