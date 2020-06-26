@@ -232,9 +232,11 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
 
+instance Default Day where
+    def = ModifiedJulianDay 0
 
 instance Default UTCTime where
-    def = UTCTime (ModifiedJulianDay 0) 0
+    def = UTCTime def 0
 
 class Record model where
     newRecord :: model
