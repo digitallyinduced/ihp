@@ -163,7 +163,7 @@ addAction filePath content = do
     pure ()
 
 addAction' :: Text -> Text -> Maybe Text
-addAction' fileContent = appendLineAfter fileContent ("")
+addAction' fileContent = appendLineAfter fileContent ("instance Controller" `isPrefixOf`)
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =

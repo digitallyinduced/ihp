@@ -43,32 +43,15 @@ generateGenericAction schema config =
             singularName = config |> get #modelName
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
-            nameWithSuffix = name <> "View" --e.g. "TestView"
+            nameWithSuffix = name <> "Action" --e.g. "TestAction"
 
             indexAction = Countable.pluralize singularName <> "Action"
-
-            viewHeader =
-                ""
-                <> "module " <> qualifiedViewModuleName config name <> " where\n"
-                <> "import " <> get #applicationName config <> ".View.Prelude\n"
-                <> "\n"
             
-            genericView = 
-                viewHeader
-                <> "data " <> nameWithSuffix <> " = " <> nameWithSuffix <> "\n"
+            actionContent = 
+                "action " <> nameWithSuffix <> " = " <> "do" <> "\n"
                 <> "\n"
-                <> "instance View " <> nameWithSuffix <> " ViewContext where\n"
-                <> "    html " <> nameWithSuffix <> " { .. } = [hsx|\n"
-                <> "        <nav>\n"
-                <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
-                <> "                <li class=\"breadcrumb-item active\">" <> nameWithSuffix <> "</li>\n"
-                <> "            </ol>\n"
-                <> "        </nav>\n"
-                <> "        <h1>" <> nameWithSuffix <> "</h1>\n"
-                <> "    |]\n"
+                <> "let var = 123 \n"
+                <> "redirectTo "<> controllerName <> "\n"
         in
-            [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
-            , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> name <> ".hs", fileContent = genericView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
+            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
             ]
