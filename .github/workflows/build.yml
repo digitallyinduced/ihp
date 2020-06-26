@@ -2,6 +2,8 @@ name: Linux Build
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
 jobs:
   tests:
     runs-on: ubuntu-latest
