@@ -162,7 +162,7 @@ By specificing the above schema, the framework automatically provides several ty
 | Example     | `"5a8d1be2-33e3-4d3f-9812-b16576fe6a38" :: Id Post` |
 
 
-**For the curious:** To dig deeper into the generated code, open the Schema Designer, right-click a table and click `Show Haskell Code` or look into `build/Generated/Types.hs`.
+**For the curious:** To dig deeper into the generated code, open the Schema Designer, right-click a table and click `Show Generated Haskell Code` or look into `build/Generated/Types.hs`.
 
 ## 4. Apps, Controllers, Views
 
