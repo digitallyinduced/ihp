@@ -66,6 +66,7 @@ haskellType table column@(Column { columnType, notNull }) =
                 "DATE" -> "Date"
                 "BINARY" -> "Binary"
                 "TIME" -> "TimeOfDay"
+                "REAL" -> "Float"
                 customType -> tableNameToModelName customType
         actualType =
             case findForeignKeyConstraint table column of
