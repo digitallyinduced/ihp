@@ -24,7 +24,7 @@ IHP provides a basic authentication toolkit out of the box.
 The usual convention in IHP is to call your user record `User`. When there is an admin user, we usually call the record `Admin`. In general the authentication can work with any kind of record. The only requirement is that it has an id field.
 
 To use the authentication module, your `users` table needs to have atleast an `id`, `email`, `password_hash`, `locked_at` and `failed_login_attempts` field:
-```haskell
+```sql
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     email TEXT NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE users (
     locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     failed_login_attempts INT DEFAULT 0 NOT NULL
 );
-````
+```
 
 The password authentication saves the passwords as a salted hash using the [pwstore-fast library](https://hackage.haskell.org/package/pwstore-fast-2.4.4/docs/Crypto-PasswordStore.html). By default, a user will be locked for an hour after 10 failed login attempts.
 
@@ -230,11 +230,37 @@ After you have completed the above steps, you can open the login at `/NewSession
 
 ## Accessing the current user
 
-Inside your actions you can use `currentUser` to get access to the current logged in user:
+In order to access the current user from your actions and templates you need to add it to the view context.
+
+Update `Web/Types.hs` and add a `user` field to the ViewContext data type:
+
+```haskell
+data ViewContext = ViewContext
+    { requestContext :: ControllerSupport.RequestContext
+    , flashMessages :: [IHP.Controller.Session.FlashMessage]
+    , controllerContext :: ControllerSupport.ControllerContext
+    , layout :: Layout
+    , user :: Maybe User -- <--------------- add this
+    }
+```
+
+and then uncomment it in `Web/View/Context.hs`:
+
+```haskell
+let viewContext = ViewContext {
+    requestContext = ?requestContext,
+	user = currentUserOrNothing, -- <--------------- uncomment this line
+	flashMessages,
+	controllerContext = ?controllerContext,
+	layout = let ?viewContext = viewContext in defaultLayout
+}
+```
+
+Inside your actions you can then use `currentUser` to get access to the current logged in user:
 
 ```haskell
 action MyAction = do
-    let text = "Hello " <> (get #name currentUser)
+    let text = "Hello " <> (get #email currentUser)
     renderPlain text
 ```
 
@@ -246,7 +272,7 @@ You can use `currentUserOrNothing` to manually deal with the not-logged-in case:
 action MyAction = do
     case currentUserOrNothing of
         Just currentUser -> do
-            let text = "Hello " <> (get #name currentUser)
+            let text = "Hello " <> (get #email currentUser)
             renderPlain text
         Nothing -> renderPlain "Please login first"
 ```
@@ -257,7 +283,7 @@ You can also access the user using `currentUser` inside your views:
 
 ```html
 [hsx|
-    <h1>Hello {get #name currentUser}</h1>
+    <h1>Hello {get #email currentUser}</h1>
 |]
 ```
 
@@ -277,9 +303,8 @@ To create a user with a hashed password, you just need to call the hashing funct
     action CreateUserAction = do
         let user = newRecord @User
         user
-            |> fill @["firstname", "lastname", "passwordHash"]
-            |> validateField #firstname nonEmpty
-            |> validateField #lastname nonEmpty
+            |> fill @["email", "passwordHash"]
+            |> validateField #email isEmail
             |> validateField #passwordHash nonEmpty
             |> ifValid \case
                 Left user -> render NewView { .. } 
