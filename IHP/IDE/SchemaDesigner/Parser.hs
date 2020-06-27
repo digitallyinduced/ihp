@@ -8,11 +8,13 @@ module IHP.IDE.SchemaDesigner.Parser
 , schemaFilePath
 , parseDDL
 , expression
+, sqlType
 ) where
 
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
 import qualified Prelude
+import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Text.Megaparsec
 import Data.Void
@@ -44,6 +46,9 @@ lexeme = Lexer.lexeme spaceConsumer
 
 symbol :: Text -> Parser Text
 symbol = Lexer.symbol spaceConsumer
+
+symbol' :: Text -> Parser Text
+symbol' = Lexer.symbol' spaceConsumer
 
 stringLiteral :: Parser String
 stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
@@ -119,7 +124,7 @@ parseOnDelete = choice
 
 column = do
     name <- identifier
-    columnType <- cs <$> sqlType
+    columnType <- sqlType
     space
     defaultValue <- optional do
         lexeme "DEFAULT"
@@ -129,20 +134,69 @@ column = do
     isUnique <- isJust <$> optional (lexeme "UNIQUE")
     pure Column { name, columnType, primaryKey, defaultValue, notNull, isUnique }
 
-
+sqlType :: Parser PostgresType
 sqlType = choice
-        [ (try $ lexeme "UUID")
-        , (try $ lexeme "TEXT")
-        , (try $ lexeme "INT")
-        , (try $ lexeme "BOOLEAN")
-        , (try $ lexeme "TIMESTAMP WITH TIME ZONE")
-        , (try $ lexeme "DOUBLE PRECISION")
-        , (try $ lexeme "DATE")
-        , (try $ lexeme "BINARY")
-        , (try $ lexeme "TIME")
-        , (try $ takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
+        [ uuid
+        , text
+        , bigint
+        , int
+        , bool
+        , timestampZ
+        , real
+        , double
+        , date
+        , binary
+        , time
+        , customType
         ]
+            where
+                uuid = do
+                    try (symbol' "UUID")
+                    pure PUUID
 
+                text = do
+                    try (symbol' "TEXT")
+                    pure PText
+
+                int = do
+                    try (symbol' "INTEGER") <|> try (symbol' "INT4") <|> try (symbol' "INT")
+                    pure PInt
+
+                bigint = do
+                    try (symbol' "BIGINT") <|> try (symbol' "INT8")
+                    pure PBigInt
+
+                bool = do
+                    try (symbol' "BOOLEAN") <|> try (symbol' "BOOL")
+                    pure PBoolean
+
+                timestampZ = do
+                    try (symbol' "TIMESTAMPZ") <|> (symbol' "TIMESTAMP" >> symbol' "WITH" >> symbol' "TIME" >> symbol' "ZONE")
+                    pure PTimestampWithTimezone
+
+                real = do
+                    try (symbol' "REAL") <|> try (symbol' "FLOAT4")
+                    pure PReal
+
+                double = do
+                    try (symbol' "DOUBLE PRECISION") <|> try (symbol' "FLOAT8")
+                    pure PDouble
+
+                date = do
+                    try (symbol' "DATE")
+                    pure PDate
+
+                binary = do
+                    try (symbol' "BINARY")
+                    pure PBinary
+
+                time = do
+                    try (symbol' "TIME")
+                    pure PTime
+
+                customType = do
+                    theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
+                    pure (PCustomType theType)
 
 expression :: Parser Expression
 expression = do

@@ -23,7 +23,7 @@ data Statement
 
 data Column = Column
     { name :: Text
-    , columnType :: Text
+    , columnType :: PostgresType
     , primaryKey :: Bool
     , defaultValue :: Maybe Expression
     , notNull :: Bool
@@ -55,4 +55,19 @@ data Expression =
     | VarExpression Text
     -- | Simple call, like @COALESCE(name, 'unknown name')@
     | CallExpression Text [Expression]
+    deriving (Eq, Show)
+
+data PostgresType
+    = PUUID
+    | PText
+    | PInt
+    | PBigInt
+    | PBoolean
+    | PTimestampWithTimezone
+    | PReal
+    | PDouble
+    | PDate
+    | PBinary
+    | PTime
+    | PCustomType Text
     deriving (Eq, Show)
