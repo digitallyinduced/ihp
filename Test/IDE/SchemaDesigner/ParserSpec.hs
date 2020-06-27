@@ -108,6 +108,9 @@ tests = do
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` CreateTable { name = "quoted name", columns = [] }
 
+        it "should parse a CREATE TABLE with public schema prefix" do
+            parseSql "CREATE TABLE public.users ();" `shouldBe` CreateTable { name = "users", columns = [] }
+
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
                     { tableName = "users"

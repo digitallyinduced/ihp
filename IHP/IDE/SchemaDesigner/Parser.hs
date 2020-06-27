@@ -68,6 +68,9 @@ createExtension = do
 createTable = do
     lexeme "CREATE"
     lexeme "TABLE"
+    optional do
+        lexeme "public"
+        char '.'
     name <- identifier
     columns <- between (char '(' >> space) (char ')' >> space) (column `sepBy` (char ',' >> space))
     char ';'
