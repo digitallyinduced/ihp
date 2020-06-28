@@ -3,7 +3,7 @@ Module: IHP.IDE.SchemaDesigner.Compiler
 Description: Compiles AST of SQL to DDL
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.IDE.SchemaDesigner.Compiler (compileSql, writeSchema, compileIdentifier, compileExpression) where
+module IHP.IDE.SchemaDesigner.Compiler (compileSql, writeSchema, compileIdentifier, compileExpression, compilePostgresType) where
 
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
@@ -43,7 +43,7 @@ compileColumn :: Column -> Text
 compileColumn Column { name, columnType, primaryKey, defaultValue, notNull, isUnique } =
     "    " <> unwords (catMaybes
         [ Just (compileIdentifier name)
-        , Just columnType
+        , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
         , if primaryKey then Just "PRIMARY KEY" else Nothing
         , if notNull then Just "NOT NULL" else Nothing
@@ -61,6 +61,19 @@ compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (
 compareStatement (CreateTable {}) _ = LT
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
+
+compilePostgresType :: PostgresType -> Text
+compilePostgresType PUUID = "UUID"
+compilePostgresType PText = "TEXT"
+compilePostgresType PInt = "INT"
+compilePostgresType PBigInt = "BIGINT"
+compilePostgresType PBoolean = "BOOLEAN"
+compilePostgresType PTimestampWithTimezone = "TIMESTAMP WITH TIME ZONE"
+compilePostgresType PDouble = "DOUBLE PRECISION"
+compilePostgresType PDate = "DATE"
+compilePostgresType PBinary = "BINARY"
+compilePostgresType PTime = "TIME"
+compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier

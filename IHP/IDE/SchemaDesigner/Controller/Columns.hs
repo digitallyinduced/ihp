@@ -18,6 +18,7 @@ import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.Controller.Schema
+import IHP.IDE.SchemaDesigner.Controller.Helper
 
 instance Controller ColumnsController where
     

@@ -55,19 +55,18 @@ haskellType table column@(Column { columnType, notNull }) =
     let
         atomicType = 
             case columnType of
-                "INT" -> "Int"
-                "TEXT" -> "Text"
-                "BOOL"   -> "Bool"
-                "BOOLEAN"   -> "Bool"
-                "TIMESTAMP WITH TIME ZONE" -> "UTCTime"
-                "UUID" -> "UUID"
-                "FLOAT" -> "Float"
-                "DOUBLE PRECISION" -> "Double"
-                "DATE" -> "Data.Time.Calendar.Day"
-                "BINARY" -> "Binary"
-                "TIME" -> "TimeOfDay"
-                "REAL" -> "Float"
-                customType -> tableNameToModelName customType
+                PInt -> "Int"
+                PBigInt -> "INTEGER"
+                PText -> "Text"
+                PBoolean   -> "Bool"
+                PTimestampWithTimezone -> "UTCTime"
+                PUUID -> "UUID"
+                PReal -> "Float"
+                PDouble -> "Double"
+                PDate -> "Data.Time.Calendar.Day"
+                PBinary -> "Binary"
+                PTime -> "TimeOfDay"
+                PCustomType theType -> tableNameToModelName theType
         actualType =
             case findForeignKeyConstraint table column of
                 Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName' referenceTable <> ")"
@@ -429,10 +428,10 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                     then "Nothing"
                     else
                         case columnType of
-                            "TEXT" -> case theDefaultValue of
+                            PText -> case theDefaultValue of
                                 TextExpression value -> wrapNull notNull (tshow value)
                                 otherwise            -> error ("toDefaultValueExpr: TEXT column needs to have a TextExpression as default value. Got: " <> show otherwise)
-                            "BOOl" -> case theDefaultValue of
+                            PBoolean -> case theDefaultValue of
                                 VarExpression value -> wrapNull notNull (tshow (toLower value == "true"))
                                 otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
                             _ -> "def"

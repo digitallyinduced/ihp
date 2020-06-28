@@ -40,7 +40,7 @@ tests = do
                     , columns = [
                         Column
                             { name = "id"
-                            , columnType = "UUID"
+                            , columnType = PUUID
                             , primaryKey = True
                             , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
@@ -48,7 +48,7 @@ tests = do
                             }
                         , Column
                             { name = "firstname"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -56,7 +56,7 @@ tests = do
                             }
                         , Column
                             { name = "lastname"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -64,7 +64,7 @@ tests = do
                             }
                         , Column
                             { name = "password_hash"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -72,7 +72,7 @@ tests = do
                             }
                         , Column
                             { name = "email"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -80,7 +80,7 @@ tests = do
                             }
                         , Column
                             { name = "company_id"
-                            , columnType = "UUID"
+                            , columnType = PUUID
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -88,7 +88,7 @@ tests = do
                             }
                         , Column
                             { name = "picture_url"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = False
@@ -96,7 +96,7 @@ tests = do
                             }
                         , Column
                             { name = "created_at"
-                            , columnType = "TIMESTAMP WITH TIME ZONE"
+                            , columnType = PTimestampWithTimezone
                             , primaryKey = False
                             , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
@@ -107,6 +107,9 @@ tests = do
 
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` CreateTable { name = "quoted name", columns = [] }
+
+        it "should parse a CREATE TABLE with public schema prefix" do
+            parseSql "CREATE TABLE public.users ();" `shouldBe` CreateTable { name = "users", columns = [] }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
@@ -177,6 +180,57 @@ tests = do
         -- Thats why empty Enums will not throw errors.
         it "should parse CREATE TYPE .. AS ENUM without values" do
             parseSql "CREATE TYPE colors AS ENUM ();" `shouldBe` CreateEnumType { name = "colors", values = [] }
+
+        it "should parse a CREATE TABLE with INTEGER / INT / INT4 / BIGINT / INT 8 columns" do
+            parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, bigint_a BIGINT, bigint_b int8);" `shouldBe` CreateTable
+                    { name = "ints"
+                    , columns =
+                        [ col { name = "int_a", columnType = PInt }
+                        , col { name = "int_b", columnType = PInt }
+                        , col { name = "int_c", columnType = PInt }
+                        , col { name = "bigint_a", columnType = PBigInt }
+                        , col { name = "bigint_b", columnType = PBigInt }
+                        ]
+                    }
+
+        it "should parse a CREATE TABLE with TIMESTAMP WITH TIMEZONE / TIMESTAMPZ columns" do
+            parseSql "CREATE TABLE timestamps (a TIMESTAMP WITH TIME ZONE, b TIMESTAMPZ);" `shouldBe` CreateTable
+                    { name = "timestamps"
+                    , columns =
+                        [ col { name = "a", columnType = PTimestampWithTimezone }
+                        , col { name = "b", columnType = PTimestampWithTimezone }
+                        ]
+                    }
+
+        it "should parse a CREATE TABLE with BOOLEAN / BOOL columns" do
+            parseSql "CREATE TABLE bools (a BOOLEAN, b BOOL);" `shouldBe` CreateTable
+                    { name = "bools"
+                    , columns =
+                        [ col { name = "a", columnType = PBoolean }
+                        , col { name = "b", columnType = PBoolean }
+                        ]
+                    }
+
+        it "should parse a CREATE TABLE with REAL, FLOAT4, DOUBLE, FLOAT8 columns" do
+            parseSql "CREATE TABLE bools (a REAL, b FLOAT4, c DOUBLE PRECISION, d FLOAT8);" `shouldBe` CreateTable
+                    { name = "bools"
+                    , columns =
+                        [ col { name = "a", columnType = PReal }
+                        , col { name = "b", columnType = PReal }
+                        , col { name = "c", columnType = PDouble }
+                        , col { name = "d", columnType = PDouble }
+                        ]
+                    }
+
+col :: Column
+col = Column
+    { name = ""
+    , columnType = PCustomType ""
+    , primaryKey = False
+    , defaultValue = Nothing
+    , notNull = False
+    , isUnique = False
+    }
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

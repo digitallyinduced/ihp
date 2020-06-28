@@ -2,7 +2,7 @@ module IHP.IDE.SchemaDesigner.View.Columns.Edit where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.Compiler (compileExpression)
+import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.View.Modal
@@ -97,8 +97,8 @@ instance View EditColumnView ViewContext where
             modalTitle = "Edit Column"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
-typeSelector :: Maybe Text -> [Text] -> Html
-typeSelector selected enumNames = [hsx|
+typeSelector :: Maybe PostgresType -> [Text] -> Html
+typeSelector postgresType enumNames = [hsx|
         <select id="typeSelector" name="columnType" class="form-control select2-simple">
             {option selected "TEXT" "Text"}
             {option selected "INT" "Int"}
@@ -114,6 +114,9 @@ typeSelector selected enumNames = [hsx|
         </select>
 |]
     where
+        selected :: Maybe Text
+        selected = fmap Compiler.compilePostgresType postgresType
+
         renderEnumType enum = option selected enum enum
         option :: Maybe Text -> Text -> Text -> Html
         option selected value text = case selected of
@@ -136,9 +139,9 @@ defaultSelector defValue = [hsx|
         values = if defValue `elem` suggestedValues then suggestedValues else defValue:suggestedValues
 
         renderValue :: Maybe Expression -> Html
-        renderValue e@(Just expression) = [hsx|<option value={compileExpression expression} selected={e == defValue}>{displayedValue}</option>|]
+        renderValue e@(Just expression) = [hsx|<option value={Compiler.compileExpression expression} selected={e == defValue}>{displayedValue}</option>|]
             where
                 displayedValue = case expression of
                     TextExpression "" -> "\"\""
-                    _ -> compileExpression expression
+                    _ -> Compiler.compileExpression expression
         renderValue Nothing = [hsx|<option value="" selected={Nothing == defValue}>No default</option>|]
