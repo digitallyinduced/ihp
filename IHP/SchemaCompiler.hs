@@ -421,8 +421,11 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
             let
                 wrapNull False value = "(Just " <> value <> ")"
                 wrapNull True value = value
+
+                isNullExpr (VarExpression varName) = toUpper varName == "NULL"
+                isNullExpr _ = False
             in
-                if theDefaultValue == VarExpression "null"
+                if isNullExpr theDefaultValue
                     then "Nothing"
                     else
                         case columnType of
