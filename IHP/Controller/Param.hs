@@ -196,6 +196,13 @@ instance ParamReader Int where
             Right value -> Right value
             Left error -> Left ("ParamReader Int: " <> cs error)
 
+instance ParamReader Double where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
+            Right value -> Right value
+            Left error -> Left ("ParamReader Dobule: " <> cs error)
+
 instance ParamReader Text where
     {-# INLINE readParameter #-}
     readParameter byteString = pure (cs byteString)

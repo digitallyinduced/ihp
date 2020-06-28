@@ -59,6 +59,9 @@ instance InputValue Text where
 instance InputValue Int where
     inputValue = tshow
 
+instance InputValue Double where
+    inputValue = tshow
+
 instance InputValue Bool where
     inputValue True = "on"
     inputValue False = "off"
