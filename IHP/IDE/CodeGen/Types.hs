@@ -8,6 +8,7 @@ data GeneratorAction
     | AppendToMarker { marker :: Text, filePath :: Text, fileContent :: Text }
     | AddImport { filePath :: Text, fileContent :: Text }
     | AddAction { filePath :: Text, fileContent :: Text }
+    | AddToDataConstructor { dataConstructor :: Text, filePath :: Text, fileContent :: Text }
     | EnsureDirectory { directory :: Text }
     | RunShellCommand { shellCommand :: Text }
     deriving (Show, Eq)

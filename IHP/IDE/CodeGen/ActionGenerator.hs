@@ -50,8 +50,10 @@ generateGenericAction schema config =
             actionContent = 
                 "action " <> nameWithSuffix <> " = " <> "do" <> "\n"
                 <> "\n"
-                <> "let var = 123 \n"
-                <> "redirectTo "<> controllerName <> "\n"
+                <> "    redirectTo "<> controllerName <> "\n"
+
+            typesContent = "    | " <> nameWithSuffix
         in
-            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
+            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = actionContent},
+              AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = typesContent }
             ]
