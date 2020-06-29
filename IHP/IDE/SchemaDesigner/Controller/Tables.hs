@@ -10,7 +10,7 @@ import IHP.IDE.SchemaDesigner.View.Tables.Index
 import IHP.IDE.SchemaDesigner.View.Tables.Edit
 
 import IHP.IDE.SchemaDesigner.Parser
-import IHP.IDE.SchemaDesigner.Compiler
+import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, isIllegalKeyword)
 import qualified IHP.SchemaCompiler as SchemaCompiler
@@ -37,7 +37,7 @@ instance Controller TablesController where
         render NewTableView { .. }
 
     action CreateTableAction = do
-        let tableName = param "tableName"
+        let tableName = compileIdentifier (param "tableName")
         when (tableName == "") do
             (setErrorMessage ("Name can not be empty"))
             redirectTo TablesAction

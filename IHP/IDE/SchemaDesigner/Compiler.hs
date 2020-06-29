@@ -76,12 +76,17 @@ compilePostgresType PTime = "TIME"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text
-compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
+compileIdentifier identifier = if isHaskellKeyword
+    then identifier <> "_"
+    else if identifierNeedsQuoting
+        then tshow identifier
+        else identifier
     where
         identifierNeedsQuoting = isKeyword || containsSpace
         isKeyword = IHP.Prelude.toUpper identifier `elem` keywords
         containsSpace = Text.any (' ' ==) identifier
-    
+        isHaskellKeyword = IHP.Prelude.toLower identifier `elem` haskellKeywords
+
         keywords = [ "ABORT"
             , "ABSOLUTE"
             , "ACCESS"
@@ -323,4 +328,53 @@ compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier e
             , "TREAT"
             , "TRIM"
             , "VARCHAR"
+            ]
+        haskellKeywords = [ "_"
+            , "as"
+            , "case"
+            , "class"
+            , "data"
+            , "default"
+            , "deriving"
+            , "do"
+            , "else"
+            , "hiding"
+            , "if"
+            , "import"
+            , "in"
+            , "infix"
+            , "infixl"
+            , "infixr"
+            , "instance"
+            , "let"
+            , "module"
+            , "newtype"
+            , "of"
+            , "qualified"
+            , "then"
+            , "type"
+            , "where"
+            , "forall"
+            , "mdo"
+            , "family"
+            , "role"
+            , "pattern"
+            , "static"
+            , "group"
+            , "by"
+            , "using"
+            , "foreign"
+            , "export"
+            , "label"
+            , "dynamic"
+            , "safe"
+            , "interruptible"
+            , "unsafe"
+            , "stdcall"
+            , "ccall"
+            , "capi"
+            , "prim"
+            , "javascript"
+            , "rec"
+            , "proc"
             ]
