@@ -9,7 +9,7 @@ import qualified Data.ByteString.Char8 as ByteString
 startPostgres :: (?context :: Context) => IO ManagedProcess
 startPostgres = do
     currentDir <- Directory.getCurrentDirectory
-    ensureNoOtherPostgresIsRunning 
+    ensureNoOtherPostgresIsRunning
     shouldInit <- needsDatabaseInit
     when shouldInit initDatabase
     let args = ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="]
@@ -53,7 +53,7 @@ ensureNoOtherPostgresIsRunning = do
         (Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]) `catch` stopFailedHandler
 
 needsDatabaseInit :: IO Bool
-needsDatabaseInit = not <$> Directory.doesDirectoryExist "build/db"
+needsDatabaseInit = not <$> Directory.doesDirectoryExist "build/db/state"
 
 initDatabase :: IO ()
 initDatabase = do
