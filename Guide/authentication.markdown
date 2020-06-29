@@ -108,7 +108,7 @@ Open `Web/FrontController.hs`. Add an import for `IHP.LoginSupport.Middleware` a
 
 ```haskell
 import IHP.LoginSupport.Middleware
-import import Web.Controller.Sessions
+import Web.Controller.Sessions
 ```
 
 We then need to mount our session controller by adding `parseRoute @SessionController`:
