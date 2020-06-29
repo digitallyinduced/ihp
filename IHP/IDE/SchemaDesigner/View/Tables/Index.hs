@@ -19,5 +19,4 @@ instance View IndexView ViewContext where
         <div class="row no-gutters bg-white mb-4">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
-        {renderFlashMessages}
     |]
