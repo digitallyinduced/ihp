@@ -83,6 +83,13 @@ renderGeneratorAction AddAction { .. } = [hsx|
     </div>
 |]
 
+renderGeneratorAction AddToDataConstructor { .. } = [hsx|
+    <div class="generator-action AddToDataConstructor">
+        <div class="file-path">Append to {filePath}</div>
+        <div class="file-content">{Text.strip fileContent}</div>
+    </div>
+|]
+
 renderGeneratorAction EnsureDirectory {} = mempty
 renderGeneratorAction RunShellCommand {} = mempty
 

@@ -114,10 +114,11 @@ executePlan actions = forEach actions evalAction
             putStrLn ("* " <> filePath <> " (import)")
         evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
             content <- Text.readFile (cs filePath)
-            case addToDataConstructor fileContent dataConstructor content of
-                Just _ -> pure ()
+            case addToDataConstructor content dataConstructor fileContent of
+                Just newContent -> do
+                    Text.writeFile (cs filePath) (cs newContent)
+                    putStrLn ("* " <> filePath <> " (AddToDataConstructor)")
                 Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
-            putStrLn ("* " <> filePath <> " (AddToDataConstructor)")
         evalAction EnsureDirectory { directory } = do
             Directory.createDirectoryIfMissing True (cs directory)
         evalAction RunShellCommand { shellCommand } = do
@@ -166,9 +167,9 @@ addImport' :: Text -> [Text] -> Maybe Text
 addImport' file = appendLineAfter file ("import" `isPrefixOf`)
 
 addAction :: Text -> [Text] -> IO ()
-addAction filePath content = do
-    fileContent <- Text.readFile (cs filePath)
-    case addAction' fileContent content of
+addAction filePath fileContent = do
+    content <- Text.readFile (cs filePath)
+    case addAction' content fileContent of
         Just newContent -> Text.writeFile (cs filePath) (cs newContent)
         Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
     pure ()
@@ -176,6 +177,8 @@ addAction filePath content = do
 addAction' :: Text -> [Text] -> Maybe Text
 addAction' fileContent = appendLineAfter fileContent ("instance Controller" `isPrefixOf`)
 
+-- | Gets content of a Types.hs, a existent data constructor and a type which should be added to it
+--   and returns fileContent with the type in it.
 addToDataConstructor :: Text -> Text -> Text -> Maybe Text
 addToDataConstructor fileContent dataConstructor content = do
     lineOfDataConstructor <- lines fileContent
@@ -186,11 +189,9 @@ addToDataConstructor fileContent dataConstructor content = do
     lineOfDerivingStatement <- ((drop lineOfDataConstructor $ lines fileContent) :: [Text])
         |> zip [lineOfDataConstructor..]
         |> filter (\(n, line) -> "deriving" `isInfixOf` line)
-        |> lastMay
+        |> headMay
         |> fmap fst
-    Just $ unlines $ ((take lineOfDerivingStatement $ lines fileContent) <> [content] <> (drop lineOfDerivingStatement $ lines fileContent))
-
-    
+    Just $ unlines $ ((take lineOfDerivingStatement $ lines fileContent) <> [content] <> (drop lineOfDerivingStatement $ lines fileContent)) 
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =

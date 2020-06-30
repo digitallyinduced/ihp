@@ -48,9 +48,8 @@ generateGenericAction schema config =
             indexAction = Countable.pluralize singularName <> "Action"
             
             actionContent = 
-                "action " <> nameWithSuffix <> " = " <> "do" <> "\n"
-                <> "\n"
-                <> "    redirectTo "<> controllerName <> "\n"
+                "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
+                <> "        redirectTo "<> controllerName <> "Action\n"
 
             typesContent = "    | " <> nameWithSuffix
         in
