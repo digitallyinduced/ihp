@@ -111,7 +111,7 @@ executePlan actions = forEach actions evalAction
             putStrLn ("* " <> filePath <> " (import)")
         evalAction AddAction { filePath, fileContent } = do
             addAction filePath [fileContent]
-            putStrLn ("* " <> filePath <> " (import)")
+            putStrLn ("* " <> filePath <> " (AddAction)")
         evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
             content <- Text.readFile (cs filePath)
             case addToDataConstructor content dataConstructor fileContent of
@@ -140,6 +140,9 @@ undoPlan actions = forEach actions evalAction
         evalAction AddImport { filePath, fileContent } = do
             (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
             putStrLn ("* " <> filePath <> " (import)")
+        evalAction AddAction { filePath, fileContent } = do
+            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
+            putStrLn ("* " <> filePath <> " (RemoveAction)")
         evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
             (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
             putStrLn ("* " <> filePath <> " (RemoveFromDataConstructor)")
