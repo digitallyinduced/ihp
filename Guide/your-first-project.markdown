@@ -704,7 +704,7 @@ This creates a `Add Comment` link, which links to the New Comment Form we just g
 
 ![Pretty empty](images/first-project/new_comment.png)
 
-We can see, there is a post id field which is field with a lot of 0s. When we try to submit this form, it will fail because there is no post with this id. Let's first make it possible, that the post id is automtaically set to the post where we originally clicked on "New Comment".
+We can see, there is a post id field which is field with a lot of 0s. When we try to submit this form, it will fail because there is no post with this id. Let's first make it possible, that the post id is automatically set to the post where we originally clicked on "New Comment".
 
 For that, open `Web/Types.hs`. We can see the definition of `CommentsController`:
 
