@@ -9,6 +9,7 @@ module IHP.IDE.SchemaDesigner.Parser
 , parseDDL
 , expression
 , sqlType
+, parseKeyword
 ) where
 
 import IHP.Prelude
@@ -223,10 +224,61 @@ identifier :: Parser Text
 identifier = do
     i <- (between (char '"') (char '"') (takeWhile1P Nothing (\c -> c /= '"'))) <|> takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
     space
-    pure i
+    pure (parseKeyword i)
 
 comment = do
     lexeme "--" <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
 
+parseKeyword name = if IHP.Prelude.toLower name `elem` haskellKeywords then name <> "_" else name
+
+haskellKeywords = [ "_"
+    , "as"
+    , "case"
+    , "class"
+    , "data"
+    , "default"
+    , "deriving"
+    , "do"
+    , "else"
+    , "hiding"
+    , "if"
+    , "import"
+    , "in"
+    , "infix"
+    , "infixl"
+    , "infixr"
+    , "instance"
+    , "let"
+    , "module"
+    , "newtype"
+    , "of"
+    , "qualified"
+    , "then"
+    , "type"
+    , "where"
+    , "forall"
+    , "mdo"
+    , "family"
+    , "role"
+    , "pattern"
+    , "static"
+    , "group"
+    , "by"
+    , "using"
+    , "foreign"
+    , "export"
+    , "label"
+    , "dynamic"
+    , "safe"
+    , "interruptible"
+    , "unsafe"
+    , "stdcall"
+    , "ccall"
+    , "capi"
+    , "prim"
+    , "javascript"
+    , "rec"
+    , "proc"
+    ]

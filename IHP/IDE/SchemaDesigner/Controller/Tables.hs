@@ -37,7 +37,7 @@ instance Controller TablesController where
         render NewTableView { .. }
 
     action CreateTableAction = do
-        let tableName = compileIdentifier (param "tableName")
+        let tableName = param "tableName"
         when (tableName == "") do
             (setErrorMessage ("Name can not be empty"))
             redirectTo TablesAction
