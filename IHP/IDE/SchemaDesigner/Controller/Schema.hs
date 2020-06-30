@@ -14,7 +14,9 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
+import System.Exit
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
+import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 
 instance Controller SchemaController where
@@ -29,8 +31,13 @@ instance Controller SchemaController where
         redirectTo ShowCodeAction
 
     action PushToDbAction = do
-        Process.system "make db"
-        setSuccessMessage "Recreated DB"
+        (exitCode, stdOut, stdErr) <- shell "make db"
+        let output = stdErr <> "\n\n" <> stdOut
+        case exitCode of
+            ExitSuccess -> if "ERROR:" `Text.isInfixOf` stdErr
+                then setErrorMessage output
+                else setSuccessMessage "Recreated DB"
+            ExitFailure code -> setErrorMessage output
         redirectTo TablesAction
 
     action DumpDbAction = do
@@ -40,8 +47,15 @@ instance Controller SchemaController where
 
     action UpdateDbAction = do
         Process.system "make dumpdb"
-        Process.system "make db"
-        setSuccessMessage "DB Update successful"
+
+        (exitCode, stdOut, stdErr) <- shell "make db"
+        let output = stdErr <> "\n\n" <> stdOut
+        case exitCode of
+            ExitSuccess -> if "ERROR:" `Text.isInfixOf` stdErr
+                then setErrorMessage output
+                else setSuccessMessage "DB Update successful"
+            ExitFailure code -> setErrorMessage output
+
         redirectTo TablesAction
 
     action ShowGeneratedCodeAction { statementName } = do
@@ -65,3 +79,8 @@ updateSchema updateFn = do
     statements <- readSchema
     let statements' = updateFn statements
     writeSchema statements'
+
+shell :: String -> IO (ExitCode, Text, Text)
+shell command = do
+    (exitCode, stdOut, stdErr) <- Process.readCreateProcessWithExitCode (Process.shell command) ""
+    pure (exitCode, cs stdOut, cs stdErr)

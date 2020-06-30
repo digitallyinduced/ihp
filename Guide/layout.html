@@ -246,6 +246,8 @@
             }
         }
 
+        summary h3 { vertical-align: sub }
+
     </style>
 
     <script>
@@ -262,6 +264,7 @@
     </script>
     <script async defer src="https://buttons.github.io/buttons.js"></script>
     <script src="instantclick.js" data-no-instant></script>
-    <script data-no-instant>InstantClick.init();</script>
+    <script src="spoilify.js"></script>
+    <script data-no-instant>InstantClick.init(); spoilify(); InstantClick.on('change', spoilify);</script>
   </body>
 </html>

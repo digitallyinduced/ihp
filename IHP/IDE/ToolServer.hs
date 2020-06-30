@@ -21,7 +21,6 @@ import IHP.ApplicationContext
 import IHP.ModelSupport
 import IHP.RouterSupport hiding (get)
 import qualified Web.Cookie as Cookie
-import Network.Wai.Session.Map (mapStore_)
 import qualified Data.Time.Clock
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
@@ -65,9 +64,7 @@ startToolServer' port isDebugMode = do
     writeIORef Config.portRef port
 
     session <- Vault.newKey
-    store <- case os of
-        "linux" -> mapStore_
-        _ -> fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionCookie = def
                 { Cookie.setCookiePath = Just "/"
                 , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))

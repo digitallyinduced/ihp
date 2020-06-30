@@ -9,7 +9,7 @@ creation of sql queries in a type safe way.
 
 For more complex sql queries, use 'IHP.ModelSupport.sqlQuery'.
 -}
-module IHP.QueryBuilder (query, findManyBy, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql, fetchExists) where
+module IHP.QueryBuilder (query, findManyBy, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByAsc, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql, fetchExists) where
 
 import IHP.Prelude
 import Database.PostgreSQL.Simple (Connection)
@@ -338,9 +338,9 @@ data OrderByTag
 -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
-orderBy :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
-orderBy !name = OrderByQueryBuilder (name, Asc)
-{-# INLINE orderBy #-}
+orderByAsc :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
+orderByAsc !name = OrderByQueryBuilder (name, Asc)
+{-# INLINE orderByAsc #-}
 
 -- | Adds an @ORDER BY .. DESC@ to your query.
 -- 
@@ -356,6 +356,11 @@ orderBy !name = OrderByQueryBuilder (name, Asc)
 orderByDesc :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderByDesc !name = OrderByQueryBuilder (name, Desc)
 {-# INLINE orderByDesc #-}
+
+-- | Alias for 'orderByAsc'
+orderBy :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
+orderBy !name = orderByAsc name
+{-# INLINE orderBy #-}
 
 data IncludeTag
 include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (Include name model)

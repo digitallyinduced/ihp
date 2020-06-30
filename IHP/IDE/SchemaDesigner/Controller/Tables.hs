@@ -75,7 +75,7 @@ instance Controller TablesController where
 addTable :: Text -> [Statement] -> [Statement]
 addTable tableName list = list <> [CreateTable { name = tableName, columns = [Column
                 { name = "id"
-                , columnType = "UUID"
+                , columnType = PUUID
                 , primaryKey = True
                 , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                 , notNull = True

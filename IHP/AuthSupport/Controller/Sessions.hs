@@ -41,6 +41,7 @@ newSessionAction :: forall record action viewContext.
     , Record record
     , HasPath action
     , SessionsControllerConfig record
+    , FrameworkConfig
     ) => IO ()
 newSessionAction = do
     let alreadyLoggedIn = isJust (currentUserOrNothing @record)
@@ -70,6 +71,7 @@ createSessionAction :: forall record action passwordField.
     , HasField "failedLoginAttempts" record Int
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
+    , FrameworkConfig
     ) => IO ()
 createSessionAction = do
     query @record
@@ -114,6 +116,7 @@ deleteSessionAction :: forall record action id.
     , Show id
     , HasField "id" record id
     , SessionsControllerConfig record
+    , FrameworkConfig
     ) => IO ()
 deleteSessionAction = do
     case currentUserOrNothing @record of

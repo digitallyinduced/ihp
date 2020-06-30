@@ -204,6 +204,24 @@ This will render like:
 </div>
 ```
 
+### Required Fields
+
+You can mark an input as required like this:
+
+```html
+{(textField #title) { required = True } }
+```
+
+This will render like:
+
+```html
+<div class="form-group" id="form-group-post_title">
+    <label for="post_title">Title</label>
+
+    <input type="text" name="title" id="post_title" required="required" class="form-control">
+</div>
+```
+
 ### Custom Submit Button Text
 
 Customize it like this:

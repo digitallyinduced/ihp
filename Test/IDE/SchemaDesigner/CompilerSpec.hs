@@ -40,7 +40,7 @@ tests = do
                     , columns = [
                         Column
                             { name = "id"
-                            , columnType = "UUID"
+                            , columnType = PUUID
                             , primaryKey = True
                             , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
@@ -48,7 +48,7 @@ tests = do
                             }
                         , Column
                             { name = "firstname"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -56,7 +56,7 @@ tests = do
                             }
                         , Column
                             { name = "lastname"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -64,7 +64,7 @@ tests = do
                             }
                         , Column
                             { name = "password_hash"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -72,7 +72,7 @@ tests = do
                             }
                         , Column
                             { name = "email"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -80,7 +80,7 @@ tests = do
                             }
                         , Column
                             { name = "company_id"
-                            , columnType = "UUID"
+                            , columnType = PUUID
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
@@ -88,7 +88,7 @@ tests = do
                             }
                         , Column
                             { name = "picture_url"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = False
@@ -96,7 +96,7 @@ tests = do
                             }
                         , Column
                             { name = "created_at"
-                            , columnType = "TIMESTAMP WITH TIME ZONE"
+                            , columnType = PTimestampWithTimezone
                             , primaryKey = False
                             , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
@@ -182,7 +182,7 @@ tests = do
                     , columns = [
                         Column
                             { name = "content"
-                            , columnType = "TEXT"
+                            , columnType = PText
                             , primaryKey = False
                             , defaultValue = Just (TextExpression "example text")
                             , notNull = True

@@ -55,18 +55,18 @@ haskellType table column@(Column { columnType, notNull }) =
     let
         atomicType = 
             case columnType of
-                "INT" -> "Int"
-                "TEXT" -> "Text"
-                "BOOL"   -> "Bool"
-                "BOOLEAN"   -> "Bool"
-                "TIMESTAMP WITH TIME ZONE" -> "UTCTime"
-                "UUID" -> "UUID"
-                "FLOAT" -> "Float"
-                "DOUBLE PRECISION" -> "Double"
-                "DATE" -> "Date"
-                "BINARY" -> "Binary"
-                "TIME" -> "TimeOfDay"
-                customType -> tableNameToModelName customType
+                PInt -> "Int"
+                PBigInt -> "INTEGER"
+                PText -> "Text"
+                PBoolean   -> "Bool"
+                PTimestampWithTimezone -> "UTCTime"
+                PUUID -> "UUID"
+                PReal -> "Float"
+                PDouble -> "Double"
+                PDate -> "Data.Time.Calendar.Day"
+                PBinary -> "Binary"
+                PTime -> "TimeOfDay"
+                PCustomType theType -> tableNameToModelName theType
         actualType =
             case findForeignKeyConstraint table column of
                 Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName' referenceTable <> ")"
@@ -107,6 +107,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import IHP.ModelSupport\n"
                   <> "import CorePrelude hiding (id) \n"
                   <> "import Data.Time.Clock \n"
+                  <> "import qualified Data.Time.Calendar\n"
                   <> "import qualified Data.List as List \n"
                   <> "import qualified Data.ByteString as ByteString \n"
                   <> "import Database.PostgreSQL.Simple\n"
@@ -419,15 +420,18 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
             let
                 wrapNull False value = "(Just " <> value <> ")"
                 wrapNull True value = value
+
+                isNullExpr (VarExpression varName) = toUpper varName == "NULL"
+                isNullExpr _ = False
             in
-                if theDefaultValue == VarExpression "null"
+                if isNullExpr theDefaultValue
                     then "Nothing"
                     else
                         case columnType of
-                            "TEXT" -> case theDefaultValue of
+                            PText -> case theDefaultValue of
                                 TextExpression value -> wrapNull notNull (tshow value)
                                 otherwise            -> error ("toDefaultValueExpr: TEXT column needs to have a TextExpression as default value. Got: " <> show otherwise)
-                            "BOOl" -> case theDefaultValue of
+                            PBoolean -> case theDefaultValue of
                                 VarExpression value -> wrapNull notNull (tshow (toLower value == "true"))
                                 otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
                             _ -> "def"

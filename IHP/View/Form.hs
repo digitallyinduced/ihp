@@ -15,7 +15,7 @@ import           IHP.ViewErrorMessages
 import           IHP.ViewSupport
 import           Text.Blaze.Html5                   (a, body, button, code, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img,
                                                      input, label, li, link, meta, nav, ol, p, pre, script, small, span, table, tbody, td, th, thead, title, tr,
-                                                     ul, (!))
+                                                     ul, (!), (!?))
 import qualified Text.Blaze.Html5                   as H
 import qualified Text.Blaze.Html5                   as Html5
 import           Text.Blaze.Html5.Attributes        (autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
@@ -64,7 +64,8 @@ data FormField = FormField {
         disableValidationResult :: !Bool,
         renderFormField :: FormField -> Html5.Html,
         helpText :: !Text,
-        placeholder :: !Text
+        placeholder :: !Text,
+        required :: Bool
     }
 
 data SubmitButton = SubmitButton { modelIsNew :: !Bool, modelName :: !Text, renderSubmit :: SubmitButton -> Html5.Html, label :: Html5.Html, buttonClass :: Text }
@@ -199,19 +200,21 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
     where
         maybeWithFormGroup (FormField { fieldInputId, disableGroup }) renderInner = if disableGroup then renderInner else [hsx|<div class="form-group" id={"form-group-" <> fieldInputId}>{renderInner}</div>|]
         renderCheckboxFormField :: FormField -> Html5.Html
-        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
+        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, required }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
             (if disableLabel then div else H.label ! class_ "form-check-label") $ do
                 let theInput = input
                         ! A.type_ "checkbox"
                         ! A.name fieldName
                         ! A.class_ (cs $ classes ["form-check-input", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))])
-                if fieldValue == "yes" then theInput ! A.checked "checked" else theInput
+                        !? (required, A.required "required")
+                        !? (fieldValue == "yes", A.checked "checked")
+                theInput
                 input ! type_ "hidden" ! name fieldName ! A.value (cs $ inputValue False)
                 Html5.text fieldLabel
                 unless disableValidationResult (renderValidationResult formField)
                 renderHelpText formField
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
-        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder }) =
+        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required }) =
             maybeWithFormGroup formField $ do
                 unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
                 let theInput = (fieldInput formField)
@@ -220,14 +223,15 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
                         ! A.placeholder (cs placeholder)
                         ! A.id (cs fieldInputId)
                         ! A.class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))])
+                        !? (required, A.required "required")
                 if fieldValue == "" then theInput else theInput ! value (cs fieldValue)
                 unless disableValidationResult (renderValidationResult formField)
                 renderHelpText formField
         renderSelectField :: FormField -> Html5.Html
-        renderSelectField formField@(FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass }) =
+        renderSelectField formField@(FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, required }) =
             maybeWithFormGroup formField $ do
                 unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))]) ! value (cs fieldValue) $ do
+                Html5.select ! name fieldName ! A.id (cs fieldInputId) ! class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))]) ! value (cs fieldValue) !? (required, A.required "required") $ do
                     --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
                     let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
                     (if isValueSelected then Html5.option else Html5.option ! A.selected "selected")  ! A.disabled "disabled" $ Html5.text (if null placeholder then "Please select" else placeholder)
@@ -256,18 +260,20 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
             SelectInput {} -> renderSelectField formField
     where
         renderCheckboxFormField :: FormField -> Html5.Html
-        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
+        renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, required }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
             (if disableLabel then div else H.label ! class_ "form-check-label") $ do
                 let theInput = input
                         ! A.type_ "checkbox"
                         ! A.name fieldName
                         ! A.class_ (cs $ classes ["form-check-input", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))])
-                if fieldValue == "yes" then theInput ! A.checked "checked" else theInput
+                        !? (required, A.required "required")
+                        !? (fieldValue == "yes", A.checked "checked")
+                theInput
                 input ! type_ "hidden" ! name fieldName ! A.value (cs $ inputValue False)
                 Html5.text fieldLabel
                 unless disableValidationResult (renderValidationResult formField)
         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
-        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
+        renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
                     unless (disableLabel || null fieldLabel) [hsx|<label class={classes ["col-sm-4 col-form-label ", (labelClass, True)]} for={fieldInputId}>{fieldLabel}</label>|]
@@ -279,15 +285,16 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
                                 ! A.id (cs fieldInputId)
                                 ! A.class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))])
                                 ! A.value (cs fieldValue)
+                                !? (required, A.required "required")
                         if disableValidationResult then mempty else renderValidationResult formField
                         renderHelpText formField
         renderSelectField :: FormField -> Html5.Html
-        renderSelectField formField@(FormField {fieldType, placeholder, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, labelClass }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
+        renderSelectField formField@(FormField {fieldType, placeholder, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, labelClass, required }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
             where
                 renderInner = do
                     if disableLabel || fieldLabel == "" then pure () else H.label ! A.class_ (cs $ "col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
                     div ! class_ "col-sm-8" $ do
-                        Html5.select ! name fieldName ! A.id (cs fieldInputId) ! A.class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))]) ! value (cs fieldValue) $ do
+                        Html5.select ! name fieldName ! A.id (cs fieldInputId) ! A.class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))]) ! value (cs fieldValue) !? (required, A.required "required") $ do
                             --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
                             let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
                             (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") ! A.disabled "disabled" $ Html5.text (if null placeholder then "Please select" else placeholder)
@@ -336,6 +343,7 @@ textField field = FormField
         , renderFormField = getField @"renderFormField" ?formContext
         , helpText = ""
         , placeholder = ""
+        , required = False
         }
     where
         fieldName = symbolVal field
@@ -443,6 +451,7 @@ checkboxField field = FormField
         , renderFormField = getField @"renderFormField" ?formContext
         , helpText = ""
         , placeholder = ""
+        , required = False
         }
     where
         fieldName = symbolVal field
@@ -480,6 +489,7 @@ selectField field items = FormField
         , renderFormField = getField @"renderFormField" ?formContext
         , helpText = ""
         , placeholder = ""
+        , required = False
     }
     where
         fieldName = symbolVal field
