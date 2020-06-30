@@ -910,7 +910,7 @@ post <- fetch postId
     >>= fetchRelated #comments
 ```
 
-The type of `post` has changed from `Post` to `Include "comments" Post`. In general, when you're dealing with has-many relationships, use `Include "relatedRecords"` and `fetchRelated` to specify and and fetch data according to your needs.
+The type of `post` has changed from `Post` to `Include "comments" Post`. In general, when you're dealing with has-many relationships, use `Include "relatedRecords"` and `fetchRelated` to specify and fetch data according to your needs.
 
 The type error is fixed now. When opening the Show View of a post, you will see that the comments are displayed. When you take a look at the [`Logs` in the Dev tools](http://localhost:8001/AppLogs) you can see, that when opening a Post, two sql queries will be fired:
 
