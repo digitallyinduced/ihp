@@ -41,20 +41,89 @@ generateGenericAction schema config =
             controllerName = get #controllerName config
             name = get #actionName config
             singularName = config |> get #modelName
-            singularVariableName = lcfirst singularName
-            pluralVariableName = lcfirst controllerName
             nameWithSuffix = if "Action" `isSuffixOf` name
                     then name
                     else name <> "Action" -- e.g. TestAction
 
             indexAction = Countable.pluralize singularName <> "Action"
+            specialCases = [
+                  (indexAction, indexContent)
+                , ("Show" <> singularName <> "Action", showContent)
+                , ("Edit" <> singularName <> "Action", editContent)
+                , ("Update" <> singularName <> "Action", updateContent)
+                , ("Create" <> singularName <> "Action", createContent)
+                , ("Delete" <> singularName <> "Action", deleteContent)
+                ]
             
             actionContent = 
                 "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
                 <> "        redirectTo "<> controllerName <> "Action\n"
+            
+            modelVariablePlural = lcfirst name
+            modelVariableSingular = lcfirst singularName
+            idFieldName = lcfirst singularName <> "Id"
+            model = ucfirst singularName
+            indexContent =
+                ""
+                <> "    action " <> name <> "Action = do\n"
+                <> "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
+                <> "        render IndexView { .. }\n"
+
+            newContent =
+                ""
+                <> "    action New" <> singularName <> "Action = do\n"
+                <> "        let " <> modelVariableSingular <> " = newRecord\n"
+                <> "        render NewView { .. }\n"
+
+            showContent =
+                ""
+                <> "    action Show" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
+                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
+                <> "        render ShowView { .. }\n"
+
+            editContent =
+                ""
+                <> "    action Edit" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
+                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
+                <> "        render EditView { .. }\n"
+
+            updateContent =
+                ""
+                <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
+                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
+                <> "        " <> modelVariableSingular <> "\n" 
+                <> "            |> build" <> singularName <> "\n"
+                <> "            |> ifValid \\case\n"
+                <> "                Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
+                <> "                Right " <> modelVariableSingular <> " -> do\n"
+                <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
+                <> "                    setSuccessMessage \"" <> model <> " updated\"\n"
+                <> "                    redirectTo Edit" <> singularName <> "Action { .. }\n"
+
+            createContent =
+                ""
+                <> "    action Create" <> singularName <> "Action = do\n"
+                <> "        let " <> modelVariableSingular <> " = newRecord @"  <> model <> "\n"
+                <> "        " <> modelVariableSingular <> "\n" 
+                <> "            |> build" <> singularName <> "\n"
+                <> "            |> ifValid \\case\n"
+                <> "                Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
+                <> "                Right " <> modelVariableSingular <> " -> do\n"
+                <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
+                <> "                    setSuccessMessage \"" <> model <> " created\"\n"
+                <> "                    redirectTo " <> name <> "Action\n"
+
+            deleteContent =
+                ""
+                <> "    action Delete" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
+                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
+                <> "        deleteRecord " <> modelVariableSingular <> "\n"
+                <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
+                <> "        redirectTo " <> name <> "Action\n"
 
             typesContent = "    | " <> nameWithSuffix
+            chosenContent = fromMaybe actionContent (lookup nameWithSuffix specialCases)
         in
-            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = actionContent},
+            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent},
               AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = typesContent }
             ]
