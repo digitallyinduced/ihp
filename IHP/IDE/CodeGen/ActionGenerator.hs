@@ -56,7 +56,8 @@ generateGenericAction schema config =
                 ]
             
             actionContent = 
-                "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
+                ""
+                <> "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
                 <> "        redirectTo "<> controllerName <> "Action\n"
             
             modelVariablePlural = lcfirst name
@@ -121,7 +122,8 @@ generateGenericAction schema config =
                 <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
                 <> "        redirectTo " <> name <> "Action\n"
 
-            typesContent = "    | " <> nameWithSuffix
+            typesContent = 
+                   "    | " <> nameWithSuffix
             chosenContent = fromMaybe actionContent (lookup nameWithSuffix specialCases)
         in
             [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent},
