@@ -102,39 +102,7 @@ When using Windows, you will be asked if tasks like ghc-iserv or rundevserver sh
 
 Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/nix-on-windows/).
 
-## 2. Dependency: Direnv
-
-IHP uses `direnv` to speed up the development shell. As it needs to be hooked into your shell, it needs to be installed manually.
-
-Install it via nix:
-
-```bash
-nix-env -i direnv
-```
-
-**After that you also need to hook it into your shell:**
-
-##### Bash
-
-If you use bash, run this command to install direnv to bash:
-
-```bash
-echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
-```
-
-##### ZSH
-
-If you use zsh, run this command to install direnv to zsh:
-
-```bash
-echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
-```
-
-##### Other shell
-
-For other shells, [take a look at the direnv documentation](https://direnv.net/#README).
-
-## 3. Installing IHP
+## 2. Installing IHP
 
 You can now install IHP by running:
 
@@ -159,7 +127,7 @@ nix.trustedUsers = [ "root" "USERNAME_HERE" ];
 
 [See the documentation for `nix.trustedUsers` to learn more about what this is doing](https://github.com/NixOS/nixpkgs/blob/db31e48c5c8d99dcaf4e5883a96181f6ac4ad6f6/nixos/modules/services/misc/nix-daemon.nix#L319).
 
-## 4. Next
+## 3. Next
 
 It's time to start your first "hello world" project now :)
 
