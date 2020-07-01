@@ -80,7 +80,7 @@ To work with posts in our application, we now have to define this data schema.
 
 **For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly built the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the Postgresql syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consist of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree and then writes it back into the `Application/Schema.sql`. If you love your VIM, can you always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
 
-Open the [IHP Schema Designer](http://localhost:8001/ihp/Tables) and add a new table with `title` and `body` as text column. To do this click on the `New` button in the table view.
+Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text column. To do this click on the `New` button in the table view.
 
 ![Schema Designer New Table](images/first-project/new_table_view.png)
 
@@ -115,7 +115,7 @@ CREATE TABLE posts (
 );
 ```
 
-To load the table into our local postgres server, we need to click `Push to DB` in the Schema Designer (use `make db` from the command line).
+To load the table into our local postgres server, we need to click `Update DB` in the Schema Designer (use `make db` from the command line).
 
 The `posts` table has been created now. Let's quickly connect to our database and see that everything is correct:
 
@@ -170,7 +170,7 @@ IHP follows the well-known [MVC](https://en.wikipedia.org/wiki/Model%E2%80%93vie
 
 A controller belongs to an application. The default application is called `Web` (that's why all controller and views are located there). Your whole project can consis of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
-We can use the built-in code generators to generate a controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/ihp/Generators). There you can see everything that can be generated. Click on `Controller`:
+We can use the built-in code generators to generate a controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/Generators). There you can see everything that can be generated. Click on `Controller`:
 
 ![](images/first-project/code_gen_1.png)
 
@@ -482,7 +482,7 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 All our existing posts are saved here. You should also commit this file to git to share your fixtures with your team mates. We will need these saved fixtures in a moment, when we want to update the database schema.
 
-Let's add a new `created_at` column. Open [http://localhost:8001/ihp/Tables](http://localhost:8001/ihp/Tables), enter `created_at` and select Timestamp for the type. Also set the default value to `NOW()`.
+Let's add a new `created_at` column. Open [http://localhost:8001/Tables](http://localhost:8001/Tables), enter `created_at` and select Timestamp for the type. Also set the default value to `NOW()`.
 
 ![Schema Designer Timestamp column](images/first-project/timestamp_column.png)
 
@@ -494,7 +494,7 @@ This happens because we only added the `created_at` column to the `Application/S
 
 To update the local database, open the Schema Designer and click the `Update DB` button. This button will save the current database content to the fixtures, destroy the database, reload the schema and then insert the fixtures.
 
-In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Push to DB`.
+In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Update DB`.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
@@ -659,7 +659,7 @@ When adding the post\_id column, it will automatically set the type to UUID. Unl
 
 By default the foreign key constraint has set its `ON DELETE` behavior to `NO ACTION`. To change the `ON DELETE`, click on the `FOREIGN KEY: posts` next to the `post_id` field.
 
-Press `DB to Fixtures` to save our current posts to `Application/Fixtures.sql` and press the `Push to DB`-button to rebuild the database to add our new `comments` table.
+Press the `Update DB`-button to save our current posts to `Application/Fixtures.sql`, rebuild the database and reload the `Fixtures.sql` to add our new `comments` table.
 
 
 ### The Controller
