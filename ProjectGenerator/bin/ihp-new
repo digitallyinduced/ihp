@@ -84,7 +84,7 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
-
+echo "We now create your project. This may take up to 30 seconds."
 grep -s -q "$CACHIX_TOKEN" ~/.config/cachix/cachix.dhall || {
 	cachix authtoken "$CACHIX_TOKEN"
 	cachix use digitallyinduced
