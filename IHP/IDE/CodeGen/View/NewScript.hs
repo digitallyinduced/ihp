@@ -17,6 +17,7 @@ data NewScriptView = NewScriptView
 instance View NewScriptView ViewContext where
     html NewScriptView { .. } = [hsx|
         <div class="generators">
+            {renderFlashMessages}
             <div class="container pt-5">
                 <div class="code-generator new-script">
                     {if isEmpty then renderEmpty else renderPreview}

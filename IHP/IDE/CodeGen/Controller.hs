@@ -27,8 +27,16 @@ instance Controller CodeGenController where
 
     action NewControllerAction = do
         let controllerName = paramOrDefault "" "name"
-        plan <- ControllerGenerator.buildPlan controllerName
-        render NewControllerView { .. }
+        controllerAlreadyExists <- case Text.splitOn "." controllerName of
+            [applicationName, controllerName'] -> doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName' <> ".hs"
+            [controllerName'] -> doesFileExist $ "Web/Controller/" <> cs controllerName' <> ".hs"
+        if controllerAlreadyExists
+            then do
+                setSuccessMessage "Error: Controller with this name does already exist."
+                redirectTo NewControllerAction
+            else do
+                plan <- ControllerGenerator.buildPlan controllerName
+                render NewControllerView { .. }
 
     action CreateControllerAction = do
         let controllerName = param "name"
@@ -39,8 +47,15 @@ instance Controller CodeGenController where
 
     action NewScriptAction = do
         let scriptName = paramOrDefault "" "name"
-        let plan = ScriptGenerator.buildPlan scriptName
-        render NewScriptView { .. }
+        scriptAlreadyExists <- doesFileExist $ "Application/Script/" <> cs scriptName <> ".hs"
+        if scriptAlreadyExists
+            then do
+                setSuccessMessage "Error: Script with this name already exists."
+                redirectTo NewScriptAction
+            else do
+                let plan = ScriptGenerator.buildPlan scriptName
+                render NewScriptView { .. }
+
 
     action CreateScriptAction = do
         let scriptName = paramOrDefault "" "name"
