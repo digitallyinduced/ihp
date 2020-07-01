@@ -9,6 +9,7 @@ import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
+import Network.Wai.Session.Map (mapStore_)
 import qualified Web.Cookie as Cookie
 import qualified Data.Time.Clock
 import IHP.ModelSupport
@@ -30,7 +31,9 @@ run = do
     conn <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     port <- FrameworkConfig.initAppPort
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    store <- case os of
+        "linux" -> mapStore_
+        _ -> fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let applicationContext = ApplicationContext { modelContext = (ModelContext conn), session }
     let application :: Application = \request respond -> do
             let ?applicationContext = applicationContext
