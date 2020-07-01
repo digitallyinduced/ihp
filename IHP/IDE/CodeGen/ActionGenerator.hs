@@ -43,7 +43,9 @@ generateGenericAction schema config =
             singularName = config |> get #modelName
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
-            nameWithSuffix = if ("Action" `isSuffixOf` name) then name else name <> "Action" -- e.g. TestAction
+            nameWithSuffix = if "Action" `isSuffixOf` name
+                    then name
+                    else name <> "Action" -- e.g. TestAction
 
             indexAction = Countable.pluralize singularName <> "Action"
             
