@@ -131,7 +131,7 @@ generateGenericAction schema config =
             
 
             chosenContent = fromMaybe actionContent (lookup nameWithSuffix specialCases)
-            chosenType = if chosenContent `elem` [actionContent, newContent, createContent]
+            chosenType = if chosenContent `elem` [actionContent, newContent, createContent, indexContent]
                 then typesContentGeneric
                 else typesContentWithParameter
 
