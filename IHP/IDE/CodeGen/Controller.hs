@@ -50,7 +50,7 @@ instance Controller CodeGenController where
         scriptAlreadyExists <- doesFileExist $ "Application/Script/" <> cs scriptName <> ".hs"
         if scriptAlreadyExists
             then do
-                setSuccessMessage "Error: Script with this name already exists."
+                setErrorMessage "Script with this name already exists."
                 redirectTo NewScriptAction
             else do
                 let plan = ScriptGenerator.buildPlan scriptName
