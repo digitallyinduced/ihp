@@ -19,6 +19,7 @@ data NewControllerView = NewControllerView
 instance View NewControllerView ViewContext where
     html NewControllerView { .. } = [hsx|
         <div class="generators">
+            {renderFlashMessages}
             <div class="container pt-5">
                 <div class="code-generator new-controller">
                     {if isEmpty then renderEmpty else renderPreview}

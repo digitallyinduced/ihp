@@ -27,8 +27,16 @@ instance Controller CodeGenController where
 
     action NewControllerAction = do
         let controllerName = paramOrDefault "" "name"
+        controllerAlreadyExists <- doesControllerExist controllerName
+        when controllerAlreadyExists do
+            setErrorMessage "Controller with this name does already exist."
+            redirectTo NewControllerAction
         plan <- ControllerGenerator.buildPlan controllerName
         render NewControllerView { .. }
+        where
+            doesControllerExist name = case ControllerGenerator.normalizeControllerName name of
+                Right [applicationName, controllerName'] -> doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName' <> ".hs"
+                Right [controllerName'] -> doesFileExist $ "Web/Controller/" <> cs controllerName' <> ".hs"
 
     action CreateControllerAction = do
         let controllerName = param "name"
@@ -39,6 +47,10 @@ instance Controller CodeGenController where
 
     action NewScriptAction = do
         let scriptName = paramOrDefault "" "name"
+        scriptAlreadyExists <- doesFileExist $ "Application/Script/" <> cs scriptName <> ".hs"
+        when scriptAlreadyExists do
+            setErrorMessage "Script with this name already exists."
+            redirectTo NewScriptAction
         let plan = ScriptGenerator.buildPlan scriptName
         render NewScriptView { .. }
 
@@ -53,6 +65,10 @@ instance Controller CodeGenController where
         let viewName = paramOrDefault "" "name"
         let applicationName = "Web"
         let controllerName = paramOrDefault "" "controllerName"
+        viewAlreadyExists <- doesFileExist $ (cs applicationName) <> "/View/" <> (cs controllerName) <> "/" <> (cs viewName) <>".hs"
+        when viewAlreadyExists do
+            setErrorMessage "View with this name already exists."
+            redirectTo NewViewAction
         controllers <- listOfWebControllers
         plan <- ViewGenerator.buildPlan viewName applicationName controllerName
         render NewViewView { .. }

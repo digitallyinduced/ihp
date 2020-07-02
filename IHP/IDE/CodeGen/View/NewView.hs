@@ -21,6 +21,7 @@ data NewViewView = NewViewView
 instance View NewViewView ViewContext where
     html NewViewView { .. } = [hsx|
         <div class="generators">
+            {renderFlashMessages}
             <div class="container pt-5">
                 <div class="code-generator new-script">
                     {if isEmpty then renderEmpty else renderPreview}
