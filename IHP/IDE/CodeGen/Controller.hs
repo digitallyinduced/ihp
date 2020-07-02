@@ -36,7 +36,7 @@ instance Controller CodeGenController where
                 plan <- ControllerGenerator.buildPlan controllerName
                 render NewControllerView { .. }
         where
-            doesControllerExist name = case normalizeControllerName name of
+            doesControllerExist name = case ControllerGenerator.normalizeControllerName name of
                 Right [applicationName, controllerName'] -> doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName' <> ".hs"
                 Right [controllerName'] -> doesFileExist $ "Web/Controller/" <> cs controllerName' <> ".hs"
 
