@@ -10,7 +10,6 @@ import IHP.IDE.SchemaDesigner.View.Tables.Index
 import IHP.IDE.SchemaDesigner.View.Tables.Edit
 
 import IHP.IDE.SchemaDesigner.Parser
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, isIllegalKeyword)
 import qualified IHP.SchemaCompiler as SchemaCompiler

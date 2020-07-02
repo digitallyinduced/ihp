@@ -3,7 +3,7 @@ Module: IHP.NameSupport
 Description:  Transforms names, e.g. table names to model names
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName) where
+module IHP.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName, parseKeyword) where
 
 import Prelude hiding (splitAt)
 import Data.Text
@@ -35,7 +35,7 @@ tableNameToModelName tableName = do
 -- >>> columnNameToFieldName "project_id"
 -- "projectId"
 columnNameToFieldName :: Text -> Text
-columnNameToFieldName columnName = unwrapEither columnName $ Inflector.toCamelCased False columnName
+columnNameToFieldName columnName = parseKeyword (unwrapEither columnName $ Inflector.toCamelCased False columnName)
 {-# INLINE columnNameToFieldName #-}
 
 {-# INLINE unwrapEither #-}
@@ -80,8 +80,71 @@ lcfirst = applyFirst toLower
 -- >>> ucfirst "hello world"
 -- "Hello World"
 --
--- >>> ucfirst "Alread uppercase"
+-- >>> ucfirst "Already uppercase"
 -- "Already uppercase"
 ucfirst :: Text -> Text
 ucfirst = applyFirst toUpper
 {-# INLINE ucfirst #-}
+
+-- | Add '_' to the end of a name if it is a reserved haskell keyword
+--
+-- >>> parseKeyword "test"
+-- "test"
+--
+-- >>> parseKeyword "type"
+-- "type_"
+parseKeyword :: Text -> Text
+parseKeyword name = if toLower name `elem` haskellKeywords then name <> "_" else name
+{-# INLINE parseKeyword #-}
+
+{-# INLINE haskellKeywords #-}
+haskellKeywords :: [Text]
+haskellKeywords = [ "_"
+    , "as"
+    , "case"
+    , "class"
+    , "data"
+    , "default"
+    , "deriving"
+    , "do"
+    , "else"
+    , "hiding"
+    , "if"
+    , "import"
+    , "in"
+    , "infix"
+    , "infixl"
+    , "infixr"
+    , "instance"
+    , "let"
+    , "module"
+    , "newtype"
+    , "of"
+    , "qualified"
+    , "then"
+    , "type"
+    , "where"
+    , "forall"
+    , "mdo"
+    , "family"
+    , "role"
+    , "pattern"
+    , "static"
+    , "group"
+    , "by"
+    , "using"
+    , "foreign"
+    , "export"
+    , "label"
+    , "dynamic"
+    , "safe"
+    , "interruptible"
+    , "unsafe"
+    , "stdcall"
+    , "ccall"
+    , "capi"
+    , "prim"
+    , "javascript"
+    , "rec"
+    , "proc"
+    ]

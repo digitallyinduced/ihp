@@ -77,9 +77,9 @@ databaseControls = [hsx|
 findStatementByName statementName statements = find pred statements
     where
         pred CreateTable { name } | (compileIdentifier name) == (compileIdentifier statementName) = True
-        pred CreateTable { name } | (Parser.parseKeyword name) == (Parser.parseKeyword statementName) = True
+        pred CreateTable { name } | (parseKeyword name) == (parseKeyword statementName) = True
         pred CreateEnumType { name } | (compileIdentifier name) == (compileIdentifier statementName) = True
-        pred CreateEnumType { name } | (Parser.parseKeyword name) == (Parser.parseKeyword statementName) = True
+        pred CreateEnumType { name } | (parseKeyword name) == (parseKeyword statementName) = True
         pred _ = False
 
 visualNav :: Html
