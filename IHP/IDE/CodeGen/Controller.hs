@@ -27,9 +27,7 @@ instance Controller CodeGenController where
 
     action NewControllerAction = do
         let controllerName = paramOrDefault "" "name"
-        controllerAlreadyExists <- case Text.splitOn "." controllerName of
-            [applicationName, controllerName'] -> doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName' <> ".hs"
-            [controllerName'] -> doesFileExist $ "Web/Controller/" <> cs controllerName' <> ".hs"
+        controllerAlreadyExists <- doesControllerExist controllerName
         if controllerAlreadyExists
             then do
                 setErrorMessage "Controller with this name does already exist."
@@ -37,6 +35,10 @@ instance Controller CodeGenController where
             else do
                 plan <- ControllerGenerator.buildPlan controllerName
                 render NewControllerView { .. }
+        where
+            doesControllerExist name = case normalizeControllerName name of
+                Right [applicationName, controllerName'] -> doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName' <> ".hs"
+                Right [controllerName'] -> doesFileExist $ "Web/Controller/" <> cs controllerName' <> ".hs"
 
     action CreateControllerAction = do
         let controllerName = param "name"

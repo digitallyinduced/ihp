@@ -1,4 +1,4 @@
-module IHP.IDE.CodeGen.ControllerGenerator (buildPlan) where
+module IHP.IDE.CodeGen.ControllerGenerator (buildPlan, normalizeControllerName) where
 
 import ClassyPrelude
 import IHP.NameSupport
@@ -15,25 +15,30 @@ import qualified System.Posix.Env.ByteString as Posix
 import Control.Monad.Fail
 import IHP.IDE.CodeGen.Types
 
+normalizeControllerName :: Text -> Either Text [Text]
+normalizeControllerName appAndControllerName = do
+    case Text.splitOn "." appAndControllerName of
+        [applicationName, controllerName'] -> do
+            if isAlphaOnly applicationName
+                then if isAlphaOnly controllerName'
+                    then Right [applicationName, controllerName']
+                    else Left ("Invalid controller name: " <> tshow controllerName')
+                else Left ("Invalid application name: " <> tshow applicationName)
+        [controllerName'] -> if isAlphaOnly controllerName'
+                then Right $ [controllerName']
+                else Left ("Invalid controller name: " <> tshow controllerName')
+        _ -> Left "Name should be either 'ControllerName' or 'ApplicationName.ControllerName'"
+
 buildPlan :: Text -> IO (Either Text [GeneratorAction])
 buildPlan appAndControllerName = do
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
 
-    pure case Text.splitOn "." appAndControllerName of
-        [applicationName, controllerName'] -> do
-            if isAlphaOnly applicationName
-                then if isAlphaOnly controllerName'
-                    then Right $ buildPlan' schema (ucfirst applicationName) controllerName'
-                    else Left ("Invalid controller name: " <> tshow controllerName')
-                else Left ("Invalid application name: " <> tshow applicationName)
-        [controllerName'] -> if isAlphaOnly controllerName'
-                then Right $ buildPlan' schema "Web" controllerName'
-                else Left ("Invalid controller name: " <> tshow controllerName')
-        _ -> Left "Name should be either 'ControllerName' or 'ApplicationName.ControllerName'"
-
-
+    pure case normalizeControllerName appAndControllerName of
+        Right [applicationName, controllerName'] -> Right $ buildPlan' schema (ucfirst applicationName) controllerName'
+        Right [controllerName'] -> Right $ buildPlan' schema "Web" controllerName'
+        Left error -> Left error
 
 buildPlan' schema applicationName controllerName' =
     let
