@@ -32,7 +32,7 @@ instance Controller CodeGenController where
             [controllerName'] -> doesFileExist $ "Web/Controller/" <> cs controllerName' <> ".hs"
         if controllerAlreadyExists
             then do
-                setSuccessMessage "Error: Controller with this name does already exist."
+                setErrorMessage "Controller with this name does already exist."
                 redirectTo NewControllerAction
             else do
                 plan <- ControllerGenerator.buildPlan controllerName
