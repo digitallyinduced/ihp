@@ -25,6 +25,10 @@ We are happy to merge your pull requests!
 
 See [CONTRIBUTING.md for more info](CONTRIBUTING.md).
 
+## IHP Stickers
+
+We're happy to send them to you via physical mail. Get them here: https://forms.gle/hEgV4E7RakQBaKgY9 :-)
+
 ## Releases
 
 During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).

@@ -1,4 +1,4 @@
-module IHP.IDE.CodeGen.ControllerGenerator (buildPlan, normalizeControllerName) where
+module IHP.IDE.CodeGen.ControllerGenerator (buildPlan, normalizeControllerName, fieldsForTable) where
 
 import ClassyPrelude
 import IHP.NameSupport

@@ -11,7 +11,7 @@ The only supported database platform is Postgres. Focussing on Postgres allows u
 
 In development you do not need to set up anything to use postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development postgres servers is only listening on a unix socket and is not available via TCP.
 
-When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ihp/ShowDatabase](http://localhost:8001/ihp/ShowDatabase).
+When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
 
 Haskell data structures and types are generated automatically based on your database schema.
 
@@ -43,7 +43,7 @@ Haskell data structures and types are automatically generated from the `Schema.s
 
 ### Schema Designer
 
-Because the SQL syntax is sometimes hard to remember, the framework provides a GUI-based database editor called IHP Schema Designer. You can find the Schema Designer at `http://localhost:8001/ihp/Tables`.
+Because the SQL syntax is sometimes hard to remember, the framework provides a GUI-based database editor called IHP Schema Designer. You can find the Schema Designer at `http://localhost:8001/Tables`.
 
 ![The Schema Designer in Visual Mode](images/database/schema-designer-visual.png)
 
