@@ -56,7 +56,6 @@ instance Controller CodeGenController where
                 let plan = ScriptGenerator.buildPlan scriptName
                 render NewScriptView { .. }
 
-
     action CreateScriptAction = do
         let scriptName = paramOrDefault "" "name"
         let (Right plan) = ScriptGenerator.buildPlan scriptName
@@ -68,9 +67,15 @@ instance Controller CodeGenController where
         let viewName = paramOrDefault "" "name"
         let applicationName = "Web"
         let controllerName = paramOrDefault "" "controllerName"
-        controllers <- listOfWebControllers
-        plan <- ViewGenerator.buildPlan viewName applicationName controllerName
-        render NewViewView { .. }
+        viewAlreadyExists <- doesFileExist $ (cs applicationName) <> "/View/" <> (cs controllerName) <> "/" <> (cs viewName) <>".hs"
+        if viewAlreadyExists
+            then do
+                setSuccessMessage "Error: View with this name already exists."
+                redirectTo NewViewAction
+            else do 
+                controllers <- listOfWebControllers
+                plan <- ViewGenerator.buildPlan viewName applicationName controllerName
+                render NewViewView { .. }
 
     action CreateViewAction = do
         let viewName = paramOrDefault "" "name"
