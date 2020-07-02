@@ -70,7 +70,7 @@ instance Controller CodeGenController where
         viewAlreadyExists <- doesFileExist $ (cs applicationName) <> "/View/" <> (cs controllerName) <> "/" <> (cs viewName) <>".hs"
         if viewAlreadyExists
             then do
-                setSuccessMessage "Error: View with this name already exists."
+                setErrorMessage "View with this name already exists."
                 redirectTo NewViewAction
             else do 
                 controllers <- listOfWebControllers
