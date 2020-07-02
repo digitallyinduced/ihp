@@ -63,6 +63,7 @@ generateGenericAction schema config =
             modelVariablePlural = lcfirst name
             modelVariableSingular = lcfirst singularName
             idFieldName = lcfirst singularName <> "Id"
+            idType = "Id " <> singularName
             model = ucfirst singularName
             indexContent =
                 ""
@@ -122,10 +123,19 @@ generateGenericAction schema config =
                 <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
                 <> "        redirectTo " <> name <> "Action\n"
 
-            typesContent = 
+            typesContentGeneric = 
                    "    | " <> nameWithSuffix
+
+            typesContentWithParameter = 
+                   "    | " <> nameWithSuffix <> " { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
+            
+
             chosenContent = fromMaybe actionContent (lookup nameWithSuffix specialCases)
+            chosenType = if chosenContent `elem` [actionContent, newContent, createContent]
+                then typesContentGeneric
+                else typesContentWithParameter
+
         in
             [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent},
-              AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = typesContent }
+              AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = chosenType }
             ]
