@@ -28,13 +28,11 @@ instance Controller CodeGenController where
     action NewControllerAction = do
         let controllerName = paramOrDefault "" "name"
         controllerAlreadyExists <- doesControllerExist controllerName
-        if controllerAlreadyExists
-            then do
-                setErrorMessage "Controller with this name does already exist."
-                redirectTo NewControllerAction
-            else do
-                plan <- ControllerGenerator.buildPlan controllerName
-                render NewControllerView { .. }
+        when controllerAlreadyExists do
+            setErrorMessage "Controller with this name does already exist."
+            redirectTo NewControllerAction
+        plan <- ControllerGenerator.buildPlan controllerName
+        render NewControllerView { .. }
         where
             doesControllerExist name = case ControllerGenerator.normalizeControllerName name of
                 Right [applicationName, controllerName'] -> doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName' <> ".hs"
@@ -50,13 +48,11 @@ instance Controller CodeGenController where
     action NewScriptAction = do
         let scriptName = paramOrDefault "" "name"
         scriptAlreadyExists <- doesFileExist $ "Application/Script/" <> cs scriptName <> ".hs"
-        if scriptAlreadyExists
-            then do
-                setErrorMessage "Script with this name already exists."
-                redirectTo NewScriptAction
-            else do
-                let plan = ScriptGenerator.buildPlan scriptName
-                render NewScriptView { .. }
+        when scriptAlreadyExists do
+            setErrorMessage "Script with this name already exists."
+            redirectTo NewScriptAction
+        let plan = ScriptGenerator.buildPlan scriptName
+        render NewScriptView { .. }
 
     action CreateScriptAction = do
         let scriptName = paramOrDefault "" "name"
@@ -70,14 +66,12 @@ instance Controller CodeGenController where
         let applicationName = "Web"
         let controllerName = paramOrDefault "" "controllerName"
         viewAlreadyExists <- doesFileExist $ (cs applicationName) <> "/View/" <> (cs controllerName) <> "/" <> (cs viewName) <>".hs"
-        if viewAlreadyExists
-            then do
-                setErrorMessage "View with this name already exists."
-                redirectTo NewViewAction
-            else do 
-                controllers <- listOfWebControllers
-                plan <- ViewGenerator.buildPlan viewName applicationName controllerName
-                render NewViewView { .. }
+        when viewAlreadyExists do
+            setErrorMessage "View with this name already exists."
+            redirectTo NewViewAction
+        controllers <- listOfWebControllers
+        plan <- ViewGenerator.buildPlan viewName applicationName controllerName
+        render NewViewView { .. }
 
     action CreateViewAction = do
         let viewName = paramOrDefault "" "name"
