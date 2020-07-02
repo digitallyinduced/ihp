@@ -104,7 +104,7 @@ openUrl url = do
             "linux" -> "xdg-open"
             "darwin" -> "open"
 
-    Process.callCommand (cs $ openUrl <> " " <> url)
+    async $ Process.callCommand (cs $ openUrl <> " " <> url)
     pure ()
 
 instance FrontController ToolServerApplication where
