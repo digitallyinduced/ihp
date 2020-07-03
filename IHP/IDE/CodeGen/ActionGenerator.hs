@@ -31,15 +31,15 @@ buildPlan actionName applicationName controllerName =
             pure $ Right $ generateGenericAction schema actionConfig
 
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
---qualifiedViewModuleName :: ActionConfig -> Text -> Text
---qualifiedViewModuleName config viewName =
+-- qualifiedViewModuleName :: ActionConfig -> Text -> Text
+-- qualifiedViewModuleName config viewName =
 --    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
 generateGenericAction :: [Statement] -> ActionConfig -> [GeneratorAction]
 generateGenericAction schema config = 
         let 
             controllerName = get #controllerName config
-            name = get #actionName config
+            name = ucfirst $ get #actionName config
             singularName = config |> get #modelName
             nameWithSuffix = if "Action" `isSuffixOf` name
                     then name
