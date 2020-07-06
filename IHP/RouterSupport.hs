@@ -23,6 +23,7 @@ CanRoute (..)
 , parseUUID
 , parseId
 , remainingText
+, parseText
 ) where
 
 import qualified Prelude
@@ -459,3 +460,7 @@ parseId = ModelSupport.Id <$> parseUUID
 -- | Returns all the remaining text until the end of the input
 remainingText :: Parser Text
 remainingText = cs <$> takeByteString
+
+-- | Parses until the next @/@
+parseText :: Parser Text
+parseText = cs <$> takeTill ('/' ==)
