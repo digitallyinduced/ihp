@@ -225,8 +225,8 @@ renderObjectSelector statements activeObjectName = [hsx|
             <a href={DeleteTableAction id name} class="js-delete">Delete Table</a>
             <div></div>
             <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
-            <a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>
-            <a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>
+            {when generatorDoesNotExist createGeneratorLink}
+            {when (not generatorDoesNotExist) openGeneratorLink}
             <div></div>
             <a href={NewColumnAction name}>Add Column to Table</a>
             <div></div>
@@ -236,6 +236,10 @@ renderObjectSelector statements activeObjectName = [hsx|
         |]
             where
                 contextMenuId = "context-menu-" <> tshow id
+                createGeneratorLink = [hsx|<a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>|]
+                openGeneratorLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
+                generatorDoesNotExist = not $ (ucfirst name) `elem` (get #webControllers viewContext)
+
         renderObject CreateEnumType { name } id = [hsx|
         <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
             <div class="d-flex">
