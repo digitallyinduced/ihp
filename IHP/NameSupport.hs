@@ -88,7 +88,7 @@ ucfirst = applyFirst toUpper
 
 -- | Add '_' to the end of a name if it is a reserved haskell keyword
 --
--- >>> parseKeyword "test"
+-- >>> escapeHaskellKeyword "test"
 -- "test"
 --
 -- >>> parseKeyword "type"
