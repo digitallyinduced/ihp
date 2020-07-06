@@ -262,14 +262,14 @@ instance CanRoute RegistrationsController where
         appleDeviceId <- string "AppleWebService/v1/devices/" *> parseText <* "/registrations/"
         passType <- parseText
 
-        let create = do 
+        let create = do
             string "/"
             memberId  <- parseId
             endOfInput
-            post CreateRegistrationAction { .. }
+            pure CreateRegistrationAction { .. }
         let show = do
             endOfInput
-            get ShowRegistrationAction { .. }
+            pure ShowRegistrationAction { .. }
 
         choice [ create, show ]
 
