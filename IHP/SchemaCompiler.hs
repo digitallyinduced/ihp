@@ -189,7 +189,7 @@ compileData table@(CreateTable { name, columns }) =
 
 -- | Returns all the type arguments of the data structure for an entity
 dataTypeArguments :: (?schema :: Schema) => Statement -> [Text]
-dataTypeArguments table = belongsToVariables <> hasManyVariables
+dataTypeArguments table = map columnNameToFieldName (belongsToVariables <> hasManyVariables)
     where
         belongsToVariables = variableAttributes table |> map (get #name)
         hasManyVariables = columnsReferencingTable (get #name table) |> map fst
@@ -200,14 +200,18 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> compileQueryB
         columnFields = columns |> map columnField
 
         columnField column =
-                ( columnNameToFieldName (get #name column)
+            let fieldName = columnNameToFieldName (get #name column)
+            in
+                ( fieldName
                 , if isVariableAttribute table column
-                        then get #name column
+                        then fieldName
                         else haskellType table column
                 )
 
         compileQueryBuilderFields = columnsReferencingTable name |> map compileQueryBuilderField
-        compileQueryBuilderField (refTableName, refColumnName) = (refTableName, refTableName)
+        compileQueryBuilderField (refTableName, refColumnName) =
+            let fieldName = columnNameToFieldName refTableName
+            in (fieldName, fieldName)
 
 
 -- | Finds all the columns referencing a specific table via a foreign key constraint
@@ -362,12 +366,12 @@ compileFromRowInstance table@(CreateTable { name, columns }) =
 
         referencing = columnsReferencingTable (get #name table)
 
-        isManyToManyField fieldName = fieldName `elem` (referencing |> map fst)
+        isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
         isColumn name = name `elem` columnNames
         compileField ("id", _) = "pure id"
         compileField (fieldName, _) | isColumn fieldName = "field"
-        compileField (fieldName, _) | isManyToManyField fieldName = let (Just ref) = find (\(n, _) -> n == fieldName) referencing in compileSetQueryBuilder ref
+        compileField (fieldName, _) | isManyToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
         compileField _ = "pure def"
 
         compileSetQueryBuilder (refTableName, refFieldName) = "pure (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow (columnNameToFieldName refFieldName) <> ", id) (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
@@ -469,7 +473,7 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
                 compileTypeVariable' name = name
 
         compileBelongsTo :: Column -> Text
-        compileBelongsTo column = includeType (columnNameToFieldName (get #name column)) ("(GetModelById " <> name <> ")")
+        compileBelongsTo column = includeType (columnNameToFieldName (get #name column)) ("(GetModelById " <> columnNameToFieldName (get #name column) <> ")")
 
         compileHasMany :: (Text, Text) -> Text
         compileHasMany (refTableName, refColumnName) = includeType (columnNameToFieldName refTableName) ("[" <> tableNameToModelName refTableName <> "]")
