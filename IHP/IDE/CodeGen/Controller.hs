@@ -88,7 +88,7 @@ instance Controller CodeGenController where
         let actionName = paramOrDefault "" "name"
         let applicationName = "Web"
         let controllerName = paramOrDefault "" "controllerName"
-        controllers <- listOfWebControllers
+        controllers <- findWebControllers
         plan <- ActionGenerator.buildPlan actionName applicationName controllerName
         render NewActionView { .. }
 
