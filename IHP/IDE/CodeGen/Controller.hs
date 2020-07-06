@@ -69,7 +69,7 @@ instance Controller CodeGenController where
         when viewAlreadyExists do
             setErrorMessage "View with this name already exists."
             redirectTo NewViewAction
-        controllers <- listOfWebControllers
+        controllers <- findWebControllers
         plan <- ViewGenerator.buildPlan viewName applicationName controllerName
         render NewViewView { .. }
 

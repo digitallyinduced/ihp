@@ -19,7 +19,7 @@ instance ViewSupport.CreateViewContext ViewContext where
     type ViewApp ViewContext = ToolServerApplication
     createViewContext = do
         flashMessages <- Session.getAndClearFlashMessages
-        listOfWebControllers' <- listOfWebControllers
+        webControllers <- findWebControllers
 
         let viewContext = ViewContext {
                 requestContext = ?requestContext,
@@ -27,13 +27,13 @@ instance ViewSupport.CreateViewContext ViewContext where
                 controllerContext = ?controllerContext,
                 layout = let ?viewContext = viewContext in toolServerLayout,
                 appUrl = "http://localhost:" <> tshow appPort,
-                webControllers = listOfWebControllers'
+                webControllers = webControllers
             }
         pure viewContext
 
 
-listOfWebControllers :: IO [Text]
-listOfWebControllers = do
+findWebControllers :: IO [Text]
+findWebControllers = do
     directoryFiles <-  listDirectory "Web/Controller"
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles
