@@ -240,7 +240,7 @@ instance CanRoute PostsController where
     parseRoute' = do
         string "/posts/"
         let postById = do id <- parseId; endOfInput; pure ShowPostAction { postId, slug = Nothing }
-        let postBySlug = do slug <- getInput; pure ShowPostAction { postId = Nothing, slug }
+        let postBySlug = do slug <- remainingText; pure ShowPostAction { postId = Nothing, slug }
         postById <|> postBySlug
 ```
 
