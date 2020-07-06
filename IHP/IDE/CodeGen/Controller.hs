@@ -7,10 +7,12 @@ import IHP.IDE.CodeGen.View.Generators
 import IHP.IDE.CodeGen.View.NewController
 import IHP.IDE.CodeGen.View.NewScript
 import IHP.IDE.CodeGen.View.NewView
+import IHP.IDE.CodeGen.View.NewAction
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
 import IHP.IDE.CodeGen.ScriptGenerator as ScriptGenerator
 import IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
+import IHP.IDE.CodeGen.ActionGenerator as ActionGenerator
 import IHP.IDE.ToolServer.Helper.Controller
 import qualified System.Process as Process
 import qualified System.Directory as Directory
@@ -82,6 +84,23 @@ instance Controller CodeGenController where
         setSuccessMessage "View generated"
         redirectTo GeneratorsAction
 
+    action NewActionAction = do
+        let actionName = paramOrDefault "" "name"
+        let applicationName = "Web"
+        let controllerName = paramOrDefault "" "controllerName"
+        controllers <- listOfWebControllers
+        plan <- ActionGenerator.buildPlan actionName applicationName controllerName
+        render NewActionView { .. }
+
+    action CreateActionAction = do
+        let actionName = paramOrDefault "" "name"
+        let applicationName = "Web"
+        let controllerName = paramOrDefault "" "controllerName"
+        (Right plan) <- ActionGenerator.buildPlan actionName applicationName controllerName
+        executePlan plan
+        setSuccessMessage "Action generated"
+        redirectTo GeneratorsAction
+
     action OpenControllerAction = do
         let name = param "name"
         case name |> Inflector.toCamelCased True of
@@ -106,6 +125,16 @@ executePlan actions = forEach actions evalAction
         evalAction AddImport { filePath, fileContent } = do
             addImport filePath [fileContent]
             putStrLn ("* " <> filePath <> " (import)")
+        evalAction AddAction { filePath, fileContent } = do
+            addAction filePath [fileContent]
+            putStrLn ("* " <> filePath <> " (AddAction)")
+        evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
+            content <- Text.readFile (cs filePath)
+            case addToDataConstructor content dataConstructor fileContent of
+                Just newContent -> do
+                    Text.writeFile (cs filePath) (cs newContent)
+                    putStrLn ("* " <> filePath <> " (AddToDataConstructor)")
+                Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
         evalAction EnsureDirectory { directory } = do
             Directory.createDirectoryIfMissing True (cs directory)
         evalAction RunShellCommand { shellCommand } = do
@@ -127,6 +156,12 @@ undoPlan actions = forEach actions evalAction
         evalAction AddImport { filePath, fileContent } = do
             (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
             putStrLn ("* " <> filePath <> " (import)")
+        evalAction AddAction { filePath, fileContent } = do
+            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
+            putStrLn ("* " <> filePath <> " (RemoveAction)")
+        evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
+            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
+            putStrLn ("* " <> filePath <> " (RemoveFromDataConstructor)")
         evalAction EnsureDirectory { directory } = do
             (Directory.removeDirectory (cs directory)) `catch` handleError
         evalAction RunShellCommand { shellCommand } = pure ()
@@ -149,6 +184,33 @@ addImport file importStatements = do
 
 addImport' :: Text -> [Text] -> Maybe Text
 addImport' file = appendLineAfter file ("import" `isPrefixOf`)
+
+addAction :: Text -> [Text] -> IO ()
+addAction filePath fileContent = do
+    content <- Text.readFile (cs filePath)
+    case addAction' content fileContent of
+        Just newContent -> Text.writeFile (cs filePath) (cs newContent)
+        Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
+    pure ()
+
+addAction' :: Text -> [Text] -> Maybe Text
+addAction' fileContent = appendLineAfter fileContent ("instance Controller" `isPrefixOf`)
+
+-- | Gets content of a Types.hs, a existent data constructor and a type which should be added to it
+--   and returns fileContent with the type in it.
+addToDataConstructor :: Text -> Text -> Text -> Maybe Text
+addToDataConstructor fileContent dataConstructor content = do
+    lineOfDataConstructor <- lines fileContent
+        |> zip [1..]
+        |> filter (\(n, line) -> dataConstructor `isInfixOf` line)
+        |> lastMay
+        |> fmap fst
+    lineOfDerivingStatement <- ((drop lineOfDataConstructor $ lines fileContent) :: [Text])
+        |> zip [lineOfDataConstructor..]
+        |> filter (\(n, line) -> "deriving" `isInfixOf` line)
+        |> headMay
+        |> fmap fst
+    Just $ unlines $ ((take lineOfDerivingStatement $ lines fileContent) <> [content] <> (drop lineOfDerivingStatement $ lines fileContent)) 
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =

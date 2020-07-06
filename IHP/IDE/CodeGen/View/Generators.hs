@@ -22,10 +22,10 @@ instance View GeneratorsView ViewContext where
                         <div class="generator-name">Controller</div>
                     </a>
 
-                    <div class="generator">
+                    <a href={NewActionAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>
                         <div class="generator-name">Action</div>
-                    </div>
+                    </a>
                     
                     <a href={NewViewAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>
@@ -73,6 +73,20 @@ renderGeneratorAction AddImport { .. } = [hsx|
     <div class="generator-action AddImport">
         <div class="file-path">Append to {filePath}</div>
         <div class="file-content">import {Text.strip fileContent}</div>
+    </div>
+|]
+
+renderGeneratorAction AddAction { .. } = [hsx|
+    <div class="generator-action AddImport">
+        <div class="file-path">Append to {filePath}</div>
+        <div class="file-content">{Text.strip fileContent}</div>
+    </div>
+|]
+
+renderGeneratorAction AddToDataConstructor { .. } = [hsx|
+    <div class="generator-action AddToDataConstructor">
+        <div class="file-path">Append to {filePath}</div>
+        <div class="file-content">{Text.strip fileContent}</div>
     </div>
 |]
 
