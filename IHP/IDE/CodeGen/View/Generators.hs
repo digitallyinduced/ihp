@@ -37,10 +37,10 @@ instance View GeneratorsView ViewContext where
                         <div class="generator-name">Script</div>
                     </a>
 
-                    <div class="generator">
+                    <a href={NewApplicationAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>
                         <div class="generator-name">Application</div>
-                    </div>
+                    </a>
                 </div>
             </div>
         </div>

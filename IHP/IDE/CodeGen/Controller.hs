@@ -8,11 +8,13 @@ import IHP.IDE.CodeGen.View.NewController
 import IHP.IDE.CodeGen.View.NewScript
 import IHP.IDE.CodeGen.View.NewView
 import IHP.IDE.CodeGen.View.NewAction
+import IHP.IDE.CodeGen.View.NewApplication
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
 import IHP.IDE.CodeGen.ScriptGenerator as ScriptGenerator
 import IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 import IHP.IDE.CodeGen.ActionGenerator as ActionGenerator
+import IHP.IDE.CodeGen.ApplicationGenerator as ApplicationGenerator
 import IHP.IDE.ToolServer.Helper.Controller
 import qualified System.Process as Process
 import qualified System.Directory as Directory
@@ -100,6 +102,19 @@ instance Controller CodeGenController where
         executePlan plan
         setSuccessMessage "Action generated"
         redirectTo GeneratorsAction
+
+    action NewApplicationAction = do
+        let applicationName = paramOrDefault "" "name"
+        plan <- ApplicationGenerator.buildPlan applicationName
+        render NewApplicationView { .. }
+
+    action CreateApplicationAction = do
+        let applicationName = paramOrDefault "" "name"
+        (Right plan) <- ApplicationGenerator.buildPlan applicationName
+        executePlan plan
+        setSuccessMessage "Application generated"
+        redirectTo GeneratorsAction
+
 
     action OpenControllerAction = do
         let name = param "name"
