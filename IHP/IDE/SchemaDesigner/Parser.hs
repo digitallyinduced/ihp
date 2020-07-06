@@ -229,4 +229,3 @@ comment = do
     lexeme "--" <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
-

@@ -81,7 +81,7 @@ compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier e
         identifierNeedsQuoting = isKeyword || containsSpace
         isKeyword = IHP.Prelude.toUpper identifier `elem` keywords
         containsSpace = Text.any (' ' ==) identifier
-    
+
         keywords = [ "ABORT"
             , "ABSOLUTE"
             , "ACCESS"

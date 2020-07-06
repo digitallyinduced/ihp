@@ -58,6 +58,7 @@ instance View EditColumnView ViewContext where
 
                     <div class="form-group">
                         <input
+                            id="nameInput"
                             name="name"
                             type="text"
                             class="form-control"

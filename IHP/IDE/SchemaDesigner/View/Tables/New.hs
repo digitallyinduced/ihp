@@ -25,7 +25,7 @@ instance View NewTableView ViewContext where
                     <div class="form-group row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
-                            <input name="tableName" type="text" class="form-control" autofocus="autofocus"/>
+                            <input id="nameInput" name="tableName" type="text" class="form-control" autofocus="autofocus"/>
                             <small class="text-muted">
                                 Use the plural form and underscores. E.g.: <code>projects</code>, <code>companies</code>, <code>user_reactions</code>
                             </small>
