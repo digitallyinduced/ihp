@@ -22,6 +22,7 @@ CanRoute (..)
 , urlTo
 , parseUUID
 , parseId
+, remainingText
 ) where
 
 import qualified Prelude
@@ -454,3 +455,7 @@ parseUUID = do
 parseId :: Parser (ModelSupport.Id record)
 parseId = ModelSupport.Id <$> parseUUID
 {-# INLINE parseId #-}
+
+-- | Returns all the remaining text until the end of the input
+remainingText :: Parser Text
+remainingText = cs <$> takeByteString
