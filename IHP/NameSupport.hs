@@ -91,7 +91,7 @@ ucfirst = applyFirst toUpper
 -- >>> escapeHaskellKeyword "test"
 -- "test"
 --
--- >>> parseKeyword "type"
+-- >>> escapeHaskellKeyword "type"
 -- "type_"
 escapeHaskellKeyword :: Text -> Text
 escapeHaskellKeyword name = if toLower name `elem` haskellKeywords then name <> "_" else name
