@@ -71,7 +71,7 @@ instance Controller CodeGenController where
         when viewAlreadyExists do
             setErrorMessage "View with this name already exists."
             redirectTo NewViewAction
-        controllers <- listOfWebControllers
+        controllers <- findWebControllers
         plan <- ViewGenerator.buildPlan viewName applicationName controllerName
         render NewViewView { .. }
 
@@ -221,9 +221,3 @@ appendLineAfter file isRelevantLine newLines =
             |> lastMay
             |> fmap fst
     in fmap (\lastImportLine -> unlines $ (take lastImportLine content) <> newLines <> (drop lastImportLine content)) lastImportLine
-
-listOfWebControllers :: IO [Text]
-listOfWebControllers = do
-    directoryFiles <-  listDirectory "Web/Controller"
-    let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
-    pure $ map (Text.replace ".hs" "") controllerFiles
