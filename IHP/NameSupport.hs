@@ -3,7 +3,7 @@ Module: IHP.NameSupport
 Description:  Transforms names, e.g. table names to model names
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName, parseKeyword) where
+module IHP.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName, escapeHaskellKeyword) where
 
 import Prelude hiding (splitAt)
 import Data.Text
@@ -35,7 +35,7 @@ tableNameToModelName tableName = do
 -- >>> columnNameToFieldName "project_id"
 -- "projectId"
 columnNameToFieldName :: Text -> Text
-columnNameToFieldName columnName = parseKeyword (unwrapEither columnName $ Inflector.toCamelCased False columnName)
+columnNameToFieldName columnName = escapeHaskellKeyword (unwrapEither columnName $ Inflector.toCamelCased False columnName)
 {-# INLINE columnNameToFieldName #-}
 
 {-# INLINE unwrapEither #-}
@@ -95,7 +95,7 @@ ucfirst = applyFirst toUpper
 -- "type_"
 escapeHaskellKeyword :: Text -> Text
 escapeHaskellKeyword name = if toLower name `elem` haskellKeywords then name <> "_" else name
-{-# INLINE parseKeyword #-}
+{-# INLINE escapeHaskellKeyword #-}
 
 {-# INLINE haskellKeywords #-}
 haskellKeywords :: [Text]
