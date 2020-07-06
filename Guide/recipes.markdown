@@ -179,3 +179,14 @@ Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-Validatio
 ## Using IHP with Visual Studio Code / VSCode
 
 When using VSCode you need to install a plugin which loads the `.envrc` in your project. Otherwise the wrong GHC will be picked up. Take a look at [vscode-direnv](https://github.com/rubymaniac/vscode-direnv).
+
+## Don't auto-open the app in the browser
+
+To prevent the IHP dev server to automatically open the dev tooling in your web browser when running `./start`, set the `IHP_BROWSER` env variable to `echo`:
+
+```bash
+export IHP_BROWSER=echo
+./start
+```
+
+This will then just print out the url which would be opened on start.
