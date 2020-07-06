@@ -93,8 +93,8 @@ ucfirst = applyFirst toUpper
 --
 -- >>> parseKeyword "type"
 -- "type_"
-parseKeyword :: Text -> Text
-parseKeyword name = if toLower name `elem` haskellKeywords then name <> "_" else name
+escapeHaskellKeyword :: Text -> Text
+escapeHaskellKeyword name = if toLower name `elem` haskellKeywords then name <> "_" else name
 {-# INLINE parseKeyword #-}
 
 {-# INLINE haskellKeywords #-}
