@@ -15,6 +15,7 @@ data ViewContext = ViewContext
     , controllerContext :: ControllerSupport.ControllerContext
     , appUrl :: Text
     , webControllers :: [Text]
+    , appNames :: [Text]
     }
 
 

@@ -53,6 +53,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
             IHP
         </div>
         {app}
+        {subApps}
         {schema}
         {data_}
         {repl}
@@ -70,6 +71,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 </body>
 |]  where
         app = navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
+        subApps = forEach (tail (viewContext |> get #appNames)) (\app -> navItem (toUpper app) fileIcon ((viewContext |> get #appUrl) <> "/" <> (toLower app)) False)
         schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isSchemaEditorController)
         data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActiveController @DataController)
         repl = navItem "REPL" terminalIcon "#" False
