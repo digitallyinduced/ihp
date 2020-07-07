@@ -27,7 +27,7 @@ import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Middleware.Static
+import Network.Wai.Middleware.Static hiding ((<|>))
 import Network.Wai.Session (withSession, Session)
 import qualified System.Directory as Directory
 
@@ -46,6 +46,7 @@ import Control.Concurrent.Async
 import IHP.IDE.ToolServer.Routes
 import qualified System.Process as Process
 import System.Info
+import qualified System.Environment as Env
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -97,11 +98,12 @@ stopToolServer ToolServerNotStarted = pure ()
 
 openUrl :: Text -> IO ()
 openUrl url = do
-    let openUrl = case os of
+    selectedBrowser <- Env.lookupEnv "IHP_BROWSER"
+    let defaultOSBrowser = case os of
             "linux" -> "xdg-open"
             "darwin" -> "open"
-
-    Process.callCommand (cs $ openUrl <> " " <> url)
+    let browser = selectedBrowser |> fromMaybe defaultOSBrowser
+    async $ Process.callCommand (browser <> " " <> cs url)
     pure ()
 
 instance FrontController ToolServerApplication where
