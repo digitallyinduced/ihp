@@ -2,8 +2,7 @@ name: Linux Build
 on:
   push:
     branches: [master]
-  pull_request:
-    branches: [master]
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -13,7 +12,7 @@ jobs:
     - uses: cachix/cachix-action@v6
       with:
         name: digitallyinduced
-        signingKey: 'L5OaT5fyGIfR33RwfMmJj5VxusmV84GLHI3jA85O5LXeYZTVvq7mhsWnZVR8jnld7z/6ZrCXvL0TO27etv3g8g=='
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1JDU4MDAiLCJqdGkiOiI2ODI2MzM3Ny04ZjA0LTQzNjQtOTc5Zi0yMTdkNDg2MGFjODciLCJzY29wZXMiOiJ0eCJ9.nb37o2CQBt1Fz3MBMppNACdaWDQsjbPvYpPMLgeJ7RI'
 
     - run: |
