@@ -14,8 +14,7 @@ import IHP.IDE.ToolServer.Helper.Controller
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import System.Directory
-import qualified System.IO as IO
-import qualified Data.String as String
+import qualified Data.Text.IO as IO
 
 instance ViewSupport.CreateViewContext ViewContext where
     type ViewApp ViewContext = ToolServerApplication
@@ -46,7 +45,7 @@ findWebControllers = do
 findApps :: IO ([Text])
 findApps = do
     mainhs <- IO.readFile "Main.hs"
-    let imports = filter (\line -> "\"import " `isPrefixOf` (show line) && ".FrontController\"" `isSuffixOf` (show line)) (String.lines mainhs)
+    let imports = filter (\line -> "import " `isPrefixOf` line && ".FrontController" `isSuffixOf` line) (lines mainhs)
     pure (map removeImport imports)
         where
-            removeImport line = Text.replace ".FrontController\"" "" (Text.replace "\"import " "" (show line))
+            removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
