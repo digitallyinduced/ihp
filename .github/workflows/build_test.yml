@@ -1,0 +1,22 @@
+name: Linux Build Test
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: cachix/install-nix-action@v9
+    - uses: cachix/cachix-action@v6
+      with:
+        name: digitallyinduced
+        skipPush: true
+        authToken: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1JDU4MDAiLCJqdGkiOiI2ODI2MzM3Ny04ZjA0LTQzNjQtOTc5Zi0yMTdkNDg2MGFjODciLCJzY29wZXMiOiJ0eCJ9.nb37o2CQBt1Fz3MBMppNACdaWDQsjbPvYpPMLgeJ7RI'
+
+    - run: |
+          nix-env -i direnv
+          nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+          ihp-new blog
