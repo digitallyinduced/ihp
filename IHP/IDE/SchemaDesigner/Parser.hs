@@ -141,15 +141,37 @@ sqlType = choice
         , bigint
         , int
         , bool
+        , timestamp
         , timestampZ
+        , timestampZ'
+        , timestamp'
         , real
         , double
         , date
         , binary
         , time
+        , numericPS
+        , numeric
+        , varyingN
         , customType
         ]
             where
+                timestamp = do
+                    try (symbol' "TIMESTAMP" >> symbol' "WITHOUT" >> symbol' "TIME" >> symbol' "ZONE")
+                    pure PTimestamp
+
+                timestampZ = do
+                    try (symbol' "TIMESTAMP" >> symbol' "WITH" >> symbol' "TIME" >> symbol' "ZONE")
+                    pure PTimestampWithTimezone
+
+                timestampZ' = do
+                    try (symbol' "TIMESTAMPZ")
+                    pure PTimestampWithTimezone
+
+                timestamp' = do
+                    try (symbol' "TIMESTAMP")
+                    pure PTimestamp
+
                 uuid = do
                     try (symbol' "UUID")
                     pure PUUID
@@ -170,10 +192,6 @@ sqlType = choice
                     try (symbol' "BOOLEAN") <|> try (symbol' "BOOL")
                     pure PBoolean
 
-                timestampZ = do
-                    try (symbol' "TIMESTAMPZ") <|> (symbol' "TIMESTAMP" >> symbol' "WITH" >> symbol' "TIME" >> symbol' "ZONE")
-                    pure PTimestampWithTimezone
-
                 real = do
                     try (symbol' "REAL") <|> try (symbol' "FLOAT4")
                     pure PReal
@@ -193,6 +211,25 @@ sqlType = choice
                 time = do
                     try (symbol' "TIME")
                     pure PTime
+
+                numericPS = do
+                    try (symbol' "NUMERIC(")
+                    values <- between (space) (char ')' >> space) (varExpr `sepBy` (char ',' >> space))
+                    case values of
+                        [VarExpression precision, VarExpression scale] -> pure (PNumericP (tryTextToInt precision) (tryTextToInt scale))
+                        [VarExpression precision] -> pure (PNumericP (tryTextToInt precision) 0)
+                        _ -> pure PNumeric
+
+                numeric = do
+                    try (symbol' "NUMERIC")
+                    pure PNumeric
+
+                varyingN = do
+                    try (symbol' "VARYING(") <|> try (symbol' "VARCHAR(") <|> try (symbol' "CHAR(") <|> try (symbol' "CHARACTER(")
+                    value <- between (space) (char ')' >> space) (varExpr)
+                    case value of
+                        VarExpression limit -> pure (PVaryingN (tryTextToInt limit))
+                        _ -> pure (PVaryingN 0)
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
@@ -229,3 +266,6 @@ comment = do
     lexeme "--" <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
+
+tryTextToInt :: Text -> Int
+tryTextToInt input = fromMaybe 0 (textToInt input)

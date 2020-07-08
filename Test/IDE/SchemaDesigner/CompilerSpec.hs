@@ -199,3 +199,44 @@ tests = do
                     , values = ["yellow", "red", "blue"]
                     }
             compileSql [statement] `shouldBe` sql           
+
+        it "should compile a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
+            let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1,0),\n    c NUMERIC(1,2),\n    d VARCHAR(10)\n);\n|]
+            let statement = CreateTable
+                    { name = "deprecated_variables"
+                    , columns = 
+                        [ Column
+                            { name = "a"
+                            , columnType = PNumeric
+                            , defaultValue = Nothing
+                            , notNull = False
+                            , isUnique = False
+                            , primaryKey = False
+                            }
+                        , Column
+                            { name = "b"
+                            , columnType = (PNumericP 1 0) 
+                            , defaultValue = Nothing
+                            , notNull = False
+                            , isUnique = False
+                            , primaryKey = False
+                            }
+                        , Column 
+                            { name = "c"
+                            , columnType = (PNumericP 1 2) 
+                            , defaultValue = Nothing
+                            , notNull = False
+                            , isUnique = False
+                            , primaryKey = False
+                            }
+                        , Column
+                            { name = "d"
+                            , columnType = (PVaryingN 10) 
+                            , defaultValue = Nothing
+                            , notNull = False
+                            , isUnique = False
+                            , primaryKey = False
+                            }
+                        ]
+                    }
+            compileSql [statement] `shouldBe` sql
