@@ -30,29 +30,32 @@ instance View NewActionView ViewContext where
         </div>
     |]
         where
-            renderEmpty = [hsx|<form method="POST" action={NewActionAction} class="d-flex">
-                    <select 
-                        name="controllerName"
-                        class="form-control select2-simple"
-                        size="1"
-                    >
-                        {renderOptions}
-                    </select>
-                    <input
-                        type="text"
-                        name="name"
-                        placeholder="Action name"
-                        class="form-control"
-                        autofocus="autofocus"
-                        value={actionName}
-                        />
+            renderEmpty = [hsx|<form method="POST" action={NewActionAction}>
+                    <div class="d-flex">
+                        <select 
+                            name="controllerName"
+                            class="form-control select2-simple"
+                            size="1"
+                        >
+                            {renderOptions}
+                        </select>
+                        <input
+                            type="text"
+                            name="name"
+                            placeholder="Action name"
+                            class="form-control"
+                            autofocus="autofocus"
+                            value={actionName}
+                            />
+                        <button class="btn btn-primary" type="submit">Preview</button>
+                    </div>
                     <input
                         type="checkbox"
                         name="doGenerateView"
                         id="doGenerateView"
+                        class="ml-1"
                         />
-                    <label for="doGenerateView">generateView</label>
-                    <button class="btn btn-primary" type="submit">Preview</button>
+                    <label class="pl-1" for="doGenerateView">generate View</label>
                 </form>|]
             renderOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
             renderPreview = [hsx|

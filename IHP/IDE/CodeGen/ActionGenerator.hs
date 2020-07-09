@@ -29,7 +29,7 @@ buildPlan actionName applicationName controllerName doGenerateView=
                 Left parserError -> pure []
                 Right statements -> pure statements
             let actionConfig = ActionConfig {controllerName, applicationName, modelName, actionName }
-            let actionPlan = generateGenericAction schema actionConfig
+            let actionPlan = generateGenericAction schema actionConfig doGenerateView
             if doGenerateView
                 then do
                     viewPlan <- ViewGenerator.buildPlan viewName applicationName controllerName
@@ -48,8 +48,8 @@ buildPlan actionName applicationName controllerName doGenerateView=
 -- qualifiedViewModuleName config viewName =
 --    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
-generateGenericAction :: [Statement] -> ActionConfig -> [GeneratorAction]
-generateGenericAction schema config = 
+generateGenericAction :: [Statement] -> ActionConfig -> Bool -> [GeneratorAction]
+generateGenericAction schema config doGenerateView = 
         let 
             controllerName = get #controllerName config
             name = ucfirst $ get #actionName config
@@ -70,10 +70,14 @@ generateGenericAction schema config =
                 , ("Delete" <> singularName <> "Action", deleteContent)
                 ]
             
-            actionContent = 
-                ""
-                <> "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
-                <> "        redirectTo "<> controllerName <> "Action\n"
+            actionContent = if doGenerateView 
+                then
+                        "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
+                    <>  "        render " <> viewName <> "View { .. }\n"
+                else 
+                    ""
+                    <> "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
+                    <> "        redirectTo "<> controllerName <> "Action\n"
             
             modelVariablePlural = lcfirst name
             modelVariableSingular = lcfirst singularName
