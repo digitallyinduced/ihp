@@ -74,9 +74,11 @@ compilePostgresType PDouble = "DOUBLE PRECISION"
 compilePostgresType PDate = "DATE"
 compilePostgresType PBinary = "BINARY"
 compilePostgresType PTime = "TIME"
-compilePostgresType PNumeric = "NUMERIC"
-compilePostgresType (PNumericP precision scale) = "NUMERIC(" <> show precision <> "," <> show scale <> ")"
-compilePostgresType (PVaryingN limit) = "VARCHAR(" <> show limit <> ")"
+compilePostgresType (PNumeric (Just precision) (Just scale)) = "NUMERIC(" <> show precision <> "," <> show scale <> ")"
+compilePostgresType (PNumeric Nothing (Just scale)) = "NUMERIC(" <> show scale <> ")"
+compilePostgresType (PNumeric Nothing Nothing) = "NUMERIC"
+compilePostgresType (PVaryingN limit) = "CHARACTER VARYING(" <> show limit <> ")"
+compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text
