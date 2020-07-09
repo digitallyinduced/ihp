@@ -11,7 +11,6 @@ import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import qualified Text.Countable as Countable
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
-import Data.Maybe (fromMaybe)
 
 data ActionConfig = ActionConfig
     { controllerName :: Text 
