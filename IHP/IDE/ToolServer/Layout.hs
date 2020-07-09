@@ -87,7 +87,8 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                     || isActiveController @EnumValuesController )
 
         appNavItem :: Text -> Html
-        appNavItem name = case (toLower name) of
+        appNavItem "Web" = navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
+        appNavItem name = navItem name fileIcon ((viewContext |> get #appUrl) <> "/" <> toLower name) False
             "web" -> navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
             name -> navItem (toUpper name) fileIcon ((viewContext |> get #appUrl) <> "/" <> name) False
 
