@@ -16,11 +16,11 @@ import qualified Data.Text.IO as Text
 buildPlan :: Text -> IO (Either Text [GeneratorAction])
 buildPlan applicationName =
     if (null applicationName)
-        then pure $ Left "Application name and controller name cannot be empty"
+        then do
+            pure $ Left "Application name cannot be empty"
         else do 
-            let applicationName = ucfirst applicationName
-            updateRootFrontController "Main.hs" applicationName
-            pure $ Right $ generateGenericApplication applicationName
+            let applicationName' = ucfirst applicationName
+            pure $ Right $ generateGenericApplication applicationName'
 
 generateGenericApplication :: Text -> [GeneratorAction]
 generateGenericApplication applicationName = 
@@ -181,6 +181,9 @@ generateGenericApplication applicationName =
             [ EnsureDirectory { directory = applicationName }
             , EnsureDirectory { directory = applicationName <> "/Controller" }
             , EnsureDirectory { directory = applicationName <> "/View" }
+            , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
+            , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
+            , AddMountToFrontController { filePath = "Main.hs", applicationName = applicationName }
             , CreateFile { filePath = applicationName <> "/Types.hs", fileContent = typesHs }
             , CreateFile { filePath = applicationName <> "/Routes.hs", fileContent = routesHs }
             , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
@@ -190,47 +193,3 @@ generateGenericApplication applicationName =
             , CreateFile { filePath = applicationName <> "/View/Layout.hs", fileContent = viewLayoutHs }
             , CreateFile { filePath = applicationName <> "/View/Prelude.hs", fileContent = viewPreludeHs }
             ]
-
-addImport :: Text -> [Text] -> IO ()
-addImport file importStatements = do
-    content :: Text <- Text.readFile (cs file)
-    case addImport' file importStatements of
-        Just newContent -> Text.writeFile (cs file) (cs newContent)
-        Nothing -> putStrLn ("Could not automatically add " <> tshow importStatements <> " to " <> file)
-    pure ()
-
-
-updateRootFrontController :: Text -> Text -> IO ()
-updateRootFrontController file applicationName = do
-    content :: Text <- cs <$> Text.readFile (cs file)
-    let importStatements = ["import " <> applicationName <> ".FrontController", "import " <> applicationName <> ".Types"]
-    let newContent = addImport' content importStatements
-            |> fromMaybe content
-            |> addMountControllerStatement' applicationName
-            |> fromMaybe content
-    Text.writeFile (cs file) (cs newContent)
-
-
-addImport' :: Text -> [Text] -> Maybe Text
-addImport' file = appendLineAfter file ("import" `isPrefixOf`)
-
-addMountControllerStatement' :: Text -> Text -> Maybe Text
-addMountControllerStatement' applicationName file =
-    let withMaybeMountedFrontController = appendLineAfter file ("mountFrontController" `isInfixOf`) ["        , mountFrontController " <> applicationName <> "Application"]
-    in
-        case withMaybeMountedFrontController of
-            Just result -> Just result
-            Nothing -> Just (Text.replace needle replacement file)
-                where
-                    needle =  "    controllers = []"
-                    replacement = "    controllers = [\n            mountFrontController " <> applicationName <> "Application" <> "\n        ]"
-
-appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
-appendLineAfter file isRelevantLine newLines =
-    let content :: [Text] = lines file
-        lastImportLine = content
-            |> zip [1..]
-            |> filter (\(n, line) -> isRelevantLine line)
-            |> lastMay
-            |> fmap fst
-    in fmap (\lastImportLine -> unlines $ (take lastImportLine content) <> newLines <> (drop lastImportLine content)) lastImportLine

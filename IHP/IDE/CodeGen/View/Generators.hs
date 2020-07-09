@@ -72,7 +72,7 @@ renderGeneratorAction AppendToMarker { .. } = [hsx|
 renderGeneratorAction AddImport { .. } = [hsx|
     <div class="generator-action AddImport">
         <div class="file-path">Append to {filePath}</div>
-        <div class="file-content">import {Text.strip fileContent}</div>
+        <div class="file-content">{Text.strip fileContent}</div>
     </div>
 |]
 
@@ -80,6 +80,13 @@ renderGeneratorAction AddAction { .. } = [hsx|
     <div class="generator-action AddImport">
         <div class="file-path">Append to {filePath}</div>
         <div class="file-content">{Text.strip fileContent}</div>
+    </div>
+|]
+
+renderGeneratorAction AddMountToFrontController { .. } = [hsx|
+    <div class="generator-action AddMountToFrontController">
+        <div class="file-path">Mount to FrontController {filePath}</div>
+        <div class="file-content">{Text.strip applicationName}</div>
     </div>
 |]
 

@@ -143,6 +143,9 @@ executePlan actions = forEach actions evalAction
         evalAction AddAction { filePath, fileContent } = do
             addAction filePath [fileContent]
             putStrLn ("* " <> filePath <> " (AddAction)")
+        evalAction AddMountToFrontController { filePath, applicationName } = do
+            addMountControllerStatement filePath applicationName
+            putStrLn ("* " <> filePath <> " (AddMountToFrontController)")
         evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
             content <- Text.readFile (cs filePath)
             case addToDataConstructor content dataConstructor fileContent of
@@ -210,6 +213,25 @@ addAction filePath fileContent = do
 
 addAction' :: Text -> [Text] -> Maybe Text
 addAction' fileContent = appendLineAfter fileContent ("instance Controller" `isPrefixOf`)
+
+addMountControllerStatement :: Text -> Text -> IO ()
+addMountControllerStatement file applicationName = do
+    content :: Text <- Text.readFile (cs file)
+    case addMountControllerStatement' applicationName content of
+        Just newContent -> Text.writeFile (cs file) (cs newContent)
+        Nothing -> putStrLn ("Could not automatically add " <> tshow applicationName <> " to " <> file)
+    pure ()
+
+addMountControllerStatement' :: Text -> Text -> Maybe Text
+addMountControllerStatement' applicationName file =
+    let withMaybeMountedFrontController = appendLineAfter file ("mountFrontController" `isInfixOf`) ["            , mountFrontController " <> applicationName <> "Application"]
+    in
+        case withMaybeMountedFrontController of
+            Just result -> Just result
+            Nothing -> Just (Text.replace needle replacement file)
+                where
+                    needle =  "    controllers = []"
+                    replacement = "    controllers = [\n            mountFrontController " <> applicationName <> "Application" <> "\n        ]"
 
 -- | Gets content of a Types.hs, a existent data constructor and a type which should be added to it
 --   and returns fileContent with the type in it.
