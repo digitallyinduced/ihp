@@ -12,7 +12,6 @@ jobs:
       with:
         name: digitallyinduced
         skipPush: true
-        authToken: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1JDU4MDAiLCJqdGkiOiI2ODI2MzM3Ny04ZjA0LTQzNjQtOTc5Zi0yMTdkNDg2MGFjODciLCJzY29wZXMiOiJ0eCJ9.nb37o2CQBt1Fz3MBMppNACdaWDQsjbPvYpPMLgeJ7RI'
 
     - run: |
           nix-env -i direnv

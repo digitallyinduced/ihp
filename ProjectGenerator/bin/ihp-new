@@ -2,7 +2,6 @@
 echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
-CACHIX_TOKEN="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1JDU4MDAiLCJqdGkiOiI2ODI2MzM3Ny04ZjA0LTQzNjQtOTc5Zi0yMTdkNDg2MGFjODciLCJzY29wZXMiOiJ0eCJ9.nb37o2CQBt1Fz3MBMppNACdaWDQsjbPvYpPMLgeJ7RI"
 
 BOILERPLATE_GIT_URL="https://github.com/digitallyinduced/ihp-boilerplate.git"
 
@@ -85,8 +84,7 @@ if ! [ -x "$(command -v make)" ]; then
 fi
 
 echo "We now create your project. This may take up to 30 seconds."
-grep -s -q "$CACHIX_TOKEN" ~/.config/cachix/cachix.dhall || {
-	cachix authtoken "$CACHIX_TOKEN"
+grep -s -q "digitallyinduced.cachix.org" ~/.config/nix/nix.conf || {
 	cachix use digitallyinduced
 }
 
