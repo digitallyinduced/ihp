@@ -70,8 +70,8 @@ data PostgresType
     | PDate
     | PBinary
     | PTime
-    | PNumeric
-    | PNumericP Int Int
+    | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
     | PVaryingN Int
+    | PCharacterN Int
     | PCustomType Text
     deriving (Eq, Show)
