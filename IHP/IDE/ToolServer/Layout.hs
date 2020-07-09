@@ -88,9 +88,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 
         appNavItem :: Text -> Html
         appNavItem "Web" = navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
-        appNavItem name = navItem name fileIcon ((viewContext |> get #appUrl) <> "/" <> toLower name) False
-            "web" -> navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
-            name -> navItem (toUpper name) fileIcon ((viewContext |> get #appUrl) <> "/" <> name) False
+        appNavItem name = navItem (toUpper name) fileIcon ((viewContext |> get #appUrl) <> "/" <> (toLower name)) False
 
         navItem :: Text -> Html -> Text -> Bool -> Html
         navItem label icon action active = [hsx|
