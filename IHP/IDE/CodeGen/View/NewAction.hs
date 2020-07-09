@@ -46,6 +46,12 @@ instance View NewActionView ViewContext where
                         autofocus="autofocus"
                         value={actionName}
                         />
+                    <input
+                        type="checkbox"
+                        name="doGenerateView"
+                        id="doGenerateView"
+                        />
+                    <label for="doGenerateView">generateView</label>
                     <button class="btn btn-primary" type="submit">Preview</button>
                 </form>|]
             renderOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
