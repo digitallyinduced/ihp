@@ -99,10 +99,12 @@ data CodeGenController
     | NewScriptAction
     | NewViewAction
     | NewActionAction
+    | NewApplicationAction
     | CreateControllerAction
     | CreateScriptAction
     | CreateViewAction
     | CreateActionAction
+    | CreateApplicationAction
     | OpenControllerAction
     deriving (Eq, Show, Data)
 
