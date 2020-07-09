@@ -201,13 +201,13 @@ tests = do
             compileSql [statement] `shouldBe` sql           
 
         it "should compile a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
-            let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1,0),\n    c NUMERIC(1,2),\n    d VARCHAR(10)\n);\n|]
+            let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1),\n    c NUMERIC(1,2),\n    d CHARACTER VARYING(10)\n);\n|]
             let statement = CreateTable
                     { name = "deprecated_variables"
                     , columns = 
                         [ Column
                             { name = "a"
-                            , columnType = PNumeric
+                            , columnType = (PNumeric Nothing Nothing)
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
@@ -215,7 +215,7 @@ tests = do
                             }
                         , Column
                             { name = "b"
-                            , columnType = (PNumericP 1 0) 
+                            , columnType = (PNumeric (Just 1) Nothing) 
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
@@ -223,7 +223,7 @@ tests = do
                             }
                         , Column 
                             { name = "c"
-                            , columnType = (PNumericP 1 2) 
+                            , columnType = (PNumeric (Just 1) (Just 2)) 
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
