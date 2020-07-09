@@ -37,10 +37,10 @@ instance View GeneratorsView ViewContext where
                         <div class="generator-name">Script</div>
                     </a>
 
-                    <div class="generator">
+                    <a href={NewApplicationAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>
                         <div class="generator-name">Application</div>
-                    </div>
+                    </a>
                 </div>
             </div>
         </div>
@@ -80,6 +80,13 @@ renderGeneratorAction AddAction { .. } = [hsx|
     <div class="generator-action AddImport">
         <div class="file-path">Append to {filePath}</div>
         <div class="file-content">{Text.strip fileContent}</div>
+    </div>
+|]
+
+renderGeneratorAction AddMountToFrontController { .. } = [hsx|
+    <div class="generator-action AddMountToFrontController">
+        <div class="file-path">Mount to FrontController {filePath}</div>
+        <div class="file-content">{Text.strip applicationName}</div>
     </div>
 |]
 
