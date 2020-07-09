@@ -69,7 +69,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     </div>
 </body>
 |]  where
-        apps = forEach (viewContext |> get #appNames) (\app -> appNavItem app)
+        apps = forEach (viewContext |> get #appNames) appNavItem
         schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isSchemaEditorController)
         data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActiveController @DataController)
         repl = navItem "REPL" terminalIcon "#" False
