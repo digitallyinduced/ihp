@@ -56,7 +56,7 @@ haskellType table column@(Column { columnType, notNull }) =
         atomicType = 
             case columnType of
                 PInt -> "Int"
-                PBigInt -> "INTEGER"
+                PBigInt -> "Integer"
                 PText -> "Text"
                 PBoolean   -> "Bool"
                 PTimestampWithTimezone -> "UTCTime"
