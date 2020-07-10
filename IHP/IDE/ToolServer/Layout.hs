@@ -52,7 +52,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
             <div id="nav-logo-lambda">λ</div>
             IHP
         </div>
-        {app}
+        {apps}
         {schema}
         {data_}
         {repl}
@@ -69,7 +69,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     </div>
 </body>
 |]  where
-        app = navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
+        apps = forEach (viewContext |> get #appNames) appNavItem
         schema = navItem "SCHEMA" databaseIcon (pathTo TablesAction) (isSchemaEditorController)
         data_ = navItem "DATA" tableIcon (pathTo ShowDatabaseAction) (isActiveController @DataController)
         repl = navItem "REPL" terminalIcon "#" False
@@ -85,6 +85,10 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                     || isActiveController @ColumnsController
                     || isActiveController @EnumsController
                     || isActiveController @EnumValuesController )
+
+        appNavItem :: Text -> Html
+        appNavItem "Web" = navItem "APP" fileIcon ((viewContext |> get #appUrl) <> "/") False
+        appNavItem name = navItem (toUpper name) fileIcon ((viewContext |> get #appUrl) <> "/" <> (toLower name)) False
 
         navItem :: Text -> Html -> Text -> Bool -> Html
         navItem label icon action active = [hsx|
