@@ -64,10 +64,14 @@ data PostgresType
     | PBigInt
     | PBoolean
     | PTimestampWithTimezone
+    | PTimestamp
     | PReal
     | PDouble
     | PDate
     | PBinary
     | PTime
+    | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
+    | PVaryingN Int
+    | PCharacterN Int
     | PCustomType Text
     deriving (Eq, Show)
