@@ -10,6 +10,7 @@ import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import qualified Text.Countable as Countable
+import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 
 data ActionConfig = ActionConfig
     { controllerName :: Text 
@@ -18,25 +19,36 @@ data ActionConfig = ActionConfig
     , actionName :: Text
     } deriving (Eq, Show)
 
-buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
-buildPlan actionName applicationName controllerName =
+buildPlan :: Text -> Text -> Text -> Bool -> IO (Either Text [GeneratorAction])
+buildPlan actionName applicationName controllerName doGenerateView=
     if (null actionName || null controllerName)
         then pure $ Left "Action name and controller name cannot be empty"
         else do 
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
                 Right statements -> pure statements
-            let modelName = tableNameToModelName controllerName
             let actionConfig = ActionConfig {controllerName, applicationName, modelName, actionName }
-            pure $ Right $ generateGenericAction schema actionConfig
+            let actionPlan = generateGenericAction schema actionConfig doGenerateView
+            if doGenerateView
+                then do
+                    viewPlan <- ViewGenerator.buildPlan viewName applicationName controllerName
+                    case viewPlan of
+                        Right viewPlan' -> pure $ Right $ actionPlan ++ viewPlan'
+                        Left error -> pure $ Left error
+                else pure $ Right $ actionPlan
+    where
+        viewName = if "Action" `isSuffixOf` actionName
+                        then Text.dropEnd 6 actionName
+                        else actionName
+        modelName = tableNameToModelName controllerName
 
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 -- qualifiedViewModuleName :: ActionConfig -> Text -> Text
 -- qualifiedViewModuleName config viewName =
 --    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
-generateGenericAction :: [Statement] -> ActionConfig -> [GeneratorAction]
-generateGenericAction schema config = 
+generateGenericAction :: [Statement] -> ActionConfig -> Bool -> [GeneratorAction]
+generateGenericAction schema config doGenerateView = 
         let 
             controllerName = get #controllerName config
             name = ucfirst $ get #actionName config
@@ -44,7 +56,9 @@ generateGenericAction schema config =
             nameWithSuffix = if "Action" `isSuffixOf` name
                     then name
                     else name <> "Action" -- e.g. TestAction
-
+            viewName = if "Action" `isSuffixOf` name
+                then Text.dropEnd 6 name
+                else name
             indexAction = Countable.pluralize singularName <> "Action"
             specialCases = [
                   (indexAction, indexContent)
@@ -55,10 +69,14 @@ generateGenericAction schema config =
                 , ("Delete" <> singularName <> "Action", deleteContent)
                 ]
             
-            actionContent = 
-                ""
-                <> "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
-                <> "        redirectTo "<> controllerName <> "Action\n"
+            actionContent = if doGenerateView 
+                then
+                        "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
+                    <>  "        render " <> viewName <> "View { .. }\n"
+                else 
+                    ""
+                    <> "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
+                    <> "        redirectTo "<> controllerName <> "Action\n"
             
             modelVariablePlural = lcfirst name
             modelVariableSingular = lcfirst singularName
@@ -135,7 +153,7 @@ generateGenericAction schema config =
                 then typesContentGeneric
                 else typesContentWithParameter
 
-        in
-            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent},
-              AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = chosenType }
-            ]
+        in 
+            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent}
+            , AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = chosenType }
+            ] 

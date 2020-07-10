@@ -15,6 +15,7 @@ data NewActionView = NewActionView
     { plan :: Either Text [GeneratorAction]
     , actionName :: Text
     , controllerName :: Text
+    , doGenerateView :: Bool
     , controllers :: [Text]
     }
 
@@ -30,23 +31,33 @@ instance View NewActionView ViewContext where
         </div>
     |]
         where
-            renderEmpty = [hsx|<form method="POST" action={NewActionAction} class="d-flex">
-                    <select 
-                        name="controllerName"
-                        class="form-control select2-simple"
-                        size="1"
-                    >
-                        {renderOptions}
-                    </select>
-                    <input
-                        type="text"
-                        name="name"
-                        placeholder="Action name"
-                        class="form-control"
-                        autofocus="autofocus"
-                        value={actionName}
-                        />
-                    <button class="btn btn-primary" type="submit">Preview</button>
+            renderEmpty = [hsx|<form method="POST" action={NewActionAction}>
+                    <div class="d-flex">
+                        <select 
+                            name="controllerName"
+                            class="form-control select2-simple"
+                            size="1"
+                        >
+                            {renderOptions}
+                        </select>
+                        <input
+                            type="text"
+                            name="name"
+                            placeholder="Action name"
+                            class="form-control"
+                            autofocus="autofocus"
+                            value={actionName}
+                            />
+                        <button class="btn btn-primary" type="submit">Preview</button>
+                    </div>
+                    <div class="generator-options">
+                        <input
+                            type="checkbox"
+                            name="doGenerateView"
+                            id="doGenerateView"
+                            />
+                        <label class="pl-1" for="doGenerateView">With View</label>
+                    </div>
                 </form>|]
             renderOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
             renderPreview = [hsx|
@@ -58,6 +69,20 @@ instance View NewActionView ViewContext where
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
+                <div class="generator-options">
+                    <form method="POST" action={NewActionAction}>
+                        <input
+                            type="checkbox"
+                            name="doGenerateView"
+                            id="doGenerateView"
+                            checked = {doGenerateView}
+                            onchange = "this.form.submit()"
+                            />
+                        <label class="pl-1" for="doGenerateView">With View</label>
+                        <input type="hidden" name="name" value={actionName}/>
+                        <input type="hidden" name="controllerName" value={controllerName}/>
+                    </form>
+                </div>
             |]
 
             isEmpty = null actionName    
