@@ -15,6 +15,7 @@ data NewActionView = NewActionView
     { plan :: Either Text [GeneratorAction]
     , actionName :: Text
     , controllerName :: Text
+    , doGenerateView :: Bool
     , controllers :: [Text]
     }
 
@@ -66,6 +67,19 @@ instance View NewActionView ViewContext where
                     <input type="hidden" name="controllerName" value={controllerName}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
+                </form>
+                <form method="POST" action={NewActionAction}>
+                    <input
+                        type="checkbox"
+                        name="doGenerateView"
+                        id="doGenerateView"
+                        class="ml-1"
+                        checked = {doGenerateView}
+                        onchange = "this.form.submit()"
+                        />
+                    <label class="pl-1" for="doGenerateView">generate View</label>
+                    <input type="hidden" name="name" value={actionName}/>
+                    <input type="hidden" name="controllerName" value={controllerName}/>
                 </form>
             |]
 

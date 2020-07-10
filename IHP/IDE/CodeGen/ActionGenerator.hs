@@ -33,7 +33,7 @@ buildPlan actionName applicationName controllerName doGenerateView=
                 then do
                     viewPlan <- ViewGenerator.buildPlan viewName applicationName controllerName
                     case viewPlan of
-                        Right viewPlan' -> pure $ Right $ viewPlan' ++ actionPlan
+                        Right viewPlan' -> pure $ Right $ actionPlan ++ viewPlan'
                         Left error -> pure $ Left error
                 else pure $ Right $ actionPlan
     where
