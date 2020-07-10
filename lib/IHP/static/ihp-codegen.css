@@ -137,3 +137,13 @@
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
 }
+
+.code-generator .generator-options {
+    font-size: 11px;
+    margin-top: 0.5rem;
+    margin-left: 0.5rem;
+}
+
+.code-generator .generator-options input[type="checkbox"] {
+    vertical-align: text-bottom;;
+}

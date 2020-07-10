@@ -50,13 +50,14 @@ instance View NewActionView ViewContext where
                             />
                         <button class="btn btn-primary" type="submit">Preview</button>
                     </div>
-                    <input
-                        type="checkbox"
-                        name="doGenerateView"
-                        id="doGenerateView"
-                        class="ml-1"
-                        />
-                    <label class="pl-1" for="doGenerateView">generate View</label>
+                    <div class="generator-options">
+                        <input
+                            type="checkbox"
+                            name="doGenerateView"
+                            id="doGenerateView"
+                            />
+                        <label class="pl-1" for="doGenerateView">With View</label>
+                    </div>
                 </form>|]
             renderOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
             renderPreview = [hsx|
@@ -68,19 +69,20 @@ instance View NewActionView ViewContext where
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
-                <form method="POST" action={NewActionAction}>
-                    <input
-                        type="checkbox"
-                        name="doGenerateView"
-                        id="doGenerateView"
-                        class="ml-1"
-                        checked = {doGenerateView}
-                        onchange = "this.form.submit()"
-                        />
-                    <label class="pl-1" for="doGenerateView">generate View</label>
-                    <input type="hidden" name="name" value={actionName}/>
-                    <input type="hidden" name="controllerName" value={controllerName}/>
-                </form>
+                <div class="generator-options">
+                    <form method="POST" action={NewActionAction}>
+                        <input
+                            type="checkbox"
+                            name="doGenerateView"
+                            id="doGenerateView"
+                            checked = {doGenerateView}
+                            onchange = "this.form.submit()"
+                            />
+                        <label class="pl-1" for="doGenerateView">With View</label>
+                        <input type="hidden" name="name" value={actionName}/>
+                        <input type="hidden" name="controllerName" value={controllerName}/>
+                    </form>
+                </div>
             |]
 
             isEmpty = null actionName    
