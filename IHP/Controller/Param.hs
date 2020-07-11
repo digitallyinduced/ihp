@@ -249,6 +249,7 @@ instance ParamReader param => ParamReader (Maybe param) where
     readParameter param =
         case (readParameter param) :: Either ByteString param of
             Right value -> Right (Just value)
+            Left error | param == "" -> Right Nothing
             Left error -> Left error
 
 -- | Custom error hint when the 'param' is called with do-notation
