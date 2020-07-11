@@ -108,7 +108,7 @@ timeAgo (get #createdAt post) -- "1 minute ago"
 #### `dateTime`
 
 ```haskell
-dateTime (get #createdAt post) -- "10.6.2019, 15:58 Uhr"
+dateTime (get #createdAt post) -- "10.6.2019, 15:58"
 ```
 
 ## Diff-Based DOM Updates
