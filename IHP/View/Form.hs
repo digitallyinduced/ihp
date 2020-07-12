@@ -390,7 +390,7 @@ dateField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-dateField field = (textField field) { fieldType = DateInput }
+dateField field = (textField field) { fieldType = DateInput, fieldClass = "date-field" }
 {-# INLINE dateField #-}
 
 passwordField :: forall fieldName model.
@@ -412,7 +412,7 @@ dateTimeField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput }
+dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput, fieldClass = "date-time-field" }
 {-# INLINE dateTimeField #-}
 
 
