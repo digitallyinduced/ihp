@@ -522,7 +522,7 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
 <div>{get #body post}</div>
 ```
 
-Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58 Uhr`), just use `dateTime` instead of `timeAgo`.
+Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58`), just use `dateTime` instead of `timeAgo`.
 
 ![Schema Designer created at view](images/first-project/created_at_view.png)
 

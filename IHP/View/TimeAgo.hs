@@ -33,7 +33,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 timeAgo :: UTCTime -> Html
 timeAgo = timeElement "time-ago"
 
--- | __Display time like @31.08.2007, 16:47 Uhr@__
+-- | __Display time like @31.08.2007, 16:47@__
 --
 -- Render's a @\<time\>@ HTML-Element for displaying time and date.
 -- 
