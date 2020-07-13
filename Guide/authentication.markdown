@@ -3,20 +3,6 @@
 ```toc
 ```
 
-## Note
-
-The current (pre-)release of IHP has some bugs that prevent the following documentation from working. In order to follow along you need to use a more recent version of IHP. Open `default.nix` and change the IHP dependency to point to a working git commit, e.g. `cd715f951b7325ba24dd690669d4fea2c91b1aad`:
-
-```
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "cd715f951b7325ba24dd690669d4fea2c91b1aad";
-    };
-```
-
-After that, run `make -B .envrc` to recompile.
-
-
 ## Introduction
 
 IHP provides a basic authentication toolkit out of the box.

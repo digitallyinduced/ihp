@@ -222,6 +222,17 @@ tests = do
                         ]
                     }
 
+        it "should parse a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
+            parseSql ("CREATE TABLE deprecated_variables (a NUMERIC, b NUMERIC(1), c NUMERIC(1,2), d CHARACTER VARYING(10));") `shouldBe` CreateTable
+                    { name = "deprecated_variables"
+                    , columns = 
+                        [ col { name = "a", columnType = PNumeric Nothing Nothing}
+                        , col { name = "b", columnType = (PNumeric (Just 1) Nothing) }
+                        , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
+                        , col { name = "d", columnType = (PVaryingN 10) }
+                        ]
+                    }
+
 col :: Column
 col = Column
     { name = ""

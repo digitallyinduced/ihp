@@ -16,12 +16,14 @@ import qualified Data.Text.IO as Text
 import Text.Regex.TDFA
 import System.Directory
 import Data.List (tail)
+import qualified Data.Text.IO as IO
 
 instance ViewSupport.CreateViewContext ViewContext where
     type ViewApp ViewContext = ToolServerApplication
     createViewContext = do
         flashMessages <- Session.getAndClearFlashMessages
         webControllers <- findWebControllers
+        appNames <- findApplications
 
         let viewContext = ViewContext {
                 requestContext = ?requestContext,
@@ -29,7 +31,8 @@ instance ViewSupport.CreateViewContext ViewContext where
                 controllerContext = ?controllerContext,
                 layout = let ?viewContext = viewContext in toolServerLayout,
                 appUrl = "http://localhost:" <> tshow appPort,
-                webControllers = webControllers
+                webControllers = webControllers,
+                appNames = appNames
             }
         pure viewContext
 
@@ -54,4 +57,4 @@ findApplications = do
             $ map (Text.replace "Application" "")
             $ map cs
             $ (getAllTextMatches $ contentString =~ ("[A-z]*Application" :: String) :: [String])
-    pure applications 
+    pure applications

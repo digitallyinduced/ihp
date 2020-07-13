@@ -68,11 +68,17 @@ compilePostgresType PText = "TEXT"
 compilePostgresType PInt = "INT"
 compilePostgresType PBigInt = "BIGINT"
 compilePostgresType PBoolean = "BOOLEAN"
+compilePostgresType PTimestamp = "TIMESTAMP WITHOUT TIME ZONE"
 compilePostgresType PTimestampWithTimezone = "TIMESTAMP WITH TIME ZONE"
 compilePostgresType PDouble = "DOUBLE PRECISION"
 compilePostgresType PDate = "DATE"
 compilePostgresType PBinary = "BINARY"
 compilePostgresType PTime = "TIME"
+compilePostgresType (PNumeric (Just precision) (Just scale)) = "NUMERIC(" <> show precision <> "," <> show scale <> ")"
+compilePostgresType (PNumeric (Just precision) Nothing) = "NUMERIC(" <> show precision <> ")"
+compilePostgresType (PNumeric Nothing Nothing) = "NUMERIC"
+compilePostgresType (PVaryingN limit) = "CHARACTER VARYING(" <> show limit <> ")"
+compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text
