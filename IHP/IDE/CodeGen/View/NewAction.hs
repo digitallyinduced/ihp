@@ -48,7 +48,7 @@ instance View NewActionView ViewContext where
                             class="form-control select2-simple"
                             size="1"
                         >
-                            {renderOptions}
+                            {renderControllerOptions}
                         </select>
                         <input
                             type="text"
