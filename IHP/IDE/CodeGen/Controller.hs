@@ -88,15 +88,16 @@ instance Controller CodeGenController where
 
     action NewActionAction = do
         let actionName = paramOrDefault "" "name"
-        let applicationName = "Web"
+        let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
-        controllers <- findWebControllers
+        controllers <- findControllers applicationName
+        applications <- findApplications
         plan <- ActionGenerator.buildPlan actionName applicationName controllerName
         render NewActionView { .. }
 
     action CreateActionAction = do
         let actionName = paramOrDefault "" "name"
-        let applicationName = "Web"
+        let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
         (Right plan) <- ActionGenerator.buildPlan actionName applicationName controllerName
         executePlan plan
@@ -114,7 +115,6 @@ instance Controller CodeGenController where
         executePlan plan
         setSuccessMessage "Application generated"
         redirectTo GeneratorsAction
-
 
     action OpenControllerAction = do
         let name = param "name"

@@ -13,7 +13,9 @@ import IHP.IDE.Types
 import IHP.IDE.ToolServer.Helper.Controller
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import Text.Regex.TDFA
 import System.Directory
+import Data.List (tail)
 
 instance ViewSupport.CreateViewContext ViewContext where
     type ViewApp ViewContext = ToolServerApplication
@@ -37,3 +39,19 @@ findWebControllers = do
     directoryFiles <-  listDirectory "Web/Controller"
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles
+
+findControllers :: Text -> IO [Text]
+findControllers application = do
+    directoryFiles <-  listDirectory $ cs $ application <> "/Controller"
+    let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
+    pure $ map (Text.replace ".hs" "") controllerFiles
+
+findApplications :: IO [Text]
+findApplications = do
+    fileContent <- Text.readFile("Main.hs")
+    let (contentString :: String) = Text.unpack fileContent
+    let applications = tail
+            $ map (Text.replace "Application" "")
+            $ map cs
+            $ (getAllTextMatches $ contentString =~ ("[A-z]*Application" :: String) :: [String])
+    pure applications 
