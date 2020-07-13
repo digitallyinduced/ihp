@@ -13,9 +13,7 @@ import IHP.IDE.Types
 import IHP.IDE.ToolServer.Helper.Controller
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import Text.Regex.TDFA
 import System.Directory
-import Data.List (tail)
 import qualified Data.Text.IO as IO
 
 instance ViewSupport.CreateViewContext ViewContext where
