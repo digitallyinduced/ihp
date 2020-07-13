@@ -15,7 +15,9 @@ data NewViewView = NewViewView
     { plan :: Either Text [GeneratorAction]
     , viewName :: Text
     , controllerName :: Text
+    , applicationName :: Text
     , controllers :: [Text]
+    , applications :: [Text]
     }
 
 instance View NewViewView ViewContext where
@@ -32,12 +34,20 @@ instance View NewViewView ViewContext where
     |]
         where
             renderEmpty = [hsx|<form method="POST" action={NewViewAction} class="d-flex">
+                    <select
+                        name="applicationName"
+                        class="form-control select2-simple"
+                        size="1"
+                        onchange="this.form.submit()"
+                    >
+                        {renderApplicationOptions}
+                    </select>
                     <select 
                         name="controllerName"
                         class="form-control select2-simple"
                         size="1"
                     >
-                        {renderOptions}
+                        {renderControllerOptions}
                     </select>
                     <input
                         type="text"
@@ -49,7 +59,8 @@ instance View NewViewView ViewContext where
                         />
                     <button class="btn btn-primary" type="submit">Preview</button>
                 </form>|]
-            renderOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
+            renderControllerOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
+            renderApplicationOptions = forM_ applications (\x -> [hsx|<option selected={x == applicationName}>{x}</option>|])
             renderPreview = [hsx|
                 <form method="POST" action={CreateViewAction} class="d-flex">
                     <div class="object-name flex-grow-1">{controllerName}.{viewName}</div>
