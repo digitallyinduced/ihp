@@ -14,6 +14,8 @@ import IHP.IDE.CodeGen.View.Generators (renderPlan)
 data NewControllerView = NewControllerView
     { plan :: Either Text [GeneratorAction]
     , controllerName :: Text
+    , applicationName :: Text
+    , applications :: [Text]
     }
 
 instance View NewControllerView ViewContext where
@@ -30,16 +32,22 @@ instance View NewControllerView ViewContext where
     |]
         where
             renderEmpty = [hsx|<form method="POST" action={NewControllerAction} class="d-flex">
-                    <input
-                        type="text"
-                        name="name"
-                        placeholder="Controller name"
-                        class="form-control"
-                        autofocus="autofocus"
-                        value={controllerName}
-                        />
-
-                    <button class="btn btn-primary" type="submit">Preview</button>
+                    <select
+                            name="applicationName"
+                            class="form-control select2-simple"
+                            size="1"
+                        >
+                            {renderApplicationOptions}
+                        </select>
+                        <input
+                            type="text"
+                            name="name"
+                            placeholder="Controller name"
+                            class="form-control"
+                            autofocus="autofocus"
+                            value={controllerName}
+                            />
+                        <button class="btn btn-primary" type="submit">Preview</button>
                 </form>|]
 
             renderPreview = [hsx|
@@ -47,10 +55,11 @@ instance View NewControllerView ViewContext where
                     <div class="object-name flex-grow-1">{controllerName}</div>
 
                     <input type="hidden" name="name" value={controllerName}/>
+                    <input type="hidden" name="applicationName" value={applicationName}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
             |]
-
+            renderApplicationOptions = forM_ applications (\x -> [hsx|<option selected={x == applicationName}>{x}</option>|])
 
             isEmpty = null controllerName
