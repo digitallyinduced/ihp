@@ -67,6 +67,7 @@ instance View NewViewView ViewContext where
 
                     <input type="hidden" name="name" value={viewName}/>
                     <input type="hidden" name="controllerName" value={controllerName}/>
+                    <input type="hidden" name="applicationName" value={applicationName}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
