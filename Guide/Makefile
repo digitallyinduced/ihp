@@ -21,6 +21,7 @@ HTML_FILES+= routing.html
 HTML_FILES+= authentication.html
 HTML_FILES+= authorization.html
 HTML_FILES+= relationships.html
+HTML_FILES+= updating.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 
