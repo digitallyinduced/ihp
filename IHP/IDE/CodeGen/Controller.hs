@@ -31,20 +31,21 @@ instance Controller CodeGenController where
 
     action NewControllerAction = do
         let controllerName = paramOrDefault "" "name"
-        controllerAlreadyExists <- doesControllerExist controllerName
+        let applicationName = paramOrDefault "Web" "applicationName"
+        controllerAlreadyExists <- doesControllerExist controllerName applicationName
+        applications <- findApplications
         when controllerAlreadyExists do
             setErrorMessage "Controller with this name does already exist."
             redirectTo NewControllerAction
-        plan <- ControllerGenerator.buildPlan controllerName
+        plan <- ControllerGenerator.buildPlan controllerName applicationName
         render NewControllerView { .. }
         where
-            doesControllerExist name = case ControllerGenerator.normalizeControllerName name of
-                Right [applicationName, controllerName'] -> doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName' <> ".hs"
-                Right [controllerName'] -> doesFileExist $ "Web/Controller/" <> cs controllerName' <> ".hs"
+            doesControllerExist controllerName applicationName = doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName <> ".hs"
 
     action CreateControllerAction = do
         let controllerName = param "name"
-        (Right plan) <- ControllerGenerator.buildPlan controllerName
+        let applicationName = param "applicationName"
+        (Right plan) <- ControllerGenerator.buildPlan controllerName applicationName
         executePlan plan
         setSuccessMessage "Controller generated"
         redirectTo GeneratorsAction
@@ -67,13 +68,14 @@ instance Controller CodeGenController where
 
     action NewViewAction = do
         let viewName = paramOrDefault "" "name"
-        let applicationName = "Web"
+        let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
         viewAlreadyExists <- doesFileExist $ (cs applicationName) <> "/View/" <> (cs controllerName) <> "/" <> (cs viewName) <>".hs"
         when viewAlreadyExists do
             setErrorMessage "View with this name already exists."
             redirectTo NewViewAction
-        controllers <- findWebControllers
+        controllers <- findControllers applicationName
+        applications <- findApplications
         plan <- ViewGenerator.buildPlan viewName applicationName controllerName
         render NewViewView { .. }
 
@@ -88,16 +90,17 @@ instance Controller CodeGenController where
 
     action NewActionAction = do
         let actionName = paramOrDefault "" "name"
-        let applicationName = "Web"
+        let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
         let doGenerateView = paramOrDefault False "doGenerateView"
         controllers <- findWebControllers
+        applications <- findApplications
         plan <- ActionGenerator.buildPlan actionName applicationName controllerName doGenerateView
         render NewActionView { .. }
 
     action CreateActionAction = do
         let actionName = paramOrDefault "" "name"
-        let applicationName = "Web"
+        let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
         let doGenerateView = paramOrDefault False "doGenerateView"
         (Right plan) <- ActionGenerator.buildPlan actionName applicationName controllerName doGenerateView
@@ -116,7 +119,6 @@ instance Controller CodeGenController where
         executePlan plan
         setSuccessMessage "Application generated"
         redirectTo GeneratorsAction
-
 
     action OpenControllerAction = do
         let name = param "name"

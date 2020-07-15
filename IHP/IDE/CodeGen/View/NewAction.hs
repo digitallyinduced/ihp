@@ -15,8 +15,10 @@ data NewActionView = NewActionView
     { plan :: Either Text [GeneratorAction]
     , actionName :: Text
     , controllerName :: Text
+    , applicationName :: Text
     , doGenerateView :: Bool
     , controllers :: [Text]
+    , applications :: [Text]
     }
 
 instance View NewActionView ViewContext where
@@ -33,12 +35,13 @@ instance View NewActionView ViewContext where
         where
             renderEmpty = [hsx|<form method="POST" action={NewActionAction}>
                     <div class="d-flex">
+                        {when (length applications /= 1) renderApplicationSelector}
                         <select 
                             name="controllerName"
                             class="form-control select2-simple"
                             size="1"
                         >
-                            {renderOptions}
+                            {renderControllerOptions}
                         </select>
                         <input
                             type="text"
@@ -59,13 +62,23 @@ instance View NewActionView ViewContext where
                         <label class="pl-1" for="doGenerateView">With View</label>
                     </div>
                 </form>|]
-            renderOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
+            renderControllerOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
+            renderApplicationOptions = forM_ applications (\x -> [hsx|<option selected={x == applicationName}>{x}</option>|])
+            renderApplicationSelector = [hsx|
+                <select
+                    name="applicationName"
+                    class="form-control select2-simple"
+                    size="1"
+                >
+                    {renderApplicationOptions}
+                </select>|]
             renderPreview = [hsx|
                 <form method="POST" action={CreateActionAction} class="d-flex">
                     <div class="object-name flex-grow-1">{controllerName}.{actionName}</div>
 
                     <input type="hidden" name="name" value={actionName}/>
                     <input type="hidden" name="controllerName" value={controllerName}/>
+                    <input type="hidden" name="applicationName" value={applicationName}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
