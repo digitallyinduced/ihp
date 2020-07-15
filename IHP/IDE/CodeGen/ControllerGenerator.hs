@@ -209,13 +209,15 @@ pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
 
 generateViews :: Text -> Text -> IO [GeneratorAction]
-generateViews applicationName controllerName = do
-    when (null controllerName) $ pure []
-    (Right indexPlan) <- ViewGenerator.buildPlan "IndexView" applicationName controllerName
-    (Right newPlan) <- ViewGenerator.buildPlan "NewView" applicationName controllerName
-    (Right showPlan) <- ViewGenerator.buildPlan "ShowView" applicationName controllerName
-    (Right editPlan) <- ViewGenerator.buildPlan "EditView" applicationName controllerName
-    pure $ indexPlan <> newPlan <> showPlan <> editPlan
+generateViews applicationName controllerName = 
+    if null controllerName 
+        then pure []
+        else do
+            (Right indexPlan) <- ViewGenerator.buildPlan "IndexView" applicationName controllerName
+            (Right newPlan) <- ViewGenerator.buildPlan "NewView" applicationName controllerName
+            (Right showPlan) <- ViewGenerator.buildPlan "ShowView" applicationName controllerName
+            (Right editPlan) <- ViewGenerator.buildPlan "EditView" applicationName controllerName
+            pure $ indexPlan <> newPlan <> showPlan <> editPlan
 
 
 isAlphaOnly :: Text -> Bool

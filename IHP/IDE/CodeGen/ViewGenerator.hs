@@ -178,7 +178,7 @@ generateGenericView schema config =
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
             , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> name <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
+            , AddImport { filePath = get #applicationName config <> "/Controller/" <> (Countable.pluralize controllerName) <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
             ]
 
 fieldsForTable :: [Statement] -> Text -> [Text]
