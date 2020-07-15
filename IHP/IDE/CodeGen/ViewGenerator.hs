@@ -10,7 +10,6 @@ import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import qualified Text.Countable as Countable
-import IHP.IDE.CodeGen.ControllerGenerator (fieldsForTable)
 
 data ViewConfig = ViewConfig
     { controllerName :: Text 
@@ -181,3 +180,19 @@ generateGenericView schema config =
             , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> name <> ".hs", fileContent = chosenView }
             , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
             ]
+
+fieldsForTable :: [Statement] -> Text -> [Text]
+fieldsForTable database name =
+    case getTable database name of
+        Just (CreateTable { columns }) -> columns
+                |> filter (\col -> isNothing (get #defaultValue col))
+                |> map (get #name)
+                |> map columnNameToFieldName
+        Nothing -> []
+
+getTable :: [Statement] -> Text -> Maybe Statement
+getTable schema name = find isTable schema
+    where
+        isTable :: Statement -> Bool
+        isTable table@(CreateTable { name = name' }) | name == name' = True
+        isTable _ = False
