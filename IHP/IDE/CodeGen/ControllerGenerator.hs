@@ -150,7 +150,7 @@ generateController schema config =
             <> "        render EditView { .. }\n"
 
         modelFields :: [Text]
-        modelFields = fieldsForTable schema modelVariablePlural
+        modelFields = fieldsForTable schema (modelNameToTableName modelVariableSingular)
 
         updateAction =
             ""
