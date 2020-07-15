@@ -16,22 +16,9 @@ import Control.Monad.Fail
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 
-normalizeControllerName :: Text -> Either Text [Text]
-normalizeControllerName appAndControllerName = do
-    case Text.splitOn "." appAndControllerName of
-        [applicationName, controllerName'] -> do
-            if isAlphaOnly applicationName
-                then if isAlphaOnly controllerName'
-                    then Right [applicationName, controllerName']
-                    else Left ("Invalid controller name: " <> tshow controllerName')
-                else Left ("Invalid application name: " <> tshow applicationName)
-        [controllerName'] -> if isAlphaOnly controllerName'
-                then Right $ [controllerName']
-                else Left ("Invalid controller name: " <> tshow controllerName')
-        _ -> Left "Name should be either 'ControllerName' or 'ApplicationName.ControllerName'"
 
-buildPlan :: Text -> IO (Either Text [GeneratorAction])
-buildPlan appAndControllerName = do
+buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
+buildPlan controllerName applicationName = do
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
@@ -148,7 +135,7 @@ generateController schema config =
             <> "        render EditView { .. }\n"
 
         modelFields :: [Text]
-        modelFields = fieldsForTable schema modelVariablePlural
+        modelFields = fieldsForTable schema (modelNameToTableName modelVariableSingular)
 
         updateAction =
             ""

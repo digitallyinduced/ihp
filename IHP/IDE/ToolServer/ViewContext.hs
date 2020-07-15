@@ -21,7 +21,7 @@ instance ViewSupport.CreateViewContext ViewContext where
     createViewContext = do
         flashMessages <- Session.getAndClearFlashMessages
         webControllers <- findWebControllers
-        appNames <- findApps
+        appNames <- findApplications
 
         let viewContext = ViewContext {
                 requestContext = ?requestContext,
@@ -41,9 +41,14 @@ findWebControllers = do
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles
 
+findControllers :: Text -> IO [Text]
+findControllers application = do
+    directoryFiles <-  listDirectory $ cs $ application <> "/Controller"
+    let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
+    pure $ map (Text.replace ".hs" "") controllerFiles
 
-findApps :: IO ([Text])
-findApps = do
+findApplications :: IO ([Text])
+findApplications = do
     mainhs <- IO.readFile "Main.hs"
     let imports = filter (\line -> "import " `isPrefixOf` line && ".FrontController" `isSuffixOf` line) (lines mainhs)
     pure (map removeImport imports)
