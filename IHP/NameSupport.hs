@@ -3,9 +3,19 @@ Module: IHP.NameSupport
 Description:  Transforms names, e.g. table names to model names
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.NameSupport (tableNameToModelName, columnNameToFieldName, humanize, ucfirst, lcfirst, fieldNameToColumnName, escapeHaskellKeyword) where
+module IHP.NameSupport
+( tableNameToModelName
+, columnNameToFieldName
+, modelNameToTableName
+, humanize
+, ucfirst
+, lcfirst
+, fieldNameToColumnName
+, escapeHaskellKeyword
+) where
 
 import Prelude hiding (splitAt)
+import IHP.HaskellSupport
 import Data.Text
 import Data.String.Conversions (cs)
 import qualified Text.Inflections as Inflector
@@ -26,6 +36,20 @@ tableNameToModelName tableName = do
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else ucfirst singularizedTableName
 {-# INLINE tableNameToModelName #-}
+
+-- | Transforms a camel case model name to a underscored table name.
+--
+-- >>> modelNameToTableName "User"
+-- "users"
+--
+-- >>> modelNameToTableName "UserProject"
+-- "user_projects"
+modelNameToTableName :: Text -> Text
+modelNameToTableName modelName =
+        Inflector.toUnderscore modelName
+        |> unwrapEither modelName
+        |> Countable.pluralize
+{-# INLINE modelNameToTableName #-}
 
 -- | Transforms a underscore table column name to a camel case attribute name for use in haskell.
 --
