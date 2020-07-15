@@ -34,14 +34,7 @@ instance View NewViewView ViewContext where
     |]
         where
             renderEmpty = [hsx|<form method="POST" action={NewViewAction} class="d-flex">
-                    <select
-                        name="applicationName"
-                        class="form-control select2-simple"
-                        size="1"
-                        onchange="this.form.submit()"
-                    >
-                        {renderApplicationOptions}
-                    </select>
+                    {when (length applications /= 1) renderApplicationSelector}
                     <select 
                         name="controllerName"
                         class="form-control select2-simple"
@@ -61,6 +54,14 @@ instance View NewViewView ViewContext where
                 </form>|]
             renderControllerOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
             renderApplicationOptions = forM_ applications (\x -> [hsx|<option selected={x == applicationName}>{x}</option>|])
+            renderApplicationSelector = [hsx|
+                <select
+                    name="applicationName"
+                    class="form-control select2-simple"
+                    size="1"
+                >
+                    {renderApplicationOptions}
+                </select>|]
             renderPreview = [hsx|
                 <form method="POST" action={CreateViewAction} class="d-flex">
                     <div class="object-name flex-grow-1">{controllerName}.{viewName}</div>

@@ -32,13 +32,7 @@ instance View NewControllerView ViewContext where
     |]
         where
             renderEmpty = [hsx|<form method="POST" action={NewControllerAction} class="d-flex">
-                    <select
-                            name="applicationName"
-                            class="form-control select2-simple"
-                            size="1"
-                        >
-                            {renderApplicationOptions}
-                        </select>
+                        {when (length applications /= 1) renderApplicationSelector}
                         <input
                             type="text"
                             name="name"
@@ -61,5 +55,12 @@ instance View NewControllerView ViewContext where
                 </form>
             |]
             renderApplicationOptions = forM_ applications (\x -> [hsx|<option selected={x == applicationName}>{x}</option>|])
-
+            renderApplicationSelector = [hsx|
+                <select
+                    name="applicationName"
+                    class="form-control select2-simple"
+                    size="1"
+                >
+                    {renderApplicationOptions}
+                </select>|]
             isEmpty = null controllerName
