@@ -119,7 +119,7 @@ type family GetModelName model :: Symbol
 -- | Returns the model name of a given model as Text
 --
 -- __Example:__
--- 
+--
 -- >>> modelName @User
 -- "User"
 --
@@ -187,7 +187,7 @@ sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
 -- | Returns the table name of a given model.
 --
 -- __Example:__
--- 
+--
 -- >>> tableName @User
 -- "users"
 --
@@ -257,7 +257,7 @@ type NormalizeModel model = GetModelByTableName (GetTableName model)
 -- | Returns the ids for a list of models
 --
 -- Shorthand for @map (get #id) records@.
--- 
+--
 -- >>> users <- query @User |> fetch
 -- >>> ids users
 -- [227fbba3-0578-4eb8-807d-b9b692c3644f, 9d7874f2-5343-429b-bcc4-8ee62a5a6895, ...] :: [Id User]
@@ -272,3 +272,24 @@ instance Default MetaBag where
 
 instance SetField "annotations" MetaBag [(Text, Text)] where
     setField value meta = meta { annotations = value }
+
+-- | Represents fields that have a default value in an SQL schema
+--
+--   The 'Default' constructor represents the default value from the schema,
+--   while the 'NonDefault' constructor holds some other value for the field
+data FieldWithDefault valueType = Default | NonDefault valueType deriving (Eq, Show)
+
+instance ToField valueType => ToField (FieldWithDefault valueType) where
+  toField Default = Plain "DEFAULT"
+  toField (NonDefault a) = toField a
+
+-- | Construct a 'FieldWithDefault'
+--
+--   Use the default SQL value when the field is set to 'def'
+--
+--   NB: This doesn't deal with the case where the user purposefully sets the
+--   field to 'def' and that 'def' value isn't the same as the SQL default value
+fieldWithDefault :: (Eq valueType, Default valueType) => valueType -> FieldWithDefault valueType
+fieldWithDefault a
+  | a == def = Default
+  | otherwise = NonDefault a

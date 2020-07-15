@@ -291,16 +291,15 @@ compileCreate table@(CreateTable { name, columns }) =
     let
         modelName = tableNameToModelName name
         columnNames = commaSep (map (get #name) columns)
-        values = commaSep (map toValue columns)
+        values = commaSep (map (const "?") columns)
 
-        toValue Column { defaultValue = Just theDefaultValue } = "DEFAULT"
-        toValue _ = "?"
+        defaultWrapper (Just theDefaultValue) = "fieldWithDefault "
+        defaultWrapper Nothing = ""
 
-        toBinding Column { defaultValue = Just theDefaultValue } = Nothing
-        toBinding Column { name } = Just $ "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> columnNameToFieldName name
+        toBinding Column { name, defaultValue } = "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> defaultWrapper defaultValue <> columnNameToFieldName name
 
         bindings :: [Text]
-        bindings = mapMaybe toBinding columns
+        bindings = map toBinding columns
 
         createManyFieldValues :: Text
         createManyFieldValues = if null bindings
