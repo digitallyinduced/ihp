@@ -22,8 +22,7 @@ data ViewContext = ViewContext
 data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context } deriving (Eq)
 
 data SchemaController
-    = SchemaAction
-    | PushToDbAction
+    = PushToDbAction
     | DumpDbAction
     | UpdateDbAction
     | ShowCodeAction
