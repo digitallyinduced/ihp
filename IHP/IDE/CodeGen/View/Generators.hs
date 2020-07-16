@@ -99,5 +99,3 @@ renderGeneratorAction AddToDataConstructor { .. } = [hsx|
 
 renderGeneratorAction EnsureDirectory {} = mempty
 renderGeneratorAction RunShellCommand {} = mempty
-
-renderGeneratorAction action = [hsx|{action}|]

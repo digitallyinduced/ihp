@@ -67,6 +67,10 @@ haskellType table column@(Column { columnType, notNull }) =
                 PBinary -> "Binary"
                 PTime -> "TimeOfDay"
                 PCustomType theType -> tableNameToModelName theType
+                PTimestamp -> "LocalTime"
+                (PNumeric _ _) -> "Float"
+                (PVaryingN _) -> "Text"
+                (PCharacterN _) -> "Text"
         actualType =
             case findForeignKeyConstraint table column of
                 Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName' referenceTable <> ")"

@@ -22,8 +22,7 @@ data ViewContext = ViewContext
 data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context } deriving (Eq)
 
 data SchemaController
-    = SchemaAction
-    | PushToDbAction
+    = PushToDbAction
     | DumpDbAction
     | UpdateDbAction
     | ShowCodeAction
@@ -42,8 +41,7 @@ data TablesController
     deriving (Eq, Show, Data)
 
 data ColumnsController
-    = ColumnsAction
-    | NewColumnAction { tableName :: Text }
+    = NewColumnAction { tableName :: Text }
     | CreateColumnAction
     | EditColumnAction { tableName :: Text, columnId :: Int }
     | UpdateColumnAction
@@ -57,8 +55,7 @@ data ColumnsController
     deriving (Eq, Show, Data)
 
 data EnumsController
-    = EnumsAction
-    | ShowEnumAction { enumName :: Text }
+    = ShowEnumAction { enumName :: Text }
     | NewEnumAction
     | CreateEnumAction
     | EditEnumAction { enumName :: Text, enumId :: Int }
@@ -67,8 +64,7 @@ data EnumsController
     deriving (Eq, Show, Data)
 
 data EnumValuesController
-    = EnumValuesAction
-    | NewEnumValueAction { enumName :: Text }
+    = NewEnumValueAction { enumName :: Text }
     | CreateEnumValueAction
     | EditEnumValueAction { enumName :: Text, valueId :: Int }
     | UpdateEnumValueAction

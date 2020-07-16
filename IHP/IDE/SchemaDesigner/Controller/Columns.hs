@@ -218,3 +218,4 @@ hasPrimaryKey CreateTable { columns } = do
     case primaryKey of
         Nothing -> pure False
         _ -> pure True
+hasPrimaryKey _ = pure False
