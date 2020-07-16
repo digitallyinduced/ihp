@@ -64,7 +64,7 @@ fieldsForTable database name =
                 |> filter (\col -> isNothing (get #defaultValue col))
                 |> map (get #name)
                 |> map columnNameToFieldName
-        Nothing -> []
+        _ -> []
 
 
 generateControllerData :: ControllerConfig -> Text
