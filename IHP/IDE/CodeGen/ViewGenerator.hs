@@ -45,7 +45,10 @@ generateGenericView schema config =
             pluralVariableName = lcfirst controllerName
             nameWithSuffix = if "View" `isSuffixOf` name
                 then name
-                else name <> "View" --e.g. "TestView"
+                else name <> "View" --e.g. "Test" -> "TestView"
+            nameWithoutSuffix = if "View" `isSuffixOf` name
+                then Text.replace "View" "" name 
+                else name --e.g. "TestView" -> "Test"
 
             indexAction = Countable.pluralize singularName <> "Action"
             specialCases = [
@@ -61,7 +64,7 @@ generateGenericView schema config =
 
             viewHeader =
                 ""
-                <> "module " <> qualifiedViewModuleName config name <> " where\n"
+                <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
                 <> "import " <> get #applicationName config <> ".View.Prelude\n"
                 <> "\n"
             
@@ -88,7 +91,7 @@ generateGenericView schema config =
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize nameWithoutSuffix <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -103,7 +106,7 @@ generateGenericView schema config =
                 <> "    html NewView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize nameWithoutSuffix <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -125,7 +128,7 @@ generateGenericView schema config =
                 <> "    html EditView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize nameWithoutSuffix <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -147,10 +150,10 @@ generateGenericView schema config =
                 <> "    html IndexView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> Countable.pluralize nameWithoutSuffix <> "</a></li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
-                <> "        <h1>" <> name <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
+                <> "        <h1>" <> nameWithoutSuffix <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
                 <> "        <div class=\"table-responsive\">\n"
                 <> "            <table class=\"table\">\n"
                 <> "                <thead>\n"
@@ -177,8 +180,8 @@ generateGenericView schema config =
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
-            , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> name <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> (Countable.pluralize controllerName) <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
+            , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
+            , AddImport { filePath = get #applicationName config <> "/Controller/" <> (Countable.pluralize controllerName) <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
 
 fieldsForTable :: [Statement] -> Text -> [Text]
