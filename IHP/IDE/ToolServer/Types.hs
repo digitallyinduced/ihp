@@ -41,8 +41,7 @@ data TablesController
     deriving (Eq, Show, Data)
 
 data ColumnsController
-    = ColumnsAction
-    | NewColumnAction { tableName :: Text }
+    = NewColumnAction { tableName :: Text }
     | CreateColumnAction
     | EditColumnAction { tableName :: Text, columnId :: Int }
     | UpdateColumnAction
@@ -65,8 +64,7 @@ data EnumsController
     deriving (Eq, Show, Data)
 
 data EnumValuesController
-    = EnumValuesAction
-    | NewEnumValueAction { enumName :: Text }
+    = NewEnumValueAction { enumName :: Text }
     | CreateEnumValueAction
     | EditEnumValueAction { enumName :: Text, valueId :: Int }
     | UpdateEnumValueAction
