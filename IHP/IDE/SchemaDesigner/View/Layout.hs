@@ -146,12 +146,12 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
                 Nothing -> mempty
         renderForeignKey = case findForeignKey statements tableName name of
             Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)} class="d-block nounderline" style="color: #808080;">FOREIGN KEY: {get #referenceTable constraint}</a>|]
-            Nothing -> mempty
+            _ -> mempty
         foreignKeyOption = case findForeignKey statements tableName name of
             Just addConstraint@AddConstraint { constraint } ->
                 [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)}>Edit Foreign Key Constraint</a>
                 <a href={DeleteForeignKeyAction (get #constraintName addConstraint) tableName} class="js-delete">Delete Foreign Key Constraint</a>|]
-            Nothing -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
+            _ -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
 
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
 renderEnumSelector enumName values = [hsx|
