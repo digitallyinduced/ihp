@@ -18,14 +18,14 @@ buildPlan applicationName =
     if (null applicationName)
         then do
             pure $ Left "Application name cannot be empty"
-        else do 
+        else do
             let applicationName' = ucfirst applicationName
             pure $ Right $ generateGenericApplication applicationName'
 
 generateGenericApplication :: Text -> [GeneratorAction]
-generateGenericApplication applicationName = 
-        let 
-            typesHs = 
+generateGenericApplication applicationName =
+        let
+            typesHs =
                 "module " <> applicationName <> ".Types where\n"
                 <> "import IHP.Prelude\n"
                 <> "import qualified IHP.Controller.Session\n"
@@ -61,7 +61,7 @@ generateGenericApplication applicationName =
                 <> "        -- Generator Marker\n"
                 <> "        ]\n\n"
                 <> "instance InitControllerContext " <> applicationName <> "Application\n"
-            controllerPreludeHs = 
+            controllerPreludeHs =
                 "module " <> applicationName <> ".Controller.Prelude\n"
                 <> "( module " <> applicationName <> ".Types\n"
                 <> ", module Application.Helper.Controller\n"
@@ -72,9 +72,9 @@ generateGenericApplication applicationName =
                 <> "import " <> applicationName <> ".Types\n"
                 <> "import Application.Helper.Controller\n"
                 <> "import IHP.ControllerPrelude\n"
-                <> "import Generated.Types\n"           
+                <> "import Generated.Types\n"
 
-            viewContextHs = 
+            viewContextHs =
                 "module " <> applicationName <> ".View.Context where\n\n"
                 <> "import IHP.Prelude\n"
                 <> "import qualified IHP.Controller.Session\n"
@@ -164,7 +164,7 @@ generateGenericApplication applicationName =
                 <> "    <meta property=\"og:description\" content=\"TODO\"/>\n"
                 <> "|]\n"
 
-            viewPreludeHs = 
+            viewPreludeHs =
                 "module " <> applicationName <> ".View.Prelude\n"
                 <> "( module IHP.ViewPrelude\n"
                 <> ", module " <> applicationName <> ".View.Layout\n"
