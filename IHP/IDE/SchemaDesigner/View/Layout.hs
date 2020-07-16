@@ -1,4 +1,4 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
