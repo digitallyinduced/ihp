@@ -56,8 +56,7 @@ data ColumnsController
     deriving (Eq, Show, Data)
 
 data EnumsController
-    = EnumsAction
-    | ShowEnumAction { enumName :: Text }
+    = ShowEnumAction { enumName :: Text }
     | NewEnumAction
     | CreateEnumAction
     | EditEnumAction { enumName :: Text, enumId :: Int }
