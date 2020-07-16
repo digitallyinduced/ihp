@@ -155,7 +155,6 @@ generateGenericApplication applicationName =
                 <> "    when (isProduction FrameworkConfig.environment) [hsx|\n"
                 <> "       <script src=\"/prod.js\"></script>\n"
                 <> "    |]\n"
-                <> "    [hsx| <script src=\"/helpers-extra.js\"></script> |]\n"
                 <> "\n"
                 <> "\n"
                 <> "metaTags = [hsx|\n"
