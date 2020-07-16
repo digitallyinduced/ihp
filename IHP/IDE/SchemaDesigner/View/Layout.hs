@@ -282,6 +282,7 @@ findForeignKey statements tableName columnName =
 replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of
    (before, _:after) -> before ++ (e: after)
+   (a, b) -> a ++ b
 
 getDefaultValue :: Text -> Text -> Maybe Expression
 getDefaultValue columnType value = case Megaparsec.runParser Parser.expression "" value of
