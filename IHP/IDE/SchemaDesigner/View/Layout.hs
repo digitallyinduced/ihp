@@ -266,6 +266,7 @@ renderObjectSelector statements activeObjectName = [hsx|
 
 removeQuotes :: [Char] -> Text
 removeQuotes (x:xs) = cs (init xs)
+removeQuotes n = cs n
 
 findForeignKey statements tableName columnName = 
     find (\statement -> statement == AddConstraint 
