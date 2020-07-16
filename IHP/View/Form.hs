@@ -253,7 +253,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
             ColorInput -> renderTextField "color" formField
             EmailInput -> renderTextField "email" formField
             DateInput -> renderTextField "date" formField
-            DateTimeInput -> renderTextField "datetime" formField
+            DateTimeInput -> renderTextField "datetime-local" formField
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField
@@ -390,7 +390,7 @@ dateField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-dateField field = (textField field) { fieldType = DateInput, fieldClass = "date-field" }
+dateField field = (textField field) { fieldType = DateInput }
 {-# INLINE dateField #-}
 
 passwordField :: forall fieldName model.
@@ -412,7 +412,7 @@ dateTimeField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput, fieldClass = "date-time-field" }
+dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput }
 {-# INLINE dateTimeField #-}
 
 
