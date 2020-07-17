@@ -16,17 +16,20 @@ main = do
     args <- map cs <$> Posix.getArgs
     case headMay args of
         Just "" -> usage
-        Just appAndControllerName -> do
-            planOrError <- buildPlan appAndControllerName
-            case planOrError of
-                Left error -> putStrLn error
-                Right plan -> undoPlan $ reverse plan
+        Just appAndControllerName -> case Text.splitOn "." appAndControllerName of
+            [controllerName] -> deleteController "Web" controllerName
+            [applicationName, controllerName] -> deleteController applicationName controllerName
+            _ -> usage
         _ -> usage
 
+deleteController applicationName controllerName = do
+    planOrError <- buildPlan applicationName controllerName
+    case planOrError of
+        Left error -> putStrLn error
+        Right plan -> undoPlan $ reverse plan
 
 usage :: IO ()
 usage = putStrLn "Usage: delete-controller RESOURCE_NAME"
-
 
 ensureIsInAppDirectory :: IO ()
 ensureIsInAppDirectory = do
