@@ -6,6 +6,7 @@ let
         "tz"
         "http2-client"
         "typerep-map"
+        "hslogger"
     ];
 
     doJailbreakPackages = [
@@ -14,6 +15,8 @@ let
         "ihp"
         "http-media"
         "countable-inflections"
+        "ghcide"
+        "hslogger"
     ];
 
     dontHaddockPackages = [
