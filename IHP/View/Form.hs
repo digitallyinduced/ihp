@@ -253,7 +253,7 @@ renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
             ColorInput -> renderTextField "color" formField
             EmailInput -> renderTextField "email" formField
             DateInput -> renderTextField "date" formField
-            DateTimeInput -> renderTextField "datetime" formField
+            DateTimeInput -> renderTextField "datetime-local" formField
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField

@@ -18,14 +18,14 @@ buildPlan applicationName =
     if (null applicationName)
         then do
             pure $ Left "Application name cannot be empty"
-        else do 
+        else do
             let applicationName' = ucfirst applicationName
             pure $ Right $ generateGenericApplication applicationName'
 
 generateGenericApplication :: Text -> [GeneratorAction]
-generateGenericApplication applicationName = 
-        let 
-            typesHs = 
+generateGenericApplication applicationName =
+        let
+            typesHs =
                 "module " <> applicationName <> ".Types where\n"
                 <> "import IHP.Prelude\n"
                 <> "import qualified IHP.Controller.Session\n"
@@ -61,7 +61,7 @@ generateGenericApplication applicationName =
                 <> "        -- Generator Marker\n"
                 <> "        ]\n\n"
                 <> "instance InitControllerContext " <> applicationName <> "Application\n"
-            controllerPreludeHs = 
+            controllerPreludeHs =
                 "module " <> applicationName <> ".Controller.Prelude\n"
                 <> "( module " <> applicationName <> ".Types\n"
                 <> ", module Application.Helper.Controller\n"
@@ -72,9 +72,9 @@ generateGenericApplication applicationName =
                 <> "import " <> applicationName <> ".Types\n"
                 <> "import Application.Helper.Controller\n"
                 <> "import IHP.ControllerPrelude\n"
-                <> "import Generated.Types\n"           
+                <> "import Generated.Types\n"
 
-            viewContextHs = 
+            viewContextHs =
                 "module " <> applicationName <> ".View.Context where\n\n"
                 <> "import IHP.Prelude\n"
                 <> "import qualified IHP.Controller.Session\n"
@@ -118,9 +118,7 @@ generateGenericApplication applicationName =
                 <> "<head>\n"
                 <> "    {metaTags}\n"
                 <> "\n"
-                <> "    <link rel=\"stylesheet\" href=\"/vendor/bootstrap.min.css\"/>\n"
-                <> "    <link rel=\"stylesheet\" href=\"/app.css\"/>\n"
-                <> "\n"
+                <> "    {stylesheets}\n"
                 <> "    {scripts}\n"
                 <> "\n"
                 <> "    <title>App</title>\n"
@@ -133,22 +131,30 @@ generateGenericApplication applicationName =
                 <> "</body>\n"
                 <> "|]\n"
                 <> "\n"
+                <> "stylesheets = do\n"
+                <> "    when (isDevelopment FrameworkConfig.environment) [hsx|\n"
+                <> "        <link rel=\"stylesheet\" href=\"/vendor/bootstrap.min.css\"/>\n"
+                <> "        <link rel=\"stylesheet\" href=\"/vendor/flatpickr.min.css\"/>\n"
+                <> "        <link rel=\"stylesheet\" href=\"/app.css\"/>\n"
+                <> "    |]\n"
+                <> "    when (isProduction FrameworkConfig.environment) [hsx|\n"
+                <> "        <link rel=\"stylesheet\" href=\"/prod.css\"/>\n"
+                <> "    |]\n"
+                <> "\n"
                 <> "scripts = do\n"
-                <> "    when (isDevelopment FrameworkConfig.environment) [hsx|<script id=\"livereload-script\" src=\"/livereload.js\"></script>|]\n"
-                <> "    [hsx|\n"
-                <> "        <script src=\"/vendor/morphdom-umd.min.js\"></script>\n"
+                <> "    when (isDevelopment FrameworkConfig.environment) [hsx|\n"
+                <> "        <script id=\"livereload-script\" src=\"/livereload.js\"></script>\n"
                 <> "        <script src=\"/vendor/jquery-3.2.1.slim.min.js\"></script>\n"
                 <> "        <script src=\"/vendor/timeago.js\"></script>\n"
                 <> "        <script src=\"/vendor/popper.min.js\"></script>\n"
                 <> "        <script src=\"/vendor/bootstrap.min.js\"></script>\n"
+                <> "        <script src=\"/vendor/flatpickr.js\"></script>\n"
                 <> "        <script src=\"/helpers.js\"></script>\n"
+                <> "        <script src=\"/vendor/morphdom-umd.min.js\"></script>\n"
                 <> "    |]\n"
                 <> "    when (isProduction FrameworkConfig.environment) [hsx|\n"
-                <> "            <script src=\"/vendor/turbolinks.js\"></script>\n"
-                <> "            <script src=\"/vendor/morphdom-umd.min.js\"></script>\n"
-                <> "            <script src=\"/vendor/turbolinksMorphdom.js\"></script>\n"
-                <> "            <script src=\"/vendor/turbolinksInstantClick.js\"></script>\n"
-                <> "        |]\n"
+                <> "        <script src=\"/prod.js\"></script>\n"
+                <> "    |]\n"
                 <> "\n"
                 <> "\n"
                 <> "metaTags = [hsx|\n"
@@ -160,7 +166,7 @@ generateGenericApplication applicationName =
                 <> "    <meta property=\"og:description\" content=\"TODO\"/>\n"
                 <> "|]\n"
 
-            viewPreludeHs = 
+            viewPreludeHs =
                 "module " <> applicationName <> ".View.Prelude\n"
                 <> "( module IHP.ViewPrelude\n"
                 <> ", module " <> applicationName <> ".View.Layout\n"

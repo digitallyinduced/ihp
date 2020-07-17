@@ -67,12 +67,6 @@ Create an `static/app.css`. In there use CSS imports to import your other styles
 @import "/users.css";
 ```
 
-In your `Web.View.Layout` just import the `app.css`:
-
-```html
-<link rel="stylesheet" href="/app.css"/>
-```
-
 ###### Page-specific CSS rules
 
 Place page-specific CSS used by e.g. views of the `Web.Controller.Users` controller in the `users.css`. Use [currentViewId](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:currentViewId) to scope your css rules to the view.
