@@ -27,10 +27,7 @@ ensureIsInAppDirectory :: IO ()
 ensureIsInAppDirectory = do
     mainHsExists <- Directory.doesFileExist "Main.hs"
     unless mainHsExists (fail "You have to be in a project directory to run the generator")
-
-normalizeAppAndControllerName :: Text -> [Text]
-normalizeAppAndControllerName appAndControllerName = Text.splitOn "." appAndControllerName
-
+    
 generateController :: Text -> IO ()
 generateController appAndControllerName = do
     case Text.splitOn "." appAndControllerName of
