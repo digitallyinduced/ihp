@@ -3,6 +3,7 @@
 module IHP.ModelSupport where
 
 import IHP.HaskellSupport
+import IHP.NameSupport
 import qualified Prelude
 import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
 import qualified ClassyPrelude
@@ -265,13 +266,19 @@ ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (getField @"id") records
 {-# INLINE ids #-}
 
-data MetaBag = MetaBag { annotations :: [(Text, Text)] } deriving (Eq, Show)
+data MetaBag = MetaBag
+  { annotations :: [(Text, Text)]
+  , touchedFields :: [Text]
+  } deriving (Eq, Show)
 
 instance Default MetaBag where
-    def = MetaBag { annotations = [] }
+    def = MetaBag { annotations = [], touchedFields = [] }
 
 instance SetField "annotations" MetaBag [(Text, Text)] where
     setField value meta = meta { annotations = value }
+
+instance SetField "touchedFields" MetaBag [Text] where
+    setField value meta = meta { touchedFields = value }
 
 -- | Represents fields that have a default value in an SQL schema
 --
@@ -285,11 +292,50 @@ instance ToField valueType => ToField (FieldWithDefault valueType) where
 
 -- | Construct a 'FieldWithDefault'
 --
---   Use the default SQL value when the field is set to 'def'
+--   Use the default SQL value when the field hasn't been touched since the
+--   record was created. This information is stored in the 'touchedFields'
+--   attribute of the 'meta' field.
+fieldWithDefault
+  :: ( KnownSymbol name
+     , HasField name model value
+     , HasField "meta" model MetaBag
+     )
+  => Proxy name
+  -> model
+  -> FieldWithDefault value
+fieldWithDefault name model
+  | cs (symbolVal name) `elem` get #touchedFields (get #meta model) =
+    NonDefault (get name model)
+  | otherwise = Default
+
+-- | Represents fields that may have been updated
 --
---   NB: This doesn't deal with the case where the user purposefully sets the
---   field to 'def' and that 'def' value isn't the same as the SQL default value
-fieldWithDefault :: (Eq valueType, Default valueType) => valueType -> FieldWithDefault valueType
-fieldWithDefault a
-  | a == def = Default
-  | otherwise = NonDefault a
+--   The 'NoUpdate' constructor represents the existing value in the database,
+--   while the 'Update' constructor holds some new value for the field
+data FieldWithUpdate name value
+  = NoUpdate (Proxy name)
+  | Update value
+  deriving (Eq, Show)
+
+instance (KnownSymbol name, ToField value) => ToField (FieldWithUpdate name value) where
+  toField (NoUpdate name) =
+    Plain (ClassyPrelude.fromString $ cs $ fieldNameToColumnName $ cs $ symbolVal name)
+  toField (Update a) = toField a
+
+-- | Construct a 'FieldWithUpdate'
+--
+--   Use the current database value when the field hasn't been touched since the
+--   record was accessed. This information is stored in the 'touchedFields'
+--   attribute of the 'meta' field.
+fieldWithUpdate
+  :: ( KnownSymbol name
+    , HasField name model value
+    , HasField "meta" model MetaBag
+    )
+  => Proxy name
+  -> model
+  -> FieldWithUpdate name value
+fieldWithUpdate name model
+  | cs (symbolVal name) `elem` get #touchedFields (get #meta model) =
+    Update (get name model)
+  | otherwise = NoUpdate name

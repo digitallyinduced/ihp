@@ -293,10 +293,10 @@ compileCreate table@(CreateTable { name, columns }) =
         columnNames = commaSep (map (get #name) columns)
         values = commaSep (map (const "?") columns)
 
-        defaultWrapper (Just theDefaultValue) = "fieldWithDefault "
-        defaultWrapper Nothing = ""
-
-        toBinding Column { name, defaultValue } = "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> defaultWrapper defaultValue <> columnNameToFieldName name
+        toBinding Column { name, defaultValue } =
+          case defaultValue of
+            Nothing -> "get #" <> columnNameToFieldName name <> " model"
+            Just _ -> "fieldWithDefault #" <> columnNameToFieldName name <> " model"
 
         bindings :: [Text]
         bindings = map toBinding columns
@@ -335,15 +335,13 @@ compileUpdate :: Statement -> Text
 compileUpdate table@(CreateTable { name, columns }) =
     let
         modelName = tableNameToModelName name
-        values = commaSep (map toValue columns)
 
-        toValue Column { defaultValue = Just theDefaultValue } = "DEFAULT"
-        toValue _ = "?"
+        toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
 
         bindings :: Text
         bindings =
             let
-                bindingValues = (map (toBinding modelName) columns) <> (["getField @\"id\" model"])
+                bindingValues = (map toUpdateBinding columns) <> ["get #id model"]
             in
                 compileToRowValues bindingValues
 
@@ -488,10 +486,16 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
         setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (get #name) columns)) <> " newValue"
         modelName = tableNameToModelName name
         typeArgs = dataTypeArguments table
-        compileSetField (name, fieldType) = "instance SetField " <> tshow name <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
+        compileSetField (name, fieldType) =
+            "instance SetField " <> tshow name <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n" <>
+            "    {-# INLINE setField #-}\n" <>
+            "    setField newValue (" <> compileDataTypePattern table <> ") =\n" <>
+            "        " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
             where
-                compileAttribute name' | name' == name = "newValue"
-                compileAttribute name = name
+                compileAttribute name'
+                    | name' == name = "newValue"
+                    | name' == "meta" = "(meta { touchedFields = \"" <> name <> "\" : touchedFields meta })"
+                    | otherwise = name'
 
 compileUpdateFieldInstances :: (?schema :: Schema) => Statement -> Text
 compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
@@ -505,8 +509,10 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                         then (name, name <> "'")
                         else (fieldType, fieldType)
 
-                compileAttribute name' | name' == name = "newValue"
-                compileAttribute name = name
+                compileAttribute name'
+                    | name' == name = "newValue"
+                    | name' == "meta" = "(meta { touchedFields = \"" <> name <> "\" : touchedFields meta })"
+                    | otherwise = name'
 
                 compileTypePattern' ::  Text -> Text
                 compileTypePattern' name = tableNameToModelName (get #name table) <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
