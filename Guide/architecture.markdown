@@ -7,7 +7,7 @@
 
 This section tries to answer common questions on where to place your code. These are recommendations found by digitally induced to be working well.
 
-In general remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different application. E.g. code shared between your web application and your admin backend.
+In general remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different applications. E.g. code shared between your web application and your admin backend.
 
 
 ## Directory Structure
@@ -18,14 +18,14 @@ In general remember that all specific web app logic should stay in the `Web/` sp
 | Config/                       |                                                                             |
 | Config/Config.hs              | Configuration for the framework and your application                        |
 | Config/nix/nixpkgs-config.nix | Configuration for the nix package manager                                   |
-| Config/nix/haskell-packages/  | Custom haskell dependencies can be placed here                              |
+| Config/nix/haskell-packages/  | Custom Haskell dependencies can be placed here                              |
 | Application/                          | Your domain logic lives here                                           |
 | Application/Schema.sql           | Models and database tables are defined here                                 |
 | Web/Controller       | Web application controllers                                                             |
 | Web/View/            | Web application html template files                                                         |
 | Web/Types.hs            | Central place for all web application types                                                         |
 | static/                       | Images, css and javascript files                                            |
-| .ghci                         | Default config file for the haskell interpreter                             |
+| .ghci                         | Default config file for the Haskell interpreter                             |
 | .gitignore                    | List of files to be ignored by git                                          |
 | App.cabal, Setup.hs           | Config for the cabal package manager (TODO: maybe move to Config/App.cabal) |
 | default.nix                   | Declares your app dependencies (like package.json or composer.json)         |
@@ -55,9 +55,9 @@ A IHP project can consist of multiple applications. Run `new-application admin` 
 
 ##### How to structure my CSS?
 
-CSS files, as all your other static assets, should be place in the `static` directory.
+CSS files, as all your other static assets, should be placed in the `static` directory.
 
-Create an `static/app.css`. In there use CSS imports to import your other stylesheets. An example `app.css` could look like this:
+Create a `static/app.css`. In there use CSS imports to import your other stylesheets. An example `app.css` could look like this:
 
 ```css
 @import "/layout.css";
@@ -69,7 +69,7 @@ Create an `static/app.css`. In there use CSS imports to import your other styles
 
 ###### Page-specific CSS rules
 
-Place page-specific CSS used by e.g. views of the `Web.Controller.Users` controller in the `users.css`. Use [currentViewId](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:currentViewId) to scope your css rules to the view.
+Place page-specific CSS used by e.g. views of the `Web.Controller.Users` controller in `users.css`. Use [currentViewId](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:currentViewId) to scope your css rules to the view.
 
 Given the view:
 
@@ -109,7 +109,7 @@ CSS files from external libraries or components should be placed in `static/vend
 
 JS files, as all your other static assets, should be place in the `static` directory.
 
-In general we follow an approach where most of the business logic resides on the haskell server. Only for small interactions we try to use a small isolated bit of javascript.
+In general we follow an approach where most of the business logic resides on the Haskell server. Only for small interactions we try to use a small isolated bit of javascript.
 
 Your global, non-page specific, javascript code can be placed in `app.js`.
 

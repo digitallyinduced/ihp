@@ -5,7 +5,7 @@
 
 ## Introduction
 
-The QueryBuilder module allows you to compose database queries in a type-safe way. Below you find a short reference to all the commonly used functions.
+The QueryBuilder module allows you to compose database queries in a type-safe way. Below you can find a short reference to all the commonly-used functions.
 
 ## Creating a new query
 To query the database for some records, you first need to build a query.
@@ -46,7 +46,7 @@ example = do
 ```
 
 ### single row: `fetchOne`
-To run a query which will return a single and **throws an error if no record is found** row use `fetchOne`:
+To run a query which will return a single row and **throw an error if no record is found** use `fetchOne`:
 ```haskell
 example :: IO Project
 example = do
@@ -144,7 +144,7 @@ let projectId :: ProjectId = ...
 project <- projectId |> fetch
 ```
 
-For convience there is also a `fetch` implementation for `Maybe SomeId`:
+For convenience there is also a `fetch` implementation for `Maybe SomeId`:
 
 ```haskell
 let assignedUserId :: Maybe UserId = project |> get #assignedUserId
