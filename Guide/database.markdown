@@ -321,8 +321,10 @@ do
 This will set the lastname of user `cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7` to `Tester` and run and `UPDATE` query to persist that:
 
 ```sql
-UPDATE users SET firstname = "Max", lastname = "Tester" WHERE id = "cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7"
+UPDATE users SET firstname = firstname, lastname = "Tester" WHERE id = "cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7"
 ```
+
+The `UPDATE` query will only update columns that have been changed using `|> set #someField someValue` on the record.
 
 ## Delete
 
