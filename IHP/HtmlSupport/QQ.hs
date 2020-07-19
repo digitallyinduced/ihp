@@ -54,6 +54,7 @@ compileToHaskell (Children children) =
     in [| foldl' (>>) mempty $(renderedChildren) |]
 
 compileToHaskell (TextNode value) = let value' :: String = cs value in [| Html5.string value' |]
+compileToHaskell (PreEscapedTextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (SplicedNode code) =
     case parseExp (cs code) of
         Right expression -> let patched = patchExpr expression in [| toHtml $(pure patched) |]
