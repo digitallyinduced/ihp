@@ -19,14 +19,15 @@ data ViewConfig = ViewConfig
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
-buildPlan viewName applicationName controllerName =
-    if (null viewName || null controllerName)
+buildPlan viewName applicationName controllerName' =
+    if (null viewName || null controllerName')
         then pure $ Left "View name and controller name cannot be empty"
         else do 
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
                 Right statements -> pure statements
-            let modelName = tableNameToModelName controllerName
+            let modelName = tableNameToModelName controllerName'
+            let controllerName = ucfirst controllerName'
             let viewConfig = ViewConfig {controllerName, applicationName, modelName, viewName }
             pure $ Right $ generateGenericView schema viewConfig
 

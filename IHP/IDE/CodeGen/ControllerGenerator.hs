@@ -28,7 +28,7 @@ buildPlan controllerName applicationName = do
 buildPlan' schema applicationName controllerName' viewPlans =
     let
         modelName = tableNameToModelName controllerName'
-        controllerName = Countable.pluralize modelName
+        controllerName = ucfirst $ Countable.pluralize modelName
         config = ControllerConfig { modelName, controllerName, applicationName }
     in
         [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
