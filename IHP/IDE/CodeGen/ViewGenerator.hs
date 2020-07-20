@@ -10,7 +10,6 @@ import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import qualified Text.Countable as Countable
-import IHP.IDE.CodeGen.ControllerGenerator (fieldsForTable)
 
 data ViewConfig = ViewConfig
     { controllerName :: Text 
@@ -20,14 +19,15 @@ data ViewConfig = ViewConfig
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
-buildPlan viewName applicationName controllerName =
-    if (null viewName || null controllerName)
+buildPlan viewName applicationName controllerName' =
+    if (null viewName || null controllerName')
         then pure $ Left "View name and controller name cannot be empty"
         else do 
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
                 Right statements -> pure statements
-            let modelName = tableNameToModelName controllerName
+            let modelName = tableNameToModelName controllerName'
+            let controllerName = ucfirst controllerName'
             let viewConfig = ViewConfig {controllerName, applicationName, modelName, viewName }
             pure $ Right $ generateGenericView schema viewConfig
 
@@ -46,7 +46,10 @@ generateGenericView schema config =
             pluralVariableName = lcfirst controllerName
             nameWithSuffix = if "View" `isSuffixOf` name
                 then name
-                else name <> "View" --e.g. "TestView"
+                else name <> "View" --e.g. "Test" -> "TestView"
+            nameWithoutSuffix = if "View" `isSuffixOf` name
+                then Text.replace "View" "" name 
+                else name --e.g. "TestView" -> "Test"
 
             indexAction = Countable.pluralize singularName <> "Action"
             specialCases = [
@@ -62,7 +65,7 @@ generateGenericView schema config =
 
             viewHeader =
                 ""
-                <> "module " <> qualifiedViewModuleName config name <> " where\n"
+                <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
                 <> "import " <> get #applicationName config <> ".View.Prelude\n"
                 <> "\n"
             
@@ -89,7 +92,7 @@ generateGenericView schema config =
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize nameWithoutSuffix <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -104,8 +107,8 @@ generateGenericView schema config =
                 <> "    html NewView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
-                <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\">New " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
                 <> "        <h1>New " <> singularName <> "</h1>\n"
@@ -126,7 +129,7 @@ generateGenericView schema config =
                 <> "    html EditView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -148,10 +151,10 @@ generateGenericView schema config =
                 <> "    html IndexView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
-                <> "        <h1>" <> name <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
+                <> "        <h1>" <> nameWithoutSuffix <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
                 <> "        <div class=\"table-responsive\">\n"
                 <> "            <table class=\"table\">\n"
                 <> "                <thead>\n"
@@ -178,6 +181,22 @@ generateGenericView schema config =
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
-            , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> name <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config name }
+            , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
+            , AddImport { filePath = get #applicationName config <> "/Controller/" <> (Countable.pluralize controllerName) <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
+
+fieldsForTable :: [Statement] -> Text -> [Text]
+fieldsForTable database name =
+    case getTable database name of
+        Just (CreateTable { columns }) -> columns
+                |> filter (\col -> isNothing (get #defaultValue col))
+                |> map (get #name)
+                |> map columnNameToFieldName
+        Nothing -> []
+
+getTable :: [Statement] -> Text -> Maybe Statement
+getTable schema name = find isTable schema
+    where
+        isTable :: Statement -> Bool
+        isTable table@(CreateTable { name = name' }) | name == name' = True
+        isTable _ = False
