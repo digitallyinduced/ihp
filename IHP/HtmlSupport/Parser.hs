@@ -101,7 +101,7 @@ hsxNodeAttribute = do
     pure (StaticAttribute key value)
 
 hsxAttributeName :: Parser Text
-hsxAttributeName = choice ([dataAttribute, ariaAttribute] <> (List.map string attributes))
+hsxAttributeName = choice ([dataAttribute, ariaAttribute, htmxAttribute] <> (List.map string attributes))
     where
         prefixedAttribute prefix = do
             string prefix
@@ -109,6 +109,7 @@ hsxAttributeName = choice ([dataAttribute, ariaAttribute] <> (List.map string at
             pure (prefix <> d)
         dataAttribute = prefixedAttribute "data-"
         ariaAttribute = prefixedAttribute "aria-"
+        htmxAttribute = prefixedAttribute "hx-"
 
 hsxQuotedValue :: Parser AttributeValue
 hsxQuotedValue = do
@@ -158,7 +159,7 @@ hsxSplicedNode = do
 
 hsxElementName :: Parser Text
 hsxElementName = do
-    name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_')
+    name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_' || c == '-')
     unless (name `List.elem` parents || name `List.elem` leafs) (fail $ "Invalid tag name: " <> cs name)
     space
     pure name
@@ -219,7 +220,7 @@ parents =
         , "code", "colgroup", "command", "datalist", "dd", "del", "details"
         , "dfn", "div", "dl", "dt", "em", "fieldset", "figcaption", "figure"
         , "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header"
-        , "hgroup", "html", "i", "iframe", "ins", "kbd", "label"
+        , "hgroup", "html", "i", "iframe", "ins", "ion-icon", "kbd", "label"
         , "legend", "li", "main", "map", "mark", "menu", "meter", "nav"
         , "noscript", "object", "ol", "optgroup", "option", "output", "p"
         , "pre", "progress", "q", "rp", "rt", "ruby", "samp", "script"
