@@ -122,9 +122,19 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
 
     <title>IHP Error</title>
-    <style>{layoutStyle}</style>
+    <style>
+        * { -webkit-font-smoothing: antialiased }
+        h2 {
+            color: white;
+            font-size: 1.25rem;
+        }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+        }
+    </style>
 </head>
-<body style={bodyStyle}>
+<body>
     <div style="background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1)">
         <div style="max-width: 800px; margin-left: auto; margin-right: auto">
             <h1 style="margin-bottom: 2rem; font-size: 2rem; font-weight: 500; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)">{errorTitle}</h1>
@@ -135,9 +145,3 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
     </div>
 </body>
     |]
-        where
-            bodyStyle :: Text
-            bodyStyle = "margin: 0; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Helvetica Neue\", Arial, sans-serif;"
-
-            layoutStyle :: Text
-            layoutStyle = "* { -webkit-font-smoothing: antialiased } h2 { color: white; font-size: 1.25rem; }"

@@ -26,7 +26,8 @@ data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes Text d
 
 data Node = Node !Text ![Attribute] ![Node]
     | TextNode !Text
-    | SplicedNode !Text
+    | PreEscapedTextNode !Text -- ^ Used in @script@ or @style@ bodies
+    | SplicedNode !Text -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
     | Children ![Node]
     deriving (Show)
 
@@ -61,7 +62,26 @@ hsxSelfClosingElement = do
 
 hsxNormalElement = do
     (name, attributes) <- hsxOpeningElement
-    children <- stripTextNodeWhitespaces <$> manyTill (try hsxChild) (hsxClosingElement name)
+    let parsePreEscapedTextChildren transformText = do
+                    let closingElement = "</" <> name <> ">"
+                    text <- cs <$> manyTill anySingle (string closingElement)
+                    pure [PreEscapedTextNode (transformText text)]
+    let parseNormalHSXChildren = stripTextNodeWhitespaces <$> manyTill (try hsxChild) (hsxClosingElement name)
+
+    -- script and style tags have special handling for their children. Inside those tags
+    -- we allow any kind of content. Using a haskell expression like @<script>{myHaskellExpr}</script>@
+    -- will just literally output the string @{myHaskellExpr}@ without evaluating the haskell expression itself.
+    --
+    -- Here is an example HSX code explaining the problem:
+    -- [hsx|<style>h1 { color: red; }</style>|]
+    -- The @{ color: red; }@ would be parsed as a inline haskell expression without the special handling
+    --
+    -- Additionally we don't do the usual escaping for style and script bodies, as this will make e.g. the
+    -- javascript unusuable.
+    children <- case name of
+            "script" -> parsePreEscapedTextChildren Text.strip
+            "style" -> parsePreEscapedTextChildren (collapseSpace . Text.strip)
+            otherwise -> parseNormalHSXChildren
     pure (Node name attributes children)
 
 hsxOpeningElement = do
@@ -127,13 +147,17 @@ hsxClosingElement name = do
 
 hsxChild = hsxElement <|> hsxSplicedNode <|> hsxText
 
+-- | Parses a hsx text node
+--
+-- Stops parsing when hitting a variable, like `{myVar}`
 hsxText :: Parser Node
-hsxText = do
-    value <- takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}' && c /= '<' && c /= '>')
-    let isWhitespaceTextOnly = Text.null (Text.strip value)
-    pure if isWhitespaceTextOnly
-        then TextNode ""
-        else TextNode (collapseSpace value)
+hsxText = buildTextNode <$> takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}' && c /= '<' && c /= '>')
+
+-- | Builds a TextNode and strips all surround whitespace from the input string
+buildTextNode :: Text -> Node
+buildTextNode value 
+    | Text.null (Text.strip value) = TextNode ""
+    | otherwise = TextNode (collapseSpace value)
 
 data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
 

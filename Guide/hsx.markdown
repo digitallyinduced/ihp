@@ -85,6 +85,49 @@ For dynamic use cases you can use `{...attributeList}`:
 <div { ...someVariable } />
 ```
 
+### Special Elements: `<script>` and `<style>`
+
+For `<script>` and `<style>` tags HSX applies some special handling. This only applies to tags with inline scripts or styles:
+
+```html
+No Special Handling:
+
+<script src="/hello.js"/>
+<link rel="stylesheet" href="layout.css"/>
+
+Special Handling applies:
+
+<script>alert("Hello");</script>
+<style>h1 { color: blue; }</style>
+```
+
+Inside those tags using a haskell expression will not work:
+
+```html
+<script>{myHaskellExpr}</script>
+```
+
+This will just literally output the string `{myHaskellExpr}` without evaluating the haskell expression itself. This is because javascript usually uses `{}` for object expressions like `{ a: "hello" }`. The same applies to inline CSS inside `<style>` elements.
+
+So using `{haskellVariables}` inside your javascript like this will not work:
+
+```html
+<script>
+    var apiKey = "{apiKey}";
+</script>
+```
+
+Instead use a `data-` attribute to solve this:
+
+```html
+<script data-api-key={apiKey}>
+    var apiKey = document.currentScript.dataset.apiKey;
+</script>
+```
+
+Additionally HSX will not do the the usual escaping for style and script bodies, as this will make e.g. the
+javascript unusuable.
+
 ### Syntax Rules
 
 While most html is also valid HSX, there are some difference you need to be aware of:
