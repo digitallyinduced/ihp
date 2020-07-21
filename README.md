@@ -4,6 +4,39 @@
 
 ![](https://github.com/digitallyinduced/ihp/blob/master/Guide/images/ihp-logo.png?raw=true)
 
+## What makes it different?
+
+**Productive & Fun:**
+IHP comes with everything you need to build great web applications out of the box. Combined with the unique mix of technologies and a fast development process, IHP makes it very pleasant to build applications.
+
+**Type-safe and reliable:**
+With Haskell and Nix we use the most reliable technologies available, to make sure your application will never crash because of Null Pointer Exceptions.
+
+If you like TypeScript, you will love IHP.
+
+**Fast dev enviroment:**
+While haskell is a compiled language, the built-in dev server automatically reloads your code changes using the fastest way possible. Changes are reflected instantly. Just like good old PHP.
+
+[Watch it in action!](https://youtu.be/nTjjDo57B8g)
+
+**Accessible:**
+Setup of the fully-managed dev environment takes just 5 minutes. All dependencies (even database and compiler) are managed using the nix package manager. This means dependency problems just cannot occur anymore. Also everything is guaranteed to be same for all developers in your team.
+
+**No Haskell Experience required:**
+Code Generators will help you to quickly build things even when you have no professional haskell experience yet. Pick up haskell by building real world applications.
+
+**Integrated Dev Tooling:**
+To speed up your development process, IHP comes with a full set of web based dev tools. Including: a database schema designer, a web-based code generator, a web-based repl, ...
+
+**Major Operating Systems Supported:**
+Windows (via Linux Subsystem), macOS, NixOS, Debian, Ubuntu
+
+**HSX:**
+Like React's JSX. Write html code in your haskell files. This will be transformed to actual type-checked haskell code at compile time.
+
+**Longterm Roadmap**
+Lot's of frameworks are already gone a year after launch. Especially in the fast moving JS world. But don't worry about IHP. We have been using it at digitally induced since 2017. It's actively used by us and our friends and partners. Even without external contributors we will build new features and do periodic maintaince releases in the future. We have big plans for IHP and as a profitable and independent software company we have the ability to actually execute them over the longterm.
+
 ## Getting Started
 
 [Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
