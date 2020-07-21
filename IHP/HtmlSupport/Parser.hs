@@ -154,8 +154,9 @@ hsxText = buildTextNode <$> takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}
 
 -- | Builds a TextNode and strips all surround whitespace from the input string
 buildTextNode :: Text -> Node
-buildTextNode value | Text.null (Text.strip value) = TextNode ""
-buildTextNode value = TextNode (collapseSpace value)
+buildTextNode value 
+    | Text.null (Text.strip value) = TextNode ""
+    | otherwise = TextNode (collapseSpace value)
 
 data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
 
