@@ -97,7 +97,7 @@ Controller modules should always follow this naming schema:
 module <app>.Controller.<controller>
 ```
 
-The `<controller>` should not end in `Controller`. It should usually be in plural form, unless it's only working on a single single entity. E.g. you might have a `UserController` when only dealing with the current user, because from the users point of view, the is only a single user resource he can interact with.
+The `<controller>` should not end in `Controller`. It should usually be in plural form, unless it's only working on a single entity. E.g. you might have a `UserController` when only dealing with the current user, because from the users point of view, there is only a single user resource they can interact with.
 
 
 Here are some examples of good names:

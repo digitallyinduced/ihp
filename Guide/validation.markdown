@@ -5,7 +5,7 @@
 
 ## Introduction
 
-IHP provides a simple infrastructure to validation incoming data. This guide will tell you more about validating new and existing records, as well as how to use more complex validations with database access.
+IHP provides a simple infrastructure for validation of incoming data. This guide will tell you more about validating new and existing records, as well as how to use more complex validations with database access.
 
 ## Quickstart
 
@@ -99,13 +99,13 @@ You can find [the full list of built-in validators in the API Documentation](htt
 
 When using `fill`, like `|> fill @'["title", "body"]`, any error parsing the input is also added as a validation error.
 
-E.g. when `fill` fills in an integer attribute, but the string `"hello"` is submitted, an error will be added to the record and the record is not valid anymore. The record attribute will then keep it's old value (before applying `fill`) and later re-render in the error case of `ifValid`. This applies to all arguments read via `fill`. It's very helpful when dealing with strings expected in a certain format, like date times.
+E.g. when `fill` fills in an integer attribute, but the string `"hello"` is submitted, an error will be added to the record and the record is not valid anymore. The record attribute will then keep its old value (before applying `fill`) and later re-render in the error case of `ifValid`. This applies to all arguments read via `fill`. It's very helpful when dealing with strings expected in a certain format, like date times.
 
 As IHP is never putting raw strings into the records, without previously parsing them, it does not provide validators like rails's `:only_integer`.
 
 ### Rendering Errors
 
-When post with an empty title is now submitted to this action, an error message will be written into the record. The call to `|> ifValid` will see, that there is an error and then run the `Left post -> render NewView { post } `, which displays the form to the user again. The form will be rendered, and errors will automatically pop up next to the form field.
+When a post with an empty title is now submitted to this action, an error message will be written into the record. The call to `|> ifValid` will see that there is an error, and then run the `Left post -> render NewView { post } `, which displays the form to the user again. The form will be rendered, and errors will automatically pop up next to the form field.
 
 The default form helpers like `{textField #title}` automatically render the error message below the field. Here is how this looks:
 
@@ -114,7 +114,7 @@ The default form helpers like `{textField #title}` automatically render the erro
 
 ### Validating An Email Is Unique
 
-For example when dealing with users, you usually want to make sure that an email is only used once for single user. You can use `|> validateIsUnique #email` to validate that an email is unique for a given record.
+For example when dealing with users, you usually want to make sure that an email is only used once for a single user. You can use `|> validateIsUnique #email` to validate that an email is unique for a given record.
 
 This function queries the database and checks whether there exists a record with the same email value. The function ignores the current entity of course.
 
@@ -181,7 +181,7 @@ user |> validateField #age isAge`
 
 ### Checking If A Record Is Valid
 
-Use `ifValid` to check for validness of a record:
+Use `ifValid` to check for validity of a record:
 
 ```haskell
 post |> ifValid \case
@@ -256,7 +256,7 @@ post |> validateField #title nonEmpty
 -- }
 ```
 
-As you can see, the errors is tracked inside the `MetaBag`. When you apply another `validateField` to the record, the errors will be appended to the `annotations` list.
+As you can see, the errors are tracked inside the `MetaBag`. When you apply another `validateField` to the record, the errors will be appended to the `annotations` list.
 
 ### Validation Functions
 
@@ -272,7 +272,7 @@ isColor text = Failure "is not a valid color"
 
 Calling `isColor "#ffffff"` will return `Success`. Calling `isColor "something bad"` will result in `Failure "is not a valid color"`.
 
-It might be useful to take a look at the definition of some more validation functions to see how it's work. [You can find them in the API Docs](https://ihp.digitallyinduced.com/api-docs/src/IHP.ValidationSupport.ValidateField.html#isColor).
+It might be useful to take a look at the definition of some more validation functions to see how it works. [You can find them in the API Docs](https://ihp.digitallyinduced.com/api-docs/src/IHP.ValidationSupport.ValidateField.html#isColor).
 
 ### Attaching Errors To A Record Field
 
@@ -285,9 +285,9 @@ post
     |> attachFailure #title "This error will show up"
 ```
 
-This record now has a validation errors attached to it's title.
+This record now has a validation error attached to its title.
 
-### Retrieving The First Errors Message For A Field
+### Retrieving The First Error Message For A Field
 
 You can also access an error for a specific field using `getValidationFailure`:
 
@@ -299,7 +299,7 @@ post
 
 This returns `Just "Field cannot be empty"` or `Nothing` when the post has a title.
 
-### Retrieving All Errors Messages For A Record
+### Retrieving All Error Messages For A Record
 
 Access them from the `meta :: MetaBag` attribute like this:
 

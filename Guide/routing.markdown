@@ -5,7 +5,7 @@
 
 ## Routing Basics
 
-In your project routes are defined in the `Web/Routes.hs`. Additionally to the defining a route, it also has to be added in `Web/FrontController.hs` to be picked up by the routing system.
+In your project routes are defined in the `Web/Routes.hs`. In addition to defining that route, it also has to be added in `Web/FrontController.hs` to be picked up by the routing system.
 
 The simplest way to define a route is by using `AutoRoute`, which automatically maps each controller action to an url. For a `PostsController`, the definition in `Web/Routes.hs` will look like this:
 
@@ -104,7 +104,7 @@ This way the `name` argument is passed as `Text` instead of `UUID`.
 Right now AutoRoute supports only a single type for all given parameters. E.g. an action which takes an UUID and a Text is not supported with AutoRoute right now:
 ```haskell
 data HelloController = HelloAction { userId :: !(Id User), name :: Text }
-instance AutRoute HelloController -- This will fail at runtime
+instance AutoRoute HelloController -- This will fail at runtime
 ```
 
 This is a technical problem we hope to fix in the future. Until then consider using `param` for the `Text` parameter.
@@ -130,7 +130,7 @@ instance AutoRoute HelloWorldController where
 
 ### Application Prefix
 
-When using multiple application in your IHP project, e.g. having an admin backend, AutoRoute will prefix the action urls with the application name. E.g. a controller `HelloWorldController` defined in `Admin/Types.hs` will be automatically prefixed with `/admin` and generate urls such as `/admin/HelloAction`.
+When using multiple applications in your IHP project, e.g. having an admin backend, AutoRoute will prefix the action urls with the application name. E.g. a controller `HelloWorldController` defined in `Admin/Types.hs` will be automatically prefixed with `/admin` and generate urls such as `/admin/HelloAction`.
 
 This prefixing has special handling for the `Web` module, so that all controllers in the default `Web` module don't have a prefix.
 
@@ -150,7 +150,7 @@ MyAction?{firstArgument}={secondArgument}
 
 The last argument `d` cannot be implemented in a typesafe way. This is implemented by calling `unsafeCoerce` on our result value before returning it. The result of this is later used with [`fromConstrM`](http://hackage.haskell.org/package/base-4.14.0.0/docs/Data-Data.html#fromConstrM). Therefore misusing `parseArgument` can result in a runtime crash. Again, consider not using this API.
 
-Given we have a custom argument type in the format `ID-{numeric}` like `ID-0`, `ID-1`, etc. We can define a custom `parseCustomIdArgument` like this:
+Given we have a custom argument type in the format `ID-{numeric}` like `ID-0`, `ID-1`, etc, we can define a custom `parseCustomIdArgument` like this:
 
 ```haskell
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
@@ -169,9 +169,9 @@ parseCustomIdArgument field value =
 
 ## Custom Routing
 
-Sometimes you have special needs for your routing. For this case IHP provides a lower-level routing API on which `AutoRoute` is built on.
+Sometimes you have special needs for your routing. For this case IHP provides a lower-level routing API on which `AutoRoute` is built.
 
-Let's say we have controller like this:
+Let's say we have a controller like this:
 
 ```haskell
 data PostsController = ShowAllMyPostsAction

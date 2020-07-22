@@ -116,11 +116,11 @@ If running, stop your development server. Now run `make` again. This will instal
 
 When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
 
-You can look up the package name for the software you dependend on inside the nixpkgs repository. [Just open it on GitHub](https://github.com/NixOS/nixpkgs) and use the GitHub search to look up the package name.
+You can look up the package name for the software you depend on inside the nixpkgs repository. [Just open it on GitHub](https://github.com/NixOS/nixpkgs) and use the GitHub search to look up the package name.
 
 ## Uploading a user profile picture
 
-You can easily upload a user profile pictures using `uploadImageWithOptions` inside your `UpdateUserAction`:
+You can easily upload a user profile picture using `uploadImageWithOptions` inside your `UpdateUserAction`:
 
 ```haskell
 action UpdateUserAction { userId } = do
@@ -143,7 +143,7 @@ action UpdateUserAction { userId } = do
                 redirectTo EditUserAction { .. }
 ```
 
-This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, stripe all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
+This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, strip all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
 
 In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
 
@@ -182,7 +182,7 @@ When using VSCode you need to install a plugin which loads the `.envrc` in your 
 
 ## Don't auto-open the app in the browser
 
-To prevent the IHP dev server to automatically open the dev tooling in your web browser when running `./start`, set the `IHP_BROWSER` env variable to `echo`:
+To prevent the IHP dev server automatically opening the dev tooling in your web browser when running `./start`, set the `IHP_BROWSER` env variable to `echo`:
 
 ```bash
 export IHP_BROWSER=echo

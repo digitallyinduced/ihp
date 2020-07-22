@@ -7,9 +7,9 @@
 
 IHP provides a few basic functions to access the database. On top of Postgres SQL we try to provide a thin layer to make it easy to do all the common tasks your web application usually does.
 
-The only supported database platform is Postgres. Focussing on Postgres allows us to better integrate advanced postgres specific solutions into your application.
+The only supported database platform is Postgres. Focussing on Postgres allows us to better integrate advanced Postgres-specific solutions into your application.
 
-In development you do not need to set up anything to use postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development postgres servers is only listening on a unix socket and is not available via TCP.
+In development you do not need to set up anything to use postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development postgres server is only listening on a unix socket and is not available via TCP.
 
 When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
 
@@ -39,7 +39,7 @@ CREATE TABLE users (
 );
 ```
 
-Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every file change of the `Schema.sql`. We use the well known `postgresql-simple` haskell library to connect to the database. 
+Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every file change of the `Schema.sql`. We use the well-known `postgresql-simple` Haskell library to connect to the database. 
 
 ### Schema Designer
 
@@ -49,7 +49,7 @@ Because the SQL syntax is sometimes hard to remember, the framework provides a G
 
 Keep in mind that the Schema Editor also only modifies the `Schema.sql`. This works by parsing the SQL DDL-statements and applying transformations on the AST and the compiling and writing it back to `Schema.sql`. When there is an syntax error in the `Schema.sql` file the visual mode will be unavailable and you have to work with the code editor to fix the problem.
 
-You can add tables, columns, foreing key constraints, and enums. You can also edit these objects by right clicking them. New tables have a `id` column by default. Lots of opinionated short-cuts for rapid application development like automatically offering to add foreign key constraints are built-in.
+You can add tables, columns, foreign key constraints, and enums. You can also edit these objects by right-clicking them. New tables have a `id` column by default. Lots of opinionated short-cuts for rapid application development like automatically offering to add foreign key constraints are built-in.
 
 ![An example of using the context menu for editing a table](images/database/schema-designer-context-menu.png)
 
@@ -59,7 +59,7 @@ When the Visual Editor is not powerful enough, just switch back to the code edit
 
 ### Push to DB
 
-Afer we have added a few data structures to our `Schema.sql`, our running Postgres database is still empty. This is because we still need to import our database schema into the database.
+After we have added a few data structures to our `Schema.sql`, our running Postgres database is still empty. This is because we still need to import our database schema into the database.
 
 **In the Schema Designer:** Click on `Push to DB`:
 
@@ -87,7 +87,7 @@ You can also update the database while keeping its contents.
 
 ![Push to DB Button](images/database/schema-designer-push-to-db.png)
 
-**In the command line:** Run `make dumbdb` and after that `make db`.
+**In the command line:** Run `make dumpdb` and after that `make db`.
 
 When dumping the database into the `Fixtures.sql` first and then rebuilding the database with the dump, the contents will be kept when changing the schema.
 
@@ -95,7 +95,7 @@ When dumping the database into the `Fixtures.sql` first and then rebuilding the 
 
 ### Model Context
 
-In a pure functional programming language like haskell we need to pass the database connection to all functions which need to access the database. We use a implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The `ModelContext` data structure is basically just a wrapper around the actually database connection.
+In a pure functional programming language like Haskell we need to pass the database connection to all functions which need to access the database. We use a implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The `ModelContext` data structure is basically just a wrapper around the actual database connection.
 
 An implicit paramter is a parameter which is automatically passed to certain functions, it just needs to be available in the current scope.
 
@@ -107,11 +107,11 @@ myFunc :: (?modelContext :: ModelContext) => IO SomeResult
 
 All controller actions already have `?modelContext` in scope and thus can run database queries. Other application entry-points, like e.g. Scripts, also have this in scope.
 
-This also means, that when a function does not specify that it depends on the database connection in it's type signature (like `?modelContext :: ModelContext => ..`), you can be sure that it's not doing any database operations.
+This also means, that when a function does not specify that it depends on the database connection in its type signature (like `?modelContext :: ModelContext => ..`), you can be sure that it's not doing any database operations.
 
 ### Haskell Data Structures
 
-For every table in the `Schema.sql` a coresponding data structure will be generated on the haskell side. For example given a table:
+For every table in the `Schema.sql` a coresponding data structure will be generated on the Haskell side. For example given a table:
 
 ```sql
 CREATE TABLE users (
@@ -121,7 +121,7 @@ CREATE TABLE users (
 );
 ```
 
-The generated haskell data structure for this table will look like this:
+The generated Haskell data structure for this table will look like this:
 
 ```haskell
 data User = User
@@ -131,11 +131,11 @@ data User = User
     }
 ```
 
-The `id` field type `Id User` is basically just a wrapper around `UUID` for type-safety reasons. All database field names are mapped from `under_score` to `camelCase` on the haskell side.
+The `id` field type `Id User` is basically just a wrapper around `UUID` for type-safety reasons. All database field names are mapped from `under_score` to `camelCase` on the Haskell side.
 
-When a sql field can be `NULL`, the haskell field type will be contained in `Maybe`.
+When a sql field can be `NULL`, the Haskell field type will be contained in `Maybe`.
 
-In the Schema Designer you can take a look at the generated haskell code by right-clicking the table and clicking `Show Generated Haskell Code`.
+In the Schema Designer you can take a look at the generated Haskell code by right-clicking the table and clicking `Show Generated Haskell Code`.
 
 ## Retrieving Records
 
@@ -318,7 +318,7 @@ do
         |> updateRecord
 ```
 
-This will set the lastname of user `cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7` to `Tester` and run and `UPDATE` query to persist that:
+This will set the lastname of user `cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7` to `Tester` and run an `UPDATE` query to persist that:
 
 ```sql
 UPDATE users SET firstname = firstname, lastname = "Tester" WHERE id = "cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7"
@@ -376,7 +376,7 @@ Next add the enum values by right clicking into the `Values` pane and click on `
 
 ### Adding enums via SQL
 
-Instead of using the Schema Designer you can also just add the requires SQL statement manually into `Application/Schema.hs`:
+Instead of using the Schema Designer you can also just add the required SQL statement manually into `Application/Schema.hs`:
 
 ```sql
 CREATE TYPE colors AS ENUM ('blue', 'red', 'yellow');

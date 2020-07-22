@@ -30,7 +30,7 @@ run = do
 
 The `run` function is our entrypoint. There we can write our logic, just like inside an action. This means we can call other framework functions, access the database using the usual way, send emails, render views, etc.
 
-Let's print out an hello world to all our users in the console:
+Let's print out a hello world to all our users in the console:
 
 
 ```haskell

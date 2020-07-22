@@ -7,9 +7,9 @@
 
 In IHP an action is a place for request handling logic. A controller is just a group of related actions.
 
-You can think about actions a message sent to your application, e.g. a `ShowPostAction { postId :: Id Post }` is basically the message "Show me the post with id $postId".
+You can think about an action as a message sent to your application, e.g. a `ShowPostAction { postId :: Id Post }` is basically the message "Show me the post with id $postId".
 
-Each action needs to be define as a data structure inside `Web/Types.hs`. Therefore you can see an overview of all the messages which can be sent to your application just by looking at `Web/Types.hs`.
+Each action needs to be defined as a data structure inside `Web/Types.hs`. Therefore you can see an overview of all the messages which can be sent to your application just by looking at `Web/Types.hs`.
 
 ## Creating a new Controller
 
@@ -38,7 +38,7 @@ instance Controller PostsController where
     action ShowPostAction { postId } = renderPlain "Hello World"
 ```
 
-This implementation for `ShowPostAction` responds with a simple plain text message. The `action` implementation is usally a big pattern match over all possible actions of a controller.
+This implementation for `ShowPostAction` responds with a simple plain text message. The `action` implementation is usually a big pattern match over all possible actions of a controller.
 
 ## Reading Query and Body Parameters
 
@@ -124,7 +124,7 @@ action ExampleAction = do
 
 This will pass the firstname `"Tester"` to our view.
 
-We can also make it more dynamically and allow the user to specify the firstname via a query parameter:
+We can also make it act more dynamically and allow the user to specify the firstname via a query parameter:
 ```haskell
 action ExampleAction = do
     let firstname = paramOrDefault @Text "firstname" "Unnamed"
@@ -188,7 +188,7 @@ instance Controller PostsController where
 
 ## Accessing the Current Action
 
-Inside the `beforeAction` and `action` you can access the current action using the special `?theAction` variable. That is useful when writing controller helpers, because the variable is passed implicit.
+Inside the `beforeAction` and `action` you can access the current action using the special `?theAction` variable. That is useful when writing controller helpers, because the variable is passed implicitly.
 
 ## Accessing the Current Request
 
@@ -228,20 +228,20 @@ In this example, when the `User-Agent` header is not provided by the request
 the `userAgent` variable will be set to `Nothing`. Otherwise it will be set
 to `Just "the user agent value"`.
 
-The header is looked up in the request case insensitive.
+The lookup for the header in the request is case insensitive.
 
 
 ## Rendering Responses
 
 ### Rendering Views
 
-Inside a controller, you have several ways of sending a response. The most-common way is to use the `render` function with a `View` data structure, like this:
+Inside a controller, you have several ways of sending a response. The most common way is to use the `render` function with a `View` data structure, like this:
 
 ```
 render ShowPostView { .. }
 ```
 
-The `render` function automatically picks the right response format based on the `Accept` header of the browser. It will try to send a html response, when html is requested and will also try to send a json response when a json response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the `render` function cannot fullfil the requested `Accept` formats.
+The `render` function automatically picks the right response format based on the `Accept` header of the browser. It will try to send a html response when html is requested, and will also try to send a json response when a json response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the `render` function cannot fullfil the requested `Accept` formats.
 
 ### Rendering Plain Text
 
@@ -254,9 +254,9 @@ action ExampleAction = do
 
 ### Rendering HTML
 
-Usually you want render your html using a view. See `Rendering Views` for details.
+Usually you want to render your html using a view. See `Rendering Views` for details.
 
-Sometimes you want render html without using views, e.g. doing it inline in the action. Call `respondHtml` for that:
+Sometimes you want to render html without using views, e.g. doing it inline in the action. Call `respondHtml` for that:
 
 ```haskell
 action ExampleAction = do
@@ -294,9 +294,9 @@ action ExampleAction = do
     redirectTo ShowPostAction { postId = ... }
 ```
 
-When you need to pass custom query parameter, you cannot use the `redirectTo` function. See `Redirect to a Path` for that.
+When you need to pass a custom query parameter, you cannot use the `redirectTo` function. See `Redirect to a Path` for that.
 
-The redirect will use http status code `302`. The `baseUrl` in `Config/Config.hs` will be used. In development mode, the `baseUrl` might not be specified `Config/Config.hs` in. Then it will be set to localhost by default.
+The redirect will use http status code `302`. The `baseUrl` in `Config/Config.hs` will be used. In development mode, the `baseUrl` might not be specified in `Config/Config.hs`. Then it will be set to localhost by default.
 
 ### Redirect to a Path
 

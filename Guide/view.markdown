@@ -5,9 +5,9 @@
 
 ## Introduction
 
-IHP views are usually represented as HTML, but can also be represented a json or other formats.
+IHP views are usually represented as HTML, but can also be represented as json or other formats.
 
-The html templating is implemented on top of the well-known blaze-html haskell library. To quickly build html views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to haskell code at compile-time.
+The html templating is implemented on top of the well-known blaze-html Haskell library. To quickly build html views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to Haskell code at compile-time.
 
 To render a view, it has to be provided with a custom data structure called a ViewContext. A ViewContext provides the view with information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current http request, current logged in user, flash messages, the layout, etc..
 
@@ -87,7 +87,7 @@ Use `theRequest` to access the current [WAI request](https://hackage.haskell.org
 
 ### Highlighting the current active link
 
-Use [`isActivePath`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActivePath) to check wheter the current request url matches a given action.
+Use [`isActivePath`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActivePath) to check whether the current request url matches a given action.
 
 ```haskell
 <a href={ShowProjectAction} class={classes ["nav-link", ("active", isActivePath ShowProjectAction)]}>
@@ -119,7 +119,7 @@ When in development, your views will automatically refresh on code changes. This
 
 In production mode your application is using a custom integration of morphdom and [TurboLinks](https://github.com/turbolinks/turbolinks) together with [InstantClick](http://instantclick.io/). TurboLinks makes navigating the application even faster because it's not doing a full page refresh. We've integrated TurboLinks with morphdom to only update the parts of your HTML that have actually changed. This was inspired by react.js's DOM patch approach and allows for e.g. CSS animations to run on a page transition. Using this makes your app feel like a [SPA](https://en.wikipedia.org/wiki/Single-page_application) without you writing any javascript code.
 
-To improve latency, TurboLinks is configured to prefetch the URL on mouse-hover already. Usually the time between a mouse-hover of a link and mouse click is 100ms - 200ms. As long as the server responds in less than 100ms, the response is already there when the click event is fired. This makes your app faster than most single page application (most SPAs still need to fetch some data after clicking).
+To improve latency, TurboLinks is configured to prefetch the URL immediately on mouse-hover. Usually the time between a mouse-hover of a link and mouse click is 100ms - 200ms. As long as the server responds in less than 100ms, the response is already there when the click event is fired. This makes your app faster than most single page application (most SPAs still need to fetch some data after clicking).
 
 This setup is designed as a progressive enhancement. Your application is still usable when javascript is disabled.
 Even when disabled, your application will still be amazingly fast.

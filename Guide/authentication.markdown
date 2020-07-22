@@ -9,7 +9,7 @@ IHP provides a basic authentication toolkit out of the box.
 
 The usual convention in IHP is to call your user record `User`. When there is an admin user, we usually call the record `Admin`. In general the authentication can work with any kind of record. The only requirement is that it has an id field.
 
-To use the authentication module, your `users` table needs to have atleast an `id`, `email`, `password_hash`, `locked_at` and `failed_login_attempts` field:
+To use the authentication module, your `users` table needs to have at least an `id`, `email`, `password_hash`, `locked_at` and `failed_login_attempts` field:
 ```sql
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -43,7 +43,7 @@ module Application.Helper.Controller (
 -- import IHP.LoginSupport.Helper.Controller
 ```
 
-Enable the import and re-export for `IHP.LoginSupport.Helper.Controller` and a type instance `type instance CurrentUserRecord = User`:
+Enable the import and re-export for `IHP.LoginSupport.Helper.Controller` and add a type instance `type instance CurrentUserRecord = User`:
 
 ```haskell
 module Application.Helper.Controller (
@@ -122,7 +122,7 @@ instance InitControllerContext WebApplication where
         initAuthentication @User
 ```
 
-This will fetch the user from the database when a `userId` is given in the session. The fetched user record is saved to the special `?controllerContext` variable and is used by all the helpers functions we have imported before.
+This will fetch the user from the database when a `userId` is given in the session. The fetched user record is saved to the special `?controllerContext` variable and is used by all the helper functions we have imported before.
 
 #### Adding a Session Controller
 
