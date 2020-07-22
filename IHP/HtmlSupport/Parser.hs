@@ -56,7 +56,10 @@ manyHsxElement = do
 hsxSelfClosingElement = do
     _ <- char '<'
     name <- hsxElementName
-    attributes <- hsxNodeAttributes (string "/>")
+    attributes <-
+      if name `List.elem` leafs
+        then hsxNodeAttributes (string ">" <|> string "/>")
+        else hsxNodeAttributes (string "/>")
     space
     pure (Node name attributes [])
 
