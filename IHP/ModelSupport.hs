@@ -74,9 +74,10 @@ instance InputValue () where
     inputValue () = "error: inputValue(()) not supported"
 
 instance InputValue UTCTime where
-    inputValue time =
-        let fullDateTime = cs (iso8601Show time)
-        in fullDateTime
+    inputValue time = cs (iso8601Show time)
+
+instance InputValue Day where
+    inputValue date = cs (iso8601Show date)
 
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
