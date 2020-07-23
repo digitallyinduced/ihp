@@ -230,12 +230,23 @@ instance ParamReader UTCTime where
         let
             input = (cs byteString)
             dateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
-            date = parseTimeM True defaultTimeLocale "%Y-%-m-%d" input
+            date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
         in case dateTime of
             Nothing -> case date of
                 Just value -> Right value
                 Nothing -> Left "ParamReader UTCTime: Failed parsing"
             Just value -> Right value
+
+instance ParamReader Day where
+    {-# INLINE readParameter #-}
+    readParameter "" = Left "ParamReader Day: Parameter missing"
+    readParameter byteString =
+        let
+            input = (cs byteString)
+            date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
+        in case date of
+            Just value -> Right value
+            Nothing -> Left "ParamReader Day: Failed parsing"
 
 instance {-# OVERLAPS #-} ParamReader (ModelSupport.Id' model') where
     {-# INLINE readParameter #-}
