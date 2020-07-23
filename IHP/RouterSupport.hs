@@ -137,9 +137,8 @@ class Data controller => AutoRoute controller where
 
                     checkRequestMethod action = do
                             method <- getMethod
-                            if method `elem` allowedMethods
-                                then pure action
-                                else error ("Invalid method, expected one of: " <> show allowedMethods)
+                            unless (allowedMethods |> includes method) (error ("Invalid method, expected one of: " <> show allowedMethods))
+                            pure action
         in choice (map parseCustomAction allConstructors)
 
     parseArgument :: forall d. Data d => ByteString -> ByteString -> d

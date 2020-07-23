@@ -401,5 +401,5 @@ isUrl text = Failure "is not a valid url. It needs to start with http:// or http
 
 
 isInList :: (Eq value, Show value) => [value] -> value -> ValidatorResult
-isInList list value | value `elem` list = Success
+isInList list value | list |> includes value = Success
 isInList list value = Failure ("is not allowed. It needs to be one of the following: " <> (tshow list))
