@@ -281,6 +281,54 @@ instance SetField "annotations" MetaBag [(Text, Text)] where
 instance SetField "touchedFields" MetaBag [Text] where
     setField value meta = meta { touchedFields = value }
 
+-- | Returns 'True' if any fields of the record have unsaved changes
+--
+-- __Example:__ Returns 'False' for freshly fetched records
+--
+-- >>> let projectId = "227fbba3-0578-4eb8-807d-b9b692c3644f" :: Id Project
+-- >>> project <- fetch projectId
+-- >>> didChangeRecord project
+-- False
+--
+-- __Example:__ Returns 'True' after setting a field
+--
+-- >>> let projectId = "227fbba3-0578-4eb8-807d-b9b692c3644f" :: Id Project
+-- >>> project <- fetch projectId
+-- >>> project |> set #name "New Name" |> didChangeRecord
+-- True
+didChangeRecord :: (HasField "meta" record MetaBag) => record -> Bool
+didChangeRecord record =
+    record
+    |> get #meta
+    |> get #touchedFields
+    |> isEmpty
+
+-- | Returns 'True' if the specific field of the record has unsaved changes
+--
+-- __Example:__ Returns 'False' for freshly fetched records
+--
+-- >>> let projectId = "227fbba3-0578-4eb8-807d-b9b692c3644f" :: Id Project
+-- >>> project <- fetch projectId
+-- >>> didChange #name project
+-- False
+--
+-- __Example:__ Returns 'True' after setting a field
+--
+-- >>> let projectId = "227fbba3-0578-4eb8-807d-b9b692c3644f" :: Id Project
+-- >>> project <- fetch projectId
+-- >>> project |> set #name "New Name" |> didChange #name
+-- True
+--
+-- __Example:__ Setting a flash message after updating the profile picture
+--
+-- > when (user |> didChange #profilePictureUrl) (setSuccessMessage "Your Profile Picture has been updated. It might take a few minutes until it shows up everywhere")
+didChange :: (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag) => Proxy fieldName -> record -> Bool
+didChange field record =
+    record
+    |> get #meta
+    |> get #touchedFields
+    |> includes (cs $! symbolVal field)
+
 -- | Represents fields that have a default value in an SQL schema
 --
 --   The 'Default' constructor represents the default value from the schema,

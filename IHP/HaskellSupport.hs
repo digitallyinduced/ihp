@@ -25,6 +25,7 @@ module IHP.HaskellSupport (
 , isWeekend
 , todayIsWeekend
 , debug
+, includes
 ) where
 
 import ClassyPrelude
@@ -59,6 +60,19 @@ whenEmpty condition = when (isEmpty condition)
 whenNonEmpty :: (MonoFoldable a, Applicative f) => a -> f () -> f ()
 whenNonEmpty condition = unless (isEmpty condition)
 {-# INLINE whenNonEmpty #-}
+
+-- Returns 'True' when a value is contained in the given list, array, set, ...
+--
+-- Alias for 'elem', but with a nicer name :)
+--
+-- >>> ["hello", "world"] |> includes "hello"
+-- True
+--
+-- >>> "Hello" |> includes 'H'
+-- True
+includes :: (MonoFoldable container, Eq (Element container)) => Element container -> container -> Bool
+includes = elem
+{-# INLINE includes #-}
 
 instance Data.Default.Default Data.UUID.UUID where
     def = Data.UUID.nil
