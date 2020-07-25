@@ -38,7 +38,7 @@ tableNameToModelName tableName = do
         else ucfirst singularizedTableName
 {-# INLINE tableNameToModelName #-}
 
--- | Transforms a underscore table name to a name for a contorller
+-- | Transforms a underscore table name to a name for a controller
 --
 -- >>> tableNameToControllerName "users"
 -- "Users"
