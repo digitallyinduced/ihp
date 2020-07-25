@@ -18,17 +18,17 @@ import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
-buildPlan controllerName applicationName = do
+buildPlan rawControllerName applicationName = do
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
+    let controllerName = tableNameToControllerName rawControllerName
+    let modelName = tableNameToModelName rawControllerName
     viewPlans <- generateViews applicationName controllerName
-    pure $ Right $ buildPlan' schema applicationName controllerName viewPlans
+    pure $ Right $ buildPlan' schema applicationName controllerName modelName viewPlans
 
-buildPlan' schema applicationName controllerName' viewPlans =
+buildPlan' schema applicationName controllerName modelName viewPlans =
     let
-        modelName = tableNameToModelName controllerName'
-        controllerName = ucfirst $ Countable.pluralize modelName
         config = ControllerConfig { modelName, controllerName, applicationName }
     in
         [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }

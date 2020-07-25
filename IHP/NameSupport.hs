@@ -12,6 +12,7 @@ module IHP.NameSupport
 , lcfirst
 , fieldNameToColumnName
 , escapeHaskellKeyword
+, tableNameToControllerName
 ) where
 
 import Prelude hiding (splitAt)
@@ -36,6 +37,23 @@ tableNameToModelName tableName = do
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else ucfirst singularizedTableName
 {-# INLINE tableNameToModelName #-}
+
+-- | Transforms a underscore table name to a name for a contorller
+--
+-- >>> tableNameToControllerName "users"
+-- "Users"
+--
+-- >>> tableNameToControllerName "projects"
+-- "Projects"
+--
+-- >>> tableNameToControllerName "user_projects"
+-- "UserProjects"
+tableNameToControllerName :: Text -> Text
+tableNameToControllerName tableName = do
+    if "_" `isInfixOf` tableName 
+        then unwrapEither tableName $ Inflector.toCamelCased True tableName
+        else ucfirst tableName
+{-# INLINE tableNameToControllerName #-}
 
 -- | Transforms a camel case model name to a underscored table name.
 --

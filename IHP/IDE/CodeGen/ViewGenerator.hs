@@ -27,8 +27,8 @@ buildPlan viewName applicationName controllerName' =
                 Left parserError -> pure []
                 Right statements -> pure statements
             let modelName = tableNameToModelName controllerName'
-            let controllerName = ucfirst controllerName'
-            let viewConfig = ViewConfig {controllerName, applicationName, modelName, viewName }
+            let controllerName = tableNameToControllerName controllerName'
+            let viewConfig = ViewConfig { .. }
             pure $ Right $ generateGenericView schema viewConfig
 
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
@@ -182,7 +182,7 @@ generateGenericView schema config =
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
             , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> (Countable.pluralize controllerName) <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
 
 fieldsForTable :: [Statement] -> Text -> [Text]
