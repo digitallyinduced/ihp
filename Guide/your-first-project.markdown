@@ -13,6 +13,8 @@ $ ihp-new blog
 
 The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding on how Nix works.
 
+In case some errors appears now or in later steps, [check out the troubleshooting section](https://github.com/digitallyinduced/ihp/wiki/Troubleshooting) to get a quick solution. You can also [join our awesome gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
+
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
 Here is a short overview of the whole structure:
@@ -65,7 +67,7 @@ In the background, the built-in development server starts a PostgreSQL database 
 
 For our blog project, let's first build a way to manage posts.
 
-For working with posts, we first need to create a `posts` table inside our database. A single post has a title and a body and of course also an id. IHP is using UUIDs instead of the typical numerics ids.
+For working with posts, we first need to create a `posts` table inside our database. A single post has a title and a body and of course also an id. IHP is using UUIDs instead of the typical numerical ids.
 
 **This is how our `posts` table can look like for our blog:**
 
@@ -133,7 +135,7 @@ app=# SELECT * FROM posts;
 ----+-------+------
 (0 rows)
 
--- Look's alright! :)
+-- Looks alright! :)
 
 
 
@@ -168,7 +170,7 @@ By specificing the above schema, the framework automatically provides several ty
 
 IHP follows the well-known [MVC](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller) (Model-View-Controller) structure. Controllers and actions are used to deal with incoming requests.
 
-A controller belongs to an application. The default application is called `Web` (that's why all controller and views are located there). Your whole project can consis of multiple sub applications. Typically your production app will need e.g. an admin backend application next to the default web application.
+A controller belongs to an application. The default application is called `Web` (that's why all controller and views are located there). Your whole project can consist of multiple sub-applications. Typically your production app will need e.g. an admin backend application next to the default web application.
 
 We can use the built-in code generators to generate a controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/Generators). There you can see everything that can be generated. Click on `Controller`:
 
@@ -260,7 +262,7 @@ This is where the interesting part begins. As we will see below, the controller 
         render IndexView { .. }
 ```
 
-This is the index action. It's called when opening `/Posts`. First it fetches all the posts from the database and then passes it along to the view. The `IndexView { .. }` is just shorthand for `IndexView { posts = posts }`.
+This is the index action. It's called when opening `/Posts`. First it fetches all the posts from the database and then passes them along to the view. The `IndexView { .. }` is just shorthand for `IndexView { posts = posts }`.
 
 #### New Action
 
@@ -361,7 +363,7 @@ This empty instance magically sets up the routing for all the actions. Later you
 
 We should also quickly take a look at our views.
 
-Let first look at the show view in `Web/View/Posts/Show.hs`:
+Let's first look at the show view in `Web/View/Posts/Show.hs`:
 
 ```haskell
 module Web.View.Posts.Show where
@@ -566,7 +568,7 @@ Stop the development server by pressing CTRL+C. Then update the local developmen
 
 #### Markdown Rendering
 
-Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: Add the following line to the top of `Web/View/Posts/Show.hs`:
+Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: add the following line to the top of `Web/View/Posts/Show.hs`:
 ```haskell
 import qualified Text.MMark as MMark
 ```
@@ -897,9 +899,9 @@ Add a `Include "comments"` like this:
 data ShowView = ShowView { post :: Include "comments" Post }
 ```
 
-This specifies that our view requires a post and also including it's comments. This will trigger a type error to be shown in the browser because our `ShowPostAction` is not passing the comments yet.
+This specifies that our view requires a post and should also include its comments. This will trigger a type error to be shown in the browser because our `ShowPostAction` is not passing the comments yet.
 
-To archive this, open `Web/Controller/Posts.hs` and take a look at the`ShowPostAction`. Right now we have a `fetch` call:
+To fix this, open `Web/Controller/Posts.hs` and take a look at the`ShowPostAction`. Right now we have a `fetch` call:
 ```haskell
 post <- fetch postId
 ```
@@ -931,7 +933,7 @@ We also need to define the `renderComment` at the end of the file:
 renderComment comment = [hsx|<div>{comment}</div>|]
 ```
 
-Let's also add some more structure to displaying the comments:
+Let's also add some more structure for displaying the comments:
 ```haskell
 renderComment comment = [hsx|
         <div class="mt-4">

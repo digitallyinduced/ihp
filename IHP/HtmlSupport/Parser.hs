@@ -26,7 +26,8 @@ data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes Text d
 
 data Node = Node !Text ![Attribute] ![Node]
     | TextNode !Text
-    | SplicedNode !Text
+    | PreEscapedTextNode !Text -- ^ Used in @script@ or @style@ bodies
+    | SplicedNode !Text -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
     | Children ![Node]
     deriving (Show)
 
@@ -55,13 +56,35 @@ manyHsxElement = do
 hsxSelfClosingElement = do
     _ <- char '<'
     name <- hsxElementName
-    attributes <- hsxNodeAttributes (string "/>")
+    attributes <-
+      if name `List.elem` leafs
+        then hsxNodeAttributes (string ">" <|> string "/>")
+        else hsxNodeAttributes (string "/>")
     space
     pure (Node name attributes [])
 
 hsxNormalElement = do
     (name, attributes) <- hsxOpeningElement
-    children <- stripTextNodeWhitespaces <$> manyTill (try hsxChild) (hsxClosingElement name)
+    let parsePreEscapedTextChildren transformText = do
+                    let closingElement = "</" <> name <> ">"
+                    text <- cs <$> manyTill anySingle (string closingElement)
+                    pure [PreEscapedTextNode (transformText text)]
+    let parseNormalHSXChildren = stripTextNodeWhitespaces <$> manyTill (try hsxChild) (hsxClosingElement name)
+
+    -- script and style tags have special handling for their children. Inside those tags
+    -- we allow any kind of content. Using a haskell expression like @<script>{myHaskellExpr}</script>@
+    -- will just literally output the string @{myHaskellExpr}@ without evaluating the haskell expression itself.
+    --
+    -- Here is an example HSX code explaining the problem:
+    -- [hsx|<style>h1 { color: red; }</style>|]
+    -- The @{ color: red; }@ would be parsed as a inline haskell expression without the special handling
+    --
+    -- Additionally we don't do the usual escaping for style and script bodies, as this will make e.g. the
+    -- javascript unusuable.
+    children <- case name of
+            "script" -> parsePreEscapedTextChildren Text.strip
+            "style" -> parsePreEscapedTextChildren (collapseSpace . Text.strip)
+            otherwise -> parseNormalHSXChildren
     pure (Node name attributes children)
 
 hsxOpeningElement = do
@@ -101,7 +124,7 @@ hsxNodeAttribute = do
     pure (StaticAttribute key value)
 
 hsxAttributeName :: Parser Text
-hsxAttributeName = choice ([dataAttribute, ariaAttribute] <> (List.map string attributes))
+hsxAttributeName = choice ([dataAttribute, ariaAttribute, htmxAttribute] <> (List.map string attributes))
     where
         prefixedAttribute prefix = do
             string prefix
@@ -109,6 +132,7 @@ hsxAttributeName = choice ([dataAttribute, ariaAttribute] <> (List.map string at
             pure (prefix <> d)
         dataAttribute = prefixedAttribute "data-"
         ariaAttribute = prefixedAttribute "aria-"
+        htmxAttribute = prefixedAttribute "hx-"
 
 hsxQuotedValue :: Parser AttributeValue
 hsxQuotedValue = do
@@ -126,13 +150,17 @@ hsxClosingElement name = do
 
 hsxChild = hsxElement <|> hsxSplicedNode <|> hsxText
 
+-- | Parses a hsx text node
+--
+-- Stops parsing when hitting a variable, like `{myVar}`
 hsxText :: Parser Node
-hsxText = do
-    value <- takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}' && c /= '<' && c /= '>')
-    let isWhitespaceTextOnly = Text.null (Text.strip value)
-    pure if isWhitespaceTextOnly
-        then TextNode ""
-        else TextNode (collapseSpace value)
+hsxText = buildTextNode <$> takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}' && c /= '<' && c /= '>')
+
+-- | Builds a TextNode and strips all surround whitespace from the input string
+buildTextNode :: Text -> Node
+buildTextNode value 
+    | Text.null (Text.strip value) = TextNode ""
+    | otherwise = TextNode (collapseSpace value)
 
 data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
 
@@ -158,7 +186,7 @@ hsxSplicedNode = do
 
 hsxElementName :: Parser Text
 hsxElementName = do
-    name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_')
+    name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_' || c == '-')
     unless (name `List.elem` parents || name `List.elem` leafs) (fail $ "Invalid tag name: " <> cs name)
     space
     pure name
@@ -219,7 +247,7 @@ parents =
         , "code", "colgroup", "command", "datalist", "dd", "del", "details"
         , "dfn", "div", "dl", "dt", "em", "fieldset", "figcaption", "figure"
         , "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header"
-        , "hgroup", "html", "i", "iframe", "ins", "kbd", "label"
+        , "hgroup", "html", "i", "iframe", "ins", "ion-icon", "kbd", "label"
         , "legend", "li", "main", "map", "mark", "menu", "meter", "nav"
         , "noscript", "object", "ol", "optgroup", "option", "output", "p"
         , "pre", "progress", "q", "rp", "rt", "ruby", "samp", "script"

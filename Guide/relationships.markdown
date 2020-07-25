@@ -5,7 +5,7 @@
 
 ## Introduction
 
-The following sections asume the following database schema being given. It's basically the same as in "Your First Project".
+The following sections assume the following database schema being given. It's basically the same as in "Your First Project".
 
 ```sql
 CREATE TABLE posts (
@@ -28,7 +28,7 @@ ALTER TABLE comments ADD CONSTRAINT comments_ref_post_id FOREIGN KEY (post_id) R
 
 ## Has Many Relationships
 
-Given a specific post, we can fetch the post and all it's comments like this:
+Given a specific post, we can fetch the post and all its comments like this:
 
 ```haskell
 let postId :: Id Post = ...
@@ -37,7 +37,7 @@ post <- fetch postId
     >>= fetchRelated #comments
 ```
 
-This haskell code will trigger the following sql queries to be executed:
+This Haskell code will trigger the following sql queries to be executed:
 
 ```sql
 SELECT posts.* FROM posts WHERE id = ?  LIMIT 1
@@ -96,9 +96,9 @@ posts <- query @Post
     >>= collectionFetchRelated #comments
 ```
 
-This will query all posts with all it's comments. The type of posts is `[Include "comments" Post]`.
+This will query all posts with all their comments. The type of posts is `[Include "comments" Post]`.
 
-The above haskell code will trigger the following two sql queries to be executed:
+The above Haskell code will trigger the following two sql queries to be executed:
 
 ```sql
 SELECT posts.* FROM posts

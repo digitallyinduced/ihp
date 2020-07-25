@@ -4,7 +4,7 @@
 # After building, you can view the api docs with: open haddock-build/index.html
 mkdir -p haddock-build
 
-haddock --html --hyperlinked-source --built-in-themes -o haddock-build \
+haddock --html --hyperlinked-source --built-in-themes --quickjump -o haddock-build \
     $(find IHP -regex '.+\.hs' -not \( -regex '.+GenericController.hs' \) -not \( -regex '.+CLI/.+.hs' \) |xargs) \
     --optghc="-i." \
     --optghc="-XOverloadedStrings" \

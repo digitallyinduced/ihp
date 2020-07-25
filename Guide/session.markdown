@@ -22,7 +22,7 @@ action SessionExampleAction = do
     setSession "userEmail" "hi@digitallyinduced.com"
 ```
 
-Right now, `setSession` only accept `Text` values. Other types like `Int` have to be converted to `Text` using `tshow theIntValue`.
+Right now, `setSession` only accepts `Text` values. Other types like `Int` have to be converted to `Text` using `tshow theIntValue`.
 
 ### Reading
 
