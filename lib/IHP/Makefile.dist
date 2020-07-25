@@ -159,3 +159,8 @@ build/ihp-lib: # Used by application .ghci
 	mkdir -p build
 	rm -f build/ihp-lib
 	ln -s ${IHP_LIB} build/ihp-lib
+
+hie.yaml: # Configuration for haskell-language-server
+	echo "cradle:" > hie.yaml
+	echo "  bios:" >> hie.yaml
+	echo "    program: build/ihp-lib/.hie-bios" >> hie.yaml
