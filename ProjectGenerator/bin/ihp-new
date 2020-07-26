@@ -10,6 +10,17 @@ if [ "$#" -ne "1" ]; then
 	exit 1
 fi
 
+if [[ "$1" == "--help" ]]; then
+	echo "Usage: ihp-new PROJECT_NAME";
+	echo "Generates an empty IHP project";
+	echo "";
+	echo "Full documentation: https://ihp.digitallyinduced.com/Guide/installation.html"
+	echo "Project template: $BOILERPLATE_GIT_URL"
+	echo ""
+	echo "In case there already exists a directory named like the given project name, this script will stop execution.";
+	exit 0
+fi
+
 PROJECT_NAME=$1
 if [ -d "$PROJECT_NAME" ]; then
 	echo "Directory \"$PROJECT_NAME\" already exists. Please remove the directory and re-run the generator";
@@ -88,7 +99,7 @@ grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK2
 	cachix use digitallyinduced
 }
 
-git clone --quiet --depth=1 "$BOILERPLATE_GIT_URL" "$PROJECT_NAME"
+git clone --quiet --depth=1 "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 rm -rf ".git"
 
