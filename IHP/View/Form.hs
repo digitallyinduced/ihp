@@ -136,7 +136,7 @@ createFormContext :: forall record viewContext parent id application. (
         , application ~ ViewApp viewContext
         , HasField "meta" record MetaBag
         ) => record -> FormContext record
-createFormContext record = 
+createFormContext record =
     FormContext
         { model = record
         , renderFormField = renderBootstrapFormField
@@ -157,7 +157,7 @@ buildForm formContext inner =
         formInner = let ?formContext = formContext in inner
     in
         [hsx|<form method="POST" action={action} id={formId} class={formClass}>{formInner}</form>|]
-            
+
 
 {-# INLINE submitButton #-}
 submitButton :: forall model id. (?formContext :: FormContext model, HasField "id" model id, KnownSymbol (GetModelName model), Eq id, Default id) => SubmitButton
@@ -192,7 +192,7 @@ renderBootstrapFormField formField@(FormField { fieldType }) =
             ColorInput -> renderTextField "color" formField
             EmailInput -> renderTextField "email" formField
             DateInput -> renderTextField "date" formField
-            DateTimeInput -> renderTextField "datetime" formField
+            DateTimeInput -> renderTextField "datetime-local" formField
             CheckboxInput -> renderCheckboxFormField formField
             HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
             TextareaInput -> renderTextField "text" formField
