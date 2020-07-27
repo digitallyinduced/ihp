@@ -22,7 +22,7 @@ buildPlan rawControllerName applicationName = do
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
-    let controllerName = Countable.pluralize $ tableNameToControllerName rawControllerName
+    let controllerName = tableNameToControllerName rawControllerName
     let modelName = tableNameToModelName rawControllerName
     viewPlans <- generateViews applicationName controllerName
     pure $ Right $ buildPlan' schema applicationName controllerName modelName viewPlans
@@ -72,13 +72,14 @@ fieldsForTable database name =
 generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
-        pluralName = get #controllerName config
+        pluralName = Countable.pluralize $ get #controllerName config
+        name = get #controllerName config
         singularName = get #modelName config
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
     in 
         "\n"
-        <> "data " <> pluralName <> "Controller\n"
+        <> "data " <> name <> "Controller\n"
         <> "    = " <> pluralName <> "Action\n"
         <> "    | New" <> singularName <> "Action\n"
         <> "    | Show" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
@@ -93,6 +94,7 @@ generateController schema config =
     let
         applicationName = get #applicationName config
         name = config |> get #controllerName
+        pluralName = Countable.pluralize $ get #controllerName config
         singularName = config |> get #modelName
         moduleName =  applicationName <> ".Controller." <> name
         controllerName = name <> "Controller"
@@ -112,7 +114,7 @@ generateController schema config =
         model = ucfirst singularName
         indexAction =
             ""
-            <> "    action " <> name <> "Action = do\n"
+            <> "    action " <> pluralName <> "Action = do\n"
             <> "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
             <> "        render IndexView { .. }\n"
 
@@ -161,7 +163,7 @@ generateController schema config =
             <> "                Right " <> modelVariableSingular <> " -> do\n"
             <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
             <> "                    setSuccessMessage \"" <> model <> " created\"\n"
-            <> "                    redirectTo " <> name <> "Action\n"
+            <> "                    redirectTo " <> pluralName <> "Action\n"
 
         deleteAction =
             ""
@@ -169,7 +171,7 @@ generateController schema config =
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
             <> "        deleteRecord " <> modelVariableSingular <> "\n"
             <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
-            <> "        redirectTo " <> name <> "Action\n"
+            <> "        redirectTo " <> pluralName <> "Action\n"
 
         fromParams =
             ""
@@ -203,7 +205,7 @@ generateController schema config =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ControllerConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    get #applicationName config <> ".View." <> Countable.pluralize (get #controllerName config) <> "." <> viewName
+    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
