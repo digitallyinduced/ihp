@@ -15,5 +15,5 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - run: |
           nix-env -i direnv
-          nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+          nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
           ihp-new blog
