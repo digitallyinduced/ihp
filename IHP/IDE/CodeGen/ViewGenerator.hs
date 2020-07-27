@@ -29,15 +29,15 @@ buildPlan viewName applicationName controllerName' =
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
             let viewConfig = ViewConfig { .. }
-            pure $ Right $ generateGenericView schema viewConfig
+            pure $ Right $ generateView schema viewConfig
 
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
     get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
-generateGenericView :: [Statement] -> ViewConfig -> [GeneratorAction]
-generateGenericView schema config = 
+generateView :: [Statement] -> ViewConfig -> [GeneratorAction]
+generateView schema config = 
         let 
             controllerName = get #controllerName config
             name = get #viewName config

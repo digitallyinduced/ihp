@@ -1,4 +1,4 @@
-module IHP.IDE.CodeGen.ControllerGenerator (buildPlan) where
+module IHP.IDE.CodeGen.ControllerGenerator (buildPlan, buildPlan') where
 
 import ClassyPrelude
 import IHP.NameSupport
