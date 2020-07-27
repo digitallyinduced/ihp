@@ -22,7 +22,7 @@ buildPlan rawControllerName applicationName = do
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
-    let controllerName = tableNameToControllerName rawControllerName
+    let controllerName = Countable.pluralize $ tableNameToControllerName rawControllerName
     let modelName = tableNameToModelName rawControllerName
     viewPlans <- generateViews applicationName controllerName
     pure $ Right $ buildPlan' schema applicationName controllerName modelName viewPlans
@@ -72,14 +72,14 @@ fieldsForTable database name =
 generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
-        name = get #controllerName config
+        pluralName = get #controllerName config
         singularName = get #modelName config
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
     in 
         "\n"
-        <> "data " <> name <> "Controller\n"
-        <> "    = " <> name <> "Action\n"
+        <> "data " <> pluralName <> "Controller\n"
+        <> "    = " <> pluralName <> "Action\n"
         <> "    | New" <> singularName <> "Action\n"
         <> "    | Show" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    | Create" <> singularName <> "Action\n"
