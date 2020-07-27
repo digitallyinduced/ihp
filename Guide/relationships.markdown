@@ -108,14 +108,36 @@ SELECT comments.* FROM comments WHERE post_id IN (?)
 
 ## Belongs To Relationships
 
-Usually the belongs to relation is managed by using `fetch`, like here:
+Given a specific comment, we can fetch the post this comment belongs to. Like other relationships this is also using `fetchRelated`:
 
 ```haskell
-comment <- fetch "..."
-post <- fetch (get #postId comment)
+let comment :: Id Comment = ...
+
+comment <- fetch comment
+    >>= fetchRelated #postId
 ```
 
-Right now there is no special syntax to put the `post` into the `comment` record. So `Include "post" Comment` does not work. It's planned to add this in the future.
+This Haskell code will trigger the following sql queries to be executed:
+
+```sql
+SELECT comments.* FROM comments WHERE id = ? LIMIT 1
+SELECT posts.* FROM posts WHERE id = ?  LIMIT 1
+```
+
+In the view we can just access the comments like this:
+
+```haskell
+[hsx|
+    <h1>Comment to {comment |> get #postId |> get #title}</h1>
+    <h2>Comments:</h2>
+    {comment |> get #body}
+|]
+```
+
+The type of `comment` is `Include "postId" Comment` instead of the usual `Comment`. This way the state of fetched nested resource is tracked at the type level.
+
+
+
 
 ## Delete Behavior
 
