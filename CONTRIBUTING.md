@@ -13,7 +13,7 @@ git clone git@github.com:digitallyinduced/ihp.git IHP
 The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. Then, in your app directory (NOT the IHP directory):
 
 ```
-make # only needs to be run once
+make all # only needs to be run once
 ghci
 $ghci> :l Main
 ```
