@@ -24,12 +24,12 @@ buildPlan rawControllerName applicationName = do
         Right statements -> pure statements
     let controllerName = tableNameToControllerName rawControllerName
     let modelName = tableNameToModelName rawControllerName
-    viewPlans <- generateViews applicationName controllerName
-    pure $ Right $ buildPlan' schema applicationName controllerName modelName viewPlans
+    pure $ Right $ buildPlan' schema applicationName controllerName modelName 
 
-buildPlan' schema applicationName controllerName modelName viewPlans =
+buildPlan' schema applicationName controllerName modelName =
     let
         config = ControllerConfig { modelName, controllerName, applicationName }
+        viewPlans = generateViews schema applicationName controllerName
     in
         [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
         , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
@@ -210,16 +210,21 @@ qualifiedViewModuleName config viewName =
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
 
-generateViews :: Text -> Text -> IO [GeneratorAction]
-generateViews applicationName controllerName = 
-    if null controllerName 
-        then pure []
+generateViews :: [Statement] -> Text -> Text -> [GeneratorAction]
+generateViews schema applicationName controllerName' = 
+    if null controllerName'
+        then []
         else do
-            (Right indexPlan) <- ViewGenerator.buildPlan "IndexView" applicationName controllerName
-            (Right newPlan) <- ViewGenerator.buildPlan "NewView" applicationName controllerName
-            (Right showPlan) <- ViewGenerator.buildPlan "ShowView" applicationName controllerName
-            (Right editPlan) <- ViewGenerator.buildPlan "EditView" applicationName controllerName
-            pure $ indexPlan <> newPlan <> showPlan <> editPlan
+            let indexPlan = ViewGenerator.buildPlan' schema (config "IndexView")
+            let newPlan = ViewGenerator.buildPlan' schema (config "NewView")
+            let showPlan = ViewGenerator.buildPlan' schema (config "ShowView")
+            let editPlan = ViewGenerator.buildPlan' schema (config "EditView")
+            indexPlan <> newPlan <> showPlan <> editPlan
+    where
+        config viewName = do
+            let modelName = tableNameToModelName controllerName'
+            let controllerName = tableNameToControllerName controllerName'
+            ViewGenerator.ViewConfig { .. }
 
 
 isAlphaOnly :: Text -> Bool

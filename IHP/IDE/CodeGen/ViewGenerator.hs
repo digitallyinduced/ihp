@@ -1,4 +1,4 @@
-module IHP.IDE.CodeGen.ViewGenerator (buildPlan) where
+module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..)) where
 
 import IHP.Prelude
 import IHP.HaskellSupport
@@ -29,15 +29,15 @@ buildPlan viewName applicationName controllerName' =
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
             let viewConfig = ViewConfig { .. }
-            pure $ Right $ generateView schema viewConfig
+            pure $ Right $ buildPlan' schema viewConfig
 
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
     get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
-generateView :: [Statement] -> ViewConfig -> [GeneratorAction]
-generateView schema config = 
+buildPlan' :: [Statement] -> ViewConfig -> [GeneratorAction]
+buildPlan' schema config = 
         let 
             controllerName = get #controllerName config
             name = get #viewName config
