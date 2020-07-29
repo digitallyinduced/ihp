@@ -15,7 +15,7 @@ import IHP.NameSupport
 
 
 tests = do
-    describe "Should generate Types" do
+    describe "Controller Generator Tests:" do
         let schema = [
                     CreateTable { 
                         name = "pages"

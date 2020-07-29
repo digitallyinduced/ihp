@@ -20,6 +20,7 @@ import qualified Test.IDE.SchemaDesigner.CompilerSpec
 import qualified Test.IDE.SchemaDesigner.ParserSpec
 import qualified Test.ValidationSupport.ValidateFieldSpec
 import qualified Test.IDE.CodeGeneration.ControllerGenerator
+import qualified Test.IDE.CodeGeneration.ViewGenerator
 
 
 main :: IO ()
@@ -28,3 +29,4 @@ main = hspec do
     Test.IDE.SchemaDesigner.ParserSpec.tests
     Test.ValidationSupport.ValidateFieldSpec.tests
     Test.IDE.CodeGeneration.ControllerGenerator.tests
+    Test.IDE.CodeGeneration.ViewGenerator.tests
