@@ -22,7 +22,7 @@ import GHC.Records
 
 {-# INLINE renderPlain #-}
 renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ()
-renderPlain text = respondAndExit $ responseLBS status200 [] (cs text)
+renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] (cs text)
 
 {-# INLINE respondHtml #-}
 respondHtml :: (?requestContext :: RequestContext) => Html -> IO ()
