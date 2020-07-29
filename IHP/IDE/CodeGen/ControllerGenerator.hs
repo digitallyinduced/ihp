@@ -1,4 +1,4 @@
-module IHP.IDE.CodeGen.ControllerGenerator (buildPlan) where
+module IHP.IDE.CodeGen.ControllerGenerator (buildPlan, buildPlan') where
 
 import ClassyPrelude
 import IHP.NameSupport
@@ -24,12 +24,12 @@ buildPlan rawControllerName applicationName = do
         Right statements -> pure statements
     let controllerName = tableNameToControllerName rawControllerName
     let modelName = tableNameToModelName rawControllerName
-    viewPlans <- generateViews applicationName controllerName
-    pure $ Right $ buildPlan' schema applicationName controllerName modelName viewPlans
+    pure $ Right $ buildPlan' schema applicationName controllerName modelName 
 
-buildPlan' schema applicationName controllerName modelName viewPlans =
+buildPlan' schema applicationName controllerName modelName =
     let
         config = ControllerConfig { modelName, controllerName, applicationName }
+        viewPlans = generateViews schema applicationName controllerName
     in
         [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
         , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
@@ -72,6 +72,7 @@ fieldsForTable database name =
 generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
+        pluralName = Countable.pluralize $ get #controllerName config
         name = get #controllerName config
         singularName = get #modelName config
         idFieldName = lcfirst singularName <> "Id"
@@ -79,7 +80,7 @@ generateControllerData config =
     in 
         "\n"
         <> "data " <> name <> "Controller\n"
-        <> "    = " <> name <> "Action\n"
+        <> "    = " <> pluralName <> "Action\n"
         <> "    | New" <> singularName <> "Action\n"
         <> "    | Show" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
         <> "    | Create" <> singularName <> "Action\n"
@@ -93,6 +94,7 @@ generateController schema config =
     let
         applicationName = get #applicationName config
         name = config |> get #controllerName
+        pluralName = Countable.pluralize $ get #controllerName config
         singularName = config |> get #modelName
         moduleName =  applicationName <> ".Controller." <> name
         controllerName = name <> "Controller"
@@ -112,7 +114,7 @@ generateController schema config =
         model = ucfirst singularName
         indexAction =
             ""
-            <> "    action " <> name <> "Action = do\n"
+            <> "    action " <> pluralName <> "Action = do\n"
             <> "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
             <> "        render IndexView { .. }\n"
 
@@ -161,7 +163,7 @@ generateController schema config =
             <> "                Right " <> modelVariableSingular <> " -> do\n"
             <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
             <> "                    setSuccessMessage \"" <> model <> " created\"\n"
-            <> "                    redirectTo " <> name <> "Action\n"
+            <> "                    redirectTo " <> pluralName <> "Action\n"
 
         deleteAction =
             ""
@@ -169,7 +171,7 @@ generateController schema config =
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
             <> "        deleteRecord " <> modelVariableSingular <> "\n"
             <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
-            <> "        redirectTo " <> name <> "Action\n"
+            <> "        redirectTo " <> pluralName <> "Action\n"
 
         fromParams =
             ""
@@ -203,21 +205,26 @@ generateController schema config =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ControllerConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    get #applicationName config <> ".View." <> Countable.pluralize (get #controllerName config) <> "." <> viewName
+    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
 
-generateViews :: Text -> Text -> IO [GeneratorAction]
-generateViews applicationName controllerName = 
-    if null controllerName 
-        then pure []
+generateViews :: [Statement] -> Text -> Text -> [GeneratorAction]
+generateViews schema applicationName controllerName' = 
+    if null controllerName'
+        then []
         else do
-            (Right indexPlan) <- ViewGenerator.buildPlan "IndexView" applicationName controllerName
-            (Right newPlan) <- ViewGenerator.buildPlan "NewView" applicationName controllerName
-            (Right showPlan) <- ViewGenerator.buildPlan "ShowView" applicationName controllerName
-            (Right editPlan) <- ViewGenerator.buildPlan "EditView" applicationName controllerName
-            pure $ indexPlan <> newPlan <> showPlan <> editPlan
+            let indexPlan = ViewGenerator.buildPlan' schema (config "IndexView")
+            let newPlan = ViewGenerator.buildPlan' schema (config "NewView")
+            let showPlan = ViewGenerator.buildPlan' schema (config "ShowView")
+            let editPlan = ViewGenerator.buildPlan' schema (config "EditView")
+            indexPlan <> newPlan <> showPlan <> editPlan
+    where
+        config viewName = do
+            let modelName = tableNameToModelName controllerName'
+            let controllerName = tableNameToControllerName controllerName'
+            ViewGenerator.ViewConfig { .. }
 
 
 isAlphaOnly :: Text -> Bool
