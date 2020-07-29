@@ -58,7 +58,7 @@ The server can be stopped by pressing CTRL+C.
 
 By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`. The dev server automatically picks other ports when they are already in use by some other server. For example it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
 
-In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
+In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
 
 
 ## 3. Data Structures & PostgreSQL
