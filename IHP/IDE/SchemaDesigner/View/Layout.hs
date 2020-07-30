@@ -34,7 +34,7 @@ databaseControls = [hsx|
     <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
     <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
     <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
-    <div class="btn-group">
+    <div class="btn-group btn-group-sm mb-2">
         <button
             type="submit"
             form="update-db-form"
@@ -99,9 +99,6 @@ renderColumnSelector tableName columns statements = [hsx|
 <div class="col-8 column-selector" oncontextmenu="showContextMenu('context-menu-column-root')">
     <div class="d-flex">
         <h5>Columns</h5>
-        <div class="toolbox">
-            <a href={NewColumnAction tableName} class="btn btn-sm btn-outline-primary m-1" id="new-column">New Column</a>
-        </div>
     </div>
     <table class="table table-hover table-sm">
         <tbody>
@@ -190,22 +187,12 @@ renderValue value valueId enumName = [hsx|
         contextMenuId = "context-menu-value-" <> tshow valueId
 
 renderObjectSelector statements activeObjectName = [hsx|
-    <div class="col object-selector" oncontextmenu="showContextMenu('context-menu-object-root')">
+    <div class={classes ["col", "object-selector", ("empty", isEmpty statements)]} oncontextmenu="showContextMenu('context-menu-object-root')">
         <div class="d-flex">
             <h5>Objects</h5>
-            <div class="toolbox">
-                <div class="btn-group m-1">
-                    <a href={NewTableAction} class="btn btn-sm btn-outline-primary">New Table</a>
-                    <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <span class="sr-only">Toggle Dropdown</span>
-                    </button>
-                    <div class="dropdown-menu">
-                        <a href={NewEnumAction} class="dropdown-item">New Enum</a>
-                    </div>
-                </div>
-            </div>
         </div>
         {forEach statements (\statement -> renderObject (snd statement) (fst statement))}
+        <div class="text-muted context-menu-notice">Right click to open context menu</div>
     </div>
     <div class="custom-menu menu-for-table shadow backdrop-blur" id="context-menu-object-root">
         <a href={NewTableAction}>Add Table</a>

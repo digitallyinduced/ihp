@@ -41,6 +41,22 @@
     border: 1px solid #d5d4d5;
     user-select: none;
     min-height: 800px;
+    display: flex;
+    flex-direction: column;
+}
+
+.context-menu-notice {
+    font-size: 10px;
+    margin-top: auto;
+    margin-bottom: 0.5rem;
+    margin-left: 0.5rem;
+    opacity: 0.5;
+}
+
+.object-selector.empty .context-menu-notice {
+    margin-bottom: auto;
+    font-size: 2rem;
+    text-align: center;
 }
 
 .visual-error {
