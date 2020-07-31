@@ -2,6 +2,12 @@
 echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
+NIXPKGS_ATTR="nixpkgs"
+
+if [ -f /etc/os-release ]; then
+	grep '^ID=nixos$' /etc/os-release >/dev/null 2>&1 && NIXPKGS_ATTR="nixos"
+fi
+
 
 BOILERPLATE_GIT_URL="https://github.com/digitallyinduced/ihp-boilerplate.git"
 
@@ -37,7 +43,7 @@ if ! [ -x "$(command -v direnv)" ]; then
 	read -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -i direnv;;
+	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.direnv;;
 	  * ) echo -e "\e[31mPlease install direnv manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 	echo -e "\e[1mDirenv needs to be hooked into your shell. Please follow the steps below:\e[0m"
@@ -61,7 +67,7 @@ if ! [ -x "$(command -v cachix)" ]; then
 	read -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -i cachix;;
+	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.cachix;;
 	  * ) echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 fi
@@ -75,7 +81,7 @@ if ! [ -x "$(command -v git)" ]; then
 	read -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -i git;;
+	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.git;;
 	  * ) echo -e "\e[31mPlease install git manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 fi
@@ -89,7 +95,7 @@ if ! [ -x "$(command -v make)" ]; then
 	read -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -i gnumake;;
+	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.gnumake;;
 	  * ) echo -e "\e[31mPlease install make manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 fi

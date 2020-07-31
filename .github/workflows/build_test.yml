@@ -14,6 +14,6 @@ jobs:
         skipPush: true
 
     - run: |
-          nix-env -i direnv
+          nix-env -iA nixpkgs.direnv
           nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
           ihp-new blog
