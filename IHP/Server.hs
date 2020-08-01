@@ -2,7 +2,6 @@ module IHP.Server (run, appDatabaseUrl) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
-import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static
 import Network.Wai.Session (withSession, Session)
@@ -44,7 +43,6 @@ run = do
                 , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
                 }
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie session
-    let logMiddleware :: Middleware = logStdoutDev
 
     libDirectory <- cs <$> FrameworkConfig.findLibDirectory
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
@@ -59,6 +57,6 @@ run = do
     runServer $
         staticMiddleware $
             sessionMiddleware $
-                logMiddleware $            
+                requestLoggerMiddleware $
                         methodOverridePost $
                             application
