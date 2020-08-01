@@ -359,6 +359,20 @@ This will execute:
 DELETE FROM users WHERE id IN (...)
 ```
 
+### Deleting all records
+
+Use `deleteAll` to run a `DELETE` query for all rows in a table:
+
+```haskell
+do
+    deleteAll @User
+```
+
+This will execute:
+```sql
+DELETE FROM users
+```
+
 
 ## Enums
 

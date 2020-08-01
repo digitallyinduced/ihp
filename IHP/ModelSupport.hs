@@ -224,12 +224,26 @@ deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Know
 deleteRecords records = do
     let (ModelContext conn) = ?modelContext
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
-    let theParameters = (PG.Only (PG.In (ids records)))
-    putStrLn (tshow (theQuery, theParameters))
+    let theParameters = PG.Only (PG.In (ids records))
+    if length records > 10
+        then putStrLn (tshow (theQuery, "More than 10 records"))
+        else putStrLn (tshow (theQuery, theParameters))
     PG.execute conn (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecords #-}
 
+-- | Runs a @DELETE@ query to delete all rows in a table.
+--
+-- >>> deleteAll @Project
+-- DELETE FROM projects
+deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
+deleteAll = do
+    let (ModelContext conn) = ?modelContext
+    let theQuery = "DELETE FROM " <> tableName @record
+    putStrLn (tshow theQuery)
+    PG.execute_ conn (PG.Query . cs $! theQuery)
+    pure ()
+{-# INLINE deleteAll #-}
 
 type family Include (name :: GHC.Types.Symbol) model
 
