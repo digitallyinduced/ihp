@@ -77,9 +77,11 @@ createTable = do
         lexeme "public"
         char '.'
     name <- identifier
-    columns <- between (char '(' >> space) (char ')' >> space) (column `sepBy` (char ',' >> space))
+    (columns, constraints) <- between (char '(' >> space) (char ')' >> space) do
+        columnsAndConstraints <- ((Right <$> parseUniqueConstraint) <|> (Left <$> column)) `sepBy` (char ',' >> space)
+        pure (lefts columnsAndConstraints, rights columnsAndConstraints)
     char ';'
-    pure CreateTable { name, columns }
+    pure CreateTable { name, columns, constraints }
 
 createEnumType = do
     lexeme "CREATE"
@@ -114,6 +116,12 @@ parseConstraint = do
         lexeme "DELETE"
         parseOnDelete
     pure ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete }
+
+parseUniqueConstraint = do
+    lexeme "UNIQUE"
+    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy` (char ',' >> space))
+    pure UniqueConstraint { columnNames  }
+
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction

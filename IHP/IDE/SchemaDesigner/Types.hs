@@ -10,7 +10,7 @@ import IHP.Prelude
 data Statement
     = 
     -- | CREATE TABLE name ( columns );
-    CreateTable { name :: Text, columns :: [Column] }
+    CreateTable { name :: Text, columns :: [Column], constraints :: [Constraint] }
     -- | CREATE TYPE name AS ENUM ( values );
     | CreateEnumType { name :: Text, values :: [Text] }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
@@ -46,6 +46,8 @@ data Constraint
         , referenceColumn :: Maybe Text
         , onDelete :: Maybe OnDelete
         }
+    | UniqueConstraint
+        { columnNames :: [Text] }
     deriving (Eq, Show)
 
 data Expression =
