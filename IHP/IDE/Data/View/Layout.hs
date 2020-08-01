@@ -1,7 +1,7 @@
 module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows) where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
+import IHP.IDE.SchemaDesigner.Types hiding (columnNames)
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 
