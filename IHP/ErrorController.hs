@@ -3,6 +3,8 @@ module IHP.ErrorController (displayException, handleNoResponseReturned, handleNo
 import IHP.Prelude hiding (displayException)
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
+import System.IO (stderr)
 import IHP.Controller.RequestContext
 import Network.HTTP.Types (status500, status404)
 import Network.Wai
@@ -47,6 +49,11 @@ displayException :: (Show action, ?requestContext :: RequestContext) => SomeExce
 displayException exception action additionalInfo = do
     let allHandlers = [ postgresHandler, patternMatchFailureHandler ]
     let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
+
+    -- Additionally to rendering the error message to the browser we also print out 
+    -- the error message to the console because sometimes you cannot easily access the http response
+    Text.hPutStrLn stderr (tshow exception)
+
     supportingHandlers
         |> head
         |> fromMaybe (genericHandler exception action additionalInfo)
