@@ -249,6 +249,10 @@ tests = do
                     , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
                     }
 
+        it "should fail to parse a CREATE TABLE statement with an empty UNIQUE () constraint" do
+            (evaluate (parseSql "CREATE TABLE user_followers (id UUID, UNIQUE());")) `shouldThrow` anyException
+            pure ()
+
 col :: Column
 col = Column
     { name = ""

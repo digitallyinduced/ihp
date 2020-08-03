@@ -119,7 +119,7 @@ parseConstraint = do
 
 parseUniqueConstraint = do
     lexeme "UNIQUE"
-    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy` (char ',' >> space))
+    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
     pure UniqueConstraint { columnNames  }
 
 
