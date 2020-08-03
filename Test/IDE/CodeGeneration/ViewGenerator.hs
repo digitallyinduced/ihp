@@ -29,6 +29,7 @@ tests = do
                                 , isUnique = False
                                 }
                         ]
+                        , constraints = []
                         }
                     ]
         it "should build a view with name \"EditView\"" do

@@ -22,7 +22,7 @@ compileSql statements = statements
     |> unlines
 
 compileStatement :: Statement -> Text
-compileStatement CreateTable { name, columns } = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map compileColumn columns) <> "\n);"
+compileStatement CreateTable { name, columns, constraints } = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map compileColumn columns <> map (indent . compileConstraint) constraints) <> "\n);"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values |> map TextExpression |> map compileExpression) <> ");"
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
@@ -31,6 +31,7 @@ compileStatement UnknownStatement { raw } = raw
 
 compileConstraint :: Constraint -> Text
 compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
+compileConstraint UniqueConstraint { columnNames } = "UNIQUE(" <> intercalate ", " columnNames <> ")"
 
 compileOnDelete :: Maybe OnDelete -> Text
 compileOnDelete Nothing = ""
@@ -331,3 +332,5 @@ compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier e
             , "TRIM"
             , "VARCHAR"
             ]
+
+indent text = "    " <> text

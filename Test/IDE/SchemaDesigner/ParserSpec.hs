@@ -12,11 +12,10 @@ import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import GHC.IO (evaluate)
 
-
 tests = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` CreateTable { name = "users", columns = [] }
+            parseSql "CREATE TABLE users ();"  `shouldBe` CreateTable { name = "users", columns = [], constraints = [] }
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
@@ -103,13 +102,14 @@ tests = do
                             , isUnique = False
                             }
                         ]
+                    , constraints = []
                     }
 
         it "should parse a CREATE TABLE with quoted identifiers" do
-            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` CreateTable { name = "quoted name", columns = [] }
+            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` CreateTable { name = "quoted name", columns = [], constraints = [] }
 
         it "should parse a CREATE TABLE with public schema prefix" do
-            parseSql "CREATE TABLE public.users ();" `shouldBe` CreateTable { name = "users", columns = [] }
+            parseSql "CREATE TABLE public.users ();" `shouldBe` CreateTable { name = "users", columns = [], constraints = [] }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
@@ -191,6 +191,7 @@ tests = do
                         , col { name = "bigint_a", columnType = PBigInt }
                         , col { name = "bigint_b", columnType = PBigInt }
                         ]
+                    , constraints = []
                     }
 
         it "should parse a CREATE TABLE with TIMESTAMP WITH TIMEZONE / TIMESTAMPZ columns" do
@@ -200,6 +201,7 @@ tests = do
                         [ col { name = "a", columnType = PTimestampWithTimezone }
                         , col { name = "b", columnType = PTimestampWithTimezone }
                         ]
+                    , constraints = []
                     }
 
         it "should parse a CREATE TABLE with BOOLEAN / BOOL columns" do
@@ -209,6 +211,7 @@ tests = do
                         [ col { name = "a", columnType = PBoolean }
                         , col { name = "b", columnType = PBoolean }
                         ]
+                    , constraints = []
                     }
 
         it "should parse a CREATE TABLE with REAL, FLOAT4, DOUBLE, FLOAT8 columns" do
@@ -220,6 +223,7 @@ tests = do
                         , col { name = "c", columnType = PDouble }
                         , col { name = "d", columnType = PDouble }
                         ]
+                    , constraints = []
                     }
 
         it "should parse a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
@@ -231,7 +235,23 @@ tests = do
                         , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
                         , col { name = "d", columnType = (PVaryingN 10) }
                         ]
+                    , constraints = []
                     }
+
+        it "should parse a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
+            parseSql "CREATE TABLE user_followers (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL, user_id UUID NOT NULL, follower_id UUID NOT NULL, UNIQUE(user_id, follower_id));"  `shouldBe` CreateTable
+                    { name = "user_followers"
+                    , columns =
+                        [ col { name = "id", columnType = PUUID, primaryKey = True, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , col { name = "user_id", columnType = PUUID, notNull = True }
+                        , col { name = "follower_id", columnType = PUUID, notNull = True }
+                        ]
+                    , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    }
+
+        it "should fail to parse a CREATE TABLE statement with an empty UNIQUE () constraint" do
+            (evaluate (parseSql "CREATE TABLE user_followers (id UUID, UNIQUE());")) `shouldThrow` anyException
+            pure ()
 
 col :: Column
 col = Column

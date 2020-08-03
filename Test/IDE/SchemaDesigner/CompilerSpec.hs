@@ -10,12 +10,12 @@ import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
-
+import Test.IDE.SchemaDesigner.ParserSpec (col)
 
 tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [CreateTable { name = "users", columns = [] }] `shouldBe` "CREATE TABLE users (\n\n);\n"
+            compileSql [CreateTable { name = "users", columns = [], constraints = [] }] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
@@ -103,11 +103,12 @@ tests = do
                             , isUnique = False
                             }
                         ]
+                    , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with quoted identifiers" do
-            compileSql [CreateTable { name = "quoted name", columns = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+            compileSql [CreateTable { name = "quoted name", columns = [], constraints = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
@@ -189,6 +190,7 @@ tests = do
                             , isUnique = False
                             }
                         ]
+                    , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -238,5 +240,19 @@ tests = do
                             , primaryKey = False
                             }
                         ]
+                    , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
+            let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
+            let statement = CreateTable
+                    { name = "user_followers"
+                    , columns =
+                        [ col { name = "id", columnType = PUUID, primaryKey = True, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , col { name = "user_id", columnType = PUUID, notNull = True }
+                        , col { name = "follower_id", columnType = PUUID, notNull = True }
+                        ]
+                    , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    }
+            compileSql [statement] `shouldBe` sql       

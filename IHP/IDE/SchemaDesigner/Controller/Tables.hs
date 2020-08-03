@@ -79,10 +79,10 @@ addTable tableName list = list <> [CreateTable { name = tableName, columns = [Co
                 , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                 , notNull = True
                 , isUnique = False
-                }] }]
+                }], constraints = [] }]
 
 updateTable :: Int -> Text -> [Statement] -> [Statement]
-updateTable tableId tableName list = replace tableId CreateTable { name = tableName, columns = (get #columns (list !! tableId))} list
+updateTable tableId tableName list = replace tableId CreateTable { name = tableName, columns = (get #columns (list !! tableId)), constraints = (get #constraints (list !! tableId)) } list
 
 deleteTable :: Int -> [Statement] -> [Statement]
 deleteTable tableId list = delete (list !! tableId) list
