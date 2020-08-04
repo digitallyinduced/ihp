@@ -139,6 +139,24 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
         }
+
+        .ihp-error-other-solutions {
+            margin-top: 2rem;
+            padding-top: 0.5rem;
+            font-size: 1rem;
+            color: hsla(196, 13%, 80%, 1);
+            border-top: 1px solid hsla(196, 13%, 60%, 0.4);
+        }
+
+        .ihp-error-other-solutions a {
+            color: hsla(196, 13%, 80%, 0.9);
+            text-decoration: none !important;
+            margin-right: 1rem;
+            font-size: 0.8rem;
+        }
+        .ihp-error-other-solutions a:hover {
+            color: hsla(196, 13%, 80%, 1);
+        }
     </style>
 </head>
 <body>
@@ -147,6 +165,12 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
             <h1 style="margin-bottom: 2rem; font-size: 2rem; font-weight: 500; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)">{errorTitle}</h1>
             <div style="margin-top: 1rem; font-size: 1.25rem; color:hsla(196, 13%, 80%, 1)">
                 {view}
+            </div>
+
+            <div class="ihp-error-other-solutions">
+                <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
+                <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
+                <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open a GitHub Issue</a>
             </div>
         </div>
     </div>
