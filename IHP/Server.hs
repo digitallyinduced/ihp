@@ -57,6 +57,6 @@ run = do
     runServer $
         staticMiddleware $
             sessionMiddleware $
-                requestLoggerMiddleware $
+                FrameworkConfig.requestLoggerMiddleware $
                         methodOverridePost $
                             application
