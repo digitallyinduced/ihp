@@ -256,3 +256,21 @@ tests = do
                     , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
                     }
             compileSql [statement] `shouldBe` sql       
+
+        it "should compile a CREATE TABLE statement with a serial id" do
+            let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
+            let statement = CreateTable
+                    { name = "orders"
+                    , columns = [ col { name = "id", columnType = PSerial, notNull = True, primaryKey = True} ]
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql   
+
+        it "should compile a CREATE TABLE statement with a bigserial id" do
+            let sql = cs [plain|CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n|]
+            let statement = CreateTable
+                    { name = "orders"
+                    , columns = [ col { name = "id", columnType = PBigserial, notNull = True, primaryKey = True} ]
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql   
