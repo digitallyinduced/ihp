@@ -81,6 +81,8 @@ compilePostgresType (PNumeric (Just precision) Nothing) = "NUMERIC(" <> show pre
 compilePostgresType (PNumeric Nothing _) = "NUMERIC"
 compilePostgresType (PVaryingN limit) = "CHARACTER VARYING(" <> show limit <> ")"
 compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
+compilePostgresType PSerial = "SERIAL"
+compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text

@@ -75,5 +75,7 @@ data PostgresType
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
     | PVaryingN Int
     | PCharacterN Int
+    | PSerial
+    | PBigserial
     | PCustomType Text
     deriving (Eq, Show)
