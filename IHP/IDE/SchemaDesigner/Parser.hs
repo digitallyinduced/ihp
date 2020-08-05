@@ -162,6 +162,8 @@ sqlType = choice
         , numeric
         , character
         , varchar
+        , serial
+        , bigserial
         , customType
         ]
             where
@@ -263,6 +265,14 @@ sqlType = choice
                                 Nothing -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
                                 Just l -> pure (PCharacterN l)
                         _ -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
+
+                serial = do
+                    try (symbol' "SERIAL")
+                    pure PSerial
+
+                bigserial = do
+                    try (symbol' "BIGSERIAL")
+                    pure PBigserial
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))

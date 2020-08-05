@@ -253,6 +253,20 @@ tests = do
             (evaluate (parseSql "CREATE TABLE user_followers (id UUID, UNIQUE());")) `shouldThrow` anyException
             pure ()
 
+        it "should parse a CREATE TABLE statement with a serial id" do
+            parseSql "CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` CreateTable
+                    { name = "orders"
+                    , columns = [ col { name = "id", columnType = PSerial, notNull = True, primaryKey = True} ]
+                    , constraints = []
+                    }
+
+        it "should parse a CREATE TABLE statement with a bigserial id" do
+            parseSql "CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` CreateTable
+                    { name = "orders"
+                    , columns = [ col { name = "id", columnType = PBigserial, notNull = True, primaryKey = True} ]
+                    , constraints = []
+                    }
+
 col :: Column
 col = Column
     { name = ""
