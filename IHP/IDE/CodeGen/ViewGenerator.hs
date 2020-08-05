@@ -92,7 +92,7 @@ buildPlan' schema config =
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize nameWithoutSuffix <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
