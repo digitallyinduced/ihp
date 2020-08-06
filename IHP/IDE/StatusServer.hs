@@ -130,6 +130,25 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                         font-size: 0.7rem;
                     }
 
+                    .ihp-error-other-solutions {
+                        margin-top: 2rem;
+                        padding-top: 0.5rem;
+                        font-size: 0.8rem;
+                        color: hsla(196, 13%, 80%, 1);
+                        border-top: 1px solid hsla(196, 13%, 60%, 0.4);
+                        margin-bottom: 4rem;
+                    }
+
+                    .ihp-error-other-solutions a {
+                        color: hsla(196, 13%, 80%, 0.9);
+                        text-decoration: none !important;
+                        margin-right: 2rem;
+                        font-size: 0.8rem;
+                    }
+                    .ihp-error-other-solutions a:hover {
+                        color: hsla(196, 13%, 80%, 1);
+                    }
+
                     #stderr .compiler-error:first-child { opacity: 1; font-size: 1rem; }
                     #stderr .compiler-error:first-child .file-name { font-size: 1.5rem; }
                     #stderr .compiler-error { opacity: 0.5; }
@@ -139,6 +158,13 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                 <div style="max-width: 800px; margin-left: auto; margin-right: auto">
                     <h1 style="margin-bottom: 2rem; margin-top: 20%; font-size: 1rem; font-weight: 400; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1); color: hsla(196, 13%, 80%, 1)">{inner}</h1>
                     <pre style="font-family: Menlo, monospace; width: 100%" id="stderr">{forEach (parseErrorOutput errorOutput) renderError}</pre>
+
+                    <div class="ihp-error-other-solutions">
+                        <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
+                        <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
+                        <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open a GitHub Issue</a>
+                    </div>
+
                     <pre style="font-family: Menlo, monospace; font-size: 8px" id="stdout">{standardOutput}</pre>
                 </div>
                 
