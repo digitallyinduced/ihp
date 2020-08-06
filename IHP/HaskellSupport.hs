@@ -21,6 +21,7 @@ module IHP.HaskellSupport (
 , isToday
 , isToday'
 , forEach
+, forEachWithIndex
 , textToInt
 , isWeekend
 , todayIsWeekend
@@ -173,6 +174,13 @@ instance IsString string => IsString (Maybe string) where
 forEach :: (MonoFoldable mono, Applicative m) => mono -> (Element mono -> m ()) -> m ()
 forEach elements function = forM_ elements function
 {-# INLINE forEach #-}
+
+
+-- | Example:
+-- forEachWithIndex users \(index, user) -> putStrLn (tshow user)
+forEachWithIndex :: (Applicative m) => [a] -> ((Int, a) -> m ()) -> m ()
+forEachWithIndex elements function = forM_ (ClassyPrelude.zip [0..] elements) function
+{-# INLINE forEachWithIndex #-}
 
 -- | Parses a text to an int. Returns @Nothing@ on failure.
 --
