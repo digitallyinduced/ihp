@@ -30,7 +30,7 @@ openEditor path line col = do
     let command =
             editor <> " " <> path <> if supportsLineAndCol then ":" <> tshow line <> ":" <> tshow col else ""
     _ <- Process.system (cs command)
-    unless supportsLineAndCol (putStrLn "Pro Tip: Define the env var IHP_EDITOR ")
+    unless supportsLineAndCol (putStrLn "Pro Tip: Set the env var IHP_EDITOR to your favorite editor. Then all your files will be opened at the right line and column where the error is reported.")
     pure ()
 
 -- | Returns the editor command for the user and also whether the command supports line and col notation
