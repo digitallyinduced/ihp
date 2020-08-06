@@ -15,6 +15,8 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.Types
 import IHP.IDE.PortConfig
+import IHP.IDE.ToolServer.Types
+import IHP.IDE.ToolServer.Routes
 import ClassyPrelude (async, uninterruptibleCancel, catch, forever)
 
 startStatusServer :: (?context :: Context) => IO ()
@@ -98,53 +100,110 @@ notifyBrowserOnApplicationOutput StatusServerPaused { serverRef, clients, standa
     pure ()
 notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
 
-renderErrorView :: ByteString -> ByteString -> Bool -> Html5.Html
+
+data CompilerError = CompilerError { errorMessage :: [ByteString], isWarning :: Bool } deriving (Show)
+
+renderErrorView :: (?context :: Context) => ByteString -> ByteString -> Bool -> Html5.Html
 renderErrorView standardOutput errorOutput isCompiling = [hsx|
         <html lang="en">
             <head>
                 <meta charset="utf-8"/>
                 {title}
-                <style>{style}</style>
+                <style>
+                    * { -webkit-font-smoothing: antialiased }
+                    body {
+                        font-size: 16px;
+                        font-family: -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+                        background-color: hsl(196 13% 30% / 1);
+                        color: hsla(196, 13%, 96%, 1);
+                    }
+                    .compiler-error .file-name {
+                        margin-bottom: 1rem;
+                        font-weight: bold;
+                        display: block;
+                        color: inherit !important;
+                        text-decoration: none;
+                    }
+
+                    .compiler-error {
+                        margin-bottom: 3rem;
+                        font-size: 0.7rem;
+                    }
+
+                    #stderr .compiler-error:first-child { opacity: 1; font-size: 1rem; }
+                    #stderr .compiler-error:first-child .file-name { font-size: 1.5rem; }
+                    #stderr .compiler-error { opacity: 0.5; }
+                </style>
             </head>
-            <body style="background-color: #002b36; color: #839496">
-                <div class="m-2">{inner}</div>
-                <div style="display: flex">
-                    <pre style="font-family: Menlo, monospace; color: #268bd2; width: 50%" id="stderr">{errorOutput}</pre>
-                    <pre style="font-family: Menlo, monospace; color: #586e75; width: 50%; text-align: right; font-size: 8px" id="stdout">{standardOutput}</pre>
+            <body>
+                <div style="max-width: 800px; margin-left: auto; margin-right: auto">
+                    <h1 style="margin-bottom: 2rem; margin-top: 20%; font-size: 1rem; font-weight: 400; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1); color: hsla(196, 13%, 80%, 1)">{inner}</h1>
+                    <pre style="font-family: Menlo, monospace; width: 100%" id="stderr">{forEach (parseErrorOutput errorOutput) renderError}</pre>
+                    <pre style="font-family: Menlo, monospace; font-size: 8px" id="stdout">{standardOutput}</pre>
                 </div>
-                <script>{websocketHandler}</script>
+                
+                <script>
+                    var socket = new WebSocket("ws://localhost:" + window.location.port);
+                    socket.onclose = function () { setTimeout(() => window.location.reload(), 500); }
+                    socket.onmessage = function (event) {
+                        if (event.data === 'clear') {
+                            stdout.innerText = '';
+                            stderr.innerText = '';
+                        } else if (event.data !== 'pong') {
+                            var c = (event.data.substr(0, 6) === 'stdout' ? stdout : stderr);
+                            c.innerText = c.innerText + "\n" + event.data.substr(6);
+                        }
+                    }
+                </script>
             </body>
         </html>
     |]
         where
+            parseErrorOutput output =
+                    splitToSections (ByteString.lines output) []
+                    |> map identifySection
+                where
+                    splitToSections :: [ByteString] -> [[ByteString]] -> [[ByteString]]
+                    splitToSections [] result = result
+                    splitToSections ("":lines) result = splitToSections lines result
+                    splitToSections lines result = 
+                        let (error :: [ByteString], rest) = span (\line -> line /= "") lines
+                        in splitToSections rest ((error |> filter (/= "")):result)
+
+                    identifySection :: [ByteString] -> CompilerError
+                    identifySection lines | "warning" `ByteString.isInfixOf` (fromMaybe "" (headMay lines)) = CompilerError { errorMessage = lines, isWarning = True }
+                    identifySection lines = CompilerError { errorMessage = lines, isWarning = False }
+
             title = if isCompiling
                 then [hsx|<title>Compiling...</title>|]
                 else [hsx|<title>Compilation Error</title>|]
 
             inner = if isCompiling
-                then [hsx|<h1>Is compiling</h1>|]
-                else [hsx|<h1>Error while compiling</h1>|]
+                then [hsx|Is compiling|]
+                else [hsx|Problems found while compiling|]
 
-            websocketHandler = preEscapedToHtml [plain|
-                var socket = new WebSocket("ws://localhost:" + window.location.port);
-                socket.onclose = function () { setTimeout(() => window.location.reload(), 500); }
-                socket.onmessage = function (event) {
-                    if (event.data === 'clear') {
-                        stdout.innerText = '';
-                        stderr.innerText = '';
-                    } else {
-                        var c = (event.data.substr(0, 6) === 'stdout' ? stdout : stderr);
-                        c.innerText = c.innerText + "\\n" + event.data.substr(6);
-                    }
-                }
-            |]
+            renderError CompilerError { errorMessage, isWarning } = [hsx|
+                    <div class="compiler-error">
+                        {forEachWithIndex errorMessage renderLine}
+                    </div>
+                |]
 
-            style = preEscapedToHtml [plain|
-                body {
-                    font-size: 16px;
-                    font-family: -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
-                }
-            |]
+            renderLine (0, line) = [hsx|
+                    <a class="file-name" href={openEditor} target={line}>{filePath}</a>
+                    <iframe name={line} src="about:blank" style="display: none"/>
+                |]
+                where
+                    (filePath, rest) = ByteString.breakSubstring ": " line
+                    openEditor = "http://localhost:" <> tshow toolServerPort <> (pathTo OpenEditorAction) <> "?path=" <> cs plainFilePath <> "&line=" <> cs fileLine <> "&col=" <> cs fileCol
+                    (plainFilePath, fileLine, fileCol) = case ByteString.split ':' filePath of
+                            [path, line, col] -> (path, line, col)
+                            [path, line] -> (path, line, "0")
+                            otherwise -> (filePath, "0", "0")
+            renderLine (i, line) = [hsx|<div>{line}</div>|]
+
+            toolServerPort = ?context
+                |> get #portConfig
+                |> get #toolServerPort
 
 notifyOutput :: IORef [Websocket.Connection] -> ByteString -> IO ()
 notifyOutput stateRef output = do

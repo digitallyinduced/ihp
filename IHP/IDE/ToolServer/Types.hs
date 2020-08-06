@@ -87,6 +87,7 @@ data DataController
 data LogsController
     = AppLogsAction
     | PostgresLogsAction
+    | OpenEditorAction
     deriving (Eq, Show, Data)
 
 data CodeGenController
