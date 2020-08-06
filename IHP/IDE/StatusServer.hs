@@ -149,6 +149,15 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                         color: hsla(196, 13%, 80%, 1);
                     }
 
+                    .troubleshooting-suggestion {
+                        margin-top: 1rem;
+                    }
+
+                    .troubleshooting-suggestion, .troubleshooting-suggestion a {
+                        font-weight: bold;
+                        color: #859900 !important;
+                    }
+
                     #stderr .compiler-error:first-child { opacity: 1; font-size: 1rem; }
                     #stderr .compiler-error:first-child .file-name { font-size: 1.5rem; }
                     #stderr .compiler-error { opacity: 0.5; }
@@ -211,6 +220,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
             renderError CompilerError { errorMessage, isWarning } = [hsx|
                     <div class="compiler-error">
                         {forEachWithIndex errorMessage renderLine}
+                        {mconcat (renderTroubleshooting errorMessage)}
                     </div>
                 |]
 
@@ -226,6 +236,11 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                             [path, line] -> (path, line, "0")
                             otherwise -> (filePath, "0", "0")
             renderLine (i, line) = [hsx|<div>{line}</div>|]
+
+            renderTroubleshooting :: [ByteString] -> [Html5.Html]
+            renderTroubleshooting lines = [ modelContextTroubleshooting ]
+                    |> map (\f -> f lines)
+                    |> catMaybes
 
             toolServerPort = ?context
                 |> get #portConfig
@@ -245,3 +260,18 @@ app stateRef pendingConnection = do
         Websocket.sendTextData connection ("pong" :: Text)
         Concurrent.threadDelay (1000000)
         pure ()
+
+
+modelContextTroubleshooting :: [ByteString] -> Maybe Html5.Html
+modelContextTroubleshooting lines =
+    lines
+    |> map (\line -> "Unbound implicit parameter (?modelContext::" `ByteString.isInfixOf` line)
+    |> or
+    |> \case
+        True -> Just [hsx|
+            <div class="troubleshooting-suggestion">
+                A detailed explanation for this error is available in the IHP Wiki:
+                <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting#unbound-implicit-parameter-modelcontextmodelcontext">See Error Explanation</a>
+            </div>
+        |]
+        False -> Nothing
