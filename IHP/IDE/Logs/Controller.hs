@@ -1,6 +1,7 @@
 module IHP.IDE.Logs.Controller where
 
 import IHP.ControllerPrelude
+import IHP.IDE.ToolServer.Helper.Controller
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.Logs.View.Logs
@@ -36,6 +37,14 @@ instance Controller LogsController where
                 _ -> pure ("", "")
 
         render LogsView { .. }
+
+    action OpenEditorAction = do
+        let path = param @Text "path"
+        let line = paramOrDefault @Int 0 "line"
+        let col = paramOrDefault @Int 0 "col"
+        openEditor path line col
+
+        renderPlain ""
 
 readDevServerState :: (?controllerContext :: ControllerContext) => IO DevServer.AppState
 readDevServerState = theDevServerContext

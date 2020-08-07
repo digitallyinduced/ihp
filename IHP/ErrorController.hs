@@ -1,4 +1,14 @@
-module IHP.ErrorController (displayException, handleNoResponseReturned, handleNotFound) where
+{-|
+Module: IHP.ErrorController
+Description:  Provides web-based error screens for runtime errors in IHP
+Copyright: (c) digitally induced GmbH, 2020
+-}
+module IHP.ErrorController
+( displayException
+, handleNoResponseReturned
+, handleNotFound
+, handleRouterException
+) where
 
 import IHP.Prelude hiding (displayException)
 import qualified Control.Exception as Exception
@@ -19,9 +29,7 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.ByteString.Char8 as ByteString
 
 import IHP.HtmlSupport.QQ (hsx)
-
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
-
 
 handleNoResponseReturned :: (Show controller, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -44,6 +52,19 @@ handleNotFound = do
     let title = H.text "Action Not Found"
     let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+handleRouterException :: (?requestContext :: RequestContext) => SomeException -> IO ResponseReceived
+handleRouterException exception = do
+    let errorMessage = [hsx|
+            Routing failed with: {tshow exception}
+            
+            <h2>Possible Solutions</h2>
+            <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
+        |]
+    let title = H.text "Routing failed"
+    let (RequestContext _ respond _ _ _) = ?requestContext
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
 
 displayException :: (Show action, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
@@ -139,6 +160,28 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
         }
+
+        body a {
+            color: hsla(196, 13%, 80%, 1);
+        }
+
+        .ihp-error-other-solutions {
+            margin-top: 2rem;
+            padding-top: 0.5rem;
+            font-size: 1rem;
+            color: hsla(196, 13%, 80%, 1);
+            border-top: 1px solid hsla(196, 13%, 60%, 0.4);
+        }
+
+        .ihp-error-other-solutions a {
+            color: hsla(196, 13%, 80%, 0.9);
+            text-decoration: none !important;
+            margin-right: 1rem;
+            font-size: 0.8rem;
+        }
+        .ihp-error-other-solutions a:hover {
+            color: hsla(196, 13%, 80%, 1);
+        }
     </style>
 </head>
 <body>
@@ -147,6 +190,12 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
             <h1 style="margin-bottom: 2rem; font-size: 2rem; font-weight: 500; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)">{errorTitle}</h1>
             <div style="margin-top: 1rem; font-size: 1.25rem; color:hsla(196, 13%, 80%, 1)">
                 {view}
+            </div>
+
+            <div class="ihp-error-other-solutions">
+                <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
+                <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
+                <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open a GitHub Issue</a>
             </div>
         </div>
     </div>

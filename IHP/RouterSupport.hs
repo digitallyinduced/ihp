@@ -58,6 +58,8 @@ import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
 import qualified IHP.FrameworkConfig as FrameworkConfig
+import qualified IHP.ErrorController as ErrorController
+import qualified Control.Exception as Exception
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
@@ -410,14 +412,16 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 
 {-# INLINE runApp #-}
 runApp :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived -> IO ResponseReceived
-runApp routes notFoundAction =
-    let
-        path = ?requestContext
+runApp routes notFoundAction = do
+    let path = ?requestContext
                 |> getField @"request"
                 |> rawPathInfo
-    in case parseOnly (routes <* endOfInput) path of
-            Left message -> notFoundAction
-            Right action -> action
+        handleException exception = pure $ Right (ErrorController.handleRouterException exception)
+
+    routedAction <- (evaluate $ parseOnly (routes <* endOfInput) path) `Exception.catch` handleException
+    case routedAction of
+        Left message -> notFoundAction
+        Right action -> action
 
 {-# INLINE frontControllerToWAIApp #-}
 frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
