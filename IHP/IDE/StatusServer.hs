@@ -18,6 +18,7 @@ import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes
 import ClassyPrelude (async, uninterruptibleCancel, catch, forever)
+import qualified Network.URI as URI
 
 startStatusServer :: (?context :: Context) => IO ()
 startStatusServer = do
@@ -187,7 +188,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     <div class="ihp-error-other-solutions">
                         <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
                         <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
-                        <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open a GitHub Issue</a>
+                        <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs errorOutput))} target="_blank">Open a GitHub Issue</a>
                     </div>
 
                     <pre style="font-family: Menlo, monospace; font-size: 8px" id="stdout">{standardOutput}</pre>
