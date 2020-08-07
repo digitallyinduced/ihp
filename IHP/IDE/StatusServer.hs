@@ -191,7 +191,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                         <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs errorOutput))} target="_blank">Open a GitHub Issue</a>
                     </div>
 
-                    <pre style="font-family: Menlo, monospace; font-size: 8px" id="stdout">{standardOutput}</pre>
+                    <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{standardOutput}</pre>
                 </div>
             |]
             parseErrorOutput output =
