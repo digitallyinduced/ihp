@@ -1,4 +1,14 @@
-module IHP.ErrorController (displayException, handleNoResponseReturned, handleNotFound) where
+{-|
+Module: IHP.ErrorController
+Description:  Provides web-based error screens for runtime errors in IHP
+Copyright: (c) digitally induced GmbH, 2020
+-}
+module IHP.ErrorController
+( displayException
+, handleNoResponseReturned
+, handleNotFound
+, handleRouterException
+) where
 
 import IHP.Prelude hiding (displayException)
 import qualified Control.Exception as Exception
@@ -19,9 +29,7 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.ByteString.Char8 as ByteString
 
 import IHP.HtmlSupport.QQ (hsx)
-
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
-
 
 handleNoResponseReturned :: (Show controller, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -44,6 +52,19 @@ handleNotFound = do
     let title = H.text "Action Not Found"
     let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+handleRouterException :: (?requestContext :: RequestContext) => SomeException -> IO ResponseReceived
+handleRouterException exception = do
+    let errorMessage = [hsx|
+            Routing failed with: {tshow exception}
+            
+            <h2>Possible Solutions</h2>
+            <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
+        |]
+    let title = H.text "Routing failed"
+    let (RequestContext _ respond _ _ _) = ?requestContext
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
 
 displayException :: (Show action, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
@@ -138,6 +159,10 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
         body {
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body a {
+            color: hsla(196, 13%, 80%, 1);
         }
 
         .ihp-error-other-solutions {
