@@ -49,15 +49,7 @@ continueStatusServer StatusServerPaused { .. } = do
     where
         statusServerApp :: (IORef ByteString, IORef ByteString) -> Wai.Application
         statusServerApp (standardOutput, errorOutput) req respond = do
-            devServerState <- ?context
-                |> get #appStateRef
-                |> readIORef
-
-            let isCompiling = case (get #appGHCIState devServerState) of
-                    AppGHCILoading { } -> True
-                    _ -> False
-
-
+            isCompiling <- getCompilingStatus
             currentStandardOutput <- readIORef standardOutput
             currentErrorOutput <- readIORef errorOutput
             let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling)
@@ -70,18 +62,18 @@ stopStatusServer StatusServerStarted { serverRef } = do
     pure ()
 stopStatusServer _ = putStrLn "StatusServer: Cannot stop as not running"
 
-clearStatusServer :: StatusServerState -> IO ()
+clearStatusServer :: (?context :: Context) => StatusServerState -> IO ()
 clearStatusServer StatusServerStarted { .. } = do
     writeIORef standardOutput ""
     writeIORef errorOutput ""
-    async (notifyOutput clients "clear")
+    async (notifyOutput (standardOutput, errorOutput) clients)
     pure ()
 clearStatusServer StatusServerPaused { .. } = do
     writeIORef standardOutput ""
     writeIORef errorOutput ""
 clearStatusServer StatusServerNotStarted = pure ()
 
-notifyBrowserOnApplicationOutput :: StatusServerState -> OutputLine -> IO ()
+notifyBrowserOnApplicationOutput :: (?context :: Context) => StatusServerState -> OutputLine -> IO ()
 notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, standardOutput, errorOutput } line = do
     let shouldIgnoreLine = (line == ErrorOutput "Warning: -debug, -threaded and -ticky are ignored by GHCi")
     unless shouldIgnoreLine do
@@ -91,7 +83,7 @@ notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, stand
         let payload = case line of
                 StandardOutput line -> "stdout" <> line
                 ErrorOutput line -> "stderr" <> line
-        async (notifyOutput clients payload)
+        async (notifyOutput (standardOutput, errorOutput) clients)
         pure ()
 notifyBrowserOnApplicationOutput StatusServerPaused { serverRef, clients, standardOutput, errorOutput } line = do
     case line of
@@ -161,10 +153,34 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     #stderr .compiler-error:first-child { opacity: 1; font-size: 1rem; }
                     #stderr .compiler-error:first-child .file-name { font-size: 1.5rem; }
                     #stderr .compiler-error { opacity: 0.5; }
+
+                    #ihp-error-container {
+                        max-width: 800px;
+                        margin-left: auto;
+                        margin-right: auto;
+                    }
                 </style>
             </head>
             <body>
-                <div style="max-width: 800px; margin-left: auto; margin-right: auto">
+                {errorContainer}
+                
+                <script>
+                    var socket = new WebSocket("ws://localhost:" + window.location.port);
+                    var parser = new DOMParser();
+                    socket.onclose = function () { setTimeout(() => window.location.reload(), 500); }
+                    socket.onmessage = function (event) {
+                        if (event.data !== 'pong') {
+                            var responseBody = parser.parseFromString(event.data, 'text/html');
+                            document.getElementById('ihp-error-container').outerHTML = responseBody.getElementById('ihp-error-container').outerHTML;
+                        }
+                    }
+                </script>
+            </body>
+        </html>
+    |]
+        where
+            errorContainer = [hsx|
+                <div id="ihp-error-container">
                     <h1 style="margin-bottom: 2rem; margin-top: 20%; font-size: 1rem; font-weight: 400; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1); color: hsla(196, 13%, 80%, 1)">{inner}</h1>
                     <pre style="font-family: Menlo, monospace; width: 100%" id="stderr">{forEach (parseErrorOutput errorOutput) renderError}</pre>
 
@@ -176,24 +192,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
 
                     <pre style="font-family: Menlo, monospace; font-size: 8px" id="stdout">{standardOutput}</pre>
                 </div>
-                
-                <script>
-                    var socket = new WebSocket("ws://localhost:" + window.location.port);
-                    socket.onclose = function () { setTimeout(() => window.location.reload(), 500); }
-                    socket.onmessage = function (event) {
-                        if (event.data === 'clear') {
-                            stdout.innerText = '';
-                            stderr.innerText = '';
-                        } else if (event.data !== 'pong') {
-                            var c = (event.data.substr(0, 6) === 'stdout' ? stdout : stderr);
-                            c.innerText = c.innerText + "\n" + event.data.substr(6);
-                        }
-                    }
-                </script>
-            </body>
-        </html>
-    |]
-        where
+            |]
             parseErrorOutput output =
                     splitToSections (ByteString.lines output) []
                     |> map identifySection
@@ -246,10 +245,19 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                 |> get #portConfig
                 |> get #toolServerPort
 
-notifyOutput :: IORef [Websocket.Connection] -> ByteString -> IO ()
-notifyOutput stateRef output = do
+notifyOutput :: (?context :: Context) => (IORef ByteString, IORef ByteString) -> IORef [Websocket.Connection] -> IO ()
+notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
     clients <- readIORef stateRef
-    forM_ clients $ \connection -> ((Websocket.sendTextData connection output) `catch` (\(e :: SomeException) -> pure ()))
+    let ignoreException (e :: SomeException) = pure ()
+
+    isCompiling <- getCompilingStatus
+    standardOutput <- readIORef standardOutputRef
+    errorOutput <- readIORef errorOutputRef
+
+    forM_ clients $ \connection -> do
+        let errorContainer = renderErrorView standardOutput errorOutput isCompiling
+        let html = Blaze.renderHtml errorContainer
+        (Websocket.sendTextData connection html) `catch` ignoreException
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do
@@ -275,3 +283,14 @@ modelContextTroubleshooting lines =
             </div>
         |]
         False -> Nothing
+
+
+getCompilingStatus :: (?context :: Context) => IO Bool
+getCompilingStatus = do
+    devServerState <- ?context
+        |> get #appStateRef
+        |> readIORef
+
+    pure case (get #appGHCIState devServerState) of
+            AppGHCILoading { } -> True
+            _ -> False
