@@ -271,7 +271,7 @@ modelContextTroubleshooting lines =
         True -> Just [hsx|
             <div class="troubleshooting-suggestion">
                 A detailed explanation for this error is available in the IHP Wiki:
-                <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting#unbound-implicit-parameter-modelcontextmodelcontext">See Error Explanation</a>
+                <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting#unbound-implicit-parameter-modelcontextmodelcontext" target="_blank">See Error Explanation</a>
             </div>
         |]
         False -> Nothing
