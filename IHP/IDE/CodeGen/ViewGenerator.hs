@@ -60,7 +60,7 @@ buildPlan' schema config =
                 ]
 
             modelFields :: [Text]
-            modelFields = fieldsForTable schema pluralVariableName
+            modelFields = fieldsForTable schema (modelNameToTableName pluralVariableName)
 
 
             viewHeader =
