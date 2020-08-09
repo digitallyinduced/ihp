@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
+{-# LANGUAGE DatatypeContexts, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
 
 module IHP.ModelSupport where
 
@@ -60,6 +60,9 @@ instance InputValue Text where
 instance InputValue Int where
     inputValue = tshow
 
+instance InputValue Integer where
+    inputValue = tshow
+
 instance InputValue Double where
     inputValue = tshow
 
@@ -117,6 +120,7 @@ isNew model = def == (getField @"id" model)
 {-# INLINE isNew #-}
 
 type family GetModelName model :: Symbol
+type family PrimaryKey (tableName :: Symbol)
 
 -- | Returns the model name of a given model as Text
 --
@@ -131,47 +135,52 @@ getModelName :: forall model. KnownSymbol (GetModelName model) => Text
 getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 {-# INLINE getModelName #-}
 
-newtype Id' table = Id UUID deriving (Eq, Data)
+newtype Id' table = Id (PrimaryKey table)
+
+deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
+deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
+
+class (Eq primaryKey, Data primaryKey, ToField primaryKey) => IsPrimaryKey primaryKey where
 
 -- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
 -- But `type Project = Project' { id :: Id "projects" }` will
 type Id model = Id' (GetTableName model)
 
-instance InputValue (Id' model') where
+instance InputValue (PrimaryKey model') => InputValue (Id' model') where
     {-# INLINE inputValue #-}
     inputValue = inputValue . Newtype.unpack
 
-recordToInputValue :: (HasField "id" entity (Id entity)) => entity -> Text
+recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
     getField @"id" entity
     |> Newtype.unpack
-    |> Data.UUID.toText
+    |> tshow
 {-# INLINE recordToInputValue #-}
 
-instance FromField (Id' model) where
+instance FromField (PrimaryKey model) => FromField (Id' model) where
     {-# INLINE fromField #-}
     fromField value metaData = do
         fieldValue <- fromField value metaData
         pure (Id fieldValue)
 
-instance ToField (Id' model) where
+instance ToField (PrimaryKey model) => ToField (Id' model) where
     {-# INLINE toField #-}
     toField = toField . Newtype.unpack
 
-instance Show (Id' model) where
+instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
     show = show . Newtype.unpack
 
 instance Newtype.Newtype (Id' model) where
-    type O (Id' model) = UUID
+    type O (Id' model) = PrimaryKey model
     pack = Id
     unpack (Id uuid) = uuid
 
-instance IsString (Id' model) where
+instance Read (PrimaryKey model) => IsString (Id' model) where
     fromString uuid = Id (Prelude.read uuid)
 
-instance Default (Id' model) where
+instance Default (PrimaryKey model) => Default (Id' model) where
     {-# INLINE def #-}
     def = Newtype.pack def
 

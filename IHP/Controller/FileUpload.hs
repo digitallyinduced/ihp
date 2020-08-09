@@ -72,6 +72,7 @@ uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
+        , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
     ) => ImageUploadOptions -> Proxy fieldName -> record -> IO record
@@ -122,6 +123,7 @@ uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Sym
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
+        , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
     ) => Text -> Proxy fieldName -> record -> IO record

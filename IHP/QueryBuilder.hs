@@ -408,7 +408,7 @@ queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr a b queryBuilder = a queryBuilder `UnionQueryBuilder` b queryBuilder
 {-# INLINE queryOr #-}
 
-instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model') => Fetchable (Id' model') model where
+instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model', ToField (PrimaryKey model')) => Fetchable (Id' model') model where
     type FetchResult (Id' model') model = model
     {-# INLINE fetch #-}
     fetch = genericFetchIdOne
@@ -417,7 +417,7 @@ instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' mo
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdOne
 
-instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model') => Fetchable (Maybe (Id' model')) model where
+instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model', ToField (PrimaryKey model')) => Fetchable (Maybe (Id' model')) model where
     type FetchResult (Maybe (Id' model')) model = [model]
     {-# INLINE fetch #-}
     fetch (Just a) = genericFetchId a
@@ -429,7 +429,7 @@ instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' mo
     fetchOne (Just a) = genericFetchIdOne a
     fetchOne Nothing = error "Fetchable (Maybe Id): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
 
-instance (model ~ GetModelById (Id' model'), value ~ Id' model', HasField "id" model value) => Fetchable [Id' model'] model where
+instance (model ~ GetModelById (Id' model'), value ~ Id' model', HasField "id" model value, ToField (PrimaryKey model')) => Fetchable [Id' model'] model where
     type FetchResult [Id' model'] model = [model]
     {-# INLINE fetch #-}
     fetch = genericFetchIds

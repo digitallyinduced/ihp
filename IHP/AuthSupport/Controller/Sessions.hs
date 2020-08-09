@@ -72,6 +72,7 @@ createSessionAction :: forall record action passwordField.
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
     , FrameworkConfig
+    , Show (PrimaryKey (GetTableName record))
     ) => IO ()
 createSessionAction = do
     query @record
