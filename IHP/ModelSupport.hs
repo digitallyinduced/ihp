@@ -1,4 +1,4 @@
-{-# LANGUAGE DatatypeContexts, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
 
 module IHP.ModelSupport where
 
@@ -120,6 +120,19 @@ isNew model = def == (getField @"id" model)
 {-# INLINE isNew #-}
 
 type family GetModelName model :: Symbol
+
+-- | Provides the primary key type for a given table. The instances are usually declared
+-- by the generated haskell code in Generated.Types
+--
+-- __Example:__ Defining the primary key for a users table
+--
+-- > type instance PrimaryKey "users" = UUID
+--
+--
+-- __Example:__ Defining the primary key for a table with a SERIAL pk
+--
+-- > type instance PrimaryKey "projects" = Int
+--
 type family PrimaryKey (tableName :: Symbol)
 
 -- | Returns the model name of a given model as Text
@@ -139,8 +152,6 @@ newtype Id' table = Id (PrimaryKey table)
 
 deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
 deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
-
-class (Eq primaryKey, Data primaryKey, ToField primaryKey) => IsPrimaryKey primaryKey where
 
 -- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
