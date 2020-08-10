@@ -18,6 +18,7 @@ import qualified Data.ByteString.Char8 as Char8
 import IHP.ValidationSupport
 import GHC.TypeLits
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
+import qualified GHC.Float as Float
 
 -- | Returns a query or body parameter from the current request. The raw string
 -- value is parsed before returning it. So the return value type depends on what
@@ -208,6 +209,13 @@ instance ParamReader Double where
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
+            Left error -> Left ("ParamReader Dobule: " <> cs error)
+
+instance ParamReader Float where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
+            Right value -> Right (Float.double2Float value)
             Left error -> Left ("ParamReader Dobule: " <> cs error)
 
 instance ParamReader Text where

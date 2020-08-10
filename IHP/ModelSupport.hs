@@ -66,6 +66,9 @@ instance InputValue Integer where
 instance InputValue Double where
     inputValue = tshow
 
+instance InputValue Float where
+    inputValue = tshow
+
 instance InputValue Bool where
     inputValue True = "on"
     inputValue False = "off"
