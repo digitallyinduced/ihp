@@ -14,6 +14,7 @@ import IHP.LoginSupport.Helper.Controller
 import IHP.Controller.Session
 import IHP.QueryBuilder
 import IHP.ControllerSupport
+import IHP.ModelSupport
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user.
@@ -24,6 +25,7 @@ initAuthentication :: forall user.
         , KnownSymbol (GetTableName (NormalizeModel user))
         , KnownSymbol (GetModelName user)
         , FromRow (NormalizeModel user)
+        , PrimaryKey (GetTableName user) ~ UUID
     ) => TypeMap.TMap -> IO TypeMap.TMap
 initAuthentication context = do
     user <- getSessionUUID (sessionKey @user)

@@ -138,6 +138,7 @@ compileStatement CompilerOptions { compileGetAndSetFieldInstances } table@(Creat
     <> compileFromRowInstance table
     <> compileHasTableNameInstance table
     <> compileGetModelName table
+    <> compilePrimaryKeyInstance table
     <> compileInclude table
     <> compileCreate table
     <> section
@@ -293,10 +294,11 @@ compileCreate table@(CreateTable { name, columns }) =
         columnNames = commaSep (map (get #name) columns)
         values = commaSep (map (const "?") columns)
 
-        toBinding Column { name, defaultValue } =
-          case defaultValue of
-            Nothing -> "get #" <> columnNameToFieldName name <> " model"
-            Just _ -> "fieldWithDefault #" <> columnNameToFieldName name <> " model"
+        toBinding column@(Column { name }) =
+            if hasExplicitOrImplicitDefault column
+                then "fieldWithDefault #" <> columnNameToFieldName name <> " model"
+                else "get #" <> columnNameToFieldName name <> " model"
+            
 
         bindings :: [Text]
         bindings = map toBinding columns
@@ -447,6 +449,19 @@ compileHasTableNameInstance table@(CreateTable { name }) =
     "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
+compilePrimaryKeyInstance :: (?schema :: Schema) => Statement -> Text
+compilePrimaryKeyInstance table@(CreateTable { name, columns }) = "type instance PrimaryKey " <> tshow name <> " = " <> idType <> "\n"
+    where
+        idColumn :: Column
+        (Just idColumn) = find (get #primaryKey) columns
+
+        idType :: Text
+        idType = case get #columnType idColumn of
+                PUUID -> "UUID"
+                PSerial -> "Int"
+                PBigserial -> "Integer"
+                otherwise -> error ("Unexpected type for primary key column in table" <> cs name)
+
 compileGetModelName :: (?schema :: Schema) => Statement -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
 
@@ -529,3 +544,10 @@ indent code = code
         indentLine ""   = ""
         indentLine line = "    " <> line
 
+-- | Returns 'True' when the column has an explicit default value or when it's a SERIAL or BIGSERIAL
+hasExplicitOrImplicitDefault :: Column -> Bool
+hasExplicitOrImplicitDefault column = case column of
+        Column { defaultValue = Just _ } -> True
+        Column { columnType = PSerial } -> True
+        Column { columnType = PBigserial } -> True
+        _ -> False

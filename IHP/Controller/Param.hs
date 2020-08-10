@@ -196,6 +196,13 @@ instance ParamReader Int where
             Right value -> Right value
             Left error -> Left ("ParamReader Int: " <> cs error)
 
+instance ParamReader Integer where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) byteString of
+            Right value -> Right value
+            Left error -> Left ("ParamReader Int: " <> cs error)
+
 instance ParamReader Double where
     {-# INLINE readParameter #-}
     readParameter byteString =
@@ -248,10 +255,10 @@ instance ParamReader Day where
             Just value -> Right value
             Nothing -> Left "ParamReader Day: Failed parsing"
 
-instance {-# OVERLAPS #-} ParamReader (ModelSupport.Id' model') where
+instance {-# OVERLAPS #-} (ParamReader (ModelSupport.PrimaryKey model')) => ParamReader (ModelSupport.Id' model') where
     {-# INLINE readParameter #-}
     readParameter uuid =
-        case (readParameter uuid) :: Either ByteString UUID of
+        case (readParameter uuid) :: Either ByteString (ModelSupport.PrimaryKey model') of
             Right uuid -> pure (ModelSupport.Id uuid)
             Left error -> Left error
 
