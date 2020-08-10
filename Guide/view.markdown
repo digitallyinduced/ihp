@@ -78,6 +78,16 @@ instance ViewSupport.CreateViewContext ViewContext where
         pure viewContext
 ```
 
+### Disabling the Layout for a View
+
+You can disable the layout for a specific view by overriding the `beforeRender` function like this:
+
+```haskell
+instance View MyView ViewContext where
+    beforeRender (context, view) = (context { layout = \view -> view }, view)
+
+    -- ...
+```
 
 ## Common View Tasks
 
