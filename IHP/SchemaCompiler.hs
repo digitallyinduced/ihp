@@ -550,4 +550,4 @@ hasExplicitOrImplicitDefault column = case column of
         Column { defaultValue = Just _ } -> True
         Column { columnType = PSerial } -> True
         Column { columnType = PBigserial } -> True
-        _ -> True
+        _ -> False
