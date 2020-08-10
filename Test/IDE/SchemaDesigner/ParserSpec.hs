@@ -253,6 +253,25 @@ tests = do
             (evaluate (parseSql "CREATE TABLE user_followers (id UUID, UNIQUE());")) `shouldThrow` anyException
             pure ()
 
+        it "should parse a CREATE TABLE statement with a multi-column PRIMARY KEY (a, b) constraint" do
+            parseSql "CREATE TABLE user_followers (user_id UUID NOT NULL, follower_id UUID NOT NULL, PRIMARY KEY (user_id, follower_id));"  `shouldBe` CreateTable
+                    { name = "user_followers"
+                    , columns =
+                        [ col { name = "user_id", columnType = PUUID, notNull = True }
+                        , col { name = "follower_id", columnType = PUUID, notNull = True }
+                        ]
+                    , constraints = [ PrimaryKeyConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    }
+
+        -- Should we also have the following failure or is it better to check it outside of the parser?
+        -- it "should fail to parse a CREATE TABLE statement with PRIMARY KEY column and table constraints" do
+        --     (evaluate (parseSql "CREATE TABLE user_followers (id UUID PRIMARY KEY, PRIMARY KEY(id));")) `shouldThrow` anyException
+        --     pure ()
+
+        it "should fail to parse a CREATE TABLE statement with an empty PRIMARY KEY () constraint" do
+            (evaluate (parseSql "CREATE TABLE user_followers (id UUID, PRIMARY KEY ());")) `shouldThrow` anyException
+            pure ()
+
         it "should parse a CREATE TABLE statement with a serial id" do
             parseSql "CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` CreateTable
                     { name = "orders"

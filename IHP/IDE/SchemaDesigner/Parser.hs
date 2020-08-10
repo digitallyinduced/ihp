@@ -78,7 +78,7 @@ createTable = do
         char '.'
     name <- identifier
     (columns, constraints) <- between (char '(' >> space) (char ')' >> space) do
-        columnsAndConstraints <- ((Right <$> parseUniqueConstraint) <|> (Left <$> column)) `sepBy` (char ',' >> space)
+        columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> column)) `sepBy` (char ',' >> space)
         pure (lefts columnsAndConstraints, rights columnsAndConstraints)
     char ';'
     pure CreateTable { name, columns, constraints }
@@ -100,11 +100,25 @@ addConstraint = do
     lexeme "ADD"
     lexeme "CONSTRAINT"
     constraintName <- identifier
-    constraint <- parseConstraint
+    constraint <- parseTableConstraint
     char ';'
     pure AddConstraint { tableName, constraintName, constraint }
 
-parseConstraint = do
+parseTableConstraint = do
+  optional do
+      lexeme "CONSTRAINT"
+      identifier
+  parsePrimaryKeyConstraint
+      <|> parseForeignKeyConstraint
+      <|> parseUniqueConstraint
+
+parsePrimaryKeyConstraint = do
+    lexeme "PRIMARY"
+    lexeme "KEY"
+    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    pure PrimaryKeyConstraint { columnNames }
+
+parseForeignKeyConstraint = do
     lexeme "FOREIGN"
     lexeme "KEY"
     columnName <- between (char '(' >> space) (char ')' >> space) identifier
@@ -120,7 +134,7 @@ parseConstraint = do
 parseUniqueConstraint = do
     lexeme "UNIQUE"
     columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
-    pure UniqueConstraint { columnNames  }
+    pure UniqueConstraint { columnNames }
 
 
 parseOnDelete = choice

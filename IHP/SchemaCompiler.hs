@@ -49,32 +49,35 @@ fullCompileOptions = CompilerOptions { compileGetAndSetFieldInstances = True }
 previewCompilerOptions :: CompilerOptions
 previewCompilerOptions = CompilerOptions { compileGetAndSetFieldInstances = False }
 
+atomicType :: PostgresType -> Text
+atomicType = \case
+    PInt -> "Int"
+    PBigInt -> "Integer"
+    PText -> "Text"
+    PBoolean   -> "Bool"
+    PTimestampWithTimezone -> "UTCTime"
+    PUUID -> "UUID"
+    PSerial -> "Int"
+    PBigserial -> "Integer"
+    PReal -> "Float"
+    PDouble -> "Double"
+    PDate -> "Data.Time.Calendar.Day"
+    PBinary -> "Binary"
+    PTime -> "TimeOfDay"
+    PCustomType theType -> tableNameToModelName theType
+    PTimestamp -> "LocalTime"
+    (PNumeric _ _) -> "Float"
+    (PVaryingN _) -> "Text"
+    (PCharacterN _) -> "Text"
+
 haskellType :: (?schema :: Schema) => Statement -> Column -> Text
 haskellType table Column { name, primaryKey } | primaryKey = "(" <> primaryKeyTypeName table <> ")"
 haskellType table column@(Column { columnType, notNull }) =
     let
-        atomicType = 
-            case columnType of
-                PInt -> "Int"
-                PBigInt -> "Integer"
-                PText -> "Text"
-                PBoolean   -> "Bool"
-                PTimestampWithTimezone -> "UTCTime"
-                PUUID -> "UUID"
-                PReal -> "Float"
-                PDouble -> "Double"
-                PDate -> "Data.Time.Calendar.Day"
-                PBinary -> "Binary"
-                PTime -> "TimeOfDay"
-                PCustomType theType -> tableNameToModelName theType
-                PTimestamp -> "LocalTime"
-                (PNumeric _ _) -> "Float"
-                (PVaryingN _) -> "Text"
-                (PCharacterN _) -> "Text"
         actualType =
             case findForeignKeyConstraint table column of
                 Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName' referenceTable <> ")"
-                _ -> atomicType
+                _ -> atomicType columnType
     in
         if not notNull
             then "(Maybe " <> actualType <> ")"
@@ -512,17 +515,40 @@ compileHasTableNameInstance table@(CreateTable { name }) =
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema) => Statement -> Text
-compilePrimaryKeyInstance table@(CreateTable { name, columns }) = "type instance PrimaryKey " <> tshow name <> " = " <> idType <> "\n"
+compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) =
+    "type instance PrimaryKey " <> tshow name <> " = " <> idType <> "\n"
     where
-        idColumn :: Column
-        (Just idColumn) = find (get #primaryKey) columns
+        idColumns :: [Column]
+        idColumns = case (idColumn, constraintColumns) of
+            (Just _, Just _) -> error ("Multiple primary keys for table " <> cs name <> " are not allowed")
+            (Just c, Nothing) -> [c]
+            (Nothing, Just cs) -> cs
+            (Nothing, Nothing) -> error ("No primary key defined for table " <> cs name)
+
+        idColumn :: Maybe Column
+        idColumn = find (get #primaryKey) columns
+
+        constraintColumns :: Maybe [Column]
+        constraintColumns = map getColumn . columnNames <$> find isPrimaryKeyConstraint constraints
+            where
+                getColumn columnName = case find ((==) columnName . get #name) columns of
+                  Just c -> c
+                  Nothing -> error ("Missing column " <> cs columnName <> " used in primary key for " <> cs name)
+
+                isPrimaryKeyConstraint PrimaryKeyConstraint {} = True
+                isPrimaryKeyConstraint _ = False
 
         idType :: Text
-        idType = case get #columnType idColumn of
-                PUUID -> "UUID"
-                PSerial -> "Int"
-                PBigserial -> "Integer"
-                otherwise -> error ("Unexpected type for primary key column in table" <> cs name)
+        idType = case idColumns of
+            [] -> error "Impossible happened in compilePrimaryKeyInstance"
+            [c] -> colType c
+            cs -> "(" <> intercalate ", " (map colType cs) <> ")"
+            where colType = atomicType . get #columnType
+            -- colType column = case get #columnType column of
+                -- PUUID -> "UUID"
+                -- PSerial -> "Int"
+                -- PBigserial -> "Integer"
+                -- otherwise -> error ("Unexpected type for primary key column in table " <> cs name)
 
 compileGetModelName :: (?schema :: Schema) => Statement -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"

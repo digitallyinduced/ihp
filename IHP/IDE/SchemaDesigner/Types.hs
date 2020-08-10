@@ -46,6 +46,8 @@ data Constraint
         , referenceColumn :: Maybe Text
         , onDelete :: Maybe OnDelete
         }
+    | PrimaryKeyConstraint
+        { columnNames :: [Text] }
     | UniqueConstraint
         { columnNames :: [Text] }
     deriving (Eq, Show)
