@@ -4,10 +4,9 @@ on:
     branches: [issue-314/fix-test-builds]
 
 jobs:
-  tests:
+  build_cache:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v9
     - uses: cachix/cachix-action@v6
       with:
