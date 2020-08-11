@@ -1,7 +1,7 @@
 name: Linux Build
 on:
   push:
-    branches: [master]
+    branches: [issue-314/fix-test-builds]
 
 jobs:
   tests:
@@ -16,7 +16,14 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
     - run: |
-          cd $GITHUB_WORKSPACE
-          mkdir -p ~/.config/nixpkgs
-          echo "{ allowBroken = true; }" >> ~/.config/nixpkgs/config.nix
-          nix-shell NixSupport/shell.nix --run "cabal build"
+          git clone git@github.com:digitallyinduced/ihp-boilerplate.git
+          cd ihp-boilerplate
+          echo "<?php" >> replace.php
+          echo "\$file_contents = file_get_contents('./ihp-boilerplate/default.nix');" >> replace.php
+          echo '$new_content = preg_replace("/\".{40}\"/", $argv[1], $file_contents);' >> replace.php
+          echo "file_put_contents('./ihp-boilerplate/default.nix', $new_content);" >> replace.php
+          echo "?>" >> replace.php
+          php replace.php "\"$GITHUB_SHA\""
+          nix-shell --run "echo 'It worked'"
+          
+
