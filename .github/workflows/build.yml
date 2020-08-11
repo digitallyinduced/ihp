@@ -16,7 +16,7 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
     - run: |
-          git clone git@github.com:digitallyinduced/ihp-boilerplate.git
+          git clone https://github.com/digitallyinduced/ihp-boilerplate.git
           cd ihp-boilerplate
           echo "<?php" >> replace.php
           echo "\$file_contents = file_get_contents('./ihp-boilerplate/default.nix');" >> replace.php
