@@ -1,7 +1,7 @@
 name: Linux Build
 on:
   push:
-    branches: [issue-314/fix-test-builds]
+    branches: [master]
 
 jobs:
   tests:
