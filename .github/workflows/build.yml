@@ -1,7 +1,7 @@
 name: Linux Build
 on:
   push:
-    branches: [master]
+    branches: [issue-314/fix-test-builds]
 
 jobs:
   tests:
@@ -16,6 +16,7 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
     - run: |
-          nix-env -iA nixpkgs.direnv
-          nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
-          ihp-new blog
+          cd $GITHUB_WORKSPACE
+          mkdir -p ~/.config/nixpkgs
+          echo "{ allowBroken = true; }" >> ~/.config/nixpkgs/config.nix
+          nix-shell NixSupport/shell.nix --run "cabal build"
