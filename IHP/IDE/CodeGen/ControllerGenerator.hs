@@ -52,22 +52,6 @@ controllerInstance ControllerConfig { controllerName, modelName, applicationName
 
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
-getTable :: [Statement] -> Text -> Maybe Statement
-getTable schema name = find isTable schema
-    where
-        isTable :: Statement -> Bool
-        isTable table@(CreateTable { name = name' }) | name == name' = True
-        isTable _ = False
-
-fieldsForTable :: [Statement] -> Text -> [Text]
-fieldsForTable database name =
-    case getTable database name of
-        Just (CreateTable { columns }) -> columns
-                |> filter (\col -> isNothing (get #defaultValue col))
-                |> map (get #name)
-                |> map columnNameToFieldName
-        _ -> []
-
 
 generateControllerData :: ControllerConfig -> Text
 generateControllerData config =

@@ -184,19 +184,3 @@ buildPlan' schema config =
             , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
             , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
-
-fieldsForTable :: [Statement] -> Text -> [Text]
-fieldsForTable database name =
-    case getTable database name of
-        Just (CreateTable { columns }) -> columns
-                |> filter (\col -> isNothing (get #defaultValue col))
-                |> map (get #name)
-                |> map columnNameToFieldName
-        Nothing -> []
-
-getTable :: [Statement] -> Text -> Maybe Statement
-getTable schema name = find isTable schema
-    where
-        isTable :: Statement -> Bool
-        isTable table@(CreateTable { name = name' }) | name == name' = True
-        isTable _ = False
