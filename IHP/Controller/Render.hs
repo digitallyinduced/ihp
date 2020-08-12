@@ -26,7 +26,7 @@ renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/
 
 {-# INLINE respondHtml #-}
 respondHtml :: (?requestContext :: RequestContext) => Html -> IO ()
-respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE respondSvg #-}
 respondSvg :: (?requestContext :: RequestContext) => Html -> IO ()
