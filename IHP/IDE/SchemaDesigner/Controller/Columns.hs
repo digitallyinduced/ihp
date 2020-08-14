@@ -21,11 +21,11 @@ import IHP.IDE.SchemaDesigner.Controller.Schema
 import IHP.IDE.SchemaDesigner.Controller.Helper
 
 instance Controller ColumnsController where
-    
+
     action NewColumnAction { tableName } = do
         statements <- readSchema
         let (Just table) = findStatementByName tableName statements
-        primaryKeyExists <- hasPrimaryKey table
+        let primaryKeyExists = hasPrimaryKey table
         let tableNames = nameList (getCreateTable statements)
         let enumNames = nameList (getCreateEnum statements)
         render NewColumnView { .. }
@@ -43,12 +43,11 @@ instance Controller ColumnsController where
         let column = Column
                 { name = columnName
                 , columnType = param "columnType"
-                , primaryKey = (param "primaryKey")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
                 }
-        updateSchema (map (addColumnToTable tableName column))
+        updateSchema (map (addColumnToTable tableName column (param "primaryKey")))
         when (param "isReference") do
             let columnName = param "name"
             let constraintName = tableName <> "_ref_" <> columnName
@@ -62,9 +61,9 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let (Just table) = findStatementByName name statements
-        primaryKeyExists <- hasPrimaryKey table
+        let primaryKeyExists = hasPrimaryKey table
         let table = findStatementByName tableName statements
-        let columns = maybe [] (get #columns) table
+        let columns = maybe [] (get #columns . unsafeGetCreateTable) table
         let column = columns !! columnId
         let enumNames = nameList (getCreateEnum statements)
         render EditColumnView { .. }
@@ -81,12 +80,11 @@ instance Controller ColumnsController where
             redirectTo ShowTableAction { .. }
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let table = findStatementByName tableName statements
-        let columns = maybe [] (get #columns) table
+        let columns = maybe [] (get #columns . unsafeGetCreateTable) table
         let columnId = param "columnId"
         let column = Column
                 { name = columnName
                 , columnType = param "columnType"
-                , primaryKey = (param "primaryKey")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
@@ -94,7 +92,7 @@ instance Controller ColumnsController where
         when ((get #name column) == "") do
             setErrorMessage ("Column Name can not be empty")
             redirectTo ShowTableAction { tableName }
-        updateSchema (map (updateColumnInTable tableName column columnId))
+        updateSchema (map (updateColumnInTable tableName column (param "primaryKey") columnId))
         redirectTo ShowTableAction { .. }
 
     action DeleteColumnAction { .. } = do
@@ -172,24 +170,44 @@ instance Controller ColumnsController where
         updateSchema (deleteForeignKeyConstraint constraintName)
         redirectTo ShowTableAction { .. }
 
-addColumnToTable :: Text -> Column -> Statement -> Statement
-addColumnToTable tableName column (table@CreateTable { name, columns }) | name == tableName =
-    table { columns = columns <> [column] }
-addColumnToTable tableName column statement = statement
+addColumnToTable :: Text -> Column -> Bool -> Statement -> Statement
+addColumnToTable tableName (column@Column { name = columnName }) isPrimaryKey (StatementCreateTable table@CreateTable { name, columns, primaryKeyConstraint = PrimaryKeyConstraint pks})
+    | name == tableName =
+        let primaryKeyConstraint =
+              if isPrimaryKey
+              then PrimaryKeyConstraint (pks <> [columnName])
+              else PrimaryKeyConstraint pks
+        in StatementCreateTable (table { columns = columns <> [column] , primaryKeyConstraint })
+addColumnToTable tableName column isPrimaryKey statement = statement
 
-updateColumnInTable :: Text -> Column -> Int -> Statement -> Statement
-updateColumnInTable tableName column columnId (table@CreateTable { name, columns }) | name == tableName =
-    table { columns = (replace columnId column columns) }
-updateColumnInTable tableName column columnId statement = statement
+updateColumnInTable :: Text -> Column -> Bool -> Int -> Statement -> Statement
+updateColumnInTable tableName column isPrimaryKey columnId (StatementCreateTable table@CreateTable { name, columns, primaryKeyConstraint })
+    | name == tableName = StatementCreateTable $
+        table
+            { columns = (replace columnId column columns)
+            , primaryKeyConstraint = updatePrimaryKeyConstraint column isPrimaryKey primaryKeyConstraint
+            }
+updateColumnInTable tableName column isPrimaryKey columnId statement = statement
+
+-- | Add or remove a column from the primary key constraint
+updatePrimaryKeyConstraint :: Column -> Bool -> PrimaryKeyConstraint -> PrimaryKeyConstraint
+updatePrimaryKeyConstraint Column { name } isPrimaryKey primaryKeyConstraint@PrimaryKeyConstraint { primaryKeyColumnNames } =
+  case (isPrimaryKey, name `elem` primaryKeyColumnNames) of
+      (False, False) -> primaryKeyConstraint
+      (False, True) -> PrimaryKeyConstraint (filter (/= name) primaryKeyColumnNames)
+      (True, False) -> PrimaryKeyConstraint (primaryKeyColumnNames <> [name])
+      (True, True) -> primaryKeyConstraint
 
 toggleUniqueInColumn :: Text -> Int -> Statement -> Statement
-toggleUniqueInColumn tableName columnId (table@CreateTable { name, columns }) | name == tableName =
-    table { columns = (replace columnId ((columns !! columnId) { isUnique = (not (get #isUnique (columns !! columnId))) }) columns) }
+toggleUniqueInColumn tableName columnId (StatementCreateTable table@CreateTable { name, columns })
+    | name == tableName = StatementCreateTable $
+        table { columns = (replace columnId ((columns !! columnId) { isUnique = (not (get #isUnique (columns !! columnId))) }) columns) }
 toggleUniqueInColumn tableName columnId statement = statement
 
 deleteColumnInTable :: Text -> Int -> Statement -> Statement
-deleteColumnInTable tableName columnId (table@CreateTable { name, columns }) | name == tableName =
-    table { columns = delete (columns !! columnId) columns}
+deleteColumnInTable tableName columnId (StatementCreateTable table@CreateTable { name, columns })
+    | name == tableName = StatementCreateTable $
+        table { columns = delete (columns !! columnId) columns}
 deleteColumnInTable tableName columnId statement = statement
 
 addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statement] -> [Statement]
@@ -202,7 +220,7 @@ deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
 getCreateTable statements = filter isCreateTable statements
-isCreateTable CreateTable {} = True
+isCreateTable (StatementCreateTable CreateTable {}) = True
 isCreateTable _ = False
 
 getCreateEnum statements = filter isCreateEnumType statements
@@ -211,15 +229,7 @@ isCreateEnumType _ = False
 
 nameList statements = map (get #name) statements
 
-hasPrimaryKey CreateTable { columns } = do
-    let primaryKey = find (\col -> col == Column { name = get #name col
-        , columnType = get #columnType col
-        , primaryKey = True
-        , defaultValue = get #defaultValue col
-        , notNull = get #notNull col
-        , isUnique = get #isUnique col
-        }) columns
-    case primaryKey of
-        Nothing -> pure False
-        _ -> pure True
-hasPrimaryKey _ = pure False
+hasPrimaryKey (StatementCreateTable CreateTable { primaryKeyConstraint }) =
+  case primaryKeyConstraint of
+    PrimaryKeyConstraint [] -> False
+    _ -> True

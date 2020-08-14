@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified Text.Countable as Countable
 
 data ViewConfig = ViewConfig
-    { controllerName :: Text 
+    { controllerName :: Text
     , applicationName :: Text
     , modelName :: Text
     , viewName :: Text
@@ -22,7 +22,7 @@ buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan viewName applicationName controllerName' =
     if (null viewName || null controllerName')
         then pure $ Left "View name and controller name cannot be empty"
-        else do 
+        else do
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
                 Right statements -> pure statements
@@ -37,8 +37,8 @@ qualifiedViewModuleName config viewName =
     get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
 buildPlan' :: [Statement] -> ViewConfig -> [GeneratorAction]
-buildPlan' schema config = 
-        let 
+buildPlan' schema config =
+        let
             controllerName = get #controllerName config
             name = get #viewName config
             singularName = config |> get #modelName
@@ -48,7 +48,7 @@ buildPlan' schema config =
                 then name
                 else name <> "View" --e.g. "Test" -> "TestView"
             nameWithoutSuffix = if "View" `isSuffixOf` name
-                then Text.replace "View" "" name 
+                then Text.replace "View" "" name
                 else name --e.g. "TestView" -> "Test"
 
             indexAction = Countable.pluralize singularName <> "Action"
@@ -68,8 +68,8 @@ buildPlan' schema config =
                 <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
                 <> "import " <> get #applicationName config <> ".View.Prelude\n"
                 <> "\n"
-            
-            genericView = 
+
+            genericView =
                 viewHeader
                 <> "data " <> nameWithSuffix <> " = " <> nameWithSuffix <> "\n"
                 <> "\n"
@@ -84,7 +84,7 @@ buildPlan' schema config =
                 <> "        <h1>" <> nameWithSuffix <> "</h1>\n"
                 <> "    |]\n"
 
-            showView = 
+            showView =
                 viewHeader
                 <> "data ShowView = ShowView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
@@ -99,7 +99,7 @@ buildPlan' schema config =
                 <> "        <h1>Show " <> singularName <> "</h1>\n"
                 <> "    |]\n"
 
-            newView = 
+            newView =
                 viewHeader
                 <> "data NewView = NewView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
@@ -121,7 +121,7 @@ buildPlan' schema config =
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
-            editView = 
+            editView =
                 viewHeader
                 <> "data EditView = EditView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
@@ -143,7 +143,7 @@ buildPlan' schema config =
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
-            indexView = 
+            indexView =
                 viewHeader
                 <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "] }\n"
                 <> "\n"

@@ -20,7 +20,7 @@ data EditColumnView = EditColumnView
 instance View EditColumnView ViewContext where
     beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
 
-    html EditColumnView { .. } = [hsx|
+    html EditColumnView { column = column@Column { name }, .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName (zip [0..] columns) statements}
@@ -29,20 +29,23 @@ instance View EditColumnView ViewContext where
     |]
         where
             table = findStatementByName tableName statements
-            columns = maybe [] (get #columns) table
+            columns = maybe [] (get #columns . unsafeGetCreateTable) table
+            primaryKeyColumns = maybe [] (primaryKeyColumnNames . get #primaryKeyConstraint . unsafeGetCreateTable) table
 
+            primaryKeyCheckbox
+                | [name] == primaryKeyColumns =
+                    preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
+                            <input type="checkbox" name="primaryKey" class="mr-2" checked disabled> Primary Key
+                        </label>|]
+                | name `elem` primaryKeyColumns =
+                    preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
+                            <input type="checkbox" name="primaryKey" class="mr-2" checked> Primary Key
+                        </label>|]
+                | otherwise =
+                    preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
+                        <input type="checkbox" name="primaryKey" class="mr-2"/> Primary Key
+                    </label>|]
 
-            
-            primaryKeyCheckbox = if get #primaryKey column
-                then preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-2" checked> Primary Key  
-                        </label>|]
-                else if primaryKeyExists
-                    then mempty
-                    else preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-2"/> Primary Key  
-                        </label>|]
-            
             allowNullCheckbox = if get #notNull column
                 then preEscapedToHtml [plain|<input id="allowNull" type="checkbox" name="allowNull" class="mr-2"/>|]
                 else preEscapedToHtml [plain|<input id="allowNull" type="checkbox" name="allowNull" class="mr-2" checked/>|]

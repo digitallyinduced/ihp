@@ -8,9 +8,9 @@ module IHP.IDE.SchemaDesigner.Types where
 import IHP.Prelude
 
 data Statement
-    = 
+    =
     -- | CREATE TABLE name ( columns );
-    CreateTable { name :: Text, columns :: [Column], constraints :: [Constraint] }
+      StatementCreateTable { unsafeGetCreateTable :: CreateTable }
     -- | CREATE TYPE name AS ENUM ( values );
     | CreateEnumType { name :: Text, values :: [Text] }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
@@ -21,10 +21,18 @@ data Statement
     | Comment { content :: Text }
     deriving (Eq, Show)
 
+data CreateTable
+  = CreateTable
+      { name :: Text
+      , columns :: [Column]
+      , primaryKeyConstraint :: PrimaryKeyConstraint
+      , constraints :: [Constraint]
+      }
+  deriving (Eq, Show)
+
 data Column = Column
     { name :: Text
     , columnType :: PostgresType
-    , primaryKey :: Bool
     , defaultValue :: Maybe Expression
     , notNull :: Bool
     , isUnique :: Bool
@@ -38,6 +46,10 @@ data OnDelete
     | Cascade
     deriving (Show, Eq)
 
+newtype PrimaryKeyConstraint
+  = PrimaryKeyConstraint { primaryKeyColumnNames :: [Text] }
+  deriving (Eq, Show)
+
 data Constraint
     -- | FOREIGN KEY (columnName) REFERENCES referenceTable (referenceColumn) ON DELETE onDelete;
     = ForeignKeyConstraint
@@ -46,8 +58,6 @@ data Constraint
         , referenceColumn :: Maybe Text
         , onDelete :: Maybe OnDelete
         }
-    | PrimaryKeyConstraint
-        { columnNames :: [Text] }
     | UniqueConstraint
         { columnNames :: [Text] }
     deriving (Eq, Show)

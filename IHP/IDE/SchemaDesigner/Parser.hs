@@ -55,9 +55,9 @@ stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
-    
+
 statement = do
-    s <- try createExtension <|> try createTable <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> createEnumType <|> addConstraint <|> comment
     space
     pure s
 
@@ -77,11 +77,32 @@ createTable = do
         lexeme "public"
         char '.'
     name <- identifier
-    (columns, constraints) <- between (char '(' >> space) (char ')' >> space) do
+
+    -- Process columns (tagged if they're primary key) and table constraints
+    -- together, as they can be in any order
+    (taggedColumns, allConstraints) <- between (char '(' >> space) (char ')' >> space) do
         columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> column)) `sepBy` (char ',' >> space)
         pure (lefts columnsAndConstraints, rights columnsAndConstraints)
+
     char ';'
-    pure CreateTable { name, columns, constraints }
+
+    -- Check that either there is a single column with a PRIMARY KEY constraint,
+    -- or there is a single PRIMARY KEY table constraint
+    let
+        columns = map snd taggedColumns
+        constraints = rights allConstraints
+
+    primaryKeyConstraint <- case filter fst taggedColumns of
+        [] -> case lefts allConstraints of
+            [] -> Prelude.fail ("No primary key defined for table " <> cs name)
+            [primaryKeyConstraint] -> pure primaryKeyConstraint
+            _ -> Prelude.fail ("Multiple PRIMARY KEY constraints on table " <> cs name)
+        [(_, Column { name })] -> case lefts allConstraints of
+            [] -> pure $ PrimaryKeyConstraint [name]
+            _ -> Prelude.fail ("Primary key defined in both column and table constraints on table " <> cs name)
+        _ -> Prelude.fail "Multiple columns with PRIMARY KEY constraint"
+
+    pure CreateTable { name, columns, primaryKeyConstraint, constraints }
 
 createEnumType = do
     lexeme "CREATE"
@@ -100,23 +121,24 @@ addConstraint = do
     lexeme "ADD"
     lexeme "CONSTRAINT"
     constraintName <- identifier
-    constraint <- parseTableConstraint
+    constraint <- parseTableConstraint >>= \case
+      Left _ -> Prelude.fail "Cannot add new PRIMARY KEY constraint to table"
+      Right constraint -> pure constraint
     char ';'
     pure AddConstraint { tableName, constraintName, constraint }
 
 parseTableConstraint = do
-  optional do
-      lexeme "CONSTRAINT"
-      identifier
-  parsePrimaryKeyConstraint
-      <|> parseForeignKeyConstraint
-      <|> parseUniqueConstraint
+    optional do
+        lexeme "CONSTRAINT"
+        identifier
+    (Left <$> parsePrimaryKeyConstraint) <|>
+      (Right <$> (parseForeignKeyConstraint <|> parseUniqueConstraint))
 
 parsePrimaryKeyConstraint = do
     lexeme "PRIMARY"
     lexeme "KEY"
-    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
-    pure PrimaryKeyConstraint { columnNames }
+    primaryKeyColumnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    pure PrimaryKeyConstraint { primaryKeyColumnNames }
 
 parseForeignKeyConstraint = do
     lexeme "FOREIGN"
@@ -154,7 +176,7 @@ column = do
     primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
     notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
     isUnique <- isJust <$> optional (lexeme "UNIQUE")
-    pure Column { name, columnType, primaryKey, defaultValue, notNull, isUnique }
+    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique })
 
 sqlType :: Parser PostgresType
 sqlType = choice

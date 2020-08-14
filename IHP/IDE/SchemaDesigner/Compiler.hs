@@ -22,12 +22,16 @@ compileSql statements = statements
     |> unlines
 
 compileStatement :: Statement -> Text
-compileStatement CreateTable { name, columns, constraints } = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map compileColumn columns <> map (indent . compileConstraint) constraints) <> "\n);"
+compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints }) = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map compileColumn columns <> [indent (compilePrimaryKeyConstraint primaryKeyConstraint)] <> map (indent . compileConstraint) constraints) <> "\n);"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values |> map TextExpression |> map compileExpression) <> ");"
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
 compileStatement UnknownStatement { raw } = raw
+
+compilePrimaryKeyConstraint :: PrimaryKeyConstraint -> Text
+compilePrimaryKeyConstraint PrimaryKeyConstraint { primaryKeyColumnNames } =
+    "PRIMARY KEY(" <> intercalate ", " primaryKeyColumnNames <> ")"
 
 compileConstraint :: Constraint -> Text
 compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
@@ -41,12 +45,11 @@ compileOnDelete (Just SetNull) = "ON DELETE SET NULL"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: Column -> Text
-compileColumn Column { name, columnType, primaryKey, defaultValue, notNull, isUnique } =
+compileColumn Column { name, columnType, defaultValue, notNull, isUnique } =
     "    " <> unwords (catMaybes
         [ Just (compileIdentifier name)
         , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
-        , if primaryKey then Just "PRIMARY KEY" else Nothing
         , if notNull then Just "NOT NULL" else Nothing
         , if isUnique then Just "UNIQUE" else Nothing
         ])
@@ -59,7 +62,7 @@ compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
 
-compareStatement (CreateTable {}) _ = LT
+compareStatement (StatementCreateTable CreateTable {}) _ = LT
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 

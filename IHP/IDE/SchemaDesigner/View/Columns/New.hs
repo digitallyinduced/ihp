@@ -29,7 +29,7 @@ instance View NewColumnView ViewContext where
     |]
         where
             table = findStatementByName tableName statements
-            columns = maybe [] (get #columns) table
+            columns = maybe [] (get #columns . unsafeGetCreateTable) table
 
             modalContent = [hsx|
                 <form method="POST" action={CreateColumnAction} id="new-column">
