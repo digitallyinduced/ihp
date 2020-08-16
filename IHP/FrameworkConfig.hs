@@ -69,8 +69,12 @@ appDatabaseUrl = do
 findLibDirectory :: IO Text
 findLibDirectory = do
     frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
+    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
     if frameworkMountedLocally
         then pure "IHP/lib/IHP/"
-        else do
-            binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-            pure (Text.strip binDir <> "/../lib/IHP/")
+        else if ihpLibSymlinkAvailable
+            then do
+                pure "build/ihp-lib/"
+            else do
+                binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
+                pure (Text.strip binDir <> "/../lib/IHP/")
