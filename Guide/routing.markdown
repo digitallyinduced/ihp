@@ -115,6 +115,15 @@ instance AutoRoute HelloWorldController where
 
 This way the `name` argument is passed as `Text` instead of `UUID`.
 
+**This also works with integer types:**
+
+```haskell
+instance AutoRoute HelloWorldController where
+    parseArgument = parseIntArgument
+```
+
+This will support a controller like `data HelloWorldController = HelloAction { page :: Int }`.
+
 Right now AutoRoute supports only a single type for all given parameters. E.g. an action which takes an UUID and a Text is not supported with AutoRoute right now:
 ```haskell
 data HelloController = HelloAction { userId :: !(Id User), name :: Text }
