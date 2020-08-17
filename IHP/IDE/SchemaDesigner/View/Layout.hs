@@ -1,4 +1,4 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword, findForeignKey) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
@@ -123,7 +123,7 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
 </tr>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
     <a href={EditColumnAction tableName id}>Edit Column</a>
-    <a href={DeleteColumnAction tableName id} class="js-delete">Delete Column</a>
+    <a href={DeleteColumnAction tableName id name} class="js-delete">Delete Column</a>
     <div></div>
     <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button">{toggleButtonText}</button></form>
     {foreignKeyOption}

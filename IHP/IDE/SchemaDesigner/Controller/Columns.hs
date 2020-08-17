@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, getDefaultValue, isIllegalKeyword)
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, getDefaultValue, isIllegalKeyword, findForeignKey)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -101,6 +101,9 @@ instance Controller ColumnsController where
         statements <- readSchema
         let tableName = param "tableName"
         let columnId = param "columnId"
+        let columnName = param "columnName"
+        case findForeignKey statements tableName columnName of
+            Just AddConstraint { constraintName, .. } -> updateSchema (deleteForeignKeyConstraint constraintName)
         updateSchema (map (deleteColumnInTable tableName columnId))
         redirectTo ShowTableAction { .. }
 
