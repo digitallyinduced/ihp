@@ -221,7 +221,7 @@ parseUUIDArgument :: forall d. Data d => ByteString -> ByteString -> d
 parseUUIDArgument field value =
     value
     |> fromASCIIBytes
-    |> fromMaybe (error "AutoRoute: Failed parsing UUID")
+    |> fromMaybe (error "AutoRoute: Failed parsing argument as UUID. You most likely are trying to use AutoRoute with a non-UUID attribute. See https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types for details on how to configure this.")
     |> unsafeCoerce
 {-# INLINE parseUUIDArgument #-}
 
