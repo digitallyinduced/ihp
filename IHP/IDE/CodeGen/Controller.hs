@@ -201,14 +201,14 @@ addImport file importStatement = do
     content :: Text <- Text.readFile (cs file)
     case addImport' content importStatement of
         Just newContent -> Text.writeFile (cs file) (cs newContent)
-        Nothing -> putStrLn ("Could not automatically add " <> tshow importStatement <> " to " <> file)
+        Nothing -> pure ()
     pure ()
 
 addImport' :: Text -> Text -> Maybe Text
-addImport' file importStatement =
-    if importStatement `isSuffixOf` file
+addImport' content importStatement = do
+    if importStatement `isInfixOf` content
         then Nothing
-        else appendLineAfter file ("import" `isPrefixOf`) [importStatement]
+        else appendLineAfter content ("import" `isPrefixOf`) [importStatement]
 
 addAction :: Text -> [Text] -> IO ()
 addAction filePath fileContent = do
