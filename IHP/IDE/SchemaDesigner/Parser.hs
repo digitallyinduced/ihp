@@ -164,6 +164,7 @@ sqlType = choice
         , varchar
         , serial
         , bigserial
+        , point
         , customType
         ]
             where
@@ -273,6 +274,10 @@ sqlType = choice
                 bigserial = do
                     try (symbol' "BIGSERIAL")
                     pure PBigserial
+
+                point = do
+                    try (symbol' "POINT")
+                    pure PPoint
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
