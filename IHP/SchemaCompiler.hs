@@ -377,7 +377,22 @@ compileFromRowInstance table@(CreateTable { name, columns }) =
         compileField (fieldName, _) | isManyToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
         compileField _ = "pure def"
 
-        compileSetQueryBuilder (refTableName, refFieldName) = "pure (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow (columnNameToFieldName refFieldName) <> ", id) (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+        compileSetQueryBuilder (refTableName, refFieldName) = "pure (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow (columnNameToFieldName refFieldName) <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+            where
+                -- | When the referenced column is nullable, we have to wrap the @Id@ in @Just@
+                primaryKeyField :: Text
+                primaryKeyField = if get #notNull refColumn then "id" else "Just id"
+
+                (Just refTable) = let (Schema statements) = ?schema in
+                        statements
+                        |> find \case
+                                CreateTable { name } -> name == refTableName
+                                otherwise -> False
+
+                refColumn :: Column
+                (Just refColumn) = refTable
+                        |> \case CreateTable { columns } -> columns
+                        |> find (\col -> get #name col == refFieldName)
 
 
         compileQuery column@(Column { name }) = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
