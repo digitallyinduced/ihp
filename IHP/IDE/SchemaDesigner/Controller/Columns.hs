@@ -104,6 +104,7 @@ instance Controller ColumnsController where
         let columnName = param "columnName"
         case findForeignKey statements tableName columnName of
             Just AddConstraint { constraintName, .. } -> updateSchema (deleteForeignKeyConstraint constraintName)
+            _ -> pure ()
         updateSchema (map (deleteColumnInTable tableName columnId))
         redirectTo ShowTableAction { .. }
 
