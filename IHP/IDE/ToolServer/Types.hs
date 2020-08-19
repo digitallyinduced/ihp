@@ -45,7 +45,7 @@ data ColumnsController
     | CreateColumnAction
     | EditColumnAction { tableName :: Text, columnId :: Int }
     | UpdateColumnAction
-    | DeleteColumnAction { tableName :: Text, columnId :: Int }
+    | DeleteColumnAction { tableName :: Text, columnId :: Int, columnName :: Text }
     | ToggleColumnUniqueAction { tableName :: Text, columnId :: Int }
     | NewForeignKeyAction { tableName :: Text, columnName :: Text }
     | CreateForeignKeyAction
