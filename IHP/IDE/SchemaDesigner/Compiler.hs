@@ -85,6 +85,7 @@ compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType PPoint = "POINT"
 compilePostgresType PBytea = "BYTEA"
+compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text

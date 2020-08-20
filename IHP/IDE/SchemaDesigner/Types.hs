@@ -80,4 +80,5 @@ data PostgresType
     | PCustomType Text
     | PPoint
     | PBytea
+    | PTSVector
     deriving (Eq, Show)

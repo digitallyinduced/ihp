@@ -73,6 +73,7 @@ haskellType table column@(Column { columnType, notNull }) =
                 (PCharacterN _) -> "Text"
                 PPoint -> "Point"
                 PBytea -> "ByteString"
+                PTSVector -> "[(Int, Text)]"
         actualType =
             case findForeignKeyConstraint table column of
                 Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName' referenceTable <> ")"

@@ -166,6 +166,7 @@ sqlType = choice
         , bigserial
         , point
         , bytea
+        , tsvector
         , customType
         ]
             where
@@ -283,6 +284,10 @@ sqlType = choice
                 bytea = do
                     try (symbol' "BYTEA")
                     pure PBytea
+
+                tsvector = do
+                    try (symbol' "TSVECTOR")
+                    pure PTSVector
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
