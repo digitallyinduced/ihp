@@ -79,4 +79,5 @@ data PostgresType
     | PBigserial
     | PCustomType Text
     | PPoint
+    | PBytea
     deriving (Eq, Show)

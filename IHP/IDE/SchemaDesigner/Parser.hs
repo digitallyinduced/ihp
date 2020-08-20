@@ -165,6 +165,7 @@ sqlType = choice
         , serial
         , bigserial
         , point
+        , bytea
         , customType
         ]
             where
@@ -278,6 +279,10 @@ sqlType = choice
                 point = do
                     try (symbol' "POINT")
                     pure PPoint
+
+                bytea = do
+                    try (symbol' "BYTEA")
+                    pure PBytea
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))

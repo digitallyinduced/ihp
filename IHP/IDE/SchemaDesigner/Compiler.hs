@@ -84,6 +84,7 @@ compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType PPoint = "POINT"
+compilePostgresType PBytea = "BYTEA"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text
