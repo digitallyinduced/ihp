@@ -23,13 +23,13 @@ data EditRowView = EditRowView
 instance View EditRowView ViewContext where
     html EditRowView { .. } = [hsx|
         <div class="container pt-5">
-            {customQuery ""}
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>
+            {customQuery ""}
         </div>
         {Just modal}
     |]

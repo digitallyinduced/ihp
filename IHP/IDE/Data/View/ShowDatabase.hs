@@ -15,10 +15,10 @@ data ShowDatabaseView = ShowDatabaseView {
 instance View ShowDatabaseView ViewContext where
     html ShowDatabaseView { .. } = [hsx|
         <div class="container pt-5">
-            {customQuery ""}
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames ""}
             </div>
+            {customQuery ""}
         </div>
     |]
 

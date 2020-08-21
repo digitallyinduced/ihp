@@ -18,12 +18,12 @@ data ShowQueryView = ShowQueryView
 instance View ShowQueryView ViewContext where
     html ShowQueryView { .. } = [hsx|
         <div class="container pt-5">
-            {customQuery query}
             <div class="row no-gutters bg-white">
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows}
                 </div>
             </div>
+            {customQuery query}
         </div>
     |]
         where

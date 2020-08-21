@@ -6,7 +6,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 
 customQuery :: Text -> Html
-customQuery input = [hsx|<div class="p-2 rounded mb-2" style="background-color: #002B36;"><div id="queryInput">{input}</div></div>|]
+customQuery input = [hsx|<div class="p-2 rounded mt-2" style="background-color: #002B36;"><div id="queryInput" style="height:16px">{input}</div></div>|]
 
 tableHead :: [[DynamicField]] -> Text -> Html
 tableHead rows tableName = [hsx|<thead><tr>{forEach (columnNames rows) renderColumnHead}
