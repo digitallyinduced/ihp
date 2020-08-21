@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, TemplateHaskell #-}
 
 module IHP.ModelSupport where
 
@@ -32,6 +32,11 @@ import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
+import           Database.PostgreSQL.Simple.TypeInfo as TI
+import qualified Database.PostgreSQL.Simple.TypeInfo.Static as TI
+import           Database.PostgreSQL.Simple.TypeInfo.Macro as TI
+import           Data.ByteString.Builder (byteString, char8)
+import           Data.Attoparsec.ByteString.Char8 hiding (Result, char8)
 
 data ModelContext = ModelContext { databaseConnection :: Connection }
 
@@ -429,3 +434,30 @@ fieldWithUpdate name model
 
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
+
+instance FromField (Double, Double) where
+    fromField f v =
+        if typeOid f /= $(inlineTypoid TI.point)
+        then returnError Incompatible f ""
+        else case v of
+               Nothing -> returnError UnexpectedNull f ""
+               Just bs ->
+                   case parseOnly parser bs of
+                     Left  err -> returnError ConversionFailed f err
+                     Right val -> pure val
+      where
+        parser = do
+            string "("
+            x <- double
+            string ","
+            y <- double
+            string ")"
+            pure $ (x, y)
+
+instance ToField (Double, Double) where
+    toField (x, y) = Many $
+        (Plain (byteString "point(")) :
+        (toField $ x) :
+        (Plain (char8 ',')) :
+        (toField $ y) :
+        [Plain (char8 ')')]
