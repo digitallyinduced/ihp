@@ -1,4 +1,4 @@
-module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows) where
+module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows, cleanValue) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types hiding (columnNames)
@@ -10,7 +10,7 @@ customQuery input = [hsx|<div class="p-2 rounded mt-2" style="background-color: 
 
 tableHead :: [[DynamicField]] -> Text -> Html
 tableHead rows tableName = [hsx|<thead><tr>{forEach (columnNames rows) renderColumnHead}
-        <td><a href={NewRowAction tableName} class="btn btn-primary btn-sm">Add</a></td>
+        <td></td>
     </tr></thead>|]
 renderColumnHead name = [hsx|<th>{name}</th>|]
 
@@ -23,3 +23,7 @@ renderRows rows body tableName = [hsx|
         {body}
     </table>
 |]
+
+cleanValue :: Maybe ByteString -> Text
+cleanValue (Just value) = cs value
+cleanValue Nothing = "NULL"

@@ -42,6 +42,6 @@ instance View ShowTableRowsView ViewContext where
                 where
                     contextMenuId = "context-menu-column-" <> tshow id
                     id = (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields)))))
-            renderField id DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{fieldValue}</a></span></td>|]
+            renderField id DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{cleanValue fieldValue}</a></span></td>|]
 
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))
