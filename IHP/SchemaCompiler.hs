@@ -71,7 +71,7 @@ haskellType table column@(Column { columnType, notNull }) =
                 (PNumeric _ _) -> "Float"
                 (PVaryingN _) -> "Text"
                 (PCharacterN _) -> "Text"
-                PPoint -> "Point"
+                PPoint -> "(Double, Double)"
                 PBytea -> "ByteString"
                 PTSVector -> "[(Int, Text)]"
         actualType =
