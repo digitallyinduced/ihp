@@ -124,15 +124,20 @@ hsxNodeAttribute = do
     pure (StaticAttribute key value)
 
 hsxAttributeName :: Parser Text
-hsxAttributeName = choice ([dataAttribute, ariaAttribute, htmxAttribute] <> (List.map string attributes))
+hsxAttributeName = do
+        name <- rawAttribute
+        unless (isValidAttributeName name) (fail $ "Invalid attribute name: " <> cs name)
+        pure name
     where
-        prefixedAttribute prefix = do
-            string prefix
-            d <- takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-')
-            pure (prefix <> d)
-        dataAttribute = prefixedAttribute "data-"
-        ariaAttribute = prefixedAttribute "aria-"
-        htmxAttribute = prefixedAttribute "hx-"
+        isValidAttributeName name =
+            "data-" `Text.isPrefixOf` name
+            || "aria-" `Text.isPrefixOf` name
+            || "hx-" `Text.isPrefixOf` name
+            || "hx-" `Text.isPrefixOf` name
+            || name `List.elem` attributes
+
+        rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-')
+
 
 hsxQuotedValue :: Parser AttributeValue
 hsxQuotedValue = do
@@ -235,9 +240,59 @@ attributes =
         , "ontouchstart", "download"
         , "allowtransparency", "minlength", "maxlength", "property"
         , "role"
-        , "d", "viewBox", "fill", "cx", "cy", "r", "x", "y", "text-anchor", "alignment-baseline"
+        , "d", "viewBox", "cx", "cy", "r", "x", "y", "text-anchor", "alignment-baseline"
         , "line-spacing", "letter-spacing"
         , "integrity", "crossorigin", "poster"
+        , "accent-height", "accumulate", "additive", "alphabetic", "amplitude"
+        , "arabic-form", "ascent", "attributeName", "attributeType", "azimuth"
+        , "baseFrequency", "baseProfile", "bbox", "begin", "bias", "by", "calcMode"
+        , "cap-height", "class", "clipPathUnits", "contentScriptType"
+        , "contentStyleType", "cx", "cy", "d", "descent", "diffuseConstant", "divisor"
+        , "dur", "dx", "dy", "edgeMode", "elevation", "end", "exponent"
+        , "externalResourcesRequired", "filterRes", "filterUnits", "font-family"
+        , "font-size", "font-stretch", "font-style", "font-variant", "font-weight"
+        , "format", "from", "fx", "fy", "g1", "g2", "glyph-name", "glyphRef"
+        , "gradientTransform", "gradientUnits", "hanging", "height", "horiz-adv-x"
+        , "horiz-origin-x", "horiz-origin-y", "id", "ideographic", "in", "in2"
+        , "intercept", "k", "k1", "k2", "k3", "k4", "kernelMatrix", "kernelUnitLength"
+        , "keyPoints", "keySplines", "keyTimes", "lang", "lengthAdjust"
+        , "limitingConeAngle", "local", "markerHeight", "markerUnits", "markerWidth"
+        , "maskContentUnits", "maskUnits", "mathematical", "max", "media", "method"
+        , "min", "mode", "name", "numOctaves", "offset", "onabort", "onactivate"
+        , "onbegin", "onclick", "onend", "onerror", "onfocusin", "onfocusout", "onload"
+        , "onmousedown", "onmousemove", "onmouseout", "onmouseover", "onmouseup"
+        , "onrepeat", "onresize", "onscroll", "onunload", "onzoom", "operator", "order"
+        , "orient", "orientation", "origin", "overline-position", "overline-thickness"
+        , "panose-1", "path", "pathLength", "patternContentUnits", "patternTransform"
+        , "patternUnits", "points", "pointsAtX", "pointsAtY", "pointsAtZ"
+        , "preserveAlpha", "preserveAspectRatio", "primitiveUnits", "r", "radius"
+        , "refX", "refY", "rendering-intent", "repeatCount", "repeatDur"
+        , "requiredExtensions", "requiredFeatures", "restart", "result", "rotate", "rx"
+        , "ry", "scale", "seed", "slope", "spacing", "specularConstant"
+        , "specularExponent", "spreadMethod", "startOffset", "stdDeviation", "stemh"
+        , "stemv", "stitchTiles", "strikethrough-position", "strikethrough-thickness"
+        , "string", "style", "surfaceScale", "systemLanguage", "tableValues", "target"
+        , "targetX", "targetY", "textLength", "title", "to", "transform", "type", "u1"
+        , "u2", "underline-position", "underline-thickness", "unicode", "unicode-range"
+        , "units-per-em", "v-alphabetic", "v-hanging", "v-ideographic", "v-mathematical"
+        , "values", "version", "vert-adv-y", "vert-origin-x", "vert-origin-y", "viewBox"
+        , "viewTarget", "width", "widths", "x", "x-height", "x1", "x2"
+        , "xChannelSelector", "xlink:actuate", "xlink:arcrole", "xlink:href"
+        , "xlink:role", "xlink:show", "xlink:title", "xlink:type", "xml:base"
+        , "xml:lang", "xml:space", "y", "y1", "y2", "yChannelSelector", "z", "zoomAndPan"
+        , "alignment-baseline", "baseline-shift", "clip-path", "clip-rule"
+        , "clip", "color-interpolation-filters", "color-interpolation"
+        , "color-profile", "color-rendering", "color", "cursor", "direction"
+        , "display", "dominant-baseline", "enable-background", "fill-opacity"
+        , "fill-rule", "fill", "filter", "flood-color", "flood-opacity"
+        , "font-size-adjust", "glyph-orientation-horizontal"
+        , "glyph-orientation-vertical", "image-rendering", "kerning", "letter-spacing"
+        , "lighting-color", "marker-end", "marker-mid", "marker-start", "mask"
+        , "opacity", "overflow", "pointer-events", "shape-rendering", "stop-color"
+        , "stop-opacity", "stroke-dasharray", "stroke-dashoffset", "stroke-linecap"
+        , "stroke-linejoin", "stroke-miterlimit", "stroke-opacity", "stroke-width"
+        , "stroke", "text-anchor", "text-decoration", "text-rendering", "unicode-bidi"
+        , "visibility", "word-spacing", "writing-mode"
         ]
 
 parents :: [Text]
