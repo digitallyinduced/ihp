@@ -438,3 +438,32 @@ In your views, use `inputValue` to get a textual representation for your enum wh
     <input type="text" value={inputValue Blue}/>
 |]
 ```
+
+## Database Refactoring
+
+In the following section you will find best practise workflows to do changes to your database schema.
+
+### Adding a Column
+
+When adding a new column to an existing table a call to `Update DB` it's best to add a default value so that existing values in your table can be re-inserted from your `Fixtures.sql`.
+
+In case you don't have a default value and you run `Update DB`, the import of `Application/Fixtures.sql` will be completed with errors. The table with the new column will most likely be empty. To keep the records in your table use the following process to work around this issue:
+1. Add your column `new_col` in the Schema Designer
+2. Click `Save DB to Fixtures` in the Schema Designer (Click the arrow on the `Update DB` button to see this option)
+3. Open the `Application/Fixtures.sql` in your editor and manually update all `INSERT INTO` lines for your changed table. Change the lines so that all columns are provided for the changed table.
+4. Click `Push to DB` in the Schema Designer (Click the arrow on the `Update DB` button to see this option)
+
+### Renaming a Column
+
+When you are renaming a column, the development process of using `Update DB` will not work be working. This is because the `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names.
+
+In this case it's best to use the following approach:
+
+1. Rename your column `col_a` to `col_b` in the Schema Designer
+2. Click `Save DB to Fixtures` in the Schema Designer (Click the arrow on the `Update DB` button to see this option)
+3. Open the `Application/Fixtures.sql` in your editor and manually update references from the old column `col_a` to the new name `col_b`
+4. Click `Push to DB` in the Schema Designer (Click the arrow on the `Update DB` button to see this option)
+
+### Migrations In Production
+
+IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then the recommended approach used by digitally induced is to manually migrate your database using DDL statements.
