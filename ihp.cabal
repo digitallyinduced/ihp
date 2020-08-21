@@ -17,6 +17,7 @@ common shared-properties
     build-depends:
             base
             , classy-prelude
+            , mono-traversable
             , directory
             , string-conversions
             , warp
