@@ -151,3 +151,14 @@ In JSX you have the restriction that you always have to have a single root tag. 
 #### Whitespace
 
 Spaces and newline characters are removed where possible at HSX parse time.
+
+#### Comments
+
+Html Comments are supported and can be used like this:
+
+```html
+<div>
+    <!-- Begin of Main Section -->
+    <h1>Hello</h1>
+</div>
+```

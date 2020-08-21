@@ -29,6 +29,7 @@ data Node = Node !Text ![Attribute] ![Node]
     | PreEscapedTextNode !Text -- ^ Used in @script@ or @style@ bodies
     | SplicedNode !Text -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
     | Children ![Node]
+    | CommentNode !Text
     deriving (Show)
 
 parseHsx position code = runParser (setPosition position *> parser) "" code
@@ -47,7 +48,7 @@ parser = do
     eof
     pure node
 
-hsxElement = try hsxSelfClosingElement <|> hsxNormalElement
+hsxElement = try hsxComment <|> try hsxSelfClosingElement <|> hsxNormalElement
 
 manyHsxElement = do
     children <- many hsxChild
@@ -93,6 +94,14 @@ hsxOpeningElement = do
     space
     attributes <- hsxNodeAttributes (char '>')
     pure (name, attributes)
+
+hsxComment :: Parser Node
+hsxComment = do
+    string "<!--"
+    body :: String <- manyTill (satisfy (const True)) (string "-->")
+    space
+    pure (CommentNode (cs body))
+
 
 hsxNodeAttributes :: Parser a -> Parser [Attribute]
 hsxNodeAttributes end = staticAttributes

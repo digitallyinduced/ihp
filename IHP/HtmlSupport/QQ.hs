@@ -59,6 +59,7 @@ compileToHaskell (SplicedNode code) =
     case parseExp (cs code) of
         Right expression -> let patched = patchExpr expression in [| toHtml $(pure patched) |]
         Left error -> fail ("compileToHaskell(" <> (cs code) <> "): " <> show error)
+compileToHaskell (CommentNode value) = [| Html5.textComment value |]
 
 patchExpr :: TH.Exp -> TH.Exp
 patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.VarE labelValue)) | hash == TH.mkName "#" = TH.AppE (TH.VarE varName) fromLabel
