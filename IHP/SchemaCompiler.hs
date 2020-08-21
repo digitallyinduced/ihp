@@ -118,7 +118,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
                   <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
                   <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
-                  <> "import IHP.Controller.Param ()\n"
+                  <> "import qualified IHP.Controller.Param\n"
                   <> "import GHC.TypeLits\n"
                   <> "import Data.UUID (UUID)\n"
                   <> "import Data.Default\n"
@@ -275,6 +275,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "instance Default " <> modelName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
+        <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map tableNameToModelName values
