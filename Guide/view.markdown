@@ -144,3 +144,157 @@ You can disable this behavior by removing the following code from your `Web/Layo
             <script src="/vendor/turbolinksInstantClick.js"></script>
         |]
 ```
+
+## JSON
+
+Views that are rendered by calling the `render` function can also respond with JSON.
+
+Let's say we have a normal HTML view that renders all posts for our blog app:
+
+```haskell
+instance View IndexView ViewContext where
+    html IndexView { .. } = [hsx|
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item active"><a href={PostsAction}>Posts</a></li>
+            </ol>
+        </nav>
+        <h1>Index <a href={pathTo NewPostAction} class="btn btn-primary ml-4">+ New</a></h1>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Post</th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>{forEach posts renderPost}</tbody>
+            </table>
+        </div>
+    |]
+```
+
+We can add a JSON output for all blog posts by add a `json` function to this:
+
+```haskell
+import Data.Aeson -- <--- Add this import at the top of the file
+
+instance View IndexView ViewContext where
+    html IndexView { .. } = [hsx|
+        ...
+    |]
+
+    json IndexView { .. } = toJSON posts -- <---- The new json render function
+```
+
+In the above code, our `json` function has access to all arguments passed to the view. Here we call `toJSON`, which is provided [by the aeson haskell library](https://hackage.haskell.org/package/aeson). This simply encodes all the `posts` given to this view as json.
+
+Additionally we need to define a `ToJSON` instance which describes how the `Post` record is going to be transformed to json. We need to add this to our view:
+
+```haskell
+instance ToJSON Post where
+    toJSON post = object
+        [ "id" .= get #id post
+        , "title" .= get #title post
+        , "body" .= get #body post
+        ]
+```
+
+
+The full `Index` View for our `PostsController` looks like this:
+
+```haskell
+module Web.View.Posts.Index where
+import Web.View.Prelude
+import Data.Aeson
+
+data IndexView = IndexView { posts :: [Post] }
+
+instance View IndexView ViewContext where
+    html IndexView { .. } = [hsx|
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item active"><a href={PostsAction}>Posts</a></li>
+            </ol>
+        </nav>
+        <h1>Index <a href={pathTo NewPostAction} class="btn btn-primary ml-4">+ New</a></h1>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Post</th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>{forEach posts renderPost}</tbody>
+            </table>
+        </div>
+    |]
+
+    json IndexView { .. } = toJSON posts
+
+instance ToJSON Post where
+    toJSON post = object
+        [ "id" .= get #id post
+        , "title" .= get #title post
+        , "body" .= get #body post
+        ]
+
+renderPost post = [hsx|
+    <tr>
+        <td>{post}</td>
+        <td><a href={ShowPostAction (get #id post)}>Show</a></td>
+        <td><a href={EditPostAction (get #id post)} class="text-muted">Edit</a></td>
+        <td><a href={DeletePostAction (get #id post)} class="js-delete text-muted">Delete</a></td>
+    </tr>
+|]
+```
+
+### Getting JSON responses
+
+When you open the `PostsAction` at `/Posts` in your browser you will still get the html output. [This is because IHP uses the browsers `Accept` header to respond in the best format for the browser which is usually html.](https://en.wikipedia.org/wiki/Content_negotiation)
+
+#### Javascript 
+
+From javascript you can get the JSON using `fetch`:
+```javascript
+const response = await fetch('http://localhost:8000/Posts', { headers: { Accept: 'application/json' } })
+    .then(response => response.json());
+````
+
+#### curl
+
+You can use `curl` to check out the new JSON response from the terminal:
+
+```bash
+curl http://localhost:8000/Posts -H 'Accept: application/json'
+
+[{"body":"This is a test json post","id":"d559cd60-e36e-40ef-b69a-d651e3257dc9","title":"Hello World!"}]
+```
+
+### Advanced: Rendering JSON directly from actions
+
+When you are building an API and your action is only responding with JSON (so no html is expected), you can respond with your JSON directly from the controller using `renderJson`:
+
+```haskell
+instance Controller PostsController where
+    action PostsAction = do
+        posts <- query @Post |> fetch
+        renderJson (toJSON posts)
+
+-- The ToJSON instances still needs to be defined somewhere
+instance ToJSON Post where
+    toJSON post = object
+        [ "id" .= get #id post
+        , "title" .= get #title post
+        , "body" .= get #body post
+        ]
+```
+
+In this example no content negotiation takes place as the `renderJson` is used instead of the normal `render` function.
+
+The `ToJSON` instances has to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend to not use `renderJson` most times and instead stick with a separate view file as described in the section above. Using `renderJson` makes sense only when the controller is very small or you already have a predefined `ToJSON` instance which is not defined in your controller.
