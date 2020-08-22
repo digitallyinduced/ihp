@@ -19,6 +19,7 @@ module IHP.ViewPrelude (
     module IHP.ModelSupport,
     (!),
     module Data.Data,
+    module Data.Aeson
 ) where
 
 import IHP.Prelude
@@ -36,3 +37,4 @@ import IHP.Controller.RequestContext
 import IHP.RouterSupport
 import IHP.ModelSupport
 import Data.Data
+import Data.Aeson
