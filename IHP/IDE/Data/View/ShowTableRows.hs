@@ -15,6 +15,7 @@ data ShowTableRowsView = ShowTableRowsView
     { tableNames :: [Text]
     , tableName :: Text
     , rows :: [[DynamicField]]
+    , tableCols :: [ColumnDefinition]
     }
 
 instance View ShowTableRowsView ViewContext where
@@ -42,6 +43,18 @@ instance View ShowTableRowsView ViewContext where
                 where
                     contextMenuId = "context-menu-column-" <> tshow id
                     id = (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields)))))
+            renderField id DynamicField { .. } | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="no-link border rounded p-1" href={EditRowValueAction tableName (cs fieldName) id}>{renderId (cleanValue fieldValue)}</a></span></td>|]
+            renderField id DynamicField { .. } | isBoolField (fieldName) && not (isNothing fieldValue) && cleanValue fieldValue == "t" = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName id} checked="checked" /></span></td>|]
+            renderField id DynamicField { .. } | isBoolField (fieldName) && not (isNothing fieldValue) && cleanValue fieldValue == "f" = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName id}/></span></td>|]
             renderField id DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{cleanValue fieldValue}</a></span></td>|]
 
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))
+
+            
+            isBoolField fieldName = case (find (\c -> get #columnName c == (cs fieldName)) tableCols) of
+                Just columnDef -> if get #columnType columnDef == "boolean"
+                    then True
+                    else False
+                Nothing -> False
+
+            onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"

@@ -30,6 +30,8 @@ instance Controller DataController where
 
         rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ? ORDER BY id" (PG.Only (PG.Identifier tableName))
 
+        tableCols <- fetchTableCols connection tableName
+
         PG.close connection
         render ShowTableRowsView { .. }
 
@@ -109,6 +111,18 @@ instance Controller DataController where
         let targetId = cs id
         PG.close connection
         render EditValueView { .. }
+
+    action ToggleBooleanFieldAction { tableName, targetName, id } = do
+        let id :: String = cs (param @Text "id")
+        let tableName = param "tableName"
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+        tableCols <- fetchTableCols connection tableName
+        let query = "UPDATE " <> tableName <> " SET " <> targetName <> " = NOT " <> targetName <> " WHERE id = '" <> cs id <> "'"
+        putStrLn (query)
+        PG.execute_ connection (PG.Query . cs $! query)
+        PG.close connection
+        redirectTo ShowTableRowsAction { .. }
         
 
 connectToAppDb = do

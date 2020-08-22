@@ -1,4 +1,4 @@
-module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows, cleanValue) where
+module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows, cleanValue, renderId) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types hiding (columnNames)
@@ -27,3 +27,5 @@ renderRows rows body tableName = [hsx|
 cleanValue :: Maybe ByteString -> Text
 cleanValue (Just value) = cs value
 cleanValue Nothing = "NULL"
+
+renderId id = take 4 (cs id) <> ".." <> reverse (take 4 (reverse (cs id)))
