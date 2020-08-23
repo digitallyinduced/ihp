@@ -9,9 +9,7 @@ customQuery :: Text -> Html
 customQuery input = [hsx|<div class="p-2 rounded mt-2" style="background-color: #002B36;"><div id="queryInput" style="height:16px">{input}</div></div>|]
 
 tableHead :: [[DynamicField]] -> Text -> Html
-tableHead rows tableName = [hsx|<thead><tr>{forEach (columnNames rows) renderColumnHead}
-        <td></td>
-    </tr></thead>|]
+tableHead rows tableName = [hsx|<thead><tr>{forEach (columnNames rows) renderColumnHead}</tr></thead>|]
 renderColumnHead name = [hsx|<th>{name}</th>|]
 
 columnNames rows = map (get #fieldName) (fromMaybe [] (head rows))

@@ -29,6 +29,7 @@ renderTableSelector tableNames activeTableName = [hsx|
             <h5>Tables</h5>
         </div>
         {forEach tableNames renderTable}
+        <div class="text-muted context-menu-notice">Right click to open context menu</div>
     </div>
 |]
     where
