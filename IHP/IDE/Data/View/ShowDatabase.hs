@@ -14,7 +14,7 @@ data ShowDatabaseView = ShowDatabaseView {
 
 instance View ShowDatabaseView ViewContext where
     html ShowDatabaseView { .. } = [hsx|
-        <div class="container pt-5">
+        <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames ""}
             </div>

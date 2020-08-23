@@ -20,7 +20,7 @@ data NewRowView = NewRowView
 
 instance View NewRowView ViewContext where
     html NewRowView { .. } = [hsx|
-        <div class="container pt-5">
+        <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">

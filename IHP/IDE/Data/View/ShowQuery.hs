@@ -17,7 +17,7 @@ data ShowQueryView = ShowQueryView
 
 instance View ShowQueryView ViewContext where
     html ShowQueryView { .. } = [hsx|
-        <div class="container pt-5">
+        <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows}
