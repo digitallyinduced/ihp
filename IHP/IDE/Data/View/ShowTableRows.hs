@@ -23,17 +23,20 @@ instance View ShowTableRowsView ViewContext where
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
-                <div class="col" style="overflow: scroll; max-height: 80vh">
+                <div class="col" style="overflow: scroll; max-height: 80vh" oncontextmenu="showContextMenu('context-menu-data-root')">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>
             {customQuery ""}
         </div>
+        <div class="custom-menu menu-for-column shadow backdrop-blur" id="context-menu-data-root">
+            <a href={NewRowAction tableName}>Add Row</a>
+        </div>
     |]
         where
 
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
-            renderRow fields = [hsx|<tr oncontextmenu={"showContextMenu('" <> contextMenuId <> "');"}>{forEach fields (renderField id)}</tr>
+            renderRow fields = [hsx|<tr oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{forEach fields (renderField id)}</tr>
             <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
                 <a href={EditRowAction tableName id}>Edit Row</a>
                 <a href={DeleteEntryAction id tableName} class="js-delete">Delete Row</a>
