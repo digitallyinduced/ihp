@@ -126,11 +126,24 @@ hsxSplicedAttributes = do
 hsxNodeAttribute = do
     key <- hsxAttributeName
     space
-    _ <- char '='
-    space
-    value <- hsxQuotedValue <|> hsxSplicedValue
-    space
-    pure (StaticAttribute key value)
+
+    -- Boolean attributes like <input disabled/> will be represented as <input disabled="disabled"/>
+    -- as there is currently no other way to represent them with blaze-html.
+    --
+    -- This is ok, see: https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#boolean-attributes
+    let attributeWithoutValue = do
+            pure (StaticAttribute key (TextValue key))
+
+    -- Parsing normal attributes like <input value="Hello"/>
+    let attributeWithValue = do
+            _ <- char '='
+            space
+            value <- hsxQuotedValue <|> hsxSplicedValue
+            space
+            pure (StaticAttribute key value)
+
+    attributeWithValue <|> attributeWithoutValue
+
 
 hsxAttributeName :: Parser Text
 hsxAttributeName = do
