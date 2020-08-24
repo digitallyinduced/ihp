@@ -94,7 +94,7 @@ createTable = do
 
     primaryKeyConstraint <- case filter fst taggedColumns of
         [] -> case lefts allConstraints of
-            [] -> Prelude.fail ("No primary key defined for table " <> cs name)
+            [] -> pure $ PrimaryKeyConstraint []
             [primaryKeyConstraint] -> pure primaryKeyConstraint
             _ -> Prelude.fail ("Multiple PRIMARY KEY constraints on table " <> cs name)
         [(_, Column { name })] -> case lefts allConstraints of

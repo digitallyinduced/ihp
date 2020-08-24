@@ -15,7 +15,7 @@ import GHC.IO (evaluate)
 tests = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` CreateTable { name = "users", columns = [], constraints = [] }
+            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
@@ -34,13 +34,12 @@ tests = do
                     picture_url TEXT,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
                 ); |]
-            parseSql sql `shouldBe` CreateTable
+            parseSql sql `shouldBe` StatementCreateTable CreateTable
                     { name = "users"
                     , columns = [
                         Column
                             { name = "id"
                             , columnType = PUUID
-                            , primaryKey = True
                             , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
                             , isUnique = False
@@ -48,7 +47,6 @@ tests = do
                         , Column
                             { name = "firstname"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -56,7 +54,6 @@ tests = do
                         , Column
                             { name = "lastname"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -64,7 +61,6 @@ tests = do
                         , Column
                             { name = "password_hash"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -72,7 +68,6 @@ tests = do
                         , Column
                             { name = "email"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -80,7 +75,6 @@ tests = do
                         , Column
                             { name = "company_id"
                             , columnType = PUUID
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -88,7 +82,6 @@ tests = do
                         , Column
                             { name = "picture_url"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
@@ -96,38 +89,38 @@ tests = do
                         , Column
                             { name = "created_at"
                             , columnType = PTimestampWithTimezone
-                            , primaryKey = False
                             , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
                             , isUnique = False
                             }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     }
 
         it "should parse a CREATE TABLE with quoted identifiers" do
-            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` CreateTable { name = "quoted name", columns = [], constraints = [] }
+            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
 
         it "should parse a CREATE TABLE with public schema prefix" do
-            parseSql "CREATE TABLE public.users ();" `shouldBe` CreateTable { name = "users", columns = [], constraints = [] }
+            parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
                         }
                     }
-       
+
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;" `shouldBe` AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -182,7 +175,7 @@ tests = do
             parseSql "CREATE TYPE colors AS ENUM ();" `shouldBe` CreateEnumType { name = "colors", values = [] }
 
         it "should parse a CREATE TABLE with INTEGER / INT / INT4 / BIGINT / INT 8 columns" do
-            parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, bigint_a BIGINT, bigint_b int8);" `shouldBe` CreateTable
+            parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, bigint_a BIGINT, bigint_b int8);" `shouldBe` StatementCreateTable CreateTable
                     { name = "ints"
                     , columns =
                         [ col { name = "int_a", columnType = PInt }
@@ -191,31 +184,34 @@ tests = do
                         , col { name = "bigint_a", columnType = PBigInt }
                         , col { name = "bigint_b", columnType = PBigInt }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     }
 
         it "should parse a CREATE TABLE with TIMESTAMP WITH TIMEZONE / TIMESTAMPZ columns" do
-            parseSql "CREATE TABLE timestamps (a TIMESTAMP WITH TIME ZONE, b TIMESTAMPZ);" `shouldBe` CreateTable
+            parseSql "CREATE TABLE timestamps (a TIMESTAMP WITH TIME ZONE, b TIMESTAMPZ);" `shouldBe` StatementCreateTable CreateTable
                     { name = "timestamps"
                     , columns =
                         [ col { name = "a", columnType = PTimestampWithTimezone }
                         , col { name = "b", columnType = PTimestampWithTimezone }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     }
 
         it "should parse a CREATE TABLE with BOOLEAN / BOOL columns" do
-            parseSql "CREATE TABLE bools (a BOOLEAN, b BOOL);" `shouldBe` CreateTable
+            parseSql "CREATE TABLE bools (a BOOLEAN, b BOOL);" `shouldBe` StatementCreateTable CreateTable
                     { name = "bools"
                     , columns =
                         [ col { name = "a", columnType = PBoolean }
                         , col { name = "b", columnType = PBoolean }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     }
 
         it "should parse a CREATE TABLE with REAL, FLOAT4, DOUBLE, FLOAT8 columns" do
-            parseSql "CREATE TABLE bools (a REAL, b FLOAT4, c DOUBLE PRECISION, d FLOAT8);" `shouldBe` CreateTable
+            parseSql "CREATE TABLE bools (a REAL, b FLOAT4, c DOUBLE PRECISION, d FLOAT8);" `shouldBe` StatementCreateTable CreateTable
                     { name = "bools"
                     , columns =
                         [ col { name = "a", columnType = PReal }
@@ -223,29 +219,32 @@ tests = do
                         , col { name = "c", columnType = PDouble }
                         , col { name = "d", columnType = PDouble }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     }
 
         it "should parse a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
-            parseSql ("CREATE TABLE deprecated_variables (a NUMERIC, b NUMERIC(1), c NUMERIC(1,2), d CHARACTER VARYING(10));") `shouldBe` CreateTable
+            parseSql ("CREATE TABLE deprecated_variables (a NUMERIC, b NUMERIC(1), c NUMERIC(1,2), d CHARACTER VARYING(10));") `shouldBe` StatementCreateTable CreateTable
                     { name = "deprecated_variables"
-                    , columns = 
+                    , columns =
                         [ col { name = "a", columnType = PNumeric Nothing Nothing}
                         , col { name = "b", columnType = (PNumeric (Just 1) Nothing) }
                         , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
                         , col { name = "d", columnType = (PVaryingN 10) }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     }
 
         it "should parse a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
-            parseSql "CREATE TABLE user_followers (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL, user_id UUID NOT NULL, follower_id UUID NOT NULL, UNIQUE(user_id, follower_id));"  `shouldBe` CreateTable
+            parseSql "CREATE TABLE user_followers (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL, user_id UUID NOT NULL, follower_id UUID NOT NULL, UNIQUE(user_id, follower_id));"  `shouldBe` StatementCreateTable CreateTable
                     { name = "user_followers"
                     , columns =
-                        [ col { name = "id", columnType = PUUID, primaryKey = True, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        [ col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                         , col { name = "user_id", columnType = PUUID, notNull = True }
                         , col { name = "follower_id", columnType = PUUID, notNull = True }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
                     }
 
@@ -254,35 +253,37 @@ tests = do
             pure ()
 
         it "should parse a CREATE TABLE statement with a multi-column PRIMARY KEY (a, b) constraint" do
-            parseSql "CREATE TABLE user_followers (user_id UUID NOT NULL, follower_id UUID NOT NULL, PRIMARY KEY (user_id, follower_id));"  `shouldBe` CreateTable
+            parseSql "CREATE TABLE user_followers (user_id UUID NOT NULL, follower_id UUID NOT NULL, PRIMARY KEY (user_id, follower_id));"  `shouldBe` StatementCreateTable CreateTable
                     { name = "user_followers"
                     , columns =
                         [ col { name = "user_id", columnType = PUUID, notNull = True }
                         , col { name = "follower_id", columnType = PUUID, notNull = True }
                         ]
-                    , constraints = [ PrimaryKeyConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint [ "user_id", "follower_id" ]
+                    , constraints = []
                     }
 
-        -- Should we also have the following failure or is it better to check it outside of the parser?
-        -- it "should fail to parse a CREATE TABLE statement with PRIMARY KEY column and table constraints" do
-        --     (evaluate (parseSql "CREATE TABLE user_followers (id UUID PRIMARY KEY, PRIMARY KEY(id));")) `shouldThrow` anyException
-        --     pure ()
+        it "should fail to parse a CREATE TABLE statement with PRIMARY KEY column and table constraints" do
+            (evaluate (parseSql "CREATE TABLE user_followers (id UUID PRIMARY KEY, PRIMARY KEY(id));")) `shouldThrow` anyException
+            pure ()
 
         it "should fail to parse a CREATE TABLE statement with an empty PRIMARY KEY () constraint" do
             (evaluate (parseSql "CREATE TABLE user_followers (id UUID, PRIMARY KEY ());")) `shouldThrow` anyException
             pure ()
 
         it "should parse a CREATE TABLE statement with a serial id" do
-            parseSql "CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` CreateTable
+            parseSql "CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` StatementCreateTable CreateTable
                     { name = "orders"
-                    , columns = [ col { name = "id", columnType = PSerial, notNull = True, primaryKey = True} ]
+                    , columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     }
 
         it "should parse a CREATE TABLE statement with a bigserial id" do
-            parseSql "CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` CreateTable
+            parseSql "CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` StatementCreateTable CreateTable
                     { name = "orders"
-                    , columns = [ col { name = "id", columnType = PBigserial, notNull = True, primaryKey = True} ]
+                    , columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     }
 
@@ -290,7 +291,6 @@ col :: Column
 col = Column
     { name = ""
     , columnType = PCustomType ""
-    , primaryKey = False
     , defaultValue = Nothing
     , notNull = False
     , isUnique = False
