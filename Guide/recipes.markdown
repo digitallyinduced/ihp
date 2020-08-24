@@ -116,3 +116,18 @@ export IHP_BROWSER=echo
 ```
 
 This will then just print out the url which would be opened on start.
+
+## Getting a `Id Something` from a `UUID`
+
+Sometimes you have a UUID value which represents some record id. To get the types right, you can transform it like this:
+
+```haskell
+let myUUID = ...
+let projectId = (Id myUUID) :: Id Project
+```
+
+In case the id is hardcoded, you can just type UUID value with the right type signature like this:
+
+```haskell
+let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+```
