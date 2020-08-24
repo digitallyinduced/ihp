@@ -194,13 +194,17 @@ compileData table@(CreateTable { name, columns }) =
 
 -- | Returns all the type arguments of the data structure for an entity
 dataTypeArguments :: (?schema :: Schema) => Statement -> [Text]
-dataTypeArguments table = map columnNameToFieldName (belongsToVariables <> hasManyVariables)
+dataTypeArguments table = (map columnNameToFieldName belongsToVariables) <> hasManyVariables
     where
         belongsToVariables = variableAttributes table |> map (get #name)
-        hasManyVariables = columnsReferencingTable (get #name table) |> map fst
+        hasManyVariables = 
+            columnsReferencingTable (get #name table)
+            |> compileQueryBuilderFields
+            |> map snd
 
+-- | Returns the field names and types for the @data MyRecord = MyRecord { .. }@ for a given table
 dataFields :: (?schema :: Schema) => Statement -> [(Text, Text)]
-dataFields table@(CreateTable { name, columns }) = columnFields <> compileQueryBuilderFields <> [("meta", "MetaBag")]
+dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderFields <> [("meta", "MetaBag")]
     where
         columnFields = columns |> map columnField
 
@@ -213,10 +217,47 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> compileQueryB
                         else haskellType table column
                 )
 
-        compileQueryBuilderFields = columnsReferencingTable name |> map compileQueryBuilderField
+        queryBuilderFields = columnsReferencingTable name |> compileQueryBuilderFields
+
+compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
+compileQueryBuilderFields columns = map compileQueryBuilderField columns
+    where
         compileQueryBuilderField (refTableName, refColumnName) =
-            let fieldName = columnNameToFieldName refTableName
-            in (fieldName, fieldName)
+            let
+                -- Given a relationship like the following:
+                --
+                -- CREATE TABLE referrals (
+                --     user_id UUID NOT NULL,
+                --     referred_user_id UUID DEFAULT uuid_generate_v4() NOT NULL
+                -- );
+                --
+                -- We would have two fields on the @User@ record called @referrals@ which are
+                -- going to be used with fetchRelated (user >>= fetchRelated #referrals).
+                --
+                -- Of course having two fields in the same record does not work, so we have to
+                -- detect these duplicate query builder fields and use a more qualified name.
+                --
+                -- In the example this will lead to two fileds called @referralsUsers@ and @referralsReferredUsers@
+                -- being added to the data structure.
+                hasDuplicateQueryBuilder =
+                    columns
+                    |> map fst
+                    |> map columnNameToFieldName
+                    |> filter (columnNameToFieldName refTableName ==)
+                    |> length
+                    |> (\count -> count > 1)
+
+                stripIdSuffix :: Text -> Text 
+                stripIdSuffix name = fromMaybe name (Text.stripSuffix "_id" name)
+
+                fieldName = if hasDuplicateQueryBuilder
+                    then 
+                        (refTableName <> "_" <> (refColumnName |> stripIdSuffix))
+                        |> columnNameToFieldName
+                        |> Countable.pluralize
+                    else columnNameToFieldName refTableName
+            in
+                (fieldName, fieldName)
 
 
 -- | Finds all the columns referencing a specific table via a foreign key constraint
@@ -391,9 +432,12 @@ compileFromRowInstance table@(CreateTable { name, columns }) =
                                 otherwise -> False
 
                 refColumn :: Column
-                (Just refColumn) = refTable
+                refColumn = refTable
                         |> \case CreateTable { columns } -> columns
                         |> find (\col -> get #name col == refFieldName)
+                        |> \case
+                            Just refColumn -> refColumn
+                            Nothing -> error (cs $ "Could not find " <> get #name refTable <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
 
 
         compileQuery column@(Column { name }) = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
