@@ -432,7 +432,7 @@ instance FromRow #{modelName} where
         isColumn name = name `elem` columnNames
         isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
-        compileSetQueryBuilder (refTableName, refFieldName) = "pure (QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+        compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
             where
                 -- | When the referenced column is nullable, we have to wrap the @Id@ in @Just@
                 primaryKeyField :: Text
@@ -441,12 +441,12 @@ instance FromRow #{modelName} where
                 (Just refTable) = let (Schema statements) = ?schema in
                         statements
                         |> find \case
-                                CreateTable { name } -> name == refTableName
+                                StatementCreateTable CreateTable { name } -> name == refTableName
                                 otherwise -> False
 
                 refColumn :: Column
                 refColumn = refTable
-                        |> \case CreateTable { columns } -> columns
+                        |> \case StatementCreateTable CreateTable { columns } -> columns
                         |> find (\col -> get #name col == refFieldName)
                         |> \case
                             Just refColumn -> refColumn
