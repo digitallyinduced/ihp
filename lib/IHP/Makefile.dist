@@ -79,6 +79,12 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 .DEFAULT_GOAL := help
 RUNGHC=runghc
 
+ifneq ($(wildcard IHP/.*),)
+IHP_LIB = IHP/lib/IHP
+else
+IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
+endif
+
 all: build/ihp-lib build/Generated/Types.hs
 
 .envrc: default.nix ## Rebuild nix packages and .envrc
@@ -97,6 +103,7 @@ psql: ## Connects to the running postgresql server
 
 db: Application/Schema.sql Application/Fixtures.sql ## Creates a new database with the current Schema and imports Fixtures.sql
 	echo "drop schema public cascade; create schema public;" | psql -h $$PWD/build/db -d app
+	psql -h $$PWD/build/db -d app < "${IHP_LIB}/IHPSchema.sql"
 	psql -h $$PWD/build/db -d app < Application/Schema.sql
 	psql -h $$PWD/build/db -d app < Application/Fixtures.sql
 
@@ -143,13 +150,11 @@ print-ghc-extensions: ## Prints all used ghc extensions. Useful for scripting
 help: ## This help page
 	@grep -h -E '^[a-zA-Z_///-\.]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-ifneq ($(wildcard IHP/.*),)
-IHP_LIB = ../IHP/lib/IHP
-else
-IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
-endif
-
 build/ihp-lib: # Used by application .ghci
 	mkdir -p build
 	rm -f build/ihp-lib
+ifneq ($(wildcard IHP/.*),)
+	ln -s ../IHP/lib/IHP build/ihp-lib
+else
 	ln -s ${IHP_LIB} build/ihp-lib
+endif
