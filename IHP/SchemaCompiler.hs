@@ -603,8 +603,8 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                 compileTypePattern' name = tableNameToModelName (get #name table) <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
 
 compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
-compileHasFieldId table@CreateTable { primaryKeyConstraint } = cs [i|
-instance HasField "id" Picture (Id' "pictures") where
+compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
+instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
     getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue}
 |]
     where

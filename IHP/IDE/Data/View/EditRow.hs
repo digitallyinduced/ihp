@@ -10,6 +10,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 import Data.Maybe
+import qualified Data.Text as T
 
 data EditRowView = EditRowView
     { tableNames :: [Text]
@@ -17,7 +18,8 @@ data EditRowView = EditRowView
     , rows :: [[DynamicField]]
     , tableCols :: [ColumnDefinition]
     , rowValues :: [DynamicField]
-    , id :: Text
+    , primaryKeyFields :: [Text]
+    , targetPrimaryKey :: Text
     }
 
 instance View EditRowView ViewContext where
@@ -47,28 +49,30 @@ instance View EditRowView ViewContext where
                 <form method="POST" action={UpdateRowAction}>
                     <input type="hidden" name="tableName" value={tableName}/>
                     {forEach (zip tableCols rowValues) renderFormField}
+                    {forEach (zip primaryKeyFields (T.splitOn "---" targetPrimaryKey)) renderPrimaryKeyInput}
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Edit Row</button>
                     </div>
                 </form>
             |]
-            modalFooter = mempty 
+            modalFooter = mempty
             modalCloseUrl = pathTo ShowTableRowsAction { tableName }
             modalTitle = "Edit Row"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
+            renderPrimaryKeyInput (primaryKeyField, primaryKeyValue) = [hsx|<input type="hidden" name={primaryKeyField <> "-pk"} value={primaryKeyValue}>|]
             renderFormField col = [hsx|
                     <div class="form-group">
                         <label class="row-form">{get #columnName (fst col)}</label>
                         <span style="float:right;">
                             <a class="text-muted row-form">{get #columnType (fst col)}</a>
                         </span>
-                        
+
                         <input
                             type="text"
                             name={get #columnName (fst col)}
                             class="form-control"
-                            value={"'" <> (fromMaybe "" (get #fieldValue (snd col))) <> "'"}
+                            value={fromMaybe "" (get #fieldValue (snd col))}
                             />
                     </div>|]
 
