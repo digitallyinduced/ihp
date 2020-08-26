@@ -55,9 +55,7 @@ instance View ShowTableRowsView ViewContext where
 
             
             isBoolField fieldName = case (find (\c -> get #columnName c == (cs fieldName)) tableCols) of
-                Just columnDef -> if get #columnType columnDef == "boolean"
-                    then True
-                    else False
+                Just columnDef -> get #columnType columnDef == "boolean"
                 Nothing -> False
 
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
