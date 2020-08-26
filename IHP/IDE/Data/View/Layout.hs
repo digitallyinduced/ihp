@@ -1,4 +1,4 @@
-module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows, cleanValue, renderId) where
+module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows, sqlValueToText, renderId, isBoolField) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types hiding (columnNames)
@@ -23,7 +23,11 @@ renderRows rows body tableName = [hsx|
 |]
 
 sqlValueToText :: Maybe ByteString -> Text
-cleanValue (Just value) = cs value
-cleanValue Nothing = "NULL"
+sqlValueToText (Just value) = cs value
+sqlValueToText Nothing = "NULL"
 
 renderId id = take 4 (cs id) <> ".." <> reverse (take 4 (reverse (cs id)))
+
+isBoolField fieldName tableCols = case (find (\c -> get #columnName c == (cs fieldName)) tableCols) of
+    Just columnDef -> (get #columnType columnDef) == "boolean"
+    Nothing -> False

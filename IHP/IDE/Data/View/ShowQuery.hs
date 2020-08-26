@@ -39,6 +39,6 @@ instance View ShowQueryView ViewContext where
 
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
             renderRow fields = [hsx|<tr>{forEach fields renderField}</tr>|]
-            renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{cleanValue fieldValue}</span></td>|]
+            renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{sqlValueToText fieldValue}</span></td>|]
 
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))
