@@ -22,7 +22,7 @@ renderRows rows body tableName = [hsx|
     </table>
 |]
 
-cleanValue :: Maybe ByteString -> Text
+sqlValueToText :: Maybe ByteString -> Text
 cleanValue (Just value) = cs value
 cleanValue Nothing = "NULL"
 
