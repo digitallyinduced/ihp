@@ -131,3 +131,39 @@ In case the id is hardcoded, you can just type UUID value with the right type si
 ```haskell
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 ```
+
+## Making a dynamic Login/Logout button
+
+Depending on the `user` object from the viewContext, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
+
+```haskell
+type Html = HtmlWithContext ViewContext
+
+navbar :: Html
+navbar = [hsx|
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <a class="navbar-brand" href="#">IHP Blog</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item">
+        <a class="nav-link" href={PostsAction}>Posts</a>
+      </li>
+    </ul>
+    {loginLogoutButton}
+  </div>
+</nav>
+|]
+    where
+        loginLogoutButton :: Html
+        loginLogoutButton = case (get #user viewContext) of
+            Just user -> [hsx|<a class="js-delete js-delete-no-confirm text-secondary" href={DeleteSessionAction}>Logout</a>|]
+            Nothing -> [hsx|<a class="text-secondary" href={NewSessionAction}>Login</a>|]
+```
+
+You can see this code in action in the [`auth` branch from our example blog](https://github.com/digitallyinduced/ihp-blog-example-app/blob/auth/Web/View/Layout.hs).
+
+Protip: If the `user` is a `Just user` you can use the user object to run specific actions or retrieve information from it. This way you could display the username of the logged in user above the logout button.
