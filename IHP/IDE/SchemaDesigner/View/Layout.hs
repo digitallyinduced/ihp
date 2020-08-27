@@ -187,7 +187,7 @@ renderValue value valueId enumName = [hsx|
         contextMenuId = "context-menu-value-" <> tshow valueId
 
 renderObjectSelector statements activeObjectName = [hsx|
-    <div class={classes ["col", "object-selector", ("empty", isEmpty statements)]} oncontextmenu="showContextMenu('context-menu-object-root')">
+    <div class={classes ["col", "object-selector", ("empty", isEmptySelector)]} oncontextmenu="showContextMenu('context-menu-object-root')">
         <div class="d-flex">
             <h5>Objects</h5>
         </div>
@@ -200,6 +200,9 @@ renderObjectSelector statements activeObjectName = [hsx|
     </div>
 |]
     where
+        isEmptySelector :: Bool
+        isEmptySelector = statements |> map snd |> filter shouldRenderObject |> isEmpty
+
         renderObject :: Statement -> Int -> Html
         renderObject CreateTable { name } id = [hsx|
         <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
@@ -250,6 +253,10 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject AddConstraint {} id = mempty
         renderObject CreateExtension {} id = mempty
         renderObject statement id = [hsx|<div>{statement}</div>|]
+
+        shouldRenderObject CreateTable {} = True
+        shouldRenderObject CreateEnumType {} = True
+        shouldRenderObject _ = False
 
 removeQuotes :: [Char] -> Text
 removeQuotes (x:xs) = cs (init xs)
