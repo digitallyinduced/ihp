@@ -122,7 +122,7 @@ build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod
 	rm -f build/bin/RunProdServer
 	ln -s `basename $@` build/bin/RunProdServer
 
-build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css ## Full production build with all ghc optimizations (takes a while)
+build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Full production build with all ghc optimizations (takes a while)
 	mkdir -p build/RunOptimizedProdServer
 	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
 	chmod +x $<

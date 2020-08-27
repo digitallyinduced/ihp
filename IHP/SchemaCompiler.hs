@@ -126,6 +126,8 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
                   <> "import Data.Data\n"
+                  <> "import qualified Data.String.Conversions\n"
+                  <> "import qualified Data.Text.Encoding\n"
                   <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
@@ -311,7 +313,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum)\n"
         <> "instance FromField " <> modelName <> " where\n"
         <> indent (unlines (map compileFromFieldInstanceForValue values))
-        <> "    fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\"\n"
+        <> "    fromField field (Just value) = returnError ConversionFailed field (\"Unexpected value for enum value. Got: \" <> Data.String.Conversions.cs value)\n"
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
         <> "instance Default " <> modelName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
@@ -320,7 +322,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
     where
         modelName = tableNameToModelName name
         valueConstructors = map tableNameToModelName values
-        compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = pure " <> tableNameToModelName value
+        compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> tableNameToModelName value
         compileToFieldInstanceForValue value = "toField " <> tableNameToModelName value <> " = toField (" <> tshow value <> " :: Text)"
         compileInputValue value = "inputValue " <> tableNameToModelName value <> " = " <> tshow value <> " :: Text"
 
