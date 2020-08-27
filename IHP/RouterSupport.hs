@@ -87,6 +87,7 @@ class HasPath controller where
 -- "http://localhost:8000/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
 urlTo :: (HasPath action, FrameworkConfig.FrameworkConfig) => action -> Text
 urlTo action = FrameworkConfig.baseUrl <> pathTo action
+{-# INLINE urlTo #-}
 
 class HasPath controller => CanRoute controller where
     parseRoute' :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
@@ -263,6 +264,7 @@ actionPrefix =
 -- >>> stripActionSuffix "User"
 -- "User"
 stripActionSuffix actionName = fromMaybe actionName (stripSuffix "Action" actionName)
+{-# INLINE stripActionSuffix #-}
 
 -- | Returns the create action for a given controller.
 -- Example: `createAction @UsersController == Just CreateUserAction`
@@ -277,7 +279,7 @@ createAction = fmap fromConstr createConstructor
 
         isCreateConstructor :: Constr -> Bool
         isCreateConstructor constructor = "Create" `isPrefixOf` showConstr constructor && ClassyPrelude.null (constrFields constructor)
-
+{-# INLINE createAction #-}
 
 -- | Returns the update action when given a controller and id.
 -- Example: `updateAction @UsersController == Just (\id -> UpdateUserAction id)`
@@ -303,6 +305,7 @@ updateAction =
 
         isUpdateConstructor :: Constr -> Bool
         isUpdateConstructor constructor = "Update" `isPrefixOf` (showConstr constructor) && (length (constrFields constructor) == 1)
+{-# INLINE updateAction #-}
 
 instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => CanRoute controller where
     {-# INLINE parseRoute' #-}
@@ -406,11 +409,11 @@ post path action = do
 
 -- | Defines the start page for a router (when @\/@ is requested).
 startPage action = get "/" action
+{-# INLINE startPage #-}
 
-{-# INLINE withPrefix #-}
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
+{-# INLINE withPrefix #-}
 
-{-# INLINE runApp #-}
 runApp :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived -> IO ResponseReceived
 runApp routes notFoundAction = do
     let path = ?requestContext
@@ -422,28 +425,31 @@ runApp routes notFoundAction = do
     case routedAction of
         Left message -> notFoundAction
         Right action -> action
+{-# INLINE runApp #-}
 
-{-# INLINE frontControllerToWAIApp #-}
 frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
+{-# INLINE frontControllerToWAIApp #-}
 
-{-# INLINE mountFrontController #-}
 mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
+{-# INLINE mountFrontController #-}
 
-{-# INLINE parseRoute #-}
 parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
 parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
+{-# INLINE parseRoute #-}
 
-{-# INLINE catchAll #-}
 catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
 catchAll action = do
     string (actionPrefix @action)
     _ <- takeByteString
     pure (runActionWithNewContext @application action)
+{-# INLINE catchAll #-}
 
+-- | This instances makes it possible to write @<a href={MyAction}/>@ in HSX
 instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
     convertString action = Html5.textValue (pathTo action)
+    {-# INLINE convertString #-}
 
 
 -- | Parses and returns an UUID
@@ -463,7 +469,9 @@ parseId = ModelSupport.Id <$> parseUUID
 -- | Returns all the remaining text until the end of the input
 remainingText :: Parser Text
 remainingText = cs <$> takeByteString
+{-# INLINE remainingText #-}
 
 -- | Parses until the next @/@
 parseText :: Parser Text
 parseText = cs <$> takeTill ('/' ==)
+{-# INLINE parseText #-}

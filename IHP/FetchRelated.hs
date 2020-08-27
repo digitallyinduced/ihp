@@ -3,14 +3,10 @@
 module IHP.FetchRelated (fetchRelated, collectionFetchRelated, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple (Connection)
-import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
-import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
-import Data.Time.Format.ISO8601 (iso8601Show)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import IHP.ModelSupport (GetTableName, ModelContext, GetModelById, Include)
+import IHP.ModelSupport (Include)
 import IHP.QueryBuilder
 
 collectionFetchRelated :: forall model relatedField relatedFieldValue relatedModel. (
@@ -46,6 +42,7 @@ collectionFetchRelated relatedField model = do
         result :: [Include relatedField model]
         result = map assignRelated model
     pure result
+{-# INLINE collectionFetchRelated #-}
 
 fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
@@ -59,6 +56,7 @@ fetchRelated relatedField model = do
     result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
     let model' = updateField @field result model
     pure model'
+{-# INLINE fetchRelated #-}
 
 fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
@@ -74,6 +72,7 @@ fetchRelatedOrNothing relatedField model = do
             Nothing -> pure Nothing
     let model' = updateField @field result model
     pure model'
+{-# INLINE fetchRelatedOrNothing #-}
 
 maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
@@ -84,3 +83,4 @@ maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         Fetchable fieldValue fetchModel
     ) => Proxy field -> Maybe model -> IO (Maybe (Include field model))
 maybeFetchRelatedOrNothing relatedField = maybe (pure Nothing) (\q -> fetchRelatedOrNothing relatedField q >>= pure . Just)
+{-# INLINE maybeFetchRelatedOrNothing #-}
