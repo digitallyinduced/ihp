@@ -140,14 +140,14 @@ instance Fetchable (QueryBuilder model) model where
     fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => QueryBuilder model -> IO [model]
     fetch !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
-        putStrLn $! tshow (theQuery, theParameters)
+        logQuery theQuery theParameters
         sqlQuery (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO (Maybe model)
     fetchOneOrNothing !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
-        putStrLn $! tshow (theQuery, theParameters)
+        logQuery theQuery theParameters
         results <- sqlQuery (Query $ cs theQuery) theParameters
         pure $ listToMaybe results
 
@@ -174,7 +174,7 @@ fetchCount :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) 
 fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
-    putStrLn $! tshow (theQuery, theParameters)
+    logQuery theQuery theParameters
     [PG.Only count] <- sqlQuery (Query $! cs theQuery) theParameters
     pure count
 {-# INLINE fetchCount #-}
@@ -193,7 +193,7 @@ fetchExists :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model))
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT EXISTS FROM (" <> theQuery' <> ") AS _exists_values"
-    putStrLn $! tshow (theQuery, theParameters)
+    logQuery theQuery theParameters
     [PG.Only exists] <- sqlQuery (Query $! cs theQuery) theParameters
     pure exists
 {-# INLINE fetchExists #-}
