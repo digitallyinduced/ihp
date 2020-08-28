@@ -33,7 +33,19 @@ import qualified GHC.Types as Type
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
 
-data ModelContext = ModelContext { databaseConnection :: Connection }
+-- | Provides the db connection and some IHP-specific db configuration
+data ModelContext = ModelContext
+    { databaseConnection :: Connection
+    -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
+    , queryDebuggingEnabled :: Bool
+    }
+
+-- | Provides a mock ModelContext to be used when a database connection is not available
+notConnectedModelContext :: ModelContext
+notConnectedModelContext = ModelContext
+    { databaseConnection = error "Not connected"
+    , queryDebuggingEnabled = False
+    }
 
 type family GetModelById id :: Type where
     GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)
@@ -207,7 +219,7 @@ instance Default (PrimaryKey model) => Default (Id' model) where
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
-sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
+sqlQuery = let ModelContext { databaseConnection } = ?modelContext in PG.query databaseConnection
 {-# INLINE sqlQuery #-}
 
 -- | Returns the table name of a given model.
@@ -221,6 +233,12 @@ tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
 tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
 {-# INLINE tableName #-}
 
+logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()
+logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, parameters)))
+    where
+        ModelContext { queryDebuggingEnabled } = ?modelContext
+            -- Env.isProduction FrameworkConfig.environment
+
 -- | Runs a @DELETE@ query for a record.
 --
 -- >>> let project :: Project = ...
@@ -230,12 +248,12 @@ tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
 -- Use 'deleteRecords' if you want to delete multiple records.
 deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
 deleteRecord model = do
-    let (ModelContext conn) = ?modelContext
+    let ModelContext { databaseConnection}  = ?modelContext
     let id = getField @"id" model
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
-    putStrLn (tshow (theQuery, theParameters))
-    PG.execute conn (PG.Query . cs $! theQuery) theParameters
+    logQuery theQuery theParameters
+    PG.execute databaseConnection (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecord #-}
 
@@ -246,13 +264,13 @@ deleteRecord model = do
 -- DELETE FROM projects WHERE id IN (..)
 deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName record), HasField "id" record id, record ~ GetModelById id, ToField id) => [record] -> IO ()
 deleteRecords records = do
-    let (ModelContext conn) = ?modelContext
+    let ModelContext { databaseConnection } = ?modelContext
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = PG.Only (PG.In (ids records))
     if length records > 10
-        then putStrLn (tshow (theQuery, "More than 10 records"))
-        else putStrLn (tshow (theQuery, theParameters))
-    PG.execute conn (PG.Query . cs $! theQuery) theParameters
+        then logQuery theQuery "More than 10 records"
+        else logQuery theQuery theParameters
+    PG.execute databaseConnection (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecords #-}
 
@@ -262,10 +280,10 @@ deleteRecords records = do
 -- DELETE FROM projects
 deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
 deleteAll = do
-    let (ModelContext conn) = ?modelContext
+    let ModelContext { databaseConnection } = ?modelContext
     let theQuery = "DELETE FROM " <> tableName @record
-    putStrLn (tshow theQuery)
-    PG.execute_ conn (PG.Query . cs $! theQuery)
+    logQuery theQuery ()
+    PG.execute_ databaseConnection (PG.Query . cs $! theQuery)
     pure ()
 {-# INLINE deleteAll #-}
 

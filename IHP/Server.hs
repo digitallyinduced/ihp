@@ -15,7 +15,7 @@ import IHP.ApplicationContext
 import qualified IHP.ControllerSupport as ControllerSupport
 import Database.PostgreSQL.Simple
 import qualified IHP.LoginSupport.Middleware
-import IHP.Environment (isDevelopment)
+import qualified IHP.Environment as Env
 import System.Info
 
 import qualified IHP.FrameworkConfig as FrameworkConfig
@@ -26,11 +26,13 @@ import qualified IHP.ErrorController as ErrorController
 run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
 run = do
     databaseUrl <- appDatabaseUrl
-    conn <- connectPostgreSQL databaseUrl 
+    databaseConnection <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     port <- FrameworkConfig.initAppPort
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let applicationContext = ApplicationContext { modelContext = (ModelContext conn), session }
+    let isDevelopment = Env.isDevelopment FrameworkConfig.environment
+    let modelContext = ModelContext { databaseConnection, queryDebuggingEnabled = isDevelopment }
+    let applicationContext = ApplicationContext { modelContext, session }
     let application :: Application = \request respond -> do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
@@ -47,7 +49,7 @@ run = do
     libDirectory <- cs <$> FrameworkConfig.findLibDirectory
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
 
-    let runServer = if isDevelopment FrameworkConfig.environment
+    let runServer = if isDevelopment
             then
                 let settings = Warp.defaultSettings
                         |> Warp.setBeforeMainLoop (putStrLn "Server started")

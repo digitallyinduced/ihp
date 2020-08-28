@@ -7,6 +7,7 @@ module IHP.ScriptSupport (runScript, Script) where
 
 import IHP.Prelude
 import qualified IHP.FrameworkConfig as Config
+import qualified IHP.Environment as Env
 import IHP.ModelSupport
 import qualified Database.PostgreSQL.Simple as PG
 
@@ -14,14 +15,16 @@ import qualified Database.PostgreSQL.Simple as PG
 type Script = (?modelContext :: ModelContext) => IO ()
 
 -- | Initializes IHP and then runs the script inside the framework context
-runScript :: Script -> IO ()
+runScript :: Config.FrameworkConfig => Script -> IO ()
 runScript taskMain = do
     modelContext <- createModelContext    
     let ?modelContext = modelContext
     taskMain
 
+createModelContext :: Config.FrameworkConfig => IO ModelContext
 createModelContext = do
     databaseUrl <- Config.appDatabaseUrl
-    conn <- PG.connectPostgreSQL databaseUrl 
-    pure (ModelContext conn)
+    databaseConnection <- PG.connectPostgreSQL databaseUrl 
+    let queryDebuggingEnabled = Env.isDevelopment Config.environment
+    pure ModelContext { .. }
     

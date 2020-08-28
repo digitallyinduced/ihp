@@ -71,7 +71,7 @@ startToolServer' port isDebugMode = do
                 , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
                 }
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session    
-    let applicationContext = ApplicationContext { modelContext = (ModelContext (error "Not connected")), session }
+    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
