@@ -72,7 +72,6 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
-        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
@@ -118,9 +117,9 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         tableCols <- fetchTableCols connection tableName
-        let query = "UPDATE " <> tableName <> " SET " <> targetName <> " = NOT " <> targetName <> " WHERE id = '" <> cs id <> "'"
-        putStrLn (query)
-        PG.execute_ connection (PG.Query . cs $! query)
+        let query = PG.Query ("UPDATE ? SET ? = NOT ? WHERE id = ?")
+        let params = (PG.Identifier tableName, PG.Identifier targetName, PG.Identifier targetName, id)
+        PG.execute connection query params
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
         
