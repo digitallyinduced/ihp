@@ -141,27 +141,30 @@ compileStatementPreview statements statement = let ?schema = Schema statements i
 
 compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
 compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
-    compileData table
-    <> compileTypeAlias table
-    <> compileFromRowInstance table
-    <> compileHasTableNameInstance table
-    <> compileGetModelName table
-    <> compilePrimaryKeyInstance table
-    <> section
-    <> compileInclude table
-    <> compileCreate table
-    <> section
-    <> compileUpdate table
-    <> section
-    <> compileBuild table
-    <> if needsHasFieldId table
-            then compileHasFieldId table
-            else ""
-    <> section
-    <> if compileGetAndSetFieldInstances
-            then compileSetFieldInstances table <> compileUpdateFieldInstances table
-            else ""
-    <> section
+    case primaryKeyConstraint table of
+        -- Skip generation of tables with no primary keys
+        PrimaryKeyConstraint [] -> ""
+        _ -> compileData table
+            <> compileTypeAlias table
+            <> compileFromRowInstance table
+            <> compileHasTableNameInstance table
+            <> compileGetModelName table
+            <> compilePrimaryKeyInstance table
+            <> section
+            <> compileInclude table
+            <> compileCreate table
+            <> section
+            <> compileUpdate table
+            <> section
+            <> compileBuild table
+            <> if needsHasFieldId table
+                    then compileHasFieldId table
+                    else ""
+            <> section
+            <> if compileGetAndSetFieldInstances
+                    then compileSetFieldInstances table <> compileUpdateFieldInstances table
+                    else ""
+            <> section
 
 compileStatement _ enum@(CreateEnumType {}) = compileEnumDataDefinitions enum
 compileStatement _ _ = ""
@@ -533,13 +536,13 @@ instance QueryBuilder.FilterPrimaryKey #{tableNameToModelName name} where
     where
         idType :: Text
         idType = case primaryKeyColumns table of
-            [] -> error "Impossible happened in compilePrimaryKeyInstance"
+            [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
             [c] -> colType c
             cs -> "(" <> intercalate ", " (map colType cs) <> ")"
             where colType = atomicType . get #columnType
 
         primaryKeyPattern = case primaryKeyColumns table of
-            [] -> error "Impossible happened in compilePrimaryKeyInstance"
+            [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
             [c] -> get #name c
             cs -> "(Id (" <> intercalate ", " (map (columnNameToFieldName . get #name) cs) <> "))"
 
