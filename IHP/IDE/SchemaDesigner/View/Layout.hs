@@ -257,7 +257,7 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject CreateExtension {} id = mempty
         renderObject statement id = [hsx|<div>{statement}</div>|]
 
-        shouldRenderObject CreateTable {} = True
+        shouldRenderObject (StatementCreateTable CreateTable {}) = True
         shouldRenderObject CreateEnumType {} = True
         shouldRenderObject _ = False
 

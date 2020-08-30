@@ -13,7 +13,6 @@ data EditColumnView = EditColumnView
     , tableName :: Text
     , columnId :: Int
     , column :: Column
-    , primaryKeyExists :: Bool
     , enumNames :: [Text]
     }
 

@@ -40,7 +40,7 @@ instance View ShowTableRowsView ViewContext where
             renderRow fields = [hsx|<tr oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{forEach fields (renderField primaryKey)}</tr>
             <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
                 <a href={EditRowAction tableName primaryKey}>Edit Row</a>
-                <a href={DeleteEntryAction primaryKeyValues tableName} class="js-delete">Delete Row</a>
+                <a href={DeleteEntryAction primaryKey tableName} class="js-delete">Delete Row</a>
                 <div></div>
                 <a href={NewRowAction tableName}>Add Row</a>
             </div>|]

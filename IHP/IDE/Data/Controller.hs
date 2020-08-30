@@ -126,8 +126,8 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         tableCols <- fetchTableCols connection tableName
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
-        let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
-        let query = PG.Query ("UPDATE ? SET ? = NOT ? WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields))
+        let targetPrimaryKeyValues = PG.Escape . cs <$> T.splitOn "---" targetPrimaryKey
+        let query = PG.Query . cs $! "UPDATE ? SET ? = NOT ? WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
         let params = [PG.toField $ PG.Identifier tableName, PG.toField $ PG.Identifier targetName, PG.toField $ PG.Identifier targetName] <> targetPrimaryKeyValues
         PG.execute connection query params
         PG.close connection

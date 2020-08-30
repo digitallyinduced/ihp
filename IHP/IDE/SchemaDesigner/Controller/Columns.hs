@@ -25,7 +25,6 @@ instance Controller ColumnsController where
     action NewColumnAction { tableName } = do
         statements <- readSchema
         let (Just table) = findStatementByName tableName statements
-        let primaryKeyExists = hasPrimaryKey table
         let tableNames = nameList (getCreateTable statements)
         let enumNames = nameList (getCreateEnum statements)
         render NewColumnView { .. }
@@ -61,7 +60,6 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let (Just table) = findStatementByName name statements
-        let primaryKeyExists = hasPrimaryKey table
         let table = findStatementByName tableName statements
         let columns = maybe [] (get #columns . unsafeGetCreateTable) table
         let column = columns !! columnId
@@ -219,17 +217,14 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable on
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
-getCreateTable statements = filter isCreateTable statements
-isCreateTable (StatementCreateTable CreateTable {}) = True
-isCreateTable _ = False
+getCreateTable :: [Statement] -> [CreateTable]
+getCreateTable statements = foldr step [] statements
+  where
+    step (StatementCreateTable createTable) createTables = createTable : createTables
+    step _ createTables = createTables
 
 getCreateEnum statements = filter isCreateEnumType statements
 isCreateEnumType CreateEnumType {} = True
 isCreateEnumType _ = False
 
 nameList statements = map (get #name) statements
-
-hasPrimaryKey (StatementCreateTable CreateTable { primaryKeyConstraint }) =
-  case primaryKeyConstraint of
-    PrimaryKeyConstraint [] -> False
-    _ -> True

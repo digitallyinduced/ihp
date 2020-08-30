@@ -12,7 +12,6 @@ import IHP.IDE.SchemaDesigner.View.Columns.Edit (typeSelector)
 data NewColumnView = NewColumnView
     { statements :: [Statement]
     , tableName :: Text
-    , primaryKeyExists :: Bool
     , tableNames :: [Text]
     , enumNames :: [Text]
     }
@@ -57,13 +56,14 @@ instance View NewColumnView ViewContext where
                             <label class="mx-2" style="font-size: 12px">
                                 <input type="checkbox" name="isUnique" class="mr-1"/>Unique
                             </label>
-                            {primaryKeyCheckbox}
-                            
+                            <label class="mx-2" style="font-size: 12px">
+                                <input type="checkbox" name="primaryKey" class="mr-1"/>Primary Key
+                            </label>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        {defaultSelector}   
+                        {defaultSelector}
                     </div>
 
                     <div class="text-right">
@@ -84,18 +84,13 @@ instance View NewColumnView ViewContext where
                                         <input id="reference" type="checkbox" name="isReference" class="mr-1"/>
                                         <a id="refText">References {tableName}</a>
                                     </label>|]
-                    primaryKeyCheckbox = if primaryKeyExists
-                        then mempty
-                        else [hsx|<label class="mx-2" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-1"/>Primary Key  
-                        </label>|]
                     defaultSelector = [hsx|
                         <select id="defaultSelector" name="defaultValue" class="form-control select2">
                             <option value="" selected={True}>no default</option>
                             <option value="''">""</option>
                         </select>
                     |]
-            modalFooter = mempty 
+            modalFooter = mempty
             modalCloseUrl = pathTo ShowTableAction { tableName }
             modalTitle = "New Column"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
