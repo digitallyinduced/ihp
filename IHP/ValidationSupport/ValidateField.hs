@@ -215,13 +215,16 @@ isPhoneNumber text = Failure "is not a valid phone number (has to start with +, 
 -- >>> isEmail "ॐ@मणिपद्मे.हूँ"
 -- Success
 --
--- >>> isEmail "marc@localhost" -- missing TLD
--- Failure "is not a valid email"
+-- >>> isEmail "marc@localhost" -- Although discouraged by ICANN, dotless TLDs are legal. See https://www.icann.org/news/announcement-2013-08-30-en
+-- Success
 --
 -- >>> isEmail "loremipsum"
 -- Failure "is not a valid email"
+--
+-- >>> isEmail "A@b@c@domain.com"
+-- Failure "is not a valid email"
 isEmail :: Text -> ValidatorResult
-isEmail text | text =~ ("^[^ @]+@[^ @_+]+\\.[^ @_+-]+$" :: Text) = Success
+isEmail text | text =~ ("^[^ @]+@[^ @_+]+\\.?[^ @_+-]+$" :: Text) = Success
 isEmail text = Failure "is not a valid email"
 {-# INLINE isEmail #-}
 
