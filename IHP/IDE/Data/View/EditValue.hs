@@ -21,14 +21,14 @@ data EditValueView = EditValueView
 
 instance View EditValueView ViewContext where
     html EditValueView { .. } = [hsx|
-        <div class="container pt-5">
-            {customQuery ""}
+        <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>
+            {customQuery ""}
         </div>
         {script}
     |]
@@ -55,7 +55,7 @@ instance View EditValueView ViewContext where
                     <input type="hidden" name="tableName" value={tableName}/>
                     <button type="submit" class="d-none">Edit</button>
                 </form></td>|]
-                else [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{fieldValue}</a></span></td>|]
+                else [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{sqlValueToText fieldValue}</a></span></td>|]
             renderValue DynamicField { .. } = [hsx|<input type="hidden" name={fieldName} value={"'" <> fromMaybe "" fieldValue <> "'"}/>|]
             script = preEscapedToHtml [plain|
                 <script>

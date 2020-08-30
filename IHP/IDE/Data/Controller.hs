@@ -30,6 +30,8 @@ instance Controller DataController where
 
         rows :: [[DynamicField]] <- PG.query connection "SELECT * FROM ? ORDER BY id" (PG.Only (PG.Identifier tableName))
 
+        tableCols <- fetchTableCols connection tableName
+
         PG.close connection
         render ShowTableRowsView { .. }
 
@@ -70,7 +72,6 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
-        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
@@ -109,6 +110,18 @@ instance Controller DataController where
         let targetId = cs id
         PG.close connection
         render EditValueView { .. }
+
+    action ToggleBooleanFieldAction { tableName, targetName, id } = do
+        let id :: String = cs (param @Text "id")
+        let tableName = param "tableName"
+        connection <- connectToAppDb
+        tableNames <- fetchTableNames connection
+        tableCols <- fetchTableCols connection tableName
+        let query = PG.Query ("UPDATE ? SET ? = NOT ? WHERE id = ?")
+        let params = (PG.Identifier tableName, PG.Identifier targetName, PG.Identifier targetName, id)
+        PG.execute connection query params
+        PG.close connection
+        redirectTo ShowTableRowsAction { .. }
         
 
 connectToAppDb = do

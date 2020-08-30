@@ -82,6 +82,7 @@ data DataController
     | EditRowAction { tableName :: Text, id :: Text }
     | UpdateRowAction
     | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
+    | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, id :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController
