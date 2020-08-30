@@ -147,6 +147,7 @@ compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCr
     <> compileHasTableNameInstance table
     <> compileGetModelName table
     <> compilePrimaryKeyInstance table
+    <> section
     <> compileInclude table
     <> compileCreate table
     <> section
@@ -522,8 +523,13 @@ compileHasTableNameInstance table@(CreateTable { name }) =
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
-compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) =
-    "type instance PrimaryKey " <> tshow name <> " = " <> idType <> "\n"
+compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = cs [i|
+type instance PrimaryKey #{tshow name} = #{idType}
+
+instance QueryBuilder.FilterPrimaryKey #{tableNameToModelName name} where
+    filterWhereId #{primaryKeyPattern} builder =
+        builder |> #{intercalate " |> " primaryKeyFilters}
+|]
     where
         idType :: Text
         idType = case primaryKeyColumns table of
@@ -531,6 +537,17 @@ compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) =
             [c] -> colType c
             cs -> "(" <> intercalate ", " (map colType cs) <> ")"
             where colType = atomicType . get #columnType
+
+        primaryKeyPattern = case primaryKeyColumns table of
+            [] -> error "Impossible happened in compilePrimaryKeyInstance"
+            [c] -> get #name c
+            cs -> "(Id (" <> intercalate ", " (map (columnNameToFieldName . get #name) cs) <> "))"
+
+        primaryKeyFilters :: [Text]
+        primaryKeyFilters = map primaryKeyFilter $ primaryKeyColumns table
+
+        primaryKeyFilter :: Column -> Text
+        primaryKeyFilter Column {name} = "QueryBuilder.filterWhere (#" <> columnNameToFieldName name <> ", " <> columnNameToFieldName name <> ")"
 
 compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
