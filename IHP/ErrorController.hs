@@ -11,6 +11,7 @@ module IHP.ErrorController
 ) where
 
 import IHP.Prelude hiding (displayException)
+import qualified IHP.Controller.Param as Param
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -68,7 +69,7 @@ handleRouterException exception = do
 
 displayException :: (Show action, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
-    let allHandlers = [ postgresHandler, patternMatchFailureHandler ]
+    let allHandlers = [ postgresHandler, paramNotFoundExceptionHandler, patternMatchFailureHandler ]
     let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
 
     -- Additionally to rendering the error message to the browser we also print out 
@@ -83,7 +84,7 @@ genericHandler :: (Show controller, ?requestContext :: RequestContext) => Except
 genericHandler exception controller additionalInfo = do
     let errorMessage = [hsx|An exception was raised while running the action {tshow controller}{additionalInfo}|]
     let (RequestContext _ respond _ _ _) = ?requestContext
-    let title = H.text (tshow exception)
+    let title = H.string (Exception.displayException exception)
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 postgresHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
@@ -139,6 +140,50 @@ patternMatchFailureHandler exception controller additionalInfo = do
                         codeSample = "    action (" <> tshow controller <> ") = do\n        renderPlain \"Hello World\""
 
             let title = [hsx|Pattern match failed while executing {tshow controller}|]
+            let (RequestContext _ respond _ _ _) = ?requestContext
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+        Nothing -> Nothing
+
+-- Handler for 'IHP.Controller.Param.ParamNotFoundException'
+paramNotFoundExceptionHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+paramNotFoundExceptionHandler exception controller additionalInfo = do
+    case fromException exception of
+        Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
+            let (controllerPath, _) = Text.breakOn ":" (tshow exception)
+
+            let renderParam (paramName, paramValue) = [hsx|<li>{paramName}: {paramValue}</li>|]
+            let solutionHint =
+                    if isEmpty Param.allParams
+                        then [hsx|
+                                This action was called without any parameters at all.
+                                You can pass this parameter by appending <code>?{paramName}=someValue</code> to the URL.
+                            |]
+                        else [hsx|
+                            <p>The following parameters are provided by the request:</p>
+                            <ul>{forEach Param.allParams renderParam}</ul>
+
+                            <p>a) Is there a typo in your call to <code>param {tshow paramName}</code>?</p>
+                            <p>b) You can pass this parameter by appending <code>&{paramName}=someValue</code> to the URL.</p>
+                            <p>c) You can pass this parameter using a form input like <code>{"<input type=\"text\" name=\"" <> paramName <> "\"/>" :: ByteString}</code>.</p>
+                        |]
+            let errorMessage = [hsx|
+                    <h2>
+                        This exception was caused by a call to <code>param {tshow paramName}</code> in {tshow controller}.
+                    </h2>
+                    <p>
+                        A request parameter is just a query parameter like <code>/MyAction?someParameter=someValue&secondParameter=1</code>
+                        or a form input when the request was submitted from a html form or via ajax.
+                    </p>
+                    <h2>Possible Solutions:</h2>
+                    {solutionHint}
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+
+
+
+            let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
             let (RequestContext _ respond _ _ _) = ?requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
