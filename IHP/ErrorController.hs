@@ -148,8 +148,7 @@ patternMatchFailureHandler exception controller additionalInfo = do
 paramNotFoundExceptionHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
-        Just (exception :: Param.ParamNotFoundException) -> Just do
-            let (Param.ParamNotFoundException paramName) = exception
+        Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
 
             let renderParam (paramName, paramValue) = [hsx|<li>{paramName}: {paramValue}</li>|]
