@@ -394,6 +394,29 @@ Given the above example, the rendered form will look like this:
 </form>
 ```
 
+### Select Inputs with Custom Enums
+
+You can use select fields with custom defined enums too.
+
+Given an enum like this:
+
+```sql
+CREATE TYPE CONTENT_TYPE AS ENUM ('video', 'article', 'audio');
+```
+
+We need to define a `CanSelect ContentType` like this:
+
+```haskell
+instance CanSelect ContentType where
+    type SelectValue ContentType = ContentType
+    selectValue value = value
+    
+    selectLabel Video = "Video"
+    selectLabel Article = "Article"
+    selectLabel Audio = "Audio"
+    -- You can also use the following shortcut: selectLabel = tshow
+```
+
 ## Advanced Forms
 
 You can get very far with the built-in form helpers. But sometimes you might need a very custom functionality which is not easily doable with the form helpers. In this case we highly recommend to not use the form helpers for that specific case. Don't fight the tools.
