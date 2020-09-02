@@ -1,3 +1,4 @@
+:set prompt "\ESC[38;5;208m\STXλ>\ESC[m\STX "
 :set -i.
 :set -iConfig
 :set -ibuild
