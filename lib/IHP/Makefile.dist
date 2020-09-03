@@ -158,3 +158,14 @@ ifneq ($(wildcard IHP/.*),)
 else
 	ln -s ${IHP_LIB} build/ihp-lib
 endif
+
+build/bin/Script/%: build/Script/Main/%.hs
+	mkdir -p build/bin/Script
+	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/Script -hidir build/Script
+
+build/Script/Main/%.hs: Application/Script/%.hs
+	mkdir -p build/Script/Main
+	echo "module Main (main) where" > $@
+	echo "import IHP.ScriptSupport" >> $@
+	echo "import Application.Script.$* (run)" >> $@
+	echo "main = runScript run" >> $@
