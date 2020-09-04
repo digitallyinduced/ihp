@@ -25,15 +25,14 @@ tests = do
 
         it "should compile a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     firstname TEXT NOT NULL,
     lastname TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     email TEXT NOT NULL,
     company_id UUID NOT NULL,
     picture_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    PRIMARY KEY(id)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 |]
             let statement = StatementCreateTable CreateTable
@@ -236,7 +235,7 @@ tests = do
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
-            let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    PRIMARY KEY(id),\n    UNIQUE(user_id, follower_id)\n);\n|]
+            let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
             let statement = StatementCreateTable CreateTable
                     { name = "user_followers"
                     , columns =
@@ -250,7 +249,7 @@ tests = do
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a serial id" do
-            let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL NOT NULL,\n    PRIMARY KEY(id)\n);\n|]
+            let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
             let statement = StatementCreateTable CreateTable
                     { name = "orders"
                     , columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
@@ -260,7 +259,7 @@ tests = do
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a bigserial id" do
-            let sql = cs [plain|CREATE TABLE orders (\n    id BIGSERIAL NOT NULL,\n    PRIMARY KEY(id)\n);\n|]
+            let sql = cs [plain|CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n|]
             let statement = StatementCreateTable CreateTable
                     { name = "orders"
                     , columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
