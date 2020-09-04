@@ -6,7 +6,7 @@ module IHP.ControllerSupport
 , getRequestBody
 , getRequestUrl
 , getHeader
-, RequestContext (..)
+, RequestContext (RequestContext)
 , request
 , requestHeaders
 , getFiles

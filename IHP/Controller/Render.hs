@@ -78,7 +78,6 @@ instance MaybeRender (IO ()) where
 {-# INLINE renderPolymorphic #-}
 renderPolymorphic :: forall viewContext jsonType htmlType. (?requestContext :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
-    let RequestContext request _ _ _ _ = ?requestContext
     let headers = Network.Wai.requestHeaders request
     let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
     let send406Error = respondAndExit $ responseLBS status406 [] "Could not find any acceptable response format"
