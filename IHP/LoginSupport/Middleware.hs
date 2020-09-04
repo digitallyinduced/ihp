@@ -20,12 +20,13 @@ import IHP.ModelSupport
 initAuthentication :: forall user.
         ( ?requestContext :: RequestContext
         , ?modelContext :: ModelContext
-        , HasField "id" (NormalizeModel user) (Id user)
         , Typeable (NormalizeModel user)
         , KnownSymbol (GetTableName (NormalizeModel user))
         , KnownSymbol (GetModelName user)
+        , GetTableName (NormalizeModel user) ~ GetTableName user
         , FromRow (NormalizeModel user)
         , PrimaryKey (GetTableName user) ~ UUID
+        , FilterPrimaryKey (NormalizeModel user)
     ) => TypeMap.TMap -> IO TypeMap.TMap
 initAuthentication context = do
     user <- getSessionUUID (sessionKey @user)

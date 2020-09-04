@@ -24,7 +24,7 @@ buildPlan rawControllerName applicationName = do
         Right statements -> pure statements
     let controllerName = tableNameToControllerName rawControllerName
     let modelName = tableNameToModelName rawControllerName
-    pure $ Right $ buildPlan' schema applicationName controllerName modelName 
+    pure $ Right $ buildPlan' schema applicationName controllerName modelName
 
 buildPlan' schema applicationName controllerName modelName =
     let
@@ -40,7 +40,7 @@ buildPlan' schema applicationName controllerName modelName =
         <> viewPlans
 
 data ControllerConfig = ControllerConfig
-    { controllerName :: Text 
+    { controllerName :: Text
     , applicationName :: Text
     , modelName :: Text
     } deriving (Eq, Show)
@@ -52,7 +52,6 @@ controllerInstance ControllerConfig { controllerName, modelName, applicationName
 
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
-
 generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
@@ -61,7 +60,7 @@ generateControllerData config =
         singularName = get #modelName config
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
-    in 
+    in
         "\n"
         <> "data " <> name <> "Controller\n"
         <> "    = " <> pluralName <> "Action\n"
@@ -127,7 +126,7 @@ generateController schema config =
             ""
             <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        " <> modelVariableSingular <> "\n" 
+            <> "        " <> modelVariableSingular <> "\n"
             <> "            |> build" <> singularName <> "\n"
             <> "            |> ifValid \\case\n"
             <> "                Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
@@ -140,7 +139,7 @@ generateController schema config =
             ""
             <> "    action Create" <> singularName <> "Action = do\n"
             <> "        let " <> modelVariableSingular <> " = newRecord @"  <> model <> "\n"
-            <> "        " <> modelVariableSingular <> "\n" 
+            <> "        " <> modelVariableSingular <> "\n"
             <> "            |> build" <> singularName <> "\n"
             <> "            |> ifValid \\case\n"
             <> "                Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
@@ -195,7 +194,7 @@ pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
 
 generateViews :: [Statement] -> Text -> Text -> [GeneratorAction]
-generateViews schema applicationName controllerName' = 
+generateViews schema applicationName controllerName' =
     if null controllerName'
         then []
         else do
@@ -213,4 +212,3 @@ generateViews schema applicationName controllerName' =
 
 isAlphaOnly :: Text -> Bool
 isAlphaOnly text = Text.all (\c -> Char.isAlpha c || c == '_') text
-
