@@ -31,6 +31,7 @@ import qualified Data.ByteString.Char8 as ByteString
 
 import IHP.HtmlSupport.QQ (hsx)
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
+import qualified IHP.ModelSupport as ModelSupport
 
 handleNoResponseReturned :: (Show controller, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -69,7 +70,12 @@ handleRouterException exception = do
 
 displayException :: (Show action, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
-    let allHandlers = [ postgresHandler, paramNotFoundExceptionHandler, patternMatchFailureHandler ]
+    let allHandlers =
+            [ postgresHandler
+            , paramNotFoundExceptionHandler
+            , patternMatchFailureHandler
+            , recordNotFoundExceptionHandler
+            ]
     let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
 
     -- Additionally to rendering the error message to the browser we also print out 
@@ -188,6 +194,49 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
+-- Handler for 'IHP.ModelSupport.RecordNotFoundException'
+recordNotFoundExceptionHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandler exception controller additionalInfo = do
+    case fromException exception of
+        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
+            let (controllerPath, _) = Text.breakOn ":" (tshow exception)
+            let errorMessage = [hsx|
+                    <p>
+                        The following SQL was executed:
+                        <pre class="ihp-error-code">{query}</pre>
+                    </p>
+                    <p>
+                        These query parameters have been used:
+                        <pre class="ihp-error-code">{params}</pre>
+                    </p>
+
+                    <p>
+                        This exception was caused by a call to <code>fetchOne</code> in {tshow controller}.
+                    </p>
+
+                    <h2>Possible Solutions:</h2>
+
+                    <p>
+                        a) Use <span class="ihp-error-inline-code">fetchOneOrNothing</span>. This will return a <span class="ihp-error-inline-code">Nothing</span>
+                        when no results are returned by the database.
+                    </p>
+
+                    <p>
+                        b) Make sure the the data you are querying is actually there.
+                    </p>
+
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+
+
+
+            let title = [hsx|Call to fetchOne failed. No records returned.|]
+            let (RequestContext _ respond _ _ _) = ?requestContext
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+        Nothing -> Nothing
+
 renderError :: _
 renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
@@ -227,6 +276,21 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
         .ihp-error-other-solutions a:hover {
             color: hsla(196, 13%, 80%, 1);
         }
+
+        .ihp-error-inline-code, .ihp-error-code {
+            background-color: rgba(0, 43, 54, 0.5);
+            color: white;
+            border-radius: 3px;
+        }
+
+        .ihp-error-code {
+            padding: 1rem;
+        }
+
+        .ihp-error-inline-code {
+            padding: 3px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -238,9 +302,11 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
             </div>
 
             <div class="ihp-error-other-solutions">
-                <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
+                <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask the IHP Community on StackOverflow</a>
                 <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
-                <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open a GitHub Issue</a>
+                <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open GitHub Issue</a>
+                <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Gitter</a>
+                <a href="https://www.reddit.com/r/IHPFramework/" target="_blank">Reddit</a>
             </div>
         </div>
     </div>
