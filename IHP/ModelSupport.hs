@@ -447,3 +447,11 @@ fieldWithUpdate name model
 
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
+
+
+-- | Thrown by 'fetchOne' when the query result is empty
+data RecordNotFoundException
+    = RecordNotFoundException { queryAndParams :: (Text, [Action]) }
+    deriving (Show)
+
+instance Exception RecordNotFoundException

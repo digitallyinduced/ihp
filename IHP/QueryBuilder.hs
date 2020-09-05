@@ -185,7 +185,9 @@ instance Fetchable (QueryBuilder model) model where
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
     fetchOne !queryBuilder = do
         maybeModel <- fetchOneOrNothing queryBuilder
-        pure $ fromMaybe (error "Cannot find model") maybeModel
+        case maybeModel of
+            Just model -> pure model
+            Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
 
 -- | Returns the count of records selected by the query builder.
 --
