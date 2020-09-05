@@ -302,9 +302,11 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
             </div>
 
             <div class="ihp-error-other-solutions">
-                <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
+                <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask the IHP Community on StackOverflow</a>
                 <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
-                <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open a GitHub Issue</a>
+                <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open GitHub Issue</a>
+                <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Gitter</a>
+                <a href="https://www.reddit.com/r/IHPFramework/" target="_blank">Reddit</a>
             </div>
         </div>
     </div>
