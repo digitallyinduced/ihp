@@ -31,6 +31,7 @@ module IHP.Prelude
 , module Data.IORef
 , module Data.Time.Format
 , null
+, module Control.Exception
 )
 where
 
@@ -61,6 +62,7 @@ import Data.TMap (TMap)
 import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef
 import Data.Time.Format
+import Control.Exception (throw, throwIO, catch)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b
