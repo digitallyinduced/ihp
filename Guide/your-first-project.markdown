@@ -100,7 +100,7 @@ After that, your schema should look like this:
 
 ![Schema Designer First Table](images/first-project/first_table.png)
 
-        
+
 ### Loading the Schema
 
 Next we need to make sure that our database schema with our `posts` table is imported into the local postgresql database. Don't worry, the local development postgresql server is already running. The dev server has conveniently already started it.
@@ -132,7 +132,7 @@ Type "help" for help.
 app=# SELECT * FROM posts;
 
  id | title | body
-----+-------+------
+----|-------|------
 (0 rows)
 
 -- Looks alright! :)
@@ -308,11 +308,11 @@ Our `/EditPost?postId=postId` action. It's pretty much the same as in the `actio
                     redirectTo EditPostAction { .. }
 ```
 
-This action deals with update requests for a specific post. As usual we pattern match on the `postId` and fetch it. 
+This action deals with update requests for a specific post. As usual we pattern match on the `postId` and fetch it.
 
 The interesting part is `buildPost`. It is a helper function defined later in the controller: `buildPost = fill @["title", "body"]`. The `fill` call inside `buildPost` reads the `title` and `body` attributes from the browser request and fills them into the `post` record. The `buildPost` is also the place for validation logic.
 
-`ifValid` returns `Either Post Post`. `Left post` means that e.g. the `title` or `body` did not pass validation. `Right post` means that all parameters could be set on `post` without any errors. 
+`ifValid` returns `Either Post Post`. `Left post` means that e.g. the `title` or `body` did not pass validation. `Right post` means that all parameters could be set on `post` without any errors.
 
 In the error case (`Left post ->`) we just re-render the `EditView`. The `EditView` then tells the user about validation errors.
 
@@ -326,7 +326,7 @@ In the success case (`Right post ->`) we save the updated post to the database (
         post
             |> buildPost
             |> ifValid \case
-                Left post -> render NewView { .. } 
+                Left post -> render NewView { .. }
                 Right post -> do
                     post <- post |> createRecord
                     setSuccessMessage "Post created"
@@ -564,7 +564,7 @@ in
     haskellEnv
 ```
 
-Stop the development server by pressing CTRL+C. Then update the local development environment by running `make -B .envrc`. This will download and install the mmark package. Now restart the development server by typing `./start` again.
+This change will be picked up by `lorri`, a tool that manages our development environment. `lorri` will download and install the mmark package, and the development server will automatically restart itself once `lorri` is done.
 
 #### Markdown Rendering
 
@@ -731,7 +731,7 @@ data CommentsController
     -- ...
 ```
 
-After making this change, we can see some type errors in the browser. This is because all references to `NewCommentAction` now need to be passed the `postId` value. Think of these type errors as a todo list of changes to be made, reported to us by the compiler. 
+After making this change, we can see some type errors in the browser. This is because all references to `NewCommentAction` now need to be passed the `postId` value. Think of these type errors as a todo list of changes to be made, reported to us by the compiler.
 
 Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment</a>` to:
 
@@ -817,7 +817,7 @@ Because the error view is rendering our `NewView` in an error case, we also have
         -- ...
                 Left comment -> do
                     post <- fetch (get #postId comment) -- <---- NEW
-                    render NewView { .. } 
+                    render NewView { .. }
                 Right comment -> - ....
 ```
 

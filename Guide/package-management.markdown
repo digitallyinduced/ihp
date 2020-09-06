@@ -65,15 +65,9 @@ in
     haskellEnv
 ```
 
-Run `nix-shell` to see that your project still builds fine. After that run `make -B .envrc` to rebuild the dev env used by IHP. Now you can run `./start` again to start the dev server. The `mmark` can now be used as expected:
+If the `./start` script is already running, then our change will be picked up by `lorri`, a tool that manages our development environment. `lorri` will download and install the mmark package, and the development server will automatically restart itself once `lorri` is done.
 
-```bash
-nix-shell
-# All good? Proceed
-make -B .envrc
-./start
-```
-
+You can also update the environment without the `./start` script using `lorri watch --once`.
 
 ## Using a Native Dependency
 
@@ -132,7 +126,7 @@ let
         otherDeps = p: with p; [
 
             imagemagick # <-----------------------
-            
+
         ];
         projectPath = ./.;
     };
@@ -140,9 +134,11 @@ in
     haskellEnv
 ```
 
-If running, stop your development server. Now run `make -B .envrc`. This will install imagemagick locally to your project.
+Again, if `./start` is running, `lorri` will download and install the package and put it into development environment.
 
-When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
+You can also update the environment without the `./start` script using `lorri watch --once`.
+
+When you are inside the project with your terminal, you can call `imagemagick` to see that it's available.
 
 You can look up the package name for the software you depend on inside the nixpkgs repository. [Just open it on GitHub](https://github.com/NixOS/nixpkgs) and use the GitHub search to look up the package name.
 
@@ -292,10 +288,10 @@ let
 
 After that try to run `nix-shell` again. This will most likely work now.
 
-When the run of `nix-shell` succeeds, you also need to run `make -B .envrc` to rebuild the `.envrc` file. Otherwise the new package might not be visible to all tools:
+When the run of `nix-shell` succeeds, you also need to run `lorri watch --once` to add the package to the environment, making it visible to all tools:
 
 ```bash
-make -B .envrc
+lorri watch --once
 ```
 
 ### Stopping Nix From Running Tests for a Haskell Dependency
@@ -348,7 +344,7 @@ All projects using IHP are using a specific pinned version of nixpkgs. You can f
 
 All nix packages installed for your project are using this specific version of nixpkgs.
 
-You can change the nixpkgs version by updating the `nixPkgsRev` and `nixPkgsSha256` to your custom values and then running `make -B .envrc` to rebuild the dev env.
+You can change the nixpkgs version by updating the `nixPkgsRev` and `nixPkgsSha256` to your custom values and then running `lorri watch --once` to rebuild the dev env.
 
 We highly recommend to only use nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally you will need to build a lot of packages from source as they will not be available in the digitally induced binary cache.
 
