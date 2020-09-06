@@ -258,7 +258,7 @@ notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
     forM_ clients $ \connection -> do
         let errorContainer = renderErrorView standardOutput errorOutput isCompiling
         let html = Blaze.renderHtml errorContainer
-        (Websocket.sendTextData connection html) `catch` ignoreException
+        (Websocket.sendTextData connection html) `ClassyPrelude.catch` ignoreException
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do
