@@ -88,11 +88,6 @@ endif
 
 all: build/ihp-lib build/Generated/Types.hs
 
-.envrc: default.nix ## Rebuild nix packages and .envrc
-	rm -f .envrc
-	echo "PATH_add $$(nix-shell -j auto --cores 0 --pure --run 'printf %q $$PATH')" > .envrc
-	direnv allow
-
 build/bin:
 	mkdir -p build/bin
 
@@ -134,7 +129,6 @@ clean: ## Resets all build and temporary files
 	rm -rf build/bin
 	rm -rf IHP/IHP/static/node_modules
 	rm -rf build/db
-	rm -f .envrc
 
 static/prod.js: $(JS_FILES) ## Builds the production js bundle
 	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@

@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -e
+
 echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
@@ -100,6 +102,20 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
+if ! [ -x "$(command -v lorri)" ]; then
+	  echo -e "\e[1m\e[35mLORRI MISSING\e[0m"
+	  echo -e "IHP uses lorri to manage your development environment.";
+	  echo ""
+	  echo ""
+	  echo -e "\e[1mWe will install lorri for you now using 'nix-env -i lorri'. Continue? (Type y to proceed) \e[0m"
+	  read -n1 choice
+	  echo ""
+	  case "$choice" in
+	      y|Y ) nix-env -iA ${NIXPKGS_ATTR}.lorri;;
+	      * ) echo -e "\e[31mPlease install lorri manually and then re-run this program.\e[0m"; exit 1;;
+	  esac
+fi
+
 echo "We will now create your project. This may take up to 30 seconds."
 grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf || {
 	cachix use digitallyinduced
@@ -110,6 +126,10 @@ cd "$PROJECT_NAME"
 rm -rf ".git"
 
 nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
+lorri init
+direnv allow
+lorri watch --once
+
 echo "🚀 Project created, happy coding :)"
 echo "You can start the server by running:"
 echo "  cd $PROJECT_NAME"
