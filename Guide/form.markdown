@@ -281,7 +281,7 @@ This will render like:
 
 Using the `fieldInput`, which is passed as an argument, you can access the other options of the form. Don't set the `class` attribute on your custom field input, as this will break rendering.
 
-#### Cutom name attribute
+#### Custom name attribute
 
 By default the field name is used for the `name` attribute of the input element. You can override it like this:
 
@@ -299,7 +299,7 @@ This will render like:
 </div>
 ```
 
-#### Cutom id attribute
+#### Custom id attribute
 
 You can override the auto-generated id value like this:
 
