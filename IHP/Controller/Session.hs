@@ -32,6 +32,13 @@ getSession name = do
         (RequestContext request _ _ _ session) = ?requestContext
         Just (sessionLookup, _) = Vault.lookup session (Network.Wai.vault request)
 
+
+getSessionAndClear :: (?requestContext :: RequestContext) => Text -> IO (Maybe Text)
+getSessionAndClear name = do
+    value <- getSession name
+    when (isJust value) (setSession name "")
+    pure value
+
 getSessionInt :: (?requestContext :: RequestContext) => Text -> IO (Maybe Int)
 getSessionInt name = do
     value <- getSession name
