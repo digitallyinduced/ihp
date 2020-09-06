@@ -196,7 +196,7 @@ IHP uses the Haskell WAI standard for dealing with HTTP request and responses. Y
 
 Take a look at [the Wai documentation](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html) to see what you can do with the Wai `Request`:
 
-```
+```haskell
 action ExampleAction = do
     let requestBody = request |> getRequestBodyChunk
 ```
@@ -205,8 +205,11 @@ IHP provides a few shortcuts for commonly used request data:
 
 ```haskell
 action ExampleAction = do
-    -- Use `getRequestUrl` for accessing the current request path
-    putStrLn ("Current request url: " <> tshow getRequestUrl)
+    -- Use `getRequestPath` for accessing the current request path (e.g. /Users)
+    putStrLn ("Current request url: " <> tshow getRequestPath)
+
+    -- Use `getRequestPathAndQuery` for accessing the path with all parameters (e.g. /ShowUser?userId=...)
+    putStrLn ("Current request url: " <> tshow getRequestPathAndQuery)
 
     -- Access the request body
     body <- getRequestBody
@@ -221,7 +224,7 @@ Use `getHeader` to access a request header:
 
 ```haskell
 action ExampleAction = do
-    userAgent <- getHeader "User-Agent"
+    let userAgent = getHeader "User-Agent"
 ```
 
 In this example, when the `User-Agent` header is not provided by the request
