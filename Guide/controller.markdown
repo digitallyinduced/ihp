@@ -271,7 +271,7 @@ Use `renderFile path contentType` to respond with a static file:
 
 ```haskell
 action ExampleAction = do
-    respondFile "static/terms.pdf" "application/pdf"
+    renderFile "static/terms.pdf" "application/pdf"
 ```
 
 ### Rendering a Not Found Message
