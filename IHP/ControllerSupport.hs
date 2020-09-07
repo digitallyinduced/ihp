@@ -4,7 +4,8 @@ module IHP.ControllerSupport
 ( Action'
 , (|>)
 , getRequestBody
-, getRequestUrl
+, getRequestPath
+, getRequestPathAndQuery
 , getHeader
 , RequestContext (RequestContext)
 , request
@@ -108,13 +109,29 @@ runActionWithNewContext controller = do
 getRequestBody :: (?requestContext :: RequestContext) => IO ByteString
 getRequestBody = Network.Wai.getRequestBodyChunk request
 
-{-# INLINE getRequestUrl #-}
-getRequestUrl :: (?requestContext :: RequestContext) => ByteString
-getRequestUrl = Network.Wai.rawPathInfo request
+-- | Returns the request path, e.g. @/Users@ or @/CreateUser@
+getRequestPath :: (?requestContext :: RequestContext) => ByteString
+getRequestPath = Network.Wai.rawPathInfo request
+{-# INLINE getRequestPath #-}
 
-{-# INLINE getHeader #-}
+-- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
+getRequestPathAndQuery :: (?requestContext :: RequestContext) => ByteString
+getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQueryString request
+{-# INLINE getRequestPathAndQuery #-}
+
+-- | Returns a header value for a given header name. Returns Nothing if not found
+--
+-- The header is looked up in a case insensitive way.
+--
+-- >>> getHeader "Content-Type"
+-- Just "text/html"
+--
+-- >>> getHeader "X-My-Custom-Header"
+-- Nothing
+--
 getHeader :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
+{-# INLINE getHeader #-}
 
 -- | Returns the current HTTP request.
 --

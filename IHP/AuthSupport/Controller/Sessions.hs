@@ -90,7 +90,7 @@ createSessionAction = do
                     user <- user
                             |> set #failedLoginAttempts 0
                             |> updateRecord
-                    redirectUrl <- getSession "IHP.LoginSupport.redirectAfterLogin"
+                    redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
                     redirectToPath (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
                 else do
                     setErrorMessage "Incorrect Password"
