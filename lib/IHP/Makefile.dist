@@ -168,5 +168,6 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	mkdir -p build/Script/Main
 	echo "module Main (main) where" > $@
 	echo "import IHP.ScriptSupport" >> $@
+	echo "import qualified Config" >> $@
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript run" >> $@
