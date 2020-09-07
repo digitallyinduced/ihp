@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -e
+
+NIXPKGS_ATTR="nixpkgs"
+
+if [ -f /etc/os-release ]; then
+	grep '^ID=nixos$' /etc/os-release >/dev/null 2>&1 && NIXPKGS_ATTR="nixos"
+fi
+
+BOILERPLATE_GIT_URL="https://github.com/digitallyinduced/ihp-boilerplate.git"
+
+if ! [ -x "$(command -v lorri)" ]; then
+	  echo -e "\e[1m\e[35mLORRI MISSING\e[0m"
+	  echo -e "IHP uses lorri to manage your development environment.";
+	  echo ""
+	  echo ""
+	  echo -e "\e[1mWe will install lorri for you now using 'nix-env -i lorri'. Continue? (Type y to proceed) \e[0m"
+	  read -n1 choice
+	  echo ""
+	  case "$choice" in
+	      y|Y ) nix-env -iA ${NIXPKGS_ATTR}.lorri;;
+	      * ) echo -e "\e[31mPlease install lorri manually and then re-run this program.\e[0m"; exit 1;;
+	  esac
+fi
+
+git clone --quiet --depth=1 "$BOILERPLATE_GIT_URL" -- master-boilerplate
+trap "rm -rf master-boilerplate" SIGINT SIGTERM EXIT
+
+if [[ ! -f shell.nix || $(diff shell.nix master-boilerplate/shell.nix) ]]
+then
+    echo -e "\e[1mWe will update shell.nix to the latest version from the project template. This will overwrite any manual changes, so proceed with caution. Continue? (Type y to proceed) \e[0m"
+    read -n1 choice
+    echo ""
+    case "$choice" in
+        y|Y ) cp master-boilerplate/shell.nix .;;
+        * ) echo -e "\e[31mPlease update shell.nix manually from https://github.com/digitallyinduced/ihp-boilerplate and then re-run this program.\e[0m"; exit 1;;
+    esac
+fi
+
+if [[ ! -f start || $(diff start master-boilerplate/start) ]]
+then
+    echo -e "\e[1mWe will update start to the latest version from the project template. This will overwrite any manual changes, so proceed with caution. Continue? (Type y to proceed) \e[0m"
+    read -n1 choice
+    echo ""
+    case "$choice" in
+        y|Y ) cp master-boilerplate/start .;;
+        * ) echo -e "\e[31mPlease update start manually from https://github.com/digitallyinduced/ihp-boilerplate and then re-run this program.\e[0m"; exit 1;;
+    esac
+fi
+
+rm -rf master-boilerplate
+
+lorri init
+direnv allow

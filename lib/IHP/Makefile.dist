@@ -2,7 +2,7 @@
 
 # Use bash as we sometimes use bash specific syntax, like pipefail below
 #SHELL=/bin/bash
-#.SHELLFLAGS := -eu -o pipefail -c  
+#.SHELLFLAGS := -eu -o pipefail -c
 .ONESHELL:
 
 MAKEFLAGS += --warn-undefined-variables
@@ -86,7 +86,10 @@ else
 IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
 endif
 
-all: build/ihp-lib build/Generated/Types.hs
+all: update build/ihp-lib build/Generated/Types.hs
+
+.envrc:
+	echo "The '.envrc' approach has been replaced with 'lorri'. Use 'lorri watch --once' instead."
 
 build/bin:
 	mkdir -p build/bin
@@ -129,6 +132,7 @@ clean: ## Resets all build and temporary files
 	rm -rf build/bin
 	rm -rf IHP/IHP/static/node_modules
 	rm -rf build/db
+	rm -f .envrc
 
 static/prod.js: $(JS_FILES) ## Builds the production js bundle
 	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@
@@ -164,3 +168,6 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import IHP.ScriptSupport" >> $@
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript run" >> $@
+
+update: clean
+	${IHP_LIB}/prepare-lorri
