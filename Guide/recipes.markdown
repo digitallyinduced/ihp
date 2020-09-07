@@ -170,7 +170,23 @@ Protip: If the `user` is a `Just user` you can use the user object to run specif
 
 ## Making a HTTP request
 
-To make a HTTP request, you need `Wreq`.
+To make a HTTP request, you need `Wreq`. You need to add it to your haskell dependencies in the `default.nix` file, like here:
+
+```bash
+...
+haskellDeps = p: with p; [
+    cabal-install
+    base
+    wai
+    text
+    hlint
+    p.ihp
+    wreq <-- Add this
+];
+...
+```
+
+Then you need to import it in your controller/script:
 
 ```haskell
 import qualified Network.Wreq as Wreq
