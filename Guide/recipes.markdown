@@ -167,3 +167,24 @@ navbar = [hsx|
 You can see this code in action in the [`auth` branch from our example blog](https://github.com/digitallyinduced/ihp-blog-example-app/blob/auth/Web/View/Layout.hs).
 
 Protip: If the `user` is a `Just user` you can use the user object to run specific actions or retrieve information from it. This way you could display the username of the logged in user above the logout button.
+
+## Making a HTTP request
+
+To make a HTTP request, you need `Wreq`.
+
+```haskell
+import qualified Network.Wreq as Wreq
+```
+
+To simply fetch and render another website, you could use a function like this:
+
+```haskell
+handleFetchAction :: _ => Text -> _
+handleFetchAction url = do
+    documentBody <- do
+        response <- Wreq.get (cs url)
+        pure (response ^. Wreq.responseBody)
+    renderPlain (cs documentBody)
+```
+
+When using `handleFetchAction "https://google.com/"`, your app would display the google homepage.
