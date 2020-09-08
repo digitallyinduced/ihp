@@ -24,5 +24,5 @@ jobs:
           echo '$new_content_with_ref = preg_replace("/ihp = builtins.fetchGit {/", "ihp = builtins.fetchGit {\\n        ref = \"*\";", $new_content);' >> replace.php
           echo "file_put_contents('./default.nix', \$new_content_with_ref);" >> replace.php
           echo "?>" >> replace.php
-          php replace.php "\"${GITHUB_SHA}\""
+          php replace.php $GITHUB_SHA
           nix-shell --run "echo 'It worked'"
