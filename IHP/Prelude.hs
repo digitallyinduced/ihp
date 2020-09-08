@@ -45,7 +45,7 @@ import GHC.Records
 import qualified Prelude
 import qualified Data.Text as Text
 import Data.Proxy (Proxy (Proxy))
-import Control.Monad (when, unless, mapM, mapM_, forM, forM_, sequence, sequence_, join)
+import Control.Monad (when, unless, mapM, mapM_, forM, forM_, sequence, sequence_, join, forever)
 import Data.List hiding (head, last, unwords, unlines, words, lines, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, (++), splitAt, null)
 import qualified Data.List as List
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
