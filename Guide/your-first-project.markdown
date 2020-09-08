@@ -777,7 +777,7 @@ Open `Web/Controller/Comments` and add the missing `{ postId }` in the pattern m
 
 Now all type errors should be fixed.
 
-Open http://localhost:8000/Posts and open the Show View of a post by clicking `Show`. Now Click `Add Comment`. Now take a look at the URL, it will something like:
+Open http://localhost:8000/Posts and open the Show View of a post by clicking its title. Now Click `Add Comment`. Take a look at the URL, it will something like:
 
 ```html
 http://localhost:8000/NewComment?postId=7f37115f-c850-4fcb-838f-1971cea0544e
@@ -887,7 +887,7 @@ It will display something like this:
 
 ![Redirect is working](images/first-project/show_post_comments_querybuilder.png)
 
-This is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")`. But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to acutally fetch them for us.
+What is shown is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")` (this representation changes a bit between versions still, so don't worry if yours does not look exactly like this). But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to acutally fetch them for us.
 
 Inside the `Show.hs` we need to update the type signature to tell our action what we want. Right now we have:
 ```haskell
