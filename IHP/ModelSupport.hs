@@ -32,6 +32,7 @@ import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
+import qualified Data.Aeson as Aeson
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -455,3 +456,6 @@ data RecordNotFoundException
     deriving (Show)
 
 instance Exception RecordNotFoundException
+
+instance Default Aeson.Value where
+    def = Aeson.Null

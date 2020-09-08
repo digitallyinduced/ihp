@@ -89,5 +89,6 @@ data PostgresType
     | PCharacterN Int
     | PSerial
     | PBigserial
+    | PJSONB
     | PCustomType Text
     deriving (Eq, Show)

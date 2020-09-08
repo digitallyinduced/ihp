@@ -200,6 +200,7 @@ sqlType = choice
         , varchar
         , serial
         , bigserial
+        , jsonb
         , customType
         ]
             where
@@ -309,6 +310,10 @@ sqlType = choice
                 bigserial = do
                     try (symbol' "BIGSERIAL")
                     pure PBigserial
+
+                jsonb = do
+                    try (symbol' "JSONB")
+                    pure PJSONB
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))

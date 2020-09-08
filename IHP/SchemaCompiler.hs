@@ -54,6 +54,7 @@ atomicType :: PostgresType -> Text
 atomicType = \case
     PInt -> "Int"
     PBigInt -> "Integer"
+    PJSONB -> "Data.Aeson.Value"
     PText -> "Text"
     PBoolean   -> "Bool"
     PTimestampWithTimezone -> "UTCTime"
@@ -134,6 +135,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import Data.Data\n"
                   <> "import qualified Data.String.Conversions\n"
                   <> "import qualified Data.Text.Encoding\n"
+                  <> "import qualified Data.Aeson\n"
                   <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text

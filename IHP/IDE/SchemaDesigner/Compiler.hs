@@ -98,6 +98,7 @@ compilePostgresType (PVaryingN limit) = "CHARACTER VARYING(" <> show limit <> ")
 compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
+compilePostgresType PJSONB = "JSONB"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text
