@@ -62,6 +62,7 @@ GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
 GHC_OPTIONS+= -package ihp
+GHC_OPTIONS+= -rtsopts=all
 
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
 PROD_GHC_OPTIONS+= -optc-O3
@@ -73,7 +74,6 @@ PROD_GHC_OPTIONS+= -fspec-constr-keen
 PROD_GHC_OPTIONS+= -fspecialise-aggressively
 PROD_GHC_OPTIONS+= -fstatic-argument-transformation
 PROD_GHC_OPTIONS+= -fmax-worker-args=200
-PROD_GHC_OPTIONS+= -rtsopts=all
 PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 
