@@ -119,7 +119,7 @@ data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
         selectFrom :: !Text,
         whereCondition :: !(Maybe Condition),
-        orderByClause :: !(Maybe (Text, OrderByDirection)),
+        orderByClause :: !([(Text, OrderByDirection)]),
         limitClause :: !(Maybe Text)
     }
 
@@ -129,7 +129,7 @@ buildQuery !queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolVal @(GetTableName model) Proxy
-            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = Nothing, limitClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = [], limitClause = Nothing }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = buildQuery queryBuilder
@@ -138,13 +138,13 @@ buildQuery !queryBuilder =
                 query { whereCondition = Just $ case whereCondition query of Just c -> AndCondition c condition; Nothing -> condition }
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
             let query = buildQuery queryBuilder
-            in query { orderByClause = Just (fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection) }
+            in query { orderByClause = (orderByClause query) ++ [(fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection)] } -- although adding to the end of a list is bad form, these lists are very short
         IncludeQueryBuilder include queryBuilder -> buildQuery queryBuilder
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
             let
                 firstQuery = buildQuery firstQueryBuilder
                 secondQuery = buildQuery secondQueryBuilder
-                isSimpleQuery query = isNothing (orderByClause query) && isNothing (limitClause query)
+                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query)
                 isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                 unionWhere =
                     case (whereCondition firstQuery, whereCondition secondQuery) of
@@ -277,8 +277,8 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
                 Nothing -> mempty
         orderByClause' =
             case orderByClause of
-                Just (column, direction) -> " ORDER BY " <> column <> (if direction == Desc then " DESC" else mempty)
-                Nothing -> mempty
+                [] -> mempty
+                xs -> " ORDER BY " <> intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
         limitClause' = fromMaybe "" limitClause
 
 {-# INLINE compileConditionQuery #-}
