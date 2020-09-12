@@ -49,7 +49,9 @@ data Action =
     | UpdateLiveReloadNotificationServerState LiveReloadNotificationServerState
     | UpdateFileWatcherState FileWatcherState
     | UpdateToolServerState ToolServerState
+    | UpdateLorriWatcherState LorriWatcherState
     | PauseApp
+    | RestartServer
     deriving (Show)
 
 data PostgresState
@@ -118,6 +120,14 @@ instance Show ToolServerState where
     show ToolServerNotStarted = "NotStarted"
     show ToolServerStarted {} = "Started"
 
+data LorriWatcherState
+    = LorriWatcherNotStarted
+    | LorriWatcherStarted { thread :: Async () }
+
+instance Show LorriWatcherState where
+    show LorriWatcherNotStarted = "NotStarted"
+    show LorriWatcherStarted {} = "Started"
+
 
 instance Show (IORef x) where show _ = "(..)"
 instance Show ProcessHandle where show _ = "(..)"
@@ -130,9 +140,10 @@ data AppState = AppState
     , liveReloadNotificationServerState :: LiveReloadNotificationServerState
     , fileWatcherState :: FileWatcherState
     , toolServerState :: ToolServerState
+    , lorriWatcherState :: LorriWatcherState
     } deriving (Show)
 
-emptyAppState :: AppState 
+emptyAppState :: AppState
 emptyAppState = AppState
     { postgresState = PostgresNotStarted
     , appGHCIState = AppGHCINotStarted
@@ -140,6 +151,7 @@ emptyAppState = AppState
     , liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted
     , fileWatcherState = FileWatcherNotStarted
     , toolServerState = ToolServerNotStarted
+    , lorriWatcherState = LorriWatcherNotStarted
     }
 
 data Context = Context
