@@ -146,7 +146,7 @@ hasParam = isJust . queryOrBodyParam
 -- When calling @GET /Users@ the variable @page@ will be set to the default value @0@.
 --
 -- > action UsersAction = do
--- >     let page :: Int = paramOrDefault "page" 0
+-- >     let page :: Int = paramOrDefault 0 "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
 paramOrDefault :: (?requestContext :: RequestContext) => ParamReader a => a -> ByteString -> a
