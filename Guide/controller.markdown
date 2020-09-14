@@ -78,7 +78,7 @@ When the parameter is optional, use `paramOrDefault`:
 
 ```haskell
 action UsersAction = do
-    let maxItems = paramOrDefault @Int "maxItems" 50
+    let maxItems = paramOrDefault @Int 50 "maxItems"
 ```
 
 When this action is called without the `maxItems` parameter being set (or when invalid), it will fall back to the default value `50`.
@@ -127,7 +127,7 @@ This will pass the firstname `"Tester"` to our view.
 We can also make it act more dynamically and allow the user to specify the firstname via a query parameter:
 ```haskell
 action ExampleAction = do
-    let firstname = paramOrDefault @Text "firstname" "Unnamed"
+    let firstname = paramOrDefault @Text "Unnamed" "firstname"
     render ExampleView { .. }
 ```
 
