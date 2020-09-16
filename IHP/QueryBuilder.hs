@@ -220,11 +220,11 @@ fetchCount !queryBuilder = do
 -- >     hasUnreadMessages <- query @Message
 -- >         |> filterWhere (#isUnread, True)
 -- >         |> fetchExists
--- >     -- SELECT EXISTS FROM (SELECT * FROM messages WHERE is_unread = true)
+-- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
 fetchExists :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Bool
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
-    let theQuery = "SELECT EXISTS FROM (" <> theQuery' <> ") AS _exists_values"
+    let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
     logQuery theQuery theParameters
     [PG.Only exists] <- sqlQuery (Query $! cs theQuery) theParameters
     pure exists
