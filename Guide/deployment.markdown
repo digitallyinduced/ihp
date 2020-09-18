@@ -141,8 +141,9 @@ Copy your application source code to the build server. If you're using `git` to 
 Make required modifications to your `Config/Config.hs`:
 
 1. Switch `environment = Development` to `environment = Production`
-2. Set `baseUrl = "https://YOUR_HOSTNAME"`
+2. Set `appHostname = "https://YOUR_HOSTNAME"`
 3. Configure any custom settings
+(This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
 
 To configure your database connection: Set the env var `DATABASE_URL` to your postgres connection url. 
 Set the env var `PORT` to the port the app will listen on.
