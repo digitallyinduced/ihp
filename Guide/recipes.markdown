@@ -77,6 +77,43 @@ This accepts any kind of image file compatible with imagemagick, resize it, redu
 
 In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
 
+There is currently no special form helper for file uploads. Just specificy it manually like this:
+
+```haskell
+instance View EditView ViewContext where
+    html EditView { .. } = [hsx|
+        <h1>Profil bearbeiten</h1>
+
+        {renderForm user}
+    |]
+        where
+            picturePath :: Text
+            picturePath = get #pictureUrl user
+
+            renderForm :: User -> Html
+            renderForm user = formFor user [hsx|
+                <div>
+                    <h5>
+                        Profilfoto
+                    </h5>
+
+                    <div style="max-width: 300px">
+                        <div class="form-group">
+                            <label for="user_picture_url">
+                                <img id="user_picture_url_preview" src={picturePath} style="width: 12rem; min-height: 12rem; min-width: 12rem" class="mt-2 img-thumbnail text-center text-muted" alt="Foto auswählen"/>
+                                <input id="user_picture_url" type="file" name="pictureUrl" class="form-control form-control-file" style="display: none" data-preview="#user_picture_url_preview"/>
+                                <a class="d-block text-muted text-center" href="#" onclick="document.getElementById('user_picture_url_preview').click()">Neues Foto auswählen</a>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {(textField #firstname) { fieldLabel = "Vorname:" }}
+                {(textField #lastname) { fieldLabel = "Nachname:" }}
+                {submitButton { label = "Speichern" }}
+            |]
+```
+
 ## Checking that the current user has permission to access the action
 
 Use [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
