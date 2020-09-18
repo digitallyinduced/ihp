@@ -107,7 +107,7 @@ common shared-properties
         , StandaloneDeriving
     ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 -threaded
 
-library IHPFramework
+library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules:
@@ -222,36 +222,36 @@ library IHPFramework
 
 executable RunDevServer
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
 
 executable new-application
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewApplication.hs
 
 executable build-generated-code
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/BuildGeneratedCode.hs
 
 executable new-controller
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewController.hs
 
 executable delete-controller
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/DeleteController.hs
 
 executable new-script
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
