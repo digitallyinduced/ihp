@@ -2,7 +2,7 @@ cabal-version:       2.2
 name:                ihp
 version:             0.1.0.0
 synopsis:            Haskell Web Framework
-description:         Turbo Haskell is a full stack framework focused on rapid application development while striving for robust code quality.
+description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             NONE
 license-file:        LICENSE
 author:              digitally induced GmbH
