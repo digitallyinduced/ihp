@@ -368,6 +368,7 @@ get :: (Controller action
     , ?requestContext :: RequestContext
     , Typeable application
     , Typeable action
+    , FrameworkConfig.FrameworkConfig
     ) => ByteString -> action -> Parser (IO ResponseReceived)
 get path action = do
     method <- getMethod
@@ -397,6 +398,7 @@ post :: (Controller action
     , ?requestContext :: RequestContext
     , Typeable application
     , Typeable action
+    , FrameworkConfig.FrameworkConfig
     ) => ByteString -> action -> Parser (IO ResponseReceived)
 post path action = do
     method <- getMethod
@@ -408,6 +410,7 @@ post path action = do
 {-# INLINE post #-}
 
 -- | Defines the start page for a router (when @\/@ is requested).
+startPage :: (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?requestContext::RequestContext, Typeable application, Typeable action, FrameworkConfig.FrameworkConfig) => action -> Parser (IO ResponseReceived)
 startPage action = get "/" action
 {-# INLINE startPage #-}
 
@@ -435,11 +438,11 @@ mountFrontController :: forall frontController application. (?applicationContext
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
 {-# INLINE mountFrontController #-}
 
-parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
+parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller, FrameworkConfig.FrameworkConfig) => Parser (IO ResponseReceived)
 parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
 {-# INLINE parseRoute #-}
 
-catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
+catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action, FrameworkConfig.FrameworkConfig) => action -> Parser (IO ResponseReceived)
 catchAll action = do
     string (actionPrefix @action)
     _ <- takeByteString
