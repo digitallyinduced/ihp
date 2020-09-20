@@ -4,7 +4,6 @@ import ClassyPrelude
 import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
-import IHP.ControllerSupport
 import System.IO.Unsafe (unsafePerformIO)
 import Data.String.Conversions (cs)
 import qualified System.Directory as Directory

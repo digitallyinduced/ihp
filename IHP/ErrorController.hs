@@ -32,6 +32,9 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.HtmlSupport.QQ (hsx)
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
 import qualified IHP.ModelSupport as ModelSupport
+import IHP.FrameworkConfig (FrameworkConfig)
+import qualified IHP.FrameworkConfig as FrameworkConfig
+import qualified IHP.Environment as Environment
 
 handleNoResponseReturned :: (Show controller, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -68,7 +71,7 @@ handleRouterException exception = do
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 
-displayException :: (Show action, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?requestContext :: RequestContext, FrameworkConfig) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     let allHandlers =
             [ postgresHandler
@@ -82,9 +85,13 @@ displayException exception action additionalInfo = do
     -- the error message to the console because sometimes you cannot easily access the http response
     Text.hPutStrLn stderr (tshow exception)
 
-    supportingHandlers
-        |> head
-        |> fromMaybe (genericHandler exception action additionalInfo)
+    let displayGenericError = genericHandler exception action additionalInfo
+
+    if FrameworkConfig.environment == Environment.Development
+        then supportingHandlers
+            |> head
+            |> fromMaybe displayGenericError
+        else displayGenericError
 
 genericHandler :: (Show controller, ?requestContext :: RequestContext) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
 genericHandler exception controller additionalInfo = do

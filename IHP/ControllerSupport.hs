@@ -42,6 +42,7 @@ import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
+import IHP.FrameworkConfig (FrameworkConfig)
 
 type Action' = IO ResponseReceived
 
@@ -75,7 +76,7 @@ class InitControllerContext application where
     initContext context = pure context
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext, FrameworkConfig) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let respond = ?requestContext |> get #respond
@@ -90,7 +91,7 @@ runAction controller = do
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller, FrameworkConfig) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let context = TypeMap.empty
