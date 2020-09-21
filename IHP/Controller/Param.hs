@@ -80,13 +80,40 @@ import qualified Control.Exception as Exception
 -- 
 -- > param: Parameter 'firstname' not found
 param :: (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
-param !name =
-    let
-        parserErrorMessage = "param: Parameter '" <> cs name <> "' is invalid"
-    in case paramOrNothing name of
-        Just value -> Either.fromRight (error parserErrorMessage) (readParameter value)
-        Nothing -> Exception.throw (ParamNotFoundException name)
+param !name = case paramOrNothing name of
+    Just value -> Either.fromRight (error (paramParserErrorMessage name)) (readParameter value)
+    Nothing -> Exception.throw (ParamNotFoundException name)
 {-# INLINE param #-}
+
+-- | Similiar to 'param' but works with multiple params. Useful when working with checkboxes.
+--
+-- Given a query like:
+--
+-- > ingredients=milk&ingredients=egg
+--
+-- This will return:
+--
+-- >>> paramList @Text "ingredients"
+-- ["milk", "egg"]
+--
+-- When no parameter with the name is given, an empty list is returned:
+--
+-- >>> paramList @Text "not_given_in_url"
+-- []
+--
+-- When a value cannot be parsed, this function will fail similiar to 'param'.
+--
+-- Related: https://stackoverflow.com/questions/63875081/how-can-i-pass-list-params-in-ihp-forms/63879113
+paramList :: forall valueType. (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> [valueType]
+paramList name =
+    allParams
+    |> filter (\(paramName, paramValue) -> paramName == name)
+    |> mapMaybe (\(paramName, paramValue) -> paramValue)
+    |> map (readParameter @valueType)
+    |> map (Either.fromRight (error (paramParserErrorMessage name)))
+{-# INLINE paramList #-}
+
+paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 
 -- | Thrown when a parameter is missing when calling 'param "myParam"' or related functions
 data ParamNotFoundException = ParamNotFoundException ByteString deriving (Show)
