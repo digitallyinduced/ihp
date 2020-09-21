@@ -85,6 +85,31 @@ When this action is called without the `maxItems` parameter being set (or when i
 
 There is also `paramOrNothing` which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
 
+
+### Multipe Params With Same Name (Checkboxes)
+
+When working with checkboxes sometimes there are multiple values for a given parameter name. Given a form like this:
+
+```html
+<h1>Pancake</h1>
+
+<input name="ingredients" type="checkbox" value="milk" /> Milk
+
+<input name="ingredients" type="checkbox" value="egg" /> Egg
+```
+
+When both checkboxes for Milk and Egg are checked, the usual way of calling `param @Text "ingredients"` will only return the first ingredient `"Milk"`. To access all the checked `ingredients` use `paramList`:
+
+```haskell
+action BuildFood = do
+    let ingredients = paramList @Text "ingredients"
+```
+
+When this action is called with both checkboxes checked `ingredients` will be set to `["milk", "egg"]`. When no checkbox is checked it will return an empty list.
+
+Similiar to `param` this works out of the box for Ids, UUID, Bools, Timestamps, etc. 
+
+
 ### Passing Data from the Action to the View
 
 A common task is to pass data from the action to the view for rendering. You can do this by extending the view data structure by the required data.
