@@ -44,7 +44,7 @@ When making changes to the development tooling, follow the setup above. Instead 
 
 ```
 ghci
-:l IHP/IHP/IDE/DevServer.hs
+:l IHP/exe/IDE/DevServer.hs
 main
 ```
 
@@ -55,7 +55,7 @@ You can enable additonal debug logging for the development server by setting the
 ```
 export DEBUG=1
 ghci
-:l IHP/IHP/IDE/DevServer.hs
+:l IHP/exe/IDE/DevServer.hs
 main
 ```
 
