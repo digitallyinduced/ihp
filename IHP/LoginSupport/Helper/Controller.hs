@@ -98,7 +98,7 @@ sessionKey = "login." <> ModelSupport.getModelName @user
 redirectToLoginWithMessage :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do 
     setSuccessMessage "Please log in to access this page"
-    setSession "IHP.LoginSupport.redirectAfterLogin" (cs getRequestUrl)
+    setSession "IHP.LoginSupport.redirectAfterLogin" (cs getRequestPathAndQuery)
     redirectToPath newSessionPath
     error "Unreachable"
 

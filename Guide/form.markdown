@@ -281,7 +281,7 @@ This will render like:
 
 Using the `fieldInput`, which is passed as an argument, you can access the other options of the form. Don't set the `class` attribute on your custom field input, as this will break rendering.
 
-#### Cutom name attribute
+#### Custom name attribute
 
 By default the field name is used for the `name` attribute of the input element. You can override it like this:
 
@@ -299,7 +299,7 @@ This will render like:
 </div>
 ```
 
-#### Cutom id attribute
+#### Custom id attribute
 
 You can override the auto-generated id value like this:
 
@@ -392,6 +392,29 @@ Given the above example, the rendered form will look like this:
         <option value="2">Andreas</option>
     </select>
 </form>
+```
+
+### Select Inputs with Custom Enums
+
+You can use select fields with custom defined enums too.
+
+Given an enum like this:
+
+```sql
+CREATE TYPE CONTENT_TYPE AS ENUM ('video', 'article', 'audio');
+```
+
+We need to define a `CanSelect ContentType` like this:
+
+```haskell
+instance CanSelect ContentType where
+    type SelectValue ContentType = ContentType
+    selectValue value = value
+    
+    selectLabel Video = "Video"
+    selectLabel Article = "Article"
+    selectLabel Audio = "Audio"
+    -- You can also use the following shortcut: selectLabel = tshow
 ```
 
 ## Advanced Forms

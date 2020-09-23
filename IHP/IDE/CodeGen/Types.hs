@@ -20,8 +20,8 @@ data GeneratorAction
 fieldsForTable :: [Statement] -> Text -> [Text]
 fieldsForTable database name =
     case getTable database name of
-        Just (CreateTable { columns }) -> columns
-                |> filter columnRelevantForCreateOrEdit
+        Just (StatementCreateTable CreateTable { columns, primaryKeyConstraint }) -> columns
+                |> filter (columnRelevantForCreateOrEdit primaryKeyConstraint)
                 |> map (get #name)
                 |> map columnNameToFieldName
         _ -> []
@@ -29,17 +29,17 @@ fieldsForTable database name =
 -- | Returns True when a column should be part of the generated controller or forms
 --
 -- Returrns @False@ for primary keys, or fields such as @created_at@
-columnRelevantForCreateOrEdit :: Column -> Bool
-columnRelevantForCreateOrEdit column
+columnRelevantForCreateOrEdit :: PrimaryKeyConstraint -> Column -> Bool
+columnRelevantForCreateOrEdit _ column
     | (get #columnType column == PTimestamp || get #columnType column == PTimestampWithTimezone)
     && (isJust (get #defaultValue column))
     = False
-columnRelevantForCreateOrEdit column = not (get #primaryKey column)
+columnRelevantForCreateOrEdit (PrimaryKeyConstraint primaryKeyColumns) column =
+    get #name column `notElem` primaryKeyColumns
 
 getTable :: [Statement] -> Text -> Maybe Statement
 getTable schema name = find isTable schema
     where
         isTable :: Statement -> Bool
-        isTable table@(CreateTable { name = name' }) | name == name' = True
+        isTable table@(StatementCreateTable CreateTable { name = name' }) | name == name' = True
         isTable _ = False
-

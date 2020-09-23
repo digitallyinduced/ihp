@@ -53,8 +53,8 @@ tests = do
         it "should allow Unicode characters" do
             isEmail "ॐ@मणिपद्मे.हूँ" `shouldBe` Success
             
-        it "should reject servers consisting of just TLD" do
-            isEmail "foo@localhost" `shouldSatisfy` isFailure
+        it "should allow dotless domains" do
+            isEmail "foo@localhost" `shouldBe` Success
 
     describe "The isInRange validator" do
         it "should handle trivial cases" do

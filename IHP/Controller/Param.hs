@@ -19,6 +19,7 @@ import IHP.ValidationSupport
 import GHC.TypeLits
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified GHC.Float as Float
+import qualified Control.Exception as Exception
 
 -- | Returns a query or body parameter from the current request. The raw string
 -- value is parsed before returning it. So the return value type depends on what
@@ -75,18 +76,50 @@ import qualified GHC.Float as Float
 -- >     renderPlain ("Hello " <> firstname)
 --
 -- Running the request @GET /HelloWorldAction@ without the firstname parameter will cause an
--- exception to be thrown with:
+-- 'ParamNotFoundException' to be thrown with:
 -- 
 -- > param: Parameter 'firstname' not found
 param :: (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
-param !name =
-    let
-        notFoundMessage = "param: Parameter '" <> cs name <> "' not found"
-        parserErrorMessage = "param: Parameter '" <> cs name <> "' is invalid"
-    in case paramOrNothing name of
-        Just value -> Either.fromRight (error parserErrorMessage) (readParameter value)
-        Nothing -> error notFoundMessage
+param !name = case paramOrNothing name of
+    Just value -> Either.fromRight (error (paramParserErrorMessage name)) (readParameter value)
+    Nothing -> Exception.throw (ParamNotFoundException name)
 {-# INLINE param #-}
+
+-- | Similiar to 'param' but works with multiple params. Useful when working with checkboxes.
+--
+-- Given a query like:
+--
+-- > ingredients=milk&ingredients=egg
+--
+-- This will return:
+--
+-- >>> paramList @Text "ingredients"
+-- ["milk", "egg"]
+--
+-- When no parameter with the name is given, an empty list is returned:
+--
+-- >>> paramList @Text "not_given_in_url"
+-- []
+--
+-- When a value cannot be parsed, this function will fail similiar to 'param'.
+--
+-- Related: https://stackoverflow.com/questions/63875081/how-can-i-pass-list-params-in-ihp-forms/63879113
+paramList :: forall valueType. (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> [valueType]
+paramList name =
+    allParams
+    |> filter (\(paramName, paramValue) -> paramName == name)
+    |> mapMaybe (\(paramName, paramValue) -> paramValue)
+    |> map (readParameter @valueType)
+    |> map (Either.fromRight (error (paramParserErrorMessage name)))
+{-# INLINE paramList #-}
+
+paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
+
+-- | Thrown when a parameter is missing when calling 'param "myParam"' or related functions
+data ParamNotFoundException = ParamNotFoundException ByteString deriving (Show)
+
+instance Exception ParamNotFoundException where
+    displayException (ParamNotFoundException name) = "param: Parameter '" <> cs name <> "' not found"
 
 -- | Specialisied version of param for 'Text'.
 --
@@ -140,7 +173,7 @@ hasParam = isJust . queryOrBodyParam
 -- When calling @GET /Users@ the variable @page@ will be set to the default value @0@.
 --
 -- > action UsersAction = do
--- >     let page :: Int = paramOrDefault "page" 0
+-- >     let page :: Int = paramOrDefault 0 "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
 paramOrDefault :: (?requestContext :: RequestContext) => ParamReader a => a -> ByteString -> a
@@ -170,14 +203,14 @@ paramOrNothing !name = case queryOrBodyParam name of
 
 -- | Returns a parameter without any parsing. Returns @Nothing@ when the parameter is missing.
 queryOrBodyParam :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
-queryOrBodyParam !name =
-    let
-        RequestContext { request, params } = ?requestContext
-        allParams :: [(ByteString, Maybe ByteString)]
-        allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
-    in
-        join (lookup name allParams)
+queryOrBodyParam !name = join (lookup name allParams)
 {-# INLINE queryOrBodyParam #-}
+
+-- | Returns all params available in the current request
+allParams :: (?requestContext :: RequestContext) => [(ByteString, Maybe ByteString)]
+allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
+    where
+        RequestContext { request, params } = ?requestContext
 
 -- | Input parser for 'param'.
 --

@@ -106,6 +106,7 @@ generateGenericApplication applicationName =
                 <> "import IHP.Environment\n"
                 <> "import qualified Text.Blaze.Html5            as H\n"
                 <> "import qualified Text.Blaze.Html5.Attributes as A\n"
+                <> "import Generated.Types\n"
                 <> "import " <> applicationName <> ".Types\n"
                 <> "import " <> applicationName <> ".Routes\n"
                 <> "import qualified IHP.FrameworkConfig as FrameworkConfig\n"

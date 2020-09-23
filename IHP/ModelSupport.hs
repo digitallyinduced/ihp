@@ -32,6 +32,7 @@ import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
+import qualified Data.Aeson as Aeson
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -447,3 +448,14 @@ fieldWithUpdate name model
 
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
+
+
+-- | Thrown by 'fetchOne' when the query result is empty
+data RecordNotFoundException
+    = RecordNotFoundException { queryAndParams :: (Text, [Action]) }
+    deriving (Show)
+
+instance Exception RecordNotFoundException
+
+instance Default Aeson.Value where
+    def = Aeson.Null

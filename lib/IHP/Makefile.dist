@@ -62,6 +62,7 @@ GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
 GHC_OPTIONS+= -package ihp
+GHC_OPTIONS+= -rtsopts=all
 
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
 PROD_GHC_OPTIONS+= -optc-O3
@@ -158,3 +159,15 @@ ifneq ($(wildcard IHP/.*),)
 else
 	ln -s ${IHP_LIB} build/ihp-lib
 endif
+
+build/bin/Script/%: build/Script/Main/%.hs
+	mkdir -p build/bin/Script
+	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/Script -hidir build/Script
+
+build/Script/Main/%.hs: Application/Script/%.hs
+	mkdir -p build/Script/Main
+	echo "module Main (main) where" > $@
+	echo "import IHP.ScriptSupport" >> $@
+	echo "import qualified Config" >> $@
+	echo "import Application.Script.$* (run)" >> $@
+	echo "main = runScript run" >> $@

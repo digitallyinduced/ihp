@@ -17,18 +17,18 @@ import IHP.NameSupport
 tests = do
     describe "Controller Generator Tests:" do
         let schema = [
-                    CreateTable { 
+                    StatementCreateTable CreateTable {
                         name = "pages"
                         , columns = [
                             Column
                                 { name = "id"
                                 , columnType = PUUID
-                                , primaryKey = True
                                 , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                                 , notNull = True
                                 , isUnique = False
                                 }
                         ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         }
                     ]
