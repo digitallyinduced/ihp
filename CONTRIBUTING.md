@@ -88,6 +88,26 @@ When adding a new markdown page also add it to the `Makefile`. Otherwise it will
 
 - Please use `pure`. `return` might confuse people coming from other programing languages.
 
+## Running Tests
+
+When inside the IHP directory, you can run the Test Suite by loading it into a `ghci` like this:
+
+```bash
+nix-shell NixSupport/shell.nix
+ghci
+:l Test/Main.hs
+main
+ ```
+ 
+ When doing changes to the test files, use this to reload and rerun the tests:
+ 
+ ```
+ :r
+ main
+ ```
+ 
+ After creating a new test you need to still call it from the `Main` module by adding it to `IHP/Test/Main.hs`.
+
 ## Troubleshooting
 
 ### `can't satisify package ihp`
