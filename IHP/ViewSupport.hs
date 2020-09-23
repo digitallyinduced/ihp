@@ -50,6 +50,7 @@ import qualified IHP.Controller.Session as Session
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import qualified Data.Sequences as Sequences
+import qualified IHP.Controller.RequestContext
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 

@@ -13,12 +13,14 @@ module IHP.NameSupport
 , fieldNameToColumnName
 , escapeHaskellKeyword
 , tableNameToControllerName
+, toSlug
 ) where
 
-import Prelude hiding (splitAt)
+import Prelude hiding (splitAt, words, map)
 import IHP.HaskellSupport
 import Data.Text
 import Data.String.Conversions (cs)
+import qualified Data.Char as Char
 import qualified Text.Inflections as Inflector
 import qualified Text.Countable as Countable
 
@@ -190,3 +192,18 @@ haskellKeywords = [ "_"
     , "rec"
     , "proc"
     ]
+
+-- | Transforms a string to a value to be safely used in urls
+--
+-- >>> toSlug "IHP Release: 21.08.2020 (v21082020)"
+-- "ihp-release-21-08-2020-v21082020"
+--
+-- >>> toSlug "Hallo! @ Welt"
+-- "hallo-welt"
+toSlug :: Text -> Text
+toSlug text =
+    text
+    |> map (\char -> if Char.isAlphaNum char then char else ' ')
+    |> toLower
+    |> words
+    |> intercalate "-"

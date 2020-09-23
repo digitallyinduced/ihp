@@ -22,12 +22,20 @@ compileSql statements = statements
     |> unlines
 
 compileStatement :: Statement -> Text
-compileStatement CreateTable { name, columns, constraints } = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map compileColumn columns <> map (indent . compileConstraint) constraints) <> "\n);"
+compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints }) = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map (compileColumn primaryKeyConstraint) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n);"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values |> map TextExpression |> map compileExpression) <> ");"
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
 compileStatement UnknownStatement { raw } = raw
+
+-- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
+compilePrimaryKeyConstraint :: PrimaryKeyConstraint -> Maybe Text
+compilePrimaryKeyConstraint PrimaryKeyConstraint { primaryKeyColumnNames } =
+    case primaryKeyColumnNames of
+        [] -> Nothing
+        [_] -> Nothing
+        names -> Just $ "PRIMARY KEY(" <> intercalate ", " names <> ")"
 
 compileConstraint :: Constraint -> Text
 compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
@@ -40,16 +48,23 @@ compileOnDelete (Just Restrict) = "ON DELETE RESTRICT"
 compileOnDelete (Just SetNull) = "ON DELETE SET NULL"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
-compileColumn :: Column -> Text
-compileColumn Column { name, columnType, primaryKey, defaultValue, notNull, isUnique } =
+compileColumn :: PrimaryKeyConstraint -> Column -> Text
+compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique } =
     "    " <> unwords (catMaybes
         [ Just (compileIdentifier name)
         , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
-        , if primaryKey then Just "PRIMARY KEY" else Nothing
+        , primaryKeyColumnConstraint
         , if notNull then Just "NOT NULL" else Nothing
         , if isUnique then Just "UNIQUE" else Nothing
         ])
+    where
+        -- Emit a PRIMARY KEY column constraint if this is the only primary key column
+        primaryKeyColumnConstraint = case primaryKeyConstraint of
+            PrimaryKeyConstraint [primaryKeyColumn]
+                | name == primaryKeyColumn -> Just "PRIMARY KEY"
+                | otherwise -> Nothing
+            PrimaryKeyConstraint _ -> Nothing
 
 compileDefaultValue :: Expression -> Text
 compileDefaultValue value = "DEFAULT " <> compileExpression value
@@ -59,7 +74,7 @@ compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
 
-compareStatement (CreateTable {}) _ = LT
+compareStatement (StatementCreateTable CreateTable {}) _ = LT
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
@@ -83,6 +98,7 @@ compilePostgresType (PVaryingN limit) = "CHARACTER VARYING(" <> show limit <> ")
 compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
+compilePostgresType PJSONB = "JSONB"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text

@@ -39,7 +39,9 @@ Lot's of frameworks are already gone a year after launch. Especially in the fast
 
 ## Getting Started
 
-[Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
+[If you like videos, check out IHP Casts!](https://www.youtube.com/watch?v=PLl9Sjq6Nzc&list=PLenFm8BWuKlS0IaE31DmKB_PbkMLmwWmG&index=1).
+
+[You can also follow the written Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
 [📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1) Or follow [digitally induced on twitter.](https://twitter.com/digitallyinduce)
 

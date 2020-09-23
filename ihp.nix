@@ -101,7 +101,7 @@ mkDerivation {
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
-    cp IHP/CLI/run-script $out/bin/run-script
+    cp exe/IHP/CLI/run-script $out/bin/run-script
 
     mkdir -p $out/lib/IHP
     cp -r lib/IHP/* $out/lib/IHP

@@ -76,12 +76,13 @@ data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
     | ShowQueryAction
-    | DeleteEntryAction { fieldValue :: Text, tableName :: Text }
+    | DeleteEntryAction { primaryKey :: Text, tableName :: Text }
     | CreateRowAction
     | NewRowAction { tableName :: Text }
-    | EditRowAction { tableName :: Text, id :: Text }
+    | EditRowAction { tableName :: Text, targetPrimaryKey :: Text }
     | UpdateRowAction
-    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
+    | EditRowValueAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController
@@ -117,6 +118,6 @@ data ColumnDefinition = ColumnDefinition
     , columnDefault :: Maybe Text
     } deriving (Show)
 
-instance FrameworkConfig where 
+instance FrameworkConfig where
     environment = Development
     appHostname = "localhost"

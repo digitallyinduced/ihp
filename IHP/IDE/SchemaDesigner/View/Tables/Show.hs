@@ -24,4 +24,4 @@ instance View ShowView ViewContext where
         </div>
     |]
         where
-            columns = get #columns table
+            columns = get #columns (unsafeGetCreateTable table)

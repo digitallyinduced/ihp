@@ -1,6 +1,6 @@
 module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer) where
 
-import IHP.ViewPrelude
+import IHP.ViewPrelude hiding (catch)
 import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -33,7 +33,7 @@ startStatusServer = do
 
 continueStatusServer :: (?context :: Context) => StatusServerState -> IO ()
 continueStatusServer StatusServerPaused { .. } = do
-    
+
         let warpApp = Websocket.websocketsOr
                 Websocket.defaultConnectionOptions
                 (app clients)
@@ -45,7 +45,7 @@ continueStatusServer StatusServerPaused { .. } = do
                 |> fromIntegral
 
         server <- async $ Warp.run port warpApp
-        
+
         writeIORef serverRef server
     where
         statusServerApp :: (IORef ByteString, IORef ByteString) -> Wai.Application
@@ -58,7 +58,7 @@ continueStatusServer StatusServerPaused { .. } = do
             respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
 
 stopStatusServer :: StatusServerState -> IO ()
-stopStatusServer StatusServerStarted { serverRef } = do 
+stopStatusServer StatusServerStarted { serverRef } = do
     async $ readIORef serverRef >>= uninterruptibleCancel
     pure ()
 stopStatusServer _ = putStrLn "StatusServer: Cannot stop as not running"
@@ -164,7 +164,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
             </head>
             <body>
                 {errorContainer}
-                
+
                 <script>
                     var socket = new WebSocket("ws://localhost:" + window.location.port);
                     var parser = new DOMParser();
@@ -201,7 +201,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     splitToSections :: [ByteString] -> [[ByteString]] -> [[ByteString]]
                     splitToSections [] result = result
                     splitToSections ("":lines) result = splitToSections lines result
-                    splitToSections lines result = 
+                    splitToSections lines result =
                         let (error :: [ByteString], rest) = span (\line -> line /= "") lines
                         in splitToSections rest ((error |> filter (/= "")):result)
 
@@ -258,7 +258,7 @@ notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
     forM_ clients $ \connection -> do
         let errorContainer = renderErrorView standardOutput errorOutput isCompiling
         let html = Blaze.renderHtml errorContainer
-        (Websocket.sendTextData connection html) `catch` ignoreException
+        (Websocket.sendTextData connection html) `ClassyPrelude.catch` ignoreException
 
 app :: IORef [Websocket.Connection] -> Websocket.ServerApp
 app stateRef pendingConnection = do

@@ -90,10 +90,10 @@ createSessionAction = do
                     user <- user
                             |> set #failedLoginAttempts 0
                             |> updateRecord
-                    redirectUrl <- getSession "IHP.LoginSupport.redirectAfterLogin"
+                    redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
                     redirectToPath (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
                 else do
-                    setErrorMessage "Incorrect Password"
+                    setErrorMessage "Invalid Credentials"
                     user :: record <- user
                             |> incrementField #failedLoginAttempts
                             |> updateRecord
@@ -102,7 +102,7 @@ createSessionAction = do
                         pure ()
                     redirectTo buildNewSessionAction
         Nothing -> do
-            setErrorMessage "User not found"
+            setErrorMessage "Invalid Credentials"
             redirectTo buildNewSessionAction
 {-# INLINE createSessionAction #-}
 

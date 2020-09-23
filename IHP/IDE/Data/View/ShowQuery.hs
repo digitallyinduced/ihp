@@ -17,13 +17,13 @@ data ShowQueryView = ShowQueryView
 
 instance View ShowQueryView ViewContext where
     html ShowQueryView { .. } = [hsx|
-        <div class="container pt-5">
-            {customQuery query}
+        <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows}
                 </div>
             </div>
+            {customQuery query}
         </div>
     |]
         where
@@ -39,6 +39,6 @@ instance View ShowQueryView ViewContext where
 
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
             renderRow fields = [hsx|<tr>{forEach fields renderField}</tr>|]
-            renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{fieldValue}</span></td>|]
+            renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{sqlValueToText fieldValue}</span></td>|]
 
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))

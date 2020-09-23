@@ -9,7 +9,37 @@ creation of sql queries in a type safe way.
 
 For more complex sql queries, use 'IHP.ModelSupport.sqlQuery'.
 -}
-module IHP.QueryBuilder (query, findManyBy, findMaybeBy, filterWhere, QueryBuilder, findBy, In (In), orderBy, orderByAsc, orderByDesc, queryUnion, queryOr, DefaultScope (..), filterWhereIn, filterWhereNotIn, genericFetchId, genericfetchIdOneOrNothing, genericFetchIdOne, Fetchable (..), include,  genericFetchIds, genericfetchIdsOneOrNothing, genericFetchIdsOne, EqOrIsOperator, fetchCount, filterWhereSql, fetchExists) where
+module IHP.QueryBuilder
+  ( query
+  , findManyBy
+  , findMaybeBy
+  , filterWhere
+  , QueryBuilder
+  , findBy
+  , In (In)
+  , orderBy
+  , orderByAsc
+  , orderByDesc
+  , queryUnion
+  , queryOr
+  , DefaultScope (..)
+  , filterWhereIn
+  , filterWhereNotIn
+  , genericFetchId
+  , genericfetchIdOneOrNothing
+  , genericFetchIdOne
+  , Fetchable (..)
+  , include
+  , genericFetchIds
+  , genericfetchIdsOneOrNothing
+  , genericFetchIdsOne
+  , EqOrIsOperator
+  , fetchCount
+  , filterWhereSql
+  , fetchExists
+  , FilterPrimaryKey (..)
+  )
+where
 
 import IHP.Prelude
 import Database.PostgreSQL.Simple (Connection)
@@ -89,7 +119,7 @@ data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
         selectFrom :: !Text,
         whereCondition :: !(Maybe Condition),
-        orderByClause :: !(Maybe (Text, OrderByDirection)),
+        orderByClause :: !([(Text, OrderByDirection)]),
         limitClause :: !(Maybe Text)
     }
 
@@ -99,7 +129,7 @@ buildQuery !queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolVal @(GetTableName model) Proxy
-            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = Nothing, limitClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = [], limitClause = Nothing }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = buildQuery queryBuilder
@@ -108,13 +138,13 @@ buildQuery !queryBuilder =
                 query { whereCondition = Just $ case whereCondition query of Just c -> AndCondition c condition; Nothing -> condition }
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
             let query = buildQuery queryBuilder
-            in query { orderByClause = Just (fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection) }
+            in query { orderByClause = (orderByClause query) ++ [(fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection)] } -- although adding to the end of a list is bad form, these lists are very short
         IncludeQueryBuilder include queryBuilder -> buildQuery queryBuilder
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
             let
                 firstQuery = buildQuery firstQueryBuilder
                 secondQuery = buildQuery secondQueryBuilder
-                isSimpleQuery query = isNothing (orderByClause query) && isNothing (limitClause query)
+                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query)
                 isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                 unionWhere =
                     case (whereCondition firstQuery, whereCondition secondQuery) of
@@ -155,7 +185,9 @@ instance Fetchable (QueryBuilder model) model where
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
     fetchOne !queryBuilder = do
         maybeModel <- fetchOneOrNothing queryBuilder
-        pure $ fromMaybe (error "Cannot find model") maybeModel
+        case maybeModel of
+            Just model -> pure model
+            Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
 
 -- | Returns the count of records selected by the query builder.
 --
@@ -188,25 +220,25 @@ fetchCount !queryBuilder = do
 -- >     hasUnreadMessages <- query @Message
 -- >         |> filterWhere (#isUnread, True)
 -- >         |> fetchExists
--- >     -- SELECT EXISTS FROM (SELECT * FROM messages WHERE is_unread = true)
+-- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
 fetchExists :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Bool
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
-    let theQuery = "SELECT EXISTS FROM (" <> theQuery' <> ") AS _exists_values"
+    let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
     logQuery theQuery theParameters
     [PG.Only exists] <- sqlQuery (Query $! cs theQuery) theParameters
     pure exists
 {-# INLINE fetchExists #-}
 
 {-# INLINE genericFetchId #-}
-genericFetchId :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO [model]
-genericFetchId !id = query @model |> filterWhere (#id, id) |> fetch
+genericFetchId :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey model) => Id model -> IO [model]
+genericFetchId !id = query @model |> filterWhereId id |> fetch
 {-# INLINE genericfetchIdOneOrNothing #-}
-genericfetchIdOneOrNothing :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO (Maybe model)
-genericfetchIdOneOrNothing !id = query @model |> filterWhere (#id, id) |> fetchOneOrNothing
+genericfetchIdOneOrNothing :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey model) => Id model -> IO (Maybe model)
+genericfetchIdOneOrNothing !id = query @model |> filterWhereId id |> fetchOneOrNothing
 {-# INLINE genericFetchIdOne #-}
-genericFetchIdOne :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => value -> IO model
-genericFetchIdOne !id = query @model |> filterWhere (#id, id) |> fetchOne
+genericFetchIdOne :: forall model. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey model) => Id model -> IO model
+genericFetchIdOne !id = query @model |> filterWhereId id |> fetchOne
 
 {-# INLINE genericFetchIds #-}
 genericFetchIds :: forall model value. (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value) => [value] -> IO [model]
@@ -245,8 +277,8 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
                 Nothing -> mempty
         orderByClause' =
             case orderByClause of
-                Just (column, direction) -> " ORDER BY " <> column <> (if direction == Desc then " DESC" else mempty)
-                Nothing -> mempty
+                [] -> mempty
+                xs -> " ORDER BY " <> intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
         limitClause' = fromMaybe "" limitClause
 
 {-# INLINE compileConditionQuery #-}
@@ -266,17 +298,21 @@ class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
 instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
 instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
 
+
+class FilterPrimaryKey model where
+    filterWhereId :: Id model -> QueryBuilder model -> QueryBuilder model
+
 -- | Adds a simple @WHERE x = y@ condition to the query.
 --
 -- __Example:__ Only show projects where @active@ is @True@.
--- 
+--
 -- > activeProjects <- query @Project
 -- >     |> filterWhere (#active, True)
 -- >     |> fetch
 -- > -- SELECT * FROM projects WHERE active = True
 --
 -- __Example:__ Find book with title @Learn you a Haskell@.
--- 
+--
 -- > book <- query @Book
 -- >     |> filterWhere (#title, "Learn you a Haskell")
 -- >     |> fetchOne
@@ -408,7 +444,7 @@ queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr a b queryBuilder = a queryBuilder `UnionQueryBuilder` b queryBuilder
 {-# INLINE queryOr #-}
 
-instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model', ToField (PrimaryKey model')) => Fetchable (Id' model') model where
+instance (model ~ GetModelById (Id' model'), GetTableName model ~ model', FilterPrimaryKey model) => Fetchable (Id' model') model where
     type FetchResult (Id' model') model = model
     {-# INLINE fetch #-}
     fetch = genericFetchIdOne
@@ -417,7 +453,7 @@ instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' mo
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdOne
 
-instance (model ~ GetModelById (Id' model'), HasField "id" model id, id ~ Id' model', ToField (PrimaryKey model')) => Fetchable (Maybe (Id' model')) model where
+instance (model ~ GetModelById (Id' model'), GetTableName model ~ model', FilterPrimaryKey model) => Fetchable (Maybe (Id' model')) model where
     type FetchResult (Maybe (Id' model')) model = [model]
     {-# INLINE fetch #-}
     fetch (Just a) = genericFetchId a
