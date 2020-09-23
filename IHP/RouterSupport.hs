@@ -425,8 +425,13 @@ runApp routes notFoundAction = do
         handleException exception = pure $ Right (ErrorController.handleRouterException exception)
 
     routedAction <- (evaluate $ parseOnly (routes <* endOfInput) path) `Exception.catch` handleException
+    notFoundAction' <- (evaluate $ parseOnly (routes <* endOfInput) "/NotFound") `Exception.catch` handleException
     case routedAction of
-        Left message -> notFoundAction
+        Left message -> case notFoundAction' of
+                Left _ -> notFoundAction
+                Right action -> do
+                    putStrLn "dingindg"
+                    action
         Right action -> action
 {-# INLINE runApp #-}
 
