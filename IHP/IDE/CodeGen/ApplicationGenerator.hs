@@ -41,11 +41,16 @@ generateGenericApplication applicationName =
                 <> "    , controllerContext :: ControllerSupport.ControllerContext\n"
                 <> "    , layout :: Layout\n"
                 <> "    }\n"
+                <> "\n"
+                <> "data ErrorsController\n"
+                <> "   = NotFoundAction\n"
+                <> "   deriving (Eq, Show, Data)\n"
             routesHs =
                 "module " <> applicationName <> ".Routes where\n"
                 <> "import IHP.RouterPrelude\n"
                 <> "import Generated.Types\n"
                 <> "import " <> applicationName <> ".Types\n\n"
+                <> "instance AutoRoute ErrorsController"
                 <> "-- Generator Marker\n"
             frontControllerHs =
                 "module " <> applicationName <> ".FrontController where\n"
@@ -54,13 +59,22 @@ generateGenericApplication applicationName =
                 <> "import Generated.Types\n"
                 <> "import " <> applicationName <> ".Types\n\n"
                 <> "-- Controller Imports\n"
+                <> "import Web.Controller.Errors\n"
                 <> "import IHP.Welcome.Controller\n\n"
                 <> "instance FrontController " <> applicationName <> "Application where\n"
                 <> "    controllers = \n"
                 <> "        [ startPage WelcomeAction\n"
+                <> "        , parseRoute @ErrorsController\n"
                 <> "        -- Generator Marker\n"
                 <> "        ]\n\n"
                 <> "instance InitControllerContext " <> applicationName <> "Application\n"
+            errorsControllerHs = 
+                "module " <> applicationName <> ".Controller.Errors where\n"
+                <> "import Web.Controller.Prelude\n"
+                <> "import Web.View.Errors.NotFound\n"
+                <> "\n"
+                <> "instance Controller ErrorsController where\n"
+                <> "    action NotFoundAction = render NotFoundView\n"
             controllerPreludeHs =
                 "module " <> applicationName <> ".Controller.Prelude\n"
                 <> "( module " <> applicationName <> ".Types\n"
@@ -98,6 +112,18 @@ generateGenericApplication applicationName =
                 <> "                layout = let ?viewContext = viewContext in defaultLayout\n"
                 <> "            }\n"
                 <> "        pure viewContext\n"
+            
+            viewNotFoundHs = 
+                "module Web.View.Errors.NotFound where\n"
+                <> "import Web.View.Prelude\n"
+                <> "import qualified IHP.ErrorController as ErrorController\n"
+                <> "\n"
+                <> "data NotFoundView = NotFoundView {  }\n"
+                <> "\n"
+                <> "instance View NotFoundView ViewContext where\n"
+                <> "    html NotFoundView = ErrorController.renderErrorView title errorMessage\n"
+                <> "        where errorMessage = [hsx|Router failed to find an action to handle this request.|]\n"
+                <> "              title        = \"Action Not Found\"\n"
 
             viewLayoutHs =
                 "module " <> applicationName <> ".View.Layout (defaultLayout, Html) where\n"
@@ -188,14 +214,17 @@ generateGenericApplication applicationName =
             [ EnsureDirectory { directory = applicationName }
             , EnsureDirectory { directory = applicationName <> "/Controller" }
             , EnsureDirectory { directory = applicationName <> "/View" }
+            , EnsureDirectory { directory = applicationName <> "/View/Errors" }
             , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
             , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
             , AddMountToFrontController { filePath = "Main.hs", applicationName = applicationName }
             , CreateFile { filePath = applicationName <> "/Types.hs", fileContent = typesHs }
             , CreateFile { filePath = applicationName <> "/Routes.hs", fileContent = routesHs }
             , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
+            , CreateFile { filePath = applicationName <> "/Controller/Errors.hs", fileContent = errorsControllerHs }
             , CreateFile { filePath = applicationName <> "/Controller/Prelude.hs", fileContent = controllerPreludeHs }
             , CreateFile { filePath = applicationName <> "/View/Context.hs",fileContent = viewContextHs }
             , CreateFile { filePath = applicationName <> "/View/Layout.hs", fileContent = viewLayoutHs }
+            , CreateFile { filePath = applicationName <> "/View/Errors/NotFound.hs", fileContent = viewNotFoundHs }
             , CreateFile { filePath = applicationName <> "/View/Prelude.hs", fileContent = viewPreludeHs }
             ]

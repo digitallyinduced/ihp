@@ -429,9 +429,7 @@ runApp routes notFoundAction = do
     case routedAction of
         Left message -> case notFoundAction' of
                 Left _ -> notFoundAction
-                Right action -> do
-                    putStrLn "dingindg"
-                    action
+                Right action -> action
         Right action -> action
 {-# INLINE runApp #-}
 

@@ -8,6 +8,7 @@ module IHP.ErrorController
 , handleNoResponseReturned
 , handleNotFound
 , handleRouterException
+, renderErrorView
 ) where
 
 import IHP.Prelude hiding (displayException)
@@ -245,7 +246,10 @@ recordNotFoundExceptionHandler exception controller additionalInfo = do
         Nothing -> Nothing
 
 renderError :: _
-renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
+renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ renderErrorView errorTitle view
+
+renderErrorView :: _
+renderErrorView errorTitle view = [hsx|
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
@@ -318,4 +322,4 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
         </div>
     </div>
 </body>
-    |]
+|]
