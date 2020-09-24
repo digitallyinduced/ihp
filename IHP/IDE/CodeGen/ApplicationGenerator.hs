@@ -194,7 +194,6 @@ generateGenericApplication applicationName =
             , CreateFile { filePath = applicationName <> "/Types.hs", fileContent = typesHs }
             , CreateFile { filePath = applicationName <> "/Routes.hs", fileContent = routesHs }
             , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
-            , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
             , CreateFile { filePath = applicationName <> "/Controller/Prelude.hs", fileContent = controllerPreludeHs }
             , CreateFile { filePath = applicationName <> "/View/Context.hs",fileContent = viewContextHs }
             , CreateFile { filePath = applicationName <> "/View/Layout.hs", fileContent = viewLayoutHs }
