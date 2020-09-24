@@ -62,7 +62,7 @@ import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
 
 class FrontController application where
-    controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
+    controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext, FrameworkConfig.FrameworkConfig) => [Parser (IO ResponseReceived)]
 
 class HasPath controller where
     -- | Returns the path to a given action
@@ -430,11 +430,11 @@ runApp routes notFoundAction = do
         Right action -> action
 {-# INLINE runApp #-}
 
-frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app, FrameworkConfig.FrameworkConfig) => app -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
 {-# INLINE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
+mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController, FrameworkConfig.FrameworkConfig) => frontController -> Parser (IO ResponseReceived)
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
 {-# INLINE mountFrontController #-}
 
