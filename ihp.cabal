@@ -220,6 +220,9 @@ library IHPFramework
         , IHP.IDE.ToolServer.Types
         , IHP.IDE.ToolServer.ViewContext
         , IHP.IDE.Types
+        , IHP.AutoRefreshView
+        , IHP.AutoRefreshView.Types
+        , IHP.AutoRefreshView.View
 
 executable RunDevServer
     import: shared-properties
