@@ -23,6 +23,11 @@ import IHP.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
 import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
 import qualified IHP.ErrorController as ErrorController
 
+import qualified Network.WebSockets as Websocket
+import qualified Network.Wai.Handler.WebSockets as Websocket
+import qualified Control.Concurrent as Concurrent
+import qualified IHP.AutoRefreshView as AutoRefreshView
+
 run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
 run = do
     databaseUrl <- appDatabaseUrl
@@ -31,11 +36,11 @@ run = do
     port <- FrameworkConfig.initAppPort
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let isDevelopment = Env.isDevelopment FrameworkConfig.environment
-    let modelContext = ModelContext { databaseConnection, queryDebuggingEnabled = isDevelopment }
-    let applicationContext = ApplicationContext { modelContext, session }
+    let ?modelContext = ModelContext { databaseConnection, queryDebuggingEnabled = isDevelopment, trackTableReadCallback = Nothing }
+    autoRefreshSessions <- newIORef []
+    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshSessions }
     let application :: Application = \request respond -> do
-            let ?applicationContext = applicationContext
-            requestContext <- ControllerSupport.createRequestContext applicationContext request respond
+            requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
             let ?requestContext = requestContext
             frontControllerToWAIApp FrameworkConfig.RootApplication ErrorController.handleNotFound
             
@@ -49,6 +54,8 @@ run = do
     libDirectory <- cs <$> FrameworkConfig.findLibDirectory
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
 
+    AutoRefreshView.startDatabaseChangeListener
+
     let runServer = if isDevelopment
             then
                 let settings = Warp.defaultSettings
@@ -58,7 +65,24 @@ run = do
             else Warp.runEnv port
     runServer $
         staticMiddleware $
-            sessionMiddleware $
-                FrameworkConfig.requestLoggerMiddleware $
-                        methodOverridePost $
-                            application
+                sessionMiddleware $
+                    ihpWebsocketMiddleware $
+                        FrameworkConfig.requestLoggerMiddleware $
+                                methodOverridePost $
+                                    application
+
+ihpWebsocketMiddleware :: (?applicationContext :: ApplicationContext) => Middleware
+ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
+        (Websocket.websocketsOr
+            Websocket.defaultConnectionOptions
+            (websocketServer request respond)
+            next) request respond
+
+websocketServer :: (?applicationContext :: ApplicationContext) => Request -> _ -> Websocket.ServerApp
+websocketServer request respond pendingConnection = do
+    requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
+    let ?requestContext = requestContext
+
+    connection <- Websocket.acceptRequest pendingConnection
+
+    Websocket.withPingThread connection 30 (pure ()) (AutoRefreshView.websocketServer connection)

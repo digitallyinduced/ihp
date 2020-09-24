@@ -70,8 +70,9 @@ startToolServer' port isDebugMode = do
                 , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
                 , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
                 }
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session    
-    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session }
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session
+    autoRefreshSessions <- newIORef []
+    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshSessions }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext

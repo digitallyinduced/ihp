@@ -39,6 +39,8 @@ data ModelContext = ModelContext
     { databaseConnection :: Connection
     -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
     , queryDebuggingEnabled :: Bool
+    -- | A callback that is called whenever a specific table is accessed using a SELECT query
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     }
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -46,6 +48,7 @@ notConnectedModelContext :: ModelContext
 notConnectedModelContext = ModelContext
     { databaseConnection = error "Not connected"
     , queryDebuggingEnabled = False
+    , trackTableReadCallback = Nothing
     }
 
 type family GetModelById id :: Type where
@@ -459,3 +462,9 @@ instance Exception RecordNotFoundException
 
 instance Default Aeson.Value where
     def = Aeson.Null
+
+trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
+trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
+    Just callback -> callback tableName
+    Nothing -> pure ()
+{-# INLINE trackTableRead #-}

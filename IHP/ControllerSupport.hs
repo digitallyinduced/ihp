@@ -22,6 +22,7 @@ module IHP.ControllerSupport
 , emptyControllerContext
 , respondAndExit
 , ActionType (..)
+, ResponseException (..)
 ) where
 
 import ClassyPrelude
@@ -72,7 +73,7 @@ class (Show controller, Eq controller) => Controller controller where
     action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
-    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext) => TypeMap.TMap -> IO TypeMap.TMap
+    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext) => TypeMap.TMap -> IO TypeMap.TMap
     initContext context = pure context
 
 {-# INLINE runAction #-}
