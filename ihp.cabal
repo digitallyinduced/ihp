@@ -73,6 +73,7 @@ common shared-properties
             , websockets
             , wai-websockets
             , regex-tdfa
+            , binary
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
