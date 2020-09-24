@@ -106,7 +106,20 @@ You can also remove the JS and CSS files that are provided by IHP (like `${IHP}/
 
 Currently IHP has no standard way of doing migrations. Therefore currently you need to manually migrate your IHP Cloud database after deploying.
 
-Open the project the project in IHP Cloud, click  `Settings`, then click `Database`. There you can find the database credentials for the postgres DB that is running for your application. Connect to your database and manually apply the migrations.
+Open the project in IHP Cloud, click  `Settings`, then click `Database`. There you can find the database credentials for the postgres DB that is running for your application. Connect to your database and manually apply the migrations.
+
+### Changing the domain
+
+Open the project in IHP Cloud, click `Settings` and click `Domain`. You can set a `***.ihpapp.com` domain in here. 
+
+#### Using your own domain instead of .ihpapp.com
+
+Using your own domain with IHP Cloud is only available for IHP Cloud Pro users. 
+To use your own domain point a CNAME record to `ihpapp.com`.
+
+After that go to `Settings`, click `Domain` and enter your domain name.
+When you change your domain to a custom domain we are automatically getting a SSL certificate from
+LetsEncrypt for you so please make sure to set the CNAME record a few minutes before changing the domain inside your project.
 
 
 ## Deploying manually
