@@ -154,9 +154,16 @@ Copy your application source code to the build server. If you're using `git` to 
 Make required modifications to your `Config/Config.hs`:
 
 1. Switch `environment = Development` to `environment = Production`
-2. Set `appHostname = "https://YOUR_HOSTNAME"`
+2. Set `appHostname = "YOUR_HOSTNAME"`
 3. Configure any custom settings
 (This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
+
+`appHostname` is used to build your `baseUrl` when this is not set manually.
+`baseUrl` equals `http://{appHostname}:{port}` or `http://{appHostname}` if port is 80.
+You can overwrite `baseUrl` by setting it in `Config/Config.hs`
+
+When you deploy with IHP Cloud your Config.hs is set automatically on project creation.
+IHP Cloud sets your `baseUrl` to `https://{appHostname}` because every deployed app is served with SSL enabled.
 
 To configure your database connection: Set the env var `DATABASE_URL` to your postgres connection url. 
 Set the env var `PORT` to the port the app will listen on.
