@@ -26,7 +26,9 @@ import qualified IHP.ErrorController as ErrorController
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
-import qualified IHP.AutoRefreshView as AutoRefreshView
+import qualified IHP.AutoRefresh as AutoRefresh
+import qualified IHP.AutoRefresh.Types as AutoRefresh
+import qualified IHP.WebSocket as WS
 
 run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
 run = do
@@ -37,8 +39,8 @@ run = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let isDevelopment = Env.isDevelopment FrameworkConfig.environment
     let ?modelContext = ModelContext { databaseConnection, queryDebuggingEnabled = isDevelopment, trackTableReadCallback = Nothing }
-    autoRefreshSessions <- newIORef []
-    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshSessions }
+    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
+    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer }
     let application :: Application = \request respond -> do
             requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
             let ?requestContext = requestContext
@@ -53,8 +55,6 @@ run = do
 
     libDirectory <- cs <$> FrameworkConfig.findLibDirectory
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
-
-    AutoRefreshView.startDatabaseChangeListener
 
     let runServer = if isDevelopment
             then
@@ -85,4 +85,4 @@ websocketServer request respond pendingConnection = do
 
     connection <- Websocket.acceptRequest pendingConnection
 
-    Websocket.withPingThread connection 30 (pure ()) (AutoRefreshView.websocketServer connection)
+    WS.startWSApp @AutoRefresh.AutoRefreshWSApp connection

@@ -33,6 +33,7 @@ import qualified GHC.Types as Type
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -468,3 +469,25 @@ trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
     Just callback -> callback tableName
     Nothing -> pure ()
 {-# INLINE trackTableRead #-}
+
+-- | Track all tables in SELECT queries executed within the given IO action.
+--
+-- You can read the touched tables by this function by accessing the variable @?touchedTables@ inside your given IO action.
+--
+-- __Example:__
+--
+-- > withTableReadTracker do
+-- >     project <- query @Project |> fetchOne
+-- >     user <- query @User |> fetchOne
+-- >     
+-- >     tables <- readIORef ?touchedTables
+-- >     -- tables = Set.fromList ["projects", "users"]
+-- > 
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set Text)) => IO ()) -> IO ()
+withTableReadTracker trackedSection = do
+    touchedTablesVar <- newIORef Set.empty
+    let trackTableReadCallback = Just \tableName -> modifyIORef touchedTablesVar (Set.insert tableName)
+    let oldModelContext = ?modelContext
+    let ?modelContext = oldModelContext { trackTableReadCallback }
+    let ?touchedTables = touchedTablesVar
+    trackedSection

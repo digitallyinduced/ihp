@@ -15,7 +15,7 @@ module IHP.ControllerPrelude
     , module IHP.RouterSupport
     , module Control.Newtype.Generics
     , module IHP.ValidationSupport
-    , module IHP.AutoRefreshView
+    , module IHP.AutoRefresh
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -33,4 +33,4 @@ import Network.Wai.Parse (FileInfo, fileContent)
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import Control.Newtype.Generics
-import IHP.AutoRefreshView (autoRefreshView)
+import IHP.AutoRefresh (autoRefresh)

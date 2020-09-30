@@ -20,7 +20,7 @@ module IHP.ViewPrelude (
     (!),
     module Data.Data,
     module Data.Aeson,
-    module IHP.AutoRefreshView.View
+    module IHP.AutoRefresh.View
 ) where
 
 import IHP.Prelude
@@ -39,4 +39,4 @@ import IHP.RouterSupport
 import IHP.ModelSupport
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))
-import IHP.AutoRefreshView.View
+import IHP.AutoRefresh.View
