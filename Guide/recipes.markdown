@@ -247,6 +247,6 @@ To confirm before a link is fired add an onclick to the link.
 
 ```haskell
 [hsx|
-    <a href={UsersAction} onclick="if (!confirm('Do you really want to delete the internet?')) even.preventDefault();"></a>
+    <a href={UsersAction} onclick="if (!confirm('Do you really want to delete the internet?')) event.preventDefault();"></a>
 |]
 ```
