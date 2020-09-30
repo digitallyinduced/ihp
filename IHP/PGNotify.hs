@@ -3,7 +3,11 @@ Module: IHP.PGNotify
 Description: Be notified about database changes
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.PGNotify where
+module IHP.PGNotify
+( watchInsertOrUpdateTable
+, createNotificationTrigger
+, eventName
+) where
 
 import IHP.Prelude
 import qualified Database.PostgreSQL.Simple as PG
@@ -12,6 +16,22 @@ import qualified Database.PostgreSQL.Simple.Notification as PG
 import Control.Concurrent.Async
 import IHP.ModelSupport
 
+-- | Calls a callback every time something is inserted or updated in a given database table.
+--
+-- In the background this function creates a database trigger to notify this function about table changes
+-- using pg_notify. When there are existing triggers, it will silently recreate them. So this will most likely
+-- not fail.
+--
+-- This function returns a Async. Call 'cancel' on the async to stop watching the database.
+--
+-- __Example:__
+--
+-- > watchInsertOrUpdateTable "projects" do
+-- >     putStrLn "Something changed in the projects table"
+--
+-- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
+-- You will see that @"Something changed in the projects table"@ is printed onto the screen.
+--
 watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => Text -> IO () -> IO (Async ())
 watchInsertOrUpdateTable tableName onInsertOrUpdate = do
     let ModelContext { databaseConnection } = ?modelContext
@@ -24,8 +44,7 @@ watchInsertOrUpdateTable tableName onInsertOrUpdate = do
             notification <- PG.getNotification databaseConnection
             onInsertOrUpdate
     
-
-
+-- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 createNotificationTrigger :: Text -> Text
 createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
         <> "BEGIN\n"
