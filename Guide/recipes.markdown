@@ -241,3 +241,12 @@ handleFetchAction url = do
 ```
 
 When using `handleFetchAction "https://google.com/"`, your app would display the google homepage.
+
+## Confirm before link is used
+To confirm before a link is fired add an onclick to the link.
+
+```haskell
+[hsx|
+    <a href={UsersAction} onclick="if (!confirm('Do you really want to delete the internet?')) event preventDefault();"></a>
+|]
+```
