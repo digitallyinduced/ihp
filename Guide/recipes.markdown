@@ -169,6 +169,21 @@ In case the id is hardcoded, you can just type UUID value with the right type si
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 ```
 
+## Getting a `Id Something` from a `Text` / `ByteString` / `String`
+
+Sometimes you have a text, bytestring or string which represents some record id. You can transform it to an Id like this:
+
+```haskell
+let myUUID :: Text = ...
+let projectId = textToId myUUID
+```
+
+In case the id is hardcoded, you can just type UUID value with the right type signature like this:
+
+```haskell
+let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+```
+
 ## Making a dynamic Login/Logout button
 
 Depending on the `user` object from the viewContext, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.

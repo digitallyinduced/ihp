@@ -14,7 +14,7 @@ import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
-import Data.String.Conversions (cs)
+import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.Calendar
 import Unsafe.Coerce
@@ -205,8 +205,26 @@ instance Newtype.Newtype (Id' model) where
     pack = Id
     unpack (Id uuid) = uuid
 
+-- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
+-- to write the Id like a string:
+--
+-- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 instance Read (PrimaryKey model) => IsString (Id' model) where
     fromString uuid = Id (Prelude.read uuid)
+
+-- | Transforms a text, bytestring or string into an Id. Throws an exception if the input is invalid.
+--
+-- __Example:__
+--
+-- > let projectIdText = "7cbc76e2-1c4f-49b6-a7d9-5015e7575a9b" :: Text
+-- > let projectId = (textToId projectIdText) :: Id Project
+--
+-- In case your UUID value is hardcoded, there is also an 'IsString' instance, so you
+-- can just write it like:
+--
+-- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+textToId :: (Read (PrimaryKey model), ConvertibleStrings text String) => text -> Id' model
+textToId text = Id (Prelude.read (cs text))
 
 instance Default (PrimaryKey model) => Default (Id' model) where
     {-# INLINE def #-}
