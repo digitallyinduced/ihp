@@ -173,7 +173,7 @@ do
 
 This will run the SQL query `SELECT * FROM users WHERE id IN (...)`. The results in `users` have type `[User]`.
 
-## Fetching a `Maybe (Id record)`
+### Fetching a `Maybe (Id record)`
 
 Sometimes you have an optional id field, like e.g. when having a database schema like this:
 
@@ -205,6 +205,18 @@ action ShowTask { taskId } = do
     assignedUser <- fetchOneOrNothing (get #assignedUserId task)
 ```
 
+### Counting records (COUNT queries)
+
+You can use `fetchCount` instead of `fetch` to get the count of records matching the query:
+
+```haskell
+do
+    activeUsersCount :: Int <- query @User
+        |> filterWhere (#isActive, True)
+        |> fetchCount
+
+    -- SELECT COUNT(*) FROM users WHERE is_active = 1
+```
 
 ## Raw SQL Queries
 
