@@ -302,4 +302,17 @@ To create a user with a hashed password, you just need to call the hashing funct
                     setSuccessMessage "You have registered successfully"
 ```
 
+## Hashing a Password
+
+To manually insert a user into your database you need to hash the password first. You can do this by calling the `hash-password` tool from your command line:
+
+```bash
+$ hash-password
+Enter your password and press enter:
+hunter2
+sha256|17|Y32Ga1uke5CisJvVp6p2sg==|TSDuEs1+Xdaels6TYCkyCgIBHxWA/US7bvBlK0vHzvc=
+```
+
+Use [`hashPassword`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Authentication.html#v:hashPassword) to hash a password from inside your application.
+
 [Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)
