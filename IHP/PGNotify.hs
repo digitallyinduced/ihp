@@ -42,7 +42,9 @@ watchInsertOrUpdateTable tableName onInsertOrUpdate = do
         forever do
             PG.execute databaseConnection listenStatement ()
             notification <- PG.getNotification databaseConnection
-            onInsertOrUpdate
+
+            -- Trigger callback in async to avoid losing events when the callback takes a bit of time to execute
+            async onInsertOrUpdate
     
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 createNotificationTrigger :: Text -> Text
