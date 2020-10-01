@@ -20,6 +20,7 @@ module IHP.QueryBuilder
   , orderBy
   , orderByAsc
   , orderByDesc
+  , limit
   , queryUnion
   , queryOr
   , DefaultScope (..)
@@ -101,6 +102,7 @@ data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
     FilterByQueryBuilder :: (KnownSymbol field) => !(Proxy field, FilterOperator, Action) -> !(QueryBuilder model) -> QueryBuilder model
     OrderByQueryBuilder :: KnownSymbol field => !(Proxy field, OrderByDirection) -> !(QueryBuilder model) -> QueryBuilder model
+    LimitQueryBuilder :: Int -> !(QueryBuilder model) -> QueryBuilder model
     IncludeQueryBuilder :: (KnownSymbol field, KnownSymbol (GetTableName model)) => !(Proxy field, QueryBuilder relatedModel) -> !(QueryBuilder model) -> QueryBuilder (Include field model)
     UnionQueryBuilder :: !(QueryBuilder model) -> !(QueryBuilder model) -> QueryBuilder model
 
@@ -139,6 +141,7 @@ buildQuery !queryBuilder =
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
             let query = buildQuery queryBuilder
             in query { orderByClause = (orderByClause query) ++ [(fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection)] } -- although adding to the end of a list is bad form, these lists are very short
+        LimitQueryBuilder limit queryBuilder -> (buildQuery queryBuilder) { limitClause = Just ("LIMIT " <> tshow limit) }
         IncludeQueryBuilder include queryBuilder -> buildQuery queryBuilder
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
             let
@@ -401,6 +404,19 @@ orderByDesc !name = OrderByQueryBuilder (name, Desc)
 orderBy :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderBy !name = orderByAsc name
 {-# INLINE orderBy #-}
+
+-- | Adds an @LIMIT ..@ to your query.
+--
+--
+-- __Example:__ Fetch 10 posts
+--
+-- > query @Post
+-- >     |> limit 10
+-- >     |> fetch
+-- > -- SELECT * FROM posts LIMIT 10
+limit :: Int -> QueryBuilder model -> QueryBuilder model
+limit !limit = LimitQueryBuilder limit
+{-# INLINE limit #-}
 
 data IncludeTag
 include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (Include name model)

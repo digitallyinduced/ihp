@@ -205,6 +205,31 @@ action ShowTask { taskId } = do
     assignedUser <- fetchOneOrNothing (get #assignedUserId task)
 ```
 
+### Fetching `n` records (LIMIT)
+
+
+Use `limit` to query only up to `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> limit 10
+        |> fetch
+```
+
+This will run a `SELECT * FROM users ORDER BY firstname LIMIT 10` query and will return the first 10 users ordered by their firstname.
+
+When you are only interested in the first result you can also use `fetchOne` as a shortcut for `|> limit 1`:
+
+```haskell
+do
+    firstUser <- query @User
+        |> orderBy #firstname
+        |> fetchOne
+```
+
+
 ### Counting records (COUNT queries)
 
 You can use `fetchCount` instead of `fetch` to get the count of records matching the query:
