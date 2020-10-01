@@ -37,6 +37,11 @@ module Web.FrontController where
 import IHP.AutoRefresh -- <------ ADD THIS IMPORT
 
 instance InitControllerContext WebApplication where
+    initContext = initAutoRefresh -- <----- ADD THIS LINE
+
+
+-- When you use authentication use this:
+instance InitControllerContext WebApplication where
     initContext =
         initAuthentication @User
         >=> initAutoRefresh -- <----- ADD THIS LINE
