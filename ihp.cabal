@@ -255,3 +255,9 @@ executable new-script
     build-depends: IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
+
+executable hash-password
+    import: shared-properties
+    build-depends: IHPFramework
+    hs-source-dirs: exe
+    main-is: IHP/CLI/HashPassword.hs
