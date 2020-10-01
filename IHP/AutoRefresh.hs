@@ -138,7 +138,6 @@ instance WSApp AutoRefreshWSApp where
     onClose = do
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
-                putStrLn (tshow sessionId)
                 let autoRefreshServer = ?applicationContext |> get #autoRefreshServer
                 modifyIORef autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) (get #sessions server) })
             AwaitingSessionID -> pure ()
