@@ -73,6 +73,7 @@ common shared-properties
             , websockets
             , wai-websockets
             , regex-tdfa
+            , binary
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -219,6 +220,11 @@ library IHPFramework
         , IHP.IDE.ToolServer.Types
         , IHP.IDE.ToolServer.ViewContext
         , IHP.IDE.Types
+        , IHP.AutoRefresh
+        , IHP.AutoRefresh.Types
+        , IHP.AutoRefresh.View
+        , IHP.WebSocket
+        , IHP.PGNotify
 
 executable RunDevServer
     import: shared-properties

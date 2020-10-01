@@ -26,5 +26,6 @@ createModelContext = do
     databaseUrl <- Config.appDatabaseUrl
     databaseConnection <- PG.connectPostgreSQL databaseUrl 
     let queryDebuggingEnabled = Env.isDevelopment Config.environment
+    let trackTableReadCallback = Nothing
     pure ModelContext { .. }
     

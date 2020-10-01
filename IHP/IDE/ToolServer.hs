@@ -46,6 +46,7 @@ import IHP.IDE.ToolServer.Routes
 import qualified System.Process as Process
 import System.Info
 import qualified System.Environment as Env
+import qualified IHP.AutoRefresh.Types as AutoRefresh
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -70,8 +71,9 @@ startToolServer' port isDebugMode = do
                 , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
                 , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
                 }
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session    
-    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session }
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session
+    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
+    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshServer }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
