@@ -16,7 +16,7 @@ import qualified Database.PostgreSQL.Simple.Notification as PG
 import Control.Concurrent.Async
 import IHP.ModelSupport
 
--- | Calls a callback every time something is inserted or updated in a given database table.
+-- | Calls a callback every time something is inserted, updated or deleted in a given database table.
 --
 -- In the background this function creates a database trigger to notify this function about table changes
 -- using pg_notify. When there are existing triggers, it will silently recreate them. So this will most likely
@@ -54,11 +54,12 @@ createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionN
         <> "$$ language plpgsql;"
         <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW EXECUTE PROCEDURE " <> functionName <> "();\n"
         <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH ROW EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH ROW EXECUTE PROCEDURE " <> functionName <> "();\n"
     where
         functionName = "notify_did_change_" <> tableName
         insertTriggerName = "did_insert_" <> tableName
         updateTriggerName = "did_update_" <> tableName
+        deleteTriggerName = "did_delete_" <> tableName
 
 -- | Retuns the event name of the event that the pg notify trigger dispatches
 eventName :: Text -> Text
