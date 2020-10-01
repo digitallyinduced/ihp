@@ -265,3 +265,15 @@ To confirm before a link is fired add an onclick to the link.
     <a href={UsersAction} onclick="if (!confirm('Do you really want to delete the internet?')) event.preventDefault();"></a>
 |]
 ```
+
+## How to generate a random string
+
+To generate a random string which can be used as a secure token or hash use `generateAuthenticationToken`:
+
+```haskell
+import IHP.AuthSupport.Authentication -- Not needed if you're inside a IHP controller
+
+do
+    token <- generateAuthenticationToken
+    -- token = "11D3OAbUfL0P9KNJ09VcUfCO0S9RwI"
+```
