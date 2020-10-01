@@ -234,12 +234,28 @@ instance Default (PrimaryKey model) => Default (Id' model) where
 --
 -- __Example:__
 --
--- > users <- sqlQuery "SELECT id, firstname, lastname FROM users"
+-- > users <- sqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery = let ModelContext { databaseConnection } = ?modelContext in PG.query databaseConnection
 {-# INLINE sqlQuery #-}
+
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string
+--
+-- __Example:__
+--
+-- > usersCount <- sqlQuery "SELECT COUNT(*) FROM users"
+--
+-- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
+sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
+sqlQueryScalar query parameters = do
+    let ModelContext { databaseConnection } = ?modelContext
+    result <- PG.query databaseConnection query parameters
+    pure case result of
+        [PG.Only result] -> result
+        _ -> error "sqlQueryScalar: Expected a scalar result value"
+{-# INLINE sqlQueryScalar #-}
 
 -- | Returns the table name of a given model.
 --

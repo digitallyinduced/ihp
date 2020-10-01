@@ -234,13 +234,15 @@ do
     result :: Project <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
-You can query any kind of information, not only records:
+### Scalar Results
+
+The `sqlQuery` function always returns a list of rows as the result. When the result of your query is a single value (such as a integer or a string) use `sqlQueryScalar`:
 
 ```haskell
 do
-    count :: Int <- sqlQuery "SELECT COUNT(*) FROM projects" []
+    count :: Int <- sqlQueryScalar "SELECT COUNT(*) FROM projects" ()
 
-    randomString :: Text <- sqlQuery "SELECT md5(random()::text)" []
+    randomString :: Text <- sqlQueryScalar "SELECT md5(random()::text)" ()
 ```
 
 ## Create
