@@ -273,6 +273,7 @@ instance ParamReader value => ParamReader [value] where
 instance ParamReader Bool where
     {-# INLINE readParameter #-}
     readParameter on | on == cs (ModelSupport.inputValue True) = pure True
+    readParameter true | toLower (cs true) == "true" = pure True
     readParameter _ = pure False
 
 instance ParamReader UUID where
