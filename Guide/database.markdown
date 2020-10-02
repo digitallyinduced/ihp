@@ -229,6 +229,20 @@ do
         |> fetchOne
 ```
 
+### Skipping `n` records (OFFSET)
+
+Use `offset` to skip `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> offset 10
+        |> fetch
+```
+
+This is most often used together with `limit` to implement paging.
+
 
 ### Counting records (COUNT queries)
 
