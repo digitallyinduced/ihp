@@ -50,7 +50,7 @@ watchInsertOrUpdateTable tableName onInsertOrUpdate = do
 createNotificationTrigger :: Text -> Text
 createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
         <> "BEGIN\n"
-        <> "    PERFORM pg_notify('" <> eventName tableName <> "');\n"
+        <> "    PERFORM pg_notify('" <> eventName tableName <> "', '');\n"
         <> "    RETURN new;"
         <> "END;\n"
         <> "$$ language plpgsql;"
