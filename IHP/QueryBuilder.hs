@@ -151,7 +151,7 @@ buildQuery !queryBuilder =
             let
                 firstQuery = buildQuery firstQueryBuilder
                 secondQuery = buildQuery secondQueryBuilder
-                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query)
+                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
                 isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                 unionWhere =
                     case (whereCondition firstQuery, whereCondition secondQuery) of
