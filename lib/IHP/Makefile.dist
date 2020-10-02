@@ -137,7 +137,7 @@ clean: ## Resets all build and temporary files
 	rm -f .envrc
 
 static/prod.js: $(JS_FILES) ## Builds the production js bundle
-	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@
+	awk -v RS='\0' '{print "(function (window, document, undefined) {"; print; print "\n})(window, document);";}' $(JS_FILES) > $@
 
 static/prod.css: $(CSS_FILES) ## Builds the production css bundle
 	cat $(CSS_FILES) > $@
