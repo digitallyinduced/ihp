@@ -35,7 +35,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Accessing a query parameter.
 --
 -- Let's say the request is:
--- 
+--
 -- > GET /UsersAction?maxItems=50
 --
 -- We can read @maxItems@ like this:
@@ -47,7 +47,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Working with forms (Accessing a body parameter).
 --
 -- Let's say we have the following html form:
--- 
+--
 -- > <form method="POST" action="/HelloWorld"
 -- >     <input type="text" name="firstname" placeholder="Your firstname" />
 -- >     <button type="submit">Send</button>
@@ -66,7 +66,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Missing parameters
 --
 -- Let's say the request is:
--- 
+--
 -- > GET /HelloWorldAction
 --
 -- But the action requires us to provide a firstname, like:
@@ -77,7 +77,7 @@ import qualified Control.Exception as Exception
 --
 -- Running the request @GET /HelloWorldAction@ without the firstname parameter will cause an
 -- 'ParamNotFoundException' to be thrown with:
--- 
+--
 -- > param: Parameter 'firstname' not found
 param :: (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
 param !name = case paramOrNothing name of
@@ -149,7 +149,7 @@ paramUUID = param @UUID
 --
 -- Use 'paramOrDefault' when you want to use this for providing a default value.
 --
--- __Example:__ 
+-- __Example:__
 --
 -- Given the request @GET /HelloWorld@
 --
@@ -338,7 +338,7 @@ instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \
 -- __Example:__
 --
 -- > data Color = Yellow | Red | Blue deriving (Enum)
--- > 
+-- >
 -- > instance ParamReader Color
 -- >     readParameter = enumParamReader
 enumParamReader :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => ByteString -> Either ByteString parameter
