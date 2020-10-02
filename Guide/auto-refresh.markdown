@@ -21,7 +21,7 @@ Auto Refresh first have to be activated for an action by calling `autoRefresh`. 
 
 When the page is rendered a small javascript function will connect back to the IHP server using a WebSocket connection.
 
-Whenenver a `INSERT`, `UPDATE` or `DELETE happens to the tables used by your action IHP will rerun your action on the serverside. When the generated html looks different to the html generated on the initial page load it will send the new html to the browser using the WebSocket connection. The javascript listening on the WebSocket will use the new html to update the current page. It uses morphdom to only touch the parts of your current DOM that have actually changed.
+Whenenver a `INSERT`, `UPDATE` or `DELETE` happens to the tables used by your action IHP will rerun your action on the serverside. When the generated html looks different to the html generated on the initial page load it will send the new html to the browser using the WebSocket connection. The javascript listening on the WebSocket will use the new html to update the current page. It uses morphdom to only touch the parts of your current DOM that have actually changed.
 
 ## Enabling Auto Refresh
 
