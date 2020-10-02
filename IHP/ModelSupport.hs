@@ -33,12 +33,15 @@ import qualified GHC.Types as Type
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
     { databaseConnection :: Connection
     -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
     , queryDebuggingEnabled :: Bool
+    -- | A callback that is called whenever a specific table is accessed using a SELECT query
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     }
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -46,6 +49,7 @@ notConnectedModelContext :: ModelContext
 notConnectedModelContext = ModelContext
     { databaseConnection = error "Not connected"
     , queryDebuggingEnabled = False
+    , trackTableReadCallback = Nothing
     }
 
 type family GetModelById id :: Type where
@@ -497,6 +501,7 @@ instance Exception RecordNotFoundException
 instance Default Aeson.Value where
     def = Aeson.Null
 
+
 -- | This instancs allows us to avoid wrapping lists with PGArray when
 -- using sql types such as @INT[]@
 instance ToField value => ToField [value] where
@@ -506,3 +511,31 @@ instance ToField value => ToField [value] where
 -- using sql types such as @INT[]@
 instance (FromField value, Typeable value) => FromField [value] where
     fromField field value = PG.fromPGArray <$> (fromField field value)
+
+trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
+trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
+    Just callback -> callback tableName
+    Nothing -> pure ()
+{-# INLINE trackTableRead #-}
+
+-- | Track all tables in SELECT queries executed within the given IO action.
+--
+-- You can read the touched tables by this function by accessing the variable @?touchedTables@ inside your given IO action.
+--
+-- __Example:__
+--
+-- > withTableReadTracker do
+-- >     project <- query @Project |> fetchOne
+-- >     user <- query @User |> fetchOne
+-- >     
+-- >     tables <- readIORef ?touchedTables
+-- >     -- tables = Set.fromList ["projects", "users"]
+-- > 
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set Text)) => IO ()) -> IO ()
+withTableReadTracker trackedSection = do
+    touchedTablesVar <- newIORef Set.empty
+    let trackTableReadCallback = Just \tableName -> modifyIORef touchedTablesVar (Set.insert tableName)
+    let oldModelContext = ?modelContext
+    let ?modelContext = oldModelContext { trackTableReadCallback }
+    let ?touchedTables = touchedTablesVar
+    trackedSection
