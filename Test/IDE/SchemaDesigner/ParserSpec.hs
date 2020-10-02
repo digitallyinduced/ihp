@@ -287,6 +287,14 @@ tests = do
                     , constraints = []
                     }
 
+        it "should parse a CREATE TABLE statement with an array column" do
+            parseSql "CREATE TABLE array_tests (\n    pay_by_quarter integer[]\n);\n" `shouldBe` StatementCreateTable CreateTable
+                    { name = "array_tests"
+                    , columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+
 col :: Column
 col = Column
     { name = ""

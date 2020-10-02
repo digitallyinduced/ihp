@@ -107,6 +107,9 @@ instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
 
+instance InputValue value => InputValue [value] where
+    inputValue list = list |> map inputValue |> intercalate ","
+
 instance Default Text where
     {-# INLINE def #-}
     def = ""
@@ -497,6 +500,17 @@ instance Exception RecordNotFoundException
 
 instance Default Aeson.Value where
     def = Aeson.Null
+
+
+-- | This instancs allows us to avoid wrapping lists with PGArray when
+-- using sql types such as @INT[]@
+instance ToField value => ToField [value] where
+    toField list = toField (PG.PGArray list)
+
+-- | This instancs allows us to avoid wrapping lists with PGArray when
+-- using sql types such as @INT[]@
+instance (FromField value, Typeable value) => FromField [value] where
+    fromField field value = PG.fromPGArray <$> (fromField field value)
 
 trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
 trackTableRead tableName = case get #trackTableReadCallback ?modelContext of

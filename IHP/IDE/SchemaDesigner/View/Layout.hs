@@ -4,7 +4,7 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compileExpression)
+import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
@@ -117,7 +117,7 @@ renderColumn :: Column -> Int -> Text -> [Statement] -> Html
 renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tableName statements = [hsx|
 <tr class="column">
     <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}><a href={EditColumnAction tableName id} class="d-block text-body nounderline">{name}</a></td>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{columnType}{renderAllowNull}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{compilePostgresType columnType}{renderAllowNull}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderDefault}{renderIsUnique}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderPrimaryKey}{renderForeignKey}</td>
 </tr>

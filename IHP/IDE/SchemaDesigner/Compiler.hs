@@ -99,6 +99,7 @@ compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType PJSONB = "JSONB"
+compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: _ -> Text

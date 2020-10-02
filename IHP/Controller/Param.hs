@@ -255,6 +255,17 @@ instance ParamReader Text where
     {-# INLINE readParameter #-}
     readParameter byteString = pure (cs byteString)
 
+instance ParamReader value => ParamReader [value] where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        byteString
+        |> Char8.split ','
+        |> map readParameter
+        |> Either.partitionEithers
+        |> \case
+            ([], values) -> Right values
+            ((first:rest), _) -> Left first
+
 -- | Parses a boolean.
 --
 -- Html form checkboxes usually use @on@ or @off@ for representation. These
