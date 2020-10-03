@@ -9,6 +9,7 @@ module IHP.RouterPrelude
 , module ClassyPrelude
 , module Data.String.Conversions
 , module IHP.ModelSupport
+, module Network.HTTP.Types.Method
 )
 where
 
@@ -17,3 +18,4 @@ import IHP.RouterSupport
 import ClassyPrelude hiding (index, delete, show, take)
 import Data.String.Conversions (cs)
 import IHP.ModelSupport (Id, Id' (..))
+import Network.HTTP.Types.Method (StdMethod (..))

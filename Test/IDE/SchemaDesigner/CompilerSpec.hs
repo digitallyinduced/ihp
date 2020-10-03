@@ -10,12 +10,12 @@ import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
-
+import Test.IDE.SchemaDesigner.ParserSpec (col)
 
 tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [CreateTable { name = "users", columns = [] }] `shouldBe` "CREATE TABLE users (\n\n);\n"
+            compileSql [StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
@@ -35,13 +35,12 @@ tests = do
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 |]
-            let statement = CreateTable
+            let statement = StatementCreateTable CreateTable
                     { name = "users"
                     , columns = [
                         Column
                             { name = "id"
                             , columnType = PUUID
-                            , primaryKey = True
                             , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
                             , isUnique = False
@@ -49,7 +48,6 @@ tests = do
                         , Column
                             { name = "firstname"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -57,7 +55,6 @@ tests = do
                         , Column
                             { name = "lastname"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -65,7 +62,6 @@ tests = do
                         , Column
                             { name = "password_hash"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -73,7 +69,6 @@ tests = do
                         , Column
                             { name = "email"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -81,7 +76,6 @@ tests = do
                         , Column
                             { name = "company_id"
                             , columnType = PUUID
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
@@ -89,7 +83,6 @@ tests = do
                         , Column
                             { name = "picture_url"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
@@ -97,23 +90,24 @@ tests = do
                         , Column
                             { name = "created_at"
                             , columnType = PTimestampWithTimezone
-                            , primaryKey = False
                             , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
                             , isUnique = False
                             }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with quoted identifiers" do
-            compileSql [CreateTable { name = "quoted name", columns = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+            compileSql [StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -177,18 +171,19 @@ tests = do
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
-            let statement = CreateTable
+            let statement = StatementCreateTable CreateTable
                     { name = "a"
                     , columns = [
                         Column
                             { name = "content"
                             , columnType = PText
-                            , primaryKey = False
                             , defaultValue = Just (TextExpression "example text")
                             , notNull = True
                             , isUnique = False
                             }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -198,45 +193,101 @@ tests = do
                     { name = "colors"
                     , values = ["yellow", "red", "blue"]
                     }
-            compileSql [statement] `shouldBe` sql           
+            compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
             let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1),\n    c NUMERIC(1,2),\n    d CHARACTER VARYING(10)\n);\n|]
-            let statement = CreateTable
+            let statement = StatementCreateTable CreateTable
                     { name = "deprecated_variables"
-                    , columns = 
+                    , columns =
                         [ Column
                             { name = "a"
                             , columnType = (PNumeric Nothing Nothing)
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
-                            , primaryKey = False
                             }
                         , Column
                             { name = "b"
-                            , columnType = (PNumeric (Just 1) Nothing) 
+                            , columnType = (PNumeric (Just 1) Nothing)
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
-                            , primaryKey = False
                             }
-                        , Column 
+                        , Column
                             { name = "c"
-                            , columnType = (PNumeric (Just 1) (Just 2)) 
+                            , columnType = (PNumeric (Just 1) (Just 2))
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
-                            , primaryKey = False
                             }
                         , Column
                             { name = "d"
-                            , columnType = (PVaryingN 10) 
+                            , columnType = (PVaryingN 10)
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
-                            , primaryKey = False
                             }
                         ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
+            let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "user_followers"
+                    , columns =
+                        [ col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , col { name = "user_id", columnType = PUUID, notNull = True }
+                        , col { name = "follower_id", columnType = PUUID, notNull = True }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with a serial id" do
+            let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "orders"
+                    , columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with a bigserial id" do
+            let sql = cs [plain|CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "orders"
+                    , columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with a composite primary key" do
+            let sql = cs [plain|CREATE TABLE orderTrucks (\n    order_id BIGSERIAL NOT NULL,\n    truck_id BIGSERIAL NOT NULL,\n    PRIMARY KEY(order_id, truck_id)\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "orderTrucks"
+                    , columns =
+                        [ col { name = "order_id", columnType = PBigserial, notNull = True}
+                        , col { name = "truck_id", columnType = PBigserial, notNull = True}
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["order_id", "truck_id"]
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with an array column" do
+            let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "array_tests"
+                    , columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+

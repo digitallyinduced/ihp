@@ -107,7 +107,7 @@ Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/
 You can now install IHP by running:
 
 ```bash
-nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
 
 If you don't already use cachix, you will be prompted to install it. You don't need it, but it is highly recommended, as it reduces build time dramatically. Learn more about cachix [here](https://cachix.org/).

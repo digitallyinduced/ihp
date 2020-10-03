@@ -26,6 +26,20 @@ instance FrontController WebApplication where
 
 Now you can open e.g. `/Posts` to access the `PostsAction`.
 
+## Changing the Start Page / Home Page
+
+You can define a custom start page action using the `startPage` function like this:
+
+```haskell
+instance FrontController WebApplication where
+    controllers = 
+        [ startPage ProjectsAction
+        -- Generator Marker
+        ]
+```
+
+In a new IHP project, you usually have a `startPage WelcomeAction` defined. Make sure to remove this line. Otherwise you will still see the default IHP welcome page.
+
 ## Url Generation
 
 Use `pathTo` to generate a path to a given action:
@@ -100,6 +114,15 @@ instance AutoRoute HelloWorldController where
 ```
 
 This way the `name` argument is passed as `Text` instead of `UUID`.
+
+**This also works with integer types:**
+
+```haskell
+instance AutoRoute HelloWorldController where
+    parseArgument = parseIntArgument
+```
+
+This will support a controller like `data HelloWorldController = HelloAction { page :: Int }`.
 
 Right now AutoRoute supports only a single type for all given parameters. E.g. an action which takes an UUID and a Text is not supported with AutoRoute right now:
 ```haskell

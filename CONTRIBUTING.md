@@ -4,16 +4,24 @@ We are happy to merge your pull requests!
 
 ## Running an application against a local copy of the framework
 
-To work on the framework in your application, you need to clone this repository inside your application directory:
+To work on the framework in your application, you need to clone this repository inside your application directory. If you don't have a project, use `ihp-new` to create one. Make sure to run `./start` in your project once. Also make sure that [`direnv`](https://direnv.net/docs/hook.html) is set up in your shell.
 
 ```
+# Set up a local IHP project
+ihp-new ihp-test-project
+cd ihp-test-project
+./start
+
+# Clone the IHP repository into the project directory
+# The `IHP` directory is added to the GHC search path in applicationGhciConfig
+# Therefore when the `IHP` directory exists, GHC will load all IHP modules from there
 git clone git@github.com:digitallyinduced/ihp.git IHP
 ```
 
 The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. Then, in your app directory (NOT the IHP directory):
 
 ```
-make # only needs to be run once
+make -B build/ihp-lib # only needs to be run once
 ghci
 $ghci> :l Main
 ```
@@ -36,7 +44,7 @@ When making changes to the development tooling, follow the setup above. Instead 
 
 ```
 ghci
-:l IHP/IHP/IDE/DevServer.hs
+:l IHP/exe/IDE/DevServer.hs
 main
 ```
 
@@ -47,7 +55,7 @@ You can enable additonal debug logging for the development server by setting the
 ```
 export DEBUG=1
 ghci
-:l IHP/IHP/IDE/DevServer.hs
+:l IHP/exe/IDE/DevServer.hs
 main
 ```
 
@@ -79,3 +87,31 @@ When adding a new markdown page also add it to the `Makefile`. Otherwise it will
 ## Code Guidelines
 
 - Please use `pure`. `return` might confuse people coming from other programing languages.
+
+## Running Tests
+
+When inside the IHP directory, you can run the Test Suite by loading it into a `ghci` like this:
+
+```bash
+nix-shell NixSupport/shell.nix
+ghci
+:l Test/Main.hs
+main
+ ```
+ 
+ When doing changes to the test files, use this to reload and rerun the tests:
+ 
+ ```
+ :r
+ main
+ ```
+ 
+ After creating a new test you need to still call it from the `Main` module by adding it to `IHP/Test/Main.hs`.
+
+## Troubleshooting
+
+### `can't satisify package ihp`
+
+If you get an error like `can't satisify package ihp` or all other IHP packages when running `ghci` most likely the symlink in `build/ihp-lib` is not set up as expected. IHP uses the symlink `build/ihp-lib` in your application's `.ghci` file to access [`IHP/lib/IHP/applicationGhciConfig`](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/applicationGhciConfig#L39). This `applicationGhciConfig` sets up all the required options for `ghci`.
+
+Try to run `make -B build/ihp-lib` to create the symlink.

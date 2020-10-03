@@ -151,3 +151,30 @@ In JSX you have the restriction that you always have to have a single root tag. 
 #### Whitespace
 
 Spaces and newline characters are removed where possible at HSX parse time.
+
+#### Comments
+
+Html Comments are supported and can be used like this:
+
+```html
+<div>
+    <!-- Begin of Main Section -->
+    <h1>Hello</h1>
+</div>
+```
+
+#### Empty Attributes
+
+HSX allows you to write empty attributes like these:
+
+```haskell
+[hsx|
+    <input disabled/>
+|]
+```
+
+The underlying html library blaze currently does not support empty html attribute. Therefore empty attributes are implemented by setting the attribute value to the attribute name. [This is valid html supported by all browsers.](https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#boolean-attributes). Therefore the generated html looks like this:
+
+```html
+<input disabled="disabled"/>
+```

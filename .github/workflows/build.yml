@@ -16,6 +16,14 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
     - run: |
-          nix-env -i direnv
-          nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
-          ihp-new blog
+          git clone https://github.com/digitallyinduced/ihp-boilerplate.git
+          cd ihp-boilerplate
+          echo "<?php" >> replace.php
+          echo "\$file_contents = file_get_contents('./default.nix');" >> replace.php
+          echo '$new_content = preg_replace("/\".{40}\"/", "\"$argv[1]\"", $file_contents);' >> replace.php
+          echo '$new_content_with_ref = preg_replace("/ihp = builtins.fetchGit {/", "ihp = builtins.fetchGit {        ref = \"*\";", $new_content);' >> replace.php
+          echo "file_put_contents('./default.nix', \$new_content_with_ref);" >> replace.php
+          echo "?>" >> replace.php
+          php replace.php $GITHUB_SHA
+          cat default.nix
+          nix-shell --run "echo 'It worked'"

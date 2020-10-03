@@ -5,7 +5,7 @@
 
 ## 1. Project Setup
 
-This guide will lead you to create a small blog application. To set up the project, open a terminal and type:
+This guide will lead you through creating a small blog application. To set up the project, open a terminal and type:
 
 ```bash
 $ ihp-new blog
@@ -13,7 +13,7 @@ $ ihp-new blog
 
 The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding on how Nix works.
 
-In case some errors appears now or in later steps, [check out the troubleshooting section](https://github.com/digitallyinduced/ihp/wiki/Troubleshooting) to get a quick solution. You can also [join our awesome gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
+In case some errors appear now or in later steps, [check out the troubleshooting section](https://github.com/digitallyinduced/ihp/wiki/Troubleshooting) to get a quick solution. You can also [join our awesome gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
 
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
@@ -47,7 +47,7 @@ Switch to the `blog` directory before doing the next steps:
 $ cd blog
 ```
 
-Start the development server by running this in the `blog` directory:
+Start the development server by running the following in the `blog` directory:
 
 ```bash
 $ ./start
@@ -58,7 +58,7 @@ The server can be stopped by pressing CTRL+C.
 
 By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`. The dev server automatically picks other ports when they are already in use by some other server. For example it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
 
-In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
+In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
 
 
 ## 3. Data Structures & PostgreSQL
@@ -67,9 +67,9 @@ In the background, the built-in development server starts a PostgreSQL database 
 
 For our blog project, let's first build a way to manage posts.
 
-For working with posts, we first need to create a `posts` table inside our database. A single post has a title and a body and of course also an id. IHP is using UUIDs instead of the typical numerical ids.
+For working with posts, we first need to create a `posts` table inside our database. A single post has a title, a body and of course an id. IHP is using UUIDs instead of the typical numerical ids.
 
-**This is how our `posts` table can look like for our blog:**
+**This is how our `posts` table might look like for our blog:**
 
 
 | id :: UUID                           | title :: Text                                          | body :: Text                                                                                                       |
@@ -80,9 +80,9 @@ For working with posts, we first need to create a `posts` table inside our datab
 
 To work with posts in our application, we now have to define this data schema.
 
-**For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly built the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the Postgresql syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consist of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree and then writes it back into the `Application/Schema.sql`. If you love your VIM, can you always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
+**For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly build the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the Postgresql syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consist of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree and then writes it back into the `Application/Schema.sql`. If you love your VIM, you can always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
 
-Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text column. To do this click on the `New` button in the table view.
+Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text columns. To do this click on the `New` button in the table view.
 
 ![Schema Designer New Table](images/first-project/new_table_view.png)
 
@@ -184,7 +184,7 @@ The preview will show you all the files which are going to be created or modifie
 
 ![](images/first-project/code_gen_3_posts.png)
 
-After the files have been created as in the preview, your controller is already ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Created, Read, Update, Delete) actions going.
+After the files have been created as in the preview, your controller is ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Created, Read, Update, Delete) actions going.
 
 Here's how the new `/Posts` page looks like:
 
@@ -227,7 +227,7 @@ A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`"
 
 ### Controller Implementation: `Web/Controller/Posts.hs`
 
-The actual code running, when an action is executed, is defined in `Web/Controller/Posts.hs`. Let's take a look, step by step.
+The actual code that is run, when an action is executed, is defined in `Web/Controller/Posts.hs`. Let's take a look, step by step.
 
 #### Imports
 
@@ -281,7 +281,7 @@ This is our endpoint for `/NewPost`. It just creates an empty new post and then 
         post <- fetch postId
         render ShowView { .. }
 ```
-This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get the post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Then we just pass that post to the view.
+This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get the post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Finally we just pass that post to the view.
 
 #### Edit Action
 
@@ -393,7 +393,7 @@ The generated controller already feels close to a super simple blog. Now it's ti
 
 ### Creating a Post
 
-First we quickly need to create a new blog post. Open [http://localhost:8000/Posts](http://localhost:8000/Posts) and click on `+ New`. Then enter `Hello World!` into the "Title" field and `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam` into "Body".
+First we quickly need to create a new blog post. Open [http://localhost:8000/Posts](http://localhost:8000/Posts) and click on `+ New`. Then enter `Hello World!` into the "Title" field and `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam` into the "Body".
 
 Click `Save Post`. You should now see the new post listed on the `index` view.
 
@@ -606,7 +606,7 @@ The `show` view will now show real formatted text, as we would have expected.
 
 #### Forms & Validation
 
-Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a textarea to support multi line text.
+Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a text area to support multi line text.
 
 Open `Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports Markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use Markdown here"} }`.
 
@@ -702,7 +702,7 @@ instance View ShowView ViewContext where
     |]
 ```
 
-This creates a `Add Comment` link, which links to the New Comment Form we just generated. After clicking the `Add Comment` link, we can see this:
+This creates an `Add Comment` link, which links to the New Comment Form we just generated. After clicking the `Add Comment` link, we can see this:
 
 ![Pretty empty](images/first-project/new_comment.png)
 
@@ -722,7 +722,7 @@ data CommentsController
     deriving (Eq, Show, Data)
 ```
 
-Let's add a argument `postId :: !(Id Post)` to `NewCommentAction`:
+Let's add an argument `postId :: !(Id Post)` to `NewCommentAction`:
 
 ```haskell
 data CommentsController
@@ -731,7 +731,7 @@ data CommentsController
     -- ...
 ```
 
-After making this change, we can see some type errors in the browser. This is, because now all references to `NewCommentAction` now need to be passed the `postId` value. Think of these type errors as a todo list of changes to be made, reported to us by the compiler. 
+After making this change, we can see some type errors in the browser. This is because all references to `NewCommentAction` now need to be passed the `postId` value. Think of these type errors as a todo list of changes to be made, reported to us by the compiler. 
 
 Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment</a>` to:
 
@@ -739,7 +739,7 @@ Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment
 <a href={NewCommentAction (get #id post)}>Add Comment</a>
 ```
 
-After that, another type error is in the `Web/View/Comments/Index.hs`. In this auto-generated view we have a `New Comment` button at the top:
+After that, another type error can be found in `Web/View/Comments/Index.hs`. In this auto-generated view we have a `New Comment` button at the top:
 
 ```haskell
 <h1>Comments <a href={pathTo NewCommentAction} class="btn btn-primary ml-4">+ New</a></h1>
@@ -777,7 +777,7 @@ Open `Web/Controller/Comments` and add the missing `{ postId }` in the pattern m
 
 Now all type errors should be fixed.
 
-Open http://localhost:8000/Posts and open the Show View of a post by clicking `Show`. Now Click `Add Comment`. Now take a look at the URL, it will something like:
+Open http://localhost:8000/Posts and open the Show View of a post by clicking its title. Now Click `Add Comment`. Take a look at the URL, it will something like:
 
 ```html
 http://localhost:8000/NewComment?postId=7f37115f-c850-4fcb-838f-1971cea0544e
@@ -798,7 +798,7 @@ Now take a look at your form. The `postId` will be prefilled now:
 ![Pretty empty](images/first-project/new_comment_with_postid.png)
 
 
-Of course, seeing the UUID is not very human-friendly. Let's better just show the post title to our user. For that, we have to fetch and pass the post to our form and then make the `postId` a hidden field.
+Of course, seeing the UUID is not very human-friendly. It would be better to just show the post title to our users. For that, we have to fetch and pass the post to our form and then make the `postId` a hidden field.
 
 Append `post <- fetch postId` to fetch the post to the `NewCommentAction`:
 
@@ -887,14 +887,14 @@ It will display something like this:
 
 ![Redirect is working](images/first-project/show_post_comments_querybuilder.png)
 
-This is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")`. But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to acutally fetch them for us.
+What is shown is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")` (this representation changes a bit between versions still, so don't worry if yours does not look exactly like this). But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to acutally fetch them for us.
 
 Inside the `Show.hs` we need to update the type signature to tell our action what we want. Right now we have:
 ```haskell
 data ShowView = ShowView { post :: Post }
 ```
 
-Add a `Include "comments"` like this:
+Add an `Include "comments"` like this:
 ```haskell
 data ShowView = ShowView { post :: Include "comments" Post }
 ```

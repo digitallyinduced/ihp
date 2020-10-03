@@ -11,7 +11,7 @@ The only supported database platform is Postgres. Focussing on Postgres allows u
 
 In development you do not need to set up anything to use postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development postgres server is only listening on a unix socket and is not available via TCP.
 
-When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
+When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database (named `app`), or start `psql` by pointing at the local sockets file `psql --host=/PATH/TO/PROJECT/DIRECTORY/build/db app`. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
 
 Haskell data structures and types are generated automatically based on your database schema.
 
@@ -19,13 +19,7 @@ Haskell data structures and types are generated automatically based on your data
 
 Once you have created your project, the first step is to define a database schema. The database schema is basically just a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project this file will look pretty empty. Like this:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-```
-
-The single line just activates the UUID extension for your database.
+In a new project this file will be empty. The UUID extension is automatically enabled for the database by IHP. 
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
@@ -179,7 +173,7 @@ do
 
 This will run the SQL query `SELECT * FROM users WHERE id IN (...)`. The results in `users` have type `[User]`.
 
-## Fetching a `Maybe (Id record)`
+### Fetching a `Maybe (Id record)`
 
 Sometimes you have an optional id field, like e.g. when having a database schema like this:
 
@@ -211,6 +205,57 @@ action ShowTask { taskId } = do
     assignedUser <- fetchOneOrNothing (get #assignedUserId task)
 ```
 
+### Fetching `n` records (LIMIT)
+
+
+Use `limit` to query only up to `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> limit 10
+        |> fetch
+```
+
+This will run a `SELECT * FROM users ORDER BY firstname LIMIT 10` query and will return the first 10 users ordered by their firstname.
+
+When you are only interested in the first result you can also use `fetchOne` as a shortcut for `|> limit 1`:
+
+```haskell
+do
+    firstUser <- query @User
+        |> orderBy #firstname
+        |> fetchOne
+```
+
+### Skipping `n` records (OFFSET)
+
+Use `offset` to skip `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> offset 10
+        |> fetch
+```
+
+This is most often used together with `limit` to implement paging.
+
+
+### Counting records (COUNT queries)
+
+You can use `fetchCount` instead of `fetch` to get the count of records matching the query:
+
+```haskell
+do
+    activeUsersCount :: Int <- query @User
+        |> filterWhere (#isActive, True)
+        |> fetchCount
+
+    -- SELECT COUNT(*) FROM users WHERE is_active = 1
+```
 
 ## Raw SQL Queries
 
@@ -228,13 +273,15 @@ do
     result :: Project <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
-You can query any kind of information, not only records:
+### Scalar Results
+
+The `sqlQuery` function always returns a list of rows as the result. When the result of your query is a single value (such as a integer or a string) use `sqlQueryScalar`:
 
 ```haskell
 do
-    count :: Int <- sqlQuery "SELECT COUNT(*) FROM projects" []
+    count :: Int <- sqlQueryScalar "SELECT COUNT(*) FROM projects" ()
 
-    randomString :: Text <- sqlQuery "SELECT md5(random()::text)" []
+    randomString :: Text <- sqlQueryScalar "SELECT md5(random()::text)" ()
 ```
 
 ## Create
@@ -359,6 +406,20 @@ This will execute:
 DELETE FROM users WHERE id IN (...)
 ```
 
+### Deleting all records
+
+Use `deleteAll` to run a `DELETE` query for all rows in a table:
+
+```haskell
+do
+    deleteAll @User
+```
+
+This will execute:
+```sql
+DELETE FROM users
+```
+
 
 ## Enums
 
@@ -424,3 +485,32 @@ In your views, use `inputValue` to get a textual representation for your enum wh
     <input type="text" value={inputValue Blue}/>
 |]
 ```
+
+## Database Refactoring
+
+In the following section you will find best practise workflows to do changes to your database schema.
+
+### Adding a Column
+
+When adding a new column to an existing table, it's best to add a default value so that existing values in your table can be re-inserted from your `Fixtures.sql` before using `Update DB`.
+
+In case you don't have a default value and run `Update DB`, the import of `Application/Fixtures.sql` will be completed with errors. The table with the new column will most likely be empty. To keep the records in your table without setting a default value use the following process to work around this issue:
+1. Add your column `new_col` in the Schema Designer
+2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
+3. Open the `Application/Fixtures.sql` in your editor and manually update all `INSERT INTO` lines for your changed table. Change the lines so that all columns are provided for the changed table.
+4. Click `Push to DB` in the Schema Designer (Click the arrow on the `Update DB` button to see this option)
+
+### Renaming a Column
+
+When you are renaming a column, the development process of using `Update DB` will not work be working. This is because the `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names.
+
+In this case it's best to use the following approach:
+
+1. Rename your column `col_a` to `col_b` in the Schema Designer
+2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
+3. Open the `Application/Fixtures.sql` in your editor and manually update references from the old column `col_a` to the new name `col_b`
+4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
+
+### Migrations In Production
+
+IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then, the recommended approach used by digitally induced is to manually migrate your database using DDL statements.

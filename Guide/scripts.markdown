@@ -63,3 +63,13 @@ Hello World, C!
 This is made possible because of the [she-bang line](https://en.wikipedia.org/wiki/Shebang_%28Unix%29) `#!/usr/bin/env run-script` at the top of the task file.
 
 In case you get a permission error, try to add the executable flag via `chmod +x Application/Script/HelloWorldToAllUsers.hs`.
+
+## Building a script
+
+In production you might want to build a script to a binary for performance reasons. Use make like this:
+
+```bash
+make build/bin/Script/HelloWorldToAllUsers
+```
+
+This will produce a binary `build/bin/Script/HelloWorldToAllUsers` from the source file `Application/Script/HelloWorldToAllUsers.hs`.

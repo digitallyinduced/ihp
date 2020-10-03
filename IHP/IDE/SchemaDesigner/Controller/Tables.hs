@@ -72,17 +72,23 @@ instance Controller TablesController where
 
 
 addTable :: Text -> [Statement] -> [Statement]
-addTable tableName list = list <> [CreateTable { name = tableName, columns = [Column
-                { name = "id"
-                , columnType = PUUID
-                , primaryKey = True
-                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                , notNull = True
-                , isUnique = False
-                }] }]
+addTable tableName list = list <> [StatementCreateTable CreateTable
+    { name = tableName
+    , columns =
+        [Column
+            { name = "id"
+            , columnType = PUUID
+            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
+            , notNull = True
+            , isUnique = False
+            }]
+    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+    , constraints = []
+    }]
 
 updateTable :: Int -> Text -> [Statement] -> [Statement]
-updateTable tableId tableName list = replace tableId CreateTable { name = tableName, columns = (get #columns (list !! tableId))} list
+updateTable tableId tableName list = replace tableId (StatementCreateTable CreateTable { name = tableName, columns = get #columns table, primaryKeyConstraint = get #primaryKeyConstraint table, constraints = get #constraints table }) list
+  where table = unsafeGetCreateTable (list !! tableId)
 
 deleteTable :: Int -> [Statement] -> [Statement]
 deleteTable tableId list = delete (list !! tableId) list

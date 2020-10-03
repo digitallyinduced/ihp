@@ -14,7 +14,7 @@ import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
-import Data.String.Conversions (cs)
+import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.Calendar
 import Unsafe.Coerce
@@ -31,8 +31,26 @@ import qualified Control.Newtype.Generics as Newtype
 import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
+import Data.Aeson (ToJSON (..))
+import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 
-data ModelContext = ModelContext { databaseConnection :: Connection }
+-- | Provides the db connection and some IHP-specific db configuration
+data ModelContext = ModelContext
+    { databaseConnection :: Connection
+    -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
+    , queryDebuggingEnabled :: Bool
+    -- | A callback that is called whenever a specific table is accessed using a SELECT query
+    , trackTableReadCallback :: Maybe (Text -> IO ())
+    }
+
+-- | Provides a mock ModelContext to be used when a database connection is not available
+notConnectedModelContext :: ModelContext
+notConnectedModelContext = ModelContext
+    { databaseConnection = error "Not connected"
+    , queryDebuggingEnabled = False
+    , trackTableReadCallback = Nothing
+    }
 
 type family GetModelById id :: Type where
     GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)
@@ -60,7 +78,13 @@ instance InputValue Text where
 instance InputValue Int where
     inputValue = tshow
 
+instance InputValue Integer where
+    inputValue = tshow
+
 instance InputValue Double where
+    inputValue = tshow
+
+instance InputValue Float where
     inputValue = tshow
 
 instance InputValue Bool where
@@ -82,6 +106,9 @@ instance InputValue Day where
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
+
+instance InputValue value => InputValue [value] where
+    inputValue list = list |> map inputValue |> intercalate ","
 
 instance Default Text where
     {-# INLINE def #-}
@@ -118,6 +145,20 @@ isNew model = def == (getField @"id" model)
 
 type family GetModelName model :: Symbol
 
+-- | Provides the primary key type for a given table. The instances are usually declared
+-- by the generated haskell code in Generated.Types
+--
+-- __Example:__ Defining the primary key for a users table
+--
+-- > type instance PrimaryKey "users" = UUID
+--
+--
+-- __Example:__ Defining the primary key for a table with a SERIAL pk
+--
+-- > type instance PrimaryKey "projects" = Int
+--
+type family PrimaryKey (tableName :: Symbol)
+
 -- | Returns the model name of a given model as Text
 --
 -- __Example:__
@@ -131,47 +172,68 @@ getModelName :: forall model. KnownSymbol (GetModelName model) => Text
 getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 {-# INLINE getModelName #-}
 
-newtype Id' table = Id UUID deriving (Eq, Data)
+newtype Id' table = Id (PrimaryKey table)
+
+deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
+deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
 
 -- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
 -- But `type Project = Project' { id :: Id "projects" }` will
 type Id model = Id' (GetTableName model)
 
-instance InputValue (Id' model') where
+instance InputValue (PrimaryKey model') => InputValue (Id' model') where
     {-# INLINE inputValue #-}
     inputValue = inputValue . Newtype.unpack
 
-recordToInputValue :: (HasField "id" entity (Id entity)) => entity -> Text
+recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
     getField @"id" entity
     |> Newtype.unpack
-    |> Data.UUID.toText
+    |> tshow
 {-# INLINE recordToInputValue #-}
 
-instance FromField (Id' model) where
+instance FromField (PrimaryKey model) => FromField (Id' model) where
     {-# INLINE fromField #-}
     fromField value metaData = do
         fieldValue <- fromField value metaData
         pure (Id fieldValue)
 
-instance ToField (Id' model) where
+instance ToField (PrimaryKey model) => ToField (Id' model) where
     {-# INLINE toField #-}
     toField = toField . Newtype.unpack
 
-instance Show (Id' model) where
+instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
     show = show . Newtype.unpack
 
 instance Newtype.Newtype (Id' model) where
-    type O (Id' model) = UUID
+    type O (Id' model) = PrimaryKey model
     pack = Id
     unpack (Id uuid) = uuid
 
-instance IsString (Id' model) where
+-- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
+-- to write the Id like a string:
+--
+-- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+instance Read (PrimaryKey model) => IsString (Id' model) where
     fromString uuid = Id (Prelude.read uuid)
 
-instance Default (Id' model) where
+-- | Transforms a text, bytestring or string into an Id. Throws an exception if the input is invalid.
+--
+-- __Example:__
+--
+-- > let projectIdText = "7cbc76e2-1c4f-49b6-a7d9-5015e7575a9b" :: Text
+-- > let projectId = (textToId projectIdText) :: Id Project
+--
+-- In case your UUID value is hardcoded, there is also an 'IsString' instance, so you
+-- can just write it like:
+--
+-- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+textToId :: (Read (PrimaryKey model), ConvertibleStrings text String) => text -> Id' model
+textToId text = Id (Prelude.read (cs text))
+
+instance Default (PrimaryKey model) => Default (Id' model) where
     {-# INLINE def #-}
     def = Newtype.pack def
 
@@ -179,12 +241,28 @@ instance Default (Id' model) where
 --
 -- __Example:__
 --
--- > users <- sqlQuery "SELECT id, firstname, lastname FROM users"
+-- > users <- sqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
-sqlQuery = let (ModelContext conn) = ?modelContext in PG.query conn
+sqlQuery = let ModelContext { databaseConnection } = ?modelContext in PG.query databaseConnection
 {-# INLINE sqlQuery #-}
+
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string
+--
+-- __Example:__
+--
+-- > usersCount <- sqlQuery "SELECT COUNT(*) FROM users"
+--
+-- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
+sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
+sqlQueryScalar query parameters = do
+    let ModelContext { databaseConnection } = ?modelContext
+    result <- PG.query databaseConnection query parameters
+    pure case result of
+        [PG.Only result] -> result
+        _ -> error "sqlQueryScalar: Expected a scalar result value"
+{-# INLINE sqlQueryScalar #-}
 
 -- | Returns the table name of a given model.
 --
@@ -197,6 +275,12 @@ tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
 tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
 {-# INLINE tableName #-}
 
+logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()
+logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, parameters)))
+    where
+        ModelContext { queryDebuggingEnabled } = ?modelContext
+            -- Env.isProduction FrameworkConfig.environment
+
 -- | Runs a @DELETE@ query for a record.
 --
 -- >>> let project :: Project = ...
@@ -204,14 +288,14 @@ tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, model ~ GetModelById id, ToField id) => model -> IO ()
+deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
 deleteRecord model = do
-    let (ModelContext conn) = ?modelContext
+    let ModelContext { databaseConnection}  = ?modelContext
     let id = getField @"id" model
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
-    putStrLn (tshow (theQuery, theParameters))
-    PG.execute conn (PG.Query . cs $! theQuery) theParameters
+    logQuery theQuery theParameters
+    PG.execute databaseConnection (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecord #-}
 
@@ -222,14 +306,28 @@ deleteRecord model = do
 -- DELETE FROM projects WHERE id IN (..)
 deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName record), HasField "id" record id, record ~ GetModelById id, ToField id) => [record] -> IO ()
 deleteRecords records = do
-    let (ModelContext conn) = ?modelContext
+    let ModelContext { databaseConnection } = ?modelContext
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
-    let theParameters = (PG.Only (PG.In (ids records)))
-    putStrLn (tshow (theQuery, theParameters))
-    PG.execute conn (PG.Query . cs $! theQuery) theParameters
+    let theParameters = PG.Only (PG.In (ids records))
+    if length records > 10
+        then logQuery theQuery "More than 10 records"
+        else logQuery theQuery theParameters
+    PG.execute databaseConnection (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecords #-}
 
+-- | Runs a @DELETE@ query to delete all rows in a table.
+--
+-- >>> deleteAll @Project
+-- DELETE FROM projects
+deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
+deleteAll = do
+    let ModelContext { databaseConnection } = ?modelContext
+    let theQuery = "DELETE FROM " <> tableName @record
+    logQuery theQuery ()
+    PG.execute_ databaseConnection (PG.Query . cs $! theQuery)
+    pure ()
+{-# INLINE deleteAll #-}
 
 type family Include (name :: GHC.Types.Symbol) model
 
@@ -388,3 +486,56 @@ fieldWithUpdate name model
   | cs (symbolVal name) `elem` get #touchedFields (get #meta model) =
     Update (get name model)
   | otherwise = NoUpdate name
+
+instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
+  toJSON (Id a) = toJSON a
+
+
+-- | Thrown by 'fetchOne' when the query result is empty
+data RecordNotFoundException
+    = RecordNotFoundException { queryAndParams :: (Text, [Action]) }
+    deriving (Show)
+
+instance Exception RecordNotFoundException
+
+instance Default Aeson.Value where
+    def = Aeson.Null
+
+
+-- | This instancs allows us to avoid wrapping lists with PGArray when
+-- using sql types such as @INT[]@
+instance ToField value => ToField [value] where
+    toField list = toField (PG.PGArray list)
+
+-- | This instancs allows us to avoid wrapping lists with PGArray when
+-- using sql types such as @INT[]@
+instance (FromField value, Typeable value) => FromField [value] where
+    fromField field value = PG.fromPGArray <$> (fromField field value)
+
+trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
+trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
+    Just callback -> callback tableName
+    Nothing -> pure ()
+{-# INLINE trackTableRead #-}
+
+-- | Track all tables in SELECT queries executed within the given IO action.
+--
+-- You can read the touched tables by this function by accessing the variable @?touchedTables@ inside your given IO action.
+--
+-- __Example:__
+--
+-- > withTableReadTracker do
+-- >     project <- query @Project |> fetchOne
+-- >     user <- query @User |> fetchOne
+-- >     
+-- >     tables <- readIORef ?touchedTables
+-- >     -- tables = Set.fromList ["projects", "users"]
+-- > 
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set Text)) => IO ()) -> IO ()
+withTableReadTracker trackedSection = do
+    touchedTablesVar <- newIORef Set.empty
+    let trackTableReadCallback = Just \tableName -> modifyIORef touchedTablesVar (Set.insert tableName)
+    let oldModelContext = ?modelContext
+    let ?modelContext = oldModelContext { trackTableReadCallback }
+    let ?touchedTables = touchedTablesVar
+    trackedSection

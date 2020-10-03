@@ -1,4 +1,4 @@
-module IHP.IDE.CodeGen.ViewGenerator (buildPlan) where
+module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..)) where
 
 import IHP.Prelude
 import IHP.HaskellSupport
@@ -12,7 +12,7 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified Text.Countable as Countable
 
 data ViewConfig = ViewConfig
-    { controllerName :: Text 
+    { controllerName :: Text
     , applicationName :: Text
     , modelName :: Text
     , viewName :: Text
@@ -22,23 +22,23 @@ buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan viewName applicationName controllerName' =
     if (null viewName || null controllerName')
         then pure $ Left "View name and controller name cannot be empty"
-        else do 
+        else do
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
                 Right statements -> pure statements
             let modelName = tableNameToModelName controllerName'
-            let controllerName = ucfirst controllerName'
-            let viewConfig = ViewConfig {controllerName, applicationName, modelName, viewName }
-            pure $ Right $ generateGenericView schema viewConfig
+            let controllerName = tableNameToControllerName controllerName'
+            let viewConfig = ViewConfig { .. }
+            pure $ Right $ buildPlan' schema viewConfig
 
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
     get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
-generateGenericView :: [Statement] -> ViewConfig -> [GeneratorAction]
-generateGenericView schema config = 
-        let 
+buildPlan' :: [Statement] -> ViewConfig -> [GeneratorAction]
+buildPlan' schema config =
+        let
             controllerName = get #controllerName config
             name = get #viewName config
             singularName = config |> get #modelName
@@ -48,7 +48,7 @@ generateGenericView schema config =
                 then name
                 else name <> "View" --e.g. "Test" -> "TestView"
             nameWithoutSuffix = if "View" `isSuffixOf` name
-                then Text.replace "View" "" name 
+                then Text.replace "View" "" name
                 else name --e.g. "TestView" -> "Test"
 
             indexAction = Countable.pluralize singularName <> "Action"
@@ -60,7 +60,7 @@ generateGenericView schema config =
                 ]
 
             modelFields :: [Text]
-            modelFields = fieldsForTable schema pluralVariableName
+            modelFields = fieldsForTable schema (modelNameToTableName pluralVariableName)
 
 
             viewHeader =
@@ -68,8 +68,8 @@ generateGenericView schema config =
                 <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
                 <> "import " <> get #applicationName config <> ".View.Prelude\n"
                 <> "\n"
-            
-            genericView = 
+
+            genericView =
                 viewHeader
                 <> "data " <> nameWithSuffix <> " = " <> nameWithSuffix <> "\n"
                 <> "\n"
@@ -84,7 +84,7 @@ generateGenericView schema config =
                 <> "        <h1>" <> nameWithSuffix <> "</h1>\n"
                 <> "    |]\n"
 
-            showView = 
+            showView =
                 viewHeader
                 <> "data ShowView = ShowView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
@@ -92,14 +92,14 @@ generateGenericView schema config =
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize nameWithoutSuffix <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
                 <> "        <h1>Show " <> singularName <> "</h1>\n"
                 <> "    |]\n"
 
-            newView = 
+            newView =
                 viewHeader
                 <> "data NewView = NewView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
@@ -121,7 +121,7 @@ generateGenericView schema config =
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
-            editView = 
+            editView =
                 viewHeader
                 <> "data EditView = EditView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
@@ -143,7 +143,7 @@ generateGenericView schema config =
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
-            indexView = 
+            indexView =
                 viewHeader
                 <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "] }\n"
                 <> "\n"
@@ -182,21 +182,5 @@ generateGenericView schema config =
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
             , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> (Countable.pluralize controllerName) <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
-
-fieldsForTable :: [Statement] -> Text -> [Text]
-fieldsForTable database name =
-    case getTable database name of
-        Just (CreateTable { columns }) -> columns
-                |> filter (\col -> isNothing (get #defaultValue col))
-                |> map (get #name)
-                |> map columnNameToFieldName
-        Nothing -> []
-
-getTable :: [Statement] -> Text -> Maybe Statement
-getTable schema name = find isTable schema
-    where
-        isTable :: Statement -> Bool
-        isTable table@(CreateTable { name = name' }) | name == name' = True
-        isTable _ = False

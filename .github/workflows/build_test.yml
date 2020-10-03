@@ -14,6 +14,7 @@ jobs:
         skipPush: true
 
     - run: |
-          nix-env -i direnv
-          nix-env -f https://beta:beta@ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
-          ihp-new blog
+          cd $GITHUB_WORKSPACE
+          mkdir -p ~/.config/nixpkgs
+          echo "{ allowBroken = true; }" >> ~/.config/nixpkgs/config.nix
+          nix-shell NixSupport/shell.nix --run "cabal build"

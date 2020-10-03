@@ -14,16 +14,19 @@ import IHP.LoginSupport.Helper.Controller
 import IHP.Controller.Session
 import IHP.QueryBuilder
 import IHP.ControllerSupport
+import IHP.ModelSupport
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user.
         ( ?requestContext :: RequestContext
         , ?modelContext :: ModelContext
-        , HasField "id" (NormalizeModel user) (Id user)
         , Typeable (NormalizeModel user)
         , KnownSymbol (GetTableName (NormalizeModel user))
         , KnownSymbol (GetModelName user)
+        , GetTableName (NormalizeModel user) ~ GetTableName user
         , FromRow (NormalizeModel user)
+        , PrimaryKey (GetTableName user) ~ UUID
+        , FilterPrimaryKey (NormalizeModel user)
     ) => TypeMap.TMap -> IO TypeMap.TMap
 initAuthentication context = do
     user <- getSessionUUID (sessionKey @user)

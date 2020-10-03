@@ -4,12 +4,13 @@ import ClassyPrelude
 import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
-import IHP.ControllerSupport
 import System.IO.Unsafe (unsafePerformIO)
 import Data.String.Conversions (cs)
 import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified System.Process as Process
+import Network.Wai (Middleware)
+import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 
 defaultPort :: Int
 defaultPort = 8000
@@ -26,6 +27,18 @@ class FrameworkConfig where
             
     baseUrl :: Text
     baseUrl = let port = appPort in "http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else "")
+
+    -- | Provides IHP with a middleware to log requests and responses.
+    --
+    -- By default this uses the RequestLogger middleware from wai-extra. Take a look at the wai-extra
+    -- documentation when you want to customize the request logging.
+    --
+    -- See https://hackage.haskell.org/package/wai-extra-3.0.29.2/docs/Network-Wai-Middleware-RequestLogger.html
+    -- 
+    --
+    -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
+    requestLoggerMiddleware :: Middleware
+    requestLoggerMiddleware = RequestLogger.logStdoutDev
 
 data RootApplication = RootApplication deriving (Eq, Show)
 
@@ -55,8 +68,12 @@ appDatabaseUrl = do
 findLibDirectory :: IO Text
 findLibDirectory = do
     frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
+    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
     if frameworkMountedLocally
         then pure "IHP/lib/IHP/"
-        else do
-            binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-            pure (Text.strip binDir <> "/../lib/IHP/")
+        else if ihpLibSymlinkAvailable
+            then do
+                pure "build/ihp-lib/"
+            else do
+                binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
+                pure (Text.strip binDir <> "/../lib/IHP/")

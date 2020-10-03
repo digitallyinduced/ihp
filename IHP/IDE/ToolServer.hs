@@ -25,7 +25,6 @@ import qualified Data.Time.Clock
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
-import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static hiding ((<|>))
 import Network.Wai.Session (withSession, Session)
@@ -47,6 +46,7 @@ import IHP.IDE.ToolServer.Routes
 import qualified System.Process as Process
 import System.Info
 import qualified System.Environment as Env
+import qualified IHP.AutoRefresh.Types as AutoRefresh
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -71,8 +71,9 @@ startToolServer' port isDebugMode = do
                 , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
                 , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
                 }
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session    
-    let applicationContext = ApplicationContext { modelContext = (ModelContext (error "Not connected")), session }
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session
+    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
+    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshServer }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
@@ -88,7 +89,7 @@ startToolServer' port isDebugMode = do
             |> Warp.setPort port
             |> Warp.setBeforeMainLoop openAppUrl
 
-    let logMiddleware = if isDebugMode then logStdoutDev else IHP.Prelude.id
+    let logMiddleware = if isDebugMode then Config.requestLoggerMiddleware else IHP.Prelude.id
     
     Warp.runSettings warpSettings $ 
             staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware $ application

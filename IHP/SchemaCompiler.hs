@@ -5,6 +5,7 @@ module IHP.SchemaCompiler
 
 import ClassyPrelude
 import Data.String.Conversions (cs)
+import Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
@@ -49,36 +50,43 @@ fullCompileOptions = CompilerOptions { compileGetAndSetFieldInstances = True }
 previewCompilerOptions :: CompilerOptions
 previewCompilerOptions = CompilerOptions { compileGetAndSetFieldInstances = False }
 
-haskellType :: (?schema :: Schema) => Statement -> Column -> Text
-haskellType table Column { name, primaryKey } | primaryKey = "(" <> primaryKeyTypeName table <> ")"
-haskellType table column@(Column { columnType, notNull }) =
-    let
-        atomicType = 
-            case columnType of
-                PInt -> "Int"
-                PBigInt -> "Integer"
-                PText -> "Text"
-                PBoolean   -> "Bool"
-                PTimestampWithTimezone -> "UTCTime"
-                PUUID -> "UUID"
-                PReal -> "Float"
-                PDouble -> "Double"
-                PDate -> "Data.Time.Calendar.Day"
-                PBinary -> "Binary"
-                PTime -> "TimeOfDay"
-                PCustomType theType -> tableNameToModelName theType
-                PTimestamp -> "LocalTime"
-                (PNumeric _ _) -> "Float"
-                (PVaryingN _) -> "Text"
-                (PCharacterN _) -> "Text"
-        actualType =
-            case findForeignKeyConstraint table column of
-                Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName' referenceTable <> ")"
-                _ -> atomicType
-    in
-        if not notNull
-            then "(Maybe " <> actualType <> ")"
-            else actualType
+atomicType :: PostgresType -> Text
+atomicType = \case
+    PInt -> "Int"
+    PBigInt -> "Integer"
+    PJSONB -> "Data.Aeson.Value"
+    PText -> "Text"
+    PBoolean   -> "Bool"
+    PTimestampWithTimezone -> "UTCTime"
+    PUUID -> "UUID"
+    PSerial -> "Int"
+    PBigserial -> "Integer"
+    PReal -> "Float"
+    PDouble -> "Double"
+    PDate -> "Data.Time.Calendar.Day"
+    PBinary -> "Binary"
+    PTime -> "TimeOfDay"
+    PCustomType theType -> tableNameToModelName theType
+    PTimestamp -> "LocalTime"
+    (PNumeric _ _) -> "Float"
+    (PVaryingN _) -> "Text"
+    (PCharacterN _) -> "Text"
+    PArray type_ -> "[" <> atomicType type_ <> "]"
+
+haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
+haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull }
+    | [name] == primaryKeyColumnNames primaryKeyConstraint = "(" <> primaryKeyTypeName tableName <> ")"
+    | name `elem` primaryKeyColumnNames primaryKeyConstraint = atomicType columnType
+    | otherwise =
+        let
+            actualType =
+                case findForeignKeyConstraint table column of
+                    Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName referenceTable <> ")"
+                    _ -> atomicType columnType
+        in
+            if not notNull
+                then "(Maybe " <> actualType <> ")"
+                else actualType
 -- haskellType table (HasMany {name}) = "(QueryBuilder.QueryBuilder " <> tableNameToModelName name <> ")"
 
 
@@ -118,7 +126,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
                   <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
                   <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
-                  <> "import IHP.Controller.Param ()\n"
+                  <> "import qualified IHP.Controller.Param\n"
                   <> "import GHC.TypeLits\n"
                   <> "import Data.UUID (UUID)\n"
                   <> "import Data.Default\n"
@@ -126,34 +134,46 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Data.Proxy\n"
                   <> "import GHC.Records\n"
                   <> "import Data.Data\n"
+                  <> "import qualified Data.String.Conversions\n"
+                  <> "import qualified Data.Text.Encoding\n"
+                  <> "import qualified Data.Aeson\n"
                   <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))\n"
+                  <> "import qualified Database.PostgreSQL.Simple.Types\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
 
 compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
-compileStatement CompilerOptions { compileGetAndSetFieldInstances } table@(CreateTable {}) =
-    compileData table
-    <> compileTypeAlias table
-    <> compileFromRowInstance table
-    <> compileHasTableNameInstance table
-    <> compileGetModelName table
-    <> compileInclude table
-    <> compileCreate table
-    <> section
-    <> compileUpdate table
-    <> section
-    <> compileBuild table
-    <> section
-    <> if compileGetAndSetFieldInstances
-            then compileSetFieldInstances table <> compileUpdateFieldInstances table
-            else ""
-    <> section
+compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
+    case primaryKeyConstraint table of
+        -- Skip generation of tables with no primary keys
+        PrimaryKeyConstraint [] -> ""
+        _ -> compileData table
+            <> compileTypeAlias table
+            <> compileFromRowInstance table
+            <> compileHasTableNameInstance table
+            <> compileGetModelName table
+            <> compilePrimaryKeyInstance table
+            <> section
+            <> compileInclude table
+            <> compileCreate table
+            <> section
+            <> compileUpdate table
+            <> section
+            <> compileBuild table
+            <> if needsHasFieldId table
+                    then compileHasFieldId table
+                    else ""
+            <> section
+            <> if compileGetAndSetFieldInstances
+                    then compileSetFieldInstances table <> compileUpdateFieldInstances table
+                    else ""
+            <> section
 
 compileStatement _ enum@(CreateEnumType {}) = compileEnumDataDefinitions enum
 compileStatement _ _ = ""
 
-compileTypeAlias :: (?schema :: Schema) => Statement -> Text
+compileTypeAlias :: (?schema :: Schema) => CreateTable -> Text
 compileTypeAlias table@(CreateTable { name, columns }) =
         "type "
         <> modelName
@@ -169,17 +189,14 @@ compileTypeAlias table@(CreateTable { name, columns }) =
                 |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder " <> tableNameToModelName tableName <> ")")
                 |> unwords
 
-primaryKeyTypeName :: Statement -> Text
-primaryKeyTypeName CreateTable { name } = primaryKeyTypeName' name
+primaryKeyTypeName :: Text -> Text
+primaryKeyTypeName name = "Id' " <> tshow name <> ""
 
-primaryKeyTypeName' :: Text -> Text
-primaryKeyTypeName' name = "Id' " <> tshow name <> ""
-
-compileData :: (?schema :: Schema) => Statement -> Text
+compileData :: (?schema :: Schema) => CreateTable -> Text
 compileData table@(CreateTable { name, columns }) =
         "data " <> modelName <> "' " <> typeArguments
         <> " = " <> modelName <> " {"
-        <> 
+        <>
             table
             |> dataFields
             |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
@@ -189,17 +206,21 @@ compileData table@(CreateTable { name, columns }) =
     where
         modelName = tableNameToModelName name
         typeArguments :: Text
-        typeArguments =  dataTypeArguments table |> unwords
+        typeArguments = dataTypeArguments table |> unwords
 
 -- | Returns all the type arguments of the data structure for an entity
-dataTypeArguments :: (?schema :: Schema) => Statement -> [Text]
-dataTypeArguments table = map columnNameToFieldName (belongsToVariables <> hasManyVariables)
+dataTypeArguments :: (?schema :: Schema) => CreateTable -> [Text]
+dataTypeArguments table = (map columnNameToFieldName belongsToVariables) <> hasManyVariables
     where
         belongsToVariables = variableAttributes table |> map (get #name)
-        hasManyVariables = columnsReferencingTable (get #name table) |> map fst
+        hasManyVariables =
+            columnsReferencingTable (get #name table)
+            |> compileQueryBuilderFields
+            |> map snd
 
-dataFields :: (?schema :: Schema) => Statement -> [(Text, Text)]
-dataFields table@(CreateTable { name, columns }) = columnFields <> compileQueryBuilderFields <> [("meta", "MetaBag")]
+-- | Returns the field names and types for the @data MyRecord = MyRecord { .. }@ for a given table
+dataFields :: (?schema :: Schema) => CreateTable -> [(Text, Text)]
+dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderFields <> [("meta", "MetaBag")]
     where
         columnFields = columns |> map columnField
 
@@ -212,10 +233,47 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> compileQueryB
                         else haskellType table column
                 )
 
-        compileQueryBuilderFields = columnsReferencingTable name |> map compileQueryBuilderField
+        queryBuilderFields = columnsReferencingTable name |> compileQueryBuilderFields
+
+compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
+compileQueryBuilderFields columns = map compileQueryBuilderField columns
+    where
         compileQueryBuilderField (refTableName, refColumnName) =
-            let fieldName = columnNameToFieldName refTableName
-            in (fieldName, fieldName)
+            let
+                -- Given a relationship like the following:
+                --
+                -- CREATE TABLE referrals (
+                --     user_id UUID NOT NULL,
+                --     referred_user_id UUID DEFAULT uuid_generate_v4() NOT NULL
+                -- );
+                --
+                -- We would have two fields on the @User@ record called @referrals@ which are
+                -- going to be used with fetchRelated (user >>= fetchRelated #referrals).
+                --
+                -- Of course having two fields in the same record does not work, so we have to
+                -- detect these duplicate query builder fields and use a more qualified name.
+                --
+                -- In the example this will lead to two fileds called @referralsUsers@ and @referralsReferredUsers@
+                -- being added to the data structure.
+                hasDuplicateQueryBuilder =
+                    columns
+                    |> map fst
+                    |> map columnNameToFieldName
+                    |> filter (columnNameToFieldName refTableName ==)
+                    |> length
+                    |> (\count -> count > 1)
+
+                stripIdSuffix :: Text -> Text
+                stripIdSuffix name = fromMaybe name (Text.stripSuffix "_id" name)
+
+                fieldName = if hasDuplicateQueryBuilder
+                    then
+                        (refTableName <> "_" <> (refColumnName |> stripIdSuffix))
+                        |> columnNameToFieldName
+                        |> Countable.pluralize
+                    else columnNameToFieldName refTableName
+            in
+                (fieldName, fieldName)
 
 
 -- | Finds all the columns referencing a specific table via a foreign key constraint
@@ -232,7 +290,7 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> compileQueryB
 -- >>> columnsReferencingTable "companies"
 -- [ ("users", "company_id") ]
 columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text)]
-columnsReferencingTable theTableName = 
+columnsReferencingTable theTableName =
     let
         (Schema statements) = ?schema
     in
@@ -241,19 +299,19 @@ columnsReferencingTable theTableName =
             AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName, referenceTable, referenceColumn } } | referenceTable == theTableName -> Just (tableName, columnName)
             _ -> Nothing
 
-variableAttributes :: (?schema :: Schema) => Statement -> [Column]
+variableAttributes :: (?schema :: Schema) => CreateTable -> [Column]
 variableAttributes table@(CreateTable { columns }) = filter (isVariableAttribute table) columns
 
-isVariableAttribute :: (?schema :: Schema) => Statement -> Column -> Bool
+isVariableAttribute :: (?schema :: Schema) => CreateTable -> Column -> Bool
 isVariableAttribute = isRefCol
 
 
 -- | Returns @True@ when the coluns is referencing another column via foreign key constraint
-isRefCol :: (?schema :: Schema) => Statement -> Column -> Bool
+isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
 isRefCol table column = isJust (findForeignKeyConstraint table column)
 
 -- | Returns the foreign key constraint bound on the given column
-findForeignKeyConstraint :: (?schema :: Schema) => Statement -> Column -> Maybe Constraint
+findForeignKeyConstraint :: (?schema :: Schema) => CreateTable -> Column -> Maybe Constraint
 findForeignKeyConstraint CreateTable { name } column =
         case find isFkConstraint statements of
             Just (AddConstraint { constraint }) -> Just constraint
@@ -269,15 +327,16 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum)\n"
         <> "instance FromField " <> modelName <> " where\n"
         <> indent (unlines (map compileFromFieldInstanceForValue values))
-        <> "    fromField field (Just value) = returnError ConversionFailed field \"Unexpected value for enum value\"\n"
+        <> "    fromField field (Just value) = returnError ConversionFailed field (\"Unexpected value for enum value. Got: \" <> Data.String.Conversions.cs value)\n"
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
         <> "instance Default " <> modelName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
+        <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map tableNameToModelName values
-        compileFromFieldInstanceForValue value = "fromField field (Just " <> tshow value <> ") = pure " <> tableNameToModelName value
+        compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> tableNameToModelName value
         compileToFieldInstanceForValue value = "toField " <> tableNameToModelName value <> " = toField (" <> tshow value <> " :: Text)"
         compileInputValue value = "inputValue " <> tableNameToModelName value <> " = " <> tshow value <> " :: Text"
 
@@ -286,17 +345,18 @@ compileToRowValues bindingValues | length bindingValues == 1 = "Only (" <> (unsa
 compileToRowValues bindingValues = "(" <> intercalate ") :. (" (map (\list -> if length list == 1 then "Only (" <> (unsafeHead list) <> ")" else intercalate ", " list) (chunksOf 8 bindingValues)) <> ")"
 
 
-compileCreate :: Statement -> Text
+compileCreate :: CreateTable -> Text
 compileCreate table@(CreateTable { name, columns }) =
     let
         modelName = tableNameToModelName name
         columnNames = commaSep (map (get #name) columns)
         values = commaSep (map (const "?") columns)
 
-        toBinding Column { name, defaultValue } =
-          case defaultValue of
-            Nothing -> "get #" <> columnNameToFieldName name <> " model"
-            Just _ -> "fieldWithDefault #" <> columnNameToFieldName name <> " model"
+        toBinding column@(Column { name }) =
+            if hasExplicitOrImplicitDefault column
+                then "fieldWithDefault #" <> columnNameToFieldName name <> " model"
+                else "get #" <> columnNameToFieldName name <> " model"
+
 
         bindings :: [Text]
         bindings = map toBinding columns
@@ -315,13 +375,13 @@ compileCreate table@(CreateTable { name, columns }) =
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("let (ModelContext conn) = ?modelContext\n"
-                    <> "result <- Database.PostgreSQL.Simple.query conn \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
+                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
+                    <> "result <- Database.PostgreSQL.Simple.query databaseConnection \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
                     <> "pure (List.head result)\n"
                     )
                 <> "createMany models = do\n"
-                <> indent ("let (ModelContext conn) = ?modelContext\n"
-                    <> createManyQueryFn <> " conn (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
+                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
+                    <> createManyQueryFn <> " databaseConnection (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
                     )
             )
 
@@ -331,17 +391,18 @@ commaSep = intercalate ", "
 toBinding :: Text -> Column -> Text
 toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> columnNameToFieldName name
 
-compileUpdate :: Statement -> Text
+compileUpdate :: CreateTable -> Text
 compileUpdate table@(CreateTable { name, columns }) =
     let
         modelName = tableNameToModelName name
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
+        toPrimaryKeyBinding Column { name } = "get #" <> columnNameToFieldName name <> " model"
 
         bindings :: Text
         bindings =
             let
-                bindingValues = (map toUpdateBinding columns) <> ["get #id model"]
+                bindingValues = map toUpdateBinding columns <> map toPrimaryKeyBinding (primaryKeyColumns table)
             in
                 compileToRowValues bindingValues
 
@@ -349,34 +410,55 @@ compileUpdate table@(CreateTable { name, columns }) =
     in
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
-                <> indent ("let (ModelContext conn) = ?modelContext\n"
-                    <> "result <- Database.PostgreSQL.Simple.query conn \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
+                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
+                    <> "result <- Database.PostgreSQL.Simple.query databaseConnection \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
                     <> "pure (List.head result)\n"
                 )
             )
 
-compileFromRowInstance :: (?schema :: Schema) => Statement -> Text
-compileFromRowInstance table@(CreateTable { name, columns }) =
-            "instance FromRow " <> modelName <> " where "
-            <> ("fromRow = do id <- field; " <> modelName <> " <$> " <>  (intercalate " <*> " $ map compileField (dataFields table))) <> ";\n"
+compileFromRowInstance :: (?schema :: Schema) => CreateTable -> Text
+compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
+instance FromRow #{modelName} where
+    fromRow = do
+#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
+        pure $ #{modelName} #{intercalate " " (map compileField (dataFields table))}
+
+|]
     where
         modelName = tableNameToModelName name
         columnNames = map (columnNameToFieldName . get #name) columns
-
-
+        columnBinding columnName = columnName <> " <- field"
 
         referencing = columnsReferencingTable (get #name table)
 
+        compileField (fieldName, _)
+            | isColumn fieldName = fieldName
+            | isManyToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
+            | otherwise = "def"
+
+        isPrimaryKey name = name `elem` primaryKeyColumnNames (primaryKeyConstraint table)
+        isColumn name = name `elem` columnNames
         isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
-        isColumn name = name `elem` columnNames
-        compileField ("id", _) = "pure id"
-        compileField (fieldName, _) | isColumn fieldName = "field"
-        compileField (fieldName, _) | isManyToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
-        compileField _ = "pure def"
+        compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+            where
+                -- | When the referenced column is nullable, we have to wrap the @Id@ in @Just@
+                primaryKeyField :: Text
+                primaryKeyField = if get #notNull refColumn then "id" else "Just id"
 
-        compileSetQueryBuilder (refTableName, refFieldName) = "pure (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow (columnNameToFieldName refFieldName) <> ", id) (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+                (Just refTable) = let (Schema statements) = ?schema in
+                        statements
+                        |> find \case
+                                StatementCreateTable CreateTable { name } -> name == refTableName
+                                otherwise -> False
 
+                refColumn :: Column
+                refColumn = refTable
+                        |> \case StatementCreateTable CreateTable { columns } -> columns
+                        |> find (\col -> get #name col == refFieldName)
+                        |> \case
+                            Just refColumn -> refColumn
+                            Nothing -> error (cs $ "Could not find " <> get #name refTable <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
 
         compileQuery column@(Column { name }) = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
         -- compileQuery column@(Column { name }) | isReferenceColum column = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
@@ -413,7 +495,7 @@ compileFromRowInstance table@(CreateTable { name, columns }) =
         --                Field _ fieldType | allowNull fieldType -> Just $ "Just (" <> fromJust (toBinding modelName attributes) <> ")"
         --                otherwise -> toBinding modelName attributes
 
-compileBuild :: (?schema :: Schema) => Statement -> Text
+compileBuild :: (?schema :: Schema) => CreateTable -> Text
 compileBuild table@(CreateTable { name, columns }) =
         "instance Record " <> tableNameToModelName name <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
@@ -442,25 +524,52 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                             _ -> "def"
 toDefaultValueExpr _ = "def"
 
-compileHasTableNameInstance :: (?schema :: Schema) => Statement -> Text
+compileHasTableNameInstance :: (?schema :: Schema) => CreateTable -> Text
 compileHasTableNameInstance table@(CreateTable { name }) =
     "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
-compileGetModelName :: (?schema :: Schema) => Statement -> Text
+compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
+compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = cs [i|
+type instance PrimaryKey #{tshow name} = #{idType}
+
+instance QueryBuilder.FilterPrimaryKey #{tableNameToModelName name} where
+    filterWhereId #{primaryKeyPattern} builder =
+        builder |> #{intercalate " |> " primaryKeyFilters}
+|]
+    where
+        idType :: Text
+        idType = case primaryKeyColumns table of
+            [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+            [c] -> colType c
+            cs -> "(" <> intercalate ", " (map colType cs) <> ")"
+            where colType = atomicType . get #columnType
+
+        primaryKeyPattern = case primaryKeyColumns table of
+            [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+            [c] -> get #name c
+            cs -> "(Id (" <> intercalate ", " (map (columnNameToFieldName . get #name) cs) <> "))"
+
+        primaryKeyFilters :: [Text]
+        primaryKeyFilters = map primaryKeyFilter $ primaryKeyColumns table
+
+        primaryKeyFilter :: Column -> Text
+        primaryKeyFilter Column {name} = "QueryBuilder.filterWhere (#" <> columnNameToFieldName name <> ", " <> columnNameToFieldName name <> ")"
+
+compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
 
-compileDataTypePattern :: (?schema :: Schema) => Statement -> Text
+compileDataTypePattern :: (?schema :: Schema) => CreateTable -> Text
 compileDataTypePattern table@(CreateTable { name }) = tableNameToModelName name <> " " <> unwords (table |> dataFields |> map fst)
 
-compileTypePattern :: (?schema :: Schema) => Statement -> Text
+compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
 compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "' " <> unwords (dataTypeArguments table)
 
-compileInclude :: (?schema :: Schema) => Statement -> Text
+compileInclude :: (?schema :: Schema) => CreateTable -> Text
 compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
     where
         belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
-        hasManyIncludes = columnsReferencingTable name |> map compileHasMany 
+        hasManyIncludes = columnsReferencingTable name |> map compileHasMany
         typeArgs = dataTypeArguments table
         modelName = tableNameToModelName name
         modelConstructor = modelName <> "'"
@@ -480,7 +589,7 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
         compileHasMany (refTableName, refColumnName) = includeType (columnNameToFieldName refTableName) ("[" <> tableNameToModelName refTableName <> "]")
 
 
-compileSetFieldInstances :: (?schema :: Schema) => Statement -> Text
+compileSetFieldInstances :: (?schema :: Schema) => CreateTable -> Text
 compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
     where
         setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (get #name) columns)) <> " newValue"
@@ -497,7 +606,7 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
                     | name' == "meta" = "(meta { touchedFields = \"" <> name <> "\" : touchedFields meta })"
                     | otherwise = name'
 
-compileUpdateFieldInstances :: (?schema :: Schema) => Statement -> Text
+compileUpdateFieldInstances :: (?schema :: Schema) => CreateTable -> Text
 compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
     where
         modelName = tableNameToModelName name
@@ -517,6 +626,31 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                 compileTypePattern' ::  Text -> Text
                 compileTypePattern' name = tableNameToModelName (get #name table) <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
 
+compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
+compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
+instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
+    getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue}
+|]
+    where
+        compilePrimaryKeyValue = case primaryKeyColumnNames primaryKeyConstraint of
+            [id] -> columnNameToFieldName id
+            ids -> "Id (" <> commaSep (map columnNameToFieldName ids) <> ")"
+
+needsHasFieldId :: CreateTable -> Bool
+needsHasFieldId CreateTable { primaryKeyConstraint } =
+  case primaryKeyColumnNames primaryKeyConstraint of
+    [] -> False
+    ["id"] -> False
+    _ -> True
+
+primaryKeyColumns :: CreateTable -> [Column]
+primaryKeyColumns CreateTable { name, columns, primaryKeyConstraint } =
+    map getColumn (primaryKeyColumnNames primaryKeyConstraint)
+  where
+    getColumn columnName = case find ((==) columnName . get #name) columns of
+      Just c -> c
+      Nothing -> error ("Missing column " <> cs columnName <> " used in primary key for " <> cs name)
+
 -- | Indents a block of code with 4 spaces.
 --
 -- Empty lines are not indented.
@@ -529,3 +663,10 @@ indent code = code
         indentLine ""   = ""
         indentLine line = "    " <> line
 
+-- | Returns 'True' when the column has an explicit default value or when it's a SERIAL or BIGSERIAL
+hasExplicitOrImplicitDefault :: Column -> Bool
+hasExplicitOrImplicitDefault column = case column of
+        Column { defaultValue = Just _ } -> True
+        Column { columnType = PSerial } -> True
+        Column { columnType = PBigserial } -> True
+        _ -> False

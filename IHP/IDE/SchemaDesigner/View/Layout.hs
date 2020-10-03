@@ -1,10 +1,10 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, isIllegalKeyword, findForeignKey) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compileExpression)
+import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
@@ -34,7 +34,7 @@ databaseControls = [hsx|
     <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
     <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
     <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
-    <div class="btn-group">
+    <div class="btn-group btn-group-sm mb-2">
         <button
             type="submit"
             form="update-db-form"
@@ -76,8 +76,8 @@ databaseControls = [hsx|
 
 findStatementByName statementName statements = find pred statements
     where
-        pred CreateTable { name } | (toUpper name) == (toUpper statementName) = True
-        pred CreateTable { name } | (toUpper name) == (toUpper (tshow statementName)) = True
+        pred (StatementCreateTable CreateTable { name }) | (toUpper name) == (toUpper statementName) = True
+        pred (StatementCreateTable CreateTable { name }) | (toUpper name) == (toUpper (tshow statementName)) = True
         pred CreateEnumType { name } | (toUpper name) == (toUpper statementName) = True
         pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow statementName)) = True
         pred _ = False
@@ -99,9 +99,6 @@ renderColumnSelector tableName columns statements = [hsx|
 <div class="col-8 column-selector" oncontextmenu="showContextMenu('context-menu-column-root')">
     <div class="d-flex">
         <h5>Columns</h5>
-        <div class="toolbox">
-            <a href={NewColumnAction tableName} class="btn btn-sm btn-outline-primary m-1" id="new-column">New Column</a>
-        </div>
     </div>
     <table class="table table-hover table-sm">
         <tbody>
@@ -117,16 +114,16 @@ renderColumnSelector tableName columns statements = [hsx|
 -- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
 
 renderColumn :: Column -> Int -> Text -> [Statement] -> Html
-renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUnique } id tableName statements = [hsx|
+renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tableName statements = [hsx|
 <tr class="column">
     <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}><a href={EditColumnAction tableName id} class="d-block text-body nounderline">{name}</a></td>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{columnType}{renderAllowNull}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{compilePostgresType columnType}{renderAllowNull}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderDefault}{renderIsUnique}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderPrimaryKey}{renderForeignKey}</td>
 </tr>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
     <a href={EditColumnAction tableName id}>Edit Column</a>
-    <a href={DeleteColumnAction tableName id} class="js-delete">Delete Column</a>
+    <a href={DeleteColumnAction tableName id name} class="js-delete">Delete Column</a>
     <div></div>
     <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button">{toggleButtonText}</button></form>
     {foreignKeyOption}
@@ -137,7 +134,10 @@ renderColumn Column { name, primaryKey, columnType, defaultValue, notNull, isUni
     where
         toggleButtonText = if isUnique then [hsx|Remove Unique|] else [hsx|Make Unique|]
         contextMenuId = "context-menu-column-" <> tshow id
-        renderPrimaryKey = if primaryKey then [hsx|PRIMARY KEY|] else mempty
+        renderPrimaryKey = if inPrimaryKey then [hsx|PRIMARY KEY|] else mempty
+        inPrimaryKey = case findPrimaryKey statements tableName of
+          Nothing -> False
+          Just columnNames -> name `elem` columnNames
         renderAllowNull = if notNull then mempty else [hsx|{" | " :: Text}NULL|]
         renderIsUnique = if isUnique then [hsx|IS UNIQUE|] else mempty
         renderDefault =
@@ -190,22 +190,12 @@ renderValue value valueId enumName = [hsx|
         contextMenuId = "context-menu-value-" <> tshow valueId
 
 renderObjectSelector statements activeObjectName = [hsx|
-    <div class="col object-selector" oncontextmenu="showContextMenu('context-menu-object-root')">
+    <div class={classes ["col", "object-selector", ("empty", isEmptySelector)]} oncontextmenu="showContextMenu('context-menu-object-root')">
         <div class="d-flex">
             <h5>Objects</h5>
-            <div class="toolbox">
-                <div class="btn-group m-1">
-                    <a href={NewTableAction} class="btn btn-sm btn-outline-primary">New Table</a>
-                    <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <span class="sr-only">Toggle Dropdown</span>
-                    </button>
-                    <div class="dropdown-menu">
-                        <a href={NewEnumAction} class="dropdown-item">New Enum</a>
-                    </div>
-                </div>
-            </div>
         </div>
         {forEach statements (\statement -> renderObject (snd statement) (fst statement))}
+        <div class="text-muted context-menu-notice">Right click to open context menu</div>
     </div>
     <div class="custom-menu menu-for-table shadow backdrop-blur" id="context-menu-object-root">
         <a href={NewTableAction}>Add Table</a>
@@ -213,8 +203,11 @@ renderObjectSelector statements activeObjectName = [hsx|
     </div>
 |]
     where
+        isEmptySelector :: Bool
+        isEmptySelector = statements |> map snd |> filter shouldRenderObject |> isEmpty
+
         renderObject :: Statement -> Int -> Html
-        renderObject CreateTable { name } id = [hsx|
+        renderObject (StatementCreateTable CreateTable { name }) id = [hsx|
         <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
             <div class="d-flex">
                 {name}
@@ -264,6 +257,10 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject CreateExtension {} id = mempty
         renderObject statement id = [hsx|<div>{statement}</div>|]
 
+        shouldRenderObject (StatementCreateTable CreateTable {}) = True
+        shouldRenderObject CreateEnumType {} = True
+        shouldRenderObject _ = False
+
 removeQuotes :: [Char] -> Text
 removeQuotes (x:xs) = cs (init xs)
 removeQuotes n = cs n
@@ -278,6 +275,14 @@ findForeignKey statements tableName columnName =
             , referenceColumn = (get #referenceColumn (get #constraint statement))
             , onDelete = (get #onDelete (get #constraint statement))  }
             } ) statements
+
+findPrimaryKey :: [Statement] -> Text -> Maybe [Text]
+findPrimaryKey statements tableName = do
+    (StatementCreateTable createTable) <- find (isCreateTable tableName) statements
+    pure . primaryKeyColumnNames $ primaryKeyConstraint createTable
+    where
+      isCreateTable tableName (StatementCreateTable CreateTable { name }) = name == tableName
+      isCreateTable _ _ = False
 
 replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of

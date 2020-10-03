@@ -27,6 +27,7 @@ module IHP.ViewSupport
 , query
 , isActiveController
 , renderFlashMessages
+, nl2br
 ) where
 
 import IHP.Prelude
@@ -41,12 +42,15 @@ import qualified Text.Inflections as Inflector
 import qualified Data.Either as Either
 import GHC.TypeLits as T
 import qualified Data.ByteString as ByteString
-import IHP.RouterSupport
+import IHP.RouterSupport hiding (get)
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport
 import qualified IHP.Controller.Session as Session
 import IHP.HtmlSupport.QQ (hsx)
+import IHP.HtmlSupport.ToHtml
+import qualified Data.Sequences as Sequences
+import qualified IHP.Controller.RequestContext
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 
@@ -311,3 +315,13 @@ renderFlashMessages =
         renderFlashMessage (Session.ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
     in
         forEach flashMessages renderFlashMessage
+
+-- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
+--
+-- >>> nl2br "Hello\nWorld!"
+-- [hsx|Hello<br/>World!|]
+nl2br :: (Sequences.Textual text, ToHtml text) => text -> Html5.Html
+nl2br content = content
+    |> Sequences.lines
+    |> map (\line -> [hsx|{line}<br/>|])
+    |> mconcat

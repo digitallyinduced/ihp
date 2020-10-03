@@ -22,11 +22,11 @@ import GHC.Records
 
 {-# INLINE renderPlain #-}
 renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ()
-renderPlain text = respondAndExit $ responseLBS status200 [] (cs text)
+renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] (cs text)
 
 {-# INLINE respondHtml #-}
 respondHtml :: (?requestContext :: RequestContext) => Html -> IO ()
-respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE respondSvg #-}
 respondSvg :: (?requestContext :: RequestContext) => Html -> IO ()
@@ -78,7 +78,6 @@ instance MaybeRender (IO ()) where
 {-# INLINE renderPolymorphic #-}
 renderPolymorphic :: forall viewContext jsonType htmlType. (?requestContext :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
-    let RequestContext request _ _ _ _ = ?requestContext
     let headers = Network.Wai.requestHeaders request
     let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
     let send406Error = respondAndExit $ responseLBS status406 [] "Could not find any acceptable response format"

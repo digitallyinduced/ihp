@@ -55,9 +55,9 @@ stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
-    
+
 statement = do
-    s <- try createExtension <|> try createTable <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> createEnumType <|> addConstraint <|> comment
     space
     pure s
 
@@ -77,9 +77,32 @@ createTable = do
         lexeme "public"
         char '.'
     name <- identifier
-    columns <- between (char '(' >> space) (char ')' >> space) (column `sepBy` (char ',' >> space))
+
+    -- Process columns (tagged if they're primary key) and table constraints
+    -- together, as they can be in any order
+    (taggedColumns, allConstraints) <- between (char '(' >> space) (char ')' >> space) do
+        columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> column)) `sepBy` (char ',' >> space)
+        pure (lefts columnsAndConstraints, rights columnsAndConstraints)
+
     char ';'
-    pure CreateTable { name, columns }
+
+    -- Check that either there is a single column with a PRIMARY KEY constraint,
+    -- or there is a single PRIMARY KEY table constraint
+    let
+        columns = map snd taggedColumns
+        constraints = rights allConstraints
+
+    primaryKeyConstraint <- case filter fst taggedColumns of
+        [] -> case lefts allConstraints of
+            [] -> pure $ PrimaryKeyConstraint []
+            [primaryKeyConstraint] -> pure primaryKeyConstraint
+            _ -> Prelude.fail ("Multiple PRIMARY KEY constraints on table " <> cs name)
+        [(_, Column { name })] -> case lefts allConstraints of
+            [] -> pure $ PrimaryKeyConstraint [name]
+            _ -> Prelude.fail ("Primary key defined in both column and table constraints on table " <> cs name)
+        _ -> Prelude.fail "Multiple columns with PRIMARY KEY constraint"
+
+    pure CreateTable { name, columns, primaryKeyConstraint, constraints }
 
 createEnumType = do
     lexeme "CREATE"
@@ -98,11 +121,26 @@ addConstraint = do
     lexeme "ADD"
     lexeme "CONSTRAINT"
     constraintName <- identifier
-    constraint <- parseConstraint
+    constraint <- parseTableConstraint >>= \case
+      Left _ -> Prelude.fail "Cannot add new PRIMARY KEY constraint to table"
+      Right constraint -> pure constraint
     char ';'
     pure AddConstraint { tableName, constraintName, constraint }
 
-parseConstraint = do
+parseTableConstraint = do
+    optional do
+        lexeme "CONSTRAINT"
+        identifier
+    (Left <$> parsePrimaryKeyConstraint) <|>
+      (Right <$> (parseForeignKeyConstraint <|> parseUniqueConstraint))
+
+parsePrimaryKeyConstraint = do
+    lexeme "PRIMARY"
+    lexeme "KEY"
+    primaryKeyColumnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    pure PrimaryKeyConstraint { primaryKeyColumnNames }
+
+parseForeignKeyConstraint = do
     lexeme "FOREIGN"
     lexeme "KEY"
     columnName <- between (char '(' >> space) (char ')' >> space) identifier
@@ -114,6 +152,12 @@ parseConstraint = do
         lexeme "DELETE"
         parseOnDelete
     pure ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete }
+
+parseUniqueConstraint = do
+    lexeme "UNIQUE"
+    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    pure UniqueConstraint { columnNames }
+
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
@@ -132,10 +176,10 @@ column = do
     primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
     notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
     isUnique <- isJust <$> optional (lexeme "UNIQUE")
-    pure Column { name, columnType, primaryKey, defaultValue, notNull, isUnique }
+    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique })
 
 sqlType :: Parser PostgresType
-sqlType = choice
+sqlType = choice $ map optionalArray
         [ uuid
         , text
         , bigint
@@ -154,6 +198,9 @@ sqlType = choice
         , numeric
         , character
         , varchar
+        , serial
+        , bigserial
+        , jsonb
         , customType
         ]
             where
@@ -255,6 +302,22 @@ sqlType = choice
                                 Nothing -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
                                 Just l -> pure (PCharacterN l)
                         _ -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
+
+                serial = do
+                    try (symbol' "SERIAL")
+                    pure PSerial
+
+                bigserial = do
+                    try (symbol' "BIGSERIAL")
+                    pure PBigserial
+
+                jsonb = do
+                    try (symbol' "JSONB")
+                    pure PJSONB
+
+                optionalArray typeParser= do
+                    arrayType <- typeParser;
+                    (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))

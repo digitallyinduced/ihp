@@ -68,6 +68,7 @@ GHC_OPTIONS+= +RTS ${GHC_RTS_FLAGS} --RTS
 endif
 
 GHC_OPTIONS+= -package ihp
+GHC_OPTIONS+= -rtsopts=all
 
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
 PROD_GHC_OPTIONS+= -optc-O3
@@ -84,6 +85,12 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m"
 
 .DEFAULT_GOAL := help
 RUNGHC=runghc
+
+ifneq ($(wildcard IHP/.*),)
+IHP_LIB = IHP/lib/IHP
+else
+IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
+endif
 
 all: build/ihp-lib build/Generated/Types.hs
 
@@ -103,6 +110,7 @@ psql: ## Connects to the running postgresql server
 
 db: Application/Schema.sql Application/Fixtures.sql ## Creates a new database with the current Schema and imports Fixtures.sql
 	echo "drop schema public cascade; create schema public;" | psql -h $$PWD/build/db -d app
+	psql -h $$PWD/build/db -d app < "${IHP_LIB}/IHPSchema.sql"
 	psql -h $$PWD/build/db -d app < Application/Schema.sql
 	psql -h $$PWD/build/db -d app < Application/Fixtures.sql
 
@@ -121,7 +129,7 @@ build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod
 	rm -f build/bin/RunProdServer
 	ln -s `basename $@` build/bin/RunProdServer
 
-build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css ## Full production build with all ghc optimizations (takes a while)
+build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Full production build with all ghc optimizations (takes a while)
 	mkdir -p build/RunOptimizedProdServer
 	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
 	chmod +x $<
@@ -135,7 +143,7 @@ clean: ## Resets all build and temporary files
 	rm -f .envrc
 
 static/prod.js: $(JS_FILES) ## Builds the production js bundle
-	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@
+	awk -v RS='\0' '{print "(function (window, document, undefined) {"; print; print "\n})(window, document);";}' $(JS_FILES) > $@
 
 static/prod.css: $(CSS_FILES) ## Builds the production css bundle
 	cat $(CSS_FILES) > $@
@@ -149,16 +157,26 @@ print-ghc-extensions: ## Prints all used ghc extensions. Useful for scripting
 help: ## This help page
 	@grep -h -E '^[a-zA-Z_///-\.]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-ifneq ($(wildcard IHP/.*),)
-IHP_LIB = ../IHP/lib/IHP
-else
-IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
-endif
-
 build/ihp-lib: # Used by application .ghci
 	mkdir -p build
 	rm -f build/ihp-lib
+ifneq ($(wildcard IHP/.*),)
+	ln -s ../IHP/lib/IHP build/ihp-lib
+else
 	ln -s ${IHP_LIB} build/ihp-lib
+endif
+
+build/bin/Script/%: build/Script/Main/%.hs
+	mkdir -p build/bin/Script
+	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/Script -hidir build/Script
+
+build/Script/Main/%.hs: Application/Script/%.hs
+	mkdir -p build/Script/Main
+	echo "module Main (main) where" > $@
+	echo "import IHP.ScriptSupport" >> $@
+	echo "import qualified Config" >> $@
+	echo "import Application.Script.$* (run)" >> $@
+	echo "main = runScript run" >> $@
 
 hie.yaml: # Configuration for haskell-language-server
 	echo "cradle:" > hie.yaml

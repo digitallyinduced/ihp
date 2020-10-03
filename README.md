@@ -39,7 +39,9 @@ Lot's of frameworks are already gone a year after launch. Especially in the fast
 
 ## Getting Started
 
-[Follow the Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
+[If you like videos, check out IHP Casts!](https://www.youtube.com/watch?v=PLl9Sjq6Nzc&list=PLenFm8BWuKlS0IaE31DmKB_PbkMLmwWmG&index=1).
+
+[You can also follow the written Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
 [📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1) Or follow [digitally induced on twitter.](https://twitter.com/digitallyinduce)
 
@@ -47,6 +49,8 @@ Questions, or need help with haskell type errors? Join our Gitter Chat:
 
 [![Gitter](https://badges.gitter.im/digitallyinduced/ihp.svg)](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 [(IRC available)](https://irc.gitter.im/)
+
+[Also check out the IHP Forum!](https://ihp-forum.digitallyinduced.com/)
 
 ## Why?
 

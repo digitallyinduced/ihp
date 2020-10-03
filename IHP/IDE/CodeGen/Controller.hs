@@ -142,7 +142,7 @@ executePlan actions = forEach actions evalAction
             Text.writeFile (cs filePath) (cs newContent)
             putStrLn ("* " <> filePath <> " (import)")
         evalAction AddImport { filePath, fileContent } = do
-            addImport filePath [fileContent]
+            addImport filePath fileContent
             putStrLn ("* " <> filePath <> " (import)")
         evalAction AddAction { filePath, fileContent } = do
             addAction filePath [fileContent]
@@ -196,16 +196,19 @@ deleteTextFromFile filePath lineContent = do
     let replacedContent = Text.replace lineContent "" fileContent
     Text.writeFile (cs filePath) replacedContent
 
-addImport :: Text -> [Text] -> IO ()
-addImport file importStatements = do
+addImport :: Text -> Text -> IO ()
+addImport file importStatement = do
     content :: Text <- Text.readFile (cs file)
-    case addImport' content importStatements of
+    case addImport' content importStatement of
         Just newContent -> Text.writeFile (cs file) (cs newContent)
-        Nothing -> putStrLn ("Could not automatically add " <> tshow importStatements <> " to " <> file)
+        Nothing -> pure ()
     pure ()
 
-addImport' :: Text -> [Text] -> Maybe Text
-addImport' file = appendLineAfter file ("import" `isPrefixOf`)
+addImport' :: Text -> Text -> Maybe Text
+addImport' content importStatement = do
+    if importStatement `isInfixOf` content
+        then Nothing
+        else appendLineAfter content ("import" `isPrefixOf`) [importStatement]
 
 addAction :: Text -> [Text] -> IO ()
 addAction filePath fileContent = do

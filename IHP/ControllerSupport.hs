@@ -4,9 +4,10 @@ module IHP.ControllerSupport
 ( Action'
 , (|>)
 , getRequestBody
-, getRequestUrl
+, getRequestPath
+, getRequestPathAndQuery
 , getHeader
-, RequestContext (..)
+, RequestContext (RequestContext)
 , request
 , requestHeaders
 , getFiles
@@ -21,6 +22,7 @@ module IHP.ControllerSupport
 , emptyControllerContext
 , respondAndExit
 , ActionType (..)
+, ResponseException (..)
 ) where
 
 import ClassyPrelude
@@ -41,6 +43,7 @@ import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
+import IHP.FrameworkConfig (FrameworkConfig)
 
 type Action' = IO ResponseReceived
 
@@ -70,11 +73,11 @@ class (Show controller, Eq controller) => Controller controller where
     action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
-    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext) => TypeMap.TMap -> IO TypeMap.TMap
+    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext) => TypeMap.TMap -> IO TypeMap.TMap
     initContext context = pure context
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext, FrameworkConfig) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let respond = ?requestContext |> get #respond
@@ -89,7 +92,7 @@ runAction controller = do
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller, FrameworkConfig) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let context = TypeMap.empty
@@ -108,13 +111,29 @@ runActionWithNewContext controller = do
 getRequestBody :: (?requestContext :: RequestContext) => IO ByteString
 getRequestBody = Network.Wai.getRequestBodyChunk request
 
-{-# INLINE getRequestUrl #-}
-getRequestUrl :: (?requestContext :: RequestContext) => ByteString
-getRequestUrl = Network.Wai.rawPathInfo request
+-- | Returns the request path, e.g. @/Users@ or @/CreateUser@
+getRequestPath :: (?requestContext :: RequestContext) => ByteString
+getRequestPath = Network.Wai.rawPathInfo request
+{-# INLINE getRequestPath #-}
 
-{-# INLINE getHeader #-}
+-- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
+getRequestPathAndQuery :: (?requestContext :: RequestContext) => ByteString
+getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQueryString request
+{-# INLINE getRequestPathAndQuery #-}
+
+-- | Returns a header value for a given header name. Returns Nothing if not found
+--
+-- The header is looked up in a case insensitive way.
+--
+-- >>> getHeader "Content-Type"
+-- Just "text/html"
+--
+-- >>> getHeader "X-My-Custom-Header"
+-- Nothing
+--
 getHeader :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
+{-# INLINE getHeader #-}
 
 -- | Returns the current HTTP request.
 --
