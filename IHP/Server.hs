@@ -8,7 +8,6 @@ import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
-import qualified Web.Cookie as Cookie
 import qualified Data.Time.Clock
 import IHP.ModelSupport
 import IHP.ApplicationContext
@@ -45,13 +44,8 @@ run = do
             requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
             let ?requestContext = requestContext
             frontControllerToWAIApp FrameworkConfig.RootApplication ErrorController.handleNotFound
-            
-    let sessionCookie = def
-                { Cookie.setCookiePath = Just "/"
-                , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
-                , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
-                }
-    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie session
+
+    let sessionMiddleware :: Middleware = withSession store "SESSION" FrameworkConfig.sessionCookie session
 
     libDirectory <- cs <$> FrameworkConfig.findLibDirectory
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
