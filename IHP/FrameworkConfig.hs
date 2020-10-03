@@ -11,6 +11,8 @@ import qualified Data.Text as Text
 import qualified System.Process as Process
 import Network.Wai (Middleware)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
+import qualified Web.Cookie as Cookie
+import Data.Default (def)
 
 defaultPort :: Int
 defaultPort = 8000
@@ -39,6 +41,23 @@ class FrameworkConfig where
     -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
     requestLoggerMiddleware :: Middleware
     requestLoggerMiddleware = RequestLogger.logStdoutDev
+
+    -- | Provides the default settings for the session cookie
+    --
+    -- Override this to set e.g. a custom max age or change the default same site policy.
+    --
+    -- __Example: Set max age to 90 days__
+    -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
+    sessionCookie :: Cookie.SetCookie
+    sessionCookie = defaultIHPSessionCookie
+
+-- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
+defaultIHPSessionCookie :: Cookie.SetCookie
+defaultIHPSessionCookie = def
+    { Cookie.setCookiePath = Just "/"
+    , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
+    , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
+    }
 
 data RootApplication = RootApplication deriving (Eq, Show)
 
