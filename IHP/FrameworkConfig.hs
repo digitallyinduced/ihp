@@ -42,7 +42,12 @@ class FrameworkConfig where
     requestLoggerMiddleware :: Middleware
     requestLoggerMiddleware = RequestLogger.logStdoutDev
 
-    -- | Provides the default settings for the session cookie
+    -- | Provides the default settings for the session cookie.
+    --
+    -- - Max Age: 30 days
+    -- - Same Site Policy: Lax
+    -- - HttpOnly (no access through JS)
+    -- - secure, when baseUrl is a https url
     --
     -- Override this to set e.g. a custom max age or change the default same site policy.
     --
@@ -52,11 +57,13 @@ class FrameworkConfig where
     sessionCookie = defaultIHPSessionCookie
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
-defaultIHPSessionCookie :: Cookie.SetCookie
+defaultIHPSessionCookie :: FrameworkConfig => Cookie.SetCookie
 defaultIHPSessionCookie = def
     { Cookie.setCookiePath = Just "/"
     , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
     , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
+    , Cookie.setCookieHttpOnly = True
+    , Cookie.setCookieSecure = "https://" `Text.isPrefixOf` baseUrl
     }
 
 data RootApplication = RootApplication deriving (Eq, Show)
