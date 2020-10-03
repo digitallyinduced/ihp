@@ -21,6 +21,7 @@ module IHP.QueryBuilder
   , orderByAsc
   , orderByDesc
   , limit
+  , offset
   , queryUnion
   , queryOr
   , DefaultScope (..)
@@ -103,6 +104,7 @@ data QueryBuilder model where
     FilterByQueryBuilder :: (KnownSymbol field) => !(Proxy field, FilterOperator, Action) -> !(QueryBuilder model) -> QueryBuilder model
     OrderByQueryBuilder :: KnownSymbol field => !(Proxy field, OrderByDirection) -> !(QueryBuilder model) -> QueryBuilder model
     LimitQueryBuilder :: Int -> !(QueryBuilder model) -> QueryBuilder model
+    OffsetQueryBuilder :: Int -> !(QueryBuilder model) -> QueryBuilder model
     IncludeQueryBuilder :: (KnownSymbol field, KnownSymbol (GetTableName model)) => !(Proxy field, QueryBuilder relatedModel) -> !(QueryBuilder model) -> QueryBuilder (Include field model)
     UnionQueryBuilder :: !(QueryBuilder model) -> !(QueryBuilder model) -> QueryBuilder model
 
@@ -122,7 +124,8 @@ data SQLQuery = SQLQuery {
         selectFrom :: !Text,
         whereCondition :: !(Maybe Condition),
         orderByClause :: !([(Text, OrderByDirection)]),
-        limitClause :: !(Maybe Text)
+        limitClause :: !(Maybe Text),
+        offsetClause :: !(Maybe Text)
     }
 
 {-# INLINE buildQuery #-}
@@ -131,7 +134,7 @@ buildQuery !queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolVal @(GetTableName model) Proxy
-            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = [], limitClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = buildQuery queryBuilder
@@ -142,12 +145,13 @@ buildQuery !queryBuilder =
             let query = buildQuery queryBuilder
             in query { orderByClause = (orderByClause query) ++ [(fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection)] } -- although adding to the end of a list is bad form, these lists are very short
         LimitQueryBuilder limit queryBuilder -> (buildQuery queryBuilder) { limitClause = Just ("LIMIT " <> tshow limit) }
+        OffsetQueryBuilder offset queryBuilder -> (buildQuery queryBuilder) { offsetClause = Just ("OFFSET " <> tshow offset) }
         IncludeQueryBuilder include queryBuilder -> buildQuery queryBuilder
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
             let
                 firstQuery = buildQuery firstQueryBuilder
                 secondQuery = buildQuery secondQueryBuilder
-                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query)
+                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
                 isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                 unionWhere =
                     case (whereCondition firstQuery, whereCondition secondQuery) of
@@ -259,7 +263,7 @@ genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
-toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
+toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause } =
         (theQuery, theParams)
     where
         !theQuery =
@@ -268,6 +272,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
             <> whereConditions' <> " "
             <> orderByClause' <> " "
             <> limitClause'
+            <> offsetClause'
 
         selectors :: Text
         selectors = selectFrom <> ".*"
@@ -287,6 +292,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
                 [] -> mempty
                 xs -> " ORDER BY " <> intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
         limitClause' = fromMaybe "" limitClause
+        offsetClause' = fromMaybe "" offsetClause
 
 {-# INLINE compileConditionQuery #-}
 compileConditionQuery :: Condition -> Text
@@ -417,6 +423,21 @@ orderBy !name = orderByAsc name
 limit :: Int -> QueryBuilder model -> QueryBuilder model
 limit !limit = LimitQueryBuilder limit
 {-# INLINE limit #-}
+
+-- | Adds an @OFFSET ..@ to your query. Most often used together with @LIMIT...@
+--
+--
+-- __Example:__ Fetch posts 10-20
+--
+-- > query @Post
+-- >     |> limit 10
+-- >     |> offset 10
+-- >     |> fetch
+-- > -- SELECT * FROM posts LIMIT 10 OFFSET 10
+offset :: Int -> QueryBuilder model -> QueryBuilder model
+offset !offset = OffsetQueryBuilder offset
+{-# INLINE offset #-}
+
 
 data IncludeTag
 include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (Include name model)
