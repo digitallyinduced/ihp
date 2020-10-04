@@ -74,6 +74,10 @@ common shared-properties
             , wai-websockets
             , regex-tdfa
             , binary
+            , mime-mail
+            , mime-mail-ses
+            , http-client
+            , http-client-tls
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -225,6 +229,9 @@ library IHPFramework
         , IHP.AutoRefresh.View
         , IHP.WebSocket
         , IHP.PGNotify
+        , IHP.Mail
+        , IHP.Mail.Types
+        , IHP.MailPrelude
 
 executable RunDevServer
     import: shared-properties

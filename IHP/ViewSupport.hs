@@ -28,6 +28,7 @@ module IHP.ViewSupport
 , isActiveController
 , renderFlashMessages
 , nl2br
+, stripTags
 ) where
 
 import IHP.Prelude

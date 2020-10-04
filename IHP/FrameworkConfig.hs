@@ -13,6 +13,7 @@ import Network.Wai (Middleware)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
 import Data.Default (def)
+import IHP.Mail.Types
 
 defaultPort :: Int
 defaultPort = 8000
@@ -55,6 +56,9 @@ class FrameworkConfig where
     -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
     sessionCookie :: Cookie.SetCookie
     sessionCookie = defaultIHPSessionCookie
+
+    mailServer :: MailServer
+    mailServer = error "You have not yet configured which mail server to use. See TODO(link to docu)"
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: FrameworkConfig => Cookie.SetCookie
