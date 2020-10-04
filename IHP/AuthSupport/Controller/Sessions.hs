@@ -86,6 +86,7 @@ createSessionAction = do
 
             if verifyPassword user (param @Text "password")
                 then do
+                    beforeLogin user
                     login user
                     user <- user
                             |> set #failedLoginAttempts 0
@@ -164,3 +165,16 @@ class ( Typeable record
     -- | After 10 failed login attempts the user will be locked for an hour
     maxFailedLoginAttemps :: record -> Int
     maxFailedLoginAttemps _ = 10
+
+    -- | Callback that is executed just before the user is logged
+    -- 
+    -- This is called only after checking that the password is correct. When a wrong password is given this callback is not executed.
+    -- 
+    -- __Example: Disallow login until user is confirmed__
+    --
+    -- > beforeLogin user = do
+    -- >     unless (get #isConfirmed user) do
+    -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
+    -- >         redirectTo NewSessionAction
+    beforeLogin :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext) => record -> IO ()
+    beforeLogin _ = pure ()
