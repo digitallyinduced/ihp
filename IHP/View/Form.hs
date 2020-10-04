@@ -173,7 +173,7 @@ submitButton =
     , buttonClass = mempty
     }
 
-data InputType = TextInput | CheckboxInput | ColorInput | EmailInput | HiddenInput | TextareaInput | DateInput | DateTimeInput | PasswordInput | SelectInput { options :: ![(Text, Text)] }
+data InputType = TextInput | NumberInput | CheckboxInput | ColorInput | EmailInput | HiddenInput | TextareaInput | DateInput | DateTimeInput | PasswordInput | SelectInput { options :: ![(Text, Text)] }
 
 renderHelpText (FormField { helpText }) =
     unless (null helpText) [hsx|<small class="form-text text-muted">{helpText}</small>|]
@@ -188,6 +188,7 @@ renderBootstrapFormField :: FormField -> Html5.Html
 renderBootstrapFormField formField@(FormField { fieldType }) =
         case fieldType of
             TextInput -> renderTextField "text" formField
+            NumberInput -> renderTextField "number" formField
             PasswordInput -> renderTextField "password" formField
             ColorInput -> renderTextField "color" formField
             EmailInput -> renderTextField "email" formField
@@ -249,6 +250,7 @@ renderHorizontalBootstrapFormField :: FormField -> Html5.Html
 renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
         case fieldType of
             TextInput -> renderTextField "text" formField
+            NumberInput -> renderTextField "number" formField
             PasswordInput -> renderTextField "password" formField
             ColorInput -> renderTextField "color" formField
             EmailInput -> renderTextField "email" formField
@@ -349,6 +351,17 @@ textField field = FormField
         fieldName = symbolVal field
         FormContext { model } = ?formContext
 {-# INLINE textField #-}
+
+numberField :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue value
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> FormField
+numberField field = (textField field) { fieldType = NumberInput }
+{-# INLINE numberField #-}
 
 textareaField :: forall fieldName model value.
     ( ?formContext :: FormContext model
