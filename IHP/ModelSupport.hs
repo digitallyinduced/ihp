@@ -14,7 +14,7 @@ import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
-import Data.String.Conversions (cs)
+import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.Calendar
 import Unsafe.Coerce
@@ -32,12 +32,16 @@ import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
+import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
     { databaseConnection :: Connection
     -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
     , queryDebuggingEnabled :: Bool
+    -- | A callback that is called whenever a specific table is accessed using a SELECT query
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     }
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -45,6 +49,7 @@ notConnectedModelContext :: ModelContext
 notConnectedModelContext = ModelContext
     { databaseConnection = error "Not connected"
     , queryDebuggingEnabled = False
+    , trackTableReadCallback = Nothing
     }
 
 type family GetModelById id :: Type where
@@ -101,6 +106,9 @@ instance InputValue Day where
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
+
+instance InputValue value => InputValue [value] where
+    inputValue list = list |> map inputValue |> intercalate ","
 
 instance Default Text where
     {-# INLINE def #-}
@@ -204,8 +212,26 @@ instance Newtype.Newtype (Id' model) where
     pack = Id
     unpack (Id uuid) = uuid
 
+-- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
+-- to write the Id like a string:
+--
+-- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 instance Read (PrimaryKey model) => IsString (Id' model) where
     fromString uuid = Id (Prelude.read uuid)
+
+-- | Transforms a text, bytestring or string into an Id. Throws an exception if the input is invalid.
+--
+-- __Example:__
+--
+-- > let projectIdText = "7cbc76e2-1c4f-49b6-a7d9-5015e7575a9b" :: Text
+-- > let projectId = (textToId projectIdText) :: Id Project
+--
+-- In case your UUID value is hardcoded, there is also an 'IsString' instance, so you
+-- can just write it like:
+--
+-- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+textToId :: (Read (PrimaryKey model), ConvertibleStrings text String) => text -> Id' model
+textToId text = Id (Prelude.read (cs text))
 
 instance Default (PrimaryKey model) => Default (Id' model) where
     {-# INLINE def #-}
@@ -215,12 +241,28 @@ instance Default (PrimaryKey model) => Default (Id' model) where
 --
 -- __Example:__
 --
--- > users <- sqlQuery "SELECT id, firstname, lastname FROM users"
+-- > users <- sqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery = let ModelContext { databaseConnection } = ?modelContext in PG.query databaseConnection
 {-# INLINE sqlQuery #-}
+
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string
+--
+-- __Example:__
+--
+-- > usersCount <- sqlQuery "SELECT COUNT(*) FROM users"
+--
+-- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
+sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
+sqlQueryScalar query parameters = do
+    let ModelContext { databaseConnection } = ?modelContext
+    result <- PG.query databaseConnection query parameters
+    pure case result of
+        [PG.Only result] -> result
+        _ -> error "sqlQueryScalar: Expected a scalar result value"
+{-# INLINE sqlQueryScalar #-}
 
 -- | Returns the table name of a given model.
 --
@@ -447,3 +489,53 @@ fieldWithUpdate name model
 
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
+
+
+-- | Thrown by 'fetchOne' when the query result is empty
+data RecordNotFoundException
+    = RecordNotFoundException { queryAndParams :: (Text, [Action]) }
+    deriving (Show)
+
+instance Exception RecordNotFoundException
+
+instance Default Aeson.Value where
+    def = Aeson.Null
+
+
+-- | This instancs allows us to avoid wrapping lists with PGArray when
+-- using sql types such as @INT[]@
+instance ToField value => ToField [value] where
+    toField list = toField (PG.PGArray list)
+
+-- | This instancs allows us to avoid wrapping lists with PGArray when
+-- using sql types such as @INT[]@
+instance (FromField value, Typeable value) => FromField [value] where
+    fromField field value = PG.fromPGArray <$> (fromField field value)
+
+trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
+trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
+    Just callback -> callback tableName
+    Nothing -> pure ()
+{-# INLINE trackTableRead #-}
+
+-- | Track all tables in SELECT queries executed within the given IO action.
+--
+-- You can read the touched tables by this function by accessing the variable @?touchedTables@ inside your given IO action.
+--
+-- __Example:__
+--
+-- > withTableReadTracker do
+-- >     project <- query @Project |> fetchOne
+-- >     user <- query @User |> fetchOne
+-- >     
+-- >     tables <- readIORef ?touchedTables
+-- >     -- tables = Set.fromList ["projects", "users"]
+-- > 
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set Text)) => IO ()) -> IO ()
+withTableReadTracker trackedSection = do
+    touchedTablesVar <- newIORef Set.empty
+    let trackTableReadCallback = Just \tableName -> modifyIORef touchedTablesVar (Set.insert tableName)
+    let oldModelContext = ?modelContext
+    let ?modelContext = oldModelContext { trackTableReadCallback }
+    let ?touchedTables = touchedTablesVar
+    trackedSection

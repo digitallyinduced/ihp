@@ -28,6 +28,7 @@ module IHP.ViewSupport
 , isActiveController
 , renderFlashMessages
 , nl2br
+, stripTags
 ) where
 
 import IHP.Prelude
@@ -42,7 +43,7 @@ import qualified Text.Inflections as Inflector
 import qualified Data.Either as Either
 import GHC.TypeLits as T
 import qualified Data.ByteString as ByteString
-import IHP.RouterSupport
+import IHP.RouterSupport hiding (get)
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport

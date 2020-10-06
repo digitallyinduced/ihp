@@ -280,3 +280,14 @@ tests = do
                     , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with an array column" do
+            let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "array_tests"
+                    , columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+

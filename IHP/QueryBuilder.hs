@@ -20,6 +20,8 @@ module IHP.QueryBuilder
   , orderBy
   , orderByAsc
   , orderByDesc
+  , limit
+  , offset
   , queryUnion
   , queryOr
   , DefaultScope (..)
@@ -101,6 +103,8 @@ data QueryBuilder model where
     NewQueryBuilder :: QueryBuilder model
     FilterByQueryBuilder :: (KnownSymbol field) => !(Proxy field, FilterOperator, Action) -> !(QueryBuilder model) -> QueryBuilder model
     OrderByQueryBuilder :: KnownSymbol field => !(Proxy field, OrderByDirection) -> !(QueryBuilder model) -> QueryBuilder model
+    LimitQueryBuilder :: Int -> !(QueryBuilder model) -> QueryBuilder model
+    OffsetQueryBuilder :: Int -> !(QueryBuilder model) -> QueryBuilder model
     IncludeQueryBuilder :: (KnownSymbol field, KnownSymbol (GetTableName model)) => !(Proxy field, QueryBuilder relatedModel) -> !(QueryBuilder model) -> QueryBuilder (Include field model)
     UnionQueryBuilder :: !(QueryBuilder model) -> !(QueryBuilder model) -> QueryBuilder model
 
@@ -119,8 +123,9 @@ data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
         selectFrom :: !Text,
         whereCondition :: !(Maybe Condition),
-        orderByClause :: !(Maybe (Text, OrderByDirection)),
-        limitClause :: !(Maybe Text)
+        orderByClause :: !([(Text, OrderByDirection)]),
+        limitClause :: !(Maybe Text),
+        offsetClause :: !(Maybe Text)
     }
 
 {-# INLINE buildQuery #-}
@@ -129,7 +134,7 @@ buildQuery !queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolVal @(GetTableName model) Proxy
-            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = Nothing, limitClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = buildQuery queryBuilder
@@ -138,13 +143,15 @@ buildQuery !queryBuilder =
                 query { whereCondition = Just $ case whereCondition query of Just c -> AndCondition c condition; Nothing -> condition }
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
             let query = buildQuery queryBuilder
-            in query { orderByClause = Just (fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection) }
+            in query { orderByClause = (orderByClause query) ++ [(fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection)] } -- although adding to the end of a list is bad form, these lists are very short
+        LimitQueryBuilder limit queryBuilder -> (buildQuery queryBuilder) { limitClause = Just ("LIMIT " <> tshow limit) }
+        OffsetQueryBuilder offset queryBuilder -> (buildQuery queryBuilder) { offsetClause = Just ("OFFSET " <> tshow offset) }
         IncludeQueryBuilder include queryBuilder -> buildQuery queryBuilder
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
             let
                 firstQuery = buildQuery firstQueryBuilder
                 secondQuery = buildQuery secondQueryBuilder
-                isSimpleQuery query = isNothing (orderByClause query) && isNothing (limitClause query)
+                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
                 isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                 unionWhere =
                     case (whereCondition firstQuery, whereCondition secondQuery) of
@@ -171,6 +178,7 @@ instance Fetchable (QueryBuilder model) model where
     fetch !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
         logQuery theQuery theParameters
+        trackTableRead (tableName @model)
         sqlQuery (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
@@ -178,6 +186,7 @@ instance Fetchable (QueryBuilder model) model where
     fetchOneOrNothing !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
         logQuery theQuery theParameters
+        trackTableRead (tableName @model)
         results <- sqlQuery (Query $ cs theQuery) theParameters
         pure $ listToMaybe results
 
@@ -185,7 +194,9 @@ instance Fetchable (QueryBuilder model) model where
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO model
     fetchOne !queryBuilder = do
         maybeModel <- fetchOneOrNothing queryBuilder
-        pure $ fromMaybe (error "Cannot find model") maybeModel
+        case maybeModel of
+            Just model -> pure model
+            Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
 
 -- | Returns the count of records selected by the query builder.
 --
@@ -200,11 +211,12 @@ instance Fetchable (QueryBuilder model) model where
 -- >         |> filterWhere (#isActive, True)
 -- >         |> fetchCount
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
-fetchCount :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Int
+fetchCount :: forall model. (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Int
 fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
     logQuery theQuery theParameters
+    trackTableRead (tableName @model)
     [PG.Only count] <- sqlQuery (Query $! cs theQuery) theParameters
     pure count
 {-# INLINE fetchCount #-}
@@ -218,12 +230,13 @@ fetchCount !queryBuilder = do
 -- >     hasUnreadMessages <- query @Message
 -- >         |> filterWhere (#isUnread, True)
 -- >         |> fetchExists
--- >     -- SELECT EXISTS FROM (SELECT * FROM messages WHERE is_unread = true)
-fetchExists :: (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Bool
+-- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
+fetchExists :: forall model. (?modelContext :: ModelContext, KnownSymbol (GetTableName model)) => QueryBuilder model -> IO Bool
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
-    let theQuery = "SELECT EXISTS FROM (" <> theQuery' <> ") AS _exists_values"
+    let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
     logQuery theQuery theParameters
+    trackTableRead (tableName @model)
     [PG.Only exists] <- sqlQuery (Query $! cs theQuery) theParameters
     pure exists
 {-# INLINE fetchExists #-}
@@ -250,7 +263,7 @@ genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 toSQL :: forall model. (KnownSymbol (GetTableName model)) => QueryBuilder model -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
-toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
+toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause } =
         (theQuery, theParams)
     where
         !theQuery =
@@ -259,6 +272,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
             <> whereConditions' <> " "
             <> orderByClause' <> " "
             <> limitClause'
+            <> offsetClause'
 
         selectors :: Text
         selectors = selectFrom <> ".*"
@@ -275,9 +289,10 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause } =
                 Nothing -> mempty
         orderByClause' =
             case orderByClause of
-                Just (column, direction) -> " ORDER BY " <> column <> (if direction == Desc then " DESC" else mempty)
-                Nothing -> mempty
+                [] -> mempty
+                xs -> " ORDER BY " <> intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
         limitClause' = fromMaybe "" limitClause
+        offsetClause' = fromMaybe "" offsetClause
 
 {-# INLINE compileConditionQuery #-}
 compileConditionQuery :: Condition -> Text
@@ -395,6 +410,34 @@ orderByDesc !name = OrderByQueryBuilder (name, Desc)
 orderBy :: (KnownSymbol name, HasField name model value) => Proxy name -> QueryBuilder model -> QueryBuilder model
 orderBy !name = orderByAsc name
 {-# INLINE orderBy #-}
+
+-- | Adds an @LIMIT ..@ to your query.
+--
+--
+-- __Example:__ Fetch 10 posts
+--
+-- > query @Post
+-- >     |> limit 10
+-- >     |> fetch
+-- > -- SELECT * FROM posts LIMIT 10
+limit :: Int -> QueryBuilder model -> QueryBuilder model
+limit !limit = LimitQueryBuilder limit
+{-# INLINE limit #-}
+
+-- | Adds an @OFFSET ..@ to your query. Most often used together with @LIMIT...@
+--
+--
+-- __Example:__ Fetch posts 10-20
+--
+-- > query @Post
+-- >     |> limit 10
+-- >     |> offset 10
+-- >     |> fetch
+-- > -- SELECT * FROM posts LIMIT 10 OFFSET 10
+offset :: Int -> QueryBuilder model -> QueryBuilder model
+offset !offset = OffsetQueryBuilder offset
+{-# INLINE offset #-}
+
 
 data IncludeTag
 include :: forall name model fieldType relatedModel. (KnownSymbol name, KnownSymbol (GetTableName model), HasField name model fieldType, relatedModel ~ GetModelById fieldType) => KnownSymbol name => Proxy name -> QueryBuilder model -> QueryBuilder (Include name model)

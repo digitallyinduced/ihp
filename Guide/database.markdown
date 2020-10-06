@@ -11,7 +11,7 @@ The only supported database platform is Postgres. Focussing on Postgres allows u
 
 In development you do not need to set up anything to use postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development postgres server is only listening on a unix socket and is not available via TCP.
 
-When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
+When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a postgres REPL connected to the development database (named `app`), or start `psql` by pointing at the local sockets file `psql --host=/PATH/TO/PROJECT/DIRECTORY/build/db app`. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
 
 Haskell data structures and types are generated automatically based on your database schema.
 
@@ -19,13 +19,7 @@ Haskell data structures and types are generated automatically based on your data
 
 Once you have created your project, the first step is to define a database schema. The database schema is basically just a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project this file will look pretty empty. Like this:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-```
-
-The single line just activates the UUID extension for your database.
+In a new project this file will be empty. The UUID extension is automatically enabled for the database by IHP. 
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
@@ -179,7 +173,7 @@ do
 
 This will run the SQL query `SELECT * FROM users WHERE id IN (...)`. The results in `users` have type `[User]`.
 
-## Fetching a `Maybe (Id record)`
+### Fetching a `Maybe (Id record)`
 
 Sometimes you have an optional id field, like e.g. when having a database schema like this:
 
@@ -211,6 +205,57 @@ action ShowTask { taskId } = do
     assignedUser <- fetchOneOrNothing (get #assignedUserId task)
 ```
 
+### Fetching `n` records (LIMIT)
+
+
+Use `limit` to query only up to `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> limit 10
+        |> fetch
+```
+
+This will run a `SELECT * FROM users ORDER BY firstname LIMIT 10` query and will return the first 10 users ordered by their firstname.
+
+When you are only interested in the first result you can also use `fetchOne` as a shortcut for `|> limit 1`:
+
+```haskell
+do
+    firstUser <- query @User
+        |> orderBy #firstname
+        |> fetchOne
+```
+
+### Skipping `n` records (OFFSET)
+
+Use `offset` to skip `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> offset 10
+        |> fetch
+```
+
+This is most often used together with `limit` to implement paging.
+
+
+### Counting records (COUNT queries)
+
+You can use `fetchCount` instead of `fetch` to get the count of records matching the query:
+
+```haskell
+do
+    activeUsersCount :: Int <- query @User
+        |> filterWhere (#isActive, True)
+        |> fetchCount
+
+    -- SELECT COUNT(*) FROM users WHERE is_active = 1
+```
 
 ## Raw SQL Queries
 
@@ -228,13 +273,15 @@ do
     result :: Project <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
-You can query any kind of information, not only records:
+### Scalar Results
+
+The `sqlQuery` function always returns a list of rows as the result. When the result of your query is a single value (such as a integer or a string) use `sqlQueryScalar`:
 
 ```haskell
 do
-    count :: Int <- sqlQuery "SELECT COUNT(*) FROM projects" []
+    count :: Int <- sqlQueryScalar "SELECT COUNT(*) FROM projects" ()
 
-    randomString :: Text <- sqlQuery "SELECT md5(random()::text)" []
+    randomString :: Text <- sqlQueryScalar "SELECT md5(random()::text)" ()
 ```
 
 ## Create

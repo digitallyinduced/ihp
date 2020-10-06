@@ -106,6 +106,7 @@ generateGenericApplication applicationName =
                 <> "import IHP.Environment\n"
                 <> "import qualified Text.Blaze.Html5            as H\n"
                 <> "import qualified Text.Blaze.Html5.Attributes as A\n"
+                <> "import Generated.Types\n"
                 <> "import " <> applicationName <> ".Types\n"
                 <> "import " <> applicationName <> ".Routes\n"
                 <> "import qualified IHP.FrameworkConfig as FrameworkConfig\n"
@@ -192,7 +193,6 @@ generateGenericApplication applicationName =
             , AddMountToFrontController { filePath = "Main.hs", applicationName = applicationName }
             , CreateFile { filePath = applicationName <> "/Types.hs", fileContent = typesHs }
             , CreateFile { filePath = applicationName <> "/Routes.hs", fileContent = routesHs }
-            , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
             , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
             , CreateFile { filePath = applicationName <> "/Controller/Prelude.hs", fileContent = controllerPreludeHs }
             , CreateFile { filePath = applicationName <> "/View/Context.hs",fileContent = viewContextHs }

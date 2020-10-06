@@ -179,7 +179,7 @@ column = do
     pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique })
 
 sqlType :: Parser PostgresType
-sqlType = choice
+sqlType = choice $ map optionalArray
         [ uuid
         , text
         , bigint
@@ -200,6 +200,7 @@ sqlType = choice
         , varchar
         , serial
         , bigserial
+        , jsonb
         , customType
         ]
             where
@@ -309,6 +310,14 @@ sqlType = choice
                 bigserial = do
                     try (symbol' "BIGSERIAL")
                     pure PBigserial
+
+                jsonb = do
+                    try (symbol' "JSONB")
+                    pure PJSONB
+
+                optionalArray typeParser= do
+                    arrayType <- typeParser;
+                    (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))

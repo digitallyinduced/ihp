@@ -31,6 +31,7 @@ module IHP.Prelude
 , module Data.IORef
 , module Data.Time.Format
 , null
+, module Control.Exception
 )
 where
 
@@ -44,7 +45,7 @@ import GHC.Records
 import qualified Prelude
 import qualified Data.Text as Text
 import Data.Proxy (Proxy (Proxy))
-import Control.Monad (when, unless, mapM, mapM_, forM, forM_, sequence, sequence_, join)
+import Control.Monad (when, unless, mapM, mapM_, forM, forM_, sequence, sequence_, join, forever)
 import Data.List hiding (head, last, unwords, unlines, words, lines, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, (++), splitAt, null)
 import qualified Data.List as List
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
@@ -56,11 +57,12 @@ import GHC.OverloadedLabels
 import Data.Data (Data)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
-import IHP.ModelSupport (ModelContext, CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, createRecord, deleteRecord, MetaBag (..))
+import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, createRecord, deleteRecord, MetaBag (..))
 import Data.TMap (TMap)
 import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef
 import Data.Time.Format
+import Control.Exception (throw, throwIO, catch)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b

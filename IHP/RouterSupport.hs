@@ -62,7 +62,7 @@ import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
 
 class FrontController application where
-    controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
+    controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext, FrameworkConfig.FrameworkConfig) => [Parser (IO ResponseReceived)]
 
 class HasPath controller where
     -- | Returns the path to a given action
@@ -368,6 +368,7 @@ get :: (Controller action
     , ?requestContext :: RequestContext
     , Typeable application
     , Typeable action
+    , FrameworkConfig.FrameworkConfig
     ) => ByteString -> action -> Parser (IO ResponseReceived)
 get path action = do
     method <- getMethod
@@ -397,6 +398,7 @@ post :: (Controller action
     , ?requestContext :: RequestContext
     , Typeable application
     , Typeable action
+    , FrameworkConfig.FrameworkConfig
     ) => ByteString -> action -> Parser (IO ResponseReceived)
 post path action = do
     method <- getMethod
@@ -408,6 +410,7 @@ post path action = do
 {-# INLINE post #-}
 
 -- | Defines the start page for a router (when @\/@ is requested).
+startPage :: (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?requestContext::RequestContext, Typeable application, Typeable action, FrameworkConfig.FrameworkConfig) => action -> Parser (IO ResponseReceived)
 startPage action = get "/" action
 {-# INLINE startPage #-}
 
@@ -427,19 +430,19 @@ runApp routes notFoundAction = do
         Right action -> action
 {-# INLINE runApp #-}
 
-frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app, FrameworkConfig.FrameworkConfig) => app -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
 {-# INLINE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
+mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController, FrameworkConfig.FrameworkConfig) => frontController -> Parser (IO ResponseReceived)
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
 {-# INLINE mountFrontController #-}
 
-parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
+parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller, FrameworkConfig.FrameworkConfig) => Parser (IO ResponseReceived)
 parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
 {-# INLINE parseRoute #-}
 
-catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
+catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action, FrameworkConfig.FrameworkConfig) => action -> Parser (IO ResponseReceived)
 catchAll action = do
     string (actionPrefix @action)
     _ <- takeByteString

@@ -78,12 +78,37 @@ When the parameter is optional, use `paramOrDefault`:
 
 ```haskell
 action UsersAction = do
-    let maxItems = paramOrDefault @Int "maxItems" 50
+    let maxItems = paramOrDefault @Int 50 "maxItems"
 ```
 
 When this action is called without the `maxItems` parameter being set (or when invalid), it will fall back to the default value `50`.
 
 There is also `paramOrNothing` which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
+
+
+### Multipe Params With Same Name (Checkboxes)
+
+When working with checkboxes sometimes there are multiple values for a given parameter name. Given a form like this:
+
+```html
+<h1>Pancake</h1>
+
+<input name="ingredients" type="checkbox" value="milk" /> Milk
+
+<input name="ingredients" type="checkbox" value="egg" /> Egg
+```
+
+When both checkboxes for Milk and Egg are checked, the usual way of calling `param @Text "ingredients"` will only return the first ingredient `"Milk"`. To access all the checked `ingredients` use `paramList`:
+
+```haskell
+action BuildFood = do
+    let ingredients = paramList @Text "ingredients"
+```
+
+When this action is called with both checkboxes checked `ingredients` will be set to `["milk", "egg"]`. When no checkbox is checked it will return an empty list.
+
+Similiar to `param` this works out of the box for Ids, UUID, Bools, Timestamps, etc. 
+
 
 ### Passing Data from the Action to the View
 
@@ -127,7 +152,7 @@ This will pass the firstname `"Tester"` to our view.
 We can also make it act more dynamically and allow the user to specify the firstname via a query parameter:
 ```haskell
 action ExampleAction = do
-    let firstname = paramOrDefault @Text "firstname" "Unnamed"
+    let firstname = paramOrDefault @Text "Unnamed" "firstname"
     render ExampleView { .. }
 ```
 
@@ -196,7 +221,7 @@ IHP uses the Haskell WAI standard for dealing with HTTP request and responses. Y
 
 Take a look at [the Wai documentation](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html) to see what you can do with the Wai `Request`:
 
-```
+```haskell
 action ExampleAction = do
     let requestBody = request |> getRequestBodyChunk
 ```
@@ -205,8 +230,11 @@ IHP provides a few shortcuts for commonly used request data:
 
 ```haskell
 action ExampleAction = do
-    -- Use `getRequestUrl` for accessing the current request path
-    putStrLn ("Current request url: " <> tshow getRequestUrl)
+    -- Use `getRequestPath` for accessing the current request path (e.g. /Users)
+    putStrLn ("Current request url: " <> tshow getRequestPath)
+
+    -- Use `getRequestPathAndQuery` for accessing the path with all parameters (e.g. /ShowUser?userId=...)
+    putStrLn ("Current request url: " <> tshow getRequestPathAndQuery)
 
     -- Access the request body
     body <- getRequestBody
@@ -221,7 +249,7 @@ Use `getHeader` to access a request header:
 
 ```haskell
 action ExampleAction = do
-    userAgent <- getHeader "User-Agent"
+    let userAgent = getHeader "User-Agent"
 ```
 
 In this example, when the `User-Agent` header is not provided by the request
@@ -271,7 +299,7 @@ Use `renderFile path contentType` to respond with a static file:
 
 ```haskell
 action ExampleAction = do
-    respondFile "static/terms.pdf" "application/pdf"
+    renderFile "static/terms.pdf" "application/pdf"
 ```
 
 ### Rendering a Not Found Message

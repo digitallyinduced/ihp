@@ -24,6 +24,8 @@ HTML_FILES+= relationships.html
 HTML_FILES+= updating.html
 HTML_FILES+= package-management.html
 HTML_FILES+= editors.html
+HTML_FILES+= deployment.html
+HTML_FILES+= auto-refresh.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 

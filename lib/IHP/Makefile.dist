@@ -62,6 +62,7 @@ GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
 GHC_OPTIONS+= +RTS -A256m -n2m --RTS
 GHC_OPTIONS+= -package ihp
+GHC_OPTIONS+= -rtsopts=all
 
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=16
 PROD_GHC_OPTIONS+= -optc-O3
@@ -136,7 +137,7 @@ clean: ## Resets all build and temporary files
 	rm -f .envrc
 
 static/prod.js: $(JS_FILES) ## Builds the production js bundle
-	awk -v RS='\0' '{print "(function (window, document, undefined) \{"; print; print "\n\})(window, document);";}' $(JS_FILES) > $@
+	awk -v RS='\0' '{print "(function (window, document, undefined) {"; print; print "\n})(window, document);";}' $(JS_FILES) > $@
 
 static/prod.css: $(CSS_FILES) ## Builds the production css bundle
 	cat $(CSS_FILES) > $@
@@ -167,5 +168,6 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	mkdir -p build/Script/Main
 	echo "module Main (main) where" > $@
 	echo "import IHP.ScriptSupport" >> $@
+	echo "import qualified Config" >> $@
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript run" >> $@

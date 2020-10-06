@@ -82,6 +82,43 @@ must check the `Nullable` select box with a default `Null`. This ensures your
 cases where the user has not uploaded any image.
 
 
+There is currently no special form helper for file uploads. Just specificy it manually like this:
+
+```haskell
+instance View EditView ViewContext where
+    html EditView { .. } = [hsx|
+        <h1>Profil bearbeiten</h1>
+
+        {renderForm user}
+    |]
+        where
+            picturePath :: Text
+            picturePath = get #pictureUrl user
+
+            renderForm :: User -> Html
+            renderForm user = formFor user [hsx|
+                <div>
+                    <h5>
+                        Profilfoto
+                    </h5>
+
+                    <div style="max-width: 300px">
+                        <div class="form-group">
+                            <label for="user_picture_url">
+                                <img id="user_picture_url_preview" src={picturePath} style="width: 12rem; min-height: 12rem; min-width: 12rem" class="mt-2 img-thumbnail text-center text-muted" alt="Foto auswählen"/>
+                                <input id="user_picture_url" type="file" name="pictureUrl" class="form-control form-control-file" style="display: none" data-preview="#user_picture_url_preview"/>
+                                <a class="d-block text-muted text-center" href="#" onclick="document.getElementById('user_picture_url_preview').click()">Neues Foto auswählen</a>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {(textField #firstname) { fieldLabel = "Vorname:" }}
+                {(textField #lastname) { fieldLabel = "Nachname:" }}
+                {submitButton { label = "Speichern" }}
+            |]
+```
+
 ## Checking that the current user has permission to access the action
 
 Use [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
@@ -137,6 +174,21 @@ In case the id is hardcoded, you can just type UUID value with the right type si
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 ```
 
+## Getting a `Id Something` from a `Text` / `ByteString` / `String`
+
+Sometimes you have a text, bytestring or string which represents some record id. You can transform it to an Id like this:
+
+```haskell
+let myUUID :: Text = ...
+let projectId = textToId myUUID
+```
+
+In case the id is hardcoded, you can just type UUID value with the right type signature like this:
+
+```haskell
+let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+```
+
 ## Making a dynamic Login/Logout button
 
 Depending on the `user` object from the viewContext, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
@@ -172,3 +224,61 @@ navbar = [hsx|
 You can see this code in action in the [`auth` branch from our example blog](https://github.com/digitallyinduced/ihp-blog-example-app/blob/auth/Web/View/Layout.hs).
 
 Protip: If the `user` is a `Just user` you can use the user object to run specific actions or retrieve information from it. This way you could display the username of the logged in user above the logout button.
+
+## Making a HTTP request
+
+To make a HTTP request, you need `Wreq`. You need to add it to your haskell dependencies in the `default.nix` file, like here:
+
+```bash
+...
+haskellDeps = p: with p; [
+    cabal-install
+    base
+    wai
+    text
+    hlint
+    p.ihp
+    wreq <-- Add this
+];
+...
+```
+
+Then you need to import it in your controller/script:
+
+```haskell
+import qualified Network.Wreq as Wreq
+```
+
+To simply fetch and render another website, you could use a function like this:
+
+```haskell
+handleFetchAction :: _ => Text -> _
+handleFetchAction url = do
+    documentBody <- do
+        response <- Wreq.get (cs url)
+        pure (response ^. Wreq.responseBody)
+    renderPlain (cs documentBody)
+```
+
+When using `handleFetchAction "https://google.com/"`, your app would display the google homepage.
+
+## Confirm before link is used
+To confirm before a link is fired add an onclick to the link.
+
+```haskell
+[hsx|
+    <a href={UsersAction} onclick="if (!confirm('Do you really want to delete the internet?')) event.preventDefault();"></a>
+|]
+```
+
+## How to generate a random string
+
+To generate a random string which can be used as a secure token or hash use `generateAuthenticationToken`:
+
+```haskell
+import IHP.AuthSupport.Authentication -- Not needed if you're inside a IHP controller
+
+do
+    token <- generateAuthenticationToken
+    -- token = "11D3OAbUfL0P9KNJ09VcUfCO0S9RwI"
+```

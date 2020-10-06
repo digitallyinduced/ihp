@@ -100,7 +100,7 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
-echo "We now create your project. This may take up to 30 seconds."
+echo "We will now create your project. This may take up to 30 seconds."
 grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf || {
 	cachix use digitallyinduced
 }

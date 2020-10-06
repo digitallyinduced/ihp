@@ -35,7 +35,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Accessing a query parameter.
 --
 -- Let's say the request is:
--- 
+--
 -- > GET /UsersAction?maxItems=50
 --
 -- We can read @maxItems@ like this:
@@ -47,7 +47,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Working with forms (Accessing a body parameter).
 --
 -- Let's say we have the following html form:
--- 
+--
 -- > <form method="POST" action="/HelloWorld"
 -- >     <input type="text" name="firstname" placeholder="Your firstname" />
 -- >     <button type="submit">Send</button>
@@ -66,7 +66,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Missing parameters
 --
 -- Let's say the request is:
--- 
+--
 -- > GET /HelloWorldAction
 --
 -- But the action requires us to provide a firstname, like:
@@ -77,16 +77,43 @@ import qualified Control.Exception as Exception
 --
 -- Running the request @GET /HelloWorldAction@ without the firstname parameter will cause an
 -- 'ParamNotFoundException' to be thrown with:
--- 
+--
 -- > param: Parameter 'firstname' not found
 param :: (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
-param !name =
-    let
-        parserErrorMessage = "param: Parameter '" <> cs name <> "' is invalid"
-    in case paramOrNothing name of
-        Just value -> Either.fromRight (error parserErrorMessage) (readParameter value)
-        Nothing -> Exception.throw (ParamNotFoundException name)
+param !name = case paramOrNothing name of
+    Just value -> Either.fromRight (error (paramParserErrorMessage name)) (readParameter value)
+    Nothing -> Exception.throw (ParamNotFoundException name)
 {-# INLINE param #-}
+
+-- | Similiar to 'param' but works with multiple params. Useful when working with checkboxes.
+--
+-- Given a query like:
+--
+-- > ingredients=milk&ingredients=egg
+--
+-- This will return:
+--
+-- >>> paramList @Text "ingredients"
+-- ["milk", "egg"]
+--
+-- When no parameter with the name is given, an empty list is returned:
+--
+-- >>> paramList @Text "not_given_in_url"
+-- []
+--
+-- When a value cannot be parsed, this function will fail similiar to 'param'.
+--
+-- Related: https://stackoverflow.com/questions/63875081/how-can-i-pass-list-params-in-ihp-forms/63879113
+paramList :: forall valueType. (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> [valueType]
+paramList name =
+    allParams
+    |> filter (\(paramName, paramValue) -> paramName == name)
+    |> mapMaybe (\(paramName, paramValue) -> paramValue)
+    |> map (readParameter @valueType)
+    |> map (Either.fromRight (error (paramParserErrorMessage name)))
+{-# INLINE paramList #-}
+
+paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 
 -- | Thrown when a parameter is missing when calling 'param "myParam"' or related functions
 data ParamNotFoundException = ParamNotFoundException ByteString deriving (Show)
@@ -122,7 +149,7 @@ paramUUID = param @UUID
 --
 -- Use 'paramOrDefault' when you want to use this for providing a default value.
 --
--- __Example:__ 
+-- __Example:__
 --
 -- Given the request @GET /HelloWorld@
 --
@@ -146,7 +173,7 @@ hasParam = isJust . queryOrBodyParam
 -- When calling @GET /Users@ the variable @page@ will be set to the default value @0@.
 --
 -- > action UsersAction = do
--- >     let page :: Int = paramOrDefault "page" 0
+-- >     let page :: Int = paramOrDefault 0 "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
 paramOrDefault :: (?requestContext :: RequestContext) => ParamReader a => a -> ByteString -> a
@@ -228,6 +255,17 @@ instance ParamReader Text where
     {-# INLINE readParameter #-}
     readParameter byteString = pure (cs byteString)
 
+instance ParamReader value => ParamReader [value] where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        byteString
+        |> Char8.split ','
+        |> map readParameter
+        |> Either.partitionEithers
+        |> \case
+            ([], values) -> Right values
+            ((first:rest), _) -> Left first
+
 -- | Parses a boolean.
 --
 -- Html form checkboxes usually use @on@ or @off@ for representation. These
@@ -235,6 +273,7 @@ instance ParamReader Text where
 instance ParamReader Bool where
     {-# INLINE readParameter #-}
     readParameter on | on == cs (ModelSupport.inputValue True) = pure True
+    readParameter true | toLower (cs true) == "true" = pure True
     readParameter _ = pure False
 
 instance ParamReader UUID where
@@ -300,7 +339,7 @@ instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \
 -- __Example:__
 --
 -- > data Color = Yellow | Red | Blue deriving (Enum)
--- > 
+-- >
 -- > instance ParamReader Color
 -- >     readParameter = enumParamReader
 enumParamReader :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => ByteString -> Either ByteString parameter
