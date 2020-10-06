@@ -13,6 +13,12 @@ When using VSCode you need to install a plugin which loads the `.envrc` in your 
 
 Most likely you want to use [haskell-language-server](https://github.com/haskell/haskell-language-server) for smart IDE features like autocompletion and jump-to-symbol. This is not working with IHP yet. [There is an active issue to implement support for this.](https://github.com/digitallyinduced/ihp/issues/190)
 
+
+## Using VSCode on Windows with Windows Subsystem for Linux
+
+It is important to not access the files within the WSL from Windows itself (however, the other way around is ok). You can seamlessly (including autosave) work on your projects within WSL from VS Code in Windows by adding the `Remote WSL` extension from Microsoft.
+
+
 ## Using IHP with Sublime Text
 
 Works great already out of the box.

@@ -445,6 +445,12 @@ This way no special behavior will be attached to your forms.
 
 To dig deeper into the javascript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
 
+
+## Working within the Bootstrap CSS framework
+
+While the default forms layout is vertical with one field per line, it is easy to change. Bootstrap's excellent [forms documentation](https://getbootstrap.com/docs/4.4/components/forms/) shows how.
+
+
 ## Working with other CSS Frameworks
 
 TODO: This section still has to be implemented. The gist of how rendering can be completely overriden to support a different layout or CSS framework can be found in the implementation of [horizontalFormFor](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:horizontalFormFor) (renders a bootstrap 4 form in a horizontal way).

@@ -80,6 +80,37 @@ projects <- query @Project
 -- Query: `SELECT * FROM projects ORDER BY created_at`
 ```
 
+Nested orderBys work as expected:
+```haskell
+projects <- query @Employee
+        |> orderBy #lastname
+        |> orderBy #firstname
+        |> fetch
+-- Query: `SELECT * FROM employees ORDER BY lastname, firstname`
+```
+
+## Limit
+
+To limit the number of rows returned:
+```haskell
+projects <- query @Project
+        |> limit 10
+        |> fetch
+-- Query: `SELECT * FROM projects LIMIT 10`
+```
+
+## Offset
+
+To skip a number of rows:
+```haskell
+projects <- query @Project
+        |> offset 10
+        |> fetch
+-- Query: `SELECT * FROM projects OFFSET 10`
+```
+Offset is most often used together with limit to implement paging.
+
+
 ## Or
 
 ```haskell
