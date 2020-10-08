@@ -79,6 +79,7 @@ instance View NewActionView ViewContext where
                     <input type="hidden" name="name" value={actionName}/>
                     <input type="hidden" name="controllerName" value={controllerName}/>
                     <input type="hidden" name="applicationName" value={applicationName}/>
+                    <input type="hidden" name="doGenerateView" value={(if doGenerateView then "on" else "off") :: Text}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
