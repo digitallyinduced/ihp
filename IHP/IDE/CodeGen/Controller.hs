@@ -105,7 +105,7 @@ instance Controller CodeGenController where
         let doGenerateView = paramOrDefault False "doGenerateView"
         (Right plan) <- ActionGenerator.buildPlan actionName applicationName controllerName doGenerateView
         executePlan plan
-        setSuccessMessage $ "Action" ++ (if doGenerateView then " and View " else "") ++ " generated"
+        setSuccessMessage "Action generated"
         redirectTo GeneratorsAction
 
     action NewApplicationAction = do
