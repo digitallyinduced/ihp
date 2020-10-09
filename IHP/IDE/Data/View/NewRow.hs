@@ -49,7 +49,7 @@ instance View NewRowView ViewContext where
                     </div>
                 </form>
             |]
-            modalFooter = mempty 
+            modalFooter = mempty
             modalCloseUrl = pathTo ShowTableRowsAction { tableName }
             modalTitle = "Add Row"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
@@ -60,7 +60,7 @@ instance View NewRowView ViewContext where
                         <span style="float:right;">
                             <a class="text-muted row-form">{get #columnType col}</a>
                         </span>
-                        
+
                         <input
                             type="text"
                             name={get #columnName col}

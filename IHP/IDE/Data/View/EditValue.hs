@@ -50,13 +50,13 @@ instance View EditValueView ViewContext where
             renderField id fields DynamicField { .. } = if (tshow targetName) == (tshow fieldName) && targetId == id
                 then [hsx|<td>
                 <form method="POST" action={UpdateRowAction}>
-                    <input id="editField" autofocus="autofocus" type="text" name={fieldName} value={"'" <> fromMaybe "" fieldValue <> "'"}/>
+                    <input id="editField" autofocus="autofocus" type="text" name={fieldName} value={renderRowValue fieldValue}/>
                     {forEach fields renderValue}
                     <input type="hidden" name="tableName" value={tableName}/>
                     <button type="submit" class="d-none">Edit</button>
                 </form></td>|]
                 else [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{sqlValueToText fieldValue}</a></span></td>|]
-            renderValue DynamicField { .. } = [hsx|<input type="hidden" name={fieldName} value={"'" <> fromMaybe "" fieldValue <> "'"}/>|]
+            renderValue DynamicField { .. } = [hsx|<input type="hidden" name={fieldName} value={renderRowValue fieldValue}/>|]
             script = preEscapedToHtml [plain|
                 <script>
                     onClickHandler = () => {

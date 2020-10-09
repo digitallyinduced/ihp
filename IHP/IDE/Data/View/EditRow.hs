@@ -68,7 +68,7 @@ instance View EditRowView ViewContext where
                             type="text"
                             name={get #columnName (fst col)}
                             class="form-control"
-                            value={"'" <> (fromMaybe "" (get #fieldValue (snd col))) <> "'"}
+                            value={renderRowValue (get #fieldValue (snd col))}
                             />
                     </div>|]
 
