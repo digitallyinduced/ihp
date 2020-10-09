@@ -26,6 +26,7 @@ instance View EditValueView ViewContext where
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
+                    <div class="text-muted context-menu-notice">Press Enter to save your changes or click somewhere else to discard them.</div>
                 </div>
             </div>
             {customQuery ""}
