@@ -76,13 +76,13 @@ data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
     | ShowQueryAction
-    | DeleteEntryAction { primaryKey :: Text, tableName :: Text }
+    | DeleteEntryAction { fieldValue :: Text, tableName :: Text }
     | CreateRowAction
     | NewRowAction { tableName :: Text }
-    | EditRowAction { tableName :: Text, targetPrimaryKey :: Text }
+    | EditRowAction { tableName :: Text, id :: Text }
     | UpdateRowAction
-    | EditRowValueAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
-    | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
+    | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, id :: Text }
     deriving (Eq, Show, Data)
 
 data LogsController
