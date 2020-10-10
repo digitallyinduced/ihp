@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
 
 module IHP.ModelSupport where
 
@@ -175,6 +175,8 @@ getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 newtype Id' table = Id (PrimaryKey table)
 
 deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
+deriving instance (Ord (PrimaryKey table)) => Ord (Id' table)
+deriving instance (Hashable (PrimaryKey table)) => Hashable (Id' table)
 deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
 
 -- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
