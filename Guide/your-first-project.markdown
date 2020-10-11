@@ -462,7 +462,7 @@ buildPost post = post
     |> validateField #title nonEmpty
 ```
 
-Now open [http://localhost:8000/NewPost](http://localhost:8000/Posts/new) and click `Save Post` without filling the text fields. You will get a "This field cannot be empty" error message next to the empty title field.
+Now open [http://localhost:8000/NewPost](http://localhost:8000/NewPost) and click `Save Post` without filling the text fields. You will get a "This field cannot be empty" error message next to the empty title field.
 
 ![Schema Designer Title non empty](images/first-project/title_non_empty.png)
 
