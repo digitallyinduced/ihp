@@ -21,7 +21,7 @@ data ViewConfig = ViewConfig
 buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan viewName applicationName controllerName' =
     if (null viewName || null controllerName')
-        then pure $ Left "View name and controller name cannot be empty"
+        then pure $ Left "Neither view name nor controller name can be empty"
         else do
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
@@ -97,7 +97,8 @@ buildPlan' schema config =
                 <> "            </ol>\n"
                 <> "        </nav>\n"
                 <> "        <h1>Show " <> singularName <> "</h1>\n"
-                <> "    |]\n"
+                <> "        <p>{" <> singularVariableName <> "}</p>\n"
+                 <> "    |]\n"
 
             newView =
                 viewHeader
@@ -117,7 +118,7 @@ buildPlan' schema config =
                 <> "\n"
                 <> "renderForm :: " <> singularName <> " -> Html\n"
                 <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
-                <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
+                <> (intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
@@ -139,7 +140,7 @@ buildPlan' schema config =
                 <> "\n"
                 <> "renderForm :: " <> singularName <> " -> Html\n"
                 <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
-                <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
+                <> (intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
