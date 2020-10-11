@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+function step {
+    echo -e "\e[1m$1:\e[0m"    
+}
+
+function ok {
+    echo -e "\e[32m+ $1\e[0m"
+}
+
+function fail {
+    echo -e "\e[31m- $1\e[0m"
+}
+
+step "Checking that the current directory is an IHP project"
+if test -f Main.hs; then
+    ok "Found Main.hs"
+else
+    fail "Main.hs missing. Is this an IHP project?"
+fi
+
+if test -f start; then
+    ok "Found start"
+else
+    fail "start missing. Is this an IHP project?"
+fi
+
+step "Checking nix"
+if [ -d "/nix" ]; then
+    ok "Nix installed"
+else
+    fail "Nix store not found. Is nix installed?"
+fi
+
+step "Checking direnv"
+if test -f .envrc; then
+    ok "Found .envrc"
+else
+    fail ".envrc missing. Try 'make .envrc'"
+fi
+direnv_output=$(direnv status 2>&1)
+if [[ "$direnv_output" =~ "Found RC path $PWD/.envrc" ]]; then
+    ok "direnv loads .envrc"
+else
+    fail "direnv didn't load the project .envrc. Did you set up direnv in your shell?"
+fi
+which_direnv_output=$(which ghci)
+if [[ "$which_direnv_output" =~ "/nix/store" ]]; then
+    ok "ghci is loaded from nix store"
+else
+    fail "ghci is not loaded from /nix/store/... Is direnv hooked into your shell?"
+fi
+
+step "Checking .ghci"
+if test -f .ghci; then
+    ok "Found .ghci"
+else
+    fail ".ghci missing"
+fi
+
+ghci_output=$(echo 'putStrLn "ok"'|ghci 2>&1)
+if [[ "$ghci_output" =~ ".ghci is writable by someone else" ]]; then
+    fail ".ghci permissions are wrong. Try 'chmod go-w .ghci' to fix this"
+else
+    ok ".ghci permissions are ok"
+fi
+
+step "Checking IHP"
+if [[ -L "build/ihp-lib" ]]; then
+    ok "Symlink build/ihp-lib exists"
+else
+    fail "Symlink build/ihp-lib is missing. Try 'make build/ihp-lib' to fix this"
+fi
+
+ihplib_link=$(readlink build/ihp-lib)
+if [ -d "build/$ihplib_link" ]; then
+    ok "Symlink build/ihp-lib target exists"
+else
+    fail "Symlink build/ihp-lib target directory does not exist. Try 'nix-shell --run -- make -B build/ihp-lib' to fix this"
+fi
+
+if [ -d "IHP" ]; then
+    ok "Local IHP directory exists"
+else
+    ok "IHP used from nix"
+fi
+
+
+step "Checking Cachix"
+if [ -d "$HOME/.config/cachix" ]; then
+    ok "Cachix config exists"
+else
+    fail "Cachix config is missing. Is cachix installed?"
+fi
+
+if [[ "$(cat ~/.config/nix/nix.conf)" =~ "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ]]; then
+    ok "digitallyinduced.cachix.org configured"
+else
+    fail "digitallyinduced.cachix.org binary cache missing. Try 'cachix use digitallyinduced'"
+fi
+
+if [[ "$(cat ~/.config/nix/nix.conf)" =~ "digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI=" ]]; then
+    fail "Found legacy cachix public key for digitallyinduced.cachix.org. Try to remove digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI= from ~/.config/nix/nix.conf"
+else
+    ok "No legacy cachix key found"
+fi
+
+step "Debugging Details"
+step "GHCI Output"
+echo "$ghci_output"
+step "build/ihp-lib Target"
+echo "$ihplib_link"
+step "Direnv Output"
+echo "$direnv_output"
+step "which direnv Output"
+echo "$which_direnv_output"
+step "default.nix"
+echo "$(cat default.nix|head -n5)"
+step "OS"
+uname
