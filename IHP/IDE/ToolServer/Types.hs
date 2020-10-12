@@ -116,6 +116,7 @@ data ColumnDefinition = ColumnDefinition
     { columnName :: Text
     , columnType :: Text
     , columnDefault :: Maybe Text
+    , isNullable :: Bool
     } deriving (Show)
 
 instance FrameworkConfig where

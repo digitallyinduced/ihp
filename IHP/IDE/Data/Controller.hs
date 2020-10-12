@@ -73,9 +73,11 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         let tableName = param "tableName"
         tableCols <- fetchTableCols connection tableName
-        let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
-        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," (const "?" <$> values) <> ")"
-        PG.execute connection (PG.Query . cs $! query) values
+        putStrLn (tshow (param @Bool "id_"))
+        let values :: [Text] = map (\col -> quoteIfLiteral (param @Bool (cs (get #columnName col) <> "_")) (param @Text (cs (get #columnName col)))) tableCols
+        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
+        putStrLn (query)
+        PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
@@ -145,7 +147,7 @@ fetchTableNames connection = do
 
 fetchTableCols :: PG.Connection -> Text -> IO [ColumnDefinition]
 fetchTableCols connection tableName = do
-    PG.query connection "SELECT column_name,data_type,column_default FROM information_schema.columns where table_name = ?" (PG.Only tableName)
+    PG.query connection "SELECT column_name,data_type,column_default,CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns where table_name = ?" (PG.Only tableName)
 
 fetchRow :: PG.Connection -> Text -> [Text] -> IO [[DynamicField]]
 fetchRow connection tableName primaryKeyValues = do
@@ -159,7 +161,7 @@ instance PG.FromField DynamicField where
             fieldName = fromMaybe "" (PG.name field)
 
 instance PG.FromRow ColumnDefinition where
-    fromRow = ColumnDefinition <$> PG.field <*> PG.field <*> PG.field
+    fromRow = ColumnDefinition <$> PG.field <*> PG.field <*> PG.field <*> PG.field
 
 tablePrimaryKeyFields :: PG.Connection -> Text -> IO [Text]
 tablePrimaryKeyFields connection tableName = do
@@ -173,3 +175,7 @@ fetchRows connection tableName = do
     let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields
 
     PG.query_ connection (PG.Query . cs $! query)
+
+quoteIfLiteral :: Bool -> Text -> Text
+quoteIfLiteral False text = "'" <> text <> "'"
+quoteIfLiteral True text = text

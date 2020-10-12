@@ -65,8 +65,27 @@ instance View NewRowView ViewContext where
                             type="text"
                             name={get #columnName col}
                             class="form-control"
-                            value={fromMaybe "" (get #columnDefault col)}
+                            value={getColDefaultValue col}
+                            />
+
+                        <input
+                            type="checkbox"
+                            name={get #columnName col <> "_"}
+                            checked={isSqlFunction (getColDefaultValue col)}
+                            />
+
+                        <input
+                            type="hidden"
+                            name={get #columnName col <> "_"}
+                            value={inputValue False}
                             />
                     </div>|]
 
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+
+getColDefaultValue :: ColumnDefinition -> Text
+getColDefaultValue ColumnDefinition { columnDefault, isNullable } = case columnDefault of
+        Just value -> value
+        Nothing -> if isNullable
+            then "NULL"
+            else ""
