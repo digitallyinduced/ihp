@@ -30,6 +30,7 @@ instance View NewRowView ViewContext where
             {customQuery ""}
         </div>
         {Just modal}
+        {fillFieldScript}
     |]
         where
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
@@ -61,27 +62,65 @@ instance View NewRowView ViewContext where
                             <a class="text-muted row-form">{get #columnType col}</a>
                         </span>
 
-                        <input
-                            type="text"
-                            name={get #columnName col}
-                            class="form-control"
-                            value={getColDefaultValue col}
-                            />
-
-                        <input
-                            type="checkbox"
-                            name={get #columnName col <> "_"}
-                            checked={isSqlFunction (getColDefaultValue col)}
-                            />
-
-                        <input
-                            type="hidden"
-                            name={get #columnName col <> "_"}
-                            value={inputValue False}
-                            />
+                        <div class="input-group">
+                            <input
+                                id={get #columnName col <> "-input"}
+                                type="text"
+                                name={get #columnName col}
+                                class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction (getColDefaultValue col))]}
+                                value={getColDefaultValue col}
+                                />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName col <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName col <> "_"}
+                                            checked={isSqlFunction (getColDefaultValue col)}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName col  <> "', this)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName col <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>
+                        </div>
                     </div>|]
 
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+
+            fillField col value = "fillField('" <> get #columnName col <> "', '" <> value <> "');"
+            fillFieldScript = [hsx|<script>
+                function fillField(id, value) {
+                    var inputField = document.getElementById(id + "-input");
+                    var sqlModeBox = document.getElementById(id + "-sqlbox");
+                    inputField.value = value;
+                    sqlModeBox.checked = true;
+                    setSqlMode(id, true);
+                }
+
+                function sqlModeCheckbox(id, checkbox) {
+                    setSqlMode(id, checkbox.checked);
+                }
+
+                function setSqlMode(id, sqlMode) {
+                    var inputField = document.getElementById(id + "-input");
+                    if (sqlMode) {
+                        inputField.className = "form-control text-monospace text-secondary bg-light"
+                    } else {
+                        inputField.className = "form-control";
+                    }
+                }
+            </script>|]
 
 getColDefaultValue :: ColumnDefinition -> Text
 getColDefaultValue ColumnDefinition { columnDefault, isNullable } = case columnDefault of
