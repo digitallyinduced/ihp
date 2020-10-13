@@ -115,6 +115,6 @@ echo "$direnv_output"
 step "which direnv Output"
 echo "$which_direnv_output"
 step "default.nix"
-echo "$(cat default.nix|head -n5)"
+head -n5 default.nix
 step "OS"
 uname
