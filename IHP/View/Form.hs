@@ -89,7 +89,7 @@ formFor :: forall record viewContext parent id application. (
     , Default id
     , Eq id
     ) => record -> ((?viewContext :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
-formFor record = buildForm (createFormContext record)
+formFor record = buildForm (createFormContext record) { formAction = modelFormAction @application record }
 {-# INLINE formFor #-}
 
 
@@ -97,9 +97,7 @@ formFor' :: forall record viewContext parent id application. (
     ?viewContext :: viewContext
     , Eq record
     , Typeable record
-    , ModelFormAction application record
     , HasField "id" record id
-    , HasPath (ModelControllerMap application (NormalizeModel record))
     , application ~ ViewApp viewContext
     , HasField "meta" record MetaBag
     , Default id
@@ -131,7 +129,6 @@ createFormContext :: forall record viewContext parent id application. (
         ?viewContext :: viewContext
         , Eq record
         , Typeable record
-        , ModelFormAction application record
         , HasField "id" record id
         , application ~ ViewApp viewContext
         , HasField "meta" record MetaBag
@@ -141,7 +138,7 @@ createFormContext record =
         { model = record
         , renderFormField = renderBootstrapFormField
         , renderSubmit = renderBootstrapSubmitButton
-        , formAction = modelFormAction @application record
+        , formAction = ""
         }
 {-# INLINE createFormContext #-}
 
