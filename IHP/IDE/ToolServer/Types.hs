@@ -81,8 +81,9 @@ data DataController
     | NewRowAction { tableName :: Text }
     | EditRowAction { tableName :: Text, targetPrimaryKey :: Text }
     | UpdateRowAction
-    | EditRowValueAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
     | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | UpdateValueAction
     deriving (Eq, Show, Data)
 
 data LogsController

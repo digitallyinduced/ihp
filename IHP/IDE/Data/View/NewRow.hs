@@ -30,7 +30,6 @@ instance View NewRowView ViewContext where
             {customQuery ""}
         </div>
         {Just modal}
-        {fillFieldScript}
     |]
         where
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
@@ -69,6 +68,7 @@ instance View NewRowView ViewContext where
                                 name={get #columnName col}
                                 class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction (getColDefaultValue col))]}
                                 value={getColDefaultValue col}
+                                oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
                                 />
                             <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
@@ -82,7 +82,7 @@ instance View NewRowView ViewContext where
                                             name={get #columnName col <> "_"}
                                             checked={isSqlFunction (getColDefaultValue col)}
                                             class="mr-1"
-                                            onclick={"sqlModeCheckbox('" <> get #columnName col  <> "', this)"}
+                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this)"}
                                             />
                                         <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
                                     </a>
@@ -97,34 +97,3 @@ instance View NewRowView ViewContext where
                     </div>|]
 
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
-
-            fillField col value = "fillField('" <> get #columnName col <> "', '" <> value <> "');"
-            fillFieldScript = [hsx|<script>
-                function fillField(id, value) {
-                    var inputField = document.getElementById(id + "-input");
-                    var sqlModeBox = document.getElementById(id + "-sqlbox");
-                    inputField.value = value;
-                    sqlModeBox.checked = true;
-                    setSqlMode(id, true);
-                }
-
-                function sqlModeCheckbox(id, checkbox) {
-                    setSqlMode(id, checkbox.checked);
-                }
-
-                function setSqlMode(id, sqlMode) {
-                    var inputField = document.getElementById(id + "-input");
-                    if (sqlMode) {
-                        inputField.className = "form-control text-monospace text-secondary bg-light"
-                    } else {
-                        inputField.className = "form-control";
-                    }
-                }
-            </script>|]
-
-getColDefaultValue :: ColumnDefinition -> Text
-getColDefaultValue ColumnDefinition { columnDefault, isNullable } = case columnDefault of
-        Just value -> value
-        Nothing -> if isNullable
-            then "NULL"
-            else ""
