@@ -76,7 +76,7 @@ ihplib_link=$(readlink build/ihp-lib)
 if [ -d "build/$ihplib_link" ]; then
     ok "Symlink build/ihp-lib target exists"
 else
-    fail "Symlink build/ihp-lib target directory does not exist. Try 'nix-shell --run -- make -B build/ihp-lib' to fix this"
+    fail "Symlink build/ihp-lib target directory does not exist. Try 'nix-shell --run \"make -B build/ihp-lib\"' to fix this"
 fi
 
 if [ -d "IHP" ]; then
