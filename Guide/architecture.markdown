@@ -27,8 +27,8 @@ In general remember that all specific web app logic should stay in the `Web/` sp
 | static/                       | Images, css and javascript files                                            |
 | .ghci                         | Default config file for the Haskell interpreter                             |
 | .gitignore                    | List of files to be ignored by git                                          |
-| App.cabal, Setup.hs           | Config for the cabal package manager (TODO: maybe move to Config/App.cabal) |
-| default.nix                   | Declares your app dependencies (like package.json or composer.json)         |
+| App.cabal, Setup.hs           | Config for the cabal package manager  |
+| default.nix                   | Declares your app dependencies (like package.json for NPM or composer.json for PHP)         |
 | Makefile                      | Default config file for the make build system                               |
 
 
@@ -109,7 +109,7 @@ CSS files from external libraries or components should be placed in `static/vend
 
 JS files, as all your other static assets, should be place in the `static` directory.
 
-In general we follow an approach where most of the business logic resides on the Haskell server. Only for small interactions we try to use a small isolated bit of javascript.
+In general we follow an approach where most of the business logic resides on the Haskell server. Only for small interactions, or client-side GUI niceness, we try to use a small isolated bit of javascript.
 
 Your global, non-page specific, javascript code can be placed in `app.js`.
 
