@@ -20,9 +20,9 @@ import qualified Data.List as List
 import Control.Monad (unless)
 import Prelude (show)
 
-data AttributeValue = TextValue !Text | ExpressionValue !Text deriving (Show)
+data AttributeValue = TextValue !Text | ExpressionValue !Text deriving (Eq, Show)
 
-data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes Text deriving (Show)
+data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes Text deriving (Eq, Show)
 
 data Node = Node !Text ![Attribute] ![Node]
     | TextNode !Text
@@ -30,8 +30,20 @@ data Node = Node !Text ![Attribute] ![Node]
     | SplicedNode !Text -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
     | Children ![Node]
     | CommentNode !Text
-    deriving (Show)
+    deriving (Eq, Show)
 
+-- | Parses a HSX text and returns a 'Node'
+--
+-- __Example:__
+-- 
+-- > let filePath = "my-template"
+-- > let line = 0
+-- > let col = 0
+-- > let position = Megaparsec.SourcePos filePath (Megaparsec.mkPos line) (Megaparsec.mkPos col)
+-- > let hsxText = "<strong>Hello</strong>"
+-- > 
+-- > let (Right node) = parseHsx position hsxText
+parseHsx :: SourcePos -> Text -> Either (ParseErrorBundle Text Void) Node
 parseHsx position code = runParser (setPosition position *> parser) "" code
 
 type Parser = Parsec Void Text
