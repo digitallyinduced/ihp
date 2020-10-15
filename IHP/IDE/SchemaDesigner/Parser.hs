@@ -253,7 +253,7 @@ sqlType = choice $ map optionalArray
                     pure PDate
 
                 binary = do
-                    try (symbol' "BINARY")
+                    try (symbol' "BYTEA")
                     pure PBinary
 
                 time = do
