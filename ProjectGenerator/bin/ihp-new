@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -e
+
 echo "$(readlink "$(which "$0")")"
 BIN_DIR="$(dirname "$(readlink "$(which "$0")")")"
 LIB_DIR="$BIN_DIR/../lib"
@@ -110,6 +112,8 @@ cd "$PROJECT_NAME"
 rm -rf ".git"
 
 nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
+lorri watch --once
+
 echo "🚀 Project created, happy coding :)"
 echo "You can start the server by running:"
 echo "  cd $PROJECT_NAME"

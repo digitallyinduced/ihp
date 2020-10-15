@@ -1,3 +1,5 @@
+{-# LANGUAGE NumDecimals #-}
+
 module Main (main) where
 
 import ClassyPrelude
@@ -8,6 +10,8 @@ import Control.Concurrent (threadDelay, myThreadId)
 import System.Exit
 import System.Posix.Signals
 import qualified System.FSNotify as FS
+import System.Environment
+import qualified Data.Text as Text
 
 import IHP.IDE.Types
 import IHP.IDE.Postgres
@@ -53,11 +57,12 @@ handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
 handleAction state (UpdatePostgresState postgresState) = pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
 handleAction state (UpdateToolServerState toolServerState) = pure state { toolServerState }
+handleAction state (UpdateLorriWatcherState lorriWatcherState) = pure state { lorriWatcherState }
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = pure state { liveReloadNotificationServerState }
-handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerStarted {} }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = 
+handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerStarted {} }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) =
     case liveReloadNotificationServerState of
         LiveReloadNotificationServerNotStarted -> pure state { liveReloadNotificationServerState }
         otherwise -> error "Cannot start live reload notification server twice"
@@ -147,6 +152,22 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
             pure state { appGHCIState = AppGHCIModulesLoaded { .. } }
         otherwise -> do putStrLn ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
 
+handleAction state RestartServer = do
+    putStrLn "New development server available, restarting..."
+
+    -- Stop child processes of the old server
+    stop state
+
+    threadDelay 3e6
+
+    -- Prepare new server process to take over from this one
+    let serverCreateProcess =
+          Process.proc "bash" ["-c", "eval $(direnv export bash); $(which RunDevServer)"]
+
+    -- Hand over to the new process and wait for it to exit
+    Process.withCreateProcess serverCreateProcess $ \_ _ _ processHandle -> do
+        exitCode <- Process.waitForProcess processHandle
+        exitWith exitCode
 
 
 start :: (?context :: Context) => IO ()
@@ -157,6 +178,7 @@ start = do
     async startAppGHCI
     async startPostgres
     async startFilewatcher
+    async startLorriWatcher
     pure ()
 
 stop :: (?context :: Context) => AppState -> IO ()
@@ -168,6 +190,7 @@ stop AppState { .. } = do
     stopLiveReloadNotification liveReloadNotificationServerState
     stopFileWatcher fileWatcherState
     stopToolServer toolServerState
+    stopLorriWatcher lorriWatcherState
 
 startFilewatcher :: (?context :: Context) => IO ()
 startFilewatcher = do
@@ -286,3 +309,28 @@ stopAppGHCI _ = pure ()
 pauseAppGHCI :: (?context :: Context) => AppGHCIState -> IO ()
 pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
 pauseAppGHCI _ = pure ()
+
+
+--------------------------------------------------------------------------------
+-- Lorri Watcher
+--------------------------------------------------------------------------------
+
+startLorriWatcher :: (?context :: Context) => IO ()
+startLorriWatcher = lookupEnv "out" >>= \case
+    Nothing -> putStrLn "Warning: Lorri environment missing. Auto-reloading will not work.\nRun lorri watch --once to make sure the project builds with lorri."
+    Just shellEvaluation -> do
+        serverPath <- getExecutablePath
+
+        -- Only run auto-restart when we're running the executable. This is mainly
+        -- to avoid trying to auto-restart inside ghci.
+        when ("RunDevServer" `isSuffixOf` serverPath) $ do
+            thread <- async $ forever $ do
+                threadDelay 5e6
+                (_, shellEvaluation', _) <- Process.readProcessWithExitCode "bash" ["-c", "eval $(direnv export bash); echo $out"] ""
+                unless (cs shellEvaluation == Text.strip (cs shellEvaluation')) $
+                    dispatch RestartServer
+            dispatch (UpdateLorriWatcherState (LorriWatcherStarted { thread }))
+
+stopLorriWatcher :: LorriWatcherState -> IO ()
+stopLorriWatcher LorriWatcherStarted { thread } = uninterruptibleCancel thread
+stopLorriWatcher _ = pure ()
