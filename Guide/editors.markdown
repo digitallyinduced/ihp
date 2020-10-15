@@ -26,3 +26,17 @@ Works great already out of the box.
 Recommended packages:
 - `Nix` for syntax highlighting of nix files
 - `Direnv` to load the `.envrc` file of the project.
+
+## Using IHP with Emacs
+
+Install the following packages from [Melpa](https://melpa.org/#/getting-started):
+- `dante` – gives IDE features via ghci, see https://github.com/jyp/dante#installation
+- `direnv-mode` – lets haskell-mode and dante-mode find the PATH to ghci, see https://github.com/wbolster/emacs-direnv#installation
+- `attrap` (optional) – apply fixes at point, see https://github.com/jyp/attrap
+
+and put a `.dir-locals.el` file in your project root with:
+```emacs-lisp
+((nil
+  (dante-repl-command-line . ("ghci"))
+  (haskell-process-type . ghci)))
+```
