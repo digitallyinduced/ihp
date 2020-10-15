@@ -64,7 +64,7 @@ atomicType = \case
     PReal -> "Float"
     PDouble -> "Double"
     PDate -> "Data.Time.Calendar.Day"
-    PBinary -> "Binary"
+    PBinary -> "(Binary ByteString)"
     PTime -> "TimeOfDay"
     PCustomType theType -> tableNameToModelName theType
     PTimestamp -> "LocalTime"

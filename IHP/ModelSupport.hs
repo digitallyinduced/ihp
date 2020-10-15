@@ -356,6 +356,14 @@ instance Default Day where
 instance Default UTCTime where
     def = UTCTime def 0
 
+instance Default (PG.Binary ByteString) where
+    def = PG.Binary ""
+
+instance Newtype.Newtype (PG.Binary payload) where
+    type O (PG.Binary payload) = payload
+    pack = PG.Binary
+    unpack (PG.Binary payload) = payload
+
 class Record model where
     newRecord :: model
 
