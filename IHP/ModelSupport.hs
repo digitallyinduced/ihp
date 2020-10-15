@@ -34,6 +34,7 @@ import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
+import qualified Text.Read as Read
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -218,8 +219,17 @@ instance Newtype.Newtype (Id' model) where
 -- to write the Id like a string:
 --
 -- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
-instance Read (PrimaryKey model) => IsString (Id' model) where
-    fromString uuid = Id (Prelude.read uuid)
+instance (Read (PrimaryKey model), ParsePrimaryKey (PrimaryKey model)) => IsString (Id' model) where
+    fromString uuid = textToId uuid
+
+class ParsePrimaryKey primaryKey where
+    parsePrimaryKey :: Text -> Maybe primaryKey
+
+instance ParsePrimaryKey UUID where
+    parsePrimaryKey = Read.readMaybe . cs
+
+instance ParsePrimaryKey Text where
+    parsePrimaryKey text = Just text
 
 -- | Transforms a text, bytestring or string into an Id. Throws an exception if the input is invalid.
 --
@@ -232,8 +242,11 @@ instance Read (PrimaryKey model) => IsString (Id' model) where
 -- can just write it like:
 --
 -- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
-textToId :: (Read (PrimaryKey model), ConvertibleStrings text String) => text -> Id' model
-textToId text = Id (Prelude.read (cs text))
+textToId :: (ParsePrimaryKey (PrimaryKey model), ConvertibleStrings text Text) => text -> Id' model
+textToId text = case parsePrimaryKey (cs text) of
+        Just id -> Id id
+        Nothing -> error (cs $ "Unable to convert " <> (cs text :: Text) <> " to Id value. Is it a valid uuid?")
+{-# INLINE textToId #-}
 
 instance Default (PrimaryKey model) => Default (Id' model) where
     {-# INLINE def #-}
