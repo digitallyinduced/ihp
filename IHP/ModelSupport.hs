@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
 
-module IHP.ModelSupport (module IHP.ModelSupport, Only (..)) where
+module IHP.ModelSupport where
 
 import IHP.HaskellSupport
 import IHP.NameSupport
@@ -9,7 +9,7 @@ import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
 import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
-import Database.PostgreSQL.Simple.Types (Query (Query), Only (..))
+import Database.PostgreSQL.Simple.Types (Query (Query))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
