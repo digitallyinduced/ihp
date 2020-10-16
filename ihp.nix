@@ -85,6 +85,7 @@ mkDerivation {
     websockets
     wai-websockets
     mime-mail
+    mime-mail-ses
     attoparsec
     case-insensitive
     http-media

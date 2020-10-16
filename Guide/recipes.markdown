@@ -76,6 +76,11 @@ action UpdateUserAction { userId } = do
 This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, strip all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
 
 In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
+Note that when you define the `picture_url` field in your `users` table that you
+must check the `Nullable` select box with a default `Null`. This ensures your
+`pictureUrl` data has a `Maybe Text` type and can handle 
+cases where the user has not uploaded any image.
+
 
 There is currently no special form helper for file uploads. Just specificy it manually like this:
 

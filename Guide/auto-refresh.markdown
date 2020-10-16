@@ -131,3 +131,7 @@ action ShowProjectAction { projectId } = autoRefresh do
 ```
 
 That's it. When you open your browsers dev tools, you will see that a WebSocket connection has been started when opening the page. When we update the project from a different browser tab, we will see that the page instantly updates to reflect our changes.
+
+### Troubleshooting
+
+In case you get an error that `/ihp-auto-refresh.js` cannot be loaded try to run `make -B build/ihp-lib`. When that does not solve the problem, check that you are on the latest IHP version.

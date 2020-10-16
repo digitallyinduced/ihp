@@ -44,7 +44,7 @@ When making changes to the development tooling, follow the setup above. Instead 
 
 ```
 ghci
-:l IHP/exe/IDE/DevServer.hs
+:l IHP/exe/IHP/IDE/DevServer.hs
 main
 ```
 
@@ -55,7 +55,7 @@ You can enable additonal debug logging for the development server by setting the
 ```
 export DEBUG=1
 ghci
-:l IHP/exe/IDE/DevServer.hs
+:l IHP/exe/IHP/IDE/DevServer.hs
 main
 ```
 
@@ -83,6 +83,8 @@ make watch
 This will automatically open a browser window with the compiled html of the documentation. You can now make changes to the markdown files and they are reflected in the browser after a page refresh.
 
 When adding a new markdown page also add it to the `Makefile`. Otherwise it will not be built.
+
+The documentation reads a bit like a tutorial, but should still be kept somewhat complete. Still, refer the reader to the API docs for comprehensive explanations, technical details or less-used functionality. After all, the target audience is coders.
 
 ## Code Guidelines
 

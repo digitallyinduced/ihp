@@ -417,6 +417,7 @@ instance CanSelect ContentType where
     -- You can also use the following shortcut: selectLabel = tshow
 ```
 
+
 ## Advanced Forms
 
 You can get very far with the built-in form helpers. But sometimes you might need a very custom functionality which is not easily doable with the form helpers. In this case we highly recommend to not use the form helpers for that specific case. Don't fight the tools.
@@ -444,6 +445,12 @@ You can disable the form helpers by removing the IHP javascript helpers from you
 This way no special behavior will be attached to your forms.
 
 To dig deeper into the javascript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
+
+
+## Working within the Bootstrap CSS framework
+
+While the default forms layout is vertical with one field per line, it is easy to change. Bootstrap's excellent [forms documentation](https://getbootstrap.com/docs/4.4/components/forms/) shows how.
+
 
 ## Working with other CSS Frameworks
 

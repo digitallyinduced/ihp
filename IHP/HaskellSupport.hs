@@ -27,6 +27,7 @@ module IHP.HaskellSupport (
 , todayIsWeekend
 , debug
 , includes
+, stripTags
 ) where
 
 import ClassyPrelude
@@ -41,6 +42,7 @@ import qualified GHC.Records as Record
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs)
 import qualified Debug.Trace
+import qualified Data.Text as Text
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
@@ -230,3 +232,12 @@ isWeekend day =
 debug :: Show value => value -> value
 debug value = Debug.Trace.traceShowId value
 {-# INLINE debug #-}
+
+-- | Removes all html tags from a given html text
+--
+-- >>> stripTags "This is <b>Bold</b>"
+-- "This is Bold"
+stripTags :: Text -> Text
+stripTags "" = ""
+stripTags html | Text.head html == '<' = stripTags (Text.drop 1 (Text.dropWhile (/= '>') (Text.tail html)))
+stripTags html = let (a, b) = Text.splitAt 1 html in a <> stripTags b

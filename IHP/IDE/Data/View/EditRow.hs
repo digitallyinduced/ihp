@@ -11,6 +11,7 @@ import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.ByteString as BS
 
 data EditRowView = EditRowView
     { tableNames :: [Text]
@@ -61,19 +62,50 @@ instance View EditRowView ViewContext where
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
             renderPrimaryKeyInput (primaryKeyField, primaryKeyValue) = [hsx|<input type="hidden" name={primaryKeyField <> "-pk"} value={primaryKeyValue}>|]
-            renderFormField col = [hsx|
+            
+            renderFormField :: (ColumnDefinition, DynamicField) -> Html
+            renderFormField (def, val) = [hsx|
                     <div class="form-group">
-                        <label class="row-form">{get #columnName (fst col)}</label>
+                        <label class="row-form">{get #columnName def}</label>
                         <span style="float:right;">
-                            <a class="text-muted row-form">{get #columnType (fst col)}</a>
+                            <a class="text-muted row-form">{get #columnType def}</a>
                         </span>
 
-                        <input
-                            type="text"
-                            name={get #columnName (fst col)}
-                            class="form-control"
-                            value={fromMaybe "" (get #fieldValue (snd col))}
-                            />
+                        <div class="input-group">
+                            <input
+                                id={get #columnName def <> "-input"}
+                                type="text"
+                                name={get #columnName def}
+                                class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction_ value)]}
+                                value={value}
+                                oninput={"stopSqlModeOnInput('" <> get #columnName def <> "')"}
+                                />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName def <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName def <> "_"}
+                                            checked={isSqlFunction_ value}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName def <> "', this)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName def <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName def <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>
+                        </div>
                     </div>|]
+                where
+                    value = fromMaybe BS.empty (get #fieldValue val)
 
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"

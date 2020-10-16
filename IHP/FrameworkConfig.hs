@@ -11,6 +11,9 @@ import qualified Data.Text as Text
 import qualified System.Process as Process
 import Network.Wai (Middleware)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
+import qualified Web.Cookie as Cookie
+import Data.Default (def)
+import IHP.Mail.Types
 
 defaultPort :: Int
 defaultPort = 8000
@@ -39,6 +42,33 @@ class FrameworkConfig where
     -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
     requestLoggerMiddleware :: Middleware
     requestLoggerMiddleware = RequestLogger.logStdoutDev
+
+    -- | Provides the default settings for the session cookie.
+    --
+    -- - Max Age: 30 days
+    -- - Same Site Policy: Lax
+    -- - HttpOnly (no access through JS)
+    -- - secure, when baseUrl is a https url
+    --
+    -- Override this to set e.g. a custom max age or change the default same site policy.
+    --
+    -- __Example: Set max age to 90 days__
+    -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
+    sessionCookie :: Cookie.SetCookie
+    sessionCookie = defaultIHPSessionCookie
+
+    mailServer :: MailServer
+    mailServer = error "You have not yet configured which mail server to use. See TODO(link to docu)"
+
+-- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
+defaultIHPSessionCookie :: FrameworkConfig => Cookie.SetCookie
+defaultIHPSessionCookie = def
+    { Cookie.setCookiePath = Just "/"
+    , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
+    , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
+    , Cookie.setCookieHttpOnly = True
+    , Cookie.setCookieSecure = "https://" `Text.isPrefixOf` baseUrl
+    }
 
 data RootApplication = RootApplication deriving (Eq, Show)
 

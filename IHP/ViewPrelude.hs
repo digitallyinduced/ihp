@@ -15,6 +15,7 @@ module IHP.ViewPrelude (
     module IHP.View.Modal,
     module IHP.ValidationSupport,
     pathTo,
+    urlTo,
     module IHP.ViewSupport,
     module IHP.ModelSupport,
     (!),

@@ -20,7 +20,6 @@ import qualified IHP.ErrorController as ErrorController
 import IHP.ApplicationContext
 import IHP.ModelSupport
 import IHP.RouterSupport hiding (get)
-import qualified Web.Cookie as Cookie
 import qualified Data.Time.Clock
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
@@ -66,12 +65,7 @@ startToolServer' port isDebugMode = do
 
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let sessionCookie = def
-                { Cookie.setCookiePath = Just "/"
-                , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
-                , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
-                }
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" Config.sessionCookie session
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
     let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshServer }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }

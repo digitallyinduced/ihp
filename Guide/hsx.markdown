@@ -36,6 +36,7 @@ in
 
 As the HSX expressions are compiled to Haskell code at compile-time, type errors inside these `{}` expressions will be reported to you by the compiler.
 
+
 ### Dynamic Attributes
 
 The variable syntax can also be used in attribute values:
@@ -75,6 +76,7 @@ This will not render the attribute:
 <input/>
 ```
 
+
 ### Spread Values
 
 For dynamic use cases you can use `{...attributeList}`:
@@ -84,6 +86,9 @@ For dynamic use cases you can use `{...attributeList}`:
 <div { ...[ ("data-user-" <> tshow userId, tshow userFirstname) ] } />
 <div { ...someVariable } />
 ```
+
+Note the `<>` concatenation operator.
+
 
 ### Special Elements: `<script>` and `<style>`
 
@@ -178,3 +183,7 @@ The underlying html library blaze currently does not support empty html attribut
 ```html
 <input disabled="disabled"/>
 ```
+
+#### Unescaped Strings
+
+If you use HTML entities, such as `&nbsp;` for a non-breaking space, you will notice they appear exactly like that. To output directly (i.e. unescaped) use the method `preEscapedToMarkup` from `Text.Blaze.Html5`.

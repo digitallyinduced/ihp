@@ -16,6 +16,8 @@ module IHP.ControllerPrelude
     , module Control.Newtype.Generics
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
+    , module IHP.Mail
+    , Only (..)
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -34,3 +36,5 @@ import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import Control.Newtype.Generics
 import IHP.AutoRefresh (autoRefresh)
+import IHP.Mail (sendMail)
+import Database.PostgreSQL.Simple.Types (Only (..))
