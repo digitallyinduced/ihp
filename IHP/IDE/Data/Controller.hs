@@ -73,7 +73,6 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         let tableName = param "tableName"
         tableCols <- fetchTableCols connection tableName
-        putStrLn (tshow (param @Bool "id_"))
         let values :: [Text] = map (\col -> quoteIfLiteral (param @Bool (cs (get #columnName col) <> "_")) (param @Text (cs (get #columnName col)))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
         PG.execute_ connection (PG.Query . cs $! query)
