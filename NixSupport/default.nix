@@ -11,7 +11,7 @@ let
     }) {};
 
     ghc = pkgs.haskell.packages.${compiler};
-    allHaskellPackages = ghc.ghcWithPackages (p: haskellDeps p);
+    allHaskellPackages = ghc.ghcWithPackages (p: builtins.concatLists [ (haskellDeps p) [p.haskell-language-server] ] );
     allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [pkgs.darwin.apple_sdk.frameworks.Cocoa] else []) ];
 in
     pkgs.stdenv.mkDerivation {

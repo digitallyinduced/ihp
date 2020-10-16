@@ -6,6 +6,7 @@ let
         "tz"
         "http2-client"
         "typerep-map"
+        "hslogger"
     ];
 
     doJailbreakPackages = [
@@ -14,13 +15,15 @@ let
         "ihp"
         "http-media"
         "countable-inflections"
+        "haskell-language-server"
+        "hslogger"
     ];
 
     dontHaddockPackages = [
     ];
 
-    nixPkgsRev = "da7ddd822e32aeebea00e97ab5aeca9758250a40";
-    nixPkgsSha256 = "0zbxbk4m72psbvd5p4qprcpiadndq1j2v517synijwp2vxc7cnv6";
+    nixPkgsRev = "07e5844fdf6fe99f41229d7392ce81cfe191bcfc";
+    nixPkgsSha256 = "0p2z6jidm4rlp2yjfl553q234swj1vxl8z0z8ra1hm61lfrlcmb9";
 
     compiler = "ghc883";
 

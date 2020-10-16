@@ -1,0 +1,1 @@
+make print-ghc-options GHC_RTS_FLAGS='' | tr ' ' '\n' > "$HIE_BIOS_OUTPUT"
