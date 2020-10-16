@@ -57,10 +57,16 @@ GHC_EXTENSIONS+= -XDerivingVia
 GHC_EXTENSIONS+= -Werror=missing-fields
 GHC_EXTENSIONS+= -fwarn-incomplete-patterns
 
-GHC_OPTIONS=-threaded -i. -ibuild -iConfig
+GHC_RTS_FLAGS := -A256m -n2m
+
+GHC_OPTIONS=-threaded -i. -ibuild -iConfig -iIHP
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
-GHC_OPTIONS+= +RTS -A256m -n2m --RTS
+
+ifneq ($(GHC_RTS_FLAGS),)
+GHC_OPTIONS+= +RTS ${GHC_RTS_FLAGS} --RTS
+endif
+
 GHC_OPTIONS+= -package ihp
 GHC_OPTIONS+= -rtsopts=all
 
@@ -171,3 +177,8 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import qualified Config" >> $@
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript run" >> $@
+
+hie.yaml: # Configuration for haskell-language-server
+	echo "cradle:" > hie.yaml
+	echo "  bios:" >> hie.yaml
+	echo "    program: build/ihp-lib/.hie-bios" >> hie.yaml
