@@ -1,3 +1,4 @@
+
 module IHP.IDE.Data.View.EditValue where
 
 import IHP.ViewPrelude
@@ -10,15 +11,13 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 import Data.Maybe
-import qualified Data.Text as T
 
 data EditValueView = EditValueView
     { tableNames :: [Text]
     , tableName :: Text
     , rows :: [[DynamicField]]
     , targetName :: Text
-    , primaryKeyFields :: [Text]
-    , targetPrimaryKey :: Text
+    , targetId :: Text
     }
 
 instance View EditValueView ViewContext where
@@ -28,6 +27,7 @@ instance View EditValueView ViewContext where
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
+                    <div class="text-muted context-menu-notice">Press Enter to save your changes or click somewhere else to discard them.</div>
                 </div>
             </div>
             {customQuery ""}
@@ -37,30 +37,28 @@ instance View EditValueView ViewContext where
         where
 
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
-            renderRow fields = [hsx|<tr oncontextmenu={"showContextMenu('" <> contextMenuId <> "');"}>{forEach fields (renderField primaryKey fields)}
+            renderRow fields = [hsx|<tr oncontextmenu={"showContextMenu('" <> contextMenuId <> "');"}>{forEach fields (renderField id fields)}
             </tr>
             <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
-                <a href={EditRowAction tableName primaryKey}>Edit Row</a>
-                <a href={DeleteEntryAction primaryKey tableName} class="js-delete">Delete Row</a>
+                <a href={EditRowAction tableName id}>Edit Row</a>
+                <a href={DeleteEntryAction id tableName} class="js-delete">Delete Row</a>
                 <div></div>
                 <a href={NewRowAction tableName}>Add Row</a>
             </div>|]
                 where
-                    contextMenuId = "context-menu-column-" <> tshow primaryKey
-                    primaryKey = intercalate "---" . map (cs . fromMaybe "" . get #fieldValue) $ filter ((`elem` primaryKeyFields) . cs . get #fieldName) fields
+                    contextMenuId = "context-menu-column-" <> tshow id
+                    id = (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields)))))
 
-            renderField primaryKey fields DynamicField { .. } = if (tshow targetName) == (tshow fieldName) && targetPrimaryKey == primaryKey
+            renderField id fields DynamicField { .. } = if (tshow targetName) == (tshow fieldName) && targetId == id
                 then [hsx|<td>
-                <form method="POST" action={UpdateRowAction}>
-                    <input id="editField" autofocus="autofocus" type="text" name={fieldName} value={fromMaybe "" fieldValue}/>
+                <form id="fieldForm" method="POST" action={UpdateValueAction}>
+                    <input id="editField" autofocus="autofocus" type="text" name="targetValue" value={fromMaybe "" fieldValue}/>
                     {forEach fields renderValue}
-                    {forEach (zip primaryKeyFields (T.splitOn "---" targetPrimaryKey)) renderPrimaryKeyInput}
-                    <input type="hidden" name="tableName" value={tableName}/>
-                    <button type="submit" class="d-none">Edit</button>
+                    <input id="inputField" type="hidden" name="tableName" value={tableName}/>
+                    <input type="hidden" name="targetName" value={targetName}/>
                 </form></td>|]
-                else [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) primaryKey}>{sqlValueToText fieldValue}</a></span></td>|]
-            renderValue DynamicField { .. } = [hsx|<input type="hidden" name={fieldName} value={fromMaybe "" fieldValue}/>|]
-            renderPrimaryKeyInput (primaryKeyField, primaryKeyValue) = [hsx|<input type="hidden" name={primaryKeyField <> "-pk"} value={primaryKeyValue}>|]
+                else [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{sqlValueToText fieldValue}</a></span></td>|]
+            renderValue DynamicField { .. } = [hsx|<input type="hidden" name={fieldName} value={renderRowValue fieldValue}/>|]
             script = preEscapedToHtml [plain|
                 <script>
                     onClickHandler = () => {
@@ -69,5 +67,14 @@ instance View EditValueView ViewContext where
                     document.addEventListener('click', onClickHandler);
                     var editField = document.getElementById("editField");
                     editField.addEventListener('click', function (event) {event.stopPropagation();});
+
+
+                    var input = document.getElementById("inputField");
+                    input.addEventListener("keyup", function(event) {
+                    if (event.keyCode === 13) {
+                        var form = document.getElementById("fieldForm");
+                        window.submit(form);
+                    }
+                    });
                 </script>
             |]
