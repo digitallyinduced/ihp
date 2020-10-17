@@ -97,11 +97,13 @@ data CodeGenController
     | NewControllerAction
     | NewScriptAction
     | NewViewAction
+    | NewMailAction
     | NewActionAction
     | NewApplicationAction
     | CreateControllerAction
     | CreateScriptAction
     | CreateViewAction
+    | CreateMailAction
     | CreateActionAction
     | CreateApplicationAction
     | OpenControllerAction
