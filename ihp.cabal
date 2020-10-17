@@ -232,6 +232,8 @@ library IHPFramework
         , IHP.Mail
         , IHP.Mail.Types
         , IHP.MailPrelude
+        , IHP.IDE.CodeGen.MailGenerator
+        , IHP.IDE.CodeGen.View.NewMail
 
 executable RunDevServer
     import: shared-properties
