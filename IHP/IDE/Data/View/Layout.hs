@@ -1,4 +1,20 @@
-module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows, sqlValueToText, renderId, isBoolField, isSqlFunction, isSqlFunction_, fillField, getColDefaultValue, renderRowValue, renderDefaultWithoutType) where
+module IHP.IDE.Data.View.Layout
+    ( customQuery
+    , tableHead
+    , renderColumnHead
+    , columnNames
+    , renderRows
+    , sqlValueToText
+    , renderId
+    , isBoolField
+    , isSqlFunction
+    , isSqlFunction_
+    , fillField
+    , getColDefaultValue
+    , renderRowValue
+    , renderDefaultWithoutType
+    , isBooleanParam
+    ) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types hiding (columnNames)
@@ -63,3 +79,12 @@ renderDefaultWithoutType "" = ""
 renderDefaultWithoutType input = case length (Text.splitOn "'" input) of
         3 -> (Text.splitOn "'" input) !! 1
         _ -> input
+
+isBooleanParam :: Bool -> ColumnDefinition -> Html
+isBooleanParam isBool def = [hsx|
+<input
+    type="hidden"
+    name={get #columnName def <> "-isBoolean"}
+    value={inputValue isBool}
+    />
+|]

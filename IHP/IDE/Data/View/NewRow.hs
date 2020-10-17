@@ -69,11 +69,7 @@ instance View NewRowView ViewContext where
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
             renderInputMethod :: ColumnDefinition -> Html 
             renderInputMethod col | (get #columnType col) == "boolean" = [hsx|
-                            <input
-                                type="hidden"
-                                name={get #columnName col <> "-isBoolean"}
-                                value={inputValue True}
-                                />
+                            {isBooleanParam True col}
                             <input
                                 id={get #columnName col <> "-alt"}
                                 type="text"
@@ -119,11 +115,7 @@ instance View NewRowView ViewContext where
                             </div>
                                 |]
             renderInputMethod col = [hsx|
-                            <input
-                                type="hidden"
-                                name={get #columnName col <> "-isBoolean"}
-                                value={inputValue False}
-                                />
+                            {isBooleanParam True col}
                             <input
                                 id={get #columnName col <> "-input"}
                                 type="text"

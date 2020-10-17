@@ -79,11 +79,7 @@ instance View EditRowView ViewContext where
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
             renderInputMethod :: (ColumnDefinition, DynamicField) -> Html
             renderInputMethod (def, val) | (get #columnType def) == "boolean" && isNothing (get #fieldValue val) = [hsx|
-                            <input
-                                type="hidden"
-                                name={get #columnName def <> "-isBoolean"}
-                                value={inputValue True}
-                                />
+                            {isBooleanParam True def}
                             <input
                                 id={get #columnName def <> "-alt"}
                                 type="text"
@@ -130,11 +126,7 @@ instance View EditRowView ViewContext where
                             </div>
                                 |]
             renderInputMethod (def, val) | (get #columnType def) == "boolean" = [hsx|
-                            <input
-                                type="hidden"
-                                name={get #columnName def <> "-isBoolean"}
-                                value={inputValue True}
-                                />
+                            {isBooleanParam True def}
                             <input
                                 id={get #columnName def <> "-alt"}
                                 type="text"
@@ -180,11 +172,7 @@ instance View EditRowView ViewContext where
                             </div>
                                 |]
             renderInputMethod (def, val) = [hsx|
-                            <input
-                                type="hidden"
-                                name={get #columnName def <> "-isBoolean"}
-                                value={inputValue False}
-                                />
+                            {isBooleanParam False def}
                             <input
                                 id={get #columnName def <> "-input"}
                                 type="text"
