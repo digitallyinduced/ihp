@@ -105,7 +105,6 @@ instance Controller DataController where
         let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
         let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns values)) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))
-        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
