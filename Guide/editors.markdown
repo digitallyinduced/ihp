@@ -45,6 +45,25 @@ and put a `.dir-locals.el` file in your project root with:
   (haskell-process-type . ghci)))
 ```
 
+## Using IHP with Vim / NeoVim
+
+### Using CoC
+
+Provided you already have CoC setup, just run `:CocConfig` and add the following segment.
+
+```json
+{
+  "languageserver": {
+    "haskell": {
+      "command": "haskell-language-server-wrapper",
+      "args": ["--lsp"],
+      "rootPatterns": ["*.cabal", "stack.yaml", "cabal.project", "package.yaml", "hie.yaml"],
+      "filetypes": ["haskell", "lhaskell"]
+    }
+  }
+}
+```
+
 ## Notes on `haskell-language-server`
 
 IHP currently uses v0.4 of haskell language server.
