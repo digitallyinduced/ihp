@@ -67,7 +67,7 @@ instance View NewRowView ViewContext where
                                 type="text"
                                 name={get #columnName col}
                                 class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction (getColDefaultValue col))]}
-                                value={getColDefaultValue col}
+                                value={renderDefaultWithoutType (getColDefaultValue col)}
                                 oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
                                 />
                             <div class="input-group-append">
