@@ -83,8 +83,8 @@ instance View EditRowView ViewContext where
                             <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
-                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT"}>DEFAULT</a>
-                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL"}>NULL</a>
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "false"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "false"}>NULL</a>
                                     <a class="dropdown-item">
                                         <input
                                             id={get #columnName def <> "-sqlbox"}

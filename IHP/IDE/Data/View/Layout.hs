@@ -45,7 +45,7 @@ isSqlFunction_ text = text `elem`
     , "NOW()"
     , "NULL"]
 
-fillField col value = "fillField('" <> get #columnName col <> "', '" <> value <> "');"
+fillField col value isBoolField = "fillField('" <> get #columnName col <> "', '" <> value <> "'," <> isBoolField <> ");"
 
 getColDefaultValue :: ColumnDefinition -> Text
 getColDefaultValue ColumnDefinition { columnDefault, isNullable } = case columnDefault of

@@ -62,6 +62,69 @@ instance View NewRowView ViewContext where
                         </span>
 
                         <div class="input-group">
+                            {renderInputMethod col}
+                            
+                        </div>
+                    </div>|]
+
+            onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+            renderInputMethod :: ColumnDefinition -> Html 
+            renderInputMethod col | (get #columnType col) == "boolean" = [hsx|
+                            <input
+                                type="hidden"
+                                name={get #columnName col <> "-isBoolean"}
+                                value={inputValue True}
+                                />
+                            <input
+                                id={get #columnName col <> "-alt"}
+                                type="text"
+                                name={get #columnName col <> "-inactive"}
+                                class="form-control text-monospace text-secondary bg-light d-none"
+                                />
+                            <input
+                                id={get #columnName col <> "-input"}
+                                type="checkbox"
+                                name={get #columnName col}
+                                class="form-control"
+                                checked={get #columnDefault col == Just "true"}
+                                oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
+                                />
+                            <input
+                                id={get #columnName col <> "-hidden"}
+                                type="hidden"
+                                name={get #columnName col}
+                                value={inputValue False}
+                                />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "true"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "true"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName col <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName col <> "_"}
+                                            checked={isSqlFunction (getColDefaultValue col)}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this, true)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName col <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>
+                                |]
+            renderInputMethod col = [hsx|
+                            <input
+                                type="hidden"
+                                name={get #columnName col <> "-isBoolean"}
+                                value={inputValue False}
+                                />
                             <input
                                 id={get #columnName col <> "-input"}
                                 type="text"
@@ -73,8 +136,8 @@ instance View NewRowView ViewContext where
                             <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
-                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT"}>DEFAULT</a>
-                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL"}>NULL</a>
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "false"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "false"}>NULL</a>
                                     <a class="dropdown-item">
                                         <input
                                             id={get #columnName col <> "-sqlbox"}
@@ -82,7 +145,7 @@ instance View NewRowView ViewContext where
                                             name={get #columnName col <> "_"}
                                             checked={isSqlFunction (getColDefaultValue col)}
                                             class="mr-1"
-                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this)"}
+                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this, false)"}
                                             />
                                         <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
                                     </a>
@@ -92,8 +155,4 @@ instance View NewRowView ViewContext where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>
-                        </div>
-                    </div>|]
-
-            onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+                            </div>|]

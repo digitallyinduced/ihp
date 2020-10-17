@@ -73,8 +73,9 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         let tableName = param "tableName"
         tableCols <- fetchTableCols connection tableName
-        let values :: [Text] = map (\col -> quoteIfLiteral (param @Bool (cs (get #columnName col) <> "_")) (param @Text (cs (get #columnName col)))) tableCols
+        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
+        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
@@ -100,7 +101,7 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
 
-        let values :: [Text] = map (\col -> quoteIfLiteral (param @Bool (cs (get #columnName col) <> "_")) (param @Text (cs (get #columnName col)))) tableCols
+        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) False (param @Text (cs (get #columnName col)))) tableCols
         let columns :: [Text] = map (\col -> cs (get #columnName col)) tableCols
         let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
@@ -185,8 +186,13 @@ fetchRows connection tableName = do
 
     PG.query_ connection (PG.Query . cs $! query)
 
-quoteIfLiteral :: Bool -> Text -> Text
-quoteIfLiteral False text = "'" <> text <> "'"
-quoteIfLiteral True text = text
+-- parseValues sqlMode isBoolField input
+parseValues :: Bool -> Bool -> Text -> Text
+parseValues _ True "on" = "true"
+parseValues _ True "off" = "false"
+parseValues False False text = "'" <> text <> "'"
+parseValues True False text = text
+parseValues False True text = text
+parseValues True True text = text
 
 updateValues list = map (\elem -> fst elem <> " = " <> snd elem) list
