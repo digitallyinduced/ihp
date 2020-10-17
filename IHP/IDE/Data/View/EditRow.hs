@@ -72,12 +72,125 @@ instance View EditRowView ViewContext where
                         </span>
 
                         <div class="input-group">
+                            {renderInputMethod (def, val)}
+                        </div>
+                    </div>|]
+
+            onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+            renderInputMethod :: (ColumnDefinition, DynamicField) -> Html
+            renderInputMethod (def, val) | (get #columnType def) == "boolean" && isNothing (get #fieldValue val) = [hsx|
+                            <input
+                                type="hidden"
+                                name={get #columnName def <> "-isBoolean"}
+                                value={inputValue True}
+                                />
+                            <input
+                                id={get #columnName def <> "-alt"}
+                                type="text"
+                                name={get #columnName def}
+                                class="form-control text-monospace text-secondary bg-light"
+                                value="NULL"
+                                />
+                            <input
+                                id={get #columnName def <> "-input"}
+                                type="checkbox"
+                                name={get #columnName def <> "-inactive"}
+                                class="form-control d-none"
+                                checked={(value val) == "t"}
+                                oninput={"stopSqlModeOnInput('" <> get #columnName def <> "')"}
+                                />
+                            <input
+                                id={get #columnName def <> "-hidden"}
+                                type="hidden"
+                                name={get #columnName def}
+                                value={inputValue False}
+                                />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "true"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName def <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName def <> "_"}
+                                            checked={True}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName def <> "', this, true)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName def <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName def <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>
+                                |]
+            renderInputMethod (def, val) | (get #columnType def) == "boolean" = [hsx|
+                            <input
+                                type="hidden"
+                                name={get #columnName def <> "-isBoolean"}
+                                value={inputValue True}
+                                />
+                            <input
+                                id={get #columnName def <> "-alt"}
+                                type="text"
+                                name={get #columnName def <> "-inactive"}
+                                class="form-control text-monospace text-secondary bg-light d-none"
+                                />
+                            <input
+                                id={get #columnName def <> "-input"}
+                                type="checkbox"
+                                name={get #columnName def}
+                                class="form-control"
+                                checked={(value val) == "t"}
+                                oninput={"stopSqlModeOnInput('" <> get #columnName def <> "')"}
+                                />
+                            <input
+                                id={get #columnName def <> "-hidden"}
+                                type="hidden"
+                                name={get #columnName def}
+                                value={inputValue False}
+                                />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "true"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName def <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName def <> "_"}
+                                            checked={isSqlFunction (getColDefaultValue def)}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName def <> "', this, true)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName def <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName def <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>
+                                |]
+            renderInputMethod (def, val) = [hsx|
+                            <input
+                                type="hidden"
+                                name={get #columnName def <> "-isBoolean"}
+                                value={inputValue False}
+                                />
                             <input
                                 id={get #columnName def <> "-input"}
                                 type="text"
                                 name={get #columnName def}
-                                class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction_ value)]}
-                                value={value}
+                                class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction_ (value val))]}
+                                value={value val}
                                 oninput={"stopSqlModeOnInput('" <> get #columnName def <> "')"}
                                 />
                             <div class="input-group-append">
@@ -90,7 +203,7 @@ instance View EditRowView ViewContext where
                                             id={get #columnName def <> "-sqlbox"}
                                             type="checkbox"
                                             name={get #columnName def <> "_"}
-                                            checked={isSqlFunction_ value}
+                                            checked={isSqlFunction_ (value val)}
                                             class="mr-1"
                                             onclick={"sqlModeCheckbox('" <> get #columnName def <> "', this)"}
                                             />
@@ -102,10 +215,6 @@ instance View EditRowView ViewContext where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>
-                        </div>
-                    </div>|]
-                where
-                    value = fromMaybe BS.empty (get #fieldValue val)
+                            </div>|]
 
-            onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+value val = fromMaybe BS.empty (get #fieldValue val)

@@ -63,7 +63,6 @@ instance View NewRowView ViewContext where
 
                         <div class="input-group">
                             {renderInputMethod col}
-                            
                         </div>
                     </div>|]
 

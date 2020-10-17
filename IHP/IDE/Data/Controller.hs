@@ -101,7 +101,7 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
 
-        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) False (param @Text (cs (get #columnName col)))) tableCols
+        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
         let columns :: [Text] = map (\col -> cs (get #columnName col)) tableCols
         let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
