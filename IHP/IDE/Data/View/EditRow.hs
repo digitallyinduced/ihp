@@ -87,14 +87,15 @@ instance View EditRowView ViewContext where
                                 class="form-control text-monospace text-secondary bg-light"
                                 value="NULL"
                                 />
-                            <input
-                                id={get #columnName def <> "-input"}
-                                type="checkbox"
-                                name={get #columnName def <> "-inactive"}
-                                class="form-control d-none"
-                                checked={(value val) == "t"}
-                                oninput={"stopSqlModeOnInput('" <> get #columnName def <> "')"}
-                                />
+                            <div class="form-control" id={get #columnName def <> "-boxcontainer"}>
+                                <input
+                                    id={get #columnName def <> "-input"}
+                                    type="checkbox"
+                                    class="d-none"
+                                    name={get #columnName def <> "-inactive"}
+                                    checked={(value val) == "t"}
+                                    />
+                            </div>
                             <input
                                 id={get #columnName def <> "-hidden"}
                                 type="hidden"
@@ -133,14 +134,14 @@ instance View EditRowView ViewContext where
                                 name={get #columnName def <> "-inactive"}
                                 class="form-control text-monospace text-secondary bg-light d-none"
                                 />
-                            <input
-                                id={get #columnName def <> "-input"}
-                                type="checkbox"
-                                name={get #columnName def}
-                                class="form-control"
-                                checked={(value val) == "t"}
-                                oninput={"stopSqlModeOnInput('" <> get #columnName def <> "')"}
-                                />
+                            <div class="form-control" id={get #columnName def <> "-boxcontainer"}>
+                                <input
+                                    id={get #columnName def <> "-input"}
+                                    type="checkbox"
+                                    name={get #columnName def}
+                                    checked={(value val) == "t"}
+                                    />
+                            </div>
                             <input
                                 id={get #columnName def <> "-hidden"}
                                 type="hidden"

@@ -75,7 +75,6 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
-        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
@@ -106,6 +105,7 @@ instance Controller DataController where
         let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
         let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns values)) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))
+        putStrLn (query)
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }

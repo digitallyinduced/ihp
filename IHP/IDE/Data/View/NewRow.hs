@@ -76,14 +76,14 @@ instance View NewRowView ViewContext where
                                 name={get #columnName col <> "-inactive"}
                                 class="form-control text-monospace text-secondary bg-light d-none"
                                 />
-                            <input
-                                id={get #columnName col <> "-input"}
-                                type="checkbox"
-                                name={get #columnName col}
-                                class="form-control"
-                                checked={get #columnDefault col == Just "true"}
-                                oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
-                                />
+                            <div class="form-control" id={get #columnName col <> "-boxcontainer"}>
+                                <input
+                                    id={get #columnName col <> "-input"}
+                                    type="checkbox"
+                                    name={get #columnName col}
+                                    checked={get #columnDefault col == Just "true"}
+                                    />
+                            </div>
                             <input
                                 id={get #columnName col <> "-hidden"}
                                 type="hidden"
