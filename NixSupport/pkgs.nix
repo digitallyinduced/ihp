@@ -1,6 +1,5 @@
 let
     dontCheckPackages = [
-        "ghc-mod"
         "cabal-helper"
         "filesystem-conduit"
         "tz"
@@ -10,7 +9,6 @@ let
     ];
 
     doJailbreakPackages = [
-        "ghc-mod"
         "filesystem-conduit"
         "ihp"
         "http-media"
