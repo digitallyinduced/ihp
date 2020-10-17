@@ -20,8 +20,8 @@ let
     dontHaddockPackages = [
     ];
 
-    nixPkgsRev = "07e5844fdf6fe99f41229d7392ce81cfe191bcfc";
-    nixPkgsSha256 = "0p2z6jidm4rlp2yjfl553q234swj1vxl8z0z8ra1hm61lfrlcmb9";
+    nixPkgsRev = "c985bf793e6ab7d54a9182381b4b610fe0ae6936";
+    nixPkgsSha256 = "0zsj9imjbnhkb65r169xxqmjgqd5593insrvncvabg1iqdsrcxz1";
 
     compiler = "ghc883";
 
