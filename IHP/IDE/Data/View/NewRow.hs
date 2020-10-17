@@ -115,7 +115,7 @@ instance View NewRowView ViewContext where
                             </div>
                                 |]
             renderInputMethod col = [hsx|
-                            {isBooleanParam True col}
+                            {isBooleanParam False col}
                             <input
                                 id={get #columnName col <> "-input"}
                                 type="text"

@@ -140,7 +140,7 @@ instance Controller DataController where
         connection <- connectToAppDb
         let targetCol = param "targetName"
         let targetValue = param "targetValue"
-        let query = "UPDATE " <> tableName <> " SET " <> targetCol <> " = '" <> targetValue <> "' WHERE id = " <> cs id
+        let query = "UPDATE " <> tableName <> " SET " <> targetCol <> " = '" <> targetValue <> "' WHERE id = '" <> cs id <> "'"
         PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
