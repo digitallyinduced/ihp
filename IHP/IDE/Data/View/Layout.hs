@@ -1,9 +1,26 @@
-module IHP.IDE.Data.View.Layout (customQuery, tableHead, renderColumnHead, columnNames, renderRows, sqlValueToText, renderId, isBoolField, isSqlFunction, isSqlFunction_, fillField, getColDefaultValue, renderRowValue) where
+module IHP.IDE.Data.View.Layout
+    ( customQuery
+    , tableHead
+    , renderColumnHead
+    , columnNames
+    , renderRows
+    , sqlValueToText
+    , renderId
+    , isBoolField
+    , isSqlFunction
+    , isSqlFunction_
+    , fillField
+    , getColDefaultValue
+    , renderRowValue
+    , renderDefaultWithoutType
+    , isBooleanParam
+    ) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types hiding (columnNames)
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
+import qualified Data.Text as Text
 
 customQuery :: Text -> Html
 customQuery input = [hsx|<div class="p-2 rounded mt-2" style="background-color: #002B36;"><div id="queryInput" style="height:16px">{input}</div></div>|]
@@ -44,7 +61,7 @@ isSqlFunction_ text = text `elem`
     , "NOW()"
     , "NULL"]
 
-fillField col value = "fillField('" <> get #columnName col <> "', '" <> value <> "');"
+fillField col value isBoolField = "fillField('" <> get #columnName col <> "', '" <> value <> "'," <> isBoolField <> ");"
 
 getColDefaultValue :: ColumnDefinition -> Text
 getColDefaultValue ColumnDefinition { columnDefault, isNullable } = case columnDefault of
@@ -56,3 +73,18 @@ getColDefaultValue ColumnDefinition { columnDefault, isNullable } = case columnD
 renderRowValue :: Maybe ByteString -> Text
 renderRowValue (Just value) = "'" <> cs value <> "'"
 renderRowValue Nothing = "NULL" 
+
+renderDefaultWithoutType :: Text -> Text
+renderDefaultWithoutType "" = ""
+renderDefaultWithoutType input = case length (Text.splitOn "'" input) of
+        3 -> (Text.splitOn "'" input) !! 1
+        _ -> input
+
+isBooleanParam :: Bool -> ColumnDefinition -> Html
+isBooleanParam isBool def = [hsx|
+<input
+    type="hidden"
+    name={get #columnName def <> "-isBoolean"}
+    value={inputValue isBool}
+    />
+|]
