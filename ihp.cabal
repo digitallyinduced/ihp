@@ -78,6 +78,7 @@ common shared-properties
             , mime-mail-ses
             , http-client
             , http-client-tls
+            , resource-pool
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

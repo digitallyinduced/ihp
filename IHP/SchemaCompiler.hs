@@ -375,12 +375,9 @@ compileCreate table@(CreateTable { name, columns }) =
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
-                    <> "result <- Database.PostgreSQL.Simple.query databaseConnection \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
-                    <> "pure (List.head result)\n"
-                    )
+                <> indent ("List.head <$> withDatabaseConnection \\databaseConnection -> Database.PostgreSQL.Simple.query databaseConnection \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n")
                 <> "createMany models = do\n"
-                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
+                <> indent ("withDatabaseConnection \\databaseConnection -> "
                     <> createManyQueryFn <> " databaseConnection (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
                     )
             )
@@ -410,9 +407,8 @@ compileUpdate table@(CreateTable { name, columns }) =
     in
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
-                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
-                    <> "result <- Database.PostgreSQL.Simple.query databaseConnection \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
-                    <> "pure (List.head result)\n"
+                <> indent (
+                    "List.head <$> withDatabaseConnection \\databaseConnection -> Database.PostgreSQL.Simple.query databaseConnection \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
                 )
             )
 
