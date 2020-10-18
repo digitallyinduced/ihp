@@ -34,7 +34,7 @@ instance View EditColumnView ViewContext where
             primaryKeyCheckbox
                 | [name] == primaryKeyColumns =
                     preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-2" checked disabled> Primary Key
+                            <input type="checkbox" name="primaryKey" class="mr-2" checked> Primary Key
                         </label>|]
                 | name `elem` primaryKeyColumns =
                     preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
@@ -107,7 +107,8 @@ typeSelector postgresType enumNames = [hsx|
             {option selected "INT" "Int"}
             {option selected "UUID" "UUID"}
             {option selected "BOOLEAN" "Bool"}
-            {option selected "TIMESTAMP WITH TIME ZONE" "Timestamp"}
+            {option selected "TIMESTAMP WITH TIME ZONE" "Timestamp (UTCTime)"}
+            {option selected "TIMESTAMP WITHOUT TIME ZONE" "Timestamp (LocalTime)"}
             {option selected "REAL" "Float"}
             {option selected "DOUBLE PRECISION" "Double"}
             {option selected "DATE" "Date"}

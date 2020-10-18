@@ -110,17 +110,18 @@ compileTypes options schema@(Schema statements) =
             in intercalate "\n\n" (map (compileStatement options) statements)
         <> section
     where
-        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.hs` to customize the Types"
+        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types"
                   <> section
                   <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}"
                   <> section
                   <> "module Generated.Types where\n\n"
                   <> "import IHP.HaskellSupport\n"
                   <> "import IHP.ModelSupport\n"
-                  <> "import CorePrelude hiding (id) \n"
-                  <> "import Data.Time.Clock \n"
+                  <> "import CorePrelude hiding (id)\n"
+                  <> "import Data.Time.Clock\n"
+                  <> "import Data.Time.LocalTime\n"
                   <> "import qualified Data.Time.Calendar\n"
-                  <> "import qualified Data.List as List \n"
+                  <> "import qualified Data.List as List\n"
                   <> "import qualified Data.ByteString as ByteString \n"
                   <> "import Database.PostgreSQL.Simple\n"
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
