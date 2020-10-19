@@ -16,6 +16,7 @@ import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
+import Data.Time.LocalTime
 import Data.Time.Calendar
 import Unsafe.Coerce
 import Data.UUID
@@ -349,6 +350,9 @@ type family Include (name :: GHC.Types.Symbol) model
 type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
+
+instance Default LocalTime where
+    def = LocalTime def (TimeOfDay 0 0 0)
 
 instance Default Day where
     def = ModifiedJulianDay 0

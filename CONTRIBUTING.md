@@ -18,10 +18,19 @@ cd ihp-test-project
 git clone git@github.com:digitallyinduced/ihp.git IHP
 ```
 
+Note that the `./start` is necessary, even if you don't intend to run it this way (e.g. you intend to contribute and don't intend to run it "normally"), to do some initial setup like creating the database. When it starts normally, just CTRL+C to exit.
+
 The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. Then, in your app directory (NOT the IHP directory):
 
 ```
 make -B build/ihp-lib # only needs to be run once
+```
+
+On Windows (in WSL), this will show 3 commands, but not actually run them. Copy and run them yourself.
+
+Next, in a `nix-shell`:
+
+```
 ghci
 $ghci> :l Main
 ```
@@ -117,3 +126,7 @@ main
 If you get an error like `can't satisify package ihp` or all other IHP packages when running `ghci` most likely the symlink in `build/ihp-lib` is not set up as expected. IHP uses the symlink `build/ihp-lib` in your application's `.ghci` file to access [`IHP/lib/IHP/applicationGhciConfig`](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/applicationGhciConfig#L39). This `applicationGhciConfig` sets up all the required options for `ghci`.
 
 Try to run `make -B build/ihp-lib` to create the symlink.
+
+### `direnv: error .envrc file not found`
+
+In the project directory, try `make -B .envrc`
