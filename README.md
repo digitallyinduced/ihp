@@ -2,7 +2,7 @@
 
 *IHP is a modern batteries-included Web Framework, built on top of Haskell and Nix.*
 
-![](https://github.com/digitallyinduced/ihp/blob/master/Guide/images/ihp-logo.png?raw=true)
+![IHP-logo](https://github.com/digitallyinduced/ihp/blob/master/Guide/images/ihp-logo.png?raw=true)
 
 ## What makes it different?
 
@@ -43,7 +43,7 @@ Lot's of frameworks are already gone a year after launch. Especially in the fast
 
 [You can also follow the written Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
-[📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1) Or follow [digitally induced on twitter.](https://twitter.com/digitallyinduce)
+[📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1) Or follow [![Follow digitally induced on Twitter](https://img.shields.io/twitter/follow/digitallyinduce)](https://twitter.com/digitallyinduce)
 
 Questions, or need help with haskell type errors? Join our Gitter Chat:
 
@@ -58,13 +58,13 @@ We believe that functional programing is the future of software development and 
 
 ## Contributing
 
-We are happy to merge your pull requests!
+We are happy to merge your pull requests!😄
 
-See [CONTRIBUTING.md for more info](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more info.
 
 ## IHP Stickers
 
-We're happy to send them to you via physical mail. Get them here: https://forms.gle/hEgV4E7RakQBaKgY9 :-)
+We're happy to send you Cool & Funky stickers via physical mail. [Get them here](https://forms.gle/hEgV4E7RakQBaKgY9)
 
 ## Releases
 
