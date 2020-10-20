@@ -36,10 +36,11 @@ import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
+import qualified Data.Pool as Pool
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
-    { databaseConnection :: Connection
+    { connectionPool :: Pool.Pool Connection
     -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
     , queryDebuggingEnabled :: Bool
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
@@ -49,10 +50,23 @@ data ModelContext = ModelContext
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: ModelContext
 notConnectedModelContext = ModelContext
-    { databaseConnection = error "Not connected"
+    { connectionPool = error "Not connected"
     , queryDebuggingEnabled = False
     , trackTableReadCallback = Nothing
     }
+
+createModelContext :: ByteString -> IO ModelContext
+createModelContext databaseUrl = do
+    let numStripes = 1
+    let create = PG.connectPostgreSQL databaseUrl
+    let destroy = PG.close
+    let idleTime = 60 -- Keep db connection one minute
+    let maxConnections = 20
+    connectionPool <- Pool.createPool create destroy numStripes idleTime maxConnections
+
+    let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
+    let trackTableReadCallback = Nothing
+    pure ModelContext { .. }
 
 type family GetModelById id :: Type where
     GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)
@@ -261,8 +275,22 @@ instance Default (PrimaryKey model) => Default (Id' model) where
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
-sqlQuery = let ModelContext { databaseConnection } = ?modelContext in PG.query databaseConnection
+sqlQuery theQuery theParameters = withDatabaseConnection \connection -> PG.query connection theQuery theParameters
 {-# INLINE sqlQuery #-}
+
+
+-- | Runs a sql statement (like a CREATE statement)
+--
+-- __Example:__
+--
+-- > sqlExec "CREATE TABLE users ()" ()
+sqlExec :: (?modelContext :: ModelContext) => (PG.ToRow q) => Query -> q -> IO Int64
+sqlExec theQuery theParameters = withDatabaseConnection \connection -> PG.execute connection theQuery theParameters
+{-# INLINE sqlExec #-}
+
+withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
+withDatabaseConnection block = let ModelContext { connectionPool } = ?modelContext in Pool.withResource connectionPool block
+{-# INLINE withDatabaseConnection #-}
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
@@ -273,8 +301,7 @@ sqlQuery = let ModelContext { databaseConnection } = ?modelContext in PG.query d
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
 sqlQueryScalar query parameters = do
-    let ModelContext { databaseConnection } = ?modelContext
-    result <- PG.query databaseConnection query parameters
+    result <- withDatabaseConnection \connection -> PG.query connection query parameters
     pure case result of
         [PG.Only result] -> result
         _ -> error "sqlQueryScalar: Expected a scalar result value"
@@ -306,12 +333,11 @@ logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, 
 -- Use 'deleteRecords' if you want to delete multiple records.
 deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
 deleteRecord model = do
-    let ModelContext { databaseConnection}  = ?modelContext
     let id = getField @"id" model
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
     logQuery theQuery theParameters
-    PG.execute databaseConnection (PG.Query . cs $! theQuery) theParameters
+    sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecord #-}
 
@@ -322,13 +348,12 @@ deleteRecord model = do
 -- DELETE FROM projects WHERE id IN (..)
 deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName record), HasField "id" record id, record ~ GetModelById id, ToField id) => [record] -> IO ()
 deleteRecords records = do
-    let ModelContext { databaseConnection } = ?modelContext
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = PG.Only (PG.In (ids records))
     if length records > 10
         then logQuery theQuery "More than 10 records"
         else logQuery theQuery theParameters
-    PG.execute databaseConnection (PG.Query . cs $! theQuery) theParameters
+    sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINE deleteRecords #-}
 
@@ -338,10 +363,9 @@ deleteRecords records = do
 -- DELETE FROM projects
 deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
 deleteAll = do
-    let ModelContext { databaseConnection } = ?modelContext
     let theQuery = "DELETE FROM " <> tableName @record
     logQuery theQuery ()
-    PG.execute_ databaseConnection (PG.Query . cs $! theQuery)
+    sqlExec (PG.Query . cs $! theQuery) ()
     pure ()
 {-# INLINE deleteAll #-}
 

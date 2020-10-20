@@ -17,15 +17,8 @@ type Script = (?modelContext :: ModelContext) => IO ()
 -- | Initializes IHP and then runs the script inside the framework context
 runScript :: Config.FrameworkConfig => Script -> IO ()
 runScript taskMain = do
-    modelContext <- createModelContext    
+    databaseUrl <- Config.appDatabaseUrl
+    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = Env.isDevelopment Config.environment }) <$> createModelContext databaseUrl
+
     let ?modelContext = modelContext
     taskMain
-
-createModelContext :: Config.FrameworkConfig => IO ModelContext
-createModelContext = do
-    databaseUrl <- Config.appDatabaseUrl
-    databaseConnection <- PG.connectPostgreSQL databaseUrl 
-    let queryDebuggingEnabled = Env.isDevelopment Config.environment
-    let trackTableReadCallback = Nothing
-    pure ModelContext { .. }
-    
