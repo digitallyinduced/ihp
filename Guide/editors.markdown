@@ -13,7 +13,7 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 
 You need to install the following extensions:
 
-- `direnv`, this loads the project `.envrc` file
+- [`nix-env-selector`](https://marketplace.visualstudio.com/items?itemName=arrterian.nix-env-selector), this loads the project `default.nix` file, so all the right haskell packages are available to VSCode
 - `Haskell`, this get's smart IDE features with haskell-language-server
 
 
