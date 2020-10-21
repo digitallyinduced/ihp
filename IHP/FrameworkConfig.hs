@@ -19,18 +19,26 @@ import IHP.Mail.Types
 defaultPort :: Int
 defaultPort = 8000
 
-portRef :: IORef Int
-portRef = unsafePerformIO (newIORef defaultPort)
+portRef :: IO (IORef Int)
+portRef = (newIORef defaultPort)
 
-class FrameworkConfig where
-    appHostname :: Text
-    environment :: Environment
+defaultFrameworkConfig :: Text -> Environment -> IO FrameworkConfig
+defaultFrameworkConfig appHostname environment = do
+    appPort <- portRef >>= readIORef
+    let
+        baseUrl = let port = appPort in "http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else "")
+        requestLoggerMiddleware = RequestLogger.logStdoutDev
+        sessionCookie = defaultIHPSessionCookie baseUrl
+        mailServer = Sendmail
 
-    appPort :: Int
-    appPort = unsafePerformIO (readIORef portRef)
-            
-    baseUrl :: Text
-    baseUrl = let port = appPort in "http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else "")
+    pure FrameworkConfig {..}
+
+
+data FrameworkConfig = FrameworkConfig 
+    { appHostname :: Text
+    , environment :: Environment
+    , appPort :: Int
+    , baseUrl :: Text
 
     -- | Provides IHP with a middleware to log requests and responses.
     --
@@ -41,8 +49,7 @@ class FrameworkConfig where
     -- 
     --
     -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
-    requestLoggerMiddleware :: Middleware
-    requestLoggerMiddleware = RequestLogger.logStdoutDev
+    , requestLoggerMiddleware :: Middleware
 
     -- | Provides the default settings for the session cookie.
     --
@@ -55,12 +62,13 @@ class FrameworkConfig where
     --
     -- __Example: Set max age to 90 days__
     -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
-    sessionCookie :: Cookie.SetCookie
-    sessionCookie = defaultIHPSessionCookie
+    , sessionCookie :: Cookie.SetCookie
 
-    mailServer :: MailServer
-    mailServer = Sendmail
+    , mailServer :: MailServer
+    }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
     -- | How long db connection are kept alive inside the connecton pool when they're idle
     dbPoolIdleTime :: NominalDiffTime
     dbPoolIdleTime = 60
@@ -68,10 +76,42 @@ class FrameworkConfig where
     -- | Max number of db connections the connection pool can open to the database
     dbPoolMaxConnections :: Int
     dbPoolMaxConnections = 20
+=======
+class FrameworkConfigProxy a where
+    extractConfig :: a -> FrameworkConfig
+
+    appHostname :: a -> Text
+    appHostname = appHostname_ . extractConfig
+
+    environment :: a -> Environment
+    environment = environment_ . extractConfig
+
+    appPort :: a -> Int
+    appPort = appPort_ . extractConfig
+
+    baseUrl :: a -> Text
+    baseUrl = baseUrl_ . extractConfig
+
+    requestLoggerMiddleware :: a -> Middleware
+    requestLoggerMiddleware = requestLoggerMiddleware_ . extractConfig
+
+    sessionCookie :: a -> Cookie.SetCookie
+    sessionCookie = sessionCookie_ . extractConfig
+
+    mailServer :: a -> MailServer
+    mailServer = mailServer_ . extractConfig
+
+instance FrameworkConfigProxy FrameworkConfig where
+    extractConfig = id
+
+    
+>>>>>>> Add FrameworkConfigProxy typeclass for easier access
+=======
+>>>>>>> Remove FrameworkConfigProxy in favour of implictly bound functions
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
-defaultIHPSessionCookie :: FrameworkConfig => Cookie.SetCookie
-defaultIHPSessionCookie = def
+defaultIHPSessionCookie :: Text -> Cookie.SetCookie
+defaultIHPSessionCookie baseUrl = def
     { Cookie.setCookiePath = Just "/"
     , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
     , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
@@ -87,7 +127,7 @@ initAppPort = do
     case portStr of
         Just portStr -> do
             let port = fromMaybe (error "PORT: Invalid value") (readMay portStr)
-            writeIORef portRef port
+            portRef >>= (flip writeIORef) port
             pure port
         Nothing -> pure defaultPort
 

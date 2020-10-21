@@ -21,9 +21,12 @@ instance FrontController RootApplication where
 instance Controller DemoController where
     action DemoAction = renderPlain "Hello World!"
 
-instance FrameworkConfig where 
-	environment = Development
-	baseUrl = "http://localhost:8000"
+config :: IO FrameworkConfig
+config = let
+    environment = Development
+    baseUrl = "http://localhost:8000"
+
+    in defaultFrameworkConfig baseUrl environment
 
 main :: IO ()
-main = IHP.Server.run
+main = IHP.Server.run config

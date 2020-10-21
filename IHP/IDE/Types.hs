@@ -7,7 +7,12 @@ import qualified GHC.IO.Handle as Handle
 import qualified System.FSNotify as FS
 import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
+import Network.Wai (Middleware)
+import qualified Web.Cookie as Cookie
+import IHP.Mail.Types (MailServer)
+import IHP.Environment
 import IHP.IDE.PortConfig
+import IHP.FrameworkConfig as FrameworkConfig
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 
@@ -147,7 +152,48 @@ data Context = Context
     , portConfig :: PortConfig
     , appStateRef :: IORef AppState
     , isDebugMode :: Bool
+    , frameworkConfig :: FrameworkConfig
+    }
+
+-- Proxies FrameworkConfig fields contained in the RequestContext
+
+configFrameworkConfig :: (?context :: Context) => FrameworkConfig
+configFrameworkConfig = frameworkConfig ?context
+
+configAppHostname :: (?context :: Context) => Text
+configAppHostname = (FrameworkConfig.appHostname . frameworkConfig) ?context
+
+configEnvironment :: (?context :: Context) => Environment
+configEnvironment = (FrameworkConfig.environment . frameworkConfig) ?context
+
+configAppPort :: (?context :: Context) => Int
+configAppPort = (FrameworkConfig.appPort . frameworkConfig) ?context
+
+configBaseUrl :: (?context :: Context) => Text
+configBaseUrl = (FrameworkConfig.baseUrl . frameworkConfig) ?context
+
+configRequestLoggerMiddleware :: (?context :: Context) => Middleware
+configRequestLoggerMiddleware = (FrameworkConfig.requestLoggerMiddleware . frameworkConfig) ?context
+
+configSessionCookie :: (?context :: Context) => Cookie.SetCookie
+configSessionCookie = (FrameworkConfig.sessionCookie . frameworkConfig) ?context
+
+configMailServer :: (?context :: Context) => MailServer
+configMailServer = (FrameworkConfig.mailServer . frameworkConfig) ?context
+
+
+data ContextEqualitySubset = ContextEqualitySubset
+    { actionVar_ :: MVar Action
+    , portConfig_ :: PortConfig
+    , appStateRef_ :: IORef AppState
+    , isDebugMode_ :: Bool
     } deriving (Eq)
+
+toEqualitySubset :: Context -> ContextEqualitySubset
+toEqualitySubset (Context var pconf appstate mode _) = ContextEqualitySubset var pconf appstate mode
+
+instance Eq Context where
+    a == b = toEqualitySubset a == toEqualitySubset b
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar

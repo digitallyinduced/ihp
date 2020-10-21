@@ -20,17 +20,19 @@ import qualified System.Environment as Env
 import System.Info
 import Data.String.Conversions (cs)
 import qualified IHP.FrameworkConfig as Config
+import IHP.Environment
 
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
     appStateRef <- newIORef emptyAppState
     portConfig <- findAvailablePortConfig
+    frameworkConfig <- Config.defaultFrameworkConfig "localhost" Development
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
     -- Like: $ DEBUG=1 ./start
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, frameworkConfig }
 
     threadId <- myThreadId
     let catchHandler = do

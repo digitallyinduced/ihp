@@ -121,7 +121,3 @@ data ColumnDefinition = ColumnDefinition
     , columnDefault :: Maybe Text
     , isNullable :: Bool
     } deriving (Show)
-
-instance FrameworkConfig where
-    environment = Development
-    appHostname = "localhost"

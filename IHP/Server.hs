@@ -29,8 +29,9 @@ import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.WebSocket as WS
 
-run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
-run = do
+run :: (FrontController FrameworkConfig.RootApplication) => IO FrameworkConfig -> IO ()
+run getFrameworkConfig = do
+    frameworkConfig <- getFrameworkConfig
     databaseUrl <- appDatabaseUrl
     session <- Vault.newKey
     port <- FrameworkConfig.initAppPort
@@ -39,13 +40,13 @@ run = do
     modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext FrameworkConfig.dbPoolIdleTime FrameworkConfig.dbPoolMaxConnections databaseUrl
     let ?modelContext = modelContext
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
-    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer }
+    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer, frameworkConfig }
     let application :: Application = \request respond -> do
             requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
             let ?requestContext = requestContext
             frontControllerToWAIApp FrameworkConfig.RootApplication ErrorController.handleNotFound
 
-    let sessionMiddleware :: Middleware = withSession store "SESSION" FrameworkConfig.sessionCookie session
+    let sessionMiddleware :: Middleware = withSession store "SESSION" (FrameworkConfig.sessionCookie frameworkConfig) session
 
     libDirectory <- cs <$> FrameworkConfig.findLibDirectory
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
@@ -61,7 +62,7 @@ run = do
         staticMiddleware $
                 sessionMiddleware $
                     ihpWebsocketMiddleware $
-                        FrameworkConfig.requestLoggerMiddleware $
+                        (FrameworkConfig.requestLoggerMiddleware frameworkConfig) $
                                 methodOverridePost $
                                     application
 
