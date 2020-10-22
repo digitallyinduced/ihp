@@ -41,7 +41,7 @@ instance Controller ColumnsController where
             redirectTo ShowTableAction { .. }
         let column = Column
                 { name = columnName
-                , columnType = param "columnType"
+                , columnType = arrayifytype (param "isArray") (param "columnType")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
@@ -82,7 +82,7 @@ instance Controller ColumnsController where
         let columnId = param "columnId"
         let column = Column
                 { name = columnName
-                , columnType = param "columnType"
+                , columnType = arrayifytype (param "isArray") (param "columnType")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
@@ -228,3 +228,9 @@ isCreateEnumType CreateEnumType {} = True
 isCreateEnumType _ = False
 
 nameList statements = map (get #name) statements
+
+arrayifytype :: Bool -> PostgresType -> PostgresType
+arrayifytype False   (PArray coltype) = coltype
+arrayifytype True  a@(PArray coltype) = a
+arrayifytype False coltype = coltype
+arrayifytype True  coltype = PArray coltype
