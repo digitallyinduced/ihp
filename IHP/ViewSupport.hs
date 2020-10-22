@@ -7,7 +7,6 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ViewSupport
 ( HtmlWithContext
-, classes
 , CreateViewContext (..)
 , Layout
 , View (..)
@@ -52,6 +51,8 @@ import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
+import qualified IHP.View.CSSFramework as CSSFramework
+import IHP.View.Types
 
 type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 
@@ -68,53 +69,6 @@ type HtmlWithContext context = (?viewContext :: context) => Html5.Html
 -- >     </html>
 -- > |]
 type Layout = Html5.Html -> Html5.Html
-
--- | Helper for dynamically generating the @class=".."@ attribute.
--- 
--- Given a list like
--- 
--- > [("a", True), ("b", False), ("c", True)]
--- 
--- builds a class name string for all parts where the second value is @True@.
---
--- E.g.
---
--- >>> classes [("a", True), ("b", False), ("c", True)]
--- "a c"
---
--- When setting @b@ to @True@:
---
--- >>> classes [("a", True), ("b", True), ("c", True)]
--- "a b c"
---
--- __Example:__
--- 
--- >>> <div class={classes [("is-active", False)]}>
--- <div class="">
---
--- >>> <div class={classes [("is-active", True)]}>
--- <div class="is-active">
---
--- >>> forEach projects \project -> [hsx|
--- >>>     <div class={classes [("project", True), ("active", get #active project)]}>
--- >>>         {project}
--- >>>     </div>
--- >>> |]
--- If project is active:                        <div class="project active">{project}</div>
--- Otherwise:                                   <div class="project">{project}</div>
-classes :: [(Text, Bool)] -> Text
-classes !classNameBoolPairs =
-    classNameBoolPairs
-    |> filter snd
-    |> map fst
-    |> unwords
-{-# INLINE classes #-}
-
--- | Allows `("my-class", True)` to be written as `"my-class"`
---
--- Useful together with 'classes'
-instance IsString (Text, Bool) where
-    fromString string = (cs string, True)
 
 class CreateViewContext viewContext where
     type ViewApp viewContext
@@ -308,14 +262,17 @@ instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowTyp
 --
 -- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
 -- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: forall viewContext. (?viewContext :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage]) => Html5.Html
-renderFlashMessages =
-    let
-        flashMessages = (getField @"flashMessages" ?viewContext) :: [Session.FlashMessage]
-        renderFlashMessage (Session.SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
-        renderFlashMessage (Session.ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
-    in
-        forEach flashMessages renderFlashMessage
+renderFlashMessages :: forall viewContext. (?viewContext :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage], HasField "cssFramework" viewContext CSSFramework) => Html5.Html
+renderFlashMessages = render flashMessages
+    where
+        flashMessages :: [Session.FlashMessage]
+        flashMessages = (getField @"flashMessages" ?viewContext)
+
+        render :: [Session.FlashMessage] -> Html5.Html
+        render = getCurrentCSSFramework #styledFlashMessages
+
+getCurrentCSSFramework :: (?viewContext :: viewContext, HasField "cssFramework" viewContext CSSFramework, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+getCurrentCSSFramework field = let cssFramework = (get #cssFramework ?viewContext) in (get field cssFramework) cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
 --

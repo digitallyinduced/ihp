@@ -26,6 +26,7 @@ import qualified Test.HtmlSupport.QQSpec
 import qualified Test.HtmlSupport.ParserSpec
 import qualified Test.NameSupportSpec
 import qualified Test.HaskellSupportSpec
+import qualified Test.View.CSSFrameworkSpec
 
 
 main :: IO ()
@@ -40,3 +41,4 @@ main = hspec do
     Test.NameSupportSpec.tests
     Test.HaskellSupportSpec.tests
     Test.HtmlSupport.ParserSpec.tests
+    Test.View.CSSFrameworkSpec.tests

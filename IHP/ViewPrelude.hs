@@ -9,6 +9,7 @@ module IHP.ViewPrelude (
     module IHP.View.TimeAgo,
     stringValue,
     module IHP.View.Form,
+    module IHP.View.Types,
     hsx,
     toHtml,
     preEscapedToHtml,
@@ -21,7 +22,8 @@ module IHP.ViewPrelude (
     (!),
     module Data.Data,
     module Data.Aeson,
-    module IHP.AutoRefresh.View
+    module IHP.AutoRefresh.View,
+    module IHP.View.Classes
 ) where
 
 import IHP.Prelude
@@ -41,3 +43,5 @@ import IHP.ModelSupport
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))
 import IHP.AutoRefresh.View
+import IHP.View.Types
+import IHP.View.Classes
