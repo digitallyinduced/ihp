@@ -72,7 +72,7 @@ else
     fail "Symlink build/ihp-lib is missing. Try 'make build/ihp-lib' to fix this"
 fi
 
-ihplib_link=$(readlink build/ihp-lib)
+ihplib_link=$(readlink -f build/ihp-lib)
 if [ -d "$ihplib_link" ]; then
     ok "Symlink build/ihp-lib target exists"
 else
