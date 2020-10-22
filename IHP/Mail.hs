@@ -15,6 +15,7 @@ import IHP.Prelude
 import IHP.Controller.RequestContext
 import IHP.ControllerSupport
 import IHP.Mail.Types
+import IHP.FrameworkConfig
 
 import           Network.Mail.Mime
 import qualified Network.Mail.Mime.SES                as Mailer
@@ -30,7 +31,11 @@ buildMail mail = let ?mail = mail in simpleMail (to mail) from subject (cs $ tex
 --
 -- Uses the mail server provided in the controller context, configured in Config/Config.hs
 sendMail :: (BuildMail mail, ?requestContext :: RequestContext ) => mail -> IO ()
-sendMail mail = buildMail mail >>= sendWithMailServer configMailServer
+sendMail = let ?frameworkConfig = frameworkConfig ?requestContext in sendMailFromScript
+
+sendMailFromScript :: (BuildMail mail, ?frameworkConfig :: FrameworkConfig) => mail -> IO ()
+sendMailFromScript mail = buildMail mail >>= sendWithMailServer (mailServer ?frameworkConfig)
+
 sendWithMailServer :: MailServer -> Mail -> IO ()
 sendWithMailServer SES { .. } mail = do
     manager <- Network.HTTP.Client.newManager Network.HTTP.Client.TLS.tlsManagerSettings

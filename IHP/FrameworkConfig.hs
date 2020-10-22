@@ -4,7 +4,6 @@ import ClassyPrelude
 import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
-import System.IO.Unsafe (unsafePerformIO)
 import Data.String.Conversions (cs)
 import qualified System.Directory as Directory
 import qualified Data.Text as Text
@@ -69,6 +68,7 @@ data FrameworkConfig = FrameworkConfig
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     -- | How long db connection are kept alive inside the connecton pool when they're idle
     dbPoolIdleTime :: NominalDiffTime
     dbPoolIdleTime = 60
@@ -109,6 +109,8 @@ instance FrameworkConfigProxy FrameworkConfig where
 =======
 >>>>>>> Remove FrameworkConfigProxy in favour of implictly bound functions
 
+=======
+>>>>>>> Fix RequestContext issue with scripts
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: Text -> Cookie.SetCookie
 defaultIHPSessionCookie baseUrl = def
