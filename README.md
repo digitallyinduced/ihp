@@ -19,6 +19,8 @@ If you like TypeScript, you will love IHP.
 **Fast dev enviroment and Live Reload:**
 While haskell is a compiled language, the built-in dev server automatically reloads your code changes using the fastest way possible. Changes are reflected instantly. Just like good old PHP.
 
+![IHP-logo](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/IHP%20Live%20Reloading%20Demo.gif?raw=true)
+
 [Watch it in action!](https://youtu.be/nTjjDo57B8g)
 
 **Accessible:**
