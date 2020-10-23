@@ -68,7 +68,7 @@ make static/prod.js
 make static/prod.css
 ```
 
-The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently there is no minifcation or transpiling applied.
+The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently there is no minification or transpiling applied.
 
 #### Configuring the CSS & JS Bundling
 
