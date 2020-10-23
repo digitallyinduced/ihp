@@ -1,4 +1,20 @@
-![IHP: Integrated Haskell Platform](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/ihp-logo-readme.png?raw=true)
+<p align="center">
+  <a href="https://ihp.digitallyinduced.com/" target="_blank">
+    <img src="https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/ihp-logo-readme.png?raw=true" width="420"/>
+  </a>
+</p>
+
+<p align="center">  
+  <img alt="MIT License" src="https://img.shields.io/github/license/digitallyinduced/ihp">
+  
+  <a href="https://gitter.im/digitallyinduced/ihp" target="_blank">
+    <img alt="Gitter" src="https://img.shields.io/gitter/room/digitallyinduced/ihp">
+  </a>
+  
+  <a href="https://twitter.com/digitallyinduce" target="_blank">
+    <img src="https://img.shields.io/twitter/follow/digitallyinduce"/>
+  </a>
+</p>
 
 # About IHP
 
