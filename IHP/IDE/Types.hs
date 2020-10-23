@@ -155,6 +155,9 @@ data Context = Context
     , frameworkConfig :: FrameworkConfig
     }
 
+dispatch :: (?context :: Context) => Action -> IO ()
+dispatch = let Context { .. } = ?context in putMVar actionVar
+
 -- Proxies FrameworkConfig fields contained in the RequestContext
 
 configFrameworkConfig :: (?context :: Context) => FrameworkConfig
@@ -181,20 +184,4 @@ configSessionCookie = (FrameworkConfig.sessionCookie . frameworkConfig) ?context
 configMailServer :: (?context :: Context) => MailServer
 configMailServer = (FrameworkConfig.mailServer . frameworkConfig) ?context
 
-
-data ContextEqualitySubset = ContextEqualitySubset
-    { actionVar_ :: MVar Action
-    , portConfig_ :: PortConfig
-    , appStateRef_ :: IORef AppState
-    , isDebugMode_ :: Bool
-    } deriving (Eq)
-
-toEqualitySubset :: Context -> ContextEqualitySubset
-toEqualitySubset (Context var pconf appstate mode _) = ContextEqualitySubset var pconf appstate mode
-
-instance Eq Context where
-    a == b = toEqualitySubset a == toEqualitySubset b
-
-dispatch :: (?context :: Context) => Action -> IO ()
-dispatch = let Context { .. } = ?context in putMVar actionVar
 

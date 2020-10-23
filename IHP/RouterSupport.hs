@@ -427,7 +427,7 @@ runApp routes notFoundAction = do
         Right action -> action
 {-# INLINE runApp #-}
 
-frontControllerToWAIApp :: forall app parent config controllerContext. (Eq app, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
 {-# INLINE frontControllerToWAIApp #-}
 
