@@ -196,7 +196,13 @@ generateGenericApplication applicationName =
                 <> "    action WelcomeAction = render WelcomeView\n"
 
             welcomeViewStaticHs = 
-               "<div style=\"background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1)\">\n"
+              "module " <> applicationName <> ".View.Static.Welcome\n"
+             <>"import " <> applicationName <> ".View.Prelude\n"
+             <>"\n"
+             <>"data WelcomeView = WelcomeView\n"
+             <>"\n"
+             <>"instance View WelcomeView ViewContext where\n"
+             <>"    html WelcomeView = [hsx| <div style=\"background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1)\">\n"
              <>"    <div style=\"max-width: 800px; margin-left: auto; margin-right: auto\">"
              <>"        <h1 style=\"margin-bottom: 2rem; font-size: 2rem; font-weight: 300; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)\">λ IHP</h1>"
              <>"        <h2 style=\"margin-top: 0; margin-bottom: 0rem; font-weight: 900; font-size: 3rem\">It's working!</h2>"
@@ -213,7 +219,7 @@ generateGenericApplication applicationName =
              <>"    <p style=\"color: hsla(196, 13%, 50%, 1); margin-top: 4rem\">\n"
              <>"        You can modify this start page by making changes to \"./View/Static/Welcome.hs\".\n"
              <>"    </p>\n"
-             <>"</div>" 
+             <>"</div> |]" 
                 
         in
             [ EnsureDirectory { directory = applicationName }
