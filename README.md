@@ -16,10 +16,10 @@ With Haskell and Nix we use the most reliable technologies available, to make su
 
 If you like TypeScript, you will love IHP.
 
-**Fast dev enviroment and Live Reload:**
+**Live Reload:**
 While haskell is a compiled language, the built-in dev server automatically reloads your code changes using the fastest way possible. Changes are reflected instantly. Just like good old PHP.
 
-![IHP-logo](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/IHP%20Live%20Reloading%20Demo.gif?raw=true)
+![Live Reload](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/IHP%20Live%20Reloading%20Demo.gif?raw=true)
 
 [Watch it in action!](https://youtu.be/nTjjDo57B8g)
 
@@ -41,6 +41,12 @@ Like React's JSX. Write html code in your haskell files. This will be transforme
 **Auto Refresh:**
 Re-render views in the background when the underlying data changes. This is useful when you want your views to always reflect the live database state. Auto Refresh can be an easy replacement for manually polling for changes using AJAX.
 
+Here's a view using Auto Refresh, there's no app specific JS code here. All view updates are triggered by the server:
+
+![Auto Refresh](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/IHP%20Cloud%20Auto%20Refresh.gif?raw=true)
+
+Auto Refresh can be enabled for IHP views with a single line of code.
+
 [Watch it in action!](https://twitter.com/digitallyinduce/status/1312017800223956992)
 
 
@@ -54,6 +60,8 @@ Lot's of frameworks are already gone a year after launch. Especially in the fast
 [You can also follow the written Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
 [📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1) Or follow [![Follow digitally induced on Twitter](https://img.shields.io/twitter/follow/digitallyinduce)](https://twitter.com/digitallyinduce)
+
+## Community
 
 Questions, or need help with haskell type errors? Join our Gitter Chat:
 
