@@ -74,7 +74,7 @@ To work on the documentation locally open a nix shell inside the framework direc
 
 ```
 cd IHP
-nix-shell NixSupport/shell.nix
+nix-shell
 ```
 
 Then switch to the `Guide` directory:
@@ -104,7 +104,7 @@ The documentation reads a bit like a tutorial, but should still be kept somewhat
 When inside the IHP directory, you can run the Test Suite by loading it into a `ghci` like this:
 
 ```bash
-nix-shell NixSupport/shell.nix
+nix-shell
 ghci
 :l Test/Main.hs
 main

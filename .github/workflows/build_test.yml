@@ -17,4 +17,4 @@ jobs:
           cd $GITHUB_WORKSPACE
           mkdir -p ~/.config/nixpkgs
           echo "{ allowBroken = true; }" >> ~/.config/nixpkgs/config.nix
-          nix-shell NixSupport/shell.nix --run "cabal build"
+          nix-shell --run "cabal build"
