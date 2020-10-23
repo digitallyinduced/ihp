@@ -41,6 +41,8 @@ generateGenericApplication applicationName =
                 <> "    , controllerContext :: ControllerSupport.ControllerContext\n"
                 <> "    , layout :: Layout\n"
                 <> "    }\n"
+                <> "\n"
+                <> "data StaticController = WelcomeAction deriving (Eq,Show,Data)"
             routesHs =
                 "module " <> applicationName <> ".Routes where\n"
                 <> "import IHP.RouterPrelude\n"
