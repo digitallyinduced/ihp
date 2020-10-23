@@ -1,4 +1,3 @@
-
 module IHP.IDE.Data.View.EditValue where
 
 import IHP.ViewPrelude

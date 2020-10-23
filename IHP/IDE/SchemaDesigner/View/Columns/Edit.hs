@@ -52,7 +52,14 @@ instance View EditColumnView ViewContext where
             isUniqueCheckbox = if get #isUnique column
                 then preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2" checked/>|]
                 else preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2"/>|]
-            
+
+            isArrayTypeCheckbox = if (isArrayType (get #columnType column))
+                then preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2" checked/>|]
+                else preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2"/>|]
+
+            isArrayType (PArray _) = True
+            isArrayType _ = False
+
             modalContent = [hsx|
                 <form method="POST" action={UpdateColumnAction}>
                     <input type="hidden" name="tableName" value={tableName}/>
@@ -80,6 +87,9 @@ instance View EditColumnView ViewContext where
                                 {isUniqueCheckbox} Unique
                             </label>
                             {primaryKeyCheckbox}
+                            <label class="ml-1" style="font-size: 12px">
+                                {isArrayTypeCheckbox} Array Type
+                            </label>
                         </div>
                     </div>
 
@@ -93,6 +103,7 @@ instance View EditColumnView ViewContext where
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
                     <input type="hidden" name="isUnique" value={inputValue False}/>
+                    <input type="hidden" name="isArray" value={inputValue False}/>
                 </form>
             |]
             modalFooter = mempty 
@@ -128,7 +139,7 @@ typeSelector postgresType enumNames = [hsx|
         option selected value text = case selected of
             Nothing -> [hsx|<option value={value}>{text}</option>|]
             Just selection ->
-                if selection == value
+                if selection == value || selection == value <> "[]"
                     then [hsx|<option value={value} selected="selected">{text}</option>|]
                     else [hsx|<option value={value}>{text}</option>|]      
 
@@ -141,7 +152,7 @@ defaultSelector defValue = [hsx|
     </div>
 |]
     where
-        suggestedValues = [Nothing, Just (TextExpression ""), Just (VarExpression "null"), Just (CallExpression "NOW" [])]
+        suggestedValues = [Nothing, Just (TextExpression ""), Just (VarExpression "NULL"), Just (CallExpression "NOW" [])]
         values = if defValue `elem` suggestedValues then suggestedValues else defValue:suggestedValues
 
         renderValue :: Maybe Expression -> Html
