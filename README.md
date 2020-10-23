@@ -69,6 +69,64 @@ Auto Refresh can be enabled for IHP views with a single line of code.
 **Longterm Roadmap**
 Lot's of frameworks are already gone a year after launch. Especially in the fast moving JS world. But don't worry about IHP. We have been using it at digitally induced since 2017. It's actively used by us and our friends and partners. Even without external contributors we will build new features and do periodic maintenance releases in the future. We have big plans for IHP and as a profitable and independent software company we have the ability to actually execute them over the longterm.
 
+## Reviews
+
+Here's what other people are saying about IHP:
+
+<blockquote>
+IHP is the best web framework experience I have had. I think a lot of aspiring haskeller's will have worked their way through a text like Learn You a Haskell For Great Good or similar and then be looking to fool around with an actual project.
+IHP uses nix to cut out all the work of setting up ghc/stack/cabal which can be quite tricky for a beginner, it has just added haskell language server integration, it starts your postgres servers, it spares you from having to remember your SQL syntax, and means you can start writing haskell code instantly while getting immediate feedback on your hacking from GHCi and visually through the live reloading of the web app in your browser.
+
+I've found the [hsx||] quasiquotes quite fun to work with and type safety has sped up development by preventing bugs that can easily crop up when you're linking forms to databases.
+
+I like the design choices in IHP, and for me, at the moment, I like the focus on server side web app development, which encourages you to be more sparing/judicious in the use of javascript.
+
+With IHP being opinionated about the models/views and routing it means I can focus on integrating some of the other really cool haskell libraries that exist into web apps. (I'm also trying to keep a log of my experiences here on an https://ihpcafe.ihpapp.com if you want to read along with someone figuring out function type signatures ;) )
+</blockquote>
+
+<a href="https://news.ycombinator.com/item?id=24817368">montmorency88 on HN</a>
+
+
+
+<blockquote>
+I have been learning Haskell through IHP. It's the best and actually simplest web framework I have ever tried.
+The developer experience is the best I ever had for a MVC-style framework. And I got to learn Haskell without banging my head too much against the wall. Really enjoyed it :)
+
+I really needed something like IHP to get started with Haskell. It's fun and easy and the documentation is very easy to follow.
+
+I see some argue that they wish to make more custom choices regarding the setup. That is precisely what I don't want and that's why IHP is a great fit for me.
+
+In terms of simplicity I think the choice of supporting only Nix and Postgres actually are strengths at this point. That lets them streamline the development of the framework without supporting the minor preferences of every individual. And these choices should work really well for most web developers.
+
+Some may disagree on this, and maybe IHP is not for them, but I don't think it shouldn't discourage those who considers trying it out and form their own opinion.
+
+I was prepared for great hardships learning Haskell as most of the resources are very academic and I'm mainly just a simple application builder. IHP was just what I needed to fill that gap, and it made it really fun :)
+
+I am tweeting about the whole thing, coding Haskell for 100 days: https://twitter.com/larsparsfromage
+</blockquote>
+
+<a href="https://news.ycombinator.com/item?id=24829215">kodefant on HN</a>
+
+<blockquote>
+IHP is supposed to become the Django/Rails/Phoenix of Haskell.
+
+I’ve been using Django professionally for since 2013, but have started using IHP a couple of weeks ago. It’s still quite early but with surprisingly few rough edges, i.e. the developer ergonomics are much better than I expected. It has great documentation that is improving rapidly (as opposed to many other Haskell libraries, which provide little more than API docs or even just the typed function definitions) and offers a refreshing take on database management and migrations.
+
+Some of its killer features:
+
+HSX, a JSX-like template language that looks like HTML while providing type safety
+
+Auto live reloading without the need to setup anything
+
+Documentation with examples: it lets you query the database without learning about monads
+
+it defines |> for you ;-)
+
+type-safe, composable SQL queries
+</blockquote>
+
+<a href="https://lobste.rs/s/8pieht/ihp_modern_batteries_included_web#c_6lroyn">hendi on Lobsters</a>
+
 ## Getting Started
 
 [If you like videos, check out IHP Casts!](https://www.youtube.com/watch?v=PLl9Sjq6Nzc&list=PLenFm8BWuKlS0IaE31DmKB_PbkMLmwWmG&index=1).
