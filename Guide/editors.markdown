@@ -14,6 +14,7 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 You need to install the following extensions:
 
 - `direnv`, this loads the project `.envrc` file
+- `Nix Environment Selector`, this will pick up settings in default.nix
 - `Haskell`, this get's smart IDE features with haskell-language-server
 
 
