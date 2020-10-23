@@ -127,7 +127,13 @@ type-safe, composable SQL queries
 
 <a href="https://lobste.rs/s/8pieht/ihp_modern_batteries_included_web#c_6lroyn">hendi on Lobsters</a>
 
+There's more on the IHP website.
+
 ## Getting Started
+
+[First: Watch the introduction video to see how it generally works](https://youtu.be/UbDtS_mUMpI)
+
+**After that:**
 
 [If you like videos, check out IHP Casts!](https://www.youtube.com/watch?v=PLl9Sjq6Nzc&list=PLenFm8BWuKlS0IaE31DmKB_PbkMLmwWmG&index=1).
 
