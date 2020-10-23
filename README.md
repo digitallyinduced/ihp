@@ -1,8 +1,8 @@
-![IHP-logo](https://github.com/digitallyinduced/ihp/blob/master/Guide/images/ihp-logo.png?raw=true)
+![IHP: Integrated Haskell Platform](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/ihp-logo-readme.png?raw=true)
 
 # About IHP
 
-IHP is a modern batteries-included Web Framework, built on top of Haskell and Nix.
+IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.
 
 We believe that functional programing is the future of software development and want to make functional programing with haskell and nix available to anyone. We try to offer a solution which can be used by developers who have not worked with haskell yet. IHP comes with everything you need to build great web applications with haskell and nix. We have made a lot of pragmatic decision to get you started faster. This way you can just pick up haskell along the way :-)
 
