@@ -152,36 +152,9 @@ data Context = Context
     , portConfig :: PortConfig
     , appStateRef :: IORef AppState
     , isDebugMode :: Bool
-    , frameworkConfig :: FrameworkConfig
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
-
--- Proxies FrameworkConfig fields contained in the RequestContext
-
-configFrameworkConfig :: (?context :: Context) => FrameworkConfig
-configFrameworkConfig = frameworkConfig ?context
-
-configAppHostname :: (?context :: Context) => Text
-configAppHostname = (FrameworkConfig.appHostname . frameworkConfig) ?context
-
-configEnvironment :: (?context :: Context) => Environment
-configEnvironment = (FrameworkConfig.environment . frameworkConfig) ?context
-
-configAppPort :: (?context :: Context) => Int
-configAppPort = (FrameworkConfig.appPort . frameworkConfig) ?context
-
-configBaseUrl :: (?context :: Context) => Text
-configBaseUrl = (FrameworkConfig.baseUrl . frameworkConfig) ?context
-
-configRequestLoggerMiddleware :: (?context :: Context) => Middleware
-configRequestLoggerMiddleware = (FrameworkConfig.requestLoggerMiddleware . frameworkConfig) ?context
-
-configSessionCookie :: (?context :: Context) => Cookie.SetCookie
-configSessionCookie = (FrameworkConfig.sessionCookie . frameworkConfig) ?context
-
-configMailServer :: (?context :: Context) => MailServer
-configMailServer = (FrameworkConfig.mailServer . frameworkConfig) ?context
 
 

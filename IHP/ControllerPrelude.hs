@@ -24,6 +24,7 @@ import IHP.Controller.Param
 import IHP.Controller.FileUpload
 import IHP.Controller.Render
 import IHP.Controller.Session
+import IHP.Controller.RequestContext
 import IHP.ControllerSupport
 import IHP.ValidationSupport
 import IHP.HaskellSupport

@@ -5,6 +5,7 @@ module IHP.Controller.RequestContext
 , configEnvironment
 , configAppPort
 , configBaseUrl
+, configDatabaseUrl
 , configRequestLoggerMiddleware
 , configSessionCookie
 , configMailServer
@@ -60,3 +61,5 @@ configSessionCookie = (FrameworkConfig.sessionCookie . frameworkConfig) ?request
 configMailServer :: (?requestContext :: RequestContext) => MailServer
 configMailServer = (FrameworkConfig.mailServer . frameworkConfig) ?requestContext
 
+configDatabaseUrl :: (?requestContext :: RequestContext) => ByteString
+configDatabaseUrl = (FrameworkConfig.databaseUrl . frameworkConfig) ?requestContext

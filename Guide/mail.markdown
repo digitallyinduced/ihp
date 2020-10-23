@@ -89,6 +89,8 @@ action MyAction = do
     sendMail ConfirmationMail { user }
 ```
 
+Note that emails can also be send from within scripts but only with the slightly modified `sendmailFromScript` function.
+
 ## Mail Servers
 
 By default IHP uses your local `sendmail` to send out the email. IHP also supports sending mail via AWS Simple Email Service (SES). This is recommended for production.
@@ -99,20 +101,28 @@ Currently using a custom SMTP server is not yet supported. We recommend to use `
 
 ### AWS SES
 
-To use SES open `Config/Config.hs` and add a `mailServer` function to `FrameworkConfig`:
+To use SES open `Config/Config.hs` and add a `mailServer` function to the construction of `FrameworkConfig`:
 
 ```haskell
-instance FrameworkConfig where 
-    environment = Development
-    appHostname = "localhost"
 
-    -- ...
+-- Add this import 
+import IHP.Mail
 
-    mailServer = SES
-            { accessKey = "YOUR AWS ACCESS KEY"
-            , secretKey = "YOUR AWS SECRET KEY"
-            , region = "eu-west-1" -- YOUR REGION
-            }
+config :: IO FrameworkConfig                                                                                          
+config = do                                                                                                           
+    let environment = Development                                                                                     
+        appHostname = "localhost"                                                                                     
+                                                                                                                      
+        -- ...                                                                                                        
+                                                                                                                      
+        mailServer = SES                                                                                              
+            { accessKey = "YOUR AWS ACCESS KEY"                                                                       
+            , secretKey = "YOUR AWS SECRET KEY"                                                                       
+            , region = "eu-west-1" -- YOUR REGION                                                                     
+            }                                                                                                         
+                                                                                                                      
+    defaultConfig <- defaultFrameworkConfig appHostname environment                                                   
+    pure defaultConfig { mailServer }
 ```
 
 After that all emails will be send through AWS SES.

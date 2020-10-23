@@ -159,6 +159,10 @@ action ExampleAction = do
 This will render `Hello World, Unnamed!` when the `ExampleAction` is called without a `firstname` parameter.
 
 
+### Accessing the FrameworkConfig inside Controllers and Views.
+The instance of the `FrameworkConfig` that is defined in `Config/Config.hs` will be part of the `RequestContext` and is thus available in controllers. To make it more convienient a number of helper functions are available that allow you to directly query your configuration. 
+All of them will have the form `config{field}`, such as `configEnvironment`, `configBaseUrl`, `configDatabaseUrl`, etc.
+
 
 
 ### Advanced: Working with Custom Types

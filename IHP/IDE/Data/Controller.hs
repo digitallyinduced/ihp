@@ -1,6 +1,7 @@
 module IHP.IDE.Data.Controller where
 
 import IHP.ControllerPrelude
+import IHP.Controller.RequestContext
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.Data.View.ShowDatabase
@@ -140,9 +141,10 @@ instance Controller DataController where
         redirectTo ShowTableRowsAction { .. }
 
 
+connectToAppDb :: (?requestContext :: RequestContext) => _
 connectToAppDb = do
-    databaseUrl <- Config.appDatabaseUrl
-    PG.connectPostgreSQL databaseUrl
+    databaseUrl <- Config.defaultDatabaseUrl
+    PG.connectPostgreSQL configDatabaseUrl
 
 fetchTableNames :: PG.Connection -> IO [Text]
 fetchTableNames connection = do
