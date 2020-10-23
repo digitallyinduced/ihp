@@ -1,26 +1,27 @@
 let
     dontCheckPackages = [
-        "ghc-mod"
         "cabal-helper"
+        "generic-lens"
         "filesystem-conduit"
         "tz"
-        "http2-client"
         "typerep-map"
+        "trifecta"
+        "hackage-security"
     ];
 
     doJailbreakPackages = [
-        "ghc-mod"
         "filesystem-conduit"
-        "ihp"
         "http-media"
-        "countable-inflections"
+        "aeson"
+        "wreq"
+        "ghcide"
+        "brittany"
     ];
 
-    dontHaddockPackages = [
-    ];
+    dontHaddockPackages = [];
 
-    nixPkgsRev = "da7ddd822e32aeebea00e97ab5aeca9758250a40";
-    nixPkgsSha256 = "0zbxbk4m72psbvd5p4qprcpiadndq1j2v517synijwp2vxc7cnv6";
+    nixPkgsRev = "c985bf793e6ab7d54a9182381b4b610fe0ae6936";
+    nixPkgsSha256 = "0zsj9imjbnhkb65r169xxqmjgqd5593insrvncvabg1iqdsrcxz1";
 
     compiler = "ghc883";
 
@@ -46,10 +47,15 @@ let
 
     composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
-    # More exotic overrides go here
     manualOverrides = haskellPackagesNew: haskellPackagesOld: {
-      ihp = pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.allowInconsistentDependencies haskellPackagesOld.ihp);
-      time_1_9_3 = pkgs.haskell.lib.dontCheck haskellPackagesOld.time_1_9_3;
+        haskell-language-server = haskellPackagesOld.haskell-language-server.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
+        hls-plugin-api = haskellPackagesOld.hls-plugin-api.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
+        yaml = haskellPackagesOld.yaml.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
+        lsp-test = haskellPackagesOld.lsp-test.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
+        haskell-lsp-types = haskellPackagesOld.haskell-lsp-types.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
+        haskell-lsp = haskellPackagesOld.haskell-lsp.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
+        aeson-pretty = haskellPackagesOld.aeson-pretty.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
+        aeson = pkgs.haskell.lib.dontCheck haskellPackagesOld.aeson_1_5_2_0;
     };
 
     #mkDerivation = args: super.mkDerivation (args // {

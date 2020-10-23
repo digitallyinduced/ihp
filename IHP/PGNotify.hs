@@ -34,14 +34,14 @@ import IHP.ModelSupport
 --
 watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => Text -> IO () -> IO (Async ())
 watchInsertOrUpdateTable tableName onInsertOrUpdate = do
-    let ModelContext { databaseConnection } = ?modelContext
-    PG.execute databaseConnection (PG.Query $ cs $ createNotificationTrigger tableName) ()
+    sqlExec (PG.Query $ cs $ createNotificationTrigger tableName) ()
 
     let listenStatement = "LISTEN " <> PG.Query (cs $ eventName tableName)
     async do
         forever do
-            PG.execute databaseConnection listenStatement ()
-            notification <- PG.getNotification databaseConnection
+            notification <- withDatabaseConnection \databaseConnection -> do
+                PG.execute databaseConnection listenStatement ()
+                PG.getNotification databaseConnection
 
             -- Trigger callback in async to avoid losing events when the callback takes a bit of time to execute
             async onInsertOrUpdate

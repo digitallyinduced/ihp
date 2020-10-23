@@ -44,3 +44,7 @@ sendWithMailServer SES { .. } mail = do
             Mailer.sesRegion = region
         }
     Mailer.renderSendMailSES manager ses mail
+
+sendWithMailServer Sendmail mail = do
+    message <- renderMail' mail
+    sendmail message

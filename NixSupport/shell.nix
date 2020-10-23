@@ -49,6 +49,7 @@ let
 	    data-default
 	    hspec
 	    regex-tdfa
+	    resource-pool
 	]);
 in
     pkgs.stdenv.mkDerivation {

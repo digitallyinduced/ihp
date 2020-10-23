@@ -502,7 +502,7 @@ In case you don't have a default value and run `Update DB`, the import of `Appli
 
 ### Renaming a Column
 
-When you are renaming a column, the development process of using `Update DB` will not work be working. This is because the `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names.
+When you are renaming a column, the development process of using `Update DB` will not work. This is because the `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names.
 
 In this case it's best to use the following approach:
 
@@ -510,6 +510,17 @@ In this case it's best to use the following approach:
 2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
 3. Open the `Application/Fixtures.sql` in your editor and manually update references from the old column `col_a` to the new name `col_b`
 4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
+
+
+### Deleting a column
+
+Similarly as for renaming, deleting a column currently won't work automatically either. We are working on a smoother solution to this. Until then, use the following approach:
+
+1. Delete your column in the Schema Designer
+2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
+3. Open the `Application/Fixtures.sql` in your editor and manually remove references in the `INSERT`statements to the old column and it's values.
+4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
+
 
 ### Migrations In Production
 

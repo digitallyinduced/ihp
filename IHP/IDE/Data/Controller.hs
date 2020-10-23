@@ -29,21 +29,16 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
-
         rows :: [[DynamicField]] <- fetchRows connection tableName
-
         tableCols <- fetchTableCols connection tableName
-
         PG.close connection
         render ShowTableRowsView { .. }
 
     action ShowQueryAction = do
         connection <- connectToAppDb
         let query = (param @Text "query")
-        when (query == "") do
-            redirectTo ShowDatabaseAction
-        rows :: [[DynamicField]] <- PG.query_ connection (fromString (cs query))
-
+        when (query == "") $ redirectTo ShowDatabaseAction
+        rows :: [[DynamicField]] <- if isQuery query then PG.query_ connection (fromString (cs query)) else PG.execute_ connection (fromString (cs query)) >> return []
         PG.close connection
         render ShowQueryView { .. }
 
@@ -73,9 +68,9 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         let tableName = param "tableName"
         tableCols <- fetchTableCols connection tableName
-        let values :: [Text] = map (\col -> param @Text (cs (get #columnName col))) tableCols
-        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," (const "?" <$> values) <> ")"
-        PG.execute connection (PG.Query . cs $! query) values
+        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
+        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
+        PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
@@ -100,22 +95,22 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
 
-        let values = map (PG.Escape . cs . param @Text . cs . get #columnName) tableCols
+        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
         let columns :: [Text] = map (\col -> cs (get #columnName col)) tableCols
-        let primaryKeyValues = map (PG.Escape . cs . param @Text . (<> "-pk") . cs) primaryKeyFields
+        let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
-        let query = PG.Query . cs $! "UPDATE " <> tableName <> " SET " <> intercalate ", " (map (<> " = ?") columns) <> " WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
-        PG.execute connection query (values <> primaryKeyValues)
+        let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns values)) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))
+        PG.execute_ connection (PG.Query . cs $! query)
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
-    action EditRowValueAction { tableName, targetName, targetPrimaryKey } = do
+    action EditRowValueAction { tableName, targetName, id } = do
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
-        primaryKeyFields <- tablePrimaryKeyFields connection tableName
-
+        
         rows :: [[DynamicField]] <- fetchRows connection tableName
 
+        let targetId = cs id
         PG.close connection
         render EditValueView { .. }
 
@@ -133,6 +128,17 @@ instance Controller DataController where
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
+    action UpdateValueAction = do
+        let id :: String = cs (param @Text "id")
+        let tableName = param "tableName"
+        connection <- connectToAppDb
+        let targetCol = param "targetName"
+        let targetValue = param "targetValue"
+        let query = "UPDATE " <> tableName <> " SET " <> targetCol <> " = '" <> targetValue <> "' WHERE id = '" <> cs id <> "'"
+        PG.execute_ connection (PG.Query . cs $! query)
+        PG.close connection
+        redirectTo ShowTableRowsAction { .. }
+
 
 connectToAppDb = do
     databaseUrl <- Config.appDatabaseUrl
@@ -145,7 +151,7 @@ fetchTableNames connection = do
 
 fetchTableCols :: PG.Connection -> Text -> IO [ColumnDefinition]
 fetchTableCols connection tableName = do
-    PG.query connection "SELECT column_name,data_type,column_default FROM information_schema.columns where table_name = ?" (PG.Only tableName)
+    PG.query connection "SELECT column_name,data_type,column_default,CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns where table_name = ?" (PG.Only tableName)
 
 fetchRow :: PG.Connection -> Text -> [Text] -> IO [[DynamicField]]
 fetchRow connection tableName primaryKeyValues = do
@@ -159,7 +165,7 @@ instance PG.FromField DynamicField where
             fieldName = fromMaybe "" (PG.name field)
 
 instance PG.FromRow ColumnDefinition where
-    fromRow = ColumnDefinition <$> PG.field <*> PG.field <*> PG.field
+    fromRow = ColumnDefinition <$> PG.field <*> PG.field <*> PG.field <*> PG.field
 
 tablePrimaryKeyFields :: PG.Connection -> Text -> IO [Text]
 tablePrimaryKeyFields connection tableName = do
@@ -173,3 +179,17 @@ fetchRows connection tableName = do
     let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields
 
     PG.query_ connection (PG.Query . cs $! query)
+
+-- parseValues sqlMode isBoolField input
+parseValues :: Bool -> Bool -> Text -> Text
+parseValues _ True "on" = "true"
+parseValues _ True "off" = "false"
+parseValues False False text = "'" <> text <> "'"
+parseValues True False text = text
+parseValues False True text = text
+parseValues True True text = text
+
+updateValues list = map (\elem -> fst elem <> " = " <> snd elem) list
+
+isQuery sql = T.isInfixOf "SELECT" u
+    where u = T.toUpper sql

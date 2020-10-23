@@ -98,7 +98,7 @@ CSS_FILES += static/layout.css
 JS_FILES += static/app.js
 ```
 
-Run `make static/prod.js static/prod.css` to test that the bundle generation works locally.
+Run `make static/prod.js static/prod.css` to test that the bundle generation works locally. To force a rebuild, either delete the files and run make again, or run `make -B static/prod.js static/prod.css`.
 
 You can also remove the JS and CSS files that are provided by IHP (like `${IHP}/static/vendor/bootstrap.min.css`) if you don't need them. E.g. if you don't use bootstrap for your CSS, just remove the `CSS_FILES` and `JS_FILES` statements for bootstrap.
 
@@ -168,7 +168,7 @@ IHP Cloud sets your `baseUrl` to `https://{appHostname}` because every deployed 
 To configure your database connection: Set the env var `DATABASE_URL` to your postgres connection url. 
 Set the env var `PORT` to the port the app will listen on.
 
-The database needs the UUID-extension which is enabled by running ´create extension if not exists "uuid-ossp";´
+The database needs the UUID-extension which is enabled by running `create extension if not exists "uuid-ossp";`
 
 
 ### Building

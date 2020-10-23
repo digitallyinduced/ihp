@@ -61,12 +61,89 @@ instance View NewRowView ViewContext where
                             <a class="text-muted row-form">{get #columnType col}</a>
                         </span>
 
-                        <input
-                            type="text"
-                            name={get #columnName col}
-                            class="form-control"
-                            value={fromMaybe "" (get #columnDefault col)}
-                            />
+                        <div class="input-group">
+                            {renderInputMethod col}
+                        </div>
                     </div>|]
 
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+            renderInputMethod :: ColumnDefinition -> Html 
+            renderInputMethod col | (get #columnType col) == "boolean" = [hsx|
+                            {isBooleanParam True col}
+                            <input
+                                id={get #columnName col <> "-alt"}
+                                type="text"
+                                name={get #columnName col <> "-inactive"}
+                                class="form-control text-monospace text-secondary bg-light d-none"
+                                />
+                            <div class="form-control" id={get #columnName col <> "-boxcontainer"}>
+                                <input
+                                    id={get #columnName col <> "-input"}
+                                    type="checkbox"
+                                    name={get #columnName col}
+                                    checked={get #columnDefault col == Just "true"}
+                                    />
+                            </div>
+                            <input
+                                id={get #columnName col <> "-hidden"}
+                                type="hidden"
+                                name={get #columnName col}
+                                value={inputValue False}
+                                />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "true"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "true"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName col <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName col <> "_"}
+                                            checked={isSqlFunction (getColDefaultValue col)}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this, true)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName col <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>
+                                |]
+            renderInputMethod col = [hsx|
+                            {isBooleanParam False col}
+                            <input
+                                id={get #columnName col <> "-input"}
+                                type="text"
+                                name={get #columnName col}
+                                class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction (getColDefaultValue col))]}
+                                value={renderDefaultWithoutType (getColDefaultValue col)}
+                                oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
+                                />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "false"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "false"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName col <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName col <> "_"}
+                                            checked={isSqlFunction (getColDefaultValue col)}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this, false)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName col <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>|]

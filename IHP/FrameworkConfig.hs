@@ -58,7 +58,7 @@ class FrameworkConfig where
     sessionCookie = defaultIHPSessionCookie
 
     mailServer :: MailServer
-    mailServer = error "You have not yet configured which mail server to use. See TODO(link to docu)"
+    mailServer = Sendmail
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: FrameworkConfig => Cookie.SetCookie

@@ -81,8 +81,9 @@ data DataController
     | NewRowAction { tableName :: Text }
     | EditRowAction { tableName :: Text, targetPrimaryKey :: Text }
     | UpdateRowAction
-    | EditRowValueAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
     | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | UpdateValueAction
     deriving (Eq, Show, Data)
 
 data LogsController
@@ -96,11 +97,13 @@ data CodeGenController
     | NewControllerAction
     | NewScriptAction
     | NewViewAction
+    | NewMailAction
     | NewActionAction
     | NewApplicationAction
     | CreateControllerAction
     | CreateScriptAction
     | CreateViewAction
+    | CreateMailAction
     | CreateActionAction
     | CreateApplicationAction
     | OpenControllerAction
@@ -116,6 +119,7 @@ data ColumnDefinition = ColumnDefinition
     { columnName :: Text
     , columnType :: Text
     , columnDefault :: Maybe Text
+    , isNullable :: Bool
     } deriving (Show)
 
 instance FrameworkConfig where

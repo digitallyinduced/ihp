@@ -26,6 +26,7 @@ HTML_FILES+= package-management.html
 HTML_FILES+= editors.html
 HTML_FILES+= deployment.html
 HTML_FILES+= auto-refresh.html
+HTML_FILES+= mail.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 

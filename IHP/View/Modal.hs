@@ -18,7 +18,7 @@ renderModal Modal { modalContent, modalFooter, modalCloseUrl, modalTitle } show 
     |]
         where
             modalClassName :: Text
-            modalClassName = "modal fade " <> if show then "show" else ""
+            modalClassName = "modal fade overflow-auto " <> if show then "show" else ""
             backdropClassName :: Text
             backdropClassName = "modal-backdrop fade " <> if show then "show" else ""
             displayStyle :: Text

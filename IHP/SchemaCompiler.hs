@@ -64,7 +64,7 @@ atomicType = \case
     PReal -> "Float"
     PDouble -> "Double"
     PDate -> "Data.Time.Calendar.Day"
-    PBinary -> "Binary"
+    PBinary -> "(Binary ByteString)"
     PTime -> "TimeOfDay"
     PCustomType theType -> tableNameToModelName theType
     PTimestamp -> "LocalTime"
@@ -110,17 +110,18 @@ compileTypes options schema@(Schema statements) =
             in intercalate "\n\n" (map (compileStatement options) statements)
         <> section
     where
-        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.hs` to customize the Types"
+        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types"
                   <> section
                   <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}"
                   <> section
                   <> "module Generated.Types where\n\n"
                   <> "import IHP.HaskellSupport\n"
                   <> "import IHP.ModelSupport\n"
-                  <> "import CorePrelude hiding (id) \n"
-                  <> "import Data.Time.Clock \n"
+                  <> "import CorePrelude hiding (id)\n"
+                  <> "import Data.Time.Clock\n"
+                  <> "import Data.Time.LocalTime\n"
                   <> "import qualified Data.Time.Calendar\n"
-                  <> "import qualified Data.List as List \n"
+                  <> "import qualified Data.List as List\n"
                   <> "import qualified Data.ByteString as ByteString \n"
                   <> "import Database.PostgreSQL.Simple\n"
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
@@ -375,12 +376,9 @@ compileCreate table@(CreateTable { name, columns }) =
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
-                    <> "result <- Database.PostgreSQL.Simple.query databaseConnection \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n"
-                    <> "pure (List.head result)\n"
-                    )
+                <> indent ("List.head <$> withDatabaseConnection \\databaseConnection -> Database.PostgreSQL.Simple.query databaseConnection \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n")
                 <> "createMany models = do\n"
-                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
+                <> indent ("withDatabaseConnection \\databaseConnection -> "
                     <> createManyQueryFn <> " databaseConnection (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
                     )
             )
@@ -410,9 +408,8 @@ compileUpdate table@(CreateTable { name, columns }) =
     in
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
-                <> indent ("let ModelContext { databaseConnection } = ?modelContext\n"
-                    <> "result <- Database.PostgreSQL.Simple.query databaseConnection \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
-                    <> "pure (List.head result)\n"
+                <> indent (
+                    "List.head <$> withDatabaseConnection \\databaseConnection -> Database.PostgreSQL.Simple.query databaseConnection \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
                 )
             )
 

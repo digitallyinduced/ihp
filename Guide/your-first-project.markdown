@@ -33,8 +33,8 @@ Here is a short overview of the whole structure:
 | static/                       | Images, css and javascript files                                            |
 | .ghci                         | Default config file for the Haskell interpreter                             |
 | .gitignore                    | List of files to be ignored by git                                          |
-| App.cabal, Setup.hs           | Config for the cabal package manager (TODO: maybe move to Config/App.cabal) |
-| default.nix                   | Declares your app dependencies (like package.json or composer.json)         |
+| App.cabal, Setup.hs           | Config for the cabal package manager |
+| default.nix                   | Declares your app dependencies (like package.json for NPM or composer.json for PHP)         |
 | Makefile                      | Default config file for the make build system                               |
 
 ## 2. Hello, World!
@@ -60,6 +60,7 @@ By default, your app is available at `http://localhost:8000` and your developmen
 
 In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
 
+The very first time you start this make take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
 
 ## 3. Data Structures & PostgreSQL
 
@@ -108,8 +109,6 @@ Next we need to make sure that our database schema with our `posts` table is imp
 Open the `Application/Schema.sql` in your code editor to see the SQL queries which make up the database schema:
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 CREATE TABLE posts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     title TEXT NOT NULL,
@@ -359,6 +358,8 @@ instance AutoRoute PostsController
 
 This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the urls according to your needs (e.g. "beautiful urls" for SEO).
 
+<sup>Note that the word 'Post' here still refers to a post on our blog and is unrelated to the HTTP-POST request method.</sup>
+
 #### Views
 
 We should also quickly take a look at our views.
@@ -401,7 +402,7 @@ Click `Save Post`. You should now see the new post listed on the `index` view.
 
 ### Displaying a Post
 
-Let's first improve the `show` view. Right now the headline is "Show Post", and the actual post body is never shown.
+Let's first improve the `show` view. Right now the headline is "Show Post", and the actual post body is just a dump of the Post Data definition.
 
 Open the `Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{get #title post}</h1>`. Also add a `<div>{get #body post}</div>` below the `<h1>`.
 

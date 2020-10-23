@@ -76,7 +76,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         codegen = navItem "CODEGEN" copyIcon (pathTo GeneratorsAction) (isActiveController @CodeGenController)
         logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
-        deploy = navItem "DEPLOY" globeIcon "#" False
+        deploy = navItem "DEPLOY" globeIcon "https://ihpcloud.com/" False
         docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/Guide/" False
         
         isSchemaEditorController =

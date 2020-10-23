@@ -47,6 +47,7 @@
 , basic-prelude
 , data-default
 , regex-tdfa
+, resource-pool
 }:
 mkDerivation {
   pname = "ihp";
@@ -99,12 +100,13 @@ mkDerivation {
     basic-prelude
     data-default
     regex-tdfa
+    resource-pool
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
     cp exe/IHP/CLI/run-script $out/bin/run-script
 
     mkdir -p $out/lib/IHP
-    cp -r lib/IHP/* $out/lib/IHP
+    cp -r lib/IHP/* lib/IHP/.hie-bios $out/lib/IHP
   '';
 }

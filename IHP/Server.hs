@@ -32,12 +32,12 @@ import qualified IHP.WebSocket as WS
 run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
 run = do
     databaseUrl <- appDatabaseUrl
-    databaseConnection <- connectPostgreSQL databaseUrl 
     session <- Vault.newKey
     port <- FrameworkConfig.initAppPort
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let isDevelopment = Env.isDevelopment FrameworkConfig.environment
-    let ?modelContext = ModelContext { databaseConnection, queryDebuggingEnabled = isDevelopment, trackTableReadCallback = Nothing }
+    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext databaseUrl
+    let ?modelContext = modelContext
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
     let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer }
     let application :: Application = \request respond -> do

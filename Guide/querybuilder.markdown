@@ -70,6 +70,21 @@ projectsByUser userId = do
     return projects
 ```
 
+Or the more general `filterWhereSql`:
+
+```haskell
+retiredEmployees :: IO [Employee]
+retiredEmployees = do
+    employees <- query @Employee
+             |> filterWhereSql (#retireddate, "IS NOT NULL")
+             |> fetch
+    -- Query: `SELECT * FROM employee WHERE retireddate IS NOT NULL`
+    return employees
+```
+
+Several other filter-functions for generating `WHERE` clauses exist, such as `filterWhereIn` and `filterWhereNotIn` which take lists of items. Read more about these in the [API docs on QueryBuilder](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html)
+
+
 ## Order By
 
 You can just use `orderBy #field`:

@@ -7,12 +7,14 @@ import IHP.IDE.CodeGen.View.Generators
 import IHP.IDE.CodeGen.View.NewController
 import IHP.IDE.CodeGen.View.NewScript
 import IHP.IDE.CodeGen.View.NewView
+import IHP.IDE.CodeGen.View.NewMail
 import IHP.IDE.CodeGen.View.NewAction
 import IHP.IDE.CodeGen.View.NewApplication
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
 import IHP.IDE.CodeGen.ScriptGenerator as ScriptGenerator
 import IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
+import IHP.IDE.CodeGen.MailGenerator as MailGenerator
 import IHP.IDE.CodeGen.ActionGenerator as ActionGenerator
 import IHP.IDE.CodeGen.ApplicationGenerator as ApplicationGenerator
 import IHP.IDE.ToolServer.Helper.Controller
@@ -86,6 +88,28 @@ instance Controller CodeGenController where
         (Right plan) <- ViewGenerator.buildPlan viewName applicationName controllerName
         executePlan plan
         setSuccessMessage "View generated"
+        redirectTo GeneratorsAction
+
+    action NewMailAction = do
+        let mailName = paramOrDefault "" "name"
+        let applicationName = paramOrDefault "Web" "applicationName"
+        let controllerName = paramOrDefault "" "controllerName"
+        mailAlreadyExists <- doesFileExist $ (cs applicationName) <> "/Mail/" <> (cs controllerName) <> "/" <> (cs mailName) <>".hs"
+        when mailAlreadyExists do
+            setErrorMessage "Mail with this name already exists."
+            redirectTo NewMailAction
+        controllers <- findControllers applicationName
+        applications <- findApplications
+        plan <- MailGenerator.buildPlan mailName applicationName controllerName
+        render NewMailView { .. }
+
+    action CreateMailAction = do
+        let mailName = paramOrDefault "" "name"
+        let applicationName = "Web"
+        let controllerName = paramOrDefault "" "controllerName"
+        (Right plan) <- MailGenerator.buildPlan mailName applicationName controllerName
+        executePlan plan
+        setSuccessMessage "Mail generated"
         redirectTo GeneratorsAction
 
     action NewActionAction = do
