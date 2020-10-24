@@ -73,4 +73,44 @@ tests = do
                     let textField = baseTextField { helpText = "Enter your first name" }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-fname\"><label class=\"\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\"><small class=\"form-text text-muted\">Enter your first name</small></div>"
 
+
+            describe "checkbox" do
+                let baseCheckbox = FormField
+                        { fieldType = CheckboxInput
+                        , fieldName = "is_active"
+                        , fieldLabel = "Is Active"
+                        , fieldValue =  "yes"
+                        , fieldInputId = "user_is_active"
+                        , validatorResult = Nothing
+                        , fieldClass = ""
+                        , labelClass = ""
+                        , disableLabel = False
+                        , disableGroup = False
+                        , disableValidationResult = False
+                        , fieldInput = const H.input
+                        , cssFramework = cssFramework
+                        , helpText = ""
+                        , placeholder = ""
+                        , required = False
+                        }
+                it "should render" do
+                    let checkbox = baseCheckbox
+                    styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><label class=\"form-check-label\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\">Is Active</label></div></div>"
+
+                it "should render without checked" do
+                    let checkbox = baseCheckbox { fieldValue = "no" }
+                    styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><label class=\"form-check-label\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\"><input type=\"hidden\" name=\"is_active\" value=\"off\">Is Active</label></div></div>"
+                
+                it "should render with disableLabel = True" do
+                    let checkbox = baseCheckbox { disableLabel = True }
+                    styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><div><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\">Is Active</div></div></div>"
+                
+                it "should render with disableGroup = True" do
+                    let checkbox = baseCheckbox { disableGroup = True }
+                    styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-check\"><label class=\"form-check-label\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\">Is Active</label></div>"
+                
+                it "should render with help text" do
+                    let checkbox = baseCheckbox { helpText = "Is the user active?" }
+                    styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><label class=\"form-check-label\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\">Is Active<small class=\"form-text text-muted\">Is the user active?</small></label></div></div>"
+
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
