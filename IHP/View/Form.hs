@@ -402,7 +402,7 @@ selectField field items = FormField
         , fieldInput = const (Html5.select mempty)
         , cssFramework = get #cssFramework ?formContext
         , helpText = ""
-        , placeholder = ""
+        , placeholder = "Please select"
         , required = False
     }
     where

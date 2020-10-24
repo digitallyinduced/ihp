@@ -113,4 +113,36 @@ tests = do
                     let checkbox = baseCheckbox { helpText = "Is the user active?" }
                     styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><label class=\"form-check-label\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\">Is Active<small class=\"form-text text-muted\">Is the user active?</small></label></div></div>"
 
+            describe "select" do
+                let baseSelect = FormField
+                        { fieldType = SelectInput [("First Value", "a"), ("Second Value", "b")]
+                        , fieldName = "user_id"
+                        , fieldLabel = "User"
+                        , fieldValue = ""
+                        , fieldInputId = "project_user_id"
+                        , validatorResult = Nothing
+                        , fieldClass = ""
+                        , labelClass = ""
+                        , disableLabel = False
+                        , disableGroup = False
+                        , disableValidationResult = False
+                        , fieldInput = const (H.select mempty)
+                        , cssFramework = cssFramework
+                        , helpText = ""
+                        , placeholder = "Please select"
+                        , required = False
+                    }
+
+                it "should render" do
+                    let select = baseSelect
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Please select</option><option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select></div>"
+
+                it "should render with selected" do
+                    let select = baseSelect { fieldValue = "b" }
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option disabled=\"disabled\">Please select</option><option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select></div>"
+                
+                it "should render with custom placeholder" do
+                    let select = baseSelect { placeholder = "Pick something" }
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option><option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select></div>"
+
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
