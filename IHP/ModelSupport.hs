@@ -37,6 +37,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Data.Pool as Pool
+import qualified GHC.Conc
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -55,13 +56,11 @@ notConnectedModelContext = ModelContext
     , trackTableReadCallback = Nothing
     }
 
-createModelContext :: ByteString -> IO ModelContext
-createModelContext databaseUrl = do
-    let numStripes = 1
+createModelContext :: NominalDiffTime -> Int -> ByteString -> IO ModelContext
+createModelContext idleTime maxConnections databaseUrl = do
+    numStripes <- GHC.Conc.getNumCapabilities
     let create = PG.connectPostgreSQL databaseUrl
     let destroy = PG.close
-    let idleTime = 60 -- Keep db connection one minute
-    let maxConnections = 20
     connectionPool <- Pool.createPool create destroy numStripes idleTime maxConnections
 
     let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
