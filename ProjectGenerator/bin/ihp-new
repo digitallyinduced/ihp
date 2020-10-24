@@ -106,6 +106,7 @@ grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK2
 git clone --quiet --depth=1 "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 rm -rf ".git"
+chmod go-w .ghci || true
 
 nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
 echo "🚀 Project created, happy coding :)"
