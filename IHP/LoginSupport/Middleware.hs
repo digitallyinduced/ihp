@@ -26,7 +26,7 @@ initAuthentication :: forall user.
         , GetTableName (NormalizeModel user) ~ GetTableName user
         , FromRow (NormalizeModel user)
         , PrimaryKey (GetTableName user) ~ UUID
-        , FilterPrimaryKey (NormalizeModel user)
+        , FilterPrimaryKey (GetTableName user)
     ) => TypeMap.TMap -> IO TypeMap.TMap
 initAuthentication context = do
     user <- getSessionUUID (sessionKey @user)
