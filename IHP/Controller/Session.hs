@@ -7,12 +7,15 @@ import qualified Data.Text.Read
 import qualified Data.UUID
 import           IHP.Controller.RequestContext
 import           IHP.HaskellSupport
-import           Network.HTTP.Types                   (status200, status302)
+import           IHP.ControllerSupport
+import           Network.HTTP.Types                   (status200, status302, status401)
 import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
 import qualified Network.Wai
 
 import qualified Data.Vault.Lazy                      as Vault
 import           Network.Wai.Session                  (Session)
+import           Network.Wai.Middleware.HttpAuth      (extractBasicAuth)
+import           Network.HTTP.Types.Header            (hWWWAuthenticate)
 import qualified Data.Maybe as Maybe
 
 
@@ -52,6 +55,12 @@ getSessionUUID name = do
     pure $! case fmap Data.UUID.fromText value of
             Just (Just value) -> Just value
             _                 -> Nothing
+
+basicAuth :: (?requestContext::RequestContext) => Text -> Text -> Text -> IO ()
+basicAuth uid pw realm = do
+    let mein = Just (encodeUtf8 uid, encodeUtf8 pw)
+    let cred = join $ fmap extractBasicAuth (getHeader "Authorization")
+    when (cred /= mein) $ respondAndExit $ responseLBS status401 [(hWWWAuthenticate,encodeUtf8 ("Basic " ++ (if null realm then "" else "realm=\"" ++ realm ++ "\", ") ++ "charset=\"UTF-8\""))] ""
 
 successMessageKey :: Text
 successMessageKey = "flashSuccessMessage"

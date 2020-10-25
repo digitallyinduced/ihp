@@ -26,7 +26,6 @@ common shared-properties
             , blaze-html
             , blaze-markup
             , wai-extra
-            , wai
             , http-types
             , inflections
             , text
@@ -65,9 +64,6 @@ common shared-properties
             , async
             , network
             , unliftio
-            , basic-prelude
-            , megaparsec
-            , async
             , unix
             , fsnotify
             , websockets
