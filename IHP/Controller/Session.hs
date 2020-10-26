@@ -56,6 +56,13 @@ getSessionUUID name = do
             Just (Just value) -> Just value
             _                 -> Nothing
 
+-- | Adds basic http authentication
+--
+-- Mainly for protecting a site during external review.
+-- Meant for use in the controller:
+-- 
+-- > beforeAction = basicAuth ... 
+-- 
 basicAuth :: (?requestContext::RequestContext) => Text -> Text -> Text -> IO ()
 basicAuth uid pw realm = do
     let mein = Just (encodeUtf8 uid, encodeUtf8 pw)
