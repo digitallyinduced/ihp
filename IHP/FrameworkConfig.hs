@@ -13,6 +13,7 @@ import Network.Wai (Middleware)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
 import Data.Default (def)
+import Data.Time.Clock (NominalDiffTime)
 import IHP.Mail.Types
 
 defaultPort :: Int
@@ -59,6 +60,14 @@ class FrameworkConfig where
 
     mailServer :: MailServer
     mailServer = Sendmail
+
+    -- | How long db connection are kept alive inside the connecton pool when they're idle
+    dbPoolIdleTime :: NominalDiffTime
+    dbPoolIdleTime = 60
+
+    -- | Max number of db connections the connection pool can open to the database
+    dbPoolMaxConnections :: Int
+    dbPoolMaxConnections = 20
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: FrameworkConfig => Cookie.SetCookie

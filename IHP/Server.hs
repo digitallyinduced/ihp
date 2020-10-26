@@ -36,7 +36,7 @@ run = do
     port <- FrameworkConfig.initAppPort
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let isDevelopment = Env.isDevelopment FrameworkConfig.environment
-    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext databaseUrl
+    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext FrameworkConfig.dbPoolIdleTime FrameworkConfig.dbPoolMaxConnections databaseUrl
     let ?modelContext = modelContext
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
     let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer }

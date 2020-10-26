@@ -28,6 +28,7 @@ module IHP.HaskellSupport (
 , debug
 , includes
 , stripTags
+, symbolToText
 ) where
 
 import ClassyPrelude
@@ -241,3 +242,14 @@ stripTags :: Text -> Text
 stripTags "" = ""
 stripTags html | Text.head html == '<' = stripTags (Text.drop 1 (Text.dropWhile (/= '>') (Text.tail html)))
 stripTags html = let (a, b) = Text.splitAt 1 html in a <> stripTags b
+
+-- | Returns the value of a type level symbol as a text
+--
+-- >>> symbolToText @"hello"
+-- "hello"
+--
+-- >>> symbolToText @(GetTableName User)
+-- "users"
+symbolToText :: forall symbol. (KnownSymbol symbol) => Text
+symbolToText = Text.pack (symbolVal @symbol Proxy)
+{-# INLINE symbolToText #-}

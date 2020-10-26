@@ -6,6 +6,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.Logs.View.Logs
 import qualified IHP.IDE.Types as DevServer
+import qualified Data.ByteString.Char8 as ByteString
 
 instance Controller LogsController where
     action AppLogsAction = do
@@ -15,12 +16,12 @@ instance Controller LogsController where
         (standardOutput, errorOutput) <- case statusServerState of
                 DevServer.StatusServerNotStarted -> pure ("", "")
                 DevServer.StatusServerStarted { standardOutput, errorOutput } -> do
-                    std <- readIORef standardOutput
-                    err <- readIORef errorOutput
+                    std <- ByteString.unlines <$> readIORef standardOutput
+                    err <- ByteString.unlines <$> readIORef errorOutput
                     pure (std, err)
                 DevServer.StatusServerPaused { standardOutput, errorOutput } -> do
-                    std <- readIORef standardOutput
-                    err <- readIORef errorOutput
+                    std <- ByteString.unlines <$> readIORef standardOutput
+                    err <- ByteString.unlines <$> readIORef errorOutput
                     pure (std, err)
 
         render LogsView { .. }

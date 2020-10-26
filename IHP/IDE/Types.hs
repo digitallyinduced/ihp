@@ -94,15 +94,15 @@ data StatusServerState
     = StatusServerNotStarted
     | StatusServerStarted
         { serverRef :: IORef (Async ())
-        , clients :: IORef [Websocket.Connection]
-        , standardOutput :: IORef ByteString
-        , errorOutput :: IORef ByteString
+        , clients :: IORef [(Websocket.Connection, MVar ())]
+        , standardOutput :: IORef [ByteString]
+        , errorOutput :: IORef [ByteString]
         }
     | StatusServerPaused
         { serverRef :: IORef (Async ())
-        , clients :: IORef [Websocket.Connection]
-        , standardOutput :: IORef ByteString
-        , errorOutput :: IORef ByteString
+        , clients :: IORef [(Websocket.Connection, MVar ())]
+        , standardOutput :: IORef [ByteString]
+        , errorOutput :: IORef [ByteString]
         }
 
 instance Show StatusServerState where

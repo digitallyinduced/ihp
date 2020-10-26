@@ -3,9 +3,19 @@
 ```toc
 ```
 
-## Introduction
+## Quick-and-Dirty: HTTP Basic Auth
 
-IHP provides a basic authentication toolkit out of the box.
+While IHP provides an authentication toolkit out of the box, it also provides a shortcut for cases where you just want the simplest possible way to enforce a hard-coded username/password before accessing your new web application. This shortcut leverages HTTP Basic Authentication built in to all browsers:
+
+```haskell
+instance Controller WidgetsController where
+    beforeAction = basicAuth "sanja" "hunter2" "myapp"
+```
+
+The parameters are: username, password and authentication realm. The realm can be thought of as an area of validity for the credentials. It is common to put the project name, but it can also be blank (meaning the entire domain).
+
+
+## Introduction - Real Authentication
 
 The usual convention in IHP is to call your user record `User`. When there is an admin user, we usually call the record `Admin`. In general the authentication can work with any kind of record. The only requirement is that it has an id field.
 
