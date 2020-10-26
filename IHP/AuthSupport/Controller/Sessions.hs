@@ -73,6 +73,7 @@ createSessionAction :: forall record action passwordField.
     , CanUpdate record
     , FrameworkConfig
     , Show (PrimaryKey (GetTableName record))
+    , record ~ GetModelByTableName (GetTableName record)
     ) => IO ()
 createSessionAction = do
     query @record

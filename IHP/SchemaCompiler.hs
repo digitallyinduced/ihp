@@ -187,7 +187,7 @@ compileTypeAlias table@(CreateTable { name, columns }) =
     where
         modelName = tableNameToModelName name
         hasManyDefaults = columnsReferencingTable name
-                |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder " <> tableNameToModelName tableName <> ")")
+                |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
                 |> unwords
 
 primaryKeyTypeName :: Text -> Text
@@ -530,7 +530,7 @@ compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
 compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = cs [i|
 type instance PrimaryKey #{tshow name} = #{idType}
 
-instance QueryBuilder.FilterPrimaryKey #{tableNameToModelName name} where
+instance QueryBuilder.FilterPrimaryKey "#{name}" where
     filterWhereId #{primaryKeyPattern} builder =
         builder |> #{intercalate " |> " primaryKeyFilters}
 |]
