@@ -65,6 +65,7 @@ handleRouterException exception = do
             
             <h2>Possible Solutions</h2>
             <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
+            <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
         |]
     let title = H.text "Routing failed"
     let (RequestContext _ respond _ _ _) = ?requestContext
