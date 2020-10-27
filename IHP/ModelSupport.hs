@@ -314,7 +314,7 @@ sqlQueryScalar query parameters = do
 -- "users"
 --
 tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
-tableName = Text.pack (symbolVal @(GetTableName model) Proxy)
+tableName = symbolToText @(GetTableName model)
 {-# INLINE tableName #-}
 
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()

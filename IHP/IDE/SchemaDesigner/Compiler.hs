@@ -74,7 +74,8 @@ compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
 
-compareStatement (StatementCreateTable CreateTable {}) _ = LT
+compareStatement (CreateEnumType {}) _ = LT
+compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
