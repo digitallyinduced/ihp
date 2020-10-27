@@ -32,7 +32,9 @@ jobs:
           nix-shell shell.nix --run "./build-haddock; cd Guide; make -B; cd ../ProjectGenerator; make -B"
 
           ssh -A root@142.93.99.41 'rm -rf /home/turbohaskell/WebRoot/api-docs; rm -rf /home/turbohaskell/WebRoot/Guide'
+          echo "Copying files to server"
           scp -r haddock-build root@142.93.99.41:/home/turbohaskell/WebRoot
           scp -r Guide root@142.93.99.41:/home/turbohaskell/WebRoot
           scp ProjectGenerator/tarball.tar.gz root@142.93.99.41:/home/turbohaskell/WebRoot
-          ssh -A root@142.93.99.41 'cd /home/turbohaskell/WebRoot; mv build-haddock api-docs; mv tarball.tar.gz ihp-new.tar.gz'
+          echo "Renaming files"
+          ssh -A root@142.93.99.41 'cd /home/turbohaskell/WebRoot; mv haddock-build api-docs; mv tarball.tar.gz ihp-new.tar.gz'
