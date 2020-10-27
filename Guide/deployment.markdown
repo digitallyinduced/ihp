@@ -36,17 +36,17 @@ Take a short look at `Web/View/Layout.hs`. You can see that depending on whether
 
 ```haskell
 stylesheets = do
-    when (isDevelopment configEnvironment) [hsx|
+    when (isDevelopment $ getConfig environment) [hsx|
         <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
         <link rel="stylesheet" href="/vendor/flatpickr.min.css"/>
         <link rel="stylesheet" href="/app.css"/>
     |]
-    when (isProduction configEnvironment) [hsx|
+    when (isProduction $ getConfig environment) [hsx|
         <link rel="stylesheet" href="/prod.css"/>
     |]
 
 scripts = do
-    when (isDevelopment configEnvironment) [hsx|
+    when (isDevelopment $ getConfig environment) [hsx|
         <script id="livereload-script" src="/livereload.js"></script>
         <script src="/vendor/jquery-3.2.1.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
@@ -56,7 +56,7 @@ scripts = do
         <script src="/helpers.js"></script>
         <script src="/vendor/morphdom-umd.min.js"></script>
     |]
-    when (isProduction configEnvironment) [hsx|
+    when (isProduction $ getConfig environment) [hsx|
         <script src="/prod.js"></script>
     |]
 ```

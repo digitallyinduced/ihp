@@ -9,6 +9,7 @@ import qualified Network.Wai.Util
 import Network.URI (parseURI)
 import IHP.Controller.RequestContext
 import IHP.RouterSupport (HasPath (pathTo))
+import IHP.FrameworkConfig
 import qualified Network.Wai as Wai
 import Data.String.Conversions (cs)
 import Data.Maybe (fromJust)
@@ -39,7 +40,7 @@ redirectTo action = redirectToPath (pathTo action)
 -- Use 'redirectTo' if you want to redirect to a controller action.
 {-# INLINE redirectToPath #-}
 redirectToPath :: (?requestContext :: RequestContext) => Text -> IO ()
-redirectToPath path = redirectToUrl (configBaseUrl <> path)
+redirectToPath path = redirectToUrl (getConfig baseUrl <> path)
 
 -- | Redirects to a url (given as a string)
 -- 

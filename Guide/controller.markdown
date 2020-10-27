@@ -160,8 +160,7 @@ This will render `Hello World, Unnamed!` when the `ExampleAction` is called with
 
 
 ### Accessing the FrameworkConfig inside Controllers and Views.
-The instance of the `FrameworkConfig` that is defined in `Config/Config.hs` will be part of the `RequestContext` and is thus available in controllers. To make it more convienient a number of helper functions are available that allow you to directly query your configuration. 
-All of them will have the form `config{field}`, such as `configEnvironment`, `configBaseUrl`, `configDatabaseUrl`, etc.
+The instance of the `FrameworkConfig` that is defined in `Config/Config.hs` will be part of the `RequestContext` and is thus available in controllers. To make it more convienient a  helper function called `getConfig` is available. This function takes a record from the FrameworkConfig and evaluates it. For example: `getConfig environment`. 
 
 
 

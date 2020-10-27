@@ -29,6 +29,7 @@ CanRoute (..)
 import qualified Prelude
 import ClassyPrelude hiding (index, delete, take)
 import qualified IHP.ModelSupport as ModelSupport
+import IHP.FrameworkConfig
 import IHP.ApplicationContext hiding (frameworkConfig)
 import Data.UUID
 import Network.HTTP.Types.Method
@@ -85,7 +86,7 @@ class HasPath controller where
 -- >>> urlTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
 -- "http://localhost:8000/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
 urlTo :: (?requestContext :: RequestContext, HasPath action) => action -> Text
-urlTo action = configBaseUrl <> pathTo action
+urlTo action = (getConfig baseUrl) <> pathTo action
 {-# INLINE urlTo #-}
 
 class HasPath controller => CanRoute controller where

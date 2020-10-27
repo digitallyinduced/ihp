@@ -108,21 +108,15 @@ To use SES open `Config/Config.hs` and add a `mailServer` function to the constr
 -- Add this import 
 import IHP.Mail
 
-config :: IO FrameworkConfig                                                                                          
-config = do                                                                                                           
-    let environment = Development                                                                                     
-        appHostname = "localhost"                                                                                     
-                                                                                                                      
-        -- ...                                                                                                        
-                                                                                                                      
-        mailServer = SES                                                                                              
-            { accessKey = "YOUR AWS ACCESS KEY"                                                                       
-            , secretKey = "YOUR AWS SECRET KEY"                                                                       
-            , region = "eu-west-1" -- YOUR REGION                                                                     
-            }                                                                                                         
-                                                                                                                      
-    defaultConfig <- defaultFrameworkConfig appHostname environment                                                   
-    pure defaultConfig { mailServer }
+config :: ConfigBuilder
+config = do
+    option Development
+    option $ AppHostname "localhost"
+    option $ SES
+        { accessKey = "YOUR AWS ACCESS KEY"
+        , secretKey = "YOUR AWS SECRET KEY"
+        , region = "eu-west-1" -- YOUR REGION                                                                     
+        }                                                        
 ```
 
 After that all emails will be send through AWS SES.
