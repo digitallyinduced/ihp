@@ -28,7 +28,7 @@ jobs:
           ssh-agent -a $SSH_AUTH_SOCK > /dev/null
           ssh-add <(echo "${{ secrets.KEY }}")
           cd $GITHUB_WORKSPACE
-
+          chmod +x build-haddock
           nix-shell shell.nix --run "./build-haddock; cd Guide; make -B; cd ../ProjectGenerator; make -B"
 
           ssh -A root@142.93.99.41 'rm -rf /home/turbohaskell/WebRoot/api-docs; rm -rf /home/turbohaskell/WebRoot/Guide'
