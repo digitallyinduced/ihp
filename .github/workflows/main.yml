@@ -3,7 +3,7 @@ name: Build Documentation
 on:
   push:
     branches:
-      - laobiz/ch2016/build-documentation-in-github-actions-directly
+      - master
 
 jobs:
   build:
