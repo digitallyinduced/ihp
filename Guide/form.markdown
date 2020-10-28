@@ -58,6 +58,7 @@ IHP has the most commonly-used form controls built in. In general the form contr
 {dateField #dueAt}
 {passwordField #password}
 {dateTimeField #createdAt}
+{numberField #quantity}
 {hiddenField #projectId}
 {checkboxField #termsAccepted}
 {selectField #projectId allProjects}

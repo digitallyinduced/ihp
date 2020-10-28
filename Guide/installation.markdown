@@ -53,7 +53,7 @@ Running nix on Windows requires the Windows Subsystem for Linux, which first nee
 dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
 ```
 
-Enabling this Feature needs a restart.
+Enabling this Feature needs a restart (even though it won't prompt, and the command-line says /norestart).
 
 To download a Linux Distribution, open the Microsoft Store and search for Ubuntu or Debian. We recommend Ubuntu, since it works best with nix on Windows.
 
@@ -79,7 +79,7 @@ Now, create a folder for nix:
 sudo mkdir -p /etc/nix
 ```
 
-To make nix usable on Windows, we need to create and add the following lines to the file `/etc/nix/nix.conf`:
+To make nix usable on Windows, we need to create and add the following lines to the file `/etc/nix/nix.conf` (requires use of sudo again):
 
 ```bash
 sandbox = false

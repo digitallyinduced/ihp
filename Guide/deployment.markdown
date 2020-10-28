@@ -162,6 +162,8 @@ Make required modifications to your `Config/Config.hs`:
 `baseUrl` equals `http://{appHostname}:{port}` or `http://{appHostname}` if port is 80.
 You can overwrite `baseUrl` by setting it in `Config/Config.hs`
 
+If you deploy behind an nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the baseUrl must still have `https` as it is used to form absolute URLs.
+
 When you deploy with IHP Cloud your Config.hs is set automatically on project creation.
 IHP Cloud sets your `baseUrl` to `https://{appHostname}` because every deployed app is served with SSL enabled.
 
