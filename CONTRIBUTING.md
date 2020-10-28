@@ -26,8 +26,6 @@ The best workflow is to use `ghci` to load your application together with the fr
 make -B build/ihp-lib # only needs to be run once
 ```
 
-On Windows (in WSL), this will show 3 commands, but not actually run them. Copy and run them yourself.
-
 Next, in a `nix-shell`:
 
 ```
@@ -97,7 +95,9 @@ The documentation reads a bit like a tutorial, but should still be kept somewhat
 
 ## Code Guidelines
 
-- Please use `pure`. `return` might confuse people coming from other programing languages.
+- Please use `pure`. `return` might confuse people coming from other programming languages.
+
+- Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
 
 ## Running Tests
 
