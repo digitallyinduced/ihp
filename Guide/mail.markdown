@@ -89,7 +89,7 @@ action MyAction = do
     sendMail ConfirmationMail { user }
 ```
 
-Note that emails can also be send from within scripts but only with the slightly modified `sendmailFromScript` function.
+Note that emails can also be send from within scripts but only with the slightly modified `sendMailFromScript` function.
 
 ## Mail Servers
 
