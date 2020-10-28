@@ -41,12 +41,15 @@ generateGenericApplication applicationName =
                 <> "    , controllerContext :: ControllerSupport.ControllerContext\n"
                 <> "    , layout :: Layout\n"
                 <> "    }\n"
+                <> "\n"
+                <> "data StaticController = WelcomeAction deriving (Eq, Show, Data)"
             routesHs =
                 "module " <> applicationName <> ".Routes where\n"
                 <> "import IHP.RouterPrelude\n"
                 <> "import Generated.Types\n"
                 <> "import " <> applicationName <> ".Types\n\n"
                 <> "-- Generator Marker\n"
+                <> "instance AutoRoute StaticController"
             frontControllerHs =
                 "module " <> applicationName <> ".FrontController where\n"
                 <> "import IHP.RouterPrelude\n"
@@ -54,7 +57,7 @@ generateGenericApplication applicationName =
                 <> "import Generated.Types\n"
                 <> "import " <> applicationName <> ".Types\n\n"
                 <> "-- Controller Imports\n"
-                <> "import IHP.Welcome.Controller\n\n"
+                <> "import " <> applicationName <> ".Controller.Static\n"
                 <> "instance FrontController " <> applicationName <> "Application where\n"
                 <> "    controllers = \n"
                 <> "        [ startPage WelcomeAction\n"
@@ -184,10 +187,56 @@ generateGenericApplication applicationName =
                 <> "import " <> applicationName <> ".Routes ()\n"
                 <> "import " <> applicationName <> ".View.Context\n"
                 <> "import Application.Helper.View\n"
+
+            welcomeControllerStaticHs =   
+                "module " <> applicationName <> ".Controller.Static where\n"
+                <> "import " <> applicationName  <>".Controller.Prelude\n"
+                <> "import " <> applicationName  <>".View.Static.Welcome\n"
+                <> "\n"
+                <> "instance Controller StaticController where\n"    
+                <> "    action WelcomeAction = render WelcomeView\n"
+
+            welcomeViewStaticHs = 
+              "module " <> applicationName <> ".View.Static.Welcome where\n"
+             <>"import " <> applicationName <> ".View.Prelude\n"
+             <>"\n"
+             <>"data WelcomeView = WelcomeView\n"
+             <>"\n"
+             <>"instance View WelcomeView ViewContext where\n"
+             <>"    html WelcomeView = [hsx|\n" 
+             <>"         <div style=\"background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1); border-radius: 4px\">\n"
+             <>"              <div style=\"max-width: 800px; margin-left: auto; margin-right: auto\">\n"
+             <>"                  <h1 style=\"margin-bottom: 2rem; font-size: 2rem; font-weight: 300; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)\">\n" 
+             <>"                      λ IHP\n"
+             <>"                  </h1>\n"
+             <>"\n"         
+             <>"                  <h2 style=\"margin-top: 0; margin-bottom: 0rem; font-weight: 900; font-size: 3rem\">\n"
+             <>"                      It's working!\n"
+             <>"                  </h2>\n"
+             <>"\n"
+             <>"                  <p style=\"margin-top: 1rem; font-size: 1.75rem; font-weight: 600; color:hsla(196, 13%, 80%, 1)\">\n"
+             <>"                     Your new application is up and running.\n"
+             <>"                  </p>\n"
+             <>"\n"
+             <>"                  <a href=\"https://ihp.digitallyinduced.com/Guide/your-first-project.html\" style=\"margin-top: 2rem; background-color: #268bd2; padding: 1rem; border-radius: 3px; color: hsla(205, 69%, 98%, 1); text-decoration: none; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px hsla(205, 69%, 0%, 0.08);  transition: box-shadow 0.2s; transition: transform 0.2s;\" target=\"_blank\">\n"
+             <>"                     Learn the Next Steps in the Documentation\n" 
+             <>"                  </a>\n"
+             <>"              </div>\n"
+             <>"         </div>\n"
+             <>"\n"
+             <>"         <div style=\"max-width: 800px; margin-left: auto; margin-right: auto; margin-top: 4rem\">\n"
+             <>"              <img src=\"/ihp-welcome-icon.svg\" alt=\"/ihp-welcome-icon\">\n"
+             <>"              <p style=\"color: hsla(196, 13%, 50%, 1); margin-top: 4rem\">\n"
+             <>"                 You can modify this start page by making changes to \"./View/Static/Welcome.hs\".\n"
+             <>"              </p>\n"
+             <>"         </div> \n"
+             <>"|]" 
+                
         in
             [ EnsureDirectory { directory = applicationName }
             , EnsureDirectory { directory = applicationName <> "/Controller" }
             , EnsureDirectory { directory = applicationName <> "/View" }
+            , EnsureDirectory { directory = applicationName <> "/View/Static" }
             , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
             , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
             , AddMountToFrontController { filePath = "Main.hs", applicationName = applicationName }
@@ -198,4 +247,6 @@ generateGenericApplication applicationName =
             , CreateFile { filePath = applicationName <> "/View/Context.hs",fileContent = viewContextHs }
             , CreateFile { filePath = applicationName <> "/View/Layout.hs", fileContent = viewLayoutHs }
             , CreateFile { filePath = applicationName <> "/View/Prelude.hs", fileContent = viewPreludeHs }
+            , CreateFile { filePath = applicationName <> "/Controller/Static.hs", fileContent = welcomeControllerStaticHs }
+            , CreateFile { filePath = applicationName <> "/View/Static/Welcome.hs", fileContent = welcomeViewStaticHs }
             ]
