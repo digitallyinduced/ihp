@@ -42,7 +42,10 @@ class FrameworkConfig where
     --
     -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
     requestLoggerMiddleware :: Middleware
-    requestLoggerMiddleware = RequestLogger.logStdoutDev
+    requestLoggerMiddleware = 
+        if environment == Production
+            then RequestLogger.logStdout
+            else RequestLogger.logStdoutDev
 
     -- | Provides the default settings for the session cookie.
     --
