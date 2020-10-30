@@ -22,7 +22,7 @@ import qualified Data.Maybe as Maybe
 setSession :: (?requestContext :: RequestContext) => Text -> Text -> IO ()
 setSession name value = sessionInsert (cs name) (cs value)
     where
-        (RequestContext request _ _ _ session) = ?requestContext
+        (RequestContext request _ _ _ session _) = ?requestContext
         Just (_, sessionInsert) = Vault.lookup session (Network.Wai.vault request)
 
 
@@ -32,7 +32,7 @@ getSession name = do
         let textValue = fmap cs value
         pure $! if textValue == Just "" then Nothing else textValue
     where
-        (RequestContext request _ _ _ session) = ?requestContext
+        (RequestContext request _ _ _ session _) = ?requestContext
         Just (sessionLookup, _) = Vault.lookup session (Network.Wai.vault request)
 
 

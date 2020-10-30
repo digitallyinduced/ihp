@@ -77,7 +77,7 @@ class InitControllerContext application where
     initContext context = pure context
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext, FrameworkConfig) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let respond = ?requestContext |> get #respond
@@ -92,7 +92,7 @@ runAction controller = do
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller, FrameworkConfig) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let context = TypeMap.empty
@@ -148,9 +148,9 @@ getFiles = ?requestContext |> get #files
 
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
-createRequestContext ApplicationContext { session } request respond = do
+createRequestContext ApplicationContext { session, frameworkConfig } request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
-    pure RequestContext.RequestContext { request, respond, params, files, vault = session }
+    pure RequestContext.RequestContext { request, respond, params, files, vault = session, frameworkConfig }
 
 
 
