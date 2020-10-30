@@ -26,7 +26,7 @@ import IHP.ControllerSupport
 --
 -- Use 'redirectToPath' if you want to redirect to a non-action url.
 {-# INLINE redirectTo #-}
-redirectTo :: (?requestContext :: RequestContext, HasPath action) => action -> IO ()
+redirectTo :: (?context :: RequestContext, HasPath action) => action -> IO ()
 redirectTo action = redirectToPath (pathTo action)
 
 -- TODO: redirectTo user
@@ -39,8 +39,8 @@ redirectTo action = redirectToPath (pathTo action)
 --
 -- Use 'redirectTo' if you want to redirect to a controller action.
 {-# INLINE redirectToPath #-}
-redirectToPath :: (?requestContext :: RequestContext) => Text -> IO ()
-redirectToPath path = redirectToUrl (getConfig baseUrl <> path)
+redirectToPath :: (?context :: RequestContext) => Text -> IO ()
+redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
 
 -- | Redirects to a url (given as a string)
 -- 
@@ -50,9 +50,9 @@ redirectToPath path = redirectToUrl (getConfig baseUrl <> path)
 --
 -- Use 'redirectToPath' if you want to redirect to a relative path like "/hello-world.html"
 {-# INLINE redirectToUrl #-}
-redirectToUrl :: (?requestContext :: RequestContext) => Text -> IO ()
+redirectToUrl :: (?context :: RequestContext) => Text -> IO ()
 redirectToUrl url = do
-    let (RequestContext _ respond _ _ _ _) = ?requestContext
+    let (RequestContext _ respond _ _ _ _) = ?context
     let !parsedUrl = fromMaybe 
             (error ("redirectToPath: Unable to parse url: " <> show url))
             (parseURI (cs url))

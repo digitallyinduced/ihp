@@ -67,7 +67,7 @@ instance Controller SchemaController where
 readSchema ::
     ( ?controllerContext::ControllerContext
     , ?modelContext::ModelContext
-    , ?requestContext::RequestContext
+    , ?context::RequestContext
     , ?theAction::controller
     ) => IO [Statement]
 readSchema = parseSchemaSql >>= \case
@@ -82,7 +82,7 @@ getSqlError = parseSchemaSql >>= \case
 updateSchema ::
     ( ?controllerContext :: ControllerContext
     , ?modelContext::ModelContext
-    , ?requestContext::RequestContext
+    , ?context::RequestContext
     , ?theAction::controller
     ) => ([Statement] -> [Statement]) -> IO ()
 updateSchema updateFn = do

@@ -53,7 +53,7 @@ import IHP.HtmlSupport.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
 
-type HtmlWithContext context = (?viewContext :: context) => Html5.Html
+type HtmlWithContext context = (?context :: context) => Html5.Html
 
 -- | A layout is just a function taking a view and returning a new view.
 --
@@ -118,15 +118,15 @@ instance IsString (Text, Bool) where
 
 class CreateViewContext viewContext where
     type ViewApp viewContext
-    createViewContext :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext
+    createViewContext :: (?context :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext
 
 
 
 class View theView viewContext | theView -> viewContext where
-    beforeRender :: (?viewContext :: viewContext) => (viewContext, theView) -> (viewContext, theView)
+    beforeRender :: (?context :: viewContext) => (viewContext, theView) -> (viewContext, theView)
     {-# INLINE beforeRender #-}
     beforeRender view = view
-    html :: (?viewContext :: viewContext, ?view :: theView) => theView -> Html5.Html
+    html :: (?context :: viewContext, ?view :: theView) => theView -> Html5.Html
     json :: theView -> JSON.Value
     json = error "Not implemented"
 
@@ -176,7 +176,7 @@ currentViewId =
 -- False
 --
 -- This function returns @False@ when a sub-path is request. Uss 'isActivePathOrSub' if you want this example to return @True@.
-isActivePath :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
+isActivePath :: (?context :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
 isActivePath route =
     let 
         currentPath = Wai.rawPathInfo theRequest
@@ -196,7 +196,7 @@ isActivePath route =
 -- True
 --
 -- Also see 'isActivePath'.
-isActivePathOrSub :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
+isActivePathOrSub :: (?context :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
 isActivePathOrSub route =
     let
         currentPath = Wai.rawPathInfo theRequest
@@ -211,10 +211,10 @@ isActivePathOrSub route =
 -- True
 --
 -- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller viewContext. (?viewContext :: viewContext, HasField "controllerContext" viewContext ControllerSupport.ControllerContext, Typeable controller) => Bool
+isActiveController :: forall controller viewContext. (?context :: viewContext, HasField "controllerContext" viewContext ControllerSupport.ControllerContext, Typeable controller) => Bool
 isActiveController =
     let
-        ?controllerContext = ?viewContext |> getField @"controllerContext"
+        ?controllerContext = ?context |> getField @"controllerContext"
     in
         let
             (ActionType actionType) = fromControllerContext @ControllerSupport.ActionType
@@ -228,10 +228,10 @@ onClick = A.onclick
 onLoad = A.onload
 
 -- | Returns the current request
-theRequest :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext) => Wai.Request
+theRequest :: (?context :: viewContext, HasField "requestContext" viewContext RequestContext) => Wai.Request
 theRequest = 
     let
-        requestContext = getField @"requestContext" ?viewContext
+        requestContext = getField @"requestContext" ?context
         request = getField @"request" requestContext
     in request
 {-# INLINE theRequest #-}
@@ -245,9 +245,9 @@ instance PathString Text where
 instance {-# OVERLAPPABLE #-} HasPath action => PathString action where
     pathToString = pathTo
 
--- | Alias for @?viewContext@
-viewContext :: (?viewContext :: viewContext) => viewContext
-viewContext = ?viewContext
+-- | Alias for @?context@
+viewContext :: (?context :: viewContext) => viewContext
+viewContext = ?context
 {-# INLINE viewContext #-}
 
 -- | Adds an inline style element to the html.
@@ -308,10 +308,10 @@ instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowTyp
 --
 -- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
 -- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: forall viewContext. (?viewContext :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage]) => Html5.Html
+renderFlashMessages :: forall viewContext. (?context :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage]) => Html5.Html
 renderFlashMessages =
     let
-        flashMessages = (getField @"flashMessages" ?viewContext) :: [Session.FlashMessage]
+        flashMessages = (getField @"flashMessages" ?context) :: [Session.FlashMessage]
         renderFlashMessage (Session.SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
         renderFlashMessage (Session.ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
     in

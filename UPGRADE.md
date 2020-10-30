@@ -33,58 +33,45 @@ main :: IO ()
 main = IHP.Server.run config
 ```
 
-If you wish to access configuration properties in Controllers, Views or Scripts, then you can leverage the `getConfig` function.
 
-```haskell
--- in Controllers
-getConfig :: (?requestContext :: RequestContext) => (FrameworkConfig -> a) -> a
-
--- in Views
-getConfig :: (?viewContext :: ViewContext) => (FrameworkConfig -> a) -> a
-```
-
-Because the `ViewContext` is defined in the application itself, we quickly need to implement the getConfig for views ourselves:
-
-```haskell
--- Web/Types.hs
-
--- ...
-
-import IHP.FrameworkConfig
-
-
--- ...
-
-data ViewContext = ViewContext
-    { requestContext :: ControllerSupport.RequestContext
-    , flashMessages :: [IHP.Controller.Session.FlashMessage]
-    , controllerContext :: ControllerSupport.ControllerContext
-    , layout :: Layout
-    }
-
--- Add this:
-getConfig :: (?viewContext :: ViewContext) => (FrameworkConfig -> a) -> a
-getConfig = let ?requestContext = requestContext ?viewContext in RequestContext.getConfig
-
--- ...
-```
-
-Which brings us the last change, namely that the functions described above have to be used in `Web/View/Layout.hs`
+Which brings their usage, namely that the functions described above have to be used in `Web/View/Layout.hs`
 
 ```haskell
 -- Replace this syntax
 when (isDevelopment FrameworkConfig.environment) 
 
 -- With this
-when (isDevelopment $ getConfig environment) 
+when (isDevelopment $ fromConfig environment) 
 ```
 
 Also define the type headers for all the functions in `Layout.hs` in order to capture the ViewContext:
 
 ```haskell
-defaultLayout :: (?viewContext :: ViewContext) => Html -> Html
-stylesheets :: (?viewContext :: ViewContext) => Html
-scripts :: (?viewContext :: ViewContext) => Html 
-metaTags :: (?viewContext :: ViewContext) => Html
+defaultLayout :: (?context :: ViewContext) => Html -> Html
+stylesheets :: (?context :: ViewContext) => Html
+scripts :: (?context :: ViewContext) => Html 
+metaTags :: (?context :: ViewContext) => Html
 ```
 
+Finally, the naming of different kinds of contexts in implicit parameters have been normalized to be called just `?context`. In `Web/View/Context.sh` change the following:
+
+```haskell
+-- Web/View/Context.hs
+
+-- change this
+let viewContext = ViewContext {
+        requestContext = ?context,
+        -- user = currentUserOrNothing,
+        flashMessages,
+        controllerContext = ?controllerContext,
+        layout = let ?viewContext = viewContext in defaultLayout
+    }
+
+-- to this  (rename ?viewContext to ?context)
+let viewContext = ViewContext {
+        requestContext = ?context,
+        -- user = currentUserOrNothing,
+        flashMessages,
+        controllerContext = ?controllerContext,
+        layout = let ?context = viewContext in defaultLayout
+    }

@@ -25,7 +25,5 @@ data RequestContext = RequestContext
     , frameworkConfig :: FrameworkConfig
     }
 
-
--- | Proxies FrameworkConfig fields contained in the RequestContext
-getConfig :: (?requestContext :: RequestContext) => (FrameworkConfig -> a) -> a
-getConfig selector = (selector . frameworkConfig) ?requestContext
+instance ConfigProvider RequestContext where
+    getFrameworkConfig = frameworkConfig

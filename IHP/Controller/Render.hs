@@ -21,38 +21,38 @@ import Text.Blaze.Html (Html)
 import GHC.Records
 
 {-# INLINE renderPlain #-}
-renderPlain :: (?requestContext :: RequestContext) => ByteString -> IO ()
+renderPlain :: (?context :: RequestContext) => ByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] (cs text)
 
 {-# INLINE respondHtml #-}
-respondHtml :: (?requestContext :: RequestContext) => Html -> IO ()
+respondHtml :: (?context :: RequestContext) => Html -> IO ()
 respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE respondSvg #-}
-respondSvg :: (?requestContext :: RequestContext) => Html -> IO ()
+respondSvg :: (?context :: RequestContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE renderHtml #-}
-renderHtml :: forall viewContext view controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO Html
+renderHtml :: forall viewContext view controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?context :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO Html
 renderHtml !view = do
     context' <- ViewSupport.createViewContext @viewContext
-    let ?viewContext = context'
+    let ?context = context'
     let (context, view') = ViewSupport.beforeRender (context', view)
     let layout = getField @"layout" context
     let ?view = view'
-    let boundHtml = let ?viewContext = context in layout (ViewSupport.html view')
+    let boundHtml = let ?context = context in layout (ViewSupport.html view')
     pure boundHtml
 
-renderFile :: (?requestContext :: RequestContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
+renderFile :: (?context :: RequestContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 
-renderJson :: (?requestContext :: RequestContext) => Data.Aeson.ToJSON json => json -> IO ()
+renderJson :: (?context :: RequestContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderJson json = respondAndExit $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
 
-renderJson' :: (?requestContext :: RequestContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
+renderJson' :: (?context :: RequestContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 
-renderNotFound :: (?requestContext :: RequestContext) => IO ()
+renderNotFound :: (?context :: RequestContext) => IO ()
 renderNotFound = renderPlain "Not Found"
 
 data PolymorphicRender htmlType jsonType = PolymorphicRender { html :: htmlType, json :: jsonType }
@@ -76,7 +76,7 @@ instance MaybeRender (IO ()) where
 -- `
 -- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
 {-# INLINE renderPolymorphic #-}
-renderPolymorphic :: forall viewContext jsonType htmlType. (?requestContext :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ()
+renderPolymorphic :: forall viewContext jsonType htmlType. (?context :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
     let headers = Network.Wai.requestHeaders request
     let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
@@ -98,7 +98,7 @@ polymorphicRender = PolymorphicRender () ()
 
 
 {-# INLINE render #-}
-render :: forall view viewContext controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?requestContext :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO ()
+render :: forall view viewContext controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?context :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = (renderHtml @viewContext view) >>= respondHtml

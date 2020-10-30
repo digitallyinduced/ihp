@@ -79,7 +79,7 @@ import qualified Control.Exception as Exception
 -- 'ParamNotFoundException' to be thrown with:
 --
 -- > param: Parameter 'firstname' not found
-param :: (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
+param :: (?context :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
 param !name = case paramOrNothing name of
     Just value -> Either.fromRight (error (paramParserErrorMessage name)) (readParameter value)
     Nothing -> Exception.throw (ParamNotFoundException name)
@@ -104,7 +104,7 @@ param !name = case paramOrNothing name of
 -- When a value cannot be parsed, this function will fail similiar to 'param'.
 --
 -- Related: https://stackoverflow.com/questions/63875081/how-can-i-pass-list-params-in-ihp-forms/63879113
-paramList :: forall valueType. (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> [valueType]
+paramList :: forall valueType. (?context :: RequestContext) => (ParamReader valueType) => ByteString -> [valueType]
 paramList name =
     allParams
     |> filter (\(paramName, paramValue) -> paramName == name)
@@ -124,25 +124,25 @@ instance Exception ParamNotFoundException where
 -- | Specialisied version of param for 'Text'.
 --
 -- This way you don't need to know about the type application syntax.
-paramText :: (?requestContext :: RequestContext) => ByteString -> Text
+paramText :: (?context :: RequestContext) => ByteString -> Text
 paramText = param @Text
 
 -- | Specialisied version of param for 'Int'.
 --
 -- This way you don't need to know about the type application syntax.
-paramInt :: (?requestContext :: RequestContext) => ByteString -> Int
+paramInt :: (?context :: RequestContext) => ByteString -> Int
 paramInt = param @Int
 
 -- | Specialisied version of param for 'Bool'.
 --
 -- This way you don't need to know about the type application syntax.
-paramBool :: (?requestContext :: RequestContext) => ByteString -> Bool
+paramBool :: (?context :: RequestContext) => ByteString -> Bool
 paramBool = param @Bool
 
 -- | Specialisied version of param for 'UUID'.
 --
 -- This way you don't need to know about the type application syntax.
-paramUUID :: (?requestContext :: RequestContext) => ByteString -> UUID
+paramUUID :: (?context :: RequestContext) => ByteString -> UUID
 paramUUID = param @UUID
 
 -- | Returns @True@ when a parameter is given in the request via the query or request body.
@@ -159,7 +159,7 @@ paramUUID = param @UUID
 -- >         else renderPlain "Please provide your firstname"
 --
 -- This will render @Please provide your firstname@ because @hasParam "firstname"@ returns @False@
-hasParam :: (?requestContext :: RequestContext) => ByteString -> Bool
+hasParam :: (?context :: RequestContext) => ByteString -> Bool
 hasParam = isJust . queryOrBodyParam
 {-# INLINE hasParam #-}
 
@@ -176,7 +176,7 @@ hasParam = isJust . queryOrBodyParam
 -- >     let page :: Int = paramOrDefault 0 "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
-paramOrDefault :: (?requestContext :: RequestContext) => ParamReader a => a -> ByteString -> a
+paramOrDefault :: (?context :: RequestContext) => ParamReader a => a -> ByteString -> a
 paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 {-# INLINE paramOrDefault #-}
 
@@ -193,7 +193,7 @@ paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 -- >     let page :: Maybe Int = paramOrNothing "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
-paramOrNothing :: (?requestContext :: RequestContext) => ParamReader a => ByteString -> Maybe a
+paramOrNothing :: (?context :: RequestContext) => ParamReader a => ByteString -> Maybe a
 paramOrNothing !name = case queryOrBodyParam name of
     Just value -> case readParameter value of
         Left error -> Nothing
@@ -202,15 +202,15 @@ paramOrNothing !name = case queryOrBodyParam name of
 {-# INLINE paramOrNothing #-}
 
 -- | Returns a parameter without any parsing. Returns @Nothing@ when the parameter is missing.
-queryOrBodyParam :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
+queryOrBodyParam :: (?context :: RequestContext) => ByteString -> Maybe ByteString
 queryOrBodyParam !name = join (lookup name allParams)
 {-# INLINE queryOrBodyParam #-}
 
 -- | Returns all params available in the current request
-allParams :: (?requestContext :: RequestContext) => [(ByteString, Maybe ByteString)]
+allParams :: (?context :: RequestContext) => [(ByteString, Maybe ByteString)]
 allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
     where
-        RequestContext { request, params } = ?requestContext
+        RequestContext { request, params } = ?context
 
 -- | Input parser for 'param'.
 --
@@ -375,7 +375,7 @@ enumParamReader string =
 -- This code will read the firstname, lastname and email from the request and aissgn them to the user.
 class FillParams (params :: [Symbol]) record where
     fill :: (
-        ?requestContext :: RequestContext
+        ?context :: RequestContext
         , HasField "meta" record ModelSupport.MetaBag
         , SetField "meta" record ModelSupport.MetaBag
         ) => record -> record
@@ -407,7 +407,7 @@ ifValid branch model = branch ((if null annotations then Right else Left) model)
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model
 
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, HasField "id" record id, Default id, Eq id) => (record -> record) -> record -> record
+ifNew :: forall record id. (?context :: RequestContext, ?modelContext :: ModelSupport.ModelContext, HasField "id" record id, Default id, Eq id) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 

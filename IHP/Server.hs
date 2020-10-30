@@ -41,7 +41,7 @@ run configBuilder = do
     let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer, frameworkConfig }
     let application :: Application = \request respond -> do
             requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
-            let ?requestContext = requestContext
+            let ?context = requestContext
             frontControllerToWAIApp RootApplication ErrorController.handleNotFound
 
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie session
@@ -74,7 +74,7 @@ ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
 websocketServer :: (?applicationContext :: ApplicationContext) => Request -> RequestContext.Respond -> Websocket.ServerApp
 websocketServer request respond pendingConnection = do
     requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
-    let ?requestContext = requestContext
+    let ?context = requestContext
 
     connection <- Websocket.acceptRequest pendingConnection
 
