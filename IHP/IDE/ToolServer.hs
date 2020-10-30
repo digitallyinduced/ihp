@@ -60,18 +60,14 @@ startToolServer = do
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
-startToolServer' :: (?context :: Context) => Int -> Bool -> IO ()
 startToolServer' port isDebugMode = do
-
-    frameworkConfig <- Config.buildFrameworkConfig do
-        Config.option $ Config.AppHostname "localhost"
-        Config.option $ Config.AppPort port
+    writeIORef Config.portRef port
 
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (get #sessionCookie frameworkConfig) session
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" Config.sessionCookie session
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
-    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshServer, frameworkConfig }
+    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshServer }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
@@ -87,7 +83,7 @@ startToolServer' port isDebugMode = do
             |> Warp.setPort port
             |> Warp.setBeforeMainLoop openAppUrl
 
-    let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
+    let logMiddleware = if isDebugMode then Config.requestLoggerMiddleware else IHP.Prelude.id
     
     Warp.runSettings warpSettings $ 
             staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware $ application

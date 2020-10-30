@@ -1,4 +1,4 @@
-module IHP.Server (run) where
+module IHP.Server (run, appDatabaseUrl) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
@@ -17,7 +17,8 @@ import qualified IHP.LoginSupport.Middleware
 import qualified IHP.Environment as Env
 import System.Info
 
-import IHP.FrameworkConfig
+import qualified IHP.FrameworkConfig as FrameworkConfig
+import IHP.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
 import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
 import qualified IHP.ErrorController as ErrorController
 
@@ -29,38 +30,39 @@ import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.WebSocket as WS
 
-run :: (FrontController RootApplication) => ConfigBuilder -> IO ()
-run configBuilder = do
-    frameworkConfig@(FrameworkConfig { environment, appPort, dbPoolMaxConnections, dbPoolIdleTime, databaseUrl, sessionCookie, requestLoggerMiddleware }) <- buildFrameworkConfig configBuilder
+run :: (FrameworkConfig, FrontController FrameworkConfig.RootApplication) => IO ()
+run = do
+    databaseUrl <- appDatabaseUrl
     session <- Vault.newKey
+    port <- FrameworkConfig.initAppPort
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let isDevelopment = Env.isDevelopment environment
-    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl
+    let isDevelopment = Env.isDevelopment FrameworkConfig.environment
+    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext FrameworkConfig.dbPoolIdleTime FrameworkConfig.dbPoolMaxConnections databaseUrl
     let ?modelContext = modelContext
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
-    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer, frameworkConfig }
+    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer }
     let application :: Application = \request respond -> do
             requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
             let ?requestContext = requestContext
-            frontControllerToWAIApp RootApplication ErrorController.handleNotFound
+            frontControllerToWAIApp FrameworkConfig.RootApplication ErrorController.handleNotFound
 
-    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie session
+    let sessionMiddleware :: Middleware = withSession store "SESSION" FrameworkConfig.sessionCookie session
 
-    libDirectory <- cs <$> findLibDirectory
+    libDirectory <- cs <$> FrameworkConfig.findLibDirectory
     let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
 
     let runServer = if isDevelopment
             then
                 let settings = Warp.defaultSettings
                         |> Warp.setBeforeMainLoop (putStrLn "Server started")
-                        |> Warp.setPort appPort
+                        |> Warp.setPort port
                 in Warp.runSettings settings
-            else Warp.runEnv appPort
+            else Warp.runEnv port
     runServer $
         staticMiddleware $
                 sessionMiddleware $
                     ihpWebsocketMiddleware $
-                        requestLoggerMiddleware $
+                        FrameworkConfig.requestLoggerMiddleware $
                                 methodOverridePost $
                                     application
 

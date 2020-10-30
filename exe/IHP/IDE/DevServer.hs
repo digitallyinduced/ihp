@@ -20,7 +20,6 @@ import qualified System.Environment as Env
 import System.Info
 import Data.String.Conversions (cs)
 import qualified IHP.FrameworkConfig as Config
-import IHP.Environment
 
 main :: IO ()
 main = do

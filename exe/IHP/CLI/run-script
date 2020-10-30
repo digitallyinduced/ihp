@@ -28,10 +28,9 @@ fi
 
 echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
 echo ":set -i." >> "$GHCI_SCRIPT"
-echo ":l Config/Config.hs" >> "$GHCI_SCRIPT"
 echo ":l Config/Config.hs Application/Script/$TASK_MODULE.hs" >> "$GHCI_SCRIPT"
 echo "import qualified Application.Script.$TASK_MODULE as Script" >> "$GHCI_SCRIPT"
-echo "IHP.ScriptSupport.runScript config Script.run" >> "$GHCI_SCRIPT"
+echo "IHP.ScriptSupport.runScript Script.run" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
 ghci -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"

@@ -18,7 +18,6 @@ common shared-properties
             base
             , classy-prelude
             , mono-traversable
-            , transformers
             , directory
             , string-conversions
             , warp

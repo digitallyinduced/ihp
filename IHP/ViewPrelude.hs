@@ -18,7 +18,6 @@ module IHP.ViewPrelude (
     urlTo,
     module IHP.ViewSupport,
     module IHP.ModelSupport,
-    module IHP.FrameworkConfig,
     (!),
     module Data.Data,
     module Data.Aeson,
@@ -39,7 +38,6 @@ import IHP.ValidationSupport
 import IHP.Controller.RequestContext
 import IHP.RouterSupport
 import IHP.ModelSupport
-import IHP.FrameworkConfig
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))
 import IHP.AutoRefresh.View
