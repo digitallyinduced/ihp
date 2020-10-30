@@ -22,6 +22,7 @@ import IHP.FrameworkConfig (FrameworkConfig, appDatabaseUrl)
 import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
 import qualified IHP.ErrorController as ErrorController
 
+import qualified IHP.Controller.RequestContext as RequestContext
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
@@ -72,7 +73,7 @@ ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
             (websocketServer request respond)
             next) request respond
 
-websocketServer :: (?applicationContext :: ApplicationContext) => Request -> _ -> Websocket.ServerApp
+websocketServer :: (?applicationContext :: ApplicationContext) => Request -> RequestContext.Respond -> Websocket.ServerApp
 websocketServer request respond pendingConnection = do
     requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
     let ?requestContext = requestContext

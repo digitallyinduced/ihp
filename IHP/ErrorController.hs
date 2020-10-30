@@ -245,7 +245,7 @@ recordNotFoundExceptionHandler exception controller additionalInfo = do
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
-renderError :: _
+renderError :: H.Html -> H.Html -> H.Html
 renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
     <meta charset="utf-8"/>

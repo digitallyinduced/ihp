@@ -103,7 +103,7 @@ compilePostgresType PJSONB = "JSONB"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PCustomType theType) = theType
 
-compileIdentifier :: _ -> Text
+compileIdentifier :: Text -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
     where
         identifierNeedsQuoting = isKeyword || containsSpace

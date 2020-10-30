@@ -64,17 +64,27 @@ instance Controller SchemaController where
         let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements statement
         render GeneratedCodeView { .. }
 
-readSchema :: _ => _
+readSchema ::
+    ( ?controllerContext::ControllerContext
+    , ?modelContext::ModelContext
+    , ?requestContext::RequestContext
+    , ?theAction::controller
+    ) => IO [Statement]
 readSchema = parseSchemaSql >>= \case
         Left error -> do render ErrorView { error }; pure []
         Right statements -> pure statements
 
-getSqlError :: _ => IO (Maybe ByteString)
+getSqlError :: IO (Maybe ByteString)
 getSqlError = parseSchemaSql >>= \case
         Left error -> do pure (Just error)
         Right statements -> do pure Nothing
 
-updateSchema :: _ => _
+updateSchema ::
+    ( ?controllerContext :: ControllerContext
+    , ?modelContext::ModelContext
+    , ?requestContext::RequestContext
+    , ?theAction::controller
+    ) => ([Statement] -> [Statement]) -> IO ()
 updateSchema updateFn = do
     statements <- readSchema
     let statements' = updateFn statements

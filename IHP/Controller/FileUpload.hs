@@ -144,10 +144,26 @@ uploadImageFile ext _ user =
 
 -- | Saves an uploaded png file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
-uploadPng :: _ => Proxy fieldName -> record -> IO record
+uploadPng ::
+    ( ?controllerContext::context
+    , ?requestContext::RequestContext
+    , SetField fieldName record (Maybe Text)
+    , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , KnownSymbol fieldName
+    , KnownSymbol (GetTableName record)
+    ) => Proxy fieldName -> record -> IO record
 uploadPng field record = uploadImageFile "png" field record
 
 -- | Saves an uploaded svg file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
-uploadSVG :: _ => Proxy fieldName -> record -> IO record
+uploadSVG ::
+    ( ?controllerContext::context
+    , ?requestContext::RequestContext
+    , SetField fieldName record (Maybe Text)
+    , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , KnownSymbol fieldName
+    , KnownSymbol (GetTableName record)
+    ) => Proxy fieldName -> record -> IO record
 uploadSVG = uploadImageFile "svg"
