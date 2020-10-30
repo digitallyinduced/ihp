@@ -47,7 +47,7 @@ autoRefresh :: (
     , Controller action
     , ?controllerContext :: ControllerContext
     , ?modelContext :: ModelContext
-    , ?requestContext :: RequestContext
+    , ?context :: RequestContext
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
     let autoRefreshStateVar = fromControllerContext @(IORef AutoRefreshState)
@@ -58,8 +58,8 @@ autoRefresh runAction = do
             availableSessions <- getAvailableSessions autoRefreshServer
 
             id <- UUID.nextRandom
-            let requestContext = ?requestContext
-            let renderView = \requestContext -> let ?requestContext = requestContext in action ?theAction
+            let requestContext = ?context
+            let renderView = \requestContext -> let ?context = requestContext in action ?theAction
             
 
             let newState = AutoRefreshEnabled id
@@ -122,7 +122,7 @@ instance WSApp AutoRefreshWSApp where
             async $ forever do
                 MVar.takeMVar event
                 Concurrent.threadDelay (100000)
-                (renderView ?requestContext) `catch` handleResponseException
+                (renderView ?context) `catch` handleResponseException
                 pure ()
 
             pure ()
@@ -162,7 +162,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
-getAvailableSessions :: (?requestContext :: RequestContext) => IORef AutoRefreshServer -> IO [UUID]
+getAvailableSessions :: (?context :: RequestContext) => IORef AutoRefreshServer -> IO [UUID]
 getAvailableSessions autoRefreshServer = do
     allSessions <- (get #sessions) <$> readIORef autoRefreshServer
     text <- fromMaybe "" <$> getSession "autoRefreshSessions"

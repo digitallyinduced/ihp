@@ -24,10 +24,10 @@ instance ViewSupport.CreateViewContext ViewContext where
         appNames <- findApplications
 
         let viewContext = ViewContext {
-                requestContext = ?requestContext,
+                requestContext = ?context,
                 flashMessages,
                 controllerContext = ?controllerContext,
-                layout = let ?viewContext = viewContext in toolServerLayout,
+                layout = let ?context = viewContext in toolServerLayout,
                 appUrl = "http://localhost:" <> tshow appPort,
                 webControllers = webControllers,
                 appNames = appNames

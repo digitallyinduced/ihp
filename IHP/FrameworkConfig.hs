@@ -163,6 +163,16 @@ data FrameworkConfig = FrameworkConfig
     , dbPoolMaxConnections :: Int
 }
 
+class ConfigProvider a where
+    getFrameworkConfig :: a -> FrameworkConfig
+
+instance ConfigProvider FrameworkConfig where
+    getFrameworkConfig = id
+
+-- | Proxies FrameworkConfig fields contained in some context that can provider a FrameworkConfig
+getConfig :: (?context :: context, ConfigProvider context) => (FrameworkConfig -> a) -> a
+getConfig selector = (selector . getFrameworkConfig) ?context
+
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: Text -> Cookie.SetCookie
 defaultIHPSessionCookie baseUrl = def

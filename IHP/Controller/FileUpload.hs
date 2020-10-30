@@ -25,8 +25,8 @@ import qualified System.Process as Process
 -- | Returns a file upload from the request as a ByteString.
 --
 -- Returns `Nothing` when the file is not found in the request body.
-fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
-fileOrNothing !name = ?requestContext |> getField @"files" |> lookup name
+fileOrNothing :: (?context :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
+fileOrNothing !name = ?context |> getField @"files" |> lookup name
 {-# INLINE fileOrNothing #-}
 
 -- | Options to be used together with 'uploadImageWithOptions'
@@ -67,7 +67,7 @@ data ImageUploadOptions = ImageUploadOptions {
 --
 -- The uploaded image path is now stored in #pictureUrl.
 uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?requestContext :: RequestContext
+        ?context :: RequestContext
         , ?controllerContext :: context
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -118,7 +118,7 @@ uploadImageWithOptions options _ user =
 -- >             redirectTo EditUserAction { .. }
 --
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?requestContext :: RequestContext
+        ?context :: RequestContext
         , ?controllerContext :: context
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName

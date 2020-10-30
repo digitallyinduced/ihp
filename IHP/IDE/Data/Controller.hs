@@ -140,7 +140,7 @@ instance Controller DataController where
         redirectTo ShowTableRowsAction { .. }
 
 
-connectToAppDb :: (?requestContext :: RequestContext) => _
+connectToAppDb :: (?context :: RequestContext) => _
 connectToAppDb = PG.connectPostgreSQL $ getConfig databaseUrl
 
 fetchTableNames :: PG.Connection -> IO [Text]

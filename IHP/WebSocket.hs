@@ -28,16 +28,16 @@ import qualified Control.Exception as Exception
 class WSApp state where
     initialState :: state
 
-    run :: (?state :: IORef state, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?connection :: Websocket.Connection) => IO ()
+    run :: (?state :: IORef state, ?context :: RequestContext, ?applicationContext :: ApplicationContext, ?connection :: Websocket.Connection) => IO ()
     run = pure ()
 
-    onPing :: (?state :: IORef state, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?connection :: Websocket.Connection) => IO ()
+    onPing :: (?state :: IORef state, ?context :: RequestContext, ?applicationContext :: ApplicationContext, ?connection :: Websocket.Connection) => IO ()
     onPing = pure ()
 
-    onClose :: (?state :: IORef state, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?connection :: Websocket.Connection) => IO ()
+    onClose :: (?state :: IORef state, ?context :: RequestContext, ?applicationContext :: ApplicationContext, ?connection :: Websocket.Connection) => IO ()
     onClose = pure ()
 
-startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Websocket.Connection -> IO ()
+startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?context :: RequestContext) => Websocket.Connection -> IO ()
 startWSApp connection = do
     state <- newIORef (initialState @state)
     let ?state = state

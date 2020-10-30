@@ -62,7 +62,7 @@ import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
 
 class FrontController application where
-    controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?requestContext :: RequestContext) => [Parser (IO ResponseReceived)]
+    controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
 
 class HasPath controller where
     -- | Returns the path to a given action
@@ -85,12 +85,12 @@ class HasPath controller where
 --
 -- >>> urlTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
 -- "http://localhost:8000/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
-urlTo :: (?requestContext :: RequestContext, HasPath action) => action -> Text
+urlTo :: (?context :: context, ConfigProvider context, HasPath action) => action -> Text
 urlTo action = (getConfig baseUrl) <> pathTo action
 {-# INLINE urlTo #-}
 
 class HasPath controller => CanRoute controller where
-    parseRoute' :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
+    parseRoute' :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => Parser controller
 
 
 -- | Maps models to their restful controllers
@@ -99,7 +99,7 @@ type family ModelControllerMap controllerContext model
 
 class Data controller => AutoRoute controller where
     {-# INLINE autoRoute #-}
-    autoRoute :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser controller
+    autoRoute :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => Parser controller
     autoRoute  =
         let
             allConstructors :: [Constr]
@@ -118,7 +118,7 @@ class Data controller => AutoRoute controller where
                     fields = constrFields constructor
 
                     query :: Query
-                    query = queryString (getField @"request" ?requestContext)
+                    query = queryString (getField @"request" ?context)
 
                     actionInstance :: Constr -> controller
                     actionInstance constructor = State.evalState ((fromConstrM (do
@@ -338,9 +338,9 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
 
 
 -- | Parses the HTTP Method from the request and returns it.
-getMethod :: (?requestContext :: RequestContext) => Parser StdMethod
+getMethod :: (?context :: RequestContext) => Parser StdMethod
 getMethod = 
-        ?requestContext
+        ?context
         |> IHP.Controller.RequestContext.request
         |> requestMethod
         |> parseMethod
@@ -365,7 +365,7 @@ get :: (Controller action
     , InitControllerContext application
     , ?application :: application
     , ?applicationContext :: ApplicationContext
-    , ?requestContext :: RequestContext
+    , ?context :: RequestContext
     , Typeable application
     , Typeable action
     ) => ByteString -> action -> Parser (IO ResponseReceived)
@@ -394,7 +394,7 @@ post :: (Controller action
     , InitControllerContext application
     , ?application :: application
     , ?applicationContext :: ApplicationContext
-    , ?requestContext :: RequestContext
+    , ?context :: RequestContext
     , Typeable application
     , Typeable action
     ) => ByteString -> action -> Parser (IO ResponseReceived)
@@ -408,16 +408,16 @@ post path action = do
 {-# INLINE post #-}
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage :: (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?requestContext::RequestContext, Typeable application, Typeable action) => action -> Parser (IO ResponseReceived)
+startPage :: (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser (IO ResponseReceived)
 startPage action = get "/" action
 {-# INLINE startPage #-}
 
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
 {-# INLINE withPrefix #-}
 
-runApp :: (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived -> IO ResponseReceived
+runApp :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived -> IO ResponseReceived
 runApp routes notFoundAction = do
-    let path = ?requestContext
+    let path = ?context
                 |> getField @"request"
                 |> rawPathInfo
         handleException exception = pure $ Right (ErrorController.handleRouterException exception)
@@ -428,19 +428,19 @@ runApp routes notFoundAction = do
         Right action -> action
 {-# INLINE runApp #-}
 
-frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
 {-# INLINE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
+mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
 {-# INLINE mountFrontController #-}
 
-parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
+parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
 parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
 {-# INLINE parseRoute #-}
 
-catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
+catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
 catchAll action = do
     string (actionPrefix @action)
     _ <- takeByteString

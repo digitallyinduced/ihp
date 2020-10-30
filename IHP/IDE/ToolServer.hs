@@ -76,7 +76,7 @@ startToolServer' port isDebugMode = do
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
-            let ?requestContext = requestContext
+            let ?context = requestContext
             frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
             
     libDirectory <- cs <$> Config.findLibDirectory
