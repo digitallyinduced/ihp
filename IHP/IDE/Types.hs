@@ -7,12 +7,7 @@ import qualified GHC.IO.Handle as Handle
 import qualified System.FSNotify as FS
 import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
-import Network.Wai (Middleware)
-import qualified Web.Cookie as Cookie
-import IHP.Mail.Types (MailServer)
-import IHP.Environment
 import IHP.IDE.PortConfig
-import IHP.FrameworkConfig as FrameworkConfig
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 
@@ -152,9 +147,8 @@ data Context = Context
     , portConfig :: PortConfig
     , appStateRef :: IORef AppState
     , isDebugMode :: Bool
-    }
+    } deriving (Eq)
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
-
 

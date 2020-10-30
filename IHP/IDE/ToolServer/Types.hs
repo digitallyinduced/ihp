@@ -19,7 +19,7 @@ data ViewContext = ViewContext
     }
 
 
-data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context }
+data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context } deriving (Eq)
 
 data SchemaController
     = PushToDbAction
@@ -121,3 +121,7 @@ data ColumnDefinition = ColumnDefinition
     , columnDefault :: Maybe Text
     , isNullable :: Bool
     } deriving (Show)
+
+instance FrameworkConfig where
+    environment = Development
+    appHostname = "localhost"

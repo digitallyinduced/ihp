@@ -12,10 +12,8 @@ module IHP.Mail
 where
 
 import IHP.Prelude
-import IHP.Controller.RequestContext
 import IHP.ControllerSupport
 import IHP.Mail.Types
-import IHP.FrameworkConfig
 
 import           Network.Mail.Mime
 import qualified Network.Mail.Mime.SES                as Mailer
@@ -23,6 +21,7 @@ import qualified Network.HTTP.Client
 import qualified Network.HTTP.Client.TLS
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import qualified IHP.FrameworkConfig as Config
 
 buildMail :: BuildMail mail => mail -> IO Mail
 buildMail mail = let ?mail = mail in simpleMail (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) []
@@ -30,11 +29,8 @@ buildMail mail = let ?mail = mail in simpleMail (to mail) from subject (cs $ tex
 -- | Sends an email
 --
 -- Uses the mail server provided in the controller context, configured in Config/Config.hs
-sendMail :: (BuildMail mail, ?requestContext :: RequestContext ) => mail -> IO ()
-sendMail = let ?frameworkConfig = frameworkConfig ?requestContext in sendMailFromScript
-
-sendMailFromScript :: (BuildMail mail, ?frameworkConfig :: FrameworkConfig) => mail -> IO ()
-sendMailFromScript mail = buildMail mail >>= sendWithMailServer (mailServer ?frameworkConfig)
+sendMail :: (Config.FrameworkConfig, BuildMail mail) => mail -> IO ()
+sendMail mail = buildMail mail >>= sendWithMailServer Config.mailServer
 
 sendWithMailServer :: MailServer -> Mail -> IO ()
 sendWithMailServer SES { .. } mail = do

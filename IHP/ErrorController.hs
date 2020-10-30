@@ -32,7 +32,8 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.HtmlSupport.QQ (hsx)
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
 import qualified IHP.ModelSupport as ModelSupport
-import IHP.FrameworkConfig
+import IHP.FrameworkConfig (FrameworkConfig)
+import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified IHP.Environment as Environment
 
 handleNoResponseReturned :: (Show controller, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
@@ -47,14 +48,14 @@ handleNoResponseReturned controller = do
             
         |]
     let title = [hsx|No response returned in {tshow controller}|]
-    let RequestContext { respond } = ?requestContext
+    let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 handleNotFound :: (?requestContext :: RequestContext) => IO ResponseReceived
 handleNotFound = do
     let errorMessage = [hsx|Router failed to find an action to handle this request.|]
     let title = H.text "Action Not Found"
-    let RequestContext { respond } = ?requestContext
+    let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 handleRouterException :: (?requestContext :: RequestContext) => SomeException -> IO ResponseReceived
@@ -67,11 +68,11 @@ handleRouterException exception = do
             <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
         |]
     let title = H.text "Routing failed"
-    let RequestContext { respond } = ?requestContext
+    let (RequestContext _ respond _ _ _) = ?requestContext
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 
-displayException :: (Show action, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?requestContext :: RequestContext, FrameworkConfig) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     let allHandlers =
             [ postgresHandler
@@ -87,7 +88,7 @@ displayException exception action additionalInfo = do
 
     let displayGenericError = genericHandler exception action additionalInfo
 
-    if getConfig environment == Environment.Development
+    if FrameworkConfig.environment == Environment.Development
         then supportingHandlers
             |> head
             |> fromMaybe displayGenericError
@@ -96,13 +97,13 @@ displayException exception action additionalInfo = do
 genericHandler :: (Show controller, ?requestContext :: RequestContext) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
 genericHandler exception controller additionalInfo = do
     let errorMessage = [hsx|An exception was raised while running the action {tshow controller}{additionalInfo}|]
-    let RequestContext { respond } = ?requestContext
+    let (RequestContext _ respond _ _ _) = ?requestContext
     let title = H.string (Exception.displayException exception)
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 postgresHandler :: (Show controller, ?requestContext :: RequestContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
-    let RequestContext { respond } = ?requestContext
+    let (RequestContext _ respond _ _ _) = ?requestContext
 
     let
         handlePostgresError :: Show exception => exception -> Text -> IO ResponseReceived
@@ -153,7 +154,7 @@ patternMatchFailureHandler exception controller additionalInfo = do
                         codeSample = "    action (" <> tshow controller <> ") = do\n        renderPlain \"Hello World\""
 
             let title = [hsx|Pattern match failed while executing {tshow controller}|]
-            let RequestContext { respond } = ?requestContext
+            let (RequestContext _ respond _ _ _) = ?requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
@@ -197,7 +198,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
-            let RequestContext { respond } = ?requestContext
+            let (RequestContext _ respond _ _ _) = ?requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
@@ -240,7 +241,7 @@ recordNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Call to fetchOne failed. No records returned.|]
-            let RequestContext { respond } = ?requestContext
+            let (RequestContext _ respond _ _ _) = ?requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 

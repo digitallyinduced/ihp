@@ -6,7 +6,6 @@ import IHP.FrameworkConfig
 import qualified IHP.Server
 import IHP.RouterSupport
 import IHP.ControllerPrelude
-import IHP.Mail
 --import IHP.GenericController
 
 data DemoController = DemoAction deriving (Eq, Show, Data)
@@ -22,10 +21,9 @@ instance FrontController RootApplication where
 instance Controller DemoController where
     action DemoAction = renderPlain "Hello World!"
 
-config :: ConfigBuilder
-config = do
-    option Development
-    option $ AppHostname "localhost"
+instance FrameworkConfig where 
+	environment = Development
+	baseUrl = "http://localhost:8000"
 
 main :: IO ()
-main = IHP.Server.run config
+main = IHP.Server.run
