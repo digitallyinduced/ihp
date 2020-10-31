@@ -5,7 +5,6 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Mail.Types
 ( MailServer (..)
-, BuildMail (..)
 )
 where
 
@@ -24,24 +23,3 @@ data MailServer =
         , region :: Text }
     -- | Uses the local Sendmail binary for sending emails
     | Sendmail
-
-
-class BuildMail mail where
-    -- | You can use @?mail@ to make this dynamic based on the given entity
-    subject :: (?mail :: mail) => Text
-    
-    -- | The email receiver
-    --
-    -- __Example:__
-    -- > to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
-    to :: mail -> Address
-
-    -- | Your sender address
-    from :: (?mail :: mail) => Address
-
-    -- | Similiar to a normal html view, HSX can be used here
-    html :: mail -> Html
-
-    -- | When no plain text version of the email is specified it falls back to using the html version but striping out all the html tags
-    text :: mail -> Text
-    text mail = stripTags (cs $ Blaze.renderHtml (html mail))
