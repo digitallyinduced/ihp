@@ -52,6 +52,7 @@ import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
+import qualified IHP.FrameworkConfig as FrameworkConfig
 
 type HtmlWithContext context = (?context :: context) => Html5.Html
 
@@ -326,3 +327,8 @@ nl2br content = content
     |> Sequences.lines
     |> map (\line -> [hsx|{line}<br/>|])
     |> mconcat
+
+instance {-# OVERLAPPABLE #-} HasField "requestContext" viewContext RequestContext => FrameworkConfig.ConfigProvider viewContext where
+    getFrameworkConfig viewContext = viewContext
+            |> get #requestContext
+            |> get #frameworkConfig
