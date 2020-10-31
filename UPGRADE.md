@@ -30,6 +30,11 @@ The config now also has to be explicitly passed to the `Server.run` function.
 -- Main.hs
 
 main :: IO ()
+
+-- OLD:
+main = IHP.Server.run
+
+-- NEW:
 main = IHP.Server.run config
 ```
 
@@ -41,16 +46,39 @@ Which brings their usage, namely that the functions described above have to be u
 when (isDevelopment FrameworkConfig.environment) 
 
 -- With this
-when (isDevelopment $ fromConfig environment) 
+when isDevelopment 
 ```
 
 Also define the type headers for all the functions in `Layout.hs` in order to capture the ViewContext:
 
 ```haskell
-defaultLayout :: (?context :: ViewContext) => Html -> Html
-stylesheets :: (?context :: ViewContext) => Html
-scripts :: (?context :: ViewContext) => Html 
-metaTags :: (?context :: ViewContext) => Html
+-- OLD:
+defaultLayout view = [hsx|...|]
+
+-- NEW:
+defaultLayout :: Html -> Html
+defaultLayout view = [hsx|...|]
+
+-- OLD:
+stylesheets = [hsx|...|]
+
+-- NEW:
+stylesheets :: Html
+stylesheets = [hsx|...|]
+
+-- OLD:
+scripts = [hsx|...|]
+
+-- NEW:
+scripts :: Html
+scripts = [hsx|...|]
+
+-- OLD:
+metaTags = [hsx|...|]
+
+-- NEW:
+metaTags :: Html
+metaTags = [hsx|...|]
 ```
 
 Finally, the naming of different kinds of contexts in implicit parameters have been normalized to be called just `?context`. In `Web/View/Context.sh` change the following:
@@ -75,3 +103,4 @@ let viewContext = ViewContext {
         controllerContext = ?controllerContext,
         layout = let ?context = viewContext in defaultLayout
     }
+```
