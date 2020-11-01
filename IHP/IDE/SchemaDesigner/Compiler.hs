@@ -74,7 +74,8 @@ compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
 
-compareStatement (StatementCreateTable CreateTable {}) _ = LT
+compareStatement (CreateEnumType {}) _ = LT
+compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
@@ -89,7 +90,7 @@ compilePostgresType PTimestampWithTimezone = "TIMESTAMP WITH TIME ZONE"
 compilePostgresType PReal = "REAL"
 compilePostgresType PDouble = "DOUBLE PRECISION"
 compilePostgresType PDate = "DATE"
-compilePostgresType PBinary = "BINARY"
+compilePostgresType PBinary = "BYTEA"
 compilePostgresType PTime = "TIME"
 compilePostgresType (PNumeric (Just precision) (Just scale)) = "NUMERIC(" <> show precision <> "," <> show scale <> ")"
 compilePostgresType (PNumeric (Just precision) Nothing) = "NUMERIC(" <> show precision <> ")"
@@ -102,7 +103,7 @@ compilePostgresType PJSONB = "JSONB"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PCustomType theType) = theType
 
-compileIdentifier :: _ -> Text
+compileIdentifier :: Text -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
     where
         identifierNeedsQuoting = isKeyword || containsSpace

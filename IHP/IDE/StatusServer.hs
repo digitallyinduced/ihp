@@ -19,24 +19,29 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes
 import ClassyPrelude (async, uninterruptibleCancel, catch, forever)
 import qualified Network.URI as URI
+import qualified Control.Exception as Exception
+
+-- async (notifyOutput (standardOutput, errorOutput) clients)
 
 startStatusServer :: (?context :: Context) => IO ()
 startStatusServer = do
-        standardOutput <- newIORef ""
-        errorOutput <- newIORef ""
+        standardOutput <- newIORef []
+        errorOutput <- newIORef []
         clients <- newIORef []
         serverRef <- async (pure ()) >>= newIORef
 
         continueStatusServer StatusServerPaused { .. }
 
-        dispatch (UpdateStatusServerState (StatusServerStarted { serverRef, clients, standardOutput, errorOutput }))
+        let serverStarted = StatusServerStarted { serverRef, clients, standardOutput, errorOutput }
+
+        dispatch (UpdateStatusServerState serverStarted)
 
 continueStatusServer :: (?context :: Context) => StatusServerState -> IO ()
-continueStatusServer StatusServerPaused { .. } = do
+continueStatusServer statusServerState@(StatusServerPaused { .. }) = do
 
         let warpApp = Websocket.websocketsOr
                 Websocket.defaultConnectionOptions
-                (app clients)
+                (app clients statusServerState)
                 (statusServerApp (standardOutput, errorOutput))
 
         let port = ?context
@@ -48,7 +53,7 @@ continueStatusServer StatusServerPaused { .. } = do
 
         writeIORef serverRef server
     where
-        statusServerApp :: (IORef ByteString, IORef ByteString) -> Wai.Application
+        statusServerApp :: (IORef [ByteString], IORef [ByteString]) -> Wai.Application
         statusServerApp (standardOutput, errorOutput) req respond = do
             isCompiling <- getCompilingStatus
             currentStandardOutput <- readIORef standardOutput
@@ -65,13 +70,13 @@ stopStatusServer _ = putStrLn "StatusServer: Cannot stop as not running"
 
 clearStatusServer :: (?context :: Context) => StatusServerState -> IO ()
 clearStatusServer StatusServerStarted { .. } = do
-    writeIORef standardOutput ""
-    writeIORef errorOutput ""
+    writeIORef standardOutput []
+    writeIORef errorOutput []
     async (notifyOutput (standardOutput, errorOutput) clients)
     pure ()
 clearStatusServer StatusServerPaused { .. } = do
-    writeIORef standardOutput ""
-    writeIORef errorOutput ""
+    writeIORef standardOutput []
+    writeIORef errorOutput []
 clearStatusServer StatusServerNotStarted = pure ()
 
 notifyBrowserOnApplicationOutput :: (?context :: Context) => StatusServerState -> OutputLine -> IO ()
@@ -79,24 +84,33 @@ notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, stand
     let shouldIgnoreLine = (line == ErrorOutput "Warning: -debug, -threaded and -ticky are ignored by GHCi")
     unless shouldIgnoreLine do
         case line of
-            StandardOutput line -> modifyIORef standardOutput (\o -> o <> "\n" <> line)
-            ErrorOutput line -> modifyIORef errorOutput (\o -> o <> "\n" <> line)
+            StandardOutput line -> modifyIORef standardOutput (line:)
+            ErrorOutput line -> modifyIORef errorOutput (line:)
         let payload = case line of
                 StandardOutput line -> "stdout" <> line
                 ErrorOutput line -> "stderr" <> line
+
         async (notifyOutput (standardOutput, errorOutput) clients)
         pure ()
 notifyBrowserOnApplicationOutput StatusServerPaused { serverRef, clients, standardOutput, errorOutput } line = do
     case line of
-        StandardOutput line -> modifyIORef standardOutput (\o -> o <> "\n" <> line)
-        ErrorOutput line -> modifyIORef errorOutput (\o -> o <> "\n" <> line)
+        StandardOutput line -> modifyIORef standardOutput (line:)
+        ErrorOutput line -> modifyIORef errorOutput (line:)
     pure ()
 notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
+
+notifyOutput :: (?context :: Context) => (IORef [ByteString], IORef [ByteString]) -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
+notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
+    clients <- readIORef stateRef
+
+    forM_ clients \(connection, didChangeMVar) -> do
+        _ <- Concurrent.tryPutMVar didChangeMVar ()
+        pure ()
 
 
 data CompilerError = CompilerError { errorMessage :: [ByteString], isWarning :: Bool } deriving (Show)
 
-renderErrorView :: (?context :: Context) => ByteString -> ByteString -> Bool -> Html5.Html
+renderErrorView :: (?context :: Context) => [ByteString] -> [ByteString] -> Bool -> Html5.Html
 renderErrorView standardOutput errorOutput isCompiling = [hsx|
         <html lang="en">
             <head>
@@ -188,14 +202,15 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     <div class="ihp-error-other-solutions">
                         <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
                         <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
-                        <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs errorOutput))} target="_blank">Open a GitHub Issue</a>
+                        <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs $ ByteString.unlines errorOutput))} target="_blank">Open a GitHub Issue</a>
                     </div>
 
-                    <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{standardOutput}</pre>
+                    <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{ByteString.unlines (reverse standardOutput)}</pre>
                 </div>
             |]
+            parseErrorOutput :: [ByteString] -> [CompilerError]
             parseErrorOutput output =
-                    splitToSections (ByteString.lines output) []
+                    splitToSections (reverse output) []
                     |> map identifySection
                 where
                     splitToSections :: [ByteString] -> [[ByteString]] -> [[ByteString]]
@@ -246,29 +261,37 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                 |> get #portConfig
                 |> get #toolServerPort
 
-notifyOutput :: (?context :: Context) => (IORef ByteString, IORef ByteString) -> IORef [Websocket.Connection] -> IO ()
-notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
-    clients <- readIORef stateRef
-    let ignoreException (e :: SomeException) = pure ()
-
-    isCompiling <- getCompilingStatus
-    standardOutput <- readIORef standardOutputRef
-    errorOutput <- readIORef errorOutputRef
-
-    forM_ clients $ \connection -> do
-        let errorContainer = renderErrorView standardOutput errorOutput isCompiling
-        let html = Blaze.renderHtml errorContainer
-        (Websocket.sendTextData connection html) `ClassyPrelude.catch` ignoreException
-
-app :: IORef [Websocket.Connection] -> Websocket.ServerApp
-app stateRef pendingConnection = do
+app :: (?context :: Context) => IORef [(Websocket.Connection, Concurrent.MVar ())] -> StatusServerState -> Websocket.ServerApp
+app stateRef statusServerState pendingConnection = do
     connection <- Websocket.acceptRequest pendingConnection
-    modifyIORef stateRef $ \state -> (connection : state)
-    Websocket.forkPingThread connection 1
-    forever do
-        Websocket.sendTextData connection ("pong" :: Text)
-        Concurrent.threadDelay (1000000)
-        pure ()
+    didChangeMVar <- Concurrent.newEmptyMVar
+
+    modifyIORef stateRef $ \state -> ((connection, didChangeMVar) : state)
+
+    let notifyClient = do
+            -- Blocks until a change happens
+            Concurrent.takeMVar didChangeMVar
+
+            -- Debounce
+            Concurrent.threadDelay 100000 -- 100ms
+
+            isCompiling <- getCompilingStatus
+            standardOutput' <- readIORef (get #standardOutput statusServerState)
+            errorOutput' <- readIORef (get #errorOutput statusServerState)
+
+            let errorContainer = renderErrorView standardOutput' errorOutput' isCompiling
+            let html = Blaze.renderHtml errorContainer
+            
+
+            result <- Exception.try (Websocket.sendTextData connection html)
+            case result of
+                Left (Exception.SomeException e) -> pure () -- Client was proapbly disconnected
+                Right _ -> notifyClient
+
+    notifyClient
+
+    pure ()
+
 
 
 modelContextTroubleshooting :: [ByteString] -> Maybe Html5.Html

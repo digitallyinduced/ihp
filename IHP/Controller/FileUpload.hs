@@ -25,8 +25,8 @@ import qualified System.Process as Process
 -- | Returns a file upload from the request as a ByteString.
 --
 -- Returns `Nothing` when the file is not found in the request body.
-fileOrNothing :: (?requestContext :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
-fileOrNothing !name = ?requestContext |> getField @"files" |> lookup name
+fileOrNothing :: (?context :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
+fileOrNothing !name = ?context |> getField @"files" |> lookup name
 {-# INLINE fileOrNothing #-}
 
 -- | Options to be used together with 'uploadImageWithOptions'
@@ -67,7 +67,7 @@ data ImageUploadOptions = ImageUploadOptions {
 --
 -- The uploaded image path is now stored in #pictureUrl.
 uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?requestContext :: RequestContext
+        ?context :: RequestContext
         , ?controllerContext :: context
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -118,7 +118,7 @@ uploadImageWithOptions options _ user =
 -- >             redirectTo EditUserAction { .. }
 --
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?requestContext :: RequestContext
+        ?context :: RequestContext
         , ?controllerContext :: context
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -144,10 +144,26 @@ uploadImageFile ext _ user =
 
 -- | Saves an uploaded png file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
-uploadPng :: _ => Proxy fieldName -> record -> IO record
+uploadPng ::
+    ( ?controllerContext::context
+    , ?context::RequestContext
+    , SetField fieldName record (Maybe Text)
+    , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , KnownSymbol fieldName
+    , KnownSymbol (GetTableName record)
+    ) => Proxy fieldName -> record -> IO record
 uploadPng field record = uploadImageFile "png" field record
 
 -- | Saves an uploaded svg file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
-uploadSVG :: _ => Proxy fieldName -> record -> IO record
+uploadSVG ::
+    ( ?controllerContext::context
+    , ?context::RequestContext
+    , SetField fieldName record (Maybe Text)
+    , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , KnownSymbol fieldName
+    , KnownSymbol (GetTableName record)
+    ) => Proxy fieldName -> record -> IO record
 uploadSVG = uploadImageFile "svg"

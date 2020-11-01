@@ -20,6 +20,7 @@ import qualified System.Environment as Env
 import System.Info
 import Data.String.Conversions (cs)
 import qualified IHP.FrameworkConfig as Config
+import IHP.Environment
 
 main :: IO ()
 main = do
@@ -233,6 +234,7 @@ startAppGHCI = do
 
     let loadAppCommands = 
             [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
+            , ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
             , "import qualified ClassyPrelude"
             , ":l Main.hs"
             ]

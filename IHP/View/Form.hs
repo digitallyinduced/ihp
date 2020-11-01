@@ -49,7 +49,7 @@ instance (
     {-# INLINE modelFormAction #-}
 
 formFor :: forall record viewContext parent id application. (
-    ?viewContext :: viewContext
+    ?context :: viewContext
     , Eq record
     , Typeable record
     , ModelFormAction application record
@@ -60,13 +60,13 @@ formFor :: forall record viewContext parent id application. (
     , Default id
     , Eq id
     , HasField "cssFramework" viewContext CSSFramework
-    ) => record -> ((?viewContext :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+    ) => record -> ((?context :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor record = buildForm (createFormContext record) { formAction = modelFormAction @application record }
 {-# INLINE formFor #-}
 
 
 formFor' :: forall record viewContext parent id application. (
-    ?viewContext :: viewContext
+    ?context :: viewContext
     , Eq record
     , Typeable record
     , HasField "id" record id
@@ -75,12 +75,12 @@ formFor' :: forall record viewContext parent id application. (
     , Default id
     , Eq id
     , HasField "cssFramework" viewContext CSSFramework
-    ) => record -> Text -> ((?viewContext :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+    ) => record -> Text -> ((?context :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
 
 horizontalFormFor :: forall record viewContext parent id application. (
-        ?viewContext :: viewContext
+        ?context :: viewContext
         , Eq record
         , Typeable record
         , ModelFormAction application record
@@ -102,7 +102,7 @@ horizontalFormFor record = undefined
 
 
 createFormContext :: forall record viewContext parent id application. (
-        ?viewContext :: viewContext
+        ?context :: viewContext
         , Eq record
         , Typeable record
         , HasField "id" record id
@@ -119,7 +119,7 @@ createFormContext record =
 {-# INLINE createFormContext #-}
 
 {-# INLINE buildForm #-}
-buildForm :: forall model viewContext parent id. (?viewContext :: viewContext, HasField "id" model id, Default id, Eq id) => FormContext model -> ((?viewContext :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+buildForm :: forall model viewContext parent id. (?context :: viewContext, HasField "id" model id, Default id, Eq id) => FormContext model -> ((?context :: viewContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 buildForm formContext inner =
     let
         theModel = model formContext

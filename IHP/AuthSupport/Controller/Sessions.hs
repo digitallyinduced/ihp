@@ -30,7 +30,7 @@ import qualified IHP.AuthSupport.Lockable as Lockable
 newSessionAction :: forall record action viewContext.
     ( ?theAction :: action
     , ?controllerContext :: ControllerContext
-    , ?requestContext :: RequestContext
+    , ?context :: RequestContext
     , HasNewSessionUrl record
     , ?modelContext :: ModelContext
     , Typeable record
@@ -41,7 +41,6 @@ newSessionAction :: forall record action viewContext.
     , Record record
     , HasPath action
     , SessionsControllerConfig record
-    , FrameworkConfig
     ) => IO ()
 newSessionAction = do
     let alreadyLoggedIn = isJust (currentUserOrNothing @record)
@@ -59,7 +58,7 @@ newSessionAction = do
 createSessionAction :: forall record action passwordField.
     (?theAction :: action
     , ?controllerContext :: ControllerContext
-    , ?requestContext :: RequestContext
+    , ?context :: RequestContext
     , ?modelContext :: ModelContext
     , Data action
     , HasField "email" record Text
@@ -71,8 +70,8 @@ createSessionAction :: forall record action passwordField.
     , HasField "failedLoginAttempts" record Int
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
-    , FrameworkConfig
     , Show (PrimaryKey (GetTableName record))
+    , record ~ GetModelByTableName (GetTableName record)
     ) => IO ()
 createSessionAction = do
     query @record
@@ -111,14 +110,13 @@ createSessionAction = do
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
     , ?controllerContext :: ControllerContext
-    , ?requestContext :: RequestContext
+    , ?context :: RequestContext
     , ?modelContext :: ModelContext
     , Data action
     , HasPath action
     , Show id
     , HasField "id" record id
     , SessionsControllerConfig record
-    , FrameworkConfig
     ) => IO ()
 deleteSessionAction = do
     case currentUserOrNothing @record of
@@ -128,7 +126,7 @@ deleteSessionAction = do
 {-# INLINE deleteSessionAction #-}
 
 
-currentUserOrNothing :: forall user. (?controllerContext :: ControllerContext, ?requestContext :: RequestContext, FrameworkConfig, HasNewSessionUrl user, Typeable user) => (Maybe user)
+currentUserOrNothing :: forall user. (?controllerContext :: ControllerContext, ?context :: RequestContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
 currentUserOrNothing =
     case maybeFromControllerContext @(Maybe user) of
         Just user -> user
@@ -176,5 +174,5 @@ class ( Typeable record
     -- >     unless (get #isConfirmed user) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
     -- >         redirectTo NewSessionAction
-    beforeLogin :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext) => record -> IO ()
+    beforeLogin :: (?context :: RequestContext, ?controllerContext :: ControllerContext) => record -> IO ()
     beforeLogin _ = pure ()

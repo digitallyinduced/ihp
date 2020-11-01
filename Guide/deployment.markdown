@@ -36,17 +36,17 @@ Take a short look at `Web/View/Layout.hs`. You can see that depending on whether
 
 ```haskell
 stylesheets = do
-    when (isDevelopment FrameworkConfig.environment) [hsx|
+    when (isDevelopment $ fromConfig environment) [hsx|
         <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
         <link rel="stylesheet" href="/vendor/flatpickr.min.css"/>
         <link rel="stylesheet" href="/app.css"/>
     |]
-    when (isProduction FrameworkConfig.environment) [hsx|
+    when (isProduction $ fromConfig environment) [hsx|
         <link rel="stylesheet" href="/prod.css"/>
     |]
 
 scripts = do
-    when (isDevelopment FrameworkConfig.environment) [hsx|
+    when (isDevelopment $ fromConfig environment) [hsx|
         <script id="livereload-script" src="/livereload.js"></script>
         <script src="/vendor/jquery-3.2.1.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
@@ -56,7 +56,7 @@ scripts = do
         <script src="/helpers.js"></script>
         <script src="/vendor/morphdom-umd.min.js"></script>
     |]
-    when (isProduction FrameworkConfig.environment) [hsx|
+    when (isProduction $ fromConfig environment) [hsx|
         <script src="/prod.js"></script>
     |]
 ```
@@ -68,7 +68,7 @@ make static/prod.js
 make static/prod.css
 ```
 
-The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently there is no minifcation or transpiling applied.
+The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently there is no minification or transpiling applied.
 
 #### Configuring the CSS & JS Bundling
 
@@ -161,6 +161,8 @@ Make required modifications to your `Config/Config.hs`:
 `appHostname` is used to build your `baseUrl` when this is not set manually.
 `baseUrl` equals `http://{appHostname}:{port}` or `http://{appHostname}` if port is 80.
 You can overwrite `baseUrl` by setting it in `Config/Config.hs`
+
+If you deploy behind an nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the baseUrl must still have `https` as it is used to form absolute URLs.
 
 When you deploy with IHP Cloud your Config.hs is set automatically on project creation.
 IHP Cloud sets your `baseUrl` to `https://{appHostname}` because every deployed app is served with SSL enabled.

@@ -8,6 +8,7 @@ module IHP.ControllerPrelude
     , module IHP.Controller.Redirect
     , module IHP.HaskellSupport
     , module IHP.ModelSupport
+    , module IHP.FrameworkConfig
     , module IHP.QueryBuilder
     , module IHP.FetchRelated
     , module Data.Aeson
@@ -24,10 +25,12 @@ import IHP.Controller.Param
 import IHP.Controller.FileUpload
 import IHP.Controller.Render
 import IHP.Controller.Session
+import IHP.Controller.RequestContext
 import IHP.ControllerSupport
 import IHP.ValidationSupport
 import IHP.HaskellSupport
 import IHP.ModelSupport
+import IHP.FrameworkConfig
 import IHP.QueryBuilder
 import IHP.FetchRelated
 import Data.Aeson hiding (Success)

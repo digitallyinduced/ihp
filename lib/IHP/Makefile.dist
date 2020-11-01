@@ -176,7 +176,7 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import IHP.ScriptSupport" >> $@
 	echo "import qualified Config" >> $@
 	echo "import Application.Script.$* (run)" >> $@
-	echo "main = runScript run" >> $@
+	echo "main = runScript Config.config run" >> $@
 
 hie.yaml: # Configuration for haskell-language-server
 	echo "cradle:" > hie.yaml

@@ -1,6 +1,7 @@
 module IHP.IDE.Data.Controller where
 
 import IHP.ControllerPrelude
+import IHP.Controller.RequestContext
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.Data.View.ShowDatabase
@@ -15,7 +16,6 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.FromRow as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified IHP.FrameworkConfig as Config
 import qualified Data.Text as T
 
 instance Controller DataController where
@@ -29,21 +29,16 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
-
         rows :: [[DynamicField]] <- fetchRows connection tableName
-
         tableCols <- fetchTableCols connection tableName
-
         PG.close connection
         render ShowTableRowsView { .. }
 
     action ShowQueryAction = do
         connection <- connectToAppDb
         let query = (param @Text "query")
-        when (query == "") do
-            redirectTo ShowDatabaseAction
-        rows :: [[DynamicField]] <- PG.query_ connection (fromString (cs query))
-
+        when (query == "") $ redirectTo ShowDatabaseAction
+        rows :: [[DynamicField]] <- if isQuery query then PG.query_ connection (fromString (cs query)) else PG.execute_ connection (fromString (cs query)) >> return []
         PG.close connection
         render ShowQueryView { .. }
 
@@ -145,9 +140,8 @@ instance Controller DataController where
         redirectTo ShowTableRowsAction { .. }
 
 
-connectToAppDb = do
-    databaseUrl <- Config.appDatabaseUrl
-    PG.connectPostgreSQL databaseUrl
+connectToAppDb :: (?context :: RequestContext) => _
+connectToAppDb = PG.connectPostgreSQL $ fromConfig databaseUrl
 
 fetchTableNames :: PG.Connection -> IO [Text]
 fetchTableNames connection = do
@@ -195,3 +189,6 @@ parseValues False True text = text
 parseValues True True text = text
 
 updateValues list = map (\elem -> fst elem <> " = " <> snd elem) list
+
+isQuery sql = T.isInfixOf "SELECT" u
+    where u = T.toUpper sql

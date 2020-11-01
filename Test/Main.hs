@@ -5,7 +5,7 @@ Copyright: (c) digitally induced GmbH, 2020
 
 When in the IHP directory, you can run this file like:
 
- > nix-shell NixSupport/shell.nix
+ > nix-shell
  > ghci
  > :l Test/Main.hs
  > main

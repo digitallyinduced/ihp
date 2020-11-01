@@ -25,13 +25,35 @@ instance Controller PostsController where
     action PostsAction = do
         posts <- query @Post |> fetch
         render IndexView { .. }
-    
+
     action ShowPostAction { postId } = do
         post <- fetch postId
         render ShowView { .. }
 ```
 
 In this case `PostsAction` and `ShowPostAction` are only accessible to logged-in users.
+
+## Restricting an action to logged in admins
+
+To restrict an action to a logged in admin, use `ensureIsAdmin` instead of `ensureIsUser`. If you get
+
+```
+error:
+    * Could not deduce (HasNewSessionUrl admin0)
+        arising from a use of `ensureIsAdmin'
+[…]
+      These potential instance exist:
+        instance HasNewSessionUrl Admin -- Defined in `Admin.Types'
+```
+
+then you may have to annotate the type with `@Admin`. For example:
+
+```haskell
+instance Controller UserController where
+    beforeAction =
+        ensureIsAdmin @Admin
+```
+
 
 ## Checking for Permissions
 

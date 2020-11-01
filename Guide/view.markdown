@@ -121,6 +121,21 @@ timeAgo (get #createdAt post) -- "1 minute ago"
 dateTime (get #createdAt post) -- "10.6.2019, 15:58"
 ```
 
+### Customizing Delete Confirmation
+
+By default a message `Are you sure you want to delete this?` is shown as a simple confirmation alert with yes/no choices. The message text can be customized.
+
+```haskell
+<a href={DeleteToolAction (get #id tool)} class="js-delete" data-confirm="Deleting a tool will also delete all usage of the tool. Continue?">Delete Tool</a>
+```
+
+#### Suppressing Delete Confirmation
+
+```haskell
+<a href={DeleteToolAction (get #id tool)} class="js-delete js-delete-no-confirm">Delete Tool</a>
+```
+
+
 ## Diff-Based DOM Updates
 
 When in development, your views will automatically refresh on code changes. This works by re-requesting the view from the server via AJAX and then using [morphdom](https://github.com/patrick-steele-idem/morphdom) to update the visible DOM.
@@ -137,7 +152,7 @@ Even when disabled, your application will still be amazingly fast.
 You can disable this behavior by removing the following code from your `Web/Layout.hs`:
 
 ```haskell
-    when (isProduction FrameworkConfig.environment) [hsx|
+    when (isProduction $ fromConfig environment) [hsx|
             <script src="/vendor/turbolinks.js"></script>
             <script src="/vendor/morphdom-umd.min.js"></script>
             <script src="/vendor/turbolinksMorphdom.js"></script>

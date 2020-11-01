@@ -14,7 +14,7 @@ import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import IHP.ModelSupport (Include, Id', PrimaryKey)
+import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName)
 import IHP.QueryBuilder
 
 -- | This class provides the collectionFetchRelated function
@@ -53,6 +53,7 @@ instance (
         , ToField (PrimaryKey tableName)
         , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
+        , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         ) => CollectionFetchRelated (Id' tableName) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
             ?modelContext :: ModelContext,
@@ -93,19 +94,19 @@ instance (
 -- This will query all posts with their comments. The type of @posts@ is @[Include "comments" Post]@.
 --
 -- When fetching query builders, currently the implementation is not very efficient. E.g. given 10 Posts above, it will run 10 queries to fetch the comments. We should optimise this behavior in the future.
-instance CollectionFetchRelated (QueryBuilder relatedModel) relatedModel where
+instance (relatedModel ~ GetModelByTableName relatedTable) => CollectionFetchRelated (QueryBuilder relatedTable) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
             ?modelContext :: ModelContext,
-            HasField relatedField model (QueryBuilder relatedModel),
-            UpdateField relatedField model (Include relatedField model) (QueryBuilder relatedModel) (FetchResult (QueryBuilder relatedModel) relatedModel),
-            Fetchable (QueryBuilder relatedModel) relatedModel,
+            HasField relatedField model (QueryBuilder relatedTable),
+            UpdateField relatedField model (Include relatedField model) (QueryBuilder relatedTable) (FetchResult (QueryBuilder relatedTable) relatedModel),
+            Fetchable (QueryBuilder relatedTable) relatedModel,
             KnownSymbol (GetTableName relatedModel),
             PG.FromRow relatedModel,
             KnownSymbol relatedField
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
     collectionFetchRelated relatedField models = do
         let fetchRelated model = do
-                let queryBuilder :: QueryBuilder relatedModel = getField @relatedField model
+                let queryBuilder :: QueryBuilder relatedTable = getField @relatedField model
                 result :: [relatedModel] <- fetch queryBuilder
                 pure (updateField @relatedField result model)
         mapM fetchRelated models
