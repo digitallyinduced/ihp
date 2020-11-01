@@ -23,6 +23,7 @@ import IHP.ControllerPrelude
 import IHP.LoginSupport.Types
 import IHP.Controller.RequestContext
 import qualified IHP.Controller.Session as Session
+import IHP.FlashMessages.ControllerFunctions
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
 import IHP.FrameworkConfig

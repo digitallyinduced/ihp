@@ -232,6 +232,12 @@ library IHPFramework
         , IHP.MailPrelude
         , IHP.IDE.CodeGen.MailGenerator
         , IHP.IDE.CodeGen.View.NewMail
+        , IHP.View.Classes
+        , IHP.View.CSSFramework
+        , IHP.View.Types
+        , IHP.FlashMessages.Types
+        , IHP.FlashMessages.ControllerFunctions
+        , IHP.FlashMessages.ViewFunctions
 
 executable RunDevServer
     import: shared-properties

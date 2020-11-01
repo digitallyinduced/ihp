@@ -20,6 +20,8 @@ import Data.Maybe (fromJust)
 import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
 import IHP.HaskellSupport hiding (set)
+import IHP.View.Types
+import IHP.View.CSSFramework
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -96,6 +98,8 @@ ihpDefaultConfig = do
     (BaseUrl currentBaseUrl) <- findOption @BaseUrl
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
 
+    option bootstrap
+
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
 findOption = do
     options <- State.get
@@ -117,6 +121,7 @@ buildFrameworkConfig appConfig = do
             (DBPoolIdleTime dbPoolIdleTime) <- findOption @DBPoolIdleTime
             (DBPoolMaxConnections dbPoolMaxConnections) <- findOption @DBPoolMaxConnections
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
+            cssFramework <- findOption @CSSFramework
             
             pure FrameworkConfig { .. }
 
@@ -162,6 +167,11 @@ data FrameworkConfig = FrameworkConfig
 
     -- | Max number of db connections the connection pool can open to the database
     , dbPoolMaxConnections :: Int
+
+    -- | Bootstrap 4 by default
+    --
+    -- Override this if you use a CSS framework that is not bootstrap
+    , cssFramework :: CSSFramework
 }
 
 class ConfigProvider a where

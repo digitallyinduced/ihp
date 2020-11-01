@@ -6,6 +6,7 @@ module IHP.ControllerPrelude
     , module IHP.Controller.FileUpload
     , module IHP.Controller.Session
     , module IHP.Controller.Redirect
+    , module IHP.Controller.BasicAuth
     , module IHP.HaskellSupport
     , module IHP.ModelSupport
     , module IHP.FrameworkConfig
@@ -18,6 +19,8 @@ module IHP.ControllerPrelude
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
     , module IHP.Mail
+    , module IHP.FlashMessages.Types
+    , module IHP.FlashMessages.ControllerFunctions
     , Only (..)
     ) where
 import IHP.Prelude
@@ -26,6 +29,7 @@ import IHP.Controller.FileUpload
 import IHP.Controller.Render
 import IHP.Controller.Session
 import IHP.Controller.RequestContext
+import IHP.Controller.BasicAuth
 import IHP.ControllerSupport
 import IHP.ValidationSupport
 import IHP.HaskellSupport
@@ -41,3 +45,5 @@ import Control.Newtype.Generics
 import IHP.AutoRefresh (autoRefresh)
 import IHP.Mail (sendMail)
 import Database.PostgreSQL.Simple.Types (Only (..))
+import IHP.FlashMessages.Types
+import IHP.FlashMessages.ControllerFunctions

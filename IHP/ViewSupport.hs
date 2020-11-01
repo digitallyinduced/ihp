@@ -7,7 +7,6 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ViewSupport
 ( HtmlWithContext
-, classes
 , CreateViewContext (..)
 , Layout
 , View (..)
@@ -26,9 +25,10 @@ module IHP.ViewSupport
 , fetch
 , query
 , isActiveController
-, renderFlashMessages
 , nl2br
 , stripTags
+, theCSSFramework
+, fromCSSFramework
 ) where
 
 import IHP.Prelude
@@ -47,11 +47,13 @@ import IHP.RouterSupport hiding (get)
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport
-import qualified IHP.Controller.Session as Session
+import IHP.FlashMessages.Types
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
+import qualified IHP.View.CSSFramework as CSSFramework
+import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 
 type HtmlWithContext context = (?context :: context) => Html5.Html
@@ -69,53 +71,6 @@ type HtmlWithContext context = (?context :: context) => Html5.Html
 -- >     </html>
 -- > |]
 type Layout = Html5.Html -> Html5.Html
-
--- | Helper for dynamically generating the @class=".."@ attribute.
--- 
--- Given a list like
--- 
--- > [("a", True), ("b", False), ("c", True)]
--- 
--- builds a class name string for all parts where the second value is @True@.
---
--- E.g.
---
--- >>> classes [("a", True), ("b", False), ("c", True)]
--- "a c"
---
--- When setting @b@ to @True@:
---
--- >>> classes [("a", True), ("b", True), ("c", True)]
--- "a b c"
---
--- __Example:__
--- 
--- >>> <div class={classes [("is-active", False)]}>
--- <div class="">
---
--- >>> <div class={classes [("is-active", True)]}>
--- <div class="is-active">
---
--- >>> forEach projects \project -> [hsx|
--- >>>     <div class={classes [("project", True), ("active", get #active project)]}>
--- >>>         {project}
--- >>>     </div>
--- >>> |]
--- If project is active:                        <div class="project active">{project}</div>
--- Otherwise:                                   <div class="project">{project}</div>
-classes :: [(Text, Bool)] -> Text
-classes !classNameBoolPairs =
-    classNameBoolPairs
-    |> filter snd
-    |> map fst
-    |> unwords
-{-# INLINE classes #-}
-
--- | Allows `("my-class", True)` to be written as `"my-class"`
---
--- Useful together with 'classes'
-instance IsString (Text, Bool) where
-    fromString string = (cs string, True)
 
 class CreateViewContext viewContext where
     type ViewApp viewContext
@@ -290,33 +245,13 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
     a == b = error "unreachable"
 
--- | Displays the flash messages for the current request.
---
--- You can add a flash message to the next request by calling 'IHP.Controller.Session.setSuccessMessage' or 'IHP.Controller.Session.setErrorMessage':
---
--- > action CreateProjectAction = do
--- >     ...
--- >     setSuccessMessage "Your project has been created successfully"
--- >     redirectTo ShowProjectAction { .. }
---
---
--- > action CreateTeamAction = do
--- >     unless userOnPaidPlan do
--- >         setErrorMessage "This requires you to be on the paid plan"
--- >         redirectTo NewTeamAction
--- >
--- >     ...
---
--- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
--- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: forall viewContext. (?context :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage]) => Html5.Html
-renderFlashMessages =
-    let
-        flashMessages = (getField @"flashMessages" ?context) :: [Session.FlashMessage]
-        renderFlashMessage (Session.SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
-        renderFlashMessage (Session.ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
-    in
-        forEach flashMessages renderFlashMessage
+fromCSSFramework :: (?context :: context, FrameworkConfig.ConfigProvider context, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
+
+theCSSFramework :: (?context :: context, FrameworkConfig.ConfigProvider context) => CSSFramework
+theCSSFramework = ?context
+        |> FrameworkConfig.getFrameworkConfig 
+        |> get #cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
 --

@@ -1,29 +1,24 @@
-module IHP.Controller.Session where
-import           ClassyPrelude
-import qualified Data.Either
-import           Data.String.Conversions              (cs)
-import qualified Data.Text
-import qualified Data.Text.Read
-import qualified Data.UUID
-import           IHP.Controller.RequestContext
-import           IHP.HaskellSupport
-import           IHP.ControllerSupport
-import           Network.HTTP.Types                   (status200, status302, status401)
-import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
-import qualified Network.Wai
+module IHP.Controller.Session
+( setSession
+, getSession
+, getSessionAndClear
+, getSessionInt
+, getSessionUUID
+) where
 
-import qualified Data.Vault.Lazy                      as Vault
-import           Network.Wai.Session                  (Session)
-import           Network.Wai.Middleware.HttpAuth      (extractBasicAuth)
-import           Network.HTTP.Types.Header            (hWWWAuthenticate)
-import qualified Data.Maybe as Maybe
+import IHP.Prelude
+import IHP.Controller.RequestContext
+import qualified Data.Text.Read as Read
+import qualified Data.UUID as UUID
+import qualified Network.Wai as Wai
+import qualified Data.Vault.Lazy as Vault
 
 
 setSession :: (?context :: RequestContext) => Text -> Text -> IO ()
 setSession name value = sessionInsert (cs name) (cs value)
     where
         (RequestContext request _ _ _ session _) = ?context
-        Just (_, sessionInsert) = Vault.lookup session (Network.Wai.vault request)
+        Just (_, sessionInsert) = Vault.lookup session (Wai.vault request)
 
 
 getSession :: (?context :: RequestContext) => Text -> IO (Maybe Text)
@@ -33,7 +28,7 @@ getSession name = do
         pure $! if textValue == Just "" then Nothing else textValue
     where
         (RequestContext request _ _ _ session _) = ?context
-        Just (sessionLookup, _) = Vault.lookup session (Network.Wai.vault request)
+        Just (sessionLookup, _) = Vault.lookup session (Wai.vault request)
 
 
 getSessionAndClear :: (?context :: RequestContext) => Text -> IO (Maybe Text)
@@ -45,59 +40,13 @@ getSessionAndClear name = do
 getSessionInt :: (?context :: RequestContext) => Text -> IO (Maybe Int)
 getSessionInt name = do
     value <- getSession name
-    pure $! case fmap (Data.Text.Read.decimal . cs) value of
+    pure $! case fmap (Read.decimal . cs) value of
             Just (Right value) -> Just $ fst value
             _                  -> Nothing
 
-getSessionUUID :: (?context :: RequestContext) => Text -> IO (Maybe Data.UUID.UUID)
+getSessionUUID :: (?context :: RequestContext) => Text -> IO (Maybe UUID)
 getSessionUUID name = do
     value <- getSession name
-    pure $! case fmap Data.UUID.fromText value of
+    pure $! case fmap UUID.fromText value of
             Just (Just value) -> Just value
             _                 -> Nothing
-
--- | Adds basic http authentication
---
--- Mainly for protecting a site during external review.
--- Meant for use in the controller:
--- 
--- > beforeAction = basicAuth ... 
--- 
-basicAuth :: (?context::RequestContext) => Text -> Text -> Text -> IO ()
-basicAuth uid pw realm = do
-    let mein = Just (encodeUtf8 uid, encodeUtf8 pw)
-    let cred = join $ fmap extractBasicAuth (getHeader "Authorization")
-    when (cred /= mein) $ respondAndExit $ responseLBS status401 [(hWWWAuthenticate,encodeUtf8 ("Basic " ++ (if null realm then "" else "realm=\"" ++ realm ++ "\", ") ++ "charset=\"UTF-8\""))] ""
-
-successMessageKey :: Text
-successMessageKey = "flashSuccessMessage"
-
-errorMessageKey :: Text
-errorMessageKey = "flashErrorMessage"
-
-data FlashMessage = SuccessFlashMessage Text | ErrorFlashMessage Text
-
--- Due to a compiler bug we have to place these functions inside the Session module
-setSuccessMessage :: (?context :: RequestContext) => Text -> IO ()
-setSuccessMessage = setSession successMessageKey
-
-getSuccessMessage :: (?context :: RequestContext) => IO (Maybe Text)
-getSuccessMessage = getSession successMessageKey
-
-clearSuccessMessage :: (?context :: RequestContext) => IO ()
-clearSuccessMessage = setSession successMessageKey ""
-
-setErrorMessage :: (?context :: RequestContext) => Text -> IO ()
-setErrorMessage = setSession errorMessageKey
-
-getAndClearFlashMessages :: (?context :: RequestContext) => IO [FlashMessage]
-getAndClearFlashMessages = do
-    successMessage <- getSuccessMessage
-    errorMessage <- getSession errorMessageKey
-    case successMessage of
-        Just value | value /= "" -> setSuccessMessage ""
-        _ -> pure ()
-    case errorMessage of
-        Just value | value /= "" -> setErrorMessage ""
-        _ -> pure ()
-    pure $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])
