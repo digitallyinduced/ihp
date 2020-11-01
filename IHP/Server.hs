@@ -34,7 +34,7 @@ run configBuilder = do
     frameworkConfig@(FrameworkConfig { environment, appPort, dbPoolMaxConnections, dbPoolIdleTime, databaseUrl, sessionCookie, requestLoggerMiddleware }) <- buildFrameworkConfig configBuilder
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let isDevelopment = Env.isDevelopment environment
+    let isDevelopment = environment == Env.Development
     modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl
     let ?modelContext = modelContext
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer

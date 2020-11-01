@@ -24,7 +24,7 @@ import qualified Network.HTTP.Client.TLS
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
 
-buildMail :: BuildMail mail => mail -> IO Mail
+buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO Mail
 buildMail mail = let ?mail = mail in simpleMail (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) []
 
 -- | Sends an email
@@ -49,3 +49,23 @@ sendWithMailServer SES { .. } mail = do
 sendWithMailServer Sendmail mail = do
     message <- renderMail' mail
     sendmail message
+
+class BuildMail mail where
+    -- | You can use @?mail@ to make this dynamic based on the given entity
+    subject :: (?mail :: mail) => Text
+    
+    -- | The email receiver
+    --
+    -- __Example:__
+    -- > to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
+    to :: mail -> Address
+
+    -- | Your sender address
+    from :: (?mail :: mail) => Address
+
+    -- | Similiar to a normal html view, HSX can be used here
+    html :: (?context :: context, ConfigProvider context) => mail -> Html
+
+    -- | When no plain text version of the email is specified it falls back to using the html version but striping out all the html tags
+    text :: (?context :: context, ConfigProvider context) => mail -> Text
+    text mail = stripTags (cs $ Blaze.renderHtml (html mail))
