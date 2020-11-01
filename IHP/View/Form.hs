@@ -76,7 +76,6 @@ formFor :: forall record viewContext parent id application. (
     , Typeable record
     , ModelFormAction application record
     , HasField "id" record id
-    , application ~ ViewApp viewContext
     , HasField "meta" record MetaBag
     , Default id
     , Eq id
@@ -92,7 +91,6 @@ formFor' :: forall record viewContext parent id application. (
     , Eq record
     , Typeable record
     , HasField "id" record id
-    , application ~ ViewApp viewContext
     , HasField "meta" record MetaBag
     , Default id
     , Eq id
@@ -107,7 +105,6 @@ horizontalFormFor :: forall record viewContext parent id application. (
         , Typeable record
         , ModelFormAction application record
         , HasField "id" record id
-        , application ~ ViewApp viewContext
         , HasField "meta" record MetaBag
         , Default id
         , Eq id
@@ -127,7 +124,6 @@ createFormContext :: forall record viewContext parent id application. (
         , Eq record
         , Typeable record
         , HasField "id" record id
-        , application ~ ViewApp viewContext
         , HasField "meta" record MetaBag
         , ConfigProvider viewContext
         ) => record -> FormContext record

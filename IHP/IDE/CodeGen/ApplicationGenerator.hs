@@ -97,7 +97,6 @@ generateGenericApplication applicationName =
                 <> "import " <> applicationName <> ".View.Layout\n"
                 <> "import " <> applicationName <> ".Types\n\n"
                 <> "instance ViewSupport.CreateViewContext ViewContext where\n"
-                <> "    type ViewApp ViewContext = " <> applicationName <> "Application\n"
                 <> "    createViewContext = do\n"
                 <> "        flashMessages <- IHP.Controller.Session.getAndClearFlashMessages\n"
                 <> "        let viewContext = ViewContext {\n"

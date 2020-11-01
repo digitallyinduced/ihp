@@ -73,7 +73,6 @@ type HtmlWithContext context = (?context :: context) => Html5.Html
 type Layout = Html5.Html -> Html5.Html
 
 class CreateViewContext viewContext where
-    type ViewApp viewContext
     createViewContext :: (?context :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext
 
 

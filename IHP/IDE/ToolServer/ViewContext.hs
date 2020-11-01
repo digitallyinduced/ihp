@@ -11,7 +11,6 @@ import System.Directory
 import qualified Data.Text.IO as IO
 
 instance ViewSupport.CreateViewContext ViewContext where
-    type ViewApp ViewContext = ToolServerApplication
     createViewContext = do
         flashMessages <- getAndClearFlashMessages
         webControllers <- findWebControllers
