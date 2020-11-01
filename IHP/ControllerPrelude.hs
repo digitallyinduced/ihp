@@ -6,6 +6,7 @@ module IHP.ControllerPrelude
     , module IHP.Controller.FileUpload
     , module IHP.Controller.Session
     , module IHP.Controller.Redirect
+    , module IHP.Controller.BasicAuth
     , module IHP.HaskellSupport
     , module IHP.ModelSupport
     , module IHP.FrameworkConfig
@@ -28,6 +29,7 @@ import IHP.Controller.FileUpload
 import IHP.Controller.Render
 import IHP.Controller.Session
 import IHP.Controller.RequestContext
+import IHP.Controller.BasicAuth
 import IHP.ControllerSupport
 import IHP.ValidationSupport
 import IHP.HaskellSupport
