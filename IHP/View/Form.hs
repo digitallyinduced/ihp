@@ -35,19 +35,40 @@ import IHP.HtmlSupport.QQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes 
 import IHP.FrameworkConfig (ConfigProvider)
+import qualified Network.Wai as Wai
+import IHP.Controller.RequestContext
 
+class ModelFormAction application record where
+    modelFormAction :: (?context :: context, HasField "requestContext" context RequestContext) => record -> Text
+
+-- | Returns the form's action attribute for a given record.
+--
+-- Expects that AutoRoute is used. Otherwise you need to use @formFor'@ or specify
+-- a manual ModelFormAction instance.
+--
+-- We guess the form submitt action based on the current url
+-- It's a @New..Action@ or @Edit..Action@. We guess the corresponding
+-- @Create..Action@ name or @Update..Action@ name based on the AutoRoute rules
+--
+-- In case the routing is not based on AutoRoute, a manual ModelFormAction instance needs
+-- to be defined
 instance (
     HasField "id" record id
-    , controller ~ ModelControllerMap application (NormalizeModel record)
-    , HasPath controller
-    , AutoRoute controller
     , Eq id
     , Default id
+    , KnownSymbol (GetModelName record)
     ) => ModelFormAction application record where
-    modelFormAction record = let id = getField @"id" record in if id == def
-        then pathTo (fromJust (createAction @controller))
-        else pathTo (fromJust (updateAction @controller) id)
-    {-# INLINE modelFormAction #-}
+    modelFormAction record =
+        let
+            path = theRequest |> get #pathInfo
+            action = if isNew record
+                then "Create" <> getModelName @record
+                else "Update" <> getModelName @record
+        in
+            init path
+                |> (\path -> path <> [action])
+                |> intercalate "/"
+
 
 formFor :: forall record viewContext parent id application. (
     ?context :: viewContext
@@ -55,12 +76,12 @@ formFor :: forall record viewContext parent id application. (
     , Typeable record
     , ModelFormAction application record
     , HasField "id" record id
-    , HasPath (ModelControllerMap application (NormalizeModel record))
     , application ~ ViewApp viewContext
     , HasField "meta" record MetaBag
     , Default id
     , Eq id
     , ConfigProvider viewContext
+    , HasField "requestContext" viewContext RequestContext
     ) => record -> ((?context :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor record = buildForm (createFormContext record) { formAction = modelFormAction @application record }
 {-# INLINE formFor #-}
@@ -86,7 +107,6 @@ horizontalFormFor :: forall record viewContext parent id application. (
         , Typeable record
         , ModelFormAction application record
         , HasField "id" record id
-        , HasPath (ModelControllerMap application record)
         , application ~ ViewApp viewContext
         , HasField "meta" record MetaBag
         , Default id

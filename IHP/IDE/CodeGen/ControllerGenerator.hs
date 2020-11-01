@@ -47,8 +47,7 @@ data ControllerConfig = ControllerConfig
 
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
-    "instance AutoRoute " <> controllerName <> "Controller\n"
-    <> "type instance ModelControllerMap " <> applicationName <> "Application " <> modelName <> " = " <> controllerName <> "Controller\n\n"
+    "instance AutoRoute " <> controllerName <> "Controller\n\n"
 
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 

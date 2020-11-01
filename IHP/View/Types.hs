@@ -10,7 +10,6 @@ module IHP.View.Types
 , SubmitButton (..)
 , FormContext (..)
 , InputType (..)
-, ModelFormAction (..)
 , CSSFramework (..)
 )
 where
@@ -18,9 +17,6 @@ where
 import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
-
-class ModelFormAction application record where
-    modelFormAction :: record -> Text
 
 data FormField = FormField
     { fieldType :: !InputType
