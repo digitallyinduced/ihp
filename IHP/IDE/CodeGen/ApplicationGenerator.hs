@@ -44,9 +44,6 @@ generateGenericApplication applicationName =
                 <> "    , layout :: Layout\n"
                 <> "    }\n"
                 <> "\n"
-                <> "instance ConfigProvider ViewContext where\n"
-                <> "    getFrameworkConfig ViewContext { requestContext } = getFrameworkConfig requestContext\n"
-                <> "\n"
                 <> "data StaticController = WelcomeAction deriving (Eq, Show, Data)"
                 <> "\n"
 
