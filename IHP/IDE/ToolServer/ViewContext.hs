@@ -1,25 +1,19 @@
 module IHP.IDE.ToolServer.ViewContext where
 
 import IHP.Prelude
-import qualified IHP.Controller.Session as Session
-import IHP.ControllerSupport  (RequestContext (RequestContext))
-import IHP.ControllerSupport
-import IHP.HaskellSupport
-import IHP.ModelSupport
+import IHP.ControllerPrelude hiding (appPort)
 import qualified IHP.ViewSupport as ViewSupport
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.IDE.Types
 import IHP.IDE.ToolServer.Helper.Controller
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import System.Directory
 import qualified Data.Text.IO as IO
 
 instance ViewSupport.CreateViewContext ViewContext where
     type ViewApp ViewContext = ToolServerApplication
     createViewContext = do
-        flashMessages <- Session.getAndClearFlashMessages
+        flashMessages <- getAndClearFlashMessages
         webControllers <- findWebControllers
         appNames <- findApplications
 

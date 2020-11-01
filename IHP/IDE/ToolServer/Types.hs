@@ -7,10 +7,11 @@ import qualified IHP.ViewSupport as ViewSupport
 import IHP.FrameworkConfig
 import IHP.Environment
 import qualified IHP.IDE.Types as DevServer
+import IHP.FlashMessages.Types
 
 data ViewContext = ViewContext
     { requestContext :: ControllerSupport.RequestContext
-    , flashMessages :: [Session.FlashMessage]
+    , flashMessages :: [FlashMessage]
     , layout :: ViewSupport.Layout
     , controllerContext :: ControllerSupport.ControllerContext
     , appUrl :: Text
