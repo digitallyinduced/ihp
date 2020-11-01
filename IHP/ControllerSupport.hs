@@ -68,19 +68,19 @@ emptyControllerContext :: ControllerContext
 emptyControllerContext = ControllerContext TypeMap.empty
 
 class (Show controller, Eq controller) => Controller controller where
-    beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => IO ()
+    beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?context :: RequestContext, ?theAction :: controller) => IO ()
     beforeAction = pure ()
-    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext, ?theAction :: controller) => controller -> IO ()
+    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?context :: RequestContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
-    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext) => TypeMap.TMap -> IO TypeMap.TMap
+    initContext :: (?modelContext :: ModelContext, ?context :: RequestContext, ?applicationContext :: ApplicationContext) => TypeMap.TMap -> IO TypeMap.TMap
     initContext context = pure context
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext, FrameworkConfig) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?context :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let respond = ?requestContext |> get #respond
+    let respond = ?context |> get #respond
     
     let doRunAction = do
             beforeAction
@@ -92,7 +92,7 @@ runAction controller = do
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller, FrameworkConfig) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let context = TypeMap.empty
@@ -108,16 +108,16 @@ runActionWithNewContext controller = do
             runAction controller
 
 {-# INLINE getRequestBody #-}
-getRequestBody :: (?requestContext :: RequestContext) => IO ByteString
+getRequestBody :: (?context :: RequestContext) => IO ByteString
 getRequestBody = Network.Wai.getRequestBodyChunk request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
-getRequestPath :: (?requestContext :: RequestContext) => ByteString
+getRequestPath :: (?context :: RequestContext) => ByteString
 getRequestPath = Network.Wai.rawPathInfo request
 {-# INLINE getRequestPath #-}
 
 -- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
-getRequestPathAndQuery :: (?requestContext :: RequestContext) => ByteString
+getRequestPathAndQuery :: (?context :: RequestContext) => ByteString
 getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQueryString request
 {-# INLINE getRequestPathAndQuery #-}
 
@@ -131,26 +131,26 @@ getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQuery
 -- >>> getHeader "X-My-Custom-Header"
 -- Nothing
 --
-getHeader :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
+getHeader :: (?context :: RequestContext) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
 {-# INLINE getHeader #-}
 
 -- | Returns the current HTTP request.
 --
 -- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
-request :: (?requestContext :: RequestContext) => Network.Wai.Request
-request = ?requestContext |> get #request
+request :: (?context :: RequestContext) => Network.Wai.Request
+request = ?context |> get #request
 {-# INLINE request #-}
 
 {-# INLINE getFiles #-}
-getFiles :: (?requestContext :: RequestContext) => [File Data.ByteString.Lazy.ByteString]
-getFiles = ?requestContext |> get #files
+getFiles :: (?context :: RequestContext) => [File Data.ByteString.Lazy.ByteString]
+getFiles = ?context |> get #files
 
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
-createRequestContext ApplicationContext { session } request respond = do
+createRequestContext ApplicationContext { session, frameworkConfig } request respond = do
     (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
-    pure RequestContext.RequestContext { request, respond, params, files, vault = session }
+    pure RequestContext.RequestContext { request, respond, params, files, vault = session, frameworkConfig }
 
 
 

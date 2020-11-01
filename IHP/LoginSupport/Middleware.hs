@@ -18,7 +18,7 @@ import IHP.ModelSupport
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user.
-        ( ?requestContext :: RequestContext
+        ( ?context :: RequestContext
         , ?modelContext :: ModelContext
         , Typeable (NormalizeModel user)
         , KnownSymbol (GetTableName (NormalizeModel user))
