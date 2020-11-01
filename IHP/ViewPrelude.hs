@@ -24,7 +24,8 @@ module IHP.ViewPrelude (
     module Data.Data,
     module Data.Aeson,
     module IHP.AutoRefresh.View,
-    module IHP.View.Classes
+    module IHP.View.Classes,
+    module IHP.FlashMessages.ViewFunctions
 ) where
 
 import IHP.Prelude
@@ -47,3 +48,4 @@ import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))
 import IHP.AutoRefresh.View
 import IHP.View.Types
 import IHP.View.Classes
+import IHP.FlashMessages.ViewFunctions

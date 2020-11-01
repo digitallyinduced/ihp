@@ -9,14 +9,13 @@ import           IHP.Controller.RequestContext
 import           IHP.HaskellSupport
 import           IHP.ControllerSupport
 import           Network.HTTP.Types                   (status200, status302, status401)
-import           Network.Wai                          (Request, Response, ResponseReceived, queryString, requestBody, responseLBS)
+import           Network.Wai                          (Response, ResponseReceived, queryString, requestBody, responseLBS)
 import qualified Network.Wai
 
 import qualified Data.Vault.Lazy                      as Vault
 import           Network.Wai.Session                  (Session)
 import           Network.Wai.Middleware.HttpAuth      (extractBasicAuth)
 import           Network.HTTP.Types.Header            (hWWWAuthenticate)
-import qualified Data.Maybe as Maybe
 
 
 setSession :: (?context :: RequestContext) => Text -> Text -> IO ()
@@ -68,36 +67,3 @@ basicAuth uid pw realm = do
     let mein = Just (encodeUtf8 uid, encodeUtf8 pw)
     let cred = join $ fmap extractBasicAuth (getHeader "Authorization")
     when (cred /= mein) $ respondAndExit $ responseLBS status401 [(hWWWAuthenticate,encodeUtf8 ("Basic " ++ (if null realm then "" else "realm=\"" ++ realm ++ "\", ") ++ "charset=\"UTF-8\""))] ""
-
-successMessageKey :: Text
-successMessageKey = "flashSuccessMessage"
-
-errorMessageKey :: Text
-errorMessageKey = "flashErrorMessage"
-
-data FlashMessage = SuccessFlashMessage Text | ErrorFlashMessage Text
-
--- Due to a compiler bug we have to place these functions inside the Session module
-setSuccessMessage :: (?context :: RequestContext) => Text -> IO ()
-setSuccessMessage = setSession successMessageKey
-
-getSuccessMessage :: (?context :: RequestContext) => IO (Maybe Text)
-getSuccessMessage = getSession successMessageKey
-
-clearSuccessMessage :: (?context :: RequestContext) => IO ()
-clearSuccessMessage = setSession successMessageKey ""
-
-setErrorMessage :: (?context :: RequestContext) => Text -> IO ()
-setErrorMessage = setSession errorMessageKey
-
-getAndClearFlashMessages :: (?context :: RequestContext) => IO [FlashMessage]
-getAndClearFlashMessages = do
-    successMessage <- getSuccessMessage
-    errorMessage <- getSession errorMessageKey
-    case successMessage of
-        Just value | value /= "" -> setSuccessMessage ""
-        _ -> pure ()
-    case errorMessage of
-        Just value | value /= "" -> setErrorMessage ""
-        _ -> pure ()
-    pure $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])

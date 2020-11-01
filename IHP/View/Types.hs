@@ -17,7 +17,7 @@ where
 
 import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
-import qualified IHP.Controller.Session as Session
+import IHP.FlashMessages.Types
 
 class ModelFormAction application record where
     modelFormAction :: record -> Text
@@ -71,8 +71,8 @@ data InputType
 --
 -- We call this functions with the cssFramework passed to have late binding (like from OOP languages)
 data CSSFramework = CSSFramework
-    { styledFlashMessage :: CSSFramework -> Session.FlashMessage -> Blaze.Html
-    , styledFlashMessages :: CSSFramework -> [Session.FlashMessage] -> Blaze.Html
+    { styledFlashMessage :: CSSFramework -> FlashMessage -> Blaze.Html
+    , styledFlashMessages :: CSSFramework -> [FlashMessage] -> Blaze.Html
     -- | Renders the full form field calling other functions below
     , styledFormField :: CSSFramework -> FormField -> Blaze.Html
     -- | The primary form submit button

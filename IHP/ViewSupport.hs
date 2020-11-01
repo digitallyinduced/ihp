@@ -25,9 +25,10 @@ module IHP.ViewSupport
 , fetch
 , query
 , isActiveController
-, renderFlashMessages
 , nl2br
 , stripTags
+, theCSSFramework
+, fromCSSFramework
 ) where
 
 import IHP.Prelude
@@ -46,7 +47,7 @@ import IHP.RouterSupport hiding (get)
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport
-import qualified IHP.Controller.Session as Session
+import IHP.FlashMessages.Types
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import qualified Data.Sequences as Sequences
@@ -244,36 +245,13 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
     a == b = error "unreachable"
 
--- | Displays the flash messages for the current request.
---
--- You can add a flash message to the next request by calling 'IHP.Controller.Session.setSuccessMessage' or 'IHP.Controller.Session.setErrorMessage':
---
--- > action CreateProjectAction = do
--- >     ...
--- >     setSuccessMessage "Your project has been created successfully"
--- >     redirectTo ShowProjectAction { .. }
---
---
--- > action CreateTeamAction = do
--- >     unless userOnPaidPlan do
--- >         setErrorMessage "This requires you to be on the paid plan"
--- >         redirectTo NewTeamAction
--- >
--- >     ...
---
--- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
--- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: forall viewContext. (?context :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage], HasField "cssFramework" viewContext CSSFramework) => Html5.Html
-renderFlashMessages = render flashMessages
-    where
-        flashMessages :: [Session.FlashMessage]
-        flashMessages = (getField @"flashMessages" ?viewContext)
+fromCSSFramework :: (?context :: context, FrameworkConfig.ConfigProvider context, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
 
-        render :: [Session.FlashMessage] -> Html5.Html
-        render = getCurrentCSSFramework #styledFlashMessages
-
-getCurrentCSSFramework :: (?viewContext :: viewContext, HasField "cssFramework" viewContext CSSFramework, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
-getCurrentCSSFramework field = let cssFramework = (get #cssFramework ?context) in (get field cssFramework) cssFramework
+theCSSFramework :: (?context :: context, FrameworkConfig.ConfigProvider context) => CSSFramework
+theCSSFramework = ?context
+        |> FrameworkConfig.getFrameworkConfig 
+        |> get #cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
 --

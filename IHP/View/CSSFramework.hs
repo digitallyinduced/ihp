@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.View.CSSFramework where
 
 import IHP.Prelude
-import qualified IHP.Controller.Session as Session
+import IHP.FlashMessages.Types
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
@@ -24,8 +24,8 @@ import IHP.ModelSupport
 instance Default CSSFramework where
     def = CSSFramework { .. }
         where
-            styledFlashMessage _ (Session.SuccessFlashMessage message) = [hsx|<div>{message}</div>|]
-            styledFlashMessage _ (Session.ErrorFlashMessage message) = [hsx|<div>{message}</div>|]
+            styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div>{message}</div>|]
+            styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div>{message}</div>|]
 
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework)
             
@@ -136,8 +136,8 @@ instance Default CSSFramework where
 bootstrap :: CSSFramework
 bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }
     where
-        styledFlashMessage _ (Session.SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
-        styledFlashMessage _ (Session.ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
+        styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
+        styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
 
         styledInputClass FormField {} = "form-control"
         styledInputInvalidClass _ = "is-invalid"
@@ -154,8 +154,8 @@ bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupCl
 tailwind :: CSSFramework
 tailwind = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }
     where
-        styledFlashMessage _ (Session.SuccessFlashMessage message) = [hsx|<div class="bg-teal-100 border-t-4 border-teal-500 rounded-b text-teal-900 px-4 py-3 shadow-md">{message}</div>|]
-        styledFlashMessage _ (Session.ErrorFlashMessage message) = [hsx|<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">{message}</div>|]
+        styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-teal-100 border-t-4 border-teal-500 rounded-b text-teal-900 px-4 py-3 shadow-md">{message}</div>|]
+        styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">{message}</div>|]
 
         styledInputClass FormField {} = "form-control"
         styledInputInvalidClass _ = "is-invalid"

@@ -18,6 +18,8 @@ module IHP.ControllerPrelude
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
     , module IHP.Mail
+    , module IHP.FlashMessages.Types
+    , module IHP.FlashMessages.ControllerFunctions
     , Only (..)
     ) where
 import IHP.Prelude
@@ -41,3 +43,5 @@ import Control.Newtype.Generics
 import IHP.AutoRefresh (autoRefresh)
 import IHP.Mail (sendMail)
 import Database.PostgreSQL.Simple.Types (Only (..))
+import IHP.FlashMessages.Types
+import IHP.FlashMessages.ControllerFunctions

@@ -34,6 +34,7 @@ import IHP.ModelSupport (getModelName, inputValue, isNew, GetModelName, Id', Nor
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes 
+import IHP.FrameworkConfig (ConfigProvider)
 
 instance (
     HasField "id" record id
@@ -59,7 +60,7 @@ formFor :: forall record viewContext parent id application. (
     , HasField "meta" record MetaBag
     , Default id
     , Eq id
-    , HasField "cssFramework" viewContext CSSFramework
+    , ConfigProvider viewContext
     ) => record -> ((?context :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor record = buildForm (createFormContext record) { formAction = modelFormAction @application record }
 {-# INLINE formFor #-}
@@ -74,7 +75,7 @@ formFor' :: forall record viewContext parent id application. (
     , HasField "meta" record MetaBag
     , Default id
     , Eq id
-    , HasField "cssFramework" viewContext CSSFramework
+    , ConfigProvider viewContext
     ) => record -> Text -> ((?context :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
@@ -90,7 +91,7 @@ horizontalFormFor :: forall record viewContext parent id application. (
         , HasField "meta" record MetaBag
         , Default id
         , Eq id
-        , HasField "cssFramework" viewContext CSSFramework
+        , ConfigProvider viewContext
         ) => record -> ((?viewContext :: viewContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 horizontalFormFor record = undefined
 -- 
@@ -108,13 +109,13 @@ createFormContext :: forall record viewContext parent id application. (
         , HasField "id" record id
         , application ~ ViewApp viewContext
         , HasField "meta" record MetaBag
-        , HasField "cssFramework" viewContext CSSFramework
+        , ConfigProvider viewContext
         ) => record -> FormContext record
 createFormContext record =
     FormContext
         { model = record
         , formAction = ""
-        , cssFramework = getField @"cssFramework" ?viewContext
+        , cssFramework = theCSSFramework
         }
 {-# INLINE createFormContext #-}
 

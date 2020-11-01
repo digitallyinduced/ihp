@@ -6,11 +6,6 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.View.Classes where
 
 import IHP.Prelude
-import qualified IHP.Controller.Session as Session
-import qualified Text.Blaze.Html5 as Blaze
-import IHP.HtmlSupport.QQ (hsx)
-import IHP.HtmlSupport.ToHtml
-import IHP.View.Types
 
 -- | Helper for dynamically generating the @class=".."@ attribute.
 -- 
