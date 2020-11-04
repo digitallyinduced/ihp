@@ -69,7 +69,7 @@ instance Default CSSFramework where
                     renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, required }) = do
                         formGroup do
                             (H.div ! A.class_ "form-check") do
-                                let element = if disableLabel then H.div else H.label ! A.class_ "form-check-label"
+                                let element = if disableLabel then H.div else H.label ! A.class_ (if labelClass == "" then "form-check-label" else H.textValue labelClass)
                                 element do
                                     let theInput = H.input
                                             ! A.type_ "checkbox"
