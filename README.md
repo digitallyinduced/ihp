@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://ihp.digitallyinduced.com/" target="_blank">
-    <img src="https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/ihp-logo-readme.png?raw=true" width="420"/>
+    <img src="https://github.com/digitallyinduced/ihp/blob/master/Guide/images/ihp-logo-readme.png?raw=true" width="420"/>
   </a>
 </p>
 
@@ -35,7 +35,7 @@ If you like TypeScript, you will love IHP.
 **Live Reload:**
 While haskell is a compiled language, the built-in dev server automatically reloads your code changes using the fastest way possible. Changes are reflected instantly. Just like good old PHP.
 
-![Live Reload](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/IHP%20Live%20Reloading%20Demo.gif?raw=true)
+![Live Reload](https://github.com/digitallyinduced/ihp/blob/master/Guide/images/IHP%20Live%20Reloading%20Demo.gif?raw=true)
 
 [Watch it in action!](https://youtu.be/nTjjDo57B8g)
 
@@ -59,7 +59,7 @@ Re-render views in the background when the underlying data changes. This is usef
 
 Here's a view using Auto Refresh, there's no app specific JS code here. All view updates are triggered by the server:
 
-![Auto Refresh](https://github.com/digitallyinduced/ihp/blob/readme-update/Guide/images/IHP%20Cloud%20Auto%20Refresh.gif?raw=true)
+![Auto Refresh](https://github.com/digitallyinduced/ihp/blob/master/Guide/images/IHP%20Cloud%20Auto%20Refresh.gif?raw=true)
 
 Auto Refresh can be enabled for IHP views with a single line of code.
 

@@ -8,6 +8,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.View.Types
 import IHP.View.CSSFramework
+import IHP.FlashMessages.Types
 import IHP.Controller.Session
 import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H

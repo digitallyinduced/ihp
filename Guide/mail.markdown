@@ -81,15 +81,13 @@ Last we need to change the email text a little bit. The mail supports HSX so thi
 
 ## Sending Mails
 
-From inside a controller an email can be send by using `sendMail`:
+From inside a controller or script an email can be send by using `sendMail`:
 
 ```haskell
 action MyAction = do 
     user <- fetch "..."
     sendMail ConfirmationMail { user }
 ```
-
-Note that emails can also be send from within scripts but only with the slightly modified `sendMailFromScript` function.
 
 ## Mail Servers
 

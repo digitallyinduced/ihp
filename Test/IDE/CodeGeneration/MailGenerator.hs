@@ -32,8 +32,8 @@ tests = do
                         , constraints = []
                         }
                     ]
-        it "should build a mail with name \"ConfirmationMail\"" do
-            let mailName = "ConfirmationMail"
+        it "should build a mail with name \"PurchaseConfirmationMail\"" do
+            let mailName = "PurchaseConfirmationMail"
             let rawControllerName = "Users"
             let controllerName = tableNameToControllerName rawControllerName
             let modelName = tableNameToModelName rawControllerName
@@ -43,6 +43,6 @@ tests = do
 
             builtPlan `shouldBe` [
                   EnsureDirectory {directory = "Web/Mail/Users"}
-                , CreateFile {filePath = "Web/Mail/Users/Confirmation.hs", fileContent = "module Web.Mail.Users.Confirmation where\nimport Web.View.Prelude\nimport IHP.MailPrelude\n\ndata ConfirmationMail = ConfirmationMail { user :: User }\n\ninstance BuildMail ConfirmationMail where\n    subject = \"Subject\"\n    to ConfirmationMail { .. } = Address { addressName = Just \"Firstname Lastname\", addressEmail = \"fname.lname@example.com\" }\n    from = \"hi@example.com\"\n    html ConfirmationMail { .. } = [hsx|\n        Hello World\n    |]\n"}
-                , AddImport {filePath = "Web/Controller/Users.hs", fileContent = "import Web.Mail.Users.Confirmation"}
+                , CreateFile {filePath = "Web/Mail/Users/PurchaseConfirmation.hs", fileContent = "module Web.Mail.Users.PurchaseConfirmation where\nimport Web.View.Prelude\nimport IHP.MailPrelude\n\ndata PurchaseConfirmationMail = PurchaseConfirmationMail { user :: User }\n\ninstance BuildMail PurchaseConfirmationMail where\n    subject = \"Subject\"\n    to PurchaseConfirmationMail { .. } = Address { addressName = Just \"Firstname Lastname\", addressEmail = \"fname.lname@example.com\" }\n    from = \"hi@example.com\"\n    html PurchaseConfirmationMail { .. } = [hsx|\n        Hello World\n    |]\n"}
+                , AddImport {filePath = "Web/Controller/Users.hs", fileContent = "import Web.Mail.Users.PurchaseConfirmation"}
                 ]

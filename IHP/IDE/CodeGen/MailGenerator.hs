@@ -66,7 +66,7 @@ buildPlan' schema config =
                 <> "\n"
                 <> "instance BuildMail " <> nameWithSuffix <> " where\n"
                 <> "    subject = \"Subject\"\n"
-                <> "    to ConfirmationMail { .. } = Address { addressName = Just \"Firstname Lastname\", addressEmail = \"fname.lname@example.com\" }\n"
+                <> "    to " <> nameWithSuffix <> " { .. } = Address { addressName = Just \"Firstname Lastname\", addressEmail = \"fname.lname@example.com\" }\n"
                 <> "    from = \"hi@example.com\"\n"
                 <> "    html " <> nameWithSuffix <> " { .. } = [hsx|\n"
                 <> "        Hello World\n"
