@@ -73,7 +73,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data " <> nameWithSuffix <> " = " <> nameWithSuffix <> "\n"
                 <> "\n"
-                <> "instance View " <> nameWithSuffix <> " ViewContext where\n"
+                <> "instance View " <> nameWithSuffix <> " where\n"
                 <> "    html " <> nameWithSuffix <> " { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -88,7 +88,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data ShowView = ShowView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
-                <> "instance View ShowView ViewContext where\n"
+                <> "instance View ShowView where\n"
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -104,7 +104,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data NewView = NewView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
-                <> "instance View NewView ViewContext where\n"
+                <> "instance View NewView where\n"
                 <> "    html NewView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -126,7 +126,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data EditView = EditView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
-                <> "instance View EditView ViewContext where\n"
+                <> "instance View EditView where\n"
                 <> "    html EditView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -148,7 +148,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "] }\n"
                 <> "\n"
-                <> "instance View IndexView ViewContext where\n"
+                <> "instance View IndexView where\n"
                 <> "    html IndexView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
