@@ -76,6 +76,7 @@ compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
+compareStatement (a@AddConstraint {}) (b@AddConstraint {}) = compare (get #constraintName a) (get #constraintName b)
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
@@ -103,7 +104,7 @@ compilePostgresType PJSONB = "JSONB"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PCustomType theType) = theType
 
-compileIdentifier :: Text -> Text
+compileIdentifier :: _ -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
     where
         identifierNeedsQuoting = isKeyword || containsSpace
