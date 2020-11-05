@@ -160,6 +160,14 @@ You can disable this behavior by removing the following code from your `Web/Layo
         |]
 ```
 
+Preloading with InstantClick on hover will only happen with links that
+
+1. Use the GET method
+2. Do not link to an anchor or end in `#`
+3. Actually link to a different url than `location.href`
+
+(So putting an anchor on a link will let you selectively turn off preloading for that link.)
+
 ## JSON
 
 Views that are rendered by calling the `render` function can also respond with JSON.
