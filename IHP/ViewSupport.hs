@@ -7,8 +7,8 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ViewSupport
 ( HtmlWithContext
-, CreateViewContext (..)
 , Layout
+, Html
 , View (..)
 , currentViewId
 , forEach
@@ -55,33 +55,14 @@ import qualified IHP.Controller.RequestContext
 import qualified IHP.View.CSSFramework as CSSFramework
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
-
-type HtmlWithContext context = (?context :: context) => Html5.Html
-
--- | A layout is just a function taking a view and returning a new view.
---
--- __Example:__ A very basic html layout.
--- 
--- > myLayout :: Layout
--- > myLayout view = [hsx|
--- >     <html>
--- >         <body>
--- >             {view}
--- >         </body>
--- >     </html>
--- > |]
-type Layout = Html5.Html -> Html5.Html
-
-class CreateViewContext viewContext where
-    createViewContext :: (?context :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext
+import IHP.Controller.Context
 
 
-
-class View theView viewContext | theView -> viewContext where
-    beforeRender :: (?context :: viewContext) => (viewContext, theView) -> (viewContext, theView)
+class View theView where
+    beforeRender :: (?context :: ControllerContext) => theView -> IO ()
     {-# INLINE beforeRender #-}
-    beforeRender view = view
-    html :: (?context :: viewContext, ?view :: theView) => theView -> Html5.Html
+    beforeRender view = pure ()
+    html :: (?context :: ControllerContext, ?view :: theView) => theView -> Html5.Html
     json :: theView -> JSON.Value
     json = error "Not implemented"
 
@@ -131,7 +112,7 @@ currentViewId =
 -- False
 --
 -- This function returns @False@ when a sub-path is request. Uss 'isActivePathOrSub' if you want this example to return @True@.
-isActivePath :: (?context :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
+isActivePath :: (?context :: ControllerContext, PathString controller) => controller -> Bool
 isActivePath route =
     let 
         currentPath = Wai.rawPathInfo theRequest
@@ -151,7 +132,7 @@ isActivePath route =
 -- True
 --
 -- Also see 'isActivePath'.
-isActivePathOrSub :: (?context :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
+isActivePathOrSub :: (?context :: ControllerContext, PathString controller) => controller -> Bool
 isActivePathOrSub route =
     let
         currentPath = Wai.rawPathInfo theRequest
@@ -166,15 +147,12 @@ isActivePathOrSub route =
 -- True
 --
 -- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller viewContext. (?context :: viewContext, HasField "controllerContext" viewContext ControllerSupport.ControllerContext, Typeable controller) => Bool
+isActiveController :: forall controller context. (?context :: ControllerContext, Typeable controller) => Bool
 isActiveController =
     let
-        ?controllerContext = ?context |> getField @"controllerContext"
+        (ActionType actionType) = fromFrozenContext @ActionType
     in
-        let
-            (ActionType actionType) = fromControllerContext @ControllerSupport.ActionType
-        in
-            (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
+        (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
 
 
 css = plain
@@ -183,7 +161,7 @@ onClick = A.onclick
 onLoad = A.onload
 
 -- | Returns the current request
-theRequest :: (?context :: viewContext, HasField "requestContext" viewContext RequestContext) => Wai.Request
+theRequest :: (?context :: ControllerContext) => Wai.Request
 theRequest = 
     let
         requestContext = getField @"requestContext" ?context
@@ -201,7 +179,7 @@ instance {-# OVERLAPPABLE #-} HasPath action => PathString action where
     pathToString = pathTo
 
 -- | Alias for @?context@
-viewContext :: (?context :: viewContext) => viewContext
+viewContext :: (?context :: ControllerContext) => ControllerContext
 viewContext = ?context
 {-# INLINE viewContext #-}
 
@@ -244,10 +222,10 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
     a == b = error "unreachable"
 
-fromCSSFramework :: (?context :: context, FrameworkConfig.ConfigProvider context, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+fromCSSFramework :: (?context :: ControllerContext, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
 fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
 
-theCSSFramework :: (?context :: context, FrameworkConfig.ConfigProvider context) => CSSFramework
+theCSSFramework :: (?context :: ControllerContext) => CSSFramework
 theCSSFramework = ?context
         |> FrameworkConfig.getFrameworkConfig 
         |> get #cssFramework
@@ -266,3 +244,5 @@ instance {-# OVERLAPPABLE #-} HasField "requestContext" viewContext RequestConte
     getFrameworkConfig viewContext = viewContext
             |> get #requestContext
             |> get #frameworkConfig
+
+type Html = HtmlWithContext ControllerContext

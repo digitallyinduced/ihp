@@ -12,8 +12,8 @@ data CodeView = CodeView
     , error :: Maybe ByteString
     }
 
-instance View CodeView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View CodeView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html CodeView { .. } = [hsx|
         <div class="editor-container">

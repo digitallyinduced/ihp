@@ -15,13 +15,9 @@ module IHP.ControllerSupport
 , runAction
 , createRequestContext
 , ControllerContext
-, fromControllerContext
-, maybeFromControllerContext
 , InitControllerContext (..)
 , runActionWithNewContext
-, emptyControllerContext
 , respondAndExit
-, ActionType (..)
 , ResponseException (..)
 ) where
 
@@ -44,43 +40,26 @@ import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig)
+import qualified IHP.Controller.Context as Context
+import IHP.Controller.Context (ControllerContext)
+import IHP.FlashMessages.ControllerFunctions
 
 type Action' = IO ResponseReceived
 
-newtype ControllerContext = ControllerContext TypeMap.TMap
-newtype ActionType = ActionType Typeable.TypeRep
-
-{-# INLINE fromControllerContext #-}
-fromControllerContext :: forall a. (?controllerContext :: ControllerContext, Typeable a) => a
-fromControllerContext =
-    let
-        (ControllerContext context) = ?controllerContext
-        notFoundMessage = ("Unable to find value in controller context: " <> show context)
-    in
-        fromMaybe (error notFoundMessage) (maybeFromControllerContext @a)
-
-{-# INLINE maybeFromControllerContext #-}
-maybeFromControllerContext :: forall a. (?controllerContext :: ControllerContext, Typeable a) => Maybe a
-maybeFromControllerContext = let (ControllerContext context) = ?controllerContext in TypeMap.lookup @a context
-
-{-# INLINE emptyControllerContext #-}
-emptyControllerContext :: ControllerContext
-emptyControllerContext = ControllerContext TypeMap.empty
-
 class (Show controller, Eq controller) => Controller controller where
-    beforeAction :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?context :: RequestContext, ?theAction :: controller) => IO ()
+    beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => IO ()
     beforeAction = pure ()
-    action :: (?controllerContext :: ControllerContext, ?modelContext :: ModelContext, ?context :: RequestContext, ?theAction :: controller) => controller -> IO ()
+    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
-    initContext :: (?modelContext :: ModelContext, ?context :: RequestContext, ?applicationContext :: ApplicationContext) => TypeMap.TMap -> IO TypeMap.TMap
-    initContext context = pure context
+    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?context :: ControllerContext) => IO ()
+    initContext = pure ()
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?context :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let respond = ?context |> get #respond
+    let respond = ?context |> get #requestContext |> get #respond
     
     let doRunAction = do
             beforeAction
@@ -95,29 +74,32 @@ runAction controller = do
 runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    let context = TypeMap.empty
-            |> TypeMap.insert ?application
-            |> TypeMap.insert (ActionType (Typeable.typeOf controller))
+    let ?requestContext = ?context
+    controllerContext <- Context.newControllerContext
+    let ?context = controllerContext
+    Context.putContext ?requestContext
+    Context.putContext ?application
+    Context.putContext (Context.ActionType (Typeable.typeOf controller))
+    initFlashMessages
 
-    try (initContext @application context) >>= \case
+    try (initContext @application) >>= \case
         Left exception -> do
             -- Calling `initContext` might fail, so we provide a bit better error messages here
             ErrorController.displayException exception controller " while calling initContext"
         Right context -> do
-            let ?controllerContext = ControllerContext context
             runAction controller
 
 {-# INLINE getRequestBody #-}
-getRequestBody :: (?context :: RequestContext) => IO ByteString
+getRequestBody :: (?context :: ControllerContext) => IO ByteString
 getRequestBody = Network.Wai.getRequestBodyChunk request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
-getRequestPath :: (?context :: RequestContext) => ByteString
+getRequestPath :: (?context :: ControllerContext) => ByteString
 getRequestPath = Network.Wai.rawPathInfo request
 {-# INLINE getRequestPath #-}
 
 -- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
-getRequestPathAndQuery :: (?context :: RequestContext) => ByteString
+getRequestPathAndQuery :: (?context :: ControllerContext) => ByteString
 getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQueryString request
 {-# INLINE getRequestPathAndQuery #-}
 
@@ -131,20 +113,24 @@ getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQuery
 -- >>> getHeader "X-My-Custom-Header"
 -- Nothing
 --
-getHeader :: (?context :: RequestContext) => ByteString -> Maybe ByteString
+getHeader :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
 {-# INLINE getHeader #-}
 
 -- | Returns the current HTTP request.
 --
 -- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
-request :: (?context :: RequestContext) => Network.Wai.Request
-request = ?context |> get #request
+request :: (?context :: ControllerContext) => Network.Wai.Request
+request = requestContext |> get #request
 {-# INLINE request #-}
 
 {-# INLINE getFiles #-}
-getFiles :: (?context :: RequestContext) => [File Data.ByteString.Lazy.ByteString]
-getFiles = ?context |> get #files
+getFiles :: (?context :: ControllerContext) => [File Data.ByteString.Lazy.ByteString]
+getFiles = requestContext |> get #files
+
+requestContext :: (?context :: ControllerContext) => RequestContext
+requestContext = get #requestContext ?context
+{-# INLINE requestContext #-}
 
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
@@ -162,6 +148,7 @@ instance Show ResponseException where show _ = "ResponseException { .. }"
 
 instance Exception ResponseException
 
-{-# INLINE respondAndExit #-}
+
 respondAndExit :: Response -> IO ()
 respondAndExit response = Exception.throwIO (ResponseException response)
+{-# INLINE respondAndExit #-}

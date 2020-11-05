@@ -17,8 +17,8 @@ data EditForeignKeyView = EditForeignKeyView
     , onDelete :: Text
     }
 
-instance View EditForeignKeyView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View EditForeignKeyView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html EditForeignKeyView { .. } = [hsx|
         <div class="row no-gutters bg-white">

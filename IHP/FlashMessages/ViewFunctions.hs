@@ -14,6 +14,7 @@ import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Text.Blaze.Html5 as Html5
 import IHP.ViewSupport
 import IHP.View.Types
+import IHP.Controller.Context
 
 
 -- | Displays the flash messages for the current request.
@@ -35,11 +36,11 @@ import IHP.View.Types
 --
 -- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
 -- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: forall context. (?context :: context, HasField "flashMessages" context [FlashMessage], FrameworkConfig.ConfigProvider context) => Html5.Html
+renderFlashMessages :: (?context :: ControllerContext) => Html5.Html
 renderFlashMessages = render flashMessages
     where
         flashMessages :: [FlashMessage]
-        flashMessages = getField @"flashMessages" ?context
+        flashMessages = fromFrozenContext
 
         render :: [FlashMessage] -> Html5.Html
         render = fromCSSFramework #styledFlashMessages

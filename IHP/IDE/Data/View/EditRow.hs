@@ -23,7 +23,7 @@ data EditRowView = EditRowView
     , targetPrimaryKey :: Text
     }
 
-instance View EditRowView ViewContext where
+instance View EditRowView where
     html EditRowView { .. } = [hsx|
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">

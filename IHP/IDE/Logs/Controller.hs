@@ -3,7 +3,6 @@ module IHP.IDE.Logs.Controller where
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Helper.Controller
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.Logs.View.Logs
 import qualified IHP.IDE.Types as DevServer
 import qualified Data.ByteString.Char8 as ByteString
@@ -47,10 +46,8 @@ instance Controller LogsController where
 
         renderPlain ""
 
-readDevServerState :: (?controllerContext :: ControllerContext) => IO DevServer.AppState
-readDevServerState = theDevServerContext
-        |> get #appStateRef
-        |> readIORef
+readDevServerState :: (?context :: ControllerContext) => IO DevServer.AppState
+readDevServerState = (get #appStateRef <$> theDevServerContext) >>= readIORef
 
-theDevServerContext :: (?controllerContext :: ControllerContext) => DevServer.Context
-theDevServerContext = (fromControllerContext @ToolServerApplication) |> get #devServerContext
+theDevServerContext :: (?context :: ControllerContext) => IO DevServer.Context
+theDevServerContext = get #devServerContext <$> (fromContext @ToolServerApplication)

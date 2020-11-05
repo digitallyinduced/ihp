@@ -25,7 +25,9 @@ module IHP.ViewPrelude (
     module Data.Aeson,
     module IHP.AutoRefresh.View,
     module IHP.View.Classes,
-    module IHP.FlashMessages.ViewFunctions
+    module IHP.FlashMessages.ViewFunctions,
+    module IHP.Controller.Context,
+    module IHP.Controller.Layout
 ) where
 
 import IHP.Prelude
@@ -49,3 +51,5 @@ import IHP.AutoRefresh.View
 import IHP.View.Types
 import IHP.View.Classes
 import IHP.FlashMessages.ViewFunctions
+import IHP.Controller.Context
+import IHP.Controller.Layout

@@ -14,8 +14,8 @@ data NewForeignKeyView = NewForeignKeyView
     , tableNames :: [Text]
     }
 
-instance View NewForeignKeyView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View NewForeignKeyView where
+    beforeRender view = setLayout schemaDesignerLayout
     html NewForeignKeyView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}

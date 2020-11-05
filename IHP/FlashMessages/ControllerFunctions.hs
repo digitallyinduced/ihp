@@ -7,7 +7,7 @@ module IHP.FlashMessages.ControllerFunctions where
 
 import IHP.Prelude
 import IHP.FlashMessages.Types
-import IHP.Controller.RequestContext
+import IHP.Controller.Context
 import IHP.Controller.Session
 import qualified Data.Maybe as Maybe
 
@@ -23,7 +23,7 @@ import qualified Data.Maybe as Maybe
 -- >     {renderFlashMessages}
 -- >     <main>{view}</main>
 -- > |]
-setSuccessMessage :: (?context :: RequestContext) => Text -> IO ()
+setSuccessMessage :: (?context :: ControllerContext) => Text -> IO ()
 setSuccessMessage = setSession successMessageKey
 
 -- | Sets a flash messages. This is shown to the user when the next view is rendered.
@@ -38,21 +38,21 @@ setSuccessMessage = setSession successMessageKey
 -- >     {renderFlashMessages}
 -- >     <main>{view}</main>
 -- > |]
-setErrorMessage :: (?context :: RequestContext) => Text -> IO ()
+setErrorMessage :: (?context :: ControllerContext) => Text -> IO ()
 setErrorMessage = setSession errorMessageKey
 
 -- | Returns the flash message currently set
-getSuccessMessage :: (?context :: RequestContext) => IO (Maybe Text)
+getSuccessMessage :: (?context :: ControllerContext) => IO (Maybe Text)
 getSuccessMessage = getSession successMessageKey
 
 -- | Removes the current flash message
-clearSuccessMessage :: (?context :: RequestContext) => IO ()
+clearSuccessMessage :: (?context :: ControllerContext) => IO ()
 clearSuccessMessage = setSession successMessageKey ""
 
 -- Returns a list of all flash messages which need to be displayed to the user
 --
 -- Then clears the flash messages so they won't be displayed again.
-getAndClearFlashMessages :: (?context :: RequestContext) => IO [FlashMessage]
+getAndClearFlashMessages :: (?context :: ControllerContext) => IO [FlashMessage]
 getAndClearFlashMessages = do
     successMessage <- getSuccessMessage
     errorMessage <- getSession errorMessageKey
@@ -69,3 +69,8 @@ successMessageKey = "flashSuccessMessage"
 
 errorMessageKey :: Text
 errorMessageKey = "flashErrorMessage"
+
+initFlashMessages :: (?context :: ControllerContext) => IO ()
+initFlashMessages = do
+    flashMessages <- getAndClearFlashMessages
+    putContext flashMessages

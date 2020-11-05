@@ -13,8 +13,8 @@ data EditEnumView = EditEnumView
     , enumId :: Int
     }
 
-instance View EditEnumView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View EditEnumView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html EditEnumView { .. } = [hsx|
         <div class="row no-gutters bg-white">

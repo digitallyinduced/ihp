@@ -13,8 +13,9 @@ data ShowView = ShowView
     , table :: Statement
     }
 
-instance View ShowView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View ShowView where
+    beforeRender view = do
+        setLayout schemaDesignerLayout
 
     html ShowView { .. } = [hsx|
         {renderFlashMessages}

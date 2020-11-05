@@ -21,7 +21,7 @@ data NewActionView = NewActionView
     , applications :: [Text]
     }
 
-instance View NewActionView ViewContext where
+instance View NewActionView where
     html NewActionView { .. } = [hsx|
         <div class="generators">
             <div class="container pt-5">

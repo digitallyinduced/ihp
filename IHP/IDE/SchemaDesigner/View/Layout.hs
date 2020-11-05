@@ -231,7 +231,8 @@ renderObjectSelector statements activeObjectName = [hsx|
                 contextMenuId = "context-menu-" <> tshow id
                 generateControllerLink = [hsx|<a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>|]
                 openControllerLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
-                controllerDoesNotExist = not $ (ucfirst name) `elem` (get #webControllers viewContext)
+                controllerDoesNotExist = not $ (ucfirst name) `elem` webControllers
+                (WebControllers webControllers) = fromFrozenContext @WebControllers
 
         renderObject CreateEnumType { name } id = [hsx|
         <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>

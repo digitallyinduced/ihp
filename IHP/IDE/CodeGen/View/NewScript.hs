@@ -14,7 +14,7 @@ data NewScriptView = NewScriptView
     , scriptName :: Text
     }
 
-instance View NewScriptView ViewContext where
+instance View NewScriptView where
     html NewScriptView { .. } = [hsx|
         <div class="generators">
             {renderFlashMessages}

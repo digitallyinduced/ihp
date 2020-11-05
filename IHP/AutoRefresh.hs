@@ -32,38 +32,32 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
 import qualified IHP.PGNotify as PGNotify
+import IHP.Controller.Context
 
-initAutoRefresh :: (?applicationContext :: ApplicationContext) => TypeMap.TMap -> IO TypeMap.TMap
-initAutoRefresh context = do
-    autoRefreshStateVar :: IORef AutoRefreshState <- newIORef AutoRefreshDisabled
-    let autoRefreshServer :: IORef AutoRefreshServer = ?applicationContext |> get #autoRefreshServer
-    context
-        |> TypeMap.insert @(IORef AutoRefreshState) autoRefreshStateVar
-        |> TypeMap.insert @(IORef AutoRefreshServer) autoRefreshServer
-        |> pure
+initAutoRefresh :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
+initAutoRefresh = do
+    putContext AutoRefreshDisabled
+    putContext (?applicationContext |> get #autoRefreshServer)
 
 autoRefresh :: (
     ?theAction :: action
     , Controller action
-    , ?controllerContext :: ControllerContext
     , ?modelContext :: ModelContext
-    , ?context :: RequestContext
+    , ?context :: ControllerContext
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
-    let autoRefreshStateVar = fromControllerContext @(IORef AutoRefreshState)
-    let autoRefreshServer = fromControllerContext @(IORef AutoRefreshServer)
+    autoRefreshState <- fromContext @AutoRefreshState
+    autoRefreshServer <- fromContext @(IORef AutoRefreshServer)
 
-    readIORef autoRefreshStateVar >>= \case
+    case autoRefreshState of
         AutoRefreshDisabled -> do
             availableSessions <- getAvailableSessions autoRefreshServer
 
             id <- UUID.nextRandom
-            let requestContext = ?context
-            let renderView = \requestContext -> let ?context = requestContext in action ?theAction
+            let controllerContext = ?context
+            let renderView = \requestContext -> let ?context = controllerContext { requestContext } in action ?theAction
             
-
-            let newState = AutoRefreshEnabled id
-            writeIORef autoRefreshStateVar newState
+            putContext (AutoRefreshEnabled id)
             
             -- We save the allowed session ids to the session cookie to only grant a client access
             -- to sessions it initially opened itself
@@ -93,9 +87,6 @@ autoRefresh runAction = do
             runAction
 
 
-autoRefreshViewContext :: (?controllerContext :: ControllerContext) => IO AutoRefreshState
-autoRefreshViewContext = readIORef (fromControllerContext @(IORef AutoRefreshState))
-
 data AutoRefreshWSApp = AwaitingSessionID | AutoRefreshActive { sessionId :: UUID }
 instance WSApp AutoRefreshWSApp where
     initialState = AwaitingSessionID
@@ -122,7 +113,8 @@ instance WSApp AutoRefreshWSApp where
             async $ forever do
                 MVar.takeMVar event
                 Concurrent.threadDelay (100000)
-                (renderView ?context) `catch` handleResponseException
+                let requestContext = get #requestContext ?context
+                (renderView requestContext) `catch` handleResponseException
                 pure ()
 
             pure ()
@@ -162,7 +154,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
-getAvailableSessions :: (?context :: RequestContext) => IORef AutoRefreshServer -> IO [UUID]
+getAvailableSessions :: (?context :: ControllerContext) => IORef AutoRefreshServer -> IO [UUID]
 getAvailableSessions autoRefreshServer = do
     allSessions <- (get #sessions) <$> readIORef autoRefreshServer
     text <- fromMaybe "" <$> getSession "autoRefreshSessions"

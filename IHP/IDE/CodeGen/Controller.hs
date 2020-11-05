@@ -2,7 +2,6 @@ module IHP.IDE.CodeGen.Controller where
 
 import IHP.ControllerPrelude hiding (appPort)
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.CodeGen.View.Generators
 import IHP.IDE.CodeGen.View.NewController
 import IHP.IDE.CodeGen.View.NewScript

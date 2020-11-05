@@ -20,7 +20,7 @@ data NewMailView = NewMailView
     , applications :: [Text]
     }
 
-instance View NewMailView ViewContext where
+instance View NewMailView where
     html NewMailView { .. } = [hsx|
         <div class="generators">
             {renderFlashMessages}
