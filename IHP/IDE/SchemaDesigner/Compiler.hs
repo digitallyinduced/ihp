@@ -76,6 +76,7 @@ compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
+compareStatement (a@AddConstraint {}) (b@AddConstraint {}) = compare (get #constraintName a) (get #constraintName b)
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
