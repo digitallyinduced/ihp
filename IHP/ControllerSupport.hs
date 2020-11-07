@@ -77,7 +77,6 @@ runActionWithNewContext controller = do
     let ?requestContext = ?context
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
-    Context.putContext ?requestContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
     initFlashMessages

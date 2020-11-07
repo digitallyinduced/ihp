@@ -48,7 +48,7 @@ handleNoResponseReturned controller = do
             
         |]
     let title = [hsx|No response returned in {tshow controller}|]
-    RequestContext { respond } <- fromContext
+    let RequestContext { respond } = get #requestContext ?context
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 handleNotFound :: (?context :: RequestContext) => IO ResponseReceived
@@ -97,7 +97,7 @@ displayException exception action additionalInfo = do
 genericHandler :: (Show controller, ?context :: ControllerContext) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
 genericHandler exception controller additionalInfo = do
     let errorMessage = [hsx|An exception was raised while running the action {tshow controller}{additionalInfo}|]
-    RequestContext { respond } <- fromContext
+    let RequestContext { respond } = get #requestContext ?context
     let title = H.string (Exception.displayException exception)
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
@@ -123,7 +123,7 @@ postgresHandler exception controller additionalInfo = do
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
             in do
-                RequestContext { respond } <- fromContext
+                let RequestContext { respond } = get #requestContext ?context
                 respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
     case fromException exception of
         Just (exception :: PG.ResultError) -> Just (handlePostgresError exception "The database result does not match the expected type.")
@@ -153,7 +153,7 @@ patternMatchFailureHandler exception controller additionalInfo = do
                         codeSample = "    action (" <> tshow controller <> ") = do\n        renderPlain \"Hello World\""
 
             let title = [hsx|Pattern match failed while executing {tshow controller}|]
-            RequestContext { respond } <- fromContext
+            let RequestContext { respond } = get #requestContext ?context
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
@@ -197,7 +197,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
-            RequestContext { respond } <- fromContext
+            let RequestContext { respond } = get #requestContext ?context
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
@@ -240,7 +240,7 @@ recordNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Call to fetchOne failed. No records returned.|]
-            RequestContext { respond } <- fromContext
+            let RequestContext { respond } = get #requestContext ?context
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
