@@ -304,3 +304,7 @@ instance HasPath RegistrationsController where
 ## Method Override Middleware
 
 HTML forms don't support special http methods like `DELETE`. To work around this issue, IHP has [a middleware](https://hackage.haskell.org/package/wai-extra-3.0.1/docs/Network-Wai-Middleware-MethodOverridePost.html) which transforms e.g. a `POST` request with a form field `_method` set to `DELETE` to a `DELETE` request.
+
+## Custom 404 Page
+
+You can override the default IHP 404 Not Found error page by creating a new file at `static/404.html`. Then IHP will render that HTML file instead of displaying the default IHP not found page.

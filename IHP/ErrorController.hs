@@ -35,6 +35,7 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
+import qualified System.Directory as Directory
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -51,12 +52,27 @@ handleNoResponseReturned controller = do
     let RequestContext { respond } = get #requestContext ?context
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
+-- | Renders a 404 not found response. If a static/404.html exists, that is rendered instead of the IHP not found page
 handleNotFound :: (?context :: RequestContext) => IO ResponseReceived
 handleNotFound = do
+    hasCustomNotFound <- Directory.doesFileExist "static/404.html"
+    let response = if hasCustomNotFound
+            then customNotFoundResponse
+            else defaultNotFoundResponse
+
+    let RequestContext { respond } = ?context
+    respond response
+
+-- | The default IHP 404 not found page
+defaultNotFoundResponse :: Response
+defaultNotFoundResponse = do
     let errorMessage = [hsx|Router failed to find an action to handle this request.|]
     let title = H.text "Action Not Found"
-    let RequestContext { respond } = ?context
-    respond $ responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+    responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+-- | Renders the static/404.html file
+customNotFoundResponse :: Response
+customNotFoundResponse = responseFile status404 [(hContentType, "text/html")] "static/404.html" Nothing
 
 handleRouterException :: (?context :: RequestContext) => SomeException -> IO ResponseReceived
 handleRouterException exception = do
