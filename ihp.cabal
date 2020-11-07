@@ -139,7 +139,9 @@ library IHPFramework
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.ConvertibleStrings
         , IHP.View.Form
-        , IHP.View.Modal
+        , IHP.Modal.Types
+        , IHP.Modal.ControllerFunctions
+        , IHP.Modal.ViewFunctions
         , IHP.View.TimeAgo
         , IHP.Welcome.Controller
         , IHP.ApplicationContext

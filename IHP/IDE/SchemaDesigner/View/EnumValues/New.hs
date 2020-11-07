@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data NewEnumValueView = NewEnumValueView
@@ -20,7 +19,7 @@ instance View NewEnumValueView where
             {renderObjectSelector (zip [0..] statements) (Just enumName)}
             {renderEnumSelector enumName (zip [0..] values)}
         </div>
-        {Just modal}
+        {renderModal modal}
     |]
         where
             table = findStatementByName enumName statements

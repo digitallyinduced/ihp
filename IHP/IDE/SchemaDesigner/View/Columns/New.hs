@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import qualified Text.Countable as Countable
 import IHP.IDE.SchemaDesigner.View.Columns.Edit (typeSelector)
@@ -24,7 +23,7 @@ instance View NewColumnView where
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
-        {Just modal}
+        {renderModal modal}
     |]
         where
             table = findStatementByName tableName statements
