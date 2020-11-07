@@ -12,7 +12,7 @@ data ShowDatabaseView = ShowDatabaseView {
         tableNames :: [Text]
     }
 
-instance View ShowDatabaseView ViewContext where
+instance View ShowDatabaseView where
     html ShowDatabaseView { .. } = [hsx|
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">

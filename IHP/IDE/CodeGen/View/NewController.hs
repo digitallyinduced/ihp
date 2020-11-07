@@ -18,7 +18,7 @@ data NewControllerView = NewControllerView
     , applications :: [Text]
     }
 
-instance View NewControllerView ViewContext where
+instance View NewControllerView where
     html NewControllerView { .. } = [hsx|
         <div class="generators">
             {renderFlashMessages}

@@ -9,7 +9,6 @@ CanRoute (..)
 , startPage
 , frontControllerToWAIApp
 , withPrefix
-, ModelControllerMap
 , FrontController (..)
 , parseRoute 
 , catchAll
@@ -92,10 +91,6 @@ urlTo action = (fromConfig baseUrl) <> pathTo action
 class HasPath controller => CanRoute controller where
     parseRoute' :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => Parser controller
 
-
--- | Maps models to their restful controllers
--- E.g. ModelControllerMap ControllerContext User = UsersController
-type family ModelControllerMap controllerContext model
 
 class Data controller => AutoRoute controller where
     {-# INLINE autoRoute #-}

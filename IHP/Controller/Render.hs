@@ -19,40 +19,46 @@ import qualified Data.List as List
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
 import GHC.Records
+import qualified IHP.Controller.Context as Context
+import IHP.Controller.Layout
 
 {-# INLINE renderPlain #-}
-renderPlain :: (?context :: RequestContext) => ByteString -> IO ()
+renderPlain :: (?context :: ControllerContext) => ByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] (cs text)
 
 {-# INLINE respondHtml #-}
-respondHtml :: (?context :: RequestContext) => Html -> IO ()
+respondHtml :: (?context :: ControllerContext) => Html -> IO ()
 respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE respondSvg #-}
-respondSvg :: (?context :: RequestContext) => Html -> IO ()
+respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 
 {-# INLINE renderHtml #-}
-renderHtml :: forall viewContext view controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?context :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO Html
+renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?theAction :: controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
 renderHtml !view = do
-    context' <- ViewSupport.createViewContext @viewContext
-    let ?context = context'
-    let (context, view') = ViewSupport.beforeRender (context', view)
-    let layout = getField @"layout" context
-    let ?view = view'
-    let boundHtml = let ?context = context in layout (ViewSupport.html view')
+    let ?view = view
+
+    ViewSupport.beforeRender view
+
+    frozenContext <- Context.freeze ?context
+    
+    let ?context = frozenContext
+    let (ViewLayout layout) = Context.fromFrozenContext @ViewLayout
+    
+    let boundHtml = let ?context = frozenContext in layout (ViewSupport.html ?view)
     pure boundHtml
 
-renderFile :: (?context :: RequestContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
+renderFile :: (?context :: ControllerContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 
-renderJson :: (?context :: RequestContext) => Data.Aeson.ToJSON json => json -> IO ()
+renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderJson json = respondAndExit $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
 
-renderJson' :: (?context :: RequestContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
+renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 
-renderNotFound :: (?context :: RequestContext) => IO ()
+renderNotFound :: (?context :: ControllerContext) => IO ()
 renderNotFound = renderPlain "Not Found"
 
 data PolymorphicRender
@@ -94,7 +100,7 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 
 
 {-# INLINE render #-}
-render :: forall view viewContext controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?context :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO ()
+render :: forall view controller. (ViewSupport.View view, ?theAction :: controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = Just $ (renderHtml view) >>= respondHtml

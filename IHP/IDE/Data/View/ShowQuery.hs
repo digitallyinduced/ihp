@@ -15,7 +15,7 @@ data ShowQueryView = ShowQueryView
     , query :: Text
     }
 
-instance View ShowQueryView ViewContext where
+instance View ShowQueryView where
     html ShowQueryView { .. } = [hsx|
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">

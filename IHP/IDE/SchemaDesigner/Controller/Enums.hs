@@ -2,7 +2,6 @@ module IHP.IDE.SchemaDesigner.Controller.Enums where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.Enums.New
 import IHP.IDE.SchemaDesigner.View.Enums.Show

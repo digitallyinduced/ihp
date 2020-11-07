@@ -12,7 +12,7 @@ data GeneratedCodeView = GeneratedCodeView
     , generatedHaskellCode :: Text
     }
 
-instance View GeneratedCodeView ViewContext where
+instance View GeneratedCodeView where
     html GeneratedCodeView { .. } = [hsx|
         {visualNav}
         <div class="container">

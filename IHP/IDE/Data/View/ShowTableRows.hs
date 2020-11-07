@@ -19,7 +19,7 @@ data ShowTableRowsView = ShowTableRowsView
     , primaryKeyFields :: [Text]
     }
 
-instance View ShowTableRowsView ViewContext where
+instance View ShowTableRowsView where
     html ShowTableRowsView { .. } = [hsx|
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">

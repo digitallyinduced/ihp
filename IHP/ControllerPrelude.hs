@@ -21,6 +21,7 @@ module IHP.ControllerPrelude
     , module IHP.Mail
     , module IHP.FlashMessages.Types
     , module IHP.FlashMessages.ControllerFunctions
+    , module IHP.Controller.Context
     , Only (..)
     ) where
 import IHP.Prelude
@@ -47,3 +48,4 @@ import IHP.Mail (sendMail)
 import Database.PostgreSQL.Simple.Types (Only (..))
 import IHP.FlashMessages.Types
 import IHP.FlashMessages.ControllerFunctions
+import IHP.Controller.Context

@@ -27,7 +27,7 @@ import qualified Test.HtmlSupport.ParserSpec
 import qualified Test.NameSupportSpec
 import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
-
+import qualified Test.Controller.ContextSpec
 
 main :: IO ()
 main = hspec do
@@ -42,3 +42,4 @@ main = hspec do
     Test.HaskellSupportSpec.tests
     Test.HtmlSupport.ParserSpec.tests
     Test.View.CSSFrameworkSpec.tests
+    Test.Controller.ContextSpec.tests

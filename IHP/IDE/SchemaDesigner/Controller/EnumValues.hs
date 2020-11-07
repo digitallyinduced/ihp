@@ -2,7 +2,6 @@ module IHP.IDE.SchemaDesigner.Controller.EnumValues where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.EnumValues.New
 import IHP.IDE.SchemaDesigner.View.EnumValues.Edit

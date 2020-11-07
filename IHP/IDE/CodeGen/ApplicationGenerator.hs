@@ -37,12 +37,6 @@ generateGenericApplication applicationName =
                 <> "import IHP.ViewSupport\n"
                 <> "import Generated.Types\n\n"
                 <> "data " <> applicationName <> "Application = " <> applicationName <> "Application deriving (Eq, Show)\n\n"
-                <> "data ViewContext = ViewContext\n"
-                <> "    { requestContext :: ControllerSupport.RequestContext\n"
-                <> "    , flashMessages :: [IHP.Controller.Session.FlashMessage]\n"
-                <> "    , controllerContext :: ControllerSupport.ControllerContext\n"
-                <> "    , layout :: Layout\n"
-                <> "    }\n"
                 <> "\n"
                 <> "data StaticController = WelcomeAction deriving (Eq, Show, Data)"
                 <> "\n"
@@ -81,31 +75,6 @@ generateGenericApplication applicationName =
                 <> "import IHP.ControllerPrelude\n"
                 <> "import Generated.Types\n"
 
-            viewContextHs =
-                "module " <> applicationName <> ".View.Context where\n\n"
-                <> "import IHP.Prelude\n"
-                <> "import qualified IHP.Controller.Session\n"
-                <> "import IHP.ControllerSupport  (RequestContext (RequestContext))\n"
-                <> "import qualified IHP.ControllerSupport\n"
-                <> "import IHP.ModelSupport\n"
-                <> "import Application.Helper.Controller\n"
-                <> "import Generated.Types\n"
-                <> "import qualified IHP.ViewSupport as ViewSupport\n"
-                <> "import " <> applicationName <> ".View.Layout\n"
-                <> "import " <> applicationName <> ".Types\n\n"
-                <> "instance ViewSupport.CreateViewContext ViewContext where\n"
-                <> "    type ViewApp ViewContext = " <> applicationName <> "Application\n"
-                <> "    createViewContext = do\n"
-                <> "        flashMessages <- IHP.Controller.Session.getAndClearFlashMessages\n"
-                <> "        let viewContext = ViewContext {\n"
-                <> "                requestContext = ?context,\n"
-                <> "                -- user = currentUserOrNothing,\n"
-                <> "                flashMessages,\n"
-                <> "                controllerContext = ?controllerContext,\n"
-                <> "                layout = let ?context = viewContext in defaultLayout\n"
-                <> "            }\n"
-                <> "        pure viewContext\n"
-
             viewLayoutHs =
                 "module " <> applicationName <> ".View.Layout (defaultLayout, Html) where\n"
                 <> "\n"
@@ -117,8 +86,6 @@ generateGenericApplication applicationName =
                 <> "import IHP.Controller.RequestContext\n"
                 <> "import " <> applicationName <> ".Types\n"
                 <> "import " <> applicationName <> ".Routes\n"
-                <> "\n"
-                <> "type Html = HtmlWithContext ViewContext\n"
                 <> "\n"
                 <> "defaultLayout :: (?context :: RequestContext) => Html -> Html\n"
                 <> "defaultLayout inner = H.docTypeHtml ! A.lang \"en\" $ [hsx|\n"
@@ -250,7 +217,6 @@ generateGenericApplication applicationName =
             , CreateFile { filePath = applicationName <> "/Routes.hs", fileContent = routesHs }
             , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
             , CreateFile { filePath = applicationName <> "/Controller/Prelude.hs", fileContent = controllerPreludeHs }
-            , CreateFile { filePath = applicationName <> "/View/Context.hs",fileContent = viewContextHs }
             , CreateFile { filePath = applicationName <> "/View/Layout.hs", fileContent = viewLayoutHs }
             , CreateFile { filePath = applicationName <> "/View/Prelude.hs", fileContent = viewPreludeHs }
             , CreateFile { filePath = applicationName <> "/Controller/Static.hs", fileContent = welcomeControllerStaticHs }

@@ -11,7 +11,7 @@ import IHP.IDE.SchemaDesigner.View.Layout
 
 data GeneratorsView = GeneratorsView
 
-instance View GeneratorsView ViewContext where
+instance View GeneratorsView where
     html GeneratorsView = [hsx|
         <div class="generators">
             <div class="container pt-5">

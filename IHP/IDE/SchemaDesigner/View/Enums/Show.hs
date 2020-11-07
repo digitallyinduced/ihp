@@ -13,8 +13,8 @@ data ShowEnumView = ShowEnumView
     }
 
 
-instance View ShowEnumView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View ShowEnumView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html ShowEnumView { .. } = [hsx|
         {renderFlashMessages}

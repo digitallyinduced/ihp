@@ -11,8 +11,8 @@ data IndexView = IndexView
     { statements :: [Statement]
     }
 
-instance View IndexView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View IndexView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html IndexView { .. } = [hsx|
         {renderFlashMessages}

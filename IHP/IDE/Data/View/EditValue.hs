@@ -19,7 +19,7 @@ data EditValueView = EditValueView
     , targetId :: Text
     }
 
-instance View EditValueView ViewContext where
+instance View EditValueView where
     html EditValueView { .. } = [hsx|
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">

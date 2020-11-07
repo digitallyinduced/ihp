@@ -12,8 +12,8 @@ data NewEnumValueView = NewEnumValueView
     , enumName :: Text
     }
 
-instance View NewEnumValueView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View NewEnumValueView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html NewEnumValueView { .. } = [hsx|
         <div class="row no-gutters bg-white">

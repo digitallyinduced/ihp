@@ -20,7 +20,7 @@ import Network.HTTP.Types.Header (hWWWAuthenticate)
 -- 
 -- > beforeAction = basicAuth ... 
 -- 
-basicAuth :: (?context :: RequestContext) => Text -> Text -> Text -> IO ()
+basicAuth :: (?context :: ControllerContext) => Text -> Text -> Text -> IO ()
 basicAuth uid pw realm = do
     let mein = Just (cs uid, cs pw)
     let cred = join $ fmap extractBasicAuth (getHeader "Authorization")
