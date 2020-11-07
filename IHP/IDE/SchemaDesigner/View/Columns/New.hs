@@ -16,8 +16,8 @@ data NewColumnView = NewColumnView
     , enumNames :: [Text]
     }
 
-instance View NewColumnView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View NewColumnView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html NewColumnView { .. } = [hsx|
         <div class="row no-gutters bg-white">

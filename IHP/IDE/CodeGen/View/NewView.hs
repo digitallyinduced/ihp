@@ -20,7 +20,7 @@ data NewViewView = NewViewView
     , applications :: [Text]
     }
 
-instance View NewViewView ViewContext where
+instance View NewViewView where
     html NewViewView { .. } = [hsx|
         <div class="generators">
             {renderFlashMessages}

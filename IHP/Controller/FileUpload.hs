@@ -19,14 +19,19 @@ import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Process as Process
 import IHP.Controller.RequestContext
+import IHP.Controller.Context
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified System.Process as Process
 
 -- | Returns a file upload from the request as a ByteString.
 --
 -- Returns `Nothing` when the file is not found in the request body.
-fileOrNothing :: (?context :: RequestContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
-fileOrNothing !name = ?context |> getField @"files" |> lookup name
+fileOrNothing :: (?context :: ControllerContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
+fileOrNothing !name =
+        ?context
+        |> get #requestContext
+        |> getField @"files"
+        |> lookup name
 {-# INLINE fileOrNothing #-}
 
 -- | Options to be used together with 'uploadImageWithOptions'
@@ -67,8 +72,7 @@ data ImageUploadOptions = ImageUploadOptions {
 --
 -- The uploaded image path is now stored in #pictureUrl.
 uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?context :: RequestContext
-        , ?controllerContext :: context
+        ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
@@ -118,8 +122,7 @@ uploadImageWithOptions options _ user =
 -- >             redirectTo EditUserAction { .. }
 --
 uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
-        ?context :: RequestContext
-        , ?controllerContext :: context
+        ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
@@ -145,8 +148,7 @@ uploadImageFile ext _ user =
 -- | Saves an uploaded png file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
 uploadPng ::
-    ( ?controllerContext::context
-    , ?context::RequestContext
+    ( ?context :: ControllerContext
     , SetField fieldName record (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
@@ -158,8 +160,7 @@ uploadPng field record = uploadImageFile "png" field record
 -- | Saves an uploaded svg file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
 uploadSVG ::
-    ( ?controllerContext::context
-    , ?context::RequestContext
+    ( ?context :: ControllerContext
     , SetField fieldName record (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))

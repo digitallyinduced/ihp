@@ -9,17 +9,6 @@ import IHP.Environment
 import qualified IHP.IDE.Types as DevServer
 import IHP.FlashMessages.Types
 
-data ViewContext = ViewContext
-    { requestContext :: ControllerSupport.RequestContext
-    , flashMessages :: [FlashMessage]
-    , layout :: ViewSupport.Layout
-    , controllerContext :: ControllerSupport.ControllerContext
-    , appUrl :: Text
-    , webControllers :: [Text]
-    , appNames :: [Text]
-    }
-
-
 data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context }
 
 data SchemaController
@@ -122,3 +111,19 @@ data ColumnDefinition = ColumnDefinition
     , columnDefault :: Maybe Text
     , isNullable :: Bool
     } deriving (Show)
+
+
+-- | Keeps track of all all available apps in the projects. Used to display 
+-- the apps inside the sidebar navigation
+--
+-- Usually this list is like: @["Web"]@ or @["Web", "Admin"]@
+newtype AvailableApps = AvailableApps [Text]
+
+-- | Wrapper to pass the app url to the layout.
+-- Usually "http://localhost:8000"
+newtype AppUrl = AppUrl Text
+
+-- | List of all controllers. Used inside e.g. the Schema Designer to decide whether to display
+-- the 'Generate Controller' option
+newtype WebControllers = WebControllers [Text]
+

@@ -2,7 +2,6 @@ module IHP.IDE.SchemaDesigner.Controller.Schema where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.Schema.Code
 import IHP.IDE.SchemaDesigner.View.Schema.Error
@@ -65,9 +64,8 @@ instance Controller SchemaController where
         render GeneratedCodeView { .. }
 
 readSchema ::
-    ( ?controllerContext::ControllerContext
+    ( ?context::ControllerContext
     , ?modelContext::ModelContext
-    , ?context::RequestContext
     , ?theAction::controller
     ) => IO [Statement]
 readSchema = parseSchemaSql >>= \case
@@ -80,9 +78,8 @@ getSqlError = parseSchemaSql >>= \case
         Right statements -> do pure Nothing
 
 updateSchema ::
-    ( ?controllerContext :: ControllerContext
+    ( ?context :: ControllerContext
     , ?modelContext::ModelContext
-    , ?context::RequestContext
     , ?theAction::controller
     ) => ([Statement] -> [Statement]) -> IO ()
 updateSchema updateFn = do

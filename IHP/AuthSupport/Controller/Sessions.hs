@@ -17,26 +17,24 @@ import IHP.ControllerPrelude hiding (Success, currentUserOrNothing)
 import IHP.AuthSupport.View.Sessions.New
 import IHP.AuthSupport.Authentication
 import IHP.FrameworkConfig
-import IHP.ViewSupport (View, CreateViewContext, Layout)
+import IHP.ViewSupport (View, Layout)
 import IHP.LoginSupport.Types
 import IHP.LoginSupport.Helper.Controller hiding (currentUserOrNothing)
 import Data.Data
 import Data.Maybe (fromJust)
 import qualified IHP.AuthSupport.Lockable as Lockable
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | Displays the login form.
 --
 -- In case the user is already logged in, redirects to the home page ('afterLoginRedirectPath').
-newSessionAction :: forall record action viewContext.
+newSessionAction :: forall record action.
     ( ?theAction :: action
-    , ?controllerContext :: ControllerContext
-    , ?context :: RequestContext
+    , ?context :: ControllerContext
     , HasNewSessionUrl record
     , ?modelContext :: ModelContext
     , Typeable record
-    , View (NewView record) viewContext
-    , CreateViewContext viewContext
-    , HasField "layout" viewContext Layout
+    , View (NewView record)
     , Data action
     , Record record
     , HasPath action
@@ -57,8 +55,7 @@ newSessionAction = do
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
 createSessionAction :: forall record action passwordField.
     (?theAction :: action
-    , ?controllerContext :: ControllerContext
-    , ?context :: RequestContext
+    , ?context :: ControllerContext
     , ?modelContext :: ModelContext
     , Data action
     , HasField "email" record Text
@@ -109,8 +106,7 @@ createSessionAction = do
 -- | Logs out the user and redirect back to the login page
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
-    , ?controllerContext :: ControllerContext
-    , ?context :: RequestContext
+    , ?context :: ControllerContext
     , ?modelContext :: ModelContext
     , Data action
     , HasPath action
@@ -126,9 +122,9 @@ deleteSessionAction = do
 {-# INLINE deleteSessionAction #-}
 
 
-currentUserOrNothing :: forall user. (?controllerContext :: ControllerContext, ?context :: RequestContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
+currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
 currentUserOrNothing =
-    case maybeFromControllerContext @(Maybe user) of
+    case unsafePerformIO (maybeFromContext @(Maybe user)) of
         Just user -> user
         Nothing -> error "currentUserOrNothing: initAuthentication has not been called in initContext inside FrontController of this application"
 {-# INLINE currentUserOrNothing #-}
@@ -174,5 +170,5 @@ class ( Typeable record
     -- >     unless (get #isConfirmed user) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
     -- >         redirectTo NewSessionAction
-    beforeLogin :: (?context :: RequestContext, ?controllerContext :: ControllerContext) => record -> IO ()
+    beforeLogin :: (?context :: ControllerContext) => record -> IO ()
     beforeLogin _ = pure ()

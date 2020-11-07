@@ -10,8 +10,9 @@ module IHP.View.Types
 , SubmitButton (..)
 , FormContext (..)
 , InputType (..)
-, ModelFormAction (..)
 , CSSFramework (..)
+, HtmlWithContext
+, Layout
 )
 where
 
@@ -19,8 +20,22 @@ import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
 
-class ModelFormAction application record where
-    modelFormAction :: record -> Text
+
+type HtmlWithContext context = (?context :: context) => Blaze.Html
+
+-- | A layout is just a function taking a view and returning a new view.
+--
+-- __Example:__ A very basic html layout.
+-- 
+-- > myLayout :: Layout
+-- > myLayout view = [hsx|
+-- >     <html>
+-- >         <body>
+-- >             {view}
+-- >         </body>
+-- >     </html>
+-- > |]
+type Layout = Blaze.Html -> Blaze.Html
 
 data FormField = FormField
     { fieldType :: !InputType
@@ -92,4 +107,3 @@ data CSSFramework = CSSFramework
     -- | Class name for container of validation error message
     , styledValidationResultClass :: Text
     }
-

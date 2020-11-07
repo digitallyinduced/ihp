@@ -18,7 +18,7 @@ data NewRowView = NewRowView
     , tableCols :: [ColumnDefinition]
     }
 
-instance View NewRowView ViewContext where
+instance View NewRowView where
     html NewRowView { .. } = [hsx|
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">

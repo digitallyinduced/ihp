@@ -16,8 +16,8 @@ data EditColumnView = EditColumnView
     , enumNames :: [Text]
     }
 
-instance View EditColumnView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View EditColumnView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html EditColumnView { column = column@Column { name }, .. } = [hsx|
         <div class="row no-gutters bg-white">

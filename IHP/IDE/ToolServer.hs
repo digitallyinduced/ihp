@@ -40,12 +40,16 @@ import IHP.IDE.Data.Controller
 import IHP.IDE.Logs.Controller
 import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Types
+import IHP.IDE.ToolServer.Helper.Controller as Helper
 import Control.Concurrent.Async
 import IHP.IDE.ToolServer.Routes
 import qualified System.Process as Process
 import System.Info
 import qualified System.Environment as Env
 import qualified IHP.AutoRefresh.Types as AutoRefresh
+import IHP.Controller.Context
+import qualified IHP.IDE.ToolServer.Layout as Layout
+import IHP.Controller.Layout
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -119,3 +123,12 @@ instance FrontController ToolServerApplication where
         ]
 
 instance ControllerSupport.InitControllerContext ToolServerApplication where
+    initContext = do
+        availableApps <- AvailableApps <$> findApplications
+        webControllers <- WebControllers <$> findWebControllers
+        let appUrl = AppUrl ("http://localhost:" <> tshow Helper.appPort)
+
+        putContext availableApps
+        putContext webControllers
+        putContext appUrl
+        setLayout Layout.toolServerLayout

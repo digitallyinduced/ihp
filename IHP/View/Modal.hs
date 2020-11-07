@@ -5,6 +5,7 @@ import IHP.HtmlSupport.ToHtml
 import IHP.HtmlSupport.QQ
 import Text.Blaze.Html5 (Html, preEscapedText)
 import IHP.ControllerSupport
+import IHP.Controller.Context
 
 import qualified Data.TMap as TypeMap
 
@@ -53,23 +54,22 @@ instance ToHtml (Maybe Modal) where
 onClick :: Text
 onClick = "if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()"
 
-setModal :: (?controllerContext :: ControllerContext) => Html -> IO ()
+setModal :: (?context :: ControllerContext) => Html -> IO ()
 setModal modal = do
-    let (ModalContainer ref) = fromControllerContext @ModalContainer
-    writeIORef ref (Just modal)
-    pure ()
+    putContext (ModalContainer (Just modal))
 
-getCurrentModal :: (?controllerContext :: ControllerContext) => IO (Maybe Html)
+getCurrentModal :: (?context :: ControllerContext) => IO (Maybe Html)
 getCurrentModal = do
-    let (ModalContainer ref) = fromControllerContext @ModalContainer
-    readIORef ref
+    (ModalContainer maybeHtml) <- fromContext @ModalContainer
+    pure maybeHtml
 
-newtype ModalContainer = ModalContainer (IORef (Maybe Html))
-initModal context = do 
-    modalContainer <- ModalContainer <$> newIORef Nothing
-    pure (TypeMap.insert @ModalContainer modalContainer context)
+newtype ModalContainer = ModalContainer (Maybe Html)
 
-renderCurrentModal :: (?context :: viewContext, HasField "modal" viewContext (Maybe Html)) => Html
+initModal :: (?context :: ControllerContext) => IO ()
+initModal = do 
+    putContext (ModalContainer Nothing)
+
+renderCurrentModal :: (?context :: ControllerContext) => Html
 renderCurrentModal = 
-    let controllerContext :: (Maybe Html) = getField @"modal" ?context
-    in fromMaybe mempty controllerContext
+    let (ModalContainer maybeHtml) = fromFrozenContext
+    in fromMaybe mempty maybeHtml

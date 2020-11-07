@@ -14,7 +14,7 @@ data NewApplicationView = NewApplicationView
     , applicationName :: Text
     }
 
-instance View NewApplicationView ViewContext where
+instance View NewApplicationView where
     html NewApplicationView { .. } = [hsx|
         <div class="generators">
             {renderFlashMessages}

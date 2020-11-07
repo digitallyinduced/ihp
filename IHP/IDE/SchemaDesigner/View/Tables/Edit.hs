@@ -13,8 +13,8 @@ data EditTableView = EditTableView
     , tableId :: Int
     }
 
-instance View EditTableView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
+instance View EditTableView where
+    beforeRender view = setLayout schemaDesignerLayout
 
     html EditTableView { .. } = [hsx|
         <div class="row no-gutters bg-white">

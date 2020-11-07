@@ -123,6 +123,9 @@ library IHPFramework
         , IHP.Controller.Render
         , IHP.Controller.RequestContext
         , IHP.Controller.Session
+        , IHP.Controller.Context
+        , IHP.Controller.Layout
+        , IHP.Controller.BasicAuth
         , IHP.HtmlSupport.Parser
         , IHP.HtmlSupport.QQ
         , IHP.HtmlSupport.ToHtml
@@ -220,7 +223,6 @@ library IHPFramework
         , IHP.IDE.ToolServer.Layout
         , IHP.IDE.ToolServer.Routes
         , IHP.IDE.ToolServer.Types
-        , IHP.IDE.ToolServer.ViewContext
         , IHP.IDE.Types
         , IHP.AutoRefresh
         , IHP.AutoRefresh.Types

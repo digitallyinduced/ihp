@@ -74,7 +74,7 @@ ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
 websocketServer :: (?applicationContext :: ApplicationContext) => Request -> RequestContext.Respond -> Websocket.ServerApp
 websocketServer request respond pendingConnection = do
     requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
-    let ?context = requestContext
+    let ?requestContext = requestContext
 
     connection <- Websocket.acceptRequest pendingConnection
 
