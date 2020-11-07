@@ -58,7 +58,7 @@ tests = do
                 putContext ("hello" :: Text)
 
                 let result = fromFrozenContext @Text
-                (evaluate result) `shouldThrow` (errorCall "maybeFromFrozenContext called on a non frozen context")
+                (evaluate result) `shouldThrow` (errorCall "maybeFromFrozenContext called on a non frozen context while trying to access Text")
 
             it "return a stored value" do
                 context <- newControllerContext
