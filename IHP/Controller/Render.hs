@@ -55,14 +55,11 @@ renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(h
 renderNotFound :: (?context :: RequestContext) => IO ()
 renderNotFound = renderPlain "Not Found"
 
-data PolymorphicRender htmlType jsonType = PolymorphicRender { html :: htmlType, json :: jsonType }
-class MaybeRender a where maybeRenderToMaybe :: a -> Maybe (IO ())
-instance MaybeRender () where
-    {-# INLINE maybeRenderToMaybe #-}
-    maybeRenderToMaybe _ = Nothing
-instance MaybeRender (IO ()) where
-    {-# INLINE maybeRenderToMaybe #-}
-    maybeRenderToMaybe response = Just response
+data PolymorphicRender
+    = PolymorphicRender
+        { html :: Maybe (IO ())
+        , json :: Maybe (IO ())
+        }
 
 -- | Can be used to render different responses for html, json, etc. requests based on `Accept` header
 -- Example:
@@ -76,32 +73,31 @@ instance MaybeRender (IO ()) where
 -- `
 -- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
 {-# INLINE renderPolymorphic #-}
-renderPolymorphic :: forall viewContext jsonType htmlType. (?context :: RequestContext) => (MaybeRender htmlType, MaybeRender jsonType) => PolymorphicRender htmlType jsonType -> IO ()
+renderPolymorphic :: forall viewContext jsonType htmlType. (?context :: ControllerContext) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
     let headers = Network.Wai.requestHeaders request
     let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
     let send406Error = respondAndExit $ responseLBS status406 [] "Could not find any acceptable response format"
     let formats = concat [
-                case maybeRenderToMaybe html of
+                case html of
                     Just handler -> [("text/html", handler)]
                     Nothing -> mempty
                  ,
-                case maybeRenderToMaybe json of
+                case json of
                     Just handler -> [("application/json", handler)]
                     Nothing -> mempty
             ]
     fromMaybe send406Error (Accept.mapAcceptMedia formats acceptHeader)
 
-polymorphicRender = PolymorphicRender () ()
-
-
+polymorphicRender :: PolymorphicRender
+polymorphicRender = PolymorphicRender Nothing Nothing
 
 
 {-# INLINE render #-}
 render :: forall view viewContext controller. (ViewSupport.View view viewContext, ?theAction :: controller, ?context :: RequestContext, ?modelContext :: ModelContext, ViewSupport.CreateViewContext viewContext, HasField "layout" viewContext ViewSupport.Layout, ?controllerContext :: ControllerContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender
-            { html = (renderHtml @viewContext view) >>= respondHtml
-            , json = renderJson (ViewSupport.json view)
+            { html = Just $ (renderHtml view) >>= respondHtml
+            , json = Just $ renderJson (ViewSupport.json view)
             }
     
