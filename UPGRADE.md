@@ -49,7 +49,7 @@ when (isDevelopment FrameworkConfig.environment)
 when isDevelopment 
 ```
 
-Also define the type headers for all the functions in `Layout.hs` in order to capture the ViewContext:
+Also define the type headers for all the functions in `Layout.hs` in order to capture the `?context`:
 
 ```haskell
 -- OLD:
@@ -81,26 +81,38 @@ metaTags :: Html
 metaTags = [hsx|...|]
 ```
 
-Finally, the naming of different kinds of contexts in implicit parameters have been normalized to be called just `?context`. In `Web/View/Context.sh` change the following:
+### View Context has been removed
 
-```haskell
--- Web/View/Context.hs
+#### 1. Remove the `Web/View/Context.hs`
 
--- change this
-let viewContext = ViewContext {
-        requestContext = ?context,
-        -- user = currentUserOrNothing,
-        flashMessages,
-        controllerContext = ?controllerContext,
-        layout = let ?viewContext = viewContext in defaultLayout
-    }
-
--- to this  (rename ?viewContext to ?context)
-let viewContext = ViewContext {
-        requestContext = ?context,
-        -- user = currentUserOrNothing,
-        flashMessages,
-        controllerContext = ?controllerContext,
-        layout = let ?context = viewContext in defaultLayout
-    }
+```bash
+rm Web/View/Context.hs
 ```
+
+If you have other applications such as `Admin`, please also remove the `$APP/View/Context.hs` files.
+
+#### 2. Update all View Files in `Web/View/*`
+
+Remove references to `ViewContext`:
+
+```diff
+-instance View EditView ViewContext where
++instance View EditView where
+```
+
+Does the view have a custom view-specific layout?
+
+```diff
+-instance View ShowEnumView ViewContext where
+-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
++instance View ShowEnumView where
++    beforeRender view = setLayout schemaDesignerLayout
+```
+
+### `?controllerContext` has been renamed to `?context`
+
+In case you use `?controllerContext` somewhere in your code (e.g. in a type signature or as a value) rename it to `?context`
+
+### `?viewContext` has been renamed to `?context`
+
+In case you use `?viewContext` somewhere in your code (e.g. in a type signature or as a value) rename it to `?context`
