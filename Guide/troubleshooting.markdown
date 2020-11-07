@@ -1,8 +1,10 @@
+## Troubleshooting
+
 This page helps you to solve a few common issues with IHP. Longterm we should find solutions for these issues, so that they don't appear every again. Until then, we have this page so that you can find a solution when you paste the error message into Google.
 
 In case your problem cannot be solved with the steps on this page, [join our awesome gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge). We're happy to help!
 
-# Auto Troubleshooting
+## Auto Troubleshooting
 
 Run this to automatically check for the most common IHP issues:
 
@@ -12,7 +14,9 @@ curl https://raw.githubusercontent.com/digitallyinduced/ihp/master/Troubleshoot/
 
 It will tell you what is wrong and the steps you need to do to fix it.
 
-# Makefile:7: /../lib/IHP/Makefile.dist: No such file or directory
+## Common Issues
+
+### Makefile:7: /../lib/IHP/Makefile.dist: No such file or directory
 
 **Problem:**
 
@@ -53,7 +57,7 @@ nix-shell --run 'make build/ihp-lib'
 Now this should succeed.
 
 
-# Running `ihp-new` builds a lot of haskell packages and takes hours to complete
+### Running `ihp-new` builds a lot of haskell packages and takes hours to complete
 
 **Problem:**
 
@@ -63,7 +67,7 @@ When you try to start a new ihp project by running `ihp-new someproject`, nix se
 
 This is most likely caused by a change we did to our binary cache. Run `cachix use digitallyinduced` to fix this.
 
-# warning: substituter 'https://digitallyinduced.cachix.org' does not have a valid signature for path ...
+### warning: substituter 'https://digitallyinduced.cachix.org' does not have a valid signature for path ...
 
 **Problem:**
 
@@ -73,7 +77,7 @@ When running `ihp-new someproject` to create a new project, nix seems to not use
 
 This is caused by a change we did to our binary cache. Open `~/.config/nix/nix.conf`. There take a look at the `trusted-public-keys =` property. You should have two entries there (the public key of our old binary cache, and the new one). Remove the old one `digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI= ` (should be first of the two digitallyinduced keys). Then save the file and the problem is fixed.
 
-# error: file '/build/db/.s.PGSQL.5432' has an unsupported type
+### error: file '/build/db/.s.PGSQL.5432' has an unsupported type
 
 **Problem:**
 
@@ -90,7 +94,7 @@ This happens because nix cannot deal the postgres unix socket which is in `build
 
 When the dev server is not running, check that you have no postgres processes belonging to this unix socket running anymore. In case there are no processes running anymore, try to remove the file via `rm -f`.
 
-# `Unbound implicit parameter (?modelContext::ModelContext)`
+### `Unbound implicit parameter (?modelContext::ModelContext)`
 
 Full error message looks like this:
 
@@ -129,7 +133,7 @@ fetchUser name = do
     return users
 ```
 
-# Creating a new IHP project with ihp-new yields git error
+### Creating a new IHP project with ihp-new yields git error
 
 When you followed the steps as described on the getting started page (i.e. installing nix and ihp) but one of the steps
 erred during installation (e.g. connection issues, privileges not set correctly) the cache utilized by nix might not
