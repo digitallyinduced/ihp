@@ -2,7 +2,6 @@ module IHP.IDE.SchemaDesigner.Controller.Schema where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.Schema.Code
 import IHP.IDE.SchemaDesigner.View.Schema.Error
