@@ -19,6 +19,7 @@ module IHP.ControllerSupport
 , runActionWithNewContext
 , respondAndExit
 , ResponseException (..)
+, jumpToAction
 ) where
 
 import ClassyPrelude
@@ -87,6 +88,12 @@ runActionWithNewContext controller = do
             ErrorController.displayException exception controller " while calling initContext"
         Right context -> do
             runAction controller
+
+jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ()
+jumpToAction theAction = do
+    let ?theAction = theAction
+    beforeAction @action
+    action theAction
 
 {-# INLINE getRequestBody #-}
 getRequestBody :: (?context :: ControllerContext) => IO ByteString

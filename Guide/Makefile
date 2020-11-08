@@ -29,6 +29,7 @@ HTML_FILES+= auto-refresh.html
 HTML_FILES+= mail.html
 HTML_FILES+= design-goals.html
 HTML_FILES+= troubleshooting.html
+HTML_FILES+= modal.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 

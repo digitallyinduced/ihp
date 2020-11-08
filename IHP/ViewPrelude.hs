@@ -13,7 +13,6 @@ module IHP.ViewPrelude (
     hsx,
     toHtml,
     preEscapedToHtml,
-    module IHP.View.Modal,
     module IHP.ValidationSupport,
     pathTo,
     urlTo,
@@ -27,7 +26,9 @@ module IHP.ViewPrelude (
     module IHP.View.Classes,
     module IHP.FlashMessages.ViewFunctions,
     module IHP.Controller.Context,
-    module IHP.Controller.Layout
+    module IHP.Controller.Layout,
+    module IHP.Modal.Types,
+    module IHP.Modal.ViewFunctions
 ) where
 
 import IHP.Prelude
@@ -39,7 +40,6 @@ import IHP.View.Form
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import IHP.View.TimeAgo
-import IHP.View.Modal
 import IHP.ValidationSupport
 import IHP.Controller.RequestContext
 import IHP.RouterSupport
@@ -53,3 +53,6 @@ import IHP.View.Classes
 import IHP.FlashMessages.ViewFunctions
 import IHP.Controller.Context
 import IHP.Controller.Layout
+
+import IHP.Modal.Types
+import IHP.Modal.ViewFunctions

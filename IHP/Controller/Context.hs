@@ -105,7 +105,7 @@ maybeFromContext = do
 maybeFromFrozenContext :: forall value. (?context :: ControllerContext, Typeable value) => Maybe value
 maybeFromFrozenContext = case ?context of
         FrozenControllerContext { customFields } -> TypeMap.lookup @value customFields
-        ControllerContext {} -> error "maybeFromFrozenContext called on a non frozen context"
+        ControllerContext {} -> error ("maybeFromFrozenContext called on a non frozen context while trying to access " <> (show (Typeable.typeRep (Typeable.Proxy @value))))
 {-# INLINE maybeFromFrozenContext #-}
 
 -- | Puts a value into the context
