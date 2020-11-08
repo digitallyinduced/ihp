@@ -76,6 +76,9 @@ common shared-properties
             , http-client
             , http-client-tls
             , resource-pool
+            , unordered-containers
+            , scientific
+            , vector
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
