@@ -2,6 +2,7 @@ module IHP.Controller.RequestContext
 ( RequestContext (..)
 , Respond
 , getConfig
+, RequestBody (..)
 ) where
 
 import           ClassyPrelude
@@ -11,16 +12,17 @@ import           Network.Wai.Parse (File, Param)
 import qualified Data.Vault.Lazy               as Vault
 import           Network.Wai.Session           (Session)
 import           IHP.FrameworkConfig
-
+import qualified Data.Aeson as Aeson
 
 
 type Respond = Response -> IO ResponseReceived
 
+data RequestBody = FormBody { params :: [Param], files :: [File LBS.ByteString] } | JSONBody (Maybe Aeson.Value)
+
 data RequestContext = RequestContext
     { request :: Request
     , respond :: Respond
-    , params :: [Param]
-    , files :: [File LBS.ByteString]
+    , requestBody :: RequestBody
     , vault :: (Vault.Key (Session IO String String))
     , frameworkConfig :: FrameworkConfig
     }

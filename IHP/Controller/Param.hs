@@ -21,6 +21,11 @@ import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified GHC.Float as Float
 import qualified Control.Exception as Exception
 import IHP.Controller.Context
+import qualified Data.Aeson as Aeson
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
+import qualified Data.Scientific as Scientific
+import qualified Data.Vector as Vector
 
 -- | Returns a query or body parameter from the current request. The raw string
 -- value is parsed before returning it. So the return value type depends on what
@@ -81,9 +86,9 @@ import IHP.Controller.Context
 --
 -- > param: Parameter 'firstname' not found
 param :: (?context :: ControllerContext) => (ParamReader valueType) => ByteString -> valueType
-param !name = case paramOrNothing name of
-    Just value -> Either.fromRight (error (paramParserErrorMessage name)) (readParameter value)
-    Nothing -> Exception.throw (ParamNotFoundException name)
+param !name = case paramOrError name of
+        Left exception -> Exception.throw exception
+        Right value -> value
 {-# INLINE param #-}
 
 -- | Similiar to 'param' but works with multiple params. Useful when working with checkboxes.
@@ -117,10 +122,14 @@ paramList name =
 paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 
 -- | Thrown when a parameter is missing when calling 'param "myParam"' or related functions
-data ParamNotFoundException = ParamNotFoundException ByteString deriving (Show)
+data ParamException
+    = ParamNotFoundException { name :: ByteString }
+    | ParamCouldNotBeParsedException { name :: ByteString, parserError :: ByteString }
+    deriving (Show)
 
-instance Exception ParamNotFoundException where
-    displayException (ParamNotFoundException name) = "param: Parameter '" <> cs name <> "' not found"
+instance Exception ParamException where
+    displayException (ParamNotFoundException { name }) = "param: Parameter '" <> cs name <> "' not found"
+    displayException (ParamCouldNotBeParsedException { name, parserError }) = "param: Parameter '" <> cs name <> "' could not be parsed, " <> cs parserError
 
 -- | Specialisied version of param for 'Text'.
 --
@@ -194,13 +203,32 @@ paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 -- >     let page :: Maybe Int = paramOrNothing "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
-paramOrNothing :: (?context :: ControllerContext) => ParamReader a => ByteString -> Maybe a
-paramOrNothing !name = case queryOrBodyParam name of
-    Just value -> case readParameter value of
-        Left error -> Nothing
+paramOrNothing :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Maybe paramType
+paramOrNothing !name =
+    case paramOrError name of
+        Left ParamNotFoundException {} -> Nothing
+        Left otherException -> Exception.throw otherException
         Right value -> Just value
-    Nothing -> Nothing
 {-# INLINE paramOrNothing #-}
+
+-- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid
+paramOrError :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Either ParamException paramType
+paramOrError !name = 
+    let
+        RequestContext { requestBody } = ?context |> get #requestContext
+    in case requestBody of
+        FormBody {} -> case queryOrBodyParam name of
+                Just value -> case readParameter @paramType value of
+                    Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
+                    Right value -> Right value
+                Nothing -> Left ParamNotFoundException { name }
+        JSONBody json -> case json of
+                (Just (Aeson.Object hashMap)) -> case HashMap.lookup (cs name) hashMap of
+                    Just value -> case readParameterJSON @paramType value of
+                        Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
+                        Right value -> Right value
+                _ -> Left ParamNotFoundException { name }
+{-# INLINE paramOrError #-}
 
 -- | Returns a parameter without any parsing. Returns @Nothing@ when the parameter is missing.
 queryOrBodyParam :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
@@ -209,9 +237,11 @@ queryOrBodyParam !name = join (lookup name allParams)
 
 -- | Returns all params available in the current request
 allParams :: (?context :: ControllerContext) => [(ByteString, Maybe ByteString)]
-allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
+allParams = case requestBody of
+            FormBody { params, files } -> concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
+            JSONBody value -> error "allParams: Not supported for JSON requests"
     where
-        RequestContext { request, params } = ?context |> get #requestContext
+        RequestContext { request, requestBody } = ?context |> get #requestContext
 
 -- | Input parser for 'param'.
 --
@@ -219,10 +249,14 @@ allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString requ
 -- Returns @Right value@ when the parsing succeeded.
 class ParamReader a where
     readParameter :: ByteString -> Either ByteString a
+    readParameterJSON :: Aeson.Value -> Either ByteString a
 
 instance ParamReader ByteString where
     {-# INLINE readParameter #-}
     readParameter byteString = pure byteString
+
+    readParameterJSON (Aeson.String bytestring) = Right (cs bytestring)
+    readParameterJSON _ = Left "ParamReader ByteString: Expected String"
 
 instance ParamReader Int where
     {-# INLINE readParameter #-}
@@ -231,6 +265,12 @@ instance ParamReader Int where
             Right value -> Right value
             Left error -> Left ("ParamReader Int: " <> cs error)
 
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left float -> Left "ParamReader Int: Expected Int"
+                    Right int -> Right int
+    readParameterJSON _ = Left "ParamReader Int: Expected Int"
+
 instance ParamReader Integer where
     {-# INLINE readParameter #-}
     readParameter byteString =
@@ -238,24 +278,50 @@ instance ParamReader Integer where
             Right value -> Right value
             Left error -> Left ("ParamReader Int: " <> cs error)
 
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left float -> Left "ParamReader Integer: Expected Integer"
+                    Right integer -> Right integer
+    readParameterJSON _ = Left "ParamReader Integer: Expected Integer"
+
 instance ParamReader Double where
     {-# INLINE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Dobule: " <> cs error)
+            Left error -> Left ("ParamReader Double: " <> cs error)
+
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left double -> Right double
+                    Right integer -> Right (fromIntegral integer)
+    readParameterJSON _ = Left "ParamReader Double: Expected Double"
 
 instance ParamReader Float where
     {-# INLINE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right (Float.double2Float value)
-            Left error -> Left ("ParamReader Dobule: " <> cs error)
+            Left error -> Left ("ParamReader Float: " <> cs error)
+
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left double -> Right double
+                    Right integer -> Right (fromIntegral integer)
+    readParameterJSON _ = Left "ParamReader Float: Expected Float"
 
 instance ParamReader Text where
     {-# INLINE readParameter #-}
     readParameter byteString = pure (cs byteString)
 
+    readParameterJSON (Aeson.String text) = Right text
+    readParameterJSON _ = Left "ParamReader Text: Expected String"
+
+-- | Parses comma separated input like @userIds=1,2,3@
+--
+-- __Example:__
+--
+-- >>> let userIds :: [Int] = param "userIds"
 instance ParamReader value => ParamReader [value] where
     {-# INLINE readParameter #-}
     readParameter byteString =
@@ -267,6 +333,16 @@ instance ParamReader value => ParamReader [value] where
             ([], values) -> Right values
             ((first:rest), _) -> Left first
 
+    readParameterJSON (Aeson.Array values) =
+        values
+        |> Vector.toList
+        |> map readParameterJSON
+        |> Either.partitionEithers
+        |> \case
+            ([], values) -> Right values
+            ((first:rest), _) -> Left first
+    readParameterJSON _ = Left "ParamReader Text: Expected Array"
+
 -- | Parses a boolean.
 --
 -- Html form checkboxes usually use @on@ or @off@ for representation. These
@@ -277,13 +353,23 @@ instance ParamReader Bool where
     readParameter true | toLower (cs true) == "true" = pure True
     readParameter _ = pure False
 
+    readParameterJSON (Aeson.Bool bool) = Right bool
+    readParameterJSON _ = Left "ParamReader Bool: Expected Bool"
+
 instance ParamReader UUID where
     {-# INLINE readParameter #-}
     readParameter byteString =
         case UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
-            Nothing -> Left "FromParamter UUID: Parse error"
+            Nothing -> Left "FromParameter UUID: Parse error"
 
+    readParameterJSON (Aeson.String string) =
+        case UUID.fromText string of
+            Just uuid -> pure uuid
+            Nothing -> Left "FromParameter UUID: Parse error"
+    readParameterJSON _ = Left "ParamReader UUID: Expected String"
+
+-- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
 instance ParamReader UTCTime where
     {-# INLINE readParameter #-}
     readParameter "" = Left "ParamReader UTCTime: Parameter missing"
@@ -298,6 +384,10 @@ instance ParamReader UTCTime where
                 Nothing -> Left "ParamReader UTCTime: Failed parsing"
             Just value -> Right value
 
+    readParameterJSON (Aeson.String string) = readParameter (cs string)
+    readParameterJSON _ = Left "ParamReader UTCTime: Expected String"
+
+-- | Accepts values such as @2020-11-08@
 instance ParamReader Day where
     {-# INLINE readParameter #-}
     readParameter "" = Left "ParamReader Day: Parameter missing"
@@ -309,12 +399,13 @@ instance ParamReader Day where
             Just value -> Right value
             Nothing -> Left "ParamReader Day: Failed parsing"
 
+    readParameterJSON (Aeson.String string) = readParameter (cs string)
+    readParameterJSON _ = Left "ParamReader Day: Expected String"
+
 instance {-# OVERLAPS #-} (ParamReader (ModelSupport.PrimaryKey model')) => ParamReader (ModelSupport.Id' model') where
     {-# INLINE readParameter #-}
-    readParameter uuid =
-        case (readParameter uuid) :: Either ByteString (ModelSupport.PrimaryKey model') of
-            Right uuid -> pure (ModelSupport.Id uuid)
-            Left error -> Left error
+    readParameter uuid = ModelSupport.Id <$> readParameter uuid
+    readParameterJSON value = ModelSupport.Id <$> readParameterJSON value
 
 instance ParamReader param => ParamReader (Maybe param) where
     {-# INLINE readParameter #-}
@@ -322,6 +413,12 @@ instance ParamReader param => ParamReader (Maybe param) where
         case (readParameter param) :: Either ByteString param of
             Right value -> Right (Just value)
             Left error | param == "" -> Right Nothing
+            Left error -> Left error
+
+    readParameterJSON value =
+        case (readParameterJSON value) :: Either ByteString param of
+            Right value -> Right (Just value)
+            Left error | value == (Aeson.String "") -> Right Nothing
             Left error -> Left error
 
 -- | Custom error hint when the 'param' is called with do-notation
@@ -334,6 +431,7 @@ instance ParamReader param => ParamReader (Maybe param) where
 -- Now a custom type error will be shown telling the user to use @let myParam = param "hello"@ instead of do-notation.
 instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \"..\"'" :: Symbol))) => ParamReader  (IO param) where
     readParameter _ = error "Unreachable"
+    readParameterJSON _ = error "Unreachable"
 
 -- | Can be used as a default implementation for 'readParameter' for enum structures
 --
@@ -412,5 +510,18 @@ ifNew :: forall record id. (?context :: ControllerContext, ?modelContext :: Mode
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 
--- Transforms `Just ""` to `Nothing`
+-- | Transforms @Just ""@ to @Nothing@
+--
+-- __Example:__ We have record called @Company@ with a optional field @comment :: Maybe Text@
+--
+-- When we have a form that submits the @comment@ field and the field is empty, it will not be @NULL@ inside the database,
+-- instead it will be set to the empty string. To avoid this we can apply @emptyValueToNothing #comment@. This function
+-- turns the empty string into a 'Nothing' value.
+--
+-- > action UpdateCompanyAction { companyId } = do
+-- >     company <- fetch companyId
+-- >     company
+-- >         |> fill '["name", "comment"]
+-- >         |> emptyValueToNothing #comment
+-- >         |> updateRecord
 emptyValueToNothing field = modify field (maybe Nothing (\value -> if null value then Nothing else Just value))
