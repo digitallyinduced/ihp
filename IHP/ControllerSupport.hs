@@ -20,6 +20,7 @@ module IHP.ControllerSupport
 , respondAndExit
 , ResponseException (..)
 , jumpToAction
+, requestBodyJSON
 ) where
 
 import ClassyPrelude
@@ -44,6 +45,8 @@ import IHP.FrameworkConfig (FrameworkConfig)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext)
 import IHP.FlashMessages.ControllerFunctions
+import Network.HTTP.Types.Header
+import qualified Data.Aeson as Aeson
 
 type Action' = IO ResponseReceived
 
@@ -132,19 +135,39 @@ request = requestContext |> get #request
 
 {-# INLINE getFiles #-}
 getFiles :: (?context :: ControllerContext) => [File Data.ByteString.Lazy.ByteString]
-getFiles = requestContext |> get #files
+getFiles = requestContext
+        |> get #requestBody
+        |> \case
+            RequestContext.FormBody { files } -> files
+            _ -> []
 
 requestContext :: (?context :: ControllerContext) => RequestContext
 requestContext = get #requestContext ?context
 {-# INLINE requestContext #-}
 
+requestBodyJSON :: (?context :: ControllerContext) => Aeson.Value
+requestBodyJSON =
+    ?context
+    |> get #requestContext
+    |> get #requestBody
+    |> \case
+        RequestContext.JSONBody (Just value) -> value
+        _ -> error "Expected JSON body"
+
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
 createRequestContext ApplicationContext { session, frameworkConfig } request respond = do
-    (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
-    pure RequestContext.RequestContext { request, respond, params, files, vault = session, frameworkConfig }
+    let contentType = lookup hContentType (requestHeaders request)
+    requestBody <- case contentType of
+        "application/json" -> do
+            payload <- Network.Wai.getRequestBodyChunk request
+            let value :: Maybe Aeson.Value = (Aeson.decode ((cs payload) :: LByteString))
+            pure (RequestContext.JSONBody value)
+        _ -> do
+            (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
+            pure RequestContext.FormBody { .. }
 
-
+    pure RequestContext.RequestContext { request, respond, requestBody, vault = session, frameworkConfig }
 
 -- Can be thrown from inside the action to abort the current action execution.
 -- Does not indicates a runtime error. It's just used for control flow management.

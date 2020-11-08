@@ -30,8 +30,10 @@ fileOrNothing :: (?context :: ControllerContext) => ByteString -> Maybe (FileInf
 fileOrNothing !name =
         ?context
         |> get #requestContext
-        |> getField @"files"
-        |> lookup name
+        |> get #requestBody
+        |> \case
+            FormBody { files } -> lookup name files
+            _ -> Nothing
 {-# INLINE fileOrNothing #-}
 
 -- | Options to be used together with 'uploadImageWithOptions'
