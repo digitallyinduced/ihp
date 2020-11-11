@@ -165,8 +165,9 @@ Preloading with InstantClick on hover will only happen with links that
 1. Use the GET method
 2. Do not link to an anchor or end in `#`
 3. Actually link to a different url than `location.href`
+4. Do not have an attribute `data-turbolinks-preload='false'`
 
-(So putting an anchor on a link will let you selectively turn off preloading for that link.)
+(So putting an anchor on a link, or explicitly setting the `data-turbolinks-preload` attribute to `false`, will let you selectively turn off preloading for that link.)
 
 ## JSON
 
