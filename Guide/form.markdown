@@ -395,6 +395,17 @@ Given the above example, the rendered form will look like this:
 </form>
 ```
 
+If you want a certain value to be preselected, set the value in the controller. For example, to have the first user be preselected in the above example:
+
+```haskell
+    action NewProjectAction = do
+        users <- query @User |> fetch
+        let userId = headMay users |> maybe def (get #id)
+        let target = newRecord @Project |> set #userId userId
+        render NewView { .. }
+```
+
+
 ### Select Inputs with Custom Enums
 
 You can use select fields with custom defined enums too.
