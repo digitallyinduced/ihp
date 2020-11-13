@@ -7,6 +7,7 @@ After updating your project, please consult the segments from your current relea
 ## Update your `Config/Config.hs`
 
 Old:
+
 ```haskell
 module Config where
 
@@ -21,6 +22,7 @@ instance FrameworkConfig where
 ```
 
 New:
+
 ```haskell
 module Config where
 
@@ -40,11 +42,13 @@ config = do
 Do you have a `mailServer` key in your config?
 
 Old:
+
 ```haskell
     mailServer = SES { .. }
 ```
 
 New:
+
 ```haskell
     option SES { .. }
 ```
@@ -52,11 +56,13 @@ New:
 ## Update `Main.hs`
 
 Old:
+
 ```haskell
 main = IHP.Server.run
 ```
 
 New:
+
 ```haskell
 main = IHP.Server.run config
 ```
