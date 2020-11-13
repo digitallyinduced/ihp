@@ -122,7 +122,7 @@ typeSelector postgresType enumNames = [hsx|
             {option selected "REAL" "Float"}
             {option selected "DOUBLE PRECISION" "Double"}
             {option selected "DATE" "Date"}
-            {option selected "BINARY" "Binary"}
+            {option selected "BYTEA" "Binary"}
             {option selected "Time" "Time"}
             {option selected "SERIAL" "Serial"}
             {option selected "BIGSERIAL" "Bigserial"}
