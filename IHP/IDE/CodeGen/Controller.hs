@@ -9,6 +9,7 @@ import IHP.IDE.CodeGen.View.NewView
 import IHP.IDE.CodeGen.View.NewMail
 import IHP.IDE.CodeGen.View.NewAction
 import IHP.IDE.CodeGen.View.NewApplication
+import IHP.IDE.CodeGen.View.NewMigration
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
 import IHP.IDE.CodeGen.ScriptGenerator as ScriptGenerator
@@ -24,6 +25,7 @@ import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
 import Control.Exception
 import System.Directory
+import qualified IHP.SchemaMigration as SchemaMigration
 
 
 instance Controller CodeGenController where
@@ -141,6 +143,18 @@ instance Controller CodeGenController where
         (Right plan) <- ApplicationGenerator.buildPlan applicationName
         executePlan plan
         setSuccessMessage "Application generated"
+        redirectTo GeneratorsAction
+
+    action NewMigrationAction = do
+        let description = paramOrDefault "" "description"
+        render NewMigrationView { .. }
+    
+    action CreateMigrationAction = do
+        let description = param "description"
+        migration <- SchemaMigration.createMigration description
+        let path = SchemaMigration.migrationPath migration
+        setSuccessMessage ("Migration generated: " <> path)
+        openEditor path 0 0
         redirectTo GeneratorsAction
 
     action OpenControllerAction = do

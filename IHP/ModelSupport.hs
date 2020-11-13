@@ -273,8 +273,10 @@ instance Default (PrimaryKey model) => Default (Id' model) where
 -- > users <- sqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQuery :: (?modelContext :: ModelContext) => (PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
-sqlQuery theQuery theParameters = withDatabaseConnection \connection -> PG.query connection theQuery theParameters
+sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) => Query -> q -> IO [r]
+sqlQuery theQuery theParameters = do
+    logQuery theQuery theParameters
+    withDatabaseConnection \connection -> PG.query connection theQuery theParameters
 {-# INLINE sqlQuery #-}
 
 
@@ -283,8 +285,10 @@ sqlQuery theQuery theParameters = withDatabaseConnection \connection -> PG.query
 -- __Example:__
 --
 -- > sqlExec "CREATE TABLE users ()" ()
-sqlExec :: (?modelContext :: ModelContext) => (PG.ToRow q) => Query -> q -> IO Int64
-sqlExec theQuery theParameters = withDatabaseConnection \connection -> PG.execute connection theQuery theParameters
+sqlExec :: (?modelContext :: ModelContext, PG.ToRow q, Show q) => Query -> q -> IO Int64
+sqlExec theQuery theParameters = do
+    logQuery theQuery theParameters
+    withDatabaseConnection \connection -> PG.execute connection theQuery theParameters
 {-# INLINE sqlExec #-}
 
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a

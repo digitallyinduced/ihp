@@ -41,6 +41,11 @@ instance View GeneratorsView where
                         <div class="generator-name">Script</div>
                     </a>
 
+                    <a href={NewMigrationAction} class="generator">
+                        <div class="generator-icon">{databaseIcon}</div>
+                        <div class="generator-name">Migration</div>
+                    </a>
+
                     <a href={NewApplicationAction} class="generator">
                         <div class="generator-icon">{copyIcon}</div>
                         <div class="generator-name">Application</div>
@@ -49,7 +54,6 @@ instance View GeneratorsView where
             </div>
         </div>
     |]
-
 
 renderPlan (Left error) = [hsx|{error}|]
 renderPlan (Right actions) = [hsx|<div class="generator-actions">{forEach actions renderGeneratorAction}</div>|]

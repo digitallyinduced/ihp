@@ -90,12 +90,14 @@ data CodeGenController
     | NewMailAction
     | NewActionAction
     | NewApplicationAction
+    | NewMigrationAction
     | CreateControllerAction
     | CreateScriptAction
     | CreateViewAction
     | CreateMailAction
     | CreateActionAction
     | CreateApplicationAction
+    | CreateMigrationAction
     | OpenControllerAction
     deriving (Eq, Show, Data)
 

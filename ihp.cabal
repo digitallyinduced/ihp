@@ -182,6 +182,7 @@ library IHPFramework
         , IHP.IDE.CodeGen.View.NewController
         , IHP.IDE.CodeGen.View.NewScript
         , IHP.IDE.CodeGen.View.NewView
+        , IHP.IDE.CodeGen.View.NewMigration
         , IHP.IDE.CodeGen.ViewGenerator
         , IHP.IDE.Data.Controller
         , IHP.IDE.Data.View.EditRow
@@ -245,6 +246,7 @@ library IHPFramework
         , IHP.FlashMessages.Types
         , IHP.FlashMessages.ControllerFunctions
         , IHP.FlashMessages.ViewFunctions
+        , IHP.SchemaMigration
 
 executable RunDevServer
     import: shared-properties
@@ -281,6 +283,18 @@ executable new-script
     build-depends: IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
+
+executable new-migration
+    import: shared-properties
+    build-depends: IHPFramework
+    hs-source-dirs: exe
+    main-is: IHP/CLI/NewMigration.hs
+
+executable migrate
+    import: shared-properties
+    build-depends: IHPFramework
+    hs-source-dirs: exe
+    main-is: IHP/CLI/Migrate.hs
 
 executable hash-password
     import: shared-properties
