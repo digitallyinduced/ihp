@@ -81,6 +81,7 @@ must check the `Nullable` select box with a default `Null`. This ensures your
 `pictureUrl` data has a `Maybe Text` type and can handle 
 cases where the user has not uploaded any image.
 
+If ImageMagick is not installed you will get a `picture.upload` in the uploads folder, but no `picture.jpg`. Install ImageMagick, on Ubuntu it is `sudo apt-get install imagemagick`.
 
 There is currently no special form helper for file uploads. Just specificy it manually like this:
 
@@ -144,6 +145,8 @@ isAge :: Int -> ValidatorResult
 isAge = isInRange (0, 100)
 ```
 
+This is also useful if you need the messages to be in another language.
+
 ## Checking that an email is unique
 
 Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).
@@ -187,6 +190,14 @@ In case the id is hardcoded, you can just type UUID value with the right type si
 
 ```haskell
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+```
+
+## Having an image as Logout button
+
+The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by Javascript on click. This does not currently work well with an image inside a link. A workaround is to have the image be the background, like this:
+
+```html
+<a href={DeleteSessionAction} class="js-delete js-delete-no-confirm" style="background:url(/logout.svg) left center no-repeat;width:40px"></a>
 ```
 
 ## Making a dynamic Login/Logout button

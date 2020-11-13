@@ -261,7 +261,7 @@ instance ParamReader ByteString where
 instance ParamReader Int where
     {-# INLINE readParameter #-}
     readParameter byteString =
-        case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) byteString of
+        case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
             Left error -> Left ("ParamReader Int: " <> cs error)
 
@@ -274,9 +274,9 @@ instance ParamReader Int where
 instance ParamReader Integer where
     {-# INLINE readParameter #-}
     readParameter byteString =
-        case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) byteString of
+        case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Int: " <> cs error)
+            Left error -> Left ("ParamReader Integer: " <> cs error)
 
     readParameterJSON (Aeson.Number number) =
             case Scientific.floatingOrInteger number of

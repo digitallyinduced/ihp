@@ -126,6 +126,7 @@ typeSelector postgresType enumNames = [hsx|
             {option selected "Time" "Time"}
             {option selected "SERIAL" "Serial"}
             {option selected "BIGSERIAL" "Bigserial"}
+            {option selected "JSONB" "JSON"}
             {forEach enumNames renderEnumType}
         </select>
 |]
