@@ -172,6 +172,8 @@ instance InitControllerContext WebApplication where
         setLayout defaultLayout
 ```
 
+If you miss this step, you will get an error like `Unable to find ViewLayout in controller context`.
+
 ## Switch IHP version
 
 First open `default.nix` and change the git commit in line 4 to the following:
