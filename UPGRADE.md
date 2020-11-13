@@ -179,7 +179,7 @@ If you miss this step, you will get an error like `Unable to find ViewLayout in 
 First open `default.nix` and change the git commit in line 4 to the following:
 
 ```bash
-rev = "TODO";
+rev = "d02a0699220a87d32889ff2a7b87ad81f8bc8195";
 ```
 
 After that run the following command to update your project:
