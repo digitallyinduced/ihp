@@ -22,12 +22,24 @@ import IHP.ModelSupport
 --
 -- This way we can later add more properties to the CSSFramework without having update all the CSS Frameworks manually
 instance Default CSSFramework where
-    def = CSSFramework { .. }
+    def = CSSFramework
+            {
+                styledFlashMessage = \cssFramework -> \case
+                        SuccessFlashMessage message -> [hsx|<div>{message}</div>|]
+                        ErrorFlashMessage message -> [hsx|<div>{message}</div>|]
+                , styledFlashMessages
+                , styledFormField
+                , styledSubmitButton
+                , styledSubmitButtonClass
+                , styledFormFieldHelp
+                , styledInputClass
+                , styledInputInvalidClass
+                , styledFormGroupClass
+                , styledValidationResult
+                , styledValidationResultClass
+            }
         where
-            styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div>{message}</div>|]
-            styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div>{message}</div>|]
-
-            styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework)
+            styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
             
             styledFormField :: CSSFramework -> FormField -> Blaze.Html
             styledFormField cssFramework formField =
