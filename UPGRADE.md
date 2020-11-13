@@ -1,99 +1,87 @@
-## Description
+## Upgrading IHP Versions
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-## In upcoming releases:
+# Upgrade to Beta 13.11.2020 (v20201113) from Beta 30.10.2020 (v20201030)
 
-*Please add a section here when making a PR containing breaking changes. Please use the following header:* `### [Title](link to PR)`
+## Update your `Config/Config.hs`
 
-### [FrameworkConfig is now a datatype](https://github.com/digitallyinduced/ihp/pull/485)
-
-In order to remove a number of unsafeIO operations, the FrameworkConfig has been refactored to a datatype. 
-Furthermore, the construction of the FrameworkConfig now leverages a state monad. 
-To changes config values use the `option` function:
+Old:
 
 ```haskell
--- Config/Config.hs
+module Config where
+
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.Mail.Types
+
+instance FrameworkConfig where 
+    environment = Development
+    appHostname = "localhost"
+```
+
+New:
+
+```haskell
+module Config where
+
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.Mail.Types
 
 config :: ConfigBuilder
 config = do
     option Development
-    option $ AppHostname "localhost"
-
+    option (AppHostname "localhost")
 ```
 
-The option function uses a typemap to assign the values to different properties.
-For generally used types, such as the `appHostName :: Text`, a newtype has been introduced
-The config now also has to be explicitly passed to the `Server.run` function.
+### MailServer
+
+Do you have a `mailServer` key in your config?
+
+Old:
 
 ```haskell
--- Main.hs
+    mailServer = SES { .. }
+```
 
-main :: IO ()
+New:
 
--- OLD:
+```haskell
+    option SES { .. }
+```
+
+## Update `Main.hs`
+
+Old:
+
+```haskell
 main = IHP.Server.run
+```
 
--- NEW:
+New:
+
+```haskell
 main = IHP.Server.run config
 ```
 
+## Update `Web/Routes.hs`
 
-Which brings their usage, namely that the functions described above have to be used in `Web/View/Layout.hs`
+Remove all lines like `type instance ModelControllerMap AdminApplication Project = ProjectsController`.
 
-```haskell
--- Replace this syntax
-when (isDevelopment FrameworkConfig.environment) 
+Search for `ModelControllerMap` in your project. If there are still some results for this, remove the found lines.
 
--- With this
-when isDevelopment 
-```
+## Update `Web/Types.hs`
 
-Also define the type headers for all the functions in `Layout.hs` in order to capture the `?context`:
+Remove the `data ViewContext = ..`. The View Context is not used anymore in IHP.
 
-```haskell
--- OLD:
-defaultLayout view = [hsx|...|]
+## Update all Views `Web/View/*/*.hs`
 
--- NEW:
-defaultLayout :: Html -> Html
-defaultLayout view = [hsx|...|]
+Open every view file in the `View` directory.
 
--- OLD:
-stylesheets = [hsx|...|]
-
--- NEW:
-stylesheets :: Html
-stylesheets = [hsx|...|]
-
--- OLD:
-scripts = [hsx|...|]
-
--- NEW:
-scripts :: Html
-scripts = [hsx|...|]
-
--- OLD:
-metaTags = [hsx|...|]
-
--- NEW:
-metaTags :: Html
-metaTags = [hsx|...|]
-```
-
-### View Context has been removed
-
-#### 1. Remove the `Web/View/Context.hs`
-
-```bash
-rm Web/View/Context.hs
-```
-
-If you have other applications such as `Admin`, please also remove the `$APP/View/Context.hs` files.
-
-#### 2. Update all View Files in `Web/View/*`
-
-Remove references to `ViewContext`:
+Remove the `ViewContext` from the `instance View`:
 
 ```diff
 -instance View EditView ViewContext where
@@ -109,10 +97,94 @@ Does the view have a custom view-specific layout?
 +    beforeRender view = setLayout schemaDesignerLayout
 ```
 
+## Update `Web/View/Layouts.hs`
+
+1. Remove:
+
+```haskell
+type Html = HtmlWithContext ViewContext
+```
+
+2. If you have other applications such as `Admin`, please also remove the `$APP/View/Context.hs` files.
+
+3. Update calls to `isDevelopment`:
+
+```diff
+-when (isDevelopment FrameworkConfig.environment) [hsx|
++when isDevelopment [hsx|
+```
+
+4. Update calls to `isProduction`:
+
+```diff
+-when (isProduction FrameworkConfig.environment) [hsx|
++when isProduction [hsx|
+```
+
+5. Add type signatures to all functions in `Layout.hs`:
+
+```diff
+-defaultLayout view = [hsx|...|]
++defaultLayout :: Html -> Html
++defaultLayout view = [hsx|...|]
+```
+
+```diff
+-stylesheets = [hsx|...|]
++stylesheets :: Html
++stylesheets = [hsx|...|]
+```
+
+```diff
+-scripts = [hsx|...|]
++scripts :: Html
++scripts = [hsx|...|]
+```
+
+```diff
+-metaTags = [hsx|...|]
++metaTags :: Html
++metaTags = [hsx|...|]
+```
+
+## Remove the `Web/View/Context.hs`
+
+```bash
+rm Web/View/Context.hs
+```
+
 ### `?controllerContext` has been renamed to `?context`
 
-In case you use `?controllerContext` somewhere in your code (e.g. in a type signature or as a value) rename it to `?context`
+In case you use `?controllerContext` somewhere in your code (e.g. in a type signature or as a value) rename it to `?context`.
 
 ### `?viewContext` has been renamed to `?context`
 
-In case you use `?viewContext` somewhere in your code (e.g. in a type signature or as a value) rename it to `?context`
+In case you use `?viewContext` somewhere in your code (e.g. in a type signature or as a value) rename it to `?context`.
+
+## Update `Web/FrontController.hs`
+
+1. Add an `import Web.View.Layout (defaultLayout)` at the top of the file
+2. Make sure there is a `InitControllerContext`. If it does not exist, place this at the bottom of the file:
+
+```haskell
+instance InitControllerContext WebApplication where
+    initContext = do
+        setLayout defaultLayout
+```
+
+## Switch IHP version
+
+First open `default.nix` and change the git commit in line 4 to the following:
+
+```bash
+rev = "TODO";
+```
+
+After that run the following command to update your project:
+
+```bash
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
