@@ -13,7 +13,7 @@ main = do
 
     let doCreateMigration description = do
             migration <- createMigration description
-            let path = pathToMigration migration
+            let path = migrationPath migration
             putStrLn $ "Created migration: " <> path
             openEditor path 0 0
     
