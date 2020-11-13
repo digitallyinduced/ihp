@@ -27,6 +27,9 @@ tests = do
                 it "should accept numeric input" do
                     (readParameter @Int "1337") `shouldBe` (Right 1337)
                 
+                it "should accept negative numbers" do
+                    (readParameter @Int "-1337") `shouldBe` (Right (-1337))
+
                 it "should accept JSON numerics " do
                     (readParameterJSON @Int (json "1337")) `shouldBe` (Right 1337)
                 
@@ -37,6 +40,9 @@ tests = do
                 it "should accept numeric input" do
                     (readParameter @Integer "1337") `shouldBe` (Right 1337)
                 
+                it "should accept negative numbers" do
+                    (readParameter @Integer "-1337") `shouldBe` (Right (-1337))
+
                 it "should accept JSON numerics " do
                     (readParameterJSON @Integer (json "1337")) `shouldBe` (Right 1337)
                 

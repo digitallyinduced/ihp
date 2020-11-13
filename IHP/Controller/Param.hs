@@ -276,7 +276,7 @@ instance ParamReader Integer where
     readParameter byteString =
         case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Int: " <> cs error)
+            Left error -> Left ("ParamReader Integer: " <> cs error)
 
     readParameterJSON (Aeson.Number number) =
             case Scientific.floatingOrInteger number of
