@@ -219,27 +219,6 @@ defaultDatabaseUrl = do
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     (Environment.lookupEnv "DATABASE_URL") >>= (pure . maybe defaultDatabaseUrl cs )
 
--- | Finds the lib
---
--- The location depends on whether the framework is installed through nix
--- or checked out from git inside the current project directory.
---
--- When it's installed with nix, the lib dir is located at @lib/ihp@
--- while the dev server binary is located at @bin/RunDevServer@.
-findLibDirectory :: IO Text
-findLibDirectory = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
-    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
-    if frameworkMountedLocally
-        then pure "IHP/lib/IHP/"
-        else if ihpLibSymlinkAvailable
-            then do
-                pure "build/ihp-lib/"
-            else do
-                binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-                pure (Text.strip binDir <> "/../lib/IHP/")
-
-
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
 isEnvironment environment = (getFrameworkConfig ?context |> get #environment) == environment

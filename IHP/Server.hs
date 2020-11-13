@@ -28,6 +28,7 @@ import qualified Control.Concurrent as Concurrent
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.WebSocket as WS
+import IHP.LibDir
 
 run :: (FrontController RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do

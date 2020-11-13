@@ -50,6 +50,7 @@ import qualified IHP.AutoRefresh.Types as AutoRefresh
 import IHP.Controller.Context
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
+import qualified IHP.LibDir as LibDir
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -83,7 +84,7 @@ startToolServer' port isDebugMode = do
             let ?context = requestContext
             frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
             
-    libDirectory <- cs <$> Config.findLibDirectory
+    libDirectory <- cs <$> LibDir.findLibDirectory
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
 
     let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")

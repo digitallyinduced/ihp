@@ -21,12 +21,14 @@ import System.Info
 import Data.String.Conversions (cs)
 import qualified IHP.FrameworkConfig as Config
 import IHP.Environment
+import qualified IHP.LibDir as LibDir
 
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
     appStateRef <- newIORef emptyAppState
     portConfig <- findAvailablePortConfig
+    LibDir.ensureSymlink
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
     -- Like: $ DEBUG=1 ./start
@@ -230,7 +232,7 @@ startAppGHCI = do
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
-    libDirectory <- Config.findLibDirectory
+    libDirectory <- LibDir.findLibDirectory
 
     let loadAppCommands = 
             [ ":script " <> cs libDirectory <> "/applicationGhciConfig"

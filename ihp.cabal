@@ -247,6 +247,7 @@ library IHPFramework
         , IHP.FlashMessages.ControllerFunctions
         , IHP.FlashMessages.ViewFunctions
         , IHP.SchemaMigration
+        , IHP.LibDir
 
 executable RunDevServer
     import: shared-properties
