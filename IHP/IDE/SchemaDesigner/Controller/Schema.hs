@@ -17,8 +17,11 @@ import System.Exit
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import IHP.IDE.SchemaDesigner.View.Layout
 
 instance Controller SchemaController where
+    beforeAction = setLayout schemaDesignerLayout
+
     action ShowCodeAction = do
         schema <- Text.readFile schemaFilePath
         error <- getSqlError

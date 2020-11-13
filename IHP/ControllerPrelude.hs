@@ -24,6 +24,7 @@ module IHP.ControllerPrelude
     , module IHP.Controller.Context
     , module IHP.Modal.Types
     , module IHP.Modal.ControllerFunctions
+    , module IHP.Controller.Layout
     , Only (..)
     ) where
 import IHP.Prelude
@@ -51,6 +52,7 @@ import Database.PostgreSQL.Simple.Types (Only (..))
 import IHP.FlashMessages.Types
 import IHP.FlashMessages.ControllerFunctions
 import IHP.Controller.Context
+import IHP.Controller.Layout
 
 import IHP.Modal.Types
 import IHP.Modal.ControllerFunctions

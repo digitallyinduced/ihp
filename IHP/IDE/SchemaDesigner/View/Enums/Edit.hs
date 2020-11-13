@@ -13,8 +13,6 @@ data EditEnumView = EditEnumView
     }
 
 instance View EditEnumView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html EditEnumView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) Nothing}

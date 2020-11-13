@@ -9,9 +9,6 @@ import IHP.IDE.SchemaDesigner.View.Layout
 data NewTableView = NewTableView { statements :: [Statement] }
 
 instance View NewTableView where
-    beforeRender view = do
-        setLayout schemaDesignerLayout
-
     html NewTableView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) Nothing}

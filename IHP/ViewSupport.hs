@@ -59,10 +59,14 @@ import IHP.Controller.Context
 
 
 class View theView where
+    -- | Hook which is called before the render is called
     beforeRender :: (?context :: ControllerContext) => theView -> IO ()
-    {-# INLINE beforeRender #-}
     beforeRender view = pure ()
+
+    -- Renders the view as html
     html :: (?context :: ControllerContext, ?view :: theView) => theView -> Html5.Html
+
+    -- | Renders the view to a JSON
     json :: theView -> JSON.Value
     json = error "Not implemented"
 

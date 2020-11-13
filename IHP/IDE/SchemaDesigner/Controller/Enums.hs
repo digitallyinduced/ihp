@@ -16,8 +16,10 @@ import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.Controller.Schema
+import IHP.IDE.SchemaDesigner.View.Layout
 
 instance Controller EnumsController where
+    beforeAction = setLayout schemaDesignerLayout
     
     action ShowEnumAction { .. } = do
         statements <- readSchema

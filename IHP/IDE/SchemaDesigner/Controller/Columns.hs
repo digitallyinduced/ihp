@@ -18,8 +18,10 @@ import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.Controller.Schema
 import IHP.IDE.SchemaDesigner.Controller.Helper
+import IHP.IDE.SchemaDesigner.View.Layout
 
 instance Controller ColumnsController where
+    beforeAction = setLayout schemaDesignerLayout
 
     action NewColumnAction { tableName } = do
         statements <- readSchema

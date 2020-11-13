@@ -13,8 +13,6 @@ data EditTableView = EditTableView
     }
 
 instance View EditTableView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html EditTableView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) Nothing}

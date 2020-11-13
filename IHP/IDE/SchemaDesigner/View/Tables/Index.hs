@@ -11,8 +11,6 @@ data IndexView = IndexView
     }
 
 instance View IndexView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html IndexView { .. } = [hsx|
         {renderFlashMessages}
         <div class="row no-gutters bg-white mb-4">

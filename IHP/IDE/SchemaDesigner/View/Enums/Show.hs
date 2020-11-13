@@ -13,8 +13,6 @@ data ShowEnumView = ShowEnumView
 
 
 instance View ShowEnumView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html ShowEnumView { .. } = [hsx|
         {renderFlashMessages}
         <div class="row no-gutters bg-white">

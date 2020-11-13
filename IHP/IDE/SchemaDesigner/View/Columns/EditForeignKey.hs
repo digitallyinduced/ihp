@@ -17,8 +17,6 @@ data EditForeignKeyView = EditForeignKeyView
     }
 
 instance View EditForeignKeyView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html EditForeignKeyView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}

@@ -13,9 +13,6 @@ data ShowView = ShowView
     }
 
 instance View ShowView where
-    beforeRender view = do
-        setLayout schemaDesignerLayout
-
     html ShowView { .. } = [hsx|
         {renderFlashMessages}
         <div class="row no-gutters bg-white">

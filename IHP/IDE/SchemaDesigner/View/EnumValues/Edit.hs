@@ -14,8 +14,6 @@ data EditEnumValueView = EditEnumValueView
     }
 
 instance View EditEnumValueView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html EditEnumValueView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just enumName)}

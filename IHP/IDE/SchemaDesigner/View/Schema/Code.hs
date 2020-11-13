@@ -12,8 +12,6 @@ data CodeView = CodeView
     }
 
 instance View CodeView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html CodeView { .. } = [hsx|
         <div class="editor-container">
             <div id="editor">{preEscapedToHtml schema}</div>

@@ -16,8 +16,6 @@ data NewColumnView = NewColumnView
     }
 
 instance View NewColumnView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html NewColumnView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}

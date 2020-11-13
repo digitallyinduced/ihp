@@ -9,8 +9,6 @@ import IHP.IDE.SchemaDesigner.View.Layout
 data NewEnumView = NewEnumView { statements :: [Statement] }
 
 instance View NewEnumView where
-    beforeRender view = setLayout schemaDesignerLayout
-
     html NewEnumView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) Nothing}
