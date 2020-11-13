@@ -427,4 +427,5 @@ isIllegalKeyword input = case (toUpper input) of
     "RIGHT" -> True
     "SIMILAR" -> True
     "VERBOSE" -> True
+    "BYTEA" -> True
     _ -> False
