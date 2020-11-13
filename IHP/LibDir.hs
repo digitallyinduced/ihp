@@ -39,7 +39,7 @@ findLibDirectory = do
 -- If the symlink is missing, it tries to fix this by starting a new nix-shell and pinpointing the framework lib dir in there
 ensureSymlink :: IO ()
 ensureSymlink = do
-    frameworkMountedLocally <- pure False
+    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
     ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
 
     unless ihpLibSymlinkAvailable do
