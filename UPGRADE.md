@@ -167,6 +167,10 @@ In case you use `?viewContext` somewhere in your code (e.g. in a type signature 
 2. Make sure there is a `InitControllerContext`. If it does not exist, place this at the bottom of the file:
 
 ```haskell
+-- Add these imports, most other imports can propably be removed
+import Web.Controller.Prelude
+import Web.View.Layout (defaultLayout)
+
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
