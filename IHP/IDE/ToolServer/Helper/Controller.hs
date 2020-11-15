@@ -82,3 +82,4 @@ findApplications = do
     pure (map removeImport imports)
         where
             removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
+

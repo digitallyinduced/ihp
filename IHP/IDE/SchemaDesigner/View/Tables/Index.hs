@@ -13,6 +13,7 @@ data IndexView = IndexView
 instance View IndexView where
     html IndexView { .. } = [hsx|
         {renderFlashMessages}
+        {modal}
         <div class="row no-gutters bg-white mb-4">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
