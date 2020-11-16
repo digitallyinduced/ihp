@@ -176,7 +176,7 @@ instance InitControllerContext WebApplication where
         setLayout defaultLayout
 ```
 
-If you miss this step, you will get an error like `Unable to find ViewLayout in controller context`.
+**If you miss this step, you will get an error like `Unable to find ViewLayout in controller context`.**
 
 ## Switch IHP version
 
