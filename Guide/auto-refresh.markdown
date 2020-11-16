@@ -47,44 +47,6 @@ instance InitControllerContext WebApplication where
         >=> initAutoRefresh -- <----- ADD THIS LINE
 ```
 
-### ViewContext
-
-After that we also need to extend our apps view context. This is required to pass an request identifier to the view, so that auto refresh knows which request it's dealing with.
-
-Extend your `ViewContext` in `Web/Types.hs`:
-
-```haskell
-module Web.Types where
-
-import IHP.AutoRefresh.Types -- <----- ADD THIS IMPORT
-
-data ViewContext = ViewContext
-    { requestContext :: ControllerSupport.RequestContext
-    -- ...
-    , autoRefreshState :: AutoRefreshState -- <-------- ADD THIS LINE
-    }
-```
-
-We also need to initialize this new field in `Web/View/Context.hs`:
-
-```haskell
-module Web.View.Context where
-
-import IHP.AutoRefresh -- <----- ADD THIS IMPORT
-
-instance ViewSupport.CreateViewContext ViewContext where
-    type ViewApp ViewContext = WebApplication
-    createViewContext = do
-        -- ...
-        autoRefreshState <- autoRefreshViewContext -- <----- ADD THIS LINE
-        -- ...
-        let viewContext = ViewContext {
-                -- ...
-                autoRefreshState -- <-------- ADD THIS LINE
-            }
-        pure viewContext
-```
-
 ### Layout
 
 Next we need to add a new meta tag to our layout in `Web/View/Layout.hs`:

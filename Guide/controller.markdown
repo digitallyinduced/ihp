@@ -127,7 +127,7 @@ And an `ExampleView` like this:
 ```haskell
 data ExampleView = ExampleView { }
 
-instance View ExampleView ViewContext where
+instance View ExampleView where
     html ExampleView { .. } = [hsx|Hello World!|]
 ```
 
@@ -136,7 +136,7 @@ Now we want to pass the user's firstname to the view, to make the hello world a 
 ```haskell
 data ExampleView = ExampleView { firstname :: Text }
 
-instance View ExampleView ViewContext where
+instance View ExampleView where
     html ExampleView { .. } = [hsx|Hello World, {firstname}!|]
 ```
 

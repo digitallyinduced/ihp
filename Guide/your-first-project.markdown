@@ -372,7 +372,7 @@ import Web.View.Prelude
 
 data ShowView = ShowView { post :: Post }
 
-instance View ShowView ViewContext where
+instance View ShowView where
     html ShowView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">
@@ -413,7 +413,7 @@ import Web.View.Prelude
 
 data ShowView = ShowView { post :: Post }
 
-instance View ShowView ViewContext where
+instance View ShowView where
     html ShowView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">
@@ -687,7 +687,7 @@ The controller is generated now. But we need to do some adjustments to better in
 First we need to make it possible to create a new comment for a post. Open `Web/View/Posts/Show.hs` and append `<a href={NewCommentAction}>Add Comment</a>` to the HSX code:
 
 ```html
-instance View ShowView ViewContext where
+instance View ShowView where
     html ShowView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">

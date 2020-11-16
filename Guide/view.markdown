@@ -58,7 +58,7 @@ module Web.View.Layout (defaultLayout, appLayout) where
 To use the layout inside a view, call `setLayout` from the `beforeRender`:
 
 ```haskell
-instance View MyView ViewContext where
+instance View MyView where
     beforeRender = do
         setLayout appLayout
 ```

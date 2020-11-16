@@ -191,7 +191,7 @@ module Web.View.Sessions.New where
 import Web.View.Prelude
 import IHP.AuthSupport.View.Sessions.New
 
-instance View (NewView User) ViewContext where
+instance View (NewView User) where
     html NewView { .. } = [hsx|
         <div class="h-100" id="sessions-new">
             <div class="d-flex align-items-center">
@@ -229,32 +229,6 @@ After you have completed the above steps, you can open the login at `/NewSession
 ```
 
 ## Accessing the current user
-
-In order to access the current user from your actions and templates you need to add it to the view context.
-
-Update `Web/Types.hs` and add a `user` field to the ViewContext data type:
-
-```haskell
-data ViewContext = ViewContext
-    { requestContext :: ControllerSupport.RequestContext
-    , flashMessages :: [IHP.Controller.Session.FlashMessage]
-    , controllerContext :: ControllerSupport.ControllerContext
-    , layout :: Layout
-    , user :: Maybe User -- <--------------- add this
-    }
-```
-
-and then uncomment it in `Web/View/Context.hs`:
-
-```haskell
-let viewContext = ViewContext {
-    requestContext = ?requestContext,
-	user = currentUserOrNothing, -- <--------------- uncomment this line
-	flashMessages,
-	controllerContext = ?controllerContext,
-	layout = let ?viewContext = viewContext in defaultLayout
-}
-```
 
 Inside your actions you can then use `currentUser` to get access to the current logged in user:
 

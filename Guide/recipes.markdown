@@ -86,7 +86,7 @@ If ImageMagick is not installed you will get a `picture.upload` in the uploads f
 There is currently no special form helper for file uploads. Just specificy it manually like this:
 
 ```haskell
-instance View EditView ViewContext where
+instance View EditView where
     html EditView { .. } = [hsx|
         <h1>Profil bearbeiten</h1>
 
@@ -205,8 +205,6 @@ The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by Javas
 Depending on the `user` object from the viewContext, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
 
 ```haskell
-type Html = HtmlWithContext ViewContext
-
 navbar :: Html
 navbar = [hsx|
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
