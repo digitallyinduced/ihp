@@ -17,6 +17,7 @@ import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.Controller.Schema
 import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.Controller.Helper
 
 instance Controller EnumsController where
     beforeAction = setLayout schemaDesignerLayout

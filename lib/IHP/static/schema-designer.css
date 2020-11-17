@@ -138,3 +138,15 @@
     color: #000;
     text-decoration: none !important;
 }
+
+.schema-update-failed {
+    font-family: SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+    font-size: 8px;
+    color: #6c757d;
+}
+
+.schema-update-failed .error {
+    color: red;
+    font-weight: 800;
+    font-size: 16px;
+}

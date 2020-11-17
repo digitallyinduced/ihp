@@ -219,6 +219,7 @@ library IHPFramework
         , IHP.IDE.SchemaDesigner.View.Schema.Code
         , IHP.IDE.SchemaDesigner.View.Schema.Error
         , IHP.IDE.SchemaDesigner.View.Schema.GeneratedCode
+        , IHP.IDE.SchemaDesigner.View.Schema.SchemaUpdateFailed
         , IHP.IDE.SchemaDesigner.View.Tables.Edit
         , IHP.IDE.SchemaDesigner.View.Tables.Index
         , IHP.IDE.SchemaDesigner.View.Tables.New
