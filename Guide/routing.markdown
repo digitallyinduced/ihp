@@ -95,7 +95,7 @@ Lots of modern browser don't even show the full url bar anymore (e.g. Safari and
 An action constructor can have multiple parameters:
 
 ```haskell
-data PostsController = EditPostAction { postId :: !(Id Post), userId :: !(Id Post) }
+data PostsController = EditPostAction { postId :: !(Id Post), userId :: !(Id User) }
 ```
 
 This will generate a routing like:
