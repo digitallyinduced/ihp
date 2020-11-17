@@ -8,8 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: cachix/install-nix-action@v9
-    - uses: cachix/cachix-action@v6
+    - uses: cachix/install-nix-action@v12
+    - uses: cachix/cachix-action@v8
       with:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
