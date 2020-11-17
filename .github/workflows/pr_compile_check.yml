@@ -1,4 +1,4 @@
-name: Linux Build Test
+name: Check PR compiles without errors
 on:
   pull_request:
     branches: [master]
