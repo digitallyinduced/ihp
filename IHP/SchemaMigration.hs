@@ -118,5 +118,6 @@ createMigration description = do
     revision <- round <$> POSIX.getPOSIXTime 
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
+    Directory.createDirectoryIfMissing False "Application/Migration"
     Text.writeFile ("Application/Migration/" <> cs migrationFile) "-- Write your SQL migration code in here\n"
     pure Migration { .. }
