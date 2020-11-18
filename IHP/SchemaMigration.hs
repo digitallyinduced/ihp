@@ -13,6 +13,7 @@ import IHP.ModelSupport
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
+import qualified Data.Char as Char
 
 data Migration = Migration
     { revision :: Int
@@ -104,7 +105,7 @@ pathToMigration fileName = case revision of
     where
         revision :: Maybe Int
         revision = fileName
-                |> Text.split (== '-')
+                |> Text.split (not . Char.isDigit)
                 |> head
                 |> fmap textToInt
                 |> join
