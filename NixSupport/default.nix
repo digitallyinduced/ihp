@@ -4,7 +4,7 @@ let
     pkgs = import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; };
     ghc = pkgs.haskell.packages.${compiler};
     allHaskellPackages = ghc.ghcWithPackages (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
-    allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [pkgs.darwin.apple_sdk.frameworks.Cocoa] else []) ];
+    allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [] else []) ];
 in
     pkgs.stdenv.mkDerivation {
         name = "app";
