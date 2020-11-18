@@ -44,7 +44,9 @@ renderHtml !view = do
     frozenContext <- Context.freeze ?context
     
     let ?context = frozenContext
-    let (ViewLayout layout) = Context.fromFrozenContext @ViewLayout
+    let layout = case Context.maybeFromFrozenContext @ViewLayout of
+            Just (ViewLayout layout) -> layout
+            Nothing -> id
     
     let boundHtml = let ?context = frozenContext in layout (ViewSupport.html ?view)
     pure boundHtml
