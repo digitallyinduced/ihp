@@ -88,7 +88,7 @@ Remove the `ViewContext` from the `instance View`:
 +instance View EditView where
 ```
 
-Does the view have a custom view-specific layout?
+Does the view have a custom view-specific layout? 
 
 ```diff
 -instance View ShowEnumView ViewContext where
@@ -96,6 +96,8 @@ Does the view have a custom view-specific layout?
 +instance View ShowEnumView where
 +    beforeRender view = setLayout schemaDesignerLayout
 ```
+
+This is quite common in `View\Sessions\New.hs` if you are using the built-in authentication.
 
 ## Update `Web/View/Layouts.hs`
 
@@ -152,6 +154,17 @@ type Html = HtmlWithContext ViewContext
 ```bash
 rm Web/View/Context.hs
 ```
+
+## Update `Web/View/Prelude.hs`
+
+```diff
+-, module Web.View.Context
+```
+
+```diff
+-import Web.View.Context
+```
+
 
 ### `?controllerContext` has been renamed to `?context`
 
