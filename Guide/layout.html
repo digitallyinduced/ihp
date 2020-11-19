@@ -266,6 +266,25 @@
 
         summary h3 { vertical-align: sub }
 
+        .next-button {
+            background-color: hsla(192, 81%, 26%, 1);
+            color: white !important;
+            text-decoration: none !important;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            margin-top: 1rem;
+            display: inline-block;
+            border: 1px solid hsla(192, 81%, 19%, 0.1);
+            font-weight: 500;
+            border-radius: 8px;
+        }
+
+        .next-button:hover {
+            background-color: hsla(192, 81%, 26%, 0.8)
+        }
+
     </style>
 
     <script>
@@ -279,6 +298,14 @@
         /* Add css class active to current navigation item */
         var activeNavItem = document.querySelector('.nav-link.secondary[href="' + location.pathname.split('/').pop() + '"]');
         if (activeNavItem) { activeNavItem.classList.add('active'); }
+
+        /* Add css class to "Next: ..." links */
+        var links = document.querySelectorAll('a');
+        for (let link of links) {
+            if (link.innerText.indexOf('Next: ') === 0) {
+                link.classList.add('next-button');
+            }
+        }
     </script>
     <script async defer src="https://buttons.github.io/buttons.js"></script>
     <script src="instantclick.js" data-no-instant></script>

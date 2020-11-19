@@ -989,7 +989,6 @@ You should have a rough understanding of IHP now. The best way to continue is to
 
 [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
 
-Questions, or need help with haskell type errors? Join our Gitter Chat:
+Questions, or need help with haskell type errors? Join our Slack:
 
-[![Gitter](https://badges.gitter.im/digitallyinduced/ihp.svg)](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-[(IRC available)](https://irc.gitter.im/)
+[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-im0do3yv-iryDNyvpwW~py40kvl_cpQ)
