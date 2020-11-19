@@ -66,7 +66,6 @@ findOpenMigrations = do
     migrations <- findAllMigrations
     migrations
         |> filter (\Migration { revision } -> not (migratedRevisions |> includes revision))
-        |> sortBy (comparing revision)
         |> pure
 
 -- | Returns all migration revisions applied to the database schema
@@ -82,6 +81,7 @@ findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revis
 -- >>> findAllMigrations
 -- [ Migration { revision = 1604850570, migrationFile = "Application/Migration/1604850570-create-projects.sql" } ]
 --
+-- The result is sorted so that the oldest revision is first.
 findAllMigrations :: IO [Migration]
 findAllMigrations = do
     directoryFiles <- Directory.listDirectory "Application/Migration"
@@ -89,6 +89,7 @@ findAllMigrations = do
         |> map cs
         |> filter (\path -> ".sql" `isSuffixOf` path)
         |> mapMaybe pathToMigration
+        |> sortBy (comparing revision)
         |> pure
 
 -- | Given a path such as Application/Migrate/00-initial-migration.sql it returns a Migration
