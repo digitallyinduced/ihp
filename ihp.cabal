@@ -79,6 +79,10 @@ common shared-properties
             , unordered-containers
             , scientific
             , vector
+            , wreq
+            , cryptohash
+            , base16-bytestring
+            , githash
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -249,6 +253,7 @@ library IHPFramework
         , IHP.FlashMessages.ViewFunctions
         , IHP.SchemaMigration
         , IHP.LibDir
+        , IHP.Telemetry
 
 executable RunDevServer
     import: shared-properties

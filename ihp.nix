@@ -48,6 +48,8 @@
 , data-default
 , regex-tdfa
 , resource-pool
+, wreq
+, githash
 }:
 mkDerivation {
   pname = "ihp";
@@ -56,6 +58,7 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   allowInconsistentDependencies = true;
+  buildDepends = [ (import <nixpkgs> {}).git ];
   libraryHaskellDepends = [
     base
     classy-prelude
@@ -101,6 +104,8 @@ mkDerivation {
     data-default
     regex-tdfa
     resource-pool
+    wreq
+    githash
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
@@ -109,4 +114,6 @@ mkDerivation {
     mkdir -p $out/lib/IHP
     cp -r lib/IHP/* lib/IHP/.hie-bios $out/lib/IHP
   '';
+  enableLibraryForGhci = true;
+  homepage = "https://ihp.digitallyinduced.com";
 }

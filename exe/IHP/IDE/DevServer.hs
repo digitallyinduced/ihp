@@ -22,6 +22,7 @@ import Data.String.Conversions (cs)
 import qualified IHP.FrameworkConfig as Config
 import IHP.Environment
 import qualified IHP.LibDir as LibDir
+import qualified IHP.Telemetry as Telemetry
 
 main :: IO ()
 main = do
@@ -43,6 +44,7 @@ main = do
     installHandler sigINT (Catch catchHandler) Nothing
 
     start
+    async Telemetry.reportTelemetry
     forever do
         appState <- readIORef appStateRef
         when isDebugMode (putStrLn $ " ===> " <> (tshow appState))
