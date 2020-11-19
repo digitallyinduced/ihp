@@ -50,7 +50,9 @@ let
 	    hspec
 	    regex-tdfa
 	    resource-pool
-	]);
+	    wreq
+	    githash
+    ]);
 in
     pkgs.stdenv.mkDerivation {
         name = "app";
