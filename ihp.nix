@@ -50,6 +50,7 @@
 , resource-pool
 , wreq
 , githash
+, deepseq
 }:
 mkDerivation {
   pname = "ihp";
@@ -106,6 +107,7 @@ mkDerivation {
     resource-pool
     wreq
     githash
+    deepseq
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

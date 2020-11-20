@@ -26,6 +26,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
+import qualified Control.DeepSeq as DeepSeq
 
 -- | Returns a query or body parameter from the current request. The raw string
 -- value is parsed before returning it. So the return value type depends on what
@@ -110,13 +111,14 @@ param !name = case paramOrError name of
 -- When a value cannot be parsed, this function will fail similiar to 'param'.
 --
 -- Related: https://stackoverflow.com/questions/63875081/how-can-i-pass-list-params-in-ihp-forms/63879113
-paramList :: forall valueType. (?context :: ControllerContext) => (ParamReader valueType) => ByteString -> [valueType]
+paramList :: forall valueType. (?context :: ControllerContext, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [valueType]
 paramList name =
     allParams
     |> filter (\(paramName, paramValue) -> paramName == name)
     |> mapMaybe (\(paramName, paramValue) -> paramValue)
     |> map (readParameter @valueType)
     |> map (Either.fromRight (error (paramParserErrorMessage name)))
+    |> DeepSeq.force
 {-# INLINE paramList #-}
 
 paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
@@ -125,7 +127,7 @@ paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 data ParamException
     = ParamNotFoundException { name :: ByteString }
     | ParamCouldNotBeParsedException { name :: ByteString, parserError :: ByteString }
-    deriving (Show)
+    deriving (Show, Eq)
 
 instance Exception ParamException where
     displayException (ParamNotFoundException { name }) = "param: Parameter '" <> cs name <> "' not found"
@@ -203,12 +205,12 @@ paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 -- >     let page :: Maybe Int = paramOrNothing "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
-paramOrNothing :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Maybe paramType
+paramOrNothing :: forall paramType. (?context :: ControllerContext) => ParamReader (Maybe paramType) => ByteString -> Maybe paramType
 paramOrNothing !name =
     case paramOrError name of
         Left ParamNotFoundException {} -> Nothing
         Left otherException -> Exception.throw otherException
-        Right value -> Just value
+        Right value -> value
 {-# INLINE paramOrNothing #-}
 
 -- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid

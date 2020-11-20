@@ -8,11 +8,94 @@ import IHP.Prelude
 import IHP.HaskellSupport
 import Test.Hspec
 import IHP.Controller.Param
+import IHP.Controller.Context
+import IHP.Controller.RequestContext
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
+import qualified Data.TMap as TypeMap
+import qualified Network.Wai as Wai
+import qualified GHC.IO as IO
 
 tests = do
     describe "IHP.Controller.Param" do
+        describe "param" do
+            it "should parse valid input" do
+                let ?context = createControllerContextWithParams [("page", "1")]
+                (param @Int "page") `shouldBe` 1
+            
+            it "should fail on empty input" do
+                let ?context = createControllerContextWithParams [("page", "")]
+                (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "ParamReader Int: not enough input" })
+            
+            it "should fail if param not provided" do
+                let ?context = createControllerContextWithParams []
+                (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamNotFoundException { name = "page" })
+            
+            it "should fail with a parser error on invalid input" do
+                let ?context = createControllerContextWithParams [("page", "NaN")]
+                (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "ParamReader Int: Failed reading: takeWhile1" })
+
+        describe "paramOrNothing" do
+            it "should parse valid input" do
+                let ?context = createControllerContextWithParams [("referredBy", "776ab71d-327f-41b3-90a8-7b5a251c4b88")]
+                (paramOrNothing @UUID "referredBy") `shouldBe` (Just "776ab71d-327f-41b3-90a8-7b5a251c4b88")
+            
+            it "should return Nothing on empty input" do
+                let ?context = createControllerContextWithParams [("referredBy", "")]
+                (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
+            
+            it "should return Nothing if param not provided" do
+                let ?context = createControllerContextWithParams []
+                (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
+            
+            it "should fail with a parser error on invalid input" do
+                let ?context = createControllerContextWithParams [("referredBy", "not a uuid")]
+                (IO.evaluate (paramOrNothing @UUID "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "FromParameter UUID: Parse error" })
+
+        describe "paramOrDefault" do
+            it "should parse valid input" do
+                let ?context = createControllerContextWithParams [("page", "1")]
+                (paramOrDefault @Int 0 "page") `shouldBe` 1
+            
+            it "should return default value on empty input" do
+                let ?context = createControllerContextWithParams [("page", "")]
+                (paramOrDefault @Int 10 "page") `shouldBe` 10
+            
+            it "should return default value if param not provided" do
+                let ?context = createControllerContextWithParams []
+                (paramOrDefault @Int 10 "page") `shouldBe` 10
+            
+            it "should fail with a parser error on invalid input" do
+                let ?context = createControllerContextWithParams [("page", "NaN")]
+                (IO.evaluate (paramOrDefault @Int 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "ParamReader Int: Failed reading: takeWhile1" })
+
+
+        describe "paramList" do
+            it "should parse valid input" do
+                let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", "egg")]
+                (paramList @Text "ingredients") `shouldBe` ["milk", "egg"]
+            
+            it "should fail on invalid input" do
+                let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
+                (IO.evaluate (paramList @Int "numbers")) `shouldThrow` (errorCall "param: Parameter 'numbers' is invalid")
+            
+            it "should deal with empty input" do
+                let ?context = createControllerContextWithParams []
+                (paramList @Int "numbers") `shouldBe` []
+
+        describe "hasParam" do
+            it "returns True if param given" do
+                let ?context = createControllerContextWithParams [("a", "test")]
+                hasParam "a" `shouldBe` True
+            
+            it "returns True if param given but empty" do
+                let ?context = createControllerContextWithParams [("a", "")]
+                hasParam "a" `shouldBe` True
+            
+            it "returns False if param missing" do
+                let ?context = createControllerContextWithParams []
+                hasParam "a" `shouldBe` False
+
         describe "ParamReader" do
             describe "ByteString" do
                 it "should handle text input" do
@@ -185,6 +268,13 @@ tests = do
 
                 it "should deal with parser errors" do
                     (readParameter @(Maybe Int) "not a number") `shouldBe` (Left "ParamReader Int: Failed reading: takeWhile1")
+
+createControllerContextWithParams params =
+        let
+            requestBody = FormBody { params, files = [] }
+            request = Wai.defaultRequest
+            requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = error "frameworkConfig" }
+        in FrozenControllerContext { requestContext, customFields = TypeMap.empty }
 
 json :: Text -> Aeson.Value
 json string =
