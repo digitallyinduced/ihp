@@ -295,6 +295,14 @@ tests = do
                     , constraints = []
                     }
 
+        it "should parse a CREATE TABLE statement with a point column" do
+            parseSql "CREATE TABLE points (\n    pos POINT\n);\n" `shouldBe` StatementCreateTable CreateTable
+                    { name = "points"
+                    , columns = [ col { name = "pos", columnType = PPoint } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+
 col :: Column
 col = Column
     { name = ""

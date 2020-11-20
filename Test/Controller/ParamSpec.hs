@@ -10,6 +10,7 @@ import Test.Hspec
 import IHP.Controller.Param
 import IHP.Controller.Context
 import IHP.Controller.RequestContext
+import IHP.ModelSupport
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.TMap as TypeMap
@@ -169,6 +170,24 @@ tests = do
                 it "should fail on other JSON input " do
                     (readParameterJSON @Float (json "true")) `shouldBe` (Left "ParamReader Float: Expected Float")
                     (readParameterJSON @Float (json "\"1\"")) `shouldBe` (Left "ParamReader Float: Expected Float")
+
+            describe "Point" do
+                it "should accept integer input" do
+                    (readParameter @Point "1337,1338") `shouldBe` (Right Point { x = 1337, y = 1338 })
+
+                it "should accept floating point input" do
+                    (readParameter @Point "1.2,1.3") `shouldBe` (Right Point { x = 1.2, y = 1.3 })
+                
+                it "should accept JSON integer input" do
+                    (readParameterJSON @Point (json "\"1337,1338\"")) `shouldBe` (Right Point { x = 1337, y = 1338 })
+
+                it "should accept JSON floating point input" do
+                    (readParameterJSON @Point (json "\"1.2,1.3\"")) `shouldBe` (Right Point { x = 1.2, y = 1.3 })
+                
+                it "should fail on other JSON input " do
+                    (readParameterJSON @Point (json "true")) `shouldBe` (Left "ParamReader Point: Expected Point")
+                    (readParameterJSON @Point (json "\"1\"")) `shouldBe` (Left "ParamReader Point: ,: not enough input")
+                    (readParameterJSON @Point (json "\"1.2\"")) `shouldBe` (Left "ParamReader Point: ,: not enough input")
 
             describe "Text" do
                 it "should handle text input" do

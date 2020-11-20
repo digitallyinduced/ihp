@@ -291,3 +291,12 @@ tests = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE TABLE statement with an point column" do
+            let sql = cs [plain|CREATE TABLE point_tests (\n    pos POINT\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "point_tests"
+                    , columns = [ col { name = "pos", columnType = PPoint } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql

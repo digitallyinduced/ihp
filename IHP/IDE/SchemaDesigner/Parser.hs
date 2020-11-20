@@ -191,6 +191,7 @@ sqlType = choice $ map optionalArray
         , timestamp'
         , real
         , double
+        , point
         , date
         , binary
         , time
@@ -247,6 +248,10 @@ sqlType = choice $ map optionalArray
                 double = do
                     try (symbol' "DOUBLE PRECISION") <|> try (symbol' "FLOAT8")
                     pure PDouble
+
+                point = do
+                    try (symbol' "POINT")
+                    pure PPoint
 
                 date = do
                     try (symbol' "DATE")

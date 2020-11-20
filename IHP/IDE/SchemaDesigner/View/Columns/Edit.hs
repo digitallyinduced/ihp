@@ -119,6 +119,7 @@ typeSelector postgresType enumNames = [hsx|
             {option selected "TIMESTAMP WITHOUT TIME ZONE" "Timestamp (LocalTime)"}
             {option selected "REAL" "Float"}
             {option selected "DOUBLE PRECISION" "Double"}
+            {option selected "POINT" "Point"}
             {option selected "DATE" "Date"}
             {option selected "BYTEA" "Binary"}
             {option selected "Time" "Time"}

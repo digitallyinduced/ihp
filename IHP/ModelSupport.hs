@@ -1,6 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
 
-module IHP.ModelSupport where
+module IHP.ModelSupport
+( module IHP.ModelSupport
+, module IHP.Point
+) where
 
 import IHP.HaskellSupport
 import IHP.NameSupport
@@ -38,6 +41,7 @@ import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Data.Pool as Pool
 import qualified GHC.Conc
+import IHP.Point
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -132,6 +136,9 @@ instance Default Text where
 instance Default Bool where
     {-# INLINE def #-}
     def = False
+
+instance Default Point where
+    def = Point def def
 
 type FieldName = ByteString
 
