@@ -31,7 +31,7 @@ reportTelemetry = do
     isDisabled <- maybe False (\value -> value == "1") <$> Env.lookupEnv "IHP_TELEMETRY_DISABLED"
     unless isDisabled do
         payload <- toPayload <$> getTelemetryInfo
-        result <- Exception.try (Wreq.post "https://ihptelemetry.ihpapp.com/CreateEvent" payload)
+        result <- Exception.try (Wreq.post "https://ihp-telemetry.digitallyinduced.com/CreateEvent" payload)
         case result of
             Left (e :: SomeException) -> putStrLn ("Telemetry failed: " <> show e)
             Right _ -> pure ()
