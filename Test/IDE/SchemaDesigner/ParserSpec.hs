@@ -116,6 +116,18 @@ tests = do
                         }
                     }
 
+        it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
+            parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET DEFAULT;" `shouldBe` AddConstraint
+                    { tableName = "users"
+                    , constraintName = "users_ref_company_id"
+                    , constraint = ForeignKeyConstraint
+                        { columnName = "company_id"
+                        , referenceTable = "companies"
+                        , referenceColumn = "id"
+                        , onDelete = Just SetDefault
+                        }
+                    }
+
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;" `shouldBe` AddConstraint
                     { tableName = "users"

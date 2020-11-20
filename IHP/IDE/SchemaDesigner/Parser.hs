@@ -162,7 +162,7 @@ parseUniqueConstraint = do
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
         , (lexeme "RESTRICT" >> pure Restrict)
-        , (lexeme "SET" >> lexeme "NULL") >> pure SetNull
+        , (lexeme "SET" >> ((lexeme "NULL" >> pure SetNull) <|> (lexeme "DEFAULT" >> pure SetDefault)))
         , (lexeme "CASCADE" >> pure Cascade)
         ]
 
