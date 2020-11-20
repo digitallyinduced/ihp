@@ -215,6 +215,27 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
             let RequestContext { respond } = get #requestContext ?context
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+        Just (exception@(Param.ParamCouldNotBeParsedException { name, parserError })) -> Just do
+            let (controllerPath, _) = Text.breakOn ":" (tshow exception)
+
+            let renderParam (paramName, paramValue) = [hsx|<li>{paramName}: {paramValue}</li>|]
+            let errorMessage = [hsx|
+                    <h2>
+                        This exception was caused by a call to <code>param {tshow name}</code> in {tshow controller}.
+                    </h2>
+                    <p>
+                        Here's the error output from the parser: {parserError}
+                    </p>
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+
+
+
+            let title = [hsx|Parameter <q>{name}</q> was invalid|]
+            let RequestContext { respond } = get #requestContext ?context
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
