@@ -79,6 +79,10 @@ common shared-properties
             , unordered-containers
             , scientific
             , vector
+            , wreq
+            , cryptohash
+            , base16-bytestring
+            , githash
             , deepseq
     default-extensions:
         OverloadedStrings
@@ -250,6 +254,7 @@ library IHPFramework
         , IHP.FlashMessages.ViewFunctions
         , IHP.SchemaMigration
         , IHP.LibDir
+        , IHP.Telemetry
 
 executable RunDevServer
     import: shared-properties
