@@ -81,7 +81,7 @@ I've found the [hsx||] quasiquotes quite fun to work with and type safety has sp
 
 I like the design choices in IHP, and for me, at the moment, I like the focus on server side web app development, which encourages you to be more sparing/judicious in the use of javascript.
 
-With IHP being opinionated about the models/views and routing it means I can focus on integrating some of the other really cool haskell libraries that exist into web apps. (I'm also trying to keep a log of my experiences here on an https://ihpcafe.ihpapp.com if you want to read along with someone figuring out function type signatures ;) )
+With IHP being opinionated about the models or views and routing it means I can focus on integrating some of the other really cool haskell libraries that exist into web apps. (I'm also trying to keep a log of my experiences here on an https://ihpcafe.ihpapp.com if you want to read along with someone figuring out function type signatures ;) )
 </blockquote>
 
 <a href="https://news.ycombinator.com/item?id=24817368">montmorency88 on HN</a>
