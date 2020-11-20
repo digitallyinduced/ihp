@@ -34,7 +34,7 @@ reportTelemetry = do
         result <- Exception.try (Wreq.post "https://ihp-telemetry.digitallyinduced.com/CreateEvent" payload)
         case result of
             Left (e :: SomeException) -> putStrLn ("Telemetry failed: " <> show e)
-            Right _ -> pure ()
+            Right _ -> putStrLn "IHP Telemetry is activated. This can be disabled by setting a env variable to IHP_TELEMETRY_DISABLED=1"
 
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do
