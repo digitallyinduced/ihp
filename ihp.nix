@@ -48,6 +48,7 @@
 , data-default
 , regex-tdfa
 , resource-pool
+, deepseq
 }:
 mkDerivation {
   pname = "ihp";
@@ -101,6 +102,7 @@ mkDerivation {
     data-default
     regex-tdfa
     resource-pool
+    deepseq
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

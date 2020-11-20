@@ -79,6 +79,7 @@ common shared-properties
             , unordered-containers
             , scientific
             , vector
+            , deepseq
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
