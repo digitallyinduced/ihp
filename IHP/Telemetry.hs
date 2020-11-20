@@ -7,7 +7,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Telemetry where
 
 import IHP.Prelude
-import GitHash
+import qualified IHP.Version as Version
 import qualified System.Info as System
 import qualified Network.Wreq as Wreq
 import qualified System.Environment as Env
@@ -39,11 +39,7 @@ reportTelemetry = do
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do
     projectId <- getProjectId
-    pure TelemetryInfo { ihpVersion = ihpCommit, os = cs System.os, arch = cs System.arch, projectId }
-
--- | Returns the current IHP Git commit hash
-ihpCommit :: Text
-ihpCommit = cs $! giHash ($$tGitInfoCwd)
+    pure TelemetryInfo { ihpVersion = Version.ihpCommit, os = cs System.os, arch = cs System.arch, projectId }
 
 -- | The project id is a an anonymous identifier to keep track of distinct projects.
 --

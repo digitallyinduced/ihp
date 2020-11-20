@@ -5,6 +5,7 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes
 import IHP.Environment
+import qualified IHP.Version as Version
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
@@ -60,7 +61,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {deploy}
         {docu}
 
-        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
+        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank" title={"IHP Version: " <> Version.ihpCommit}>©<br />digitally induced GmbH</a>
     </div>
     <div id="content">
         {inner}

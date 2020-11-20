@@ -255,6 +255,7 @@ library IHPFramework
         , IHP.SchemaMigration
         , IHP.LibDir
         , IHP.Telemetry
+        , IHP.Version
 
 executable RunDevServer
     import: shared-properties

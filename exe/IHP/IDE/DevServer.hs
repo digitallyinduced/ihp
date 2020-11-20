@@ -23,6 +23,7 @@ import qualified IHP.FrameworkConfig as Config
 import IHP.Environment
 import qualified IHP.LibDir as LibDir
 import qualified IHP.Telemetry as Telemetry
+import qualified IHP.Version as Version
 
 main :: IO ()
 main = do
@@ -34,6 +35,10 @@ main = do
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
     -- Like: $ DEBUG=1 ./start
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
+
+    -- Print IHP Version when in debug mode
+    when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpCommit))
+    
     let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
 
     threadId <- myThreadId
