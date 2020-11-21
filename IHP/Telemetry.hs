@@ -39,7 +39,7 @@ reportTelemetry = do
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do
     projectId <- getProjectId
-    pure TelemetryInfo { ihpVersion = Version.ihpCommit, os = cs System.os, arch = cs System.arch, projectId }
+    pure TelemetryInfo { ihpVersion = Version.ihpVersion, os = cs System.os, arch = cs System.arch, projectId }
 
 -- | The project id is a an anonymous identifier to keep track of distinct projects.
 --

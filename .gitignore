@@ -10,3 +10,4 @@ build
 *.dump-simpl
 haddock-build
 ProjectGenerator/result
+dist-newstyle

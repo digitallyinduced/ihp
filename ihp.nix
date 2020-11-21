@@ -49,12 +49,11 @@
 , regex-tdfa
 , resource-pool
 , wreq
-, githash
 , deepseq
 }:
 mkDerivation {
   pname = "ihp";
-  version = "1.0.28";
+  version = "v20201127-dev";
   src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] ./.;
   isLibrary = true;
   isExecutable = true;
@@ -106,7 +105,6 @@ mkDerivation {
     regex-tdfa
     resource-pool
     wreq
-    githash
     deepseq
   ];
   license = stdenv.lib.licenses.mit;

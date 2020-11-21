@@ -61,7 +61,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {deploy}
         {docu}
 
-        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank" title={"IHP Version: " <> Version.ihpCommit}>©<br />digitally induced GmbH</a>
+        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank" title={"IHP Version: " <> Version.ihpVersion}>©<br />digitally induced GmbH</a>
     </div>
     <div id="content">
         {inner}
