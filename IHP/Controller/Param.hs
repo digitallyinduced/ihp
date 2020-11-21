@@ -312,6 +312,16 @@ instance ParamReader Float where
                     Right integer -> Right (fromIntegral integer)
     readParameterJSON _ = Left "ParamReader Float: Expected Float"
 
+instance ParamReader ModelSupport.Point where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure ModelSupport.Point { x, y }) byteString of
+            Right value -> Right value
+            Left error -> Left ("ParamReader Point: " <> cs error)
+
+    readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in  readParameter byteString
+    readParameterJSON _ = Left "ParamReader Point: Expected Point"
+
 instance ParamReader Text where
     {-# INLINE readParameter #-}
     readParameter byteString = pure (cs byteString)

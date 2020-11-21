@@ -82,6 +82,7 @@ data PostgresType
     | PTimestamp
     | PReal
     | PDouble
+    | PPoint
     | PDate
     | PBinary
     | PTime

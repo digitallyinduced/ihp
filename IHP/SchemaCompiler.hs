@@ -72,6 +72,7 @@ atomicType = \case
     (PVaryingN _) -> "Text"
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
+    PPoint -> "Point"
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
 haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull }
