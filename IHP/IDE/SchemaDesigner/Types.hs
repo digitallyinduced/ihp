@@ -43,6 +43,7 @@ data OnDelete
     = NoAction
     | Restrict
     | SetNull
+    | SetDefault
     | Cascade
     deriving (Show, Eq)
 

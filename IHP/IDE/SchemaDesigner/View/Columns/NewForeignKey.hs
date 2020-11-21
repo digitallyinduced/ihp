@@ -53,6 +53,7 @@ instance View NewForeignKeyView where
                                 {onDeleteSelector "NoAction"}
                                 {onDeleteSelector "Restrict"}
                                 {onDeleteSelector "SetNull"}
+                                {onDeleteSelector "SetDefault"}
                                 {onDeleteSelector "Cascade"}
                             </select>
                         </div>

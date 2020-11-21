@@ -46,6 +46,7 @@ compileOnDelete Nothing = ""
 compileOnDelete (Just NoAction) = "ON DELETE NO ACTION"
 compileOnDelete (Just Restrict) = "ON DELETE RESTRICT"
 compileOnDelete (Just SetNull) = "ON DELETE SET NULL"
+compileOnDelete (Just SetDefault) = "ON DELETE SET DEFAULT"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
