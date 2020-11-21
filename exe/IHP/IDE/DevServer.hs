@@ -37,7 +37,7 @@ main = do
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
 
     -- Print IHP Version when in debug mode
-    when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpCommit))
+    when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpVersion))
     
     let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
 

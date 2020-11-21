@@ -51,7 +51,6 @@ let
 	    regex-tdfa
 	    resource-pool
 	    wreq
-	    githash
     ]);
 in
     pkgs.stdenv.mkDerivation {
