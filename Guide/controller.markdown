@@ -86,7 +86,7 @@ When this action is called without the `maxItems` parameter being set (or when i
 There is also `paramOrNothing` which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
 
 
-### Multipe Params With Same Name (Checkboxes)
+### Multiple Params With Same Name (Checkboxes)
 
 When working with checkboxes sometimes there are multiple values for a given parameter name. Given a form like this:
 
@@ -167,7 +167,7 @@ For example:
 action MyAction = do
     let env = fromConfig environment
     when (isDevelopment env) (putStrLn "Running in dev mode")
-
+```
 
 
 ### Advanced: Working with Custom Types
