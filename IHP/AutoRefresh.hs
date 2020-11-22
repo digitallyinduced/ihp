@@ -79,6 +79,7 @@ autoRefresh runAction = do
                             registerNotificationTrigger ?touchedTables autoRefreshServer
 
                             throw exception
+                        _   -> error "Unimplemented WAI response type."
 
                 runAction `Exception.catch` handleResponse
         AutoRefreshEnabled {} -> do
@@ -109,6 +110,7 @@ instance WSApp AutoRefreshWSApp where
                         when (html /= lastResponse) do
                             updateSession sessionId (\session -> session { lastResponse = html })
                             sendTextData html
+                    _   -> error "Unimplemented WAI response type."
 
             async $ forever do
                 MVar.takeMVar event

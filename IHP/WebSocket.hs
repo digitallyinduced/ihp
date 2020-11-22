@@ -48,6 +48,7 @@ startWSApp connection = do
     let
         handleException Websocket.ConnectionClosed = onClose @state
         handleException (Websocket.CloseRequest {}) = onClose @state
+        handleException e = error ("Unhandled Websocket exception: " <> show e)
     result <- Exception.try ((Websocket.withPingThread connection 30 (onPing @state) (run @state)) `Exception.catch` handleException)
     case result of
         Left (Exception.SomeException e) -> putStrLn (tshow e)
