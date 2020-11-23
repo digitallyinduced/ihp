@@ -56,12 +56,12 @@ autoRefresh runAction = do
             id <- UUID.nextRandom
             let controllerContext = ?context
             let renderView = \requestContext -> let ?context = controllerContext { requestContext } in action ?theAction
-            
+
             putContext (AutoRefreshEnabled id)
-            
+
             -- We save the allowed session ids to the session cookie to only grant a client access
             -- to sessions it initially opened itself
-            -- 
+            --
             -- Otherwise you might try to guess session UUIDs to access other peoples auto refresh sessions
             setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
 
@@ -77,9 +77,10 @@ autoRefresh runAction = do
                             async (gcSessions autoRefreshServer)
 
                             registerNotificationTrigger ?touchedTables autoRefreshServer
-                            
+
                             throw exception
-                    
+                        _   -> error "Unimplemented WAI response type."
+
                 runAction `Exception.catch` handleResponse
         AutoRefreshEnabled {} -> do
             -- When this function calls the 'action ?theAction' in the other case
@@ -109,6 +110,7 @@ instance WSApp AutoRefreshWSApp where
                         when (html /= lastResponse) do
                             updateSession sessionId (\session -> session { lastResponse = html })
                             sendTextData html
+                    _   -> error "Unimplemented WAI response type."
 
             async $ forever do
                 MVar.takeMVar event
@@ -139,7 +141,7 @@ registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set Tex
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (get #subscribedTables) <$> (autoRefreshServer |> readIORef)
-    
+
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
     modifyIORef autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
     forEach subscriptionRequired \table -> do
