@@ -10,7 +10,7 @@ import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified System.Process as Process
 import Network.Wai (Middleware)
-import qualified Network.Wai.Middleware.RequestLogger as RequestLogger (logStdoutDev)
+import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
 import Data.Default (def)
 import Data.Time.Clock (NominalDiffTime)
@@ -81,7 +81,11 @@ ihpDefaultConfig = do
     port <- liftIO defaultAppPort
     option $ AppPort port
 
-    option $ RequestLoggerMiddleware defaultLoggerMiddleware
+    environment <- findOption @Environment
+    option $ RequestLoggerMiddleware $
+            case environment of
+                Development -> RequestLogger.logStdoutDev
+                Production -> RequestLogger.logStdout
 
     option $ Sendmail
 
@@ -199,9 +203,6 @@ defaultIHPSessionCookie baseUrl = def
     }
 
 data RootApplication = RootApplication deriving (Eq, Show)
-
-defaultLoggerMiddleware :: Middleware
-defaultLoggerMiddleware = RequestLogger.logStdoutDev
 
 defaultPort :: Int
 defaultPort = 8000
