@@ -116,6 +116,7 @@ putContext value = do
     let ControllerContext { customFieldsRef } = ?context
     modifyIORef customFieldsRef (TypeMap.insert value)
     pure ()
+{-# INLINE putContext #-}
 
 newtype ActionType = ActionType Typeable.TypeRep
 

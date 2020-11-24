@@ -264,6 +264,8 @@ genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 toSQL :: forall table. (KnownSymbol table) => QueryBuilder table -> (Text, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
+{-# INLINE toSQL #-}
+
 toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause } =
         (theQuery, theParams)
     where
@@ -294,6 +296,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause 
                 xs -> " ORDER BY " <> intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
         limitClause' = fromMaybe "" limitClause
         offsetClause' = fromMaybe "" offsetClause
+{-# INLINE toSQL' #-}
 
 {-# INLINE compileConditionQuery #-}
 compileConditionQuery :: Condition -> Text

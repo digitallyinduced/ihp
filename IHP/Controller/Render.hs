@@ -22,19 +22,18 @@ import GHC.Records
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 
+renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
+renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
 {-# INLINE renderPlain #-}
-renderPlain :: (?context :: ControllerContext) => ByteString -> IO ()
-renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] (cs text)
 
-{-# INLINE respondHtml #-}
 respondHtml :: (?context :: ControllerContext) => Html -> IO ()
 respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+{-# INLINE respondHtml #-}
 
-{-# INLINE respondSvg #-}
 respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+{-# INLINE respondSvg #-}
 
-{-# INLINE renderHtml #-}
 renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?theAction :: controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
 renderHtml !view = do
     let ?view = view
@@ -50,18 +49,23 @@ renderHtml !view = do
     
     let boundHtml = let ?context = frozenContext in layout (ViewSupport.html ?view)
     pure boundHtml
+{-# INLINE renderHtml #-}
 
 renderFile :: (?context :: ControllerContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
+{-# INLINE renderFile #-}
 
 renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderJson json = respondAndExit $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
+{-# INLINE renderJson #-}
 
 renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
+{-# INLINE renderJson' #-}
 
 renderNotFound :: (?context :: ControllerContext) => IO ()
 renderNotFound = renderPlain "Not Found"
+{-# INLINE renderNotFound #-}
 
 data PolymorphicRender
     = PolymorphicRender

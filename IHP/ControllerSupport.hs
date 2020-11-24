@@ -171,7 +171,7 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
 
 -- Can be thrown from inside the action to abort the current action execution.
 -- Does not indicates a runtime error. It's just used for control flow management.
-data ResponseException = ResponseException Response
+newtype ResponseException = ResponseException Response
 
 instance Show ResponseException where show _ = "ResponseException { .. }"
 
