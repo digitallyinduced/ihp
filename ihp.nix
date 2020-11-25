@@ -58,7 +58,6 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   allowInconsistentDependencies = true;
-  buildDepends = [ (import <nixpkgs> {}).git ];
   libraryHaskellDepends = [
     base
     classy-prelude
