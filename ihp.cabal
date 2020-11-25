@@ -255,6 +255,7 @@ library IHPFramework
         , IHP.LibDir
         , IHP.Telemetry
         , IHP.Version
+        , IHP.Point
         , Paths_ihp
 
 executable RunDevServer
