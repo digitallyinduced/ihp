@@ -79,11 +79,11 @@ We also need a CSS entrypoint for tailwind. Create a new file at `tailwind/app.c
   @apply px-4 py-2 bg-blue-600 text-white rounded;
 }
 
-.form-group {
+form > div {
   @apply mb-4;
 }
 
-.form-group input.form-control {
+form input {
   @apply shadow;
   @apply appearance-none;
   @apply border;
@@ -95,7 +95,7 @@ We also need a CSS entrypoint for tailwind. Create a new file at `tailwind/app.c
   @apply leading-tight;
 }
 
-.form-group label {
+form label {
   @apply block;
   @apply text-gray-700;
   @apply text-sm;
@@ -154,6 +154,57 @@ Bootstrap is also part of the production CSS build, we need to remove that as we
 ```css
 CSS_FILES += ${IHP}/static/vendor/bootstrap.min.css
 ```
+
+### Switching IHP Styling
+
+Right now your IHP app will still be rendered with some bootstrap CSS class names. We can switch this to use tailwind classes. Open `Config/Config.hs` and make these changes:
+
+```haskell
+module Config where
+
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.View.CSSFramework -- ADD THIS IMPORT
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+    option tailwind -- ADD THIS OPTION
+```
+
+#### Advanced: Customizing the tailwind classes
+
+You can also override the default classes used by the `tailwind` styling. Add an additional `import IHP.View.Types` and then you can do something like:
+
+```haskell
+option tailwind { styledSubmitButtonClass = "my-app-button", styledValidationResultClass = "failed" }
+```
+
+[You can find a full list of options that you can override in the API Documentation](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:CSSFramework).
+
+If your configuration is getting complex, it's best to move this configuration out of `Config.hs` and then just import your custom CSS Framework into your `Config`:
+
+```haskell
+module Web.View.CustomCSSFramework (customCSSFramework) where
+import IHP.View.CSSFramework
+import IHP.View.Types
+
+customCSSFramework = tailwind { styledSubmitButtonClass = "my-app-button", styledValidationResultClass = "failed" }
+
+-- Import that inside the Config.hs
+module Config where
+
+import Web.View.CustomCSSFramework
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+    option customCSSFramework
+
+````
 
 ## Developing with tailwind
 
