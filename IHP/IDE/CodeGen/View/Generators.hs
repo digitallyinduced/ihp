@@ -16,44 +16,26 @@ instance View GeneratorsView where
             <div class="container pt-5">
                 {renderFlashMessages}
                 <div class="generators-list">
-                    <a href={NewControllerAction} class="generator">
-                        <div class="generator-icon">{copyIcon}</div>
-                        <div class="generator-name">Controller</div>
-                    </a>
-
-                    <a href={NewActionAction} class="generator">
-                        <div class="generator-icon">{copyIcon}</div>
-                        <div class="generator-name">Action</div>
-                    </a>
-                    
-                    <a href={NewViewAction} class="generator">
-                        <div class="generator-icon">{copyIcon}</div>
-                        <div class="generator-name">View</div>
-                    </a>
-
-                    <a href={NewMailAction} class="generator">
-                        <div class="generator-icon">{copyIcon}</div>
-                        <div class="generator-name">Mail</div>
-                    </a>
-
-                    <a href={NewScriptAction} class="generator">
-                        <div class="generator-icon">{copyIcon}</div>
-                        <div class="generator-name">Script</div>
-                    </a>
-
-                    <a href={NewMigrationAction} class="generator">
-                        <div class="generator-icon">{databaseIcon}</div>
-                        <div class="generator-name">Migration</div>
-                    </a>
-
-                    <a href={NewApplicationAction} class="generator">
-                        <div class="generator-icon">{copyIcon}</div>
-                        <div class="generator-name">Application</div>
-                    </a>
+                    {generator "Controller" (pathTo NewControllerAction) copyIcon}
+                    {generator "Action" (pathTo NewActionAction) copyIcon}
+                    {generator "View" (pathTo NewViewAction) copyIcon}
+                    {generator "Mail" (pathTo NewMailAction) copyIcon}
+                    {generator "Background Job" (pathTo NewJobAction) cogsIcon}
+                    {generator "Script" (pathTo NewScriptAction) copyIcon}
+                    {generator "Migration" (pathTo NewMigrationAction) databaseIcon}
+                    {generator "Application" (pathTo NewApplicationAction) copyIcon}
                 </div>
             </div>
         </div>
     |]
+        where
+            generator :: Text -> Text -> Html -> Html
+            generator name path icon = [hsx|
+                <a href={path} class="generator">
+                    <div class="generator-icon">{icon}</div>
+                    <div class="generator-name">{name}</div>
+                </a>
+            |]
 
 renderPlan (Left error) = [hsx|{error}|]
 renderPlan (Right actions) = [hsx|<div class="generator-actions">{forEach actions renderGeneratorAction}</div>|]

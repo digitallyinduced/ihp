@@ -25,6 +25,7 @@ module IHP.ControllerPrelude
     , module IHP.Modal.Types
     , module IHP.Modal.ControllerFunctions
     , module IHP.Controller.Layout
+    , module IHP.Job.Types
     , Only (..)
     ) where
 import IHP.Prelude
@@ -56,3 +57,5 @@ import IHP.Controller.Layout
 
 import IHP.Modal.Types
 import IHP.Modal.ControllerFunctions
+
+import IHP.Job.Types

@@ -91,6 +91,7 @@ data CodeGenController
     | NewActionAction
     | NewApplicationAction
     | NewMigrationAction
+    | NewJobAction
     | CreateControllerAction
     | CreateScriptAction
     | CreateViewAction
@@ -98,6 +99,7 @@ data CodeGenController
     | CreateActionAction
     | CreateApplicationAction
     | CreateMigrationAction
+    | CreateJobAction
     | OpenControllerAction
     deriving (Eq, Show, Data)
 

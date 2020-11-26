@@ -10,6 +10,7 @@ import IHP.IDE.CodeGen.View.NewMail
 import IHP.IDE.CodeGen.View.NewAction
 import IHP.IDE.CodeGen.View.NewApplication
 import IHP.IDE.CodeGen.View.NewMigration
+import IHP.IDE.CodeGen.View.NewJob
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
 import IHP.IDE.CodeGen.ScriptGenerator as ScriptGenerator
@@ -17,6 +18,7 @@ import IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 import IHP.IDE.CodeGen.MailGenerator as MailGenerator
 import IHP.IDE.CodeGen.ActionGenerator as ActionGenerator
 import IHP.IDE.CodeGen.ApplicationGenerator as ApplicationGenerator
+import IHP.IDE.CodeGen.JobGenerator as JobGenerator
 import IHP.IDE.ToolServer.Helper.Controller
 import qualified System.Process as Process
 import qualified System.Directory as Directory
@@ -155,6 +157,22 @@ instance Controller CodeGenController where
         let path = SchemaMigration.migrationPath migration
         setSuccessMessage ("Migration generated: " <> path)
         openEditor path 0 0
+        redirectTo GeneratorsAction
+
+    action NewJobAction = do
+        let jobName = paramOrDefault "" "name"
+        let applicationName = paramOrDefault "Web" "applicationName"
+        controllers <- findControllers applicationName
+        applications <- findApplications
+        plan <- JobGenerator.buildPlan jobName applicationName
+        render NewJobView { .. }
+
+    action CreateJobAction = do
+        let jobName = paramOrDefault "" "name"
+        let applicationName = "Web"
+        (Right plan) <- JobGenerator.buildPlan jobName applicationName
+        executePlan plan
+        setSuccessMessage "Job generated"
         redirectTo GeneratorsAction
 
     action OpenControllerAction = do
