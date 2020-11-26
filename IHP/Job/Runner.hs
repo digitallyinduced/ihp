@@ -109,20 +109,20 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     -- It will be initally be called when first starting up this job worker
     -- and after that it will be called when something has been inserted into the queue (or changed to retry)
     let startLoop = do
-        asyncJob <- Async.async do
-            Exception.mask $ \restore -> do
-                maybeJob <- Queue.fetchNextJob @job workerId
-                case maybeJob of
-                    Just job -> do
-                        putStrLn ("Starting job: " <> tshow job)
-                        resultOrException <- Exception.try (restore (perform job))
-                        case resultOrException of
-                            Left exception -> Queue.jobDidFail job exception
-                            Right _ -> Queue.jobDidSucceed job
+            asyncJob <- Async.async do
+                Exception.mask $ \restore -> do
+                    maybeJob <- Queue.fetchNextJob @job workerId
+                    case maybeJob of
+                        Just job -> do
+                            putStrLn ("Starting job: " <> tshow job)
+                            resultOrException <- Exception.try (restore (perform job))
+                            case resultOrException of
+                                Left exception -> Queue.jobDidFail job exception
+                                Right _ -> Queue.jobDidSucceed job
 
-                        startLoop
-                    Nothing -> pure ()
-        modifyIORef allJobs (asyncJob:)
+                            startLoop
+                        Nothing -> pure ()
+            modifyIORef allJobs (asyncJob:)
 
     -- Start all jobs in the queue
     startLoop
