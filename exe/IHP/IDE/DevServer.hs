@@ -78,21 +78,16 @@ handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = 
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = True }) = do
     case appGHCIState of
         AppGHCILoading { .. } -> do
-            case postgresState of
-                PostgresStarted {} -> do
-                    let appGHCIState' = AppGHCIModulesLoaded { .. }
+            let appGHCIState' = AppGHCIModulesLoaded { .. }
 
-                    stopStatusServer statusServerState
-                    startLoadedApp appGHCIState
+            stopStatusServer statusServerState
+            startLoadedApp appGHCIState
 
-                    let statusServerState' = case statusServerState of
-                            StatusServerStarted { .. } -> StatusServerPaused { .. }
-                            _ -> statusServerState
-                    
-                    pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
-                _ -> do
-                    putStrLn "Cannot start app as postgres is not ready yet"
-                    pure state
+            let statusServerState' = case statusServerState of
+                    StatusServerStarted { .. } -> StatusServerPaused { .. }
+                    _ -> statusServerState
+            
+            pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
         AppGHCIModulesLoaded { } -> do
