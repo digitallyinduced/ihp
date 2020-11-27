@@ -2,6 +2,27 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 27.11.2020 (v20201127) from Beta 13.11.2020 (v20201113)
+
+## Switch IHP version
+
+First open `default.nix` and change the git commit in line 4 to the following:
+
+```bash
+rev = "a4a91f2049eb95164be979328e6be77094fe38c2";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+
 # Upgrade to Beta 13.11.2020 (v20201113) from Beta 30.10.2020 (v20201030)
 
 ## Update your `Config/Config.hs`
