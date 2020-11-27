@@ -9,7 +9,7 @@ After updating your project, please consult the segments from your current relea
 First open `default.nix` and change the git commit in line 4 to the following:
 
 ```bash
-rev = "a4a91f2049eb95164be979328e6be77094fe38c2";
+rev = "79d4892d6cd531eb2b446a46a2a0e434c8a39895";
 ```
 
 After that run the following command to update your project:
