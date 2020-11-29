@@ -13,7 +13,7 @@ Yes, while bootstrap is the default CSS framework in IHP you can use IHP togethe
 
 First we need to add nodejs to our project. **You should also follow this step if you have nodejs already installed on your system.** Installing the nodejs version via nix allows all people working on your project to get the exact same nodejs version as you're using.
 
-We also need a file watcher called `entr` to automatically call tailwind whenver some of our css files have changed.
+We also need a file watcher called `entr` to automatically call tailwind whenever some of our css files have changed.
 
 For that open your projects `default.nix` and add `nodejs` and `entr` to `otherDeps`:
 
