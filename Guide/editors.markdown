@@ -77,8 +77,8 @@ If you get an error like `error: attribute 'haskell-language-server' missing`: M
 In line 21 and 22 it should be configured like this:
 
 ```
-  nixPkgsRev = "07e5844fdf6fe99f41229d7392ce81cfe191bcfc";
-  nixPkgsSha256 = "0p2z6jidm4rlp2yjfl553q234swj1vxl8z0z8ra1hm61lfrlcmb9";
+  nixPkgsRev = "c985bf793e6ab7d54a9182381b4b610fe0ae6936";
+  nixPkgsSha256 = "0zsj9imjbnhkb65r169xxqmjgqd5593insrvncvabg1iqdsrcxz1";
 ```
 
 In case you have a different `nixPkgsRev` or `nixPkgsSha256` replace it with the above code. After that run `make -B .envrc` and `make hie.yaml`.
