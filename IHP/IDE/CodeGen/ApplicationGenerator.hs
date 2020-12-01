@@ -193,7 +193,7 @@ generateGenericApplication applicationName =
              <>"         <div style=\"max-width: 800px; margin-left: auto; margin-right: auto; margin-top: 4rem\">\n"
              <>"              <img src=\"/ihp-welcome-icon.svg\" alt=\"/ihp-welcome-icon\">\n"
              <>"              <p style=\"color: hsla(196, 13%, 50%, 1); margin-top: 4rem\">\n"
-             <>"                 You can modify this start page by making changes to \"./View/Static/Welcome.hs\".\n"
+             <>"                 You can modify this start page by making changes to \"./Web/View/Static/Welcome.hs\".\n"
              <>"              </p>\n"
              <>"         </div> \n"
              <>"|]" 
