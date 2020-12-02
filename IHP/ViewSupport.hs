@@ -7,9 +7,8 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ViewSupport
 ( HtmlWithContext
-, classes
-, CreateViewContext (..)
 , Layout
+, Html
 , View (..)
 , currentViewId
 , forEach
@@ -26,8 +25,10 @@ module IHP.ViewSupport
 , fetch
 , query
 , isActiveController
-, renderFlashMessages
 , nl2br
+, stripTags
+, theCSSFramework
+, fromCSSFramework
 ) where
 
 import IHP.Prelude
@@ -42,90 +43,30 @@ import qualified Text.Inflections as Inflector
 import qualified Data.Either as Either
 import GHC.TypeLits as T
 import qualified Data.ByteString as ByteString
-import IHP.RouterSupport
+import IHP.RouterSupport hiding (get)
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport
-import qualified IHP.Controller.Session as Session
+import IHP.FlashMessages.Types
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
-
-type HtmlWithContext context = (?viewContext :: context) => Html5.Html
-
--- | A layout is just a function taking a view and returning a new view.
---
--- __Example:__ A very basic html layout.
--- 
--- > myLayout :: Layout
--- > myLayout view = [hsx|
--- >     <html>
--- >         <body>
--- >             {view}
--- >         </body>
--- >     </html>
--- > |]
-type Layout = Html5.Html -> Html5.Html
-
--- | Helper for dynamically generating the @class=".."@ attribute.
--- 
--- Given a list like
--- 
--- > [("a", True), ("b", False), ("c", True)]
--- 
--- builds a class name string for all parts where the second value is @True@.
---
--- E.g.
---
--- >>> classes [("a", True), ("b", False), ("c", True)]
--- "a c"
---
--- When setting @b@ to @True@:
---
--- >>> classes [("a", True), ("b", True), ("c", True)]
--- "a b c"
---
--- __Example:__
--- 
--- >>> <div class={classes [("is-active", False)]}>
--- <div class="">
---
--- >>> <div class={classes [("is-active", True)]}>
--- <div class="is-active">
---
--- >>> forEach projects \project -> [hsx|
--- >>>     <div class={classes [("project", True), ("active", get #active project)]}>
--- >>>         {project}
--- >>>     </div>
--- >>> |]
--- If project is active:                        <div class="project active">{project}</div>
--- Otherwise:                                   <div class="project">{project}</div>
-classes :: [(Text, Bool)] -> Text
-classes !classNameBoolPairs =
-    classNameBoolPairs
-    |> filter snd
-    |> map fst
-    |> unwords
-{-# INLINE classes #-}
-
--- | Allows `("my-class", True)` to be written as `"my-class"`
---
--- Useful together with 'classes'
-instance IsString (Text, Bool) where
-    fromString string = (cs string, True)
-
-class CreateViewContext viewContext where
-    type ViewApp viewContext
-    createViewContext :: (?requestContext :: RequestContext, ?controllerContext :: ControllerContext, ?modelContext :: ModelContext) => IO viewContext
+import qualified IHP.View.CSSFramework as CSSFramework
+import IHP.View.Types
+import qualified IHP.FrameworkConfig as FrameworkConfig
+import IHP.Controller.Context
 
 
+class View theView where
+    -- | Hook which is called before the render is called
+    beforeRender :: (?context :: ControllerContext) => theView -> IO ()
+    beforeRender view = pure ()
 
-class View theView viewContext | theView -> viewContext where
-    beforeRender :: (?viewContext :: viewContext) => (viewContext, theView) -> (viewContext, theView)
-    {-# INLINE beforeRender #-}
-    beforeRender view = view
-    html :: (?viewContext :: viewContext, ?view :: theView) => theView -> Html5.Html
+    -- Renders the view as html
+    html :: (?context :: ControllerContext, ?view :: theView) => theView -> Html5.Html
+
+    -- | Renders the view to a JSON
     json :: theView -> JSON.Value
     json = error "Not implemented"
 
@@ -175,7 +116,7 @@ currentViewId =
 -- False
 --
 -- This function returns @False@ when a sub-path is request. Uss 'isActivePathOrSub' if you want this example to return @True@.
-isActivePath :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
+isActivePath :: (?context :: ControllerContext, PathString controller) => controller -> Bool
 isActivePath route =
     let 
         currentPath = Wai.rawPathInfo theRequest
@@ -195,7 +136,7 @@ isActivePath route =
 -- True
 --
 -- Also see 'isActivePath'.
-isActivePathOrSub :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext, PathString controller) => controller -> Bool
+isActivePathOrSub :: (?context :: ControllerContext, PathString controller) => controller -> Bool
 isActivePathOrSub route =
     let
         currentPath = Wai.rawPathInfo theRequest
@@ -210,15 +151,12 @@ isActivePathOrSub route =
 -- True
 --
 -- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller viewContext. (?viewContext :: viewContext, HasField "controllerContext" viewContext ControllerSupport.ControllerContext, Typeable controller) => Bool
+isActiveController :: forall controller context. (?context :: ControllerContext, Typeable controller) => Bool
 isActiveController =
     let
-        ?controllerContext = ?viewContext |> getField @"controllerContext"
+        (ActionType actionType) = fromFrozenContext @ActionType
     in
-        let
-            (ActionType actionType) = fromControllerContext @ControllerSupport.ActionType
-        in
-            (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
+        (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
 
 
 css = plain
@@ -227,10 +165,10 @@ onClick = A.onclick
 onLoad = A.onload
 
 -- | Returns the current request
-theRequest :: (?viewContext :: viewContext, HasField "requestContext" viewContext RequestContext) => Wai.Request
+theRequest :: (?context :: ControllerContext) => Wai.Request
 theRequest = 
     let
-        requestContext = getField @"requestContext" ?viewContext
+        requestContext = getField @"requestContext" ?context
         request = getField @"request" requestContext
     in request
 {-# INLINE theRequest #-}
@@ -244,9 +182,9 @@ instance PathString Text where
 instance {-# OVERLAPPABLE #-} HasPath action => PathString action where
     pathToString = pathTo
 
--- | Alias for @?viewContext@
-viewContext :: (?viewContext :: viewContext) => viewContext
-viewContext = ?viewContext
+-- | Alias for @?context@
+viewContext :: (?context :: ControllerContext) => ControllerContext
+viewContext = ?context
 {-# INLINE viewContext #-}
 
 -- | Adds an inline style element to the html.
@@ -273,7 +211,7 @@ addStyle style = Html5.style (Html5.preEscapedText (cs style))
 class ViewParamHelpMessage where
     param :: a
 
-instance (T.TypeError (T.Text "‘param‘ can only be used inside your controller actions.\nYou have to run the ‘param \"my_param\"‘ call inside your controller and then pass the resulting value to your view.\n\nController Example:\n\n    module Web.Controller.Projects\n\n    instance Controller ProjectsController where\n        action ProjectsAction = do\n            let showDetails = param \"showDetails\"\n            render ProjectsView { showDetails }\n\nView Example:\n\n    module Web.View.Projects.Index\n\n    data ProjectsView = ProjectsView { showDetails :: Bool }\n    instance View ProjectsView ViewContext where\n        html ProjectsView { .. } = [hsx|Show details: {showDetails}|]\n\n")) => ViewParamHelpMessage where
+instance (T.TypeError (T.Text "‘param‘ can only be used inside your controller actions.\nYou have to run the ‘param \"my_param\"‘ call inside your controller and then pass the resulting value to your view.\n\nController Example:\n\n    module Web.Controller.Projects\n\n    instance Controller ProjectsController where\n        action ProjectsAction = do\n            let showDetails = param \"showDetails\"\n            render ProjectsView { showDetails }\n\nView Example:\n\n    module Web.View.Projects.Index\n\n    data ProjectsView = ProjectsView { showDetails :: Bool }\n    instance View ProjectsView where\n        html ProjectsView { .. } = [hsx|Show details: {showDetails}|]\n\n")) => ViewParamHelpMessage where
     param = error "unreachable"
 
 -- | This class provides helpful compile-time error messages when you use common
@@ -288,33 +226,13 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
     a == b = error "unreachable"
 
--- | Displays the flash messages for the current request.
---
--- You can add a flash message to the next request by calling 'IHP.Controller.Session.setSuccessMessage' or 'IHP.Controller.Session.setErrorMessage':
---
--- > action CreateProjectAction = do
--- >     ...
--- >     setSuccessMessage "Your project has been created successfully"
--- >     redirectTo ShowProjectAction { .. }
---
---
--- > action CreateTeamAction = do
--- >     unless userOnPaidPlan do
--- >         setErrorMessage "This requires you to be on the paid plan"
--- >         redirectTo NewTeamAction
--- >
--- >     ...
---
--- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
--- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: forall viewContext. (?viewContext :: viewContext, HasField "flashMessages" viewContext [Session.FlashMessage]) => Html5.Html
-renderFlashMessages =
-    let
-        flashMessages = (getField @"flashMessages" ?viewContext) :: [Session.FlashMessage]
-        renderFlashMessage (Session.SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
-        renderFlashMessage (Session.ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
-    in
-        forEach flashMessages renderFlashMessage
+fromCSSFramework :: (?context :: ControllerContext, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
+
+theCSSFramework :: (?context :: ControllerContext) => CSSFramework
+theCSSFramework = ?context
+        |> FrameworkConfig.getFrameworkConfig 
+        |> get #cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
 --
@@ -325,3 +243,10 @@ nl2br content = content
     |> Sequences.lines
     |> map (\line -> [hsx|{line}<br/>|])
     |> mconcat
+
+instance {-# OVERLAPPABLE #-} HasField "requestContext" viewContext RequestContext => FrameworkConfig.ConfigProvider viewContext where
+    getFrameworkConfig viewContext = viewContext
+            |> get #requestContext
+            |> get #frameworkConfig
+
+type Html = HtmlWithContext ControllerContext

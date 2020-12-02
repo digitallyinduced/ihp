@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data CodeView = CodeView
@@ -12,9 +11,7 @@ data CodeView = CodeView
     , error :: Maybe ByteString
     }
 
-instance View CodeView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
-
+instance View CodeView where
     html CodeView { .. } = [hsx|
         <div class="editor-container">
             <div id="editor">{preEscapedToHtml schema}</div>

@@ -53,7 +53,7 @@ Running nix on Windows requires the Windows Subsystem for Linux, which first nee
 dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
 ```
 
-Enabling this Feature needs a restart.
+Enabling this Feature needs a restart (even though it won't prompt, and the command-line says /norestart).
 
 To download a Linux Distribution, open the Microsoft Store and search for Ubuntu or Debian. We recommend Ubuntu, since it works best with nix on Windows.
 
@@ -64,7 +64,7 @@ With the Distro downloaded, run it and update it using your package manager. In 
 ```bash
 sudo apt update
 sudo apt upgrade
-sudo apt install git curl make -y
+sudo apt install git curl make xdg-utils -y
 ```
 
 WSL will add your Windows System Paths in your Linux Subsystem. These tend to generate errors due to spaces and brackets in folder names. Also, due to Linux not loading the `.profile`, we need to add the nix.sh manually. To fix these two issues, just add these lines to the end of your `.bashrc`
@@ -79,7 +79,7 @@ Now, create a folder for nix:
 sudo mkdir -p /etc/nix
 ```
 
-To make nix usable on Windows, we need to create and add the following lines to the file `/etc/nix/nix.conf`:
+To make nix usable on Windows, we need to create and add the following lines to the file `/etc/nix/nix.conf` (requires use of sudo again):
 
 ```bash
 sandbox = false
@@ -101,6 +101,8 @@ If in doubt, just close and reopen Ubuntu/Your Distro.
 When using Windows, you will be asked if tasks like ghc-iserv or rundevserver should be allowed by the firewall. This is needed to access the devserver interface and the webapp itself.
 
 Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/nix-on-windows/).
+
+Note that nix can gradually grow to use several GB of disk space, especially after upgrading IHP. You can always run `nix-collect-garbage` in a `nix-shell` which will delete older/unused files.
 
 ## 2. Installing IHP
 

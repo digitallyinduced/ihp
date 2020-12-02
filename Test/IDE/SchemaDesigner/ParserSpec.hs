@@ -116,6 +116,18 @@ tests = do
                         }
                     }
 
+        it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
+            parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET DEFAULT;" `shouldBe` AddConstraint
+                    { tableName = "users"
+                    , constraintName = "users_ref_company_id"
+                    , constraint = ForeignKeyConstraint
+                        { columnName = "company_id"
+                        , referenceTable = "companies"
+                        , referenceColumn = "id"
+                        , onDelete = Just SetDefault
+                        }
+                    }
+
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;" `shouldBe` AddConstraint
                     { tableName = "users"
@@ -284,6 +296,22 @@ tests = do
                     { name = "orders"
                     , columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
+                    }
+
+        it "should parse a CREATE TABLE statement with an array column" do
+            parseSql "CREATE TABLE array_tests (\n    pay_by_quarter integer[]\n);\n" `shouldBe` StatementCreateTable CreateTable
+                    { name = "array_tests"
+                    , columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+
+        it "should parse a CREATE TABLE statement with a point column" do
+            parseSql "CREATE TABLE points (\n    pos POINT\n);\n" `shouldBe` StatementCreateTable CreateTable
+                    { name = "points"
+                    , columns = [ col { name = "pos", columnType = PPoint } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     }
 

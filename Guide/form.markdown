@@ -58,6 +58,7 @@ IHP has the most commonly-used form controls built in. In general the form contr
 {dateField #dueAt}
 {passwordField #password}
 {dateTimeField #createdAt}
+{numberField #quantity}
 {hiddenField #projectId}
 {checkboxField #termsAccepted}
 {selectField #projectId allProjects}
@@ -394,6 +395,17 @@ Given the above example, the rendered form will look like this:
 </form>
 ```
 
+If you want a certain value to be preselected, set the value in the controller. For example, to have the first user be preselected in the above example:
+
+```haskell
+    action NewProjectAction = do
+        users <- query @User |> fetch
+        let userId = headMay users |> maybe def (get #id)
+        let target = newRecord @Project |> set #userId userId
+        render NewView { .. }
+```
+
+
 ### Select Inputs with Custom Enums
 
 You can use select fields with custom defined enums too.
@@ -416,6 +428,7 @@ instance CanSelect ContentType where
     selectLabel Audio = "Audio"
     -- You can also use the following shortcut: selectLabel = tshow
 ```
+
 
 ## Advanced Forms
 
@@ -444,6 +457,12 @@ You can disable the form helpers by removing the IHP javascript helpers from you
 This way no special behavior will be attached to your forms.
 
 To dig deeper into the javascript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
+
+
+## Working within the Bootstrap CSS framework
+
+While the default forms layout is vertical with one field per line, it is easy to change. Bootstrap's excellent [forms documentation](https://getbootstrap.com/docs/4.4/components/forms/) shows how.
+
 
 ## Working with other CSS Frameworks
 

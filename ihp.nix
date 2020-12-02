@@ -47,10 +47,13 @@
 , basic-prelude
 , data-default
 , regex-tdfa
+, resource-pool
+, wreq
+, deepseq
 }:
 mkDerivation {
   pname = "ihp";
-  version = "1.0.28";
+  version = "v20201127-dev";
   src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] ./.;
   isLibrary = true;
   isExecutable = true;
@@ -85,6 +88,7 @@ mkDerivation {
     websockets
     wai-websockets
     mime-mail
+    mime-mail-ses
     attoparsec
     case-insensitive
     http-media
@@ -98,12 +102,17 @@ mkDerivation {
     basic-prelude
     data-default
     regex-tdfa
+    resource-pool
+    wreq
+    deepseq
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
     cp exe/IHP/CLI/run-script $out/bin/run-script
 
     mkdir -p $out/lib/IHP
-    cp -r lib/IHP/* $out/lib/IHP
+    cp -r lib/IHP/* lib/IHP/.hie-bios $out/lib/IHP
   '';
+  enableLibraryForGhci = true;
+  homepage = "https://ihp.digitallyinduced.com";
 }

@@ -3,13 +3,23 @@
 ```toc
 ```
 
-## Introduction
+## Quick-and-Dirty: HTTP Basic Auth
 
-IHP provides a basic authentication toolkit out of the box.
+While IHP provides an authentication toolkit out of the box, it also provides a shortcut for cases where you just want the simplest possible way to enforce a hard-coded username/password before accessing your new web application. This shortcut leverages HTTP Basic Authentication built in to all browsers:
+
+```haskell
+instance Controller WidgetsController where
+    beforeAction = basicAuth "sanja" "hunter2" "myapp"
+```
+
+The parameters are: username, password and authentication realm. The realm can be thought of as an area of validity for the credentials. It is common to put the project name, but it can also be blank (meaning the entire domain).
+
+
+## Introduction - Real Authentication
 
 The usual convention in IHP is to call your user record `User`. When there is an admin user, we usually call the record `Admin`. In general the authentication can work with any kind of record. The only requirement is that it has an id field.
 
-To use the authentication module, your `users` table needs to have at least an `id`, `email`, `password_hash`, `locked_at` and `failed_login_attempts` field:
+To use the authentication module, your `users` table needs to have at least an `id`, `email`, `password_hash`, `locked_at` and `failed_login_attempts` field. Add this to `Schema.sql`:
 ```sql
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -21,6 +31,10 @@ CREATE TABLE users (
 ```
 
 The password authentication saves the passwords as a salted hash using the [pwstore-fast library](https://hackage.haskell.org/package/pwstore-fast-2.4.4/docs/Crypto-PasswordStore.html). By default, a user will be locked for an hour after 10 failed login attempts.
+
+### Aside: Admin authentication
+
+If you are creating an admin sub-application, first use the code generator to create an application called `Admin`, then follow this guide replacing `Web` with `Admin` and `User` with `Admin` everywhere (except for the lower-case `user` in the file `Admin/View/Sessions/New.hs`, which comes from an imported module).
 
 ## Setup
 
@@ -177,7 +191,7 @@ module Web.View.Sessions.New where
 import Web.View.Prelude
 import IHP.AuthSupport.View.Sessions.New
 
-instance View (NewView User) ViewContext where
+instance View (NewView User) where
     html NewView { .. } = [hsx|
         <div class="h-100" id="sessions-new">
             <div class="d-flex align-items-center">
@@ -215,32 +229,6 @@ After you have completed the above steps, you can open the login at `/NewSession
 ```
 
 ## Accessing the current user
-
-In order to access the current user from your actions and templates you need to add it to the view context.
-
-Update `Web/Types.hs` and add a `user` field to the ViewContext data type:
-
-```haskell
-data ViewContext = ViewContext
-    { requestContext :: ControllerSupport.RequestContext
-    , flashMessages :: [IHP.Controller.Session.FlashMessage]
-    , controllerContext :: ControllerSupport.ControllerContext
-    , layout :: Layout
-    , user :: Maybe User -- <--------------- add this
-    }
-```
-
-and then uncomment it in `Web/View/Context.hs`:
-
-```haskell
-let viewContext = ViewContext {
-    requestContext = ?requestContext,
-	user = currentUserOrNothing, -- <--------------- uncomment this line
-	flashMessages,
-	controllerContext = ?controllerContext,
-	layout = let ?viewContext = viewContext in defaultLayout
-}
-```
 
 Inside your actions you can then use `currentUser` to get access to the current logged in user:
 
@@ -301,5 +289,18 @@ To create a user with a hashed password, you just need to call the hashing funct
                         |> createRecord
                     setSuccessMessage "You have registered successfully"
 ```
+
+## Hashing a Password
+
+To manually insert a user into your database you need to hash the password first. You can do this by calling the `hash-password` tool from your command line:
+
+```bash
+$ hash-password
+Enter your password and press enter:
+hunter2
+sha256|17|Y32Ga1uke5CisJvVp6p2sg==|TSDuEs1+Xdaels6TYCkyCgIBHxWA/US7bvBlK0vHzvc=
+```
+
+Use [`hashPassword`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Authentication.html#v:hashPassword) to hash a password from inside your application.
 
 [Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)

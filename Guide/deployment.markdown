@@ -36,17 +36,17 @@ Take a short look at `Web/View/Layout.hs`. You can see that depending on whether
 
 ```haskell
 stylesheets = do
-    when (isDevelopment FrameworkConfig.environment) [hsx|
+    when (isDevelopment $ fromConfig environment) [hsx|
         <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
         <link rel="stylesheet" href="/vendor/flatpickr.min.css"/>
         <link rel="stylesheet" href="/app.css"/>
     |]
-    when (isProduction FrameworkConfig.environment) [hsx|
+    when (isProduction $ fromConfig environment) [hsx|
         <link rel="stylesheet" href="/prod.css"/>
     |]
 
 scripts = do
-    when (isDevelopment FrameworkConfig.environment) [hsx|
+    when (isDevelopment $ fromConfig environment) [hsx|
         <script id="livereload-script" src="/livereload.js"></script>
         <script src="/vendor/jquery-3.2.1.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
@@ -56,7 +56,7 @@ scripts = do
         <script src="/helpers.js"></script>
         <script src="/vendor/morphdom-umd.min.js"></script>
     |]
-    when (isProduction FrameworkConfig.environment) [hsx|
+    when (isProduction $ fromConfig environment) [hsx|
         <script src="/prod.js"></script>
     |]
 ```
@@ -68,7 +68,7 @@ make static/prod.js
 make static/prod.css
 ```
 
-The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently there is no minifcation or transpiling applied.
+The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently there is no minification or transpiling applied.
 
 #### Configuring the CSS & JS Bundling
 
@@ -98,7 +98,7 @@ CSS_FILES += static/layout.css
 JS_FILES += static/app.js
 ```
 
-Run `make static/prod.js static/prod.css` to test that the bundle generation works locally.
+Run `make static/prod.js static/prod.css` to test that the bundle generation works locally. To force a rebuild, either delete the files and run make again, or run `make -B static/prod.js static/prod.css`.
 
 You can also remove the JS and CSS files that are provided by IHP (like `${IHP}/static/vendor/bootstrap.min.css`) if you don't need them. E.g. if you don't use bootstrap for your CSS, just remove the `CSS_FILES` and `JS_FILES` statements for bootstrap.
 
@@ -106,7 +106,20 @@ You can also remove the JS and CSS files that are provided by IHP (like `${IHP}/
 
 Currently IHP has no standard way of doing migrations. Therefore currently you need to manually migrate your IHP Cloud database after deploying.
 
-Open the project the project in IHP Cloud, click  `Settings`, then click `Database`. There you can find the database credentials for the postgres DB that is running for your application. Connect to your database and manually apply the migrations.
+Open the project in IHP Cloud, click  `Settings`, then click `Database`. There you can find the database credentials for the postgres DB that is running for your application. Connect to your database and manually apply the migrations.
+
+### Changing the domain
+
+Open the project in IHP Cloud, click `Settings` and click `Domain`. You can set a `***.ihpapp.com` domain in here. 
+
+#### Using your own domain instead of .ihpapp.com
+
+Using your own domain with IHP Cloud is only available for IHP Cloud Pro users. 
+To use your own domain point a CNAME record to `ihpapp.com`.
+
+After that go to `Settings`, click `Domain` and enter your domain name.
+When you change your domain to a custom domain we are automatically getting a SSL certificate from
+LetsEncrypt for you so please make sure to set the CNAME record a few minutes before changing the domain inside your project.
 
 
 ## Deploying manually
@@ -141,14 +154,23 @@ Copy your application source code to the build server. If you're using `git` to 
 Make required modifications to your `Config/Config.hs`:
 
 1. Switch `environment = Development` to `environment = Production`
-2. Set `appHostname = "https://YOUR_HOSTNAME"`
+2. Set `appHostname = "YOUR_HOSTNAME"`
 3. Configure any custom settings
 (This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
+
+`appHostname` is used to build your `baseUrl` when this is not set manually.
+`baseUrl` equals `http://{appHostname}:{port}` or `http://{appHostname}` if port is 80.
+You can overwrite `baseUrl` by setting it in `Config/Config.hs`
+
+If you deploy behind an nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the baseUrl must still have `https` as it is used to form absolute URLs.
+
+When you deploy with IHP Cloud your Config.hs is set automatically on project creation.
+IHP Cloud sets your `baseUrl` to `https://{appHostname}` because every deployed app is served with SSL enabled.
 
 To configure your database connection: Set the env var `DATABASE_URL` to your postgres connection url. 
 Set the env var `PORT` to the port the app will listen on.
 
-The database needs the UUID-extension which is enabled by running ´create extension if not exists "uuid-ossp";´
+The database needs the UUID-extension which is enabled by running `create extension if not exists "uuid-ossp";`
 
 
 ### Building

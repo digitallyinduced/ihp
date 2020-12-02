@@ -20,7 +20,6 @@ import qualified IHP.ErrorController as ErrorController
 import IHP.ApplicationContext
 import IHP.ModelSupport
 import IHP.RouterSupport hiding (get)
-import qualified Web.Cookie as Cookie
 import qualified Data.Time.Clock
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
@@ -41,11 +40,17 @@ import IHP.IDE.Data.Controller
 import IHP.IDE.Logs.Controller
 import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Types
+import IHP.IDE.ToolServer.Helper.Controller as Helper
 import Control.Concurrent.Async
 import IHP.IDE.ToolServer.Routes
 import qualified System.Process as Process
 import System.Info
 import qualified System.Environment as Env
+import qualified IHP.AutoRefresh.Types as AutoRefresh
+import IHP.Controller.Context
+import qualified IHP.IDE.ToolServer.Layout as Layout
+import IHP.Controller.Layout
+import qualified IHP.LibDir as LibDir
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -60,26 +65,26 @@ startToolServer = do
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
     
+startToolServer' :: (?context :: Context) => Int -> Bool -> IO ()
 startToolServer' port isDebugMode = do
-    writeIORef Config.portRef port
+
+    frameworkConfig <- Config.buildFrameworkConfig do
+        Config.option $ Config.AppHostname "localhost"
+        Config.option $ Config.AppPort port
 
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let sessionCookie = def
-                { Cookie.setCookiePath = Just "/"
-                , Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 30))
-                , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
-                }
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" sessionCookie session    
-    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session }
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (get #sessionCookie frameworkConfig) session
+    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
+    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshServer, frameworkConfig }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
-            let ?requestContext = requestContext
+            let ?context = requestContext
             frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
             
-    libDirectory <- cs <$> Config.findLibDirectory
+    libDirectory <- cs <$> LibDir.findLibDirectory
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
 
     let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
@@ -87,7 +92,7 @@ startToolServer' port isDebugMode = do
             |> Warp.setPort port
             |> Warp.setBeforeMainLoop openAppUrl
 
-    let logMiddleware = if isDebugMode then Config.requestLoggerMiddleware else IHP.Prelude.id
+    let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
     
     Warp.runSettings warpSettings $ 
             staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware $ application
@@ -119,3 +124,12 @@ instance FrontController ToolServerApplication where
         ]
 
 instance ControllerSupport.InitControllerContext ToolServerApplication where
+    initContext = do
+        availableApps <- AvailableApps <$> findApplications
+        webControllers <- WebControllers <$> findWebControllers
+        let appUrl = AppUrl ("http://localhost:" <> tshow Helper.appPort)
+
+        putContext availableApps
+        putContext webControllers
+        putContext appUrl
+        setLayout Layout.toolServerLayout

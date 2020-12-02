@@ -27,12 +27,14 @@ module IHP.HaskellSupport (
 , todayIsWeekend
 , debug
 , includes
+, stripTags
+, symbolToText
 ) where
 
 import ClassyPrelude
 import Control.Monad (when)
 import qualified Data.Default
-import qualified Data.UUID
+import qualified Data.UUID as UUID
 import Data.Proxy
 import qualified Data.Time
 import GHC.TypeLits
@@ -41,6 +43,8 @@ import qualified GHC.Records as Record
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs)
 import qualified Debug.Trace
+import qualified Data.Text as Text
+import qualified Data.Maybe 
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
@@ -75,8 +79,8 @@ includes :: (MonoFoldable container, Eq (Element container)) => Element containe
 includes = elem
 {-# INLINE includes #-}
 
-instance Data.Default.Default Data.UUID.UUID where
-    def = Data.UUID.nil
+instance Data.Default.Default UUID.UUID where
+    def = UUID.nil
 
 instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
     fromLabel = Proxy @name'
@@ -230,3 +234,28 @@ isWeekend day =
 debug :: Show value => value -> value
 debug value = Debug.Trace.traceShowId value
 {-# INLINE debug #-}
+
+-- | Removes all html tags from a given html text
+--
+-- >>> stripTags "This is <b>Bold</b>"
+-- "This is Bold"
+stripTags :: Text -> Text
+stripTags "" = ""
+stripTags html | Text.head html == '<' = stripTags (Text.drop 1 (Text.dropWhile (/= '>') (Text.tail html)))
+stripTags html = let (a, b) = Text.splitAt 1 html in a <> stripTags b
+
+-- | Returns the value of a type level symbol as a text
+--
+-- >>> symbolToText @"hello"
+-- "hello"
+--
+-- >>> symbolToText @(GetTableName User)
+-- "users"
+symbolToText :: forall symbol. (KnownSymbol symbol) => Text
+symbolToText = Text.pack (symbolVal @symbol Proxy)
+{-# INLINE symbolToText #-}
+
+instance IsString UUID.UUID where
+    fromString string = case UUID.fromString string of
+            Just uuid -> uuid
+            Nothing -> error ("Invalid UUID: " <> string)

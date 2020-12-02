@@ -2,7 +2,6 @@ module IHP.IDE.SchemaDesigner.Controller.EnumValues where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.EnumValues.New
 import IHP.IDE.SchemaDesigner.View.EnumValues.Edit
@@ -16,8 +15,11 @@ import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.Controller.Schema
+import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.Controller.Helper
 
 instance Controller EnumValuesController where
+    beforeAction = setLayout schemaDesignerLayout
     
     action NewEnumValueAction { enumName } = do
         statements <- readSchema

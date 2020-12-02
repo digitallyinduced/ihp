@@ -43,6 +43,7 @@ data OnDelete
     = NoAction
     | Restrict
     | SetNull
+    | SetDefault
     | Cascade
     deriving (Show, Eq)
 
@@ -81,6 +82,7 @@ data PostgresType
     | PTimestamp
     | PReal
     | PDouble
+    | PPoint
     | PDate
     | PBinary
     | PTime
@@ -90,5 +92,6 @@ data PostgresType
     | PSerial
     | PBigserial
     | PJSONB
+    | PArray PostgresType
     | PCustomType Text
     deriving (Eq, Show)

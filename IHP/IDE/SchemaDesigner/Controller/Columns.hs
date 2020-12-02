@@ -2,7 +2,6 @@ module IHP.IDE.SchemaDesigner.Controller.Columns where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.Columns.New
 import IHP.IDE.SchemaDesigner.View.Columns.Edit
@@ -19,8 +18,10 @@ import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.Controller.Schema
 import IHP.IDE.SchemaDesigner.Controller.Helper
+import IHP.IDE.SchemaDesigner.View.Layout
 
 instance Controller ColumnsController where
+    beforeAction = setLayout schemaDesignerLayout
 
     action NewColumnAction { tableName } = do
         statements <- readSchema
@@ -41,7 +42,7 @@ instance Controller ColumnsController where
             redirectTo ShowTableAction { .. }
         let column = Column
                 { name = columnName
-                , columnType = param "columnType"
+                , columnType = arrayifytype (param "isArray") (param "columnType")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
@@ -82,7 +83,7 @@ instance Controller ColumnsController where
         let columnId = param "columnId"
         let column = Column
                 { name = columnName
-                , columnType = param "columnType"
+                , columnType = arrayifytype (param "isArray") (param "columnType")
                 , defaultValue = defaultValue
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
@@ -135,6 +136,7 @@ instance Controller ColumnsController where
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
             Just SetNull -> do pure "SetNull"
+            Just SetDefault -> do pure "SetDefault"
             Just Cascade -> do pure "Cascade"
             Nothing -> do pure "NoAction"
         render EditForeignKeyView { .. }
@@ -156,6 +158,7 @@ instance Controller ColumnsController where
         let onDelete = case onDeleteParam of
                 "Restrict" -> Restrict
                 "SetNull" -> SetNull
+                "SetDefault" -> SetDefault
                 "Cascade" -> Cascade
                 _ -> NoAction
         case constraintId of
@@ -228,3 +231,9 @@ isCreateEnumType CreateEnumType {} = True
 isCreateEnumType _ = False
 
 nameList statements = map (get #name) statements
+
+arrayifytype :: Bool -> PostgresType -> PostgresType
+arrayifytype False   (PArray coltype) = coltype
+arrayifytype True  a@(PArray coltype) = a
+arrayifytype False coltype = coltype
+arrayifytype True  coltype = PArray coltype

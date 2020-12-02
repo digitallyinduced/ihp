@@ -9,17 +9,26 @@ module IHP.ViewPrelude (
     module IHP.View.TimeAgo,
     stringValue,
     module IHP.View.Form,
+    module IHP.View.Types,
     hsx,
     toHtml,
     preEscapedToHtml,
-    module IHP.View.Modal,
     module IHP.ValidationSupport,
     pathTo,
+    urlTo,
     module IHP.ViewSupport,
     module IHP.ModelSupport,
+    module IHP.FrameworkConfig,
     (!),
     module Data.Data,
-    module Data.Aeson
+    module Data.Aeson,
+    module IHP.AutoRefresh.View,
+    module IHP.View.Classes,
+    module IHP.FlashMessages.ViewFunctions,
+    module IHP.Controller.Context,
+    module IHP.Controller.Layout,
+    module IHP.Modal.Types,
+    module IHP.Modal.ViewFunctions
 ) where
 
 import IHP.Prelude
@@ -31,10 +40,19 @@ import IHP.View.Form
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.HtmlSupport.ToHtml
 import IHP.View.TimeAgo
-import IHP.View.Modal
 import IHP.ValidationSupport
 import IHP.Controller.RequestContext
 import IHP.RouterSupport
 import IHP.ModelSupport
+import IHP.FrameworkConfig
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))
+import IHP.AutoRefresh.View
+import IHP.View.Types
+import IHP.View.Classes
+import IHP.FlashMessages.ViewFunctions
+import IHP.Controller.Context
+import IHP.Controller.Layout
+
+import IHP.Modal.Types
+import IHP.Modal.ViewFunctions

@@ -25,6 +25,14 @@ HTML_FILES+= updating.html
 HTML_FILES+= package-management.html
 HTML_FILES+= editors.html
 HTML_FILES+= deployment.html
+HTML_FILES+= auto-refresh.html
+HTML_FILES+= mail.html
+HTML_FILES+= design-goals.html
+HTML_FILES+= troubleshooting.html
+HTML_FILES+= modal.html
+HTML_FILES+= database-migrations.html
+HTML_FILES+= tailwindcss.html
+HTML_FILES+= npm.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 

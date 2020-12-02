@@ -173,7 +173,7 @@ do
 
 This will run the SQL query `SELECT * FROM users WHERE id IN (...)`. The results in `users` have type `[User]`.
 
-## Fetching a `Maybe (Id record)`
+### Fetching a `Maybe (Id record)`
 
 Sometimes you have an optional id field, like e.g. when having a database schema like this:
 
@@ -205,6 +205,57 @@ action ShowTask { taskId } = do
     assignedUser <- fetchOneOrNothing (get #assignedUserId task)
 ```
 
+### Fetching `n` records (LIMIT)
+
+
+Use `limit` to query only up to `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> limit 10
+        |> fetch
+```
+
+This will run a `SELECT * FROM users ORDER BY firstname LIMIT 10` query and will return the first 10 users ordered by their firstname.
+
+When you are only interested in the first result you can also use `fetchOne` as a shortcut for `|> limit 1`:
+
+```haskell
+do
+    firstUser <- query @User
+        |> orderBy #firstname
+        |> fetchOne
+```
+
+### Skipping `n` records (OFFSET)
+
+Use `offset` to skip `n` records from a table:
+
+```haskell
+do
+    users <- query @User
+        |> orderBy #firstname
+        |> offset 10
+        |> fetch
+```
+
+This is most often used together with `limit` to implement paging.
+
+
+### Counting records (COUNT queries)
+
+You can use `fetchCount` instead of `fetch` to get the count of records matching the query:
+
+```haskell
+do
+    activeUsersCount :: Int <- query @User
+        |> filterWhere (#isActive, True)
+        |> fetchCount
+
+    -- SELECT COUNT(*) FROM users WHERE is_active = 1
+```
 
 ## Raw SQL Queries
 
@@ -222,13 +273,15 @@ do
     result :: Project <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
-You can query any kind of information, not only records:
+### Scalar Results
+
+The `sqlQuery` function always returns a list of rows as the result. When the result of your query is a single value (such as a integer or a string) use `sqlQueryScalar`:
 
 ```haskell
 do
-    count :: Int <- sqlQuery "SELECT COUNT(*) FROM projects" []
+    count :: Int <- sqlQueryScalar "SELECT COUNT(*) FROM projects" ()
 
-    randomString :: Text <- sqlQuery "SELECT md5(random()::text)" []
+    randomString :: Text <- sqlQueryScalar "SELECT md5(random()::text)" ()
 ```
 
 ## Create
@@ -433,31 +486,67 @@ In your views, use `inputValue` to get a textual representation for your enum wh
 |]
 ```
 
-## Database Refactoring
+## Database Updates
 
-In the following section you will find best practise workflows to do changes to your database schema.
+The *Update DB* operation is actually three steps:
+
+1. Data is read from the database and stored in `Fixtures.sql`
+2. The database is deleted and the schema in `Schema.sql` created
+3. The data in `Fixtures.sql` is (re-)inserted.
+
+The small arrow on the Update DB button shows a menu where it is possible to just run *Save DB to Fixtures* (step 1) or *Push to DB* (steps 2 + 3).
+
+
+## Making Changes to the Database
+
+The main purpose of the below steps is keeping the data rows from `Application/Fixtures.sql` between updates. If you are not concerned with keeping these rows when refactoring, feel free to skip this section.
+
+The main reason for the steps outlined below is that changes to the database schema is written to `Application/Schema.sql` only. The actual database is not altered. This means the actual schema and `Schema.sql` will be out of sync.
+
+When the schemas are out of sync, the INSERT statements in `Fixtures.sql` will fail. If this happens, and you attempt to update, the target table will be empty after the update. Try again, and the empty table is read from the database and the data in `Fixtures.sql` is gone.
+
+If you feel this is all a bit less streamlined compared to the rest of the development experience, you are correct. We will work on improving handling changes to the database.
+
 
 ### Adding a Column
 
-When adding a new column to an existing table, it's best to add a default value so that existing values in your table can be re-inserted from your `Fixtures.sql` before using `Update DB`.
+#### Nullable or with Default
 
-In case you don't have a default value and run `Update DB`, the import of `Application/Fixtures.sql` will be completed with errors. The table with the new column will most likely be empty. To keep the records in your table without setting a default value use the following process to work around this issue:
-1. Add your column `new_col` in the Schema Designer
-2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
-3. Open the `Application/Fixtures.sql` in your editor and manually update all `INSERT INTO` lines for your changed table. Change the lines so that all columns are provided for the changed table.
-4. Click `Push to DB` in the Schema Designer (Click the arrow on the `Update DB` button to see this option)
+This is always ok. The existing rows can be re-inserted from your `Fixtures.sql` without errors. After another update cycle `Fixtures.sql` will also contain the new column.
+
+#### Non-Nullable or Without Default
+
+It's best to do this in two steps. First follow the above. After updating the DB, fill the column with data and remove the nullable or default properties.
+
+Data can be updated by manually editing the table in the data view or by running UPDATE statements in the custom query field below the data view.
+
 
 ### Renaming a Column
 
-When you are renaming a column, the development process of using `Update DB` will not work be working. This is because the `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names.
-
-In this case it's best to use the following approach:
+When you are renaming a column, the development process of using `Update DB` will not work. This is because `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names. It will then fail on the next update.
 
 1. Rename your column `col_a` to `col_b` in the Schema Designer
+2. Rename the column in the database by executing `ALTER TABLE tablename RENAME COLUMN col_a TO col_b` in the custom query field below the data view.
+
+
+### Deleting a Column
+
+Similarly as for renaming, deleting a column currently won't work automatically either.
+
+1. Delete your column in the Schema Designer
+2. Delete the column from the database by executing `ALTER TABLE tablename DROP COLUMN colname`
+
+
+### Alternate Method
+
+There's always more than one way. This is another.
+
+1. Make changes in the Schema Designer
 2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
-3. Open the `Application/Fixtures.sql` in your editor and manually update references from the old column `col_a` to the new name `col_b`
+3. Edit `Fixtures.sql` to your heart's content.
 4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
+
 
 ### Migrations In Production
 
-IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then, the recommended approach used by digitally induced is to manually migrate your database using DDL statements.
+IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then, the recommended approach used by digitally induced is to manually migrate your database using DDL statements as shown above.

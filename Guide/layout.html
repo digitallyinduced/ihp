@@ -48,13 +48,24 @@
                 <a class="nav-link secondary" href="javascript:alert('This cookie section is not ready yet')">Cookies</a>
                 <a class="nav-link secondary" href="scripts.html">Scripts</a>
                 <a class="nav-link secondary" href="debugging.html">Debugging</a>
-                <a class="nav-link secondary" href="updating.html">Updating IHP</a>
-                <a class="nav-link secondary" href="package-management.html">Package Management</a>
+                
                 <a class="nav-link secondary" href="editors.html">Editors & Tooling</a>
+                
+                
+
+                <a class="nav-link headline" href="mail.html">Advanced</a>
+                <a class="nav-link secondary" href="mail.html">Sending Mail</a>
+                <a class="nav-link secondary" href="updating.html">Updating IHP</a>
+                <a class="nav-link secondary" href="auto-refresh.html">Auto Refresh</a>
+                <a class="nav-link secondary" href="package-management.html">Package Management</a>
                 <a class="nav-link secondary" href="deployment.html">Deployment</a>
+                <a class="nav-link secondary" href="design-goals.html">IHP Design Goals</a>
 
 
-                <a class="nav-link headline" href="javascript:alert('The frontend section is coming soon')">Frontend</a>
+                <a class="nav-link headline" href="tailwindcss.html">Frontend</a>
+                <a class="nav-link secondary" href="tailwindcss.html">tailwindcss</a>
+                <a class="nav-link secondary" href="modal.html">Modal</a>
+                <a class="nav-link secondary" href="npm.html">Using NPM</a>
                 <a class="nav-link secondary" href="javascript:alert('The frontend section is coming soon')">Static Assets</a>
                 <a class="nav-link secondary" href="javascript:alert('The frontend section is coming soon')">Form Customization</a>
 
@@ -62,6 +73,7 @@
                 <a class="nav-link secondary" href="database.html">Basics</a>
                 <a class="nav-link secondary" href="relationships.html">Relationships</a>
                 <a class="nav-link secondary" href="querybuilder.html">Query Builder</a>
+                <a class="nav-link secondary" href="database-migrations.html">Migrations</a>
 
 
                 <a class="nav-link headline" href="authentication.html">Auth</a>
@@ -69,6 +81,7 @@
                 <a class="nav-link secondary" href="authorization.html">Authorization</a>
 
                 <a class="nav-link headline" href="recipes.html">Recipes</a>
+                <a class="nav-link headline" href="troubleshooting.html">Troubleshooting</a>
 
                 <a class="nav-link headline" href="#">LINKS</a>
                 <a class="nav-link" href="https://github.com/digitallyinduced/ihp" target="_blank">GitHub</a>
@@ -193,8 +206,8 @@
           font-weight: bold;
         }
   
-        code.language-haskell .kw, code.language-sql .kw, code.language-html .kw { color: #859900; }
-        code.language-haskell .st { color: #2aa198; }
+        code .kw, code .kw, code .kw { color: #859900; }
+        code .st { color: #2aa198; }
   
         pre { overflow: scroll; }
   
@@ -255,6 +268,25 @@
 
         summary h3 { vertical-align: sub }
 
+        .next-button {
+            background-color: hsla(192, 81%, 26%, 1);
+            color: white !important;
+            text-decoration: none !important;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            margin-top: 1rem;
+            display: inline-block;
+            border: 1px solid hsla(192, 81%, 19%, 0.1);
+            font-weight: 500;
+            border-radius: 8px;
+        }
+
+        .next-button:hover {
+            background-color: hsla(192, 81%, 26%, 0.8)
+        }
+
     </style>
 
     <script>
@@ -268,6 +300,14 @@
         /* Add css class active to current navigation item */
         var activeNavItem = document.querySelector('.nav-link.secondary[href="' + location.pathname.split('/').pop() + '"]');
         if (activeNavItem) { activeNavItem.classList.add('active'); }
+
+        /* Add css class to "Next: ..." links */
+        var links = document.querySelectorAll('a');
+        for (let link of links) {
+            if (link.innerText.indexOf('Next: ') === 0) {
+                link.classList.add('next-button');
+            }
+        }
     </script>
     <script async defer src="https://buttons.github.io/buttons.js"></script>
     <script src="instantclick.js" data-no-instant></script>

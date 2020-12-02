@@ -1,18 +1,20 @@
 module IHP.IDE.CodeGen.Controller where
 
-import IHP.ControllerPrelude
+import IHP.ControllerPrelude hiding (appPort)
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 import IHP.IDE.CodeGen.View.Generators
 import IHP.IDE.CodeGen.View.NewController
 import IHP.IDE.CodeGen.View.NewScript
 import IHP.IDE.CodeGen.View.NewView
+import IHP.IDE.CodeGen.View.NewMail
 import IHP.IDE.CodeGen.View.NewAction
 import IHP.IDE.CodeGen.View.NewApplication
+import IHP.IDE.CodeGen.View.NewMigration
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
 import IHP.IDE.CodeGen.ScriptGenerator as ScriptGenerator
 import IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
+import IHP.IDE.CodeGen.MailGenerator as MailGenerator
 import IHP.IDE.CodeGen.ActionGenerator as ActionGenerator
 import IHP.IDE.CodeGen.ApplicationGenerator as ApplicationGenerator
 import IHP.IDE.ToolServer.Helper.Controller
@@ -23,6 +25,7 @@ import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
 import Control.Exception
 import System.Directory
+import qualified IHP.SchemaMigration as SchemaMigration
 
 
 instance Controller CodeGenController where
@@ -88,6 +91,28 @@ instance Controller CodeGenController where
         setSuccessMessage "View generated"
         redirectTo GeneratorsAction
 
+    action NewMailAction = do
+        let mailName = paramOrDefault "" "name"
+        let applicationName = paramOrDefault "Web" "applicationName"
+        let controllerName = paramOrDefault "" "controllerName"
+        mailAlreadyExists <- doesFileExist $ (cs applicationName) <> "/Mail/" <> (cs controllerName) <> "/" <> (cs mailName) <>".hs"
+        when mailAlreadyExists do
+            setErrorMessage "Mail with this name already exists."
+            redirectTo NewMailAction
+        controllers <- findControllers applicationName
+        applications <- findApplications
+        plan <- MailGenerator.buildPlan mailName applicationName controllerName
+        render NewMailView { .. }
+
+    action CreateMailAction = do
+        let mailName = paramOrDefault "" "name"
+        let applicationName = "Web"
+        let controllerName = paramOrDefault "" "controllerName"
+        (Right plan) <- MailGenerator.buildPlan mailName applicationName controllerName
+        executePlan plan
+        setSuccessMessage "Mail generated"
+        redirectTo GeneratorsAction
+
     action NewActionAction = do
         let actionName = paramOrDefault "" "name"
         let applicationName = paramOrDefault "Web" "applicationName"
@@ -105,7 +130,7 @@ instance Controller CodeGenController where
         let doGenerateView = paramOrDefault False "doGenerateView"
         (Right plan) <- ActionGenerator.buildPlan actionName applicationName controllerName doGenerateView
         executePlan plan
-        setSuccessMessage "Action generated"
+        setSuccessMessage $ "Action" ++ (if doGenerateView then " and View " else "") ++ " generated"
         redirectTo GeneratorsAction
 
     action NewApplicationAction = do
@@ -118,6 +143,18 @@ instance Controller CodeGenController where
         (Right plan) <- ApplicationGenerator.buildPlan applicationName
         executePlan plan
         setSuccessMessage "Application generated"
+        redirectTo GeneratorsAction
+
+    action NewMigrationAction = do
+        let description = paramOrDefault "" "description"
+        render NewMigrationView { .. }
+    
+    action CreateMigrationAction = do
+        let description = param "description"
+        migration <- SchemaMigration.createMigration description
+        let path = SchemaMigration.migrationPath migration
+        setSuccessMessage ("Migration generated: " <> path)
+        openEditor path 0 0
         redirectTo GeneratorsAction
 
     action OpenControllerAction = do

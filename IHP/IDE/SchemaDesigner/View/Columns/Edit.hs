@@ -5,7 +5,6 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data EditColumnView = EditColumnView
@@ -16,15 +15,13 @@ data EditColumnView = EditColumnView
     , enumNames :: [Text]
     }
 
-instance View EditColumnView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
-
+instance View EditColumnView where
     html EditColumnView { column = column@Column { name }, .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName (zip [0..] columns) statements}
         </div>
-        {Just modal}
+        {renderModal modal}
     |]
         where
             table = findStatementByName tableName statements
@@ -34,7 +31,7 @@ instance View EditColumnView ViewContext where
             primaryKeyCheckbox
                 | [name] == primaryKeyColumns =
                     preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-2" checked disabled> Primary Key
+                            <input type="checkbox" name="primaryKey" class="mr-2" checked> Primary Key
                         </label>|]
                 | name `elem` primaryKeyColumns =
                     preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
@@ -52,7 +49,14 @@ instance View EditColumnView ViewContext where
             isUniqueCheckbox = if get #isUnique column
                 then preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2" checked/>|]
                 else preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2"/>|]
-            
+
+            isArrayTypeCheckbox = if (isArrayType (get #columnType column))
+                then preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2" checked/>|]
+                else preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2"/>|]
+
+            isArrayType (PArray _) = True
+            isArrayType _ = False
+
             modalContent = [hsx|
                 <form method="POST" action={UpdateColumnAction}>
                     <input type="hidden" name="tableName" value={tableName}/>
@@ -80,6 +84,9 @@ instance View EditColumnView ViewContext where
                                 {isUniqueCheckbox} Unique
                             </label>
                             {primaryKeyCheckbox}
+                            <label class="ml-1" style="font-size: 12px">
+                                {isArrayTypeCheckbox} Array Type
+                            </label>
                         </div>
                     </div>
 
@@ -93,6 +100,7 @@ instance View EditColumnView ViewContext where
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
                     <input type="hidden" name="isUnique" value={inputValue False}/>
+                    <input type="hidden" name="isArray" value={inputValue False}/>
                 </form>
             |]
             modalFooter = mempty 
@@ -107,14 +115,17 @@ typeSelector postgresType enumNames = [hsx|
             {option selected "INT" "Int"}
             {option selected "UUID" "UUID"}
             {option selected "BOOLEAN" "Bool"}
-            {option selected "TIMESTAMP WITH TIME ZONE" "Timestamp"}
+            {option selected "TIMESTAMP WITH TIME ZONE" "Timestamp (UTCTime)"}
+            {option selected "TIMESTAMP WITHOUT TIME ZONE" "Timestamp (LocalTime)"}
             {option selected "REAL" "Float"}
             {option selected "DOUBLE PRECISION" "Double"}
+            {option selected "POINT" "Point"}
             {option selected "DATE" "Date"}
-            {option selected "BINARY" "Binary"}
+            {option selected "BYTEA" "Binary"}
             {option selected "Time" "Time"}
             {option selected "SERIAL" "Serial"}
             {option selected "BIGSERIAL" "Bigserial"}
+            {option selected "JSONB" "JSON"}
             {forEach enumNames renderEnumType}
         </select>
 |]
@@ -127,7 +138,7 @@ typeSelector postgresType enumNames = [hsx|
         option selected value text = case selected of
             Nothing -> [hsx|<option value={value}>{text}</option>|]
             Just selection ->
-                if selection == value
+                if selection == value || selection == value <> "[]"
                     then [hsx|<option value={value} selected="selected">{text}</option>|]
                     else [hsx|<option value={value}>{text}</option>|]      
 
@@ -140,7 +151,7 @@ defaultSelector defValue = [hsx|
     </div>
 |]
     where
-        suggestedValues = [Nothing, Just (TextExpression ""), Just (VarExpression "null"), Just (CallExpression "NOW" [])]
+        suggestedValues = [Nothing, Just (TextExpression ""), Just (VarExpression "NULL"), Just (CallExpression "NOW" [])]
         values = if defValue `elem` suggestedValues then suggestedValues else defValue:suggestedValues
 
         renderValue :: Maybe Expression -> Html

@@ -4,14 +4,13 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data ErrorView = ErrorView
     { error :: ByteString
     }
 
-instance View ErrorView ViewContext where
+instance View ErrorView where
     html ErrorView { .. } = [hsx|
         <div class="container">
             <div class="row pt-5" style="height: 102px">

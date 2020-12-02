@@ -1,4 +1,0 @@
-#!/bin/sh
-parent_path=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
-cd "$parent_path/../../../"
-/nix/var/nix/profiles/default/bin/nix-shell --run "echo `echo ghc-mod legacy-interactive $@|base64`|base64 -d|sh"

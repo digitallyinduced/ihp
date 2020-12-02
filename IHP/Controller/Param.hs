@@ -20,6 +20,13 @@ import GHC.TypeLits
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified GHC.Float as Float
 import qualified Control.Exception as Exception
+import IHP.Controller.Context
+import qualified Data.Aeson as Aeson
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
+import qualified Data.Scientific as Scientific
+import qualified Data.Vector as Vector
+import qualified Control.DeepSeq as DeepSeq
 
 -- | Returns a query or body parameter from the current request. The raw string
 -- value is parsed before returning it. So the return value type depends on what
@@ -35,7 +42,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Accessing a query parameter.
 --
 -- Let's say the request is:
--- 
+--
 -- > GET /UsersAction?maxItems=50
 --
 -- We can read @maxItems@ like this:
@@ -47,7 +54,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Working with forms (Accessing a body parameter).
 --
 -- Let's say we have the following html form:
--- 
+--
 -- > <form method="POST" action="/HelloWorld"
 -- >     <input type="text" name="firstname" placeholder="Your firstname" />
 -- >     <button type="submit">Send</button>
@@ -66,7 +73,7 @@ import qualified Control.Exception as Exception
 -- __Example:__ Missing parameters
 --
 -- Let's say the request is:
--- 
+--
 -- > GET /HelloWorldAction
 --
 -- But the action requires us to provide a firstname, like:
@@ -77,12 +84,12 @@ import qualified Control.Exception as Exception
 --
 -- Running the request @GET /HelloWorldAction@ without the firstname parameter will cause an
 -- 'ParamNotFoundException' to be thrown with:
--- 
+--
 -- > param: Parameter 'firstname' not found
-param :: (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> valueType
-param !name = case paramOrNothing name of
-    Just value -> Either.fromRight (error (paramParserErrorMessage name)) (readParameter value)
-    Nothing -> Exception.throw (ParamNotFoundException name)
+param :: (?context :: ControllerContext) => (ParamReader valueType) => ByteString -> valueType
+param !name = case paramOrError name of
+        Left exception -> Exception.throw exception
+        Right value -> value
 {-# INLINE param #-}
 
 -- | Similiar to 'param' but works with multiple params. Useful when working with checkboxes.
@@ -104,52 +111,57 @@ param !name = case paramOrNothing name of
 -- When a value cannot be parsed, this function will fail similiar to 'param'.
 --
 -- Related: https://stackoverflow.com/questions/63875081/how-can-i-pass-list-params-in-ihp-forms/63879113
-paramList :: forall valueType. (?requestContext :: RequestContext) => (ParamReader valueType) => ByteString -> [valueType]
+paramList :: forall valueType. (?context :: ControllerContext, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [valueType]
 paramList name =
     allParams
     |> filter (\(paramName, paramValue) -> paramName == name)
     |> mapMaybe (\(paramName, paramValue) -> paramValue)
     |> map (readParameter @valueType)
     |> map (Either.fromRight (error (paramParserErrorMessage name)))
+    |> DeepSeq.force
 {-# INLINE paramList #-}
 
 paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 
 -- | Thrown when a parameter is missing when calling 'param "myParam"' or related functions
-data ParamNotFoundException = ParamNotFoundException ByteString deriving (Show)
+data ParamException
+    = ParamNotFoundException { name :: ByteString }
+    | ParamCouldNotBeParsedException { name :: ByteString, parserError :: ByteString }
+    deriving (Show, Eq)
 
-instance Exception ParamNotFoundException where
-    displayException (ParamNotFoundException name) = "param: Parameter '" <> cs name <> "' not found"
+instance Exception ParamException where
+    displayException (ParamNotFoundException { name }) = "param: Parameter '" <> cs name <> "' not found"
+    displayException (ParamCouldNotBeParsedException { name, parserError }) = "param: Parameter '" <> cs name <> "' could not be parsed, " <> cs parserError
 
 -- | Specialisied version of param for 'Text'.
 --
 -- This way you don't need to know about the type application syntax.
-paramText :: (?requestContext :: RequestContext) => ByteString -> Text
+paramText :: (?context :: ControllerContext) => ByteString -> Text
 paramText = param @Text
 
 -- | Specialisied version of param for 'Int'.
 --
 -- This way you don't need to know about the type application syntax.
-paramInt :: (?requestContext :: RequestContext) => ByteString -> Int
+paramInt :: (?context :: ControllerContext) => ByteString -> Int
 paramInt = param @Int
 
 -- | Specialisied version of param for 'Bool'.
 --
 -- This way you don't need to know about the type application syntax.
-paramBool :: (?requestContext :: RequestContext) => ByteString -> Bool
+paramBool :: (?context :: ControllerContext) => ByteString -> Bool
 paramBool = param @Bool
 
 -- | Specialisied version of param for 'UUID'.
 --
 -- This way you don't need to know about the type application syntax.
-paramUUID :: (?requestContext :: RequestContext) => ByteString -> UUID
+paramUUID :: (?context :: ControllerContext) => ByteString -> UUID
 paramUUID = param @UUID
 
 -- | Returns @True@ when a parameter is given in the request via the query or request body.
 --
 -- Use 'paramOrDefault' when you want to use this for providing a default value.
 --
--- __Example:__ 
+-- __Example:__
 --
 -- Given the request @GET /HelloWorld@
 --
@@ -159,7 +171,7 @@ paramUUID = param @UUID
 -- >         else renderPlain "Please provide your firstname"
 --
 -- This will render @Please provide your firstname@ because @hasParam "firstname"@ returns @False@
-hasParam :: (?requestContext :: RequestContext) => ByteString -> Bool
+hasParam :: (?context :: ControllerContext) => ByteString -> Bool
 hasParam = isJust . queryOrBodyParam
 {-# INLINE hasParam #-}
 
@@ -176,7 +188,7 @@ hasParam = isJust . queryOrBodyParam
 -- >     let page :: Int = paramOrDefault 0 "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
-paramOrDefault :: (?requestContext :: RequestContext) => ParamReader a => a -> ByteString -> a
+paramOrDefault :: (?context :: ControllerContext) => ParamReader a => a -> ByteString -> a
 paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 {-# INLINE paramOrDefault #-}
 
@@ -193,24 +205,45 @@ paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
 -- >     let page :: Maybe Int = paramOrNothing "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
-paramOrNothing :: (?requestContext :: RequestContext) => ParamReader a => ByteString -> Maybe a
-paramOrNothing !name = case queryOrBodyParam name of
-    Just value -> case readParameter value of
-        Left error -> Nothing
-        Right value -> Just value
-    Nothing -> Nothing
+paramOrNothing :: forall paramType. (?context :: ControllerContext) => ParamReader (Maybe paramType) => ByteString -> Maybe paramType
+paramOrNothing !name =
+    case paramOrError name of
+        Left ParamNotFoundException {} -> Nothing
+        Left otherException -> Exception.throw otherException
+        Right value -> value
 {-# INLINE paramOrNothing #-}
 
+-- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid
+paramOrError :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Either ParamException paramType
+paramOrError !name = 
+    let
+        RequestContext { requestBody } = ?context |> get #requestContext
+    in case requestBody of
+        FormBody {} -> case queryOrBodyParam name of
+                Just value -> case readParameter @paramType value of
+                    Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
+                    Right value -> Right value
+                Nothing -> Left ParamNotFoundException { name }
+        JSONBody json -> case json of
+                (Just (Aeson.Object hashMap)) -> case HashMap.lookup (cs name) hashMap of
+                    Just value -> case readParameterJSON @paramType value of
+                        Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
+                        Right value -> Right value
+                _ -> Left ParamNotFoundException { name }
+{-# INLINE paramOrError #-}
+
 -- | Returns a parameter without any parsing. Returns @Nothing@ when the parameter is missing.
-queryOrBodyParam :: (?requestContext :: RequestContext) => ByteString -> Maybe ByteString
+queryOrBodyParam :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
 queryOrBodyParam !name = join (lookup name allParams)
 {-# INLINE queryOrBodyParam #-}
 
 -- | Returns all params available in the current request
-allParams :: (?requestContext :: RequestContext) => [(ByteString, Maybe ByteString)]
-allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
+allParams :: (?context :: ControllerContext) => [(ByteString, Maybe ByteString)]
+allParams = case requestBody of
+            FormBody { params, files } -> concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
+            JSONBody value -> error "allParams: Not supported for JSON requests"
     where
-        RequestContext { request, params } = ?requestContext
+        RequestContext { request, requestBody } = ?context |> get #requestContext
 
 -- | Input parser for 'param'.
 --
@@ -218,42 +251,109 @@ allParams = concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString requ
 -- Returns @Right value@ when the parsing succeeded.
 class ParamReader a where
     readParameter :: ByteString -> Either ByteString a
+    readParameterJSON :: Aeson.Value -> Either ByteString a
 
 instance ParamReader ByteString where
     {-# INLINE readParameter #-}
     readParameter byteString = pure byteString
 
+    readParameterJSON (Aeson.String bytestring) = Right (cs bytestring)
+    readParameterJSON _ = Left "ParamReader ByteString: Expected String"
+
 instance ParamReader Int where
     {-# INLINE readParameter #-}
     readParameter byteString =
-        case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) byteString of
+        case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
             Left error -> Left ("ParamReader Int: " <> cs error)
+
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left float -> Left "ParamReader Int: Expected Int"
+                    Right int -> Right int
+    readParameterJSON _ = Left "ParamReader Int: Expected Int"
 
 instance ParamReader Integer where
     {-# INLINE readParameter #-}
     readParameter byteString =
-        case Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput) byteString of
+        case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Int: " <> cs error)
+            Left error -> Left ("ParamReader Integer: " <> cs error)
+
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left float -> Left "ParamReader Integer: Expected Integer"
+                    Right integer -> Right integer
+    readParameterJSON _ = Left "ParamReader Integer: Expected Integer"
 
 instance ParamReader Double where
     {-# INLINE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Dobule: " <> cs error)
+            Left error -> Left ("ParamReader Double: " <> cs error)
+
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left double -> Right double
+                    Right integer -> Right (fromIntegral integer)
+    readParameterJSON _ = Left "ParamReader Double: Expected Double"
 
 instance ParamReader Float where
     {-# INLINE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right (Float.double2Float value)
-            Left error -> Left ("ParamReader Dobule: " <> cs error)
+            Left error -> Left ("ParamReader Float: " <> cs error)
+
+    readParameterJSON (Aeson.Number number) =
+            case Scientific.floatingOrInteger number of
+                    Left double -> Right double
+                    Right integer -> Right (fromIntegral integer)
+    readParameterJSON _ = Left "ParamReader Float: Expected Float"
+
+instance ParamReader ModelSupport.Point where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure ModelSupport.Point { x, y }) byteString of
+            Right value -> Right value
+            Left error -> Left ("ParamReader Point: " <> cs error)
+
+    readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in  readParameter byteString
+    readParameterJSON _ = Left "ParamReader Point: Expected Point"
 
 instance ParamReader Text where
     {-# INLINE readParameter #-}
     readParameter byteString = pure (cs byteString)
+
+    readParameterJSON (Aeson.String text) = Right text
+    readParameterJSON _ = Left "ParamReader Text: Expected String"
+
+-- | Parses comma separated input like @userIds=1,2,3@
+--
+-- __Example:__
+--
+-- >>> let userIds :: [Int] = param "userIds"
+instance ParamReader value => ParamReader [value] where
+    {-# INLINE readParameter #-}
+    readParameter byteString =
+        byteString
+        |> Char8.split ','
+        |> map readParameter
+        |> Either.partitionEithers
+        |> \case
+            ([], values) -> Right values
+            ((first:rest), _) -> Left first
+
+    readParameterJSON (Aeson.Array values) =
+        values
+        |> Vector.toList
+        |> map readParameterJSON
+        |> Either.partitionEithers
+        |> \case
+            ([], values) -> Right values
+            ((first:rest), _) -> Left first
+    readParameterJSON _ = Left "ParamReader Text: Expected Array"
 
 -- | Parses a boolean.
 --
@@ -262,15 +362,26 @@ instance ParamReader Text where
 instance ParamReader Bool where
     {-# INLINE readParameter #-}
     readParameter on | on == cs (ModelSupport.inputValue True) = pure True
+    readParameter true | toLower (cs true) == "true" = pure True
     readParameter _ = pure False
+
+    readParameterJSON (Aeson.Bool bool) = Right bool
+    readParameterJSON _ = Left "ParamReader Bool: Expected Bool"
 
 instance ParamReader UUID where
     {-# INLINE readParameter #-}
     readParameter byteString =
         case UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
-            Nothing -> Left "FromParamter UUID: Parse error"
+            Nothing -> Left "FromParameter UUID: Parse error"
 
+    readParameterJSON (Aeson.String string) =
+        case UUID.fromText string of
+            Just uuid -> pure uuid
+            Nothing -> Left "FromParameter UUID: Parse error"
+    readParameterJSON _ = Left "ParamReader UUID: Expected String"
+
+-- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
 instance ParamReader UTCTime where
     {-# INLINE readParameter #-}
     readParameter "" = Left "ParamReader UTCTime: Parameter missing"
@@ -285,6 +396,10 @@ instance ParamReader UTCTime where
                 Nothing -> Left "ParamReader UTCTime: Failed parsing"
             Just value -> Right value
 
+    readParameterJSON (Aeson.String string) = readParameter (cs string)
+    readParameterJSON _ = Left "ParamReader UTCTime: Expected String"
+
+-- | Accepts values such as @2020-11-08@
 instance ParamReader Day where
     {-# INLINE readParameter #-}
     readParameter "" = Left "ParamReader Day: Parameter missing"
@@ -296,12 +411,13 @@ instance ParamReader Day where
             Just value -> Right value
             Nothing -> Left "ParamReader Day: Failed parsing"
 
+    readParameterJSON (Aeson.String string) = readParameter (cs string)
+    readParameterJSON _ = Left "ParamReader Day: Expected String"
+
 instance {-# OVERLAPS #-} (ParamReader (ModelSupport.PrimaryKey model')) => ParamReader (ModelSupport.Id' model') where
     {-# INLINE readParameter #-}
-    readParameter uuid =
-        case (readParameter uuid) :: Either ByteString (ModelSupport.PrimaryKey model') of
-            Right uuid -> pure (ModelSupport.Id uuid)
-            Left error -> Left error
+    readParameter uuid = ModelSupport.Id <$> readParameter uuid
+    readParameterJSON value = ModelSupport.Id <$> readParameterJSON value
 
 instance ParamReader param => ParamReader (Maybe param) where
     {-# INLINE readParameter #-}
@@ -309,6 +425,12 @@ instance ParamReader param => ParamReader (Maybe param) where
         case (readParameter param) :: Either ByteString param of
             Right value -> Right (Just value)
             Left error | param == "" -> Right Nothing
+            Left error -> Left error
+
+    readParameterJSON value =
+        case (readParameterJSON value) :: Either ByteString param of
+            Right value -> Right (Just value)
+            Left error | value == (Aeson.String "") -> Right Nothing
             Left error -> Left error
 
 -- | Custom error hint when the 'param' is called with do-notation
@@ -321,13 +443,14 @@ instance ParamReader param => ParamReader (Maybe param) where
 -- Now a custom type error will be shown telling the user to use @let myParam = param "hello"@ instead of do-notation.
 instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \"..\"'" :: Symbol))) => ParamReader  (IO param) where
     readParameter _ = error "Unreachable"
+    readParameterJSON _ = error "Unreachable"
 
 -- | Can be used as a default implementation for 'readParameter' for enum structures
 --
 -- __Example:__
 --
 -- > data Color = Yellow | Red | Blue deriving (Enum)
--- > 
+-- >
 -- > instance ParamReader Color
 -- >     readParameter = enumParamReader
 enumParamReader :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => ByteString -> Either ByteString parameter
@@ -363,7 +486,7 @@ enumParamReader string =
 -- This code will read the firstname, lastname and email from the request and aissgn them to the user.
 class FillParams (params :: [Symbol]) record where
     fill :: (
-        ?requestContext :: RequestContext
+        ?context :: ControllerContext
         , HasField "meta" record ModelSupport.MetaBag
         , SetField "meta" record ModelSupport.MetaBag
         ) => record -> record
@@ -395,9 +518,22 @@ ifValid branch model = branch ((if null annotations then Right else Left) model)
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model
 
-ifNew :: forall record id. (?requestContext :: RequestContext, ?modelContext :: ModelSupport.ModelContext, HasField "id" record id, Default id, Eq id) => (record -> record) -> record -> record
+ifNew :: forall record id. (?context :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, HasField "id" record id, Default id, Eq id) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 
--- Transforms `Just ""` to `Nothing`
+-- | Transforms @Just ""@ to @Nothing@
+--
+-- __Example:__ We have record called @Company@ with a optional field @comment :: Maybe Text@
+--
+-- When we have a form that submits the @comment@ field and the field is empty, it will not be @NULL@ inside the database,
+-- instead it will be set to the empty string. To avoid this we can apply @emptyValueToNothing #comment@. This function
+-- turns the empty string into a 'Nothing' value.
+--
+-- > action UpdateCompanyAction { companyId } = do
+-- >     company <- fetch companyId
+-- >     company
+-- >         |> fill '["name", "comment"]
+-- >         |> emptyValueToNothing #comment
+-- >         |> updateRecord
 emptyValueToNothing field = modify field (maybe Nothing (\value -> if null value then Nothing else Just value))

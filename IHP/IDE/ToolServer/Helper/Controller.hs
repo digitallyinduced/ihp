@@ -3,7 +3,13 @@ Module: IHP.IDE.ToolServer.Helper.Controller
 Description: Provides helpers for controllers of the ToolServer
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.IDE.ToolServer.Helper.Controller (appPort, openEditor) where
+module IHP.IDE.ToolServer.Helper.Controller
+( appPort
+, openEditor
+, findWebControllers
+, findControllers
+, findApplications
+) where
 
 import IHP.Prelude
 import IHP.ControllerSupport
@@ -16,10 +22,16 @@ import qualified Network.Socket as Socket
 import qualified System.Process as Process
 import System.Info (os)
 import qualified System.Environment as Env
+import IHP.Controller.Context
+import System.IO.Unsafe (unsafePerformIO)
+
+import qualified Data.Text as Text
+import System.Directory
+import qualified Data.Text.IO as IO
 
 -- | Returns the port used by the running app. Usually returns @8000@.
-appPort :: (?controllerContext :: ControllerContext) => Socket.PortNumber
-appPort = (fromControllerContext @ToolServerApplication)
+appPort :: (?context :: ControllerContext) => Socket.PortNumber
+appPort = (unsafePerformIO (fromContext @ToolServerApplication))
         |> get #devServerContext
         |> get #portConfig
         |> get #appPort
@@ -49,3 +61,25 @@ findEditor = do
         [] -> case os of
             "linux" -> (False, "xdg-open")
             "darwin" -> (False, "open")
+
+
+findWebControllers :: IO [Text]
+findWebControllers = do
+    directoryFiles <-  listDirectory "Web/Controller"
+    let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
+    pure $ map (Text.replace ".hs" "") controllerFiles
+
+findControllers :: Text -> IO [Text]
+findControllers application = do
+    directoryFiles <-  listDirectory $ cs $ application <> "/Controller"
+    let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
+    pure $ map (Text.replace ".hs" "") controllerFiles
+
+findApplications :: IO ([Text])
+findApplications = do
+    mainhs <- IO.readFile "Main.hs"
+    let imports = filter (\line -> "import " `isPrefixOf` line && ".FrontController" `isSuffixOf` line) (lines mainhs)
+    pure (map removeImport imports)
+        where
+            removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
+

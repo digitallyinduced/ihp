@@ -4,19 +4,20 @@ Description: redirect helpers
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Controller.Redirect (redirectTo, redirectToPath, redirectToUrl) where
-import ClassyPrelude
+
+import IHP.Prelude
 import qualified Network.Wai.Util
 import Network.URI (parseURI)
 import IHP.Controller.RequestContext
 import IHP.RouterSupport (HasPath (pathTo))
+import IHP.FrameworkConfig
 import qualified Network.Wai as Wai
 import Data.String.Conversions (cs)
 import Data.Maybe (fromJust)
 import Network.HTTP.Types (status200, status302)
 import GHC.Records
 
-import IHP.FrameworkConfig (FrameworkConfig)
-import qualified IHP.FrameworkConfig as FrameworkConfig
+import IHP.Controller.Context
 import IHP.ControllerSupport
 
 -- | Redirects to an action
@@ -27,7 +28,7 @@ import IHP.ControllerSupport
 --
 -- Use 'redirectToPath' if you want to redirect to a non-action url.
 {-# INLINE redirectTo #-}
-redirectTo :: (?requestContext :: RequestContext, FrameworkConfig, HasPath action) => action -> IO ()
+redirectTo :: (?context :: ControllerContext, HasPath action) => action -> IO ()
 redirectTo action = redirectToPath (pathTo action)
 
 -- TODO: redirectTo user
@@ -40,8 +41,8 @@ redirectTo action = redirectToPath (pathTo action)
 --
 -- Use 'redirectTo' if you want to redirect to a controller action.
 {-# INLINE redirectToPath #-}
-redirectToPath :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO ()
-redirectToPath path = redirectToUrl (FrameworkConfig.baseUrl <> path)
+redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
+redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
 
 -- | Redirects to a url (given as a string)
 -- 
@@ -51,9 +52,9 @@ redirectToPath path = redirectToUrl (FrameworkConfig.baseUrl <> path)
 --
 -- Use 'redirectToPath' if you want to redirect to a relative path like "/hello-world.html"
 {-# INLINE redirectToUrl #-}
-redirectToUrl :: (?requestContext :: RequestContext, FrameworkConfig) => Text -> IO ()
+redirectToUrl :: (?context :: ControllerContext) => Text -> IO ()
 redirectToUrl url = do
-    let (RequestContext _ respond _ _ _) = ?requestContext
+    let RequestContext { respond } = ?context |> get #requestContext
     let !parsedUrl = fromMaybe 
             (error ("redirectToPath: Unable to parse url: " <> show url))
             (parseURI (cs url))

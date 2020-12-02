@@ -162,7 +162,7 @@ parseUniqueConstraint = do
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
         , (lexeme "RESTRICT" >> pure Restrict)
-        , (lexeme "SET" >> lexeme "NULL") >> pure SetNull
+        , (lexeme "SET" >> ((lexeme "NULL" >> pure SetNull) <|> (lexeme "DEFAULT" >> pure SetDefault)))
         , (lexeme "CASCADE" >> pure Cascade)
         ]
 
@@ -179,7 +179,7 @@ column = do
     pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique })
 
 sqlType :: Parser PostgresType
-sqlType = choice
+sqlType = choice $ map optionalArray
         [ uuid
         , text
         , bigint
@@ -191,6 +191,7 @@ sqlType = choice
         , timestamp'
         , real
         , double
+        , point
         , date
         , binary
         , time
@@ -248,12 +249,16 @@ sqlType = choice
                     try (symbol' "DOUBLE PRECISION") <|> try (symbol' "FLOAT8")
                     pure PDouble
 
+                point = do
+                    try (symbol' "POINT")
+                    pure PPoint
+
                 date = do
                     try (symbol' "DATE")
                     pure PDate
 
                 binary = do
-                    try (symbol' "BINARY")
+                    try (symbol' "BYTEA")
                     pure PBinary
 
                 time = do
@@ -314,6 +319,10 @@ sqlType = choice
                 jsonb = do
                     try (symbol' "JSONB")
                     pure PJSONB
+
+                optionalArray typeParser= do
+                    arrayType <- typeParser;
+                    (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
 
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))

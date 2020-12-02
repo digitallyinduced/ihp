@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data EditForeignKeyView = EditForeignKeyView
@@ -17,15 +16,13 @@ data EditForeignKeyView = EditForeignKeyView
     , onDelete :: Text
     }
 
-instance View EditForeignKeyView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
-
+instance View EditForeignKeyView where
     html EditForeignKeyView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
-        {Just modal}
+        {renderModal modal}
     |]
         where
             table = findStatementByName tableName statements
@@ -59,6 +56,7 @@ instance View EditForeignKeyView ViewContext where
                                 {onDeleteSelector "NoAction"}
                                 {onDeleteSelector "Restrict"}
                                 {onDeleteSelector "SetNull"}
+                                {onDeleteSelector "SetDefault"}
                                 {onDeleteSelector "Cascade"}
                             </select>
                         </div>

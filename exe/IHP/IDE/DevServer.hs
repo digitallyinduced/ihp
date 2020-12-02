@@ -20,16 +20,25 @@ import qualified System.Environment as Env
 import System.Info
 import Data.String.Conversions (cs)
 import qualified IHP.FrameworkConfig as Config
+import IHP.Environment
+import qualified IHP.LibDir as LibDir
+import qualified IHP.Telemetry as Telemetry
+import qualified IHP.Version as Version
 
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
     appStateRef <- newIORef emptyAppState
     portConfig <- findAvailablePortConfig
+    LibDir.ensureSymlink
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
     -- Like: $ DEBUG=1 ./start
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
+
+    -- Print IHP Version when in debug mode
+    when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpVersion))
+    
     let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
 
     threadId <- myThreadId
@@ -40,6 +49,7 @@ main = do
     installHandler sigINT (Catch catchHandler) Nothing
 
     start
+    async Telemetry.reportTelemetry
     forever do
         appState <- readIORef appStateRef
         when isDebugMode (putStrLn $ " ===> " <> (tshow appState))
@@ -68,21 +78,16 @@ handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = 
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = True }) = do
     case appGHCIState of
         AppGHCILoading { .. } -> do
-            case postgresState of
-                PostgresStarted {} -> do
-                    let appGHCIState' = AppGHCIModulesLoaded { .. }
+            let appGHCIState' = AppGHCIModulesLoaded { .. }
 
-                    stopStatusServer statusServerState
-                    startLoadedApp appGHCIState
+            stopStatusServer statusServerState
+            startLoadedApp appGHCIState
 
-                    let statusServerState' = case statusServerState of
-                            StatusServerStarted { .. } -> StatusServerPaused { .. }
-                            _ -> statusServerState
-                    
-                    pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
-                _ -> do
-                    putStrLn "Cannot start app as postgres is not ready yet"
-                    pure state
+            let statusServerState' = case statusServerState of
+                    StatusServerStarted { .. } -> StatusServerPaused { .. }
+                    _ -> statusServerState
+            
+            pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
         AppGHCIModulesLoaded { } -> do
@@ -229,10 +234,11 @@ startAppGHCI = do
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
-    libDirectory <- Config.findLibDirectory
+    libDirectory <- LibDir.findLibDirectory
 
     let loadAppCommands = 
             [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
+            , ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
             , "import qualified ClassyPrelude"
             , ":l Main.hs"
             ]

@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data GeneratedCodeView = GeneratedCodeView
@@ -12,7 +11,7 @@ data GeneratedCodeView = GeneratedCodeView
     , generatedHaskellCode :: Text
     }
 
-instance View GeneratedCodeView ViewContext where
+instance View GeneratedCodeView where
     html GeneratedCodeView { .. } = [hsx|
         {visualNav}
         <div class="container">
@@ -21,7 +20,7 @@ instance View GeneratedCodeView ViewContext where
                 {renderObjectSelector (zip [0..] statements) Nothing}
             </div>
         </div>
-        {Just modal}
+        {renderModal modal}
         {customCss}
     |]
         where

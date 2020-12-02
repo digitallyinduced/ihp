@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data EditTableView = EditTableView
@@ -13,14 +12,12 @@ data EditTableView = EditTableView
     , tableId :: Int
     }
 
-instance View EditTableView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
-
+instance View EditTableView where
     html EditTableView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
-        {Just modal}
+        {renderModal modal}
     |]
         where
             modalContent = [hsx|

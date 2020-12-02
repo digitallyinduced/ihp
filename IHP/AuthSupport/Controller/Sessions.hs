@@ -17,31 +17,28 @@ import IHP.ControllerPrelude hiding (Success, currentUserOrNothing)
 import IHP.AuthSupport.View.Sessions.New
 import IHP.AuthSupport.Authentication
 import IHP.FrameworkConfig
-import IHP.ViewSupport (View, CreateViewContext, Layout)
+import IHP.ViewSupport (View, Layout)
 import IHP.LoginSupport.Types
 import IHP.LoginSupport.Helper.Controller hiding (currentUserOrNothing)
 import Data.Data
 import Data.Maybe (fromJust)
 import qualified IHP.AuthSupport.Lockable as Lockable
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | Displays the login form.
 --
 -- In case the user is already logged in, redirects to the home page ('afterLoginRedirectPath').
-newSessionAction :: forall record action viewContext.
+newSessionAction :: forall record action.
     ( ?theAction :: action
-    , ?controllerContext :: ControllerContext
-    , ?requestContext :: RequestContext
+    , ?context :: ControllerContext
     , HasNewSessionUrl record
     , ?modelContext :: ModelContext
     , Typeable record
-    , View (NewView record) viewContext
-    , CreateViewContext viewContext
-    , HasField "layout" viewContext Layout
+    , View (NewView record)
     , Data action
     , Record record
     , HasPath action
     , SessionsControllerConfig record
-    , FrameworkConfig
     ) => IO ()
 newSessionAction = do
     let alreadyLoggedIn = isJust (currentUserOrNothing @record)
@@ -58,8 +55,7 @@ newSessionAction = do
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
 createSessionAction :: forall record action passwordField.
     (?theAction :: action
-    , ?controllerContext :: ControllerContext
-    , ?requestContext :: RequestContext
+    , ?context :: ControllerContext
     , ?modelContext :: ModelContext
     , Data action
     , HasField "email" record Text
@@ -71,8 +67,8 @@ createSessionAction :: forall record action passwordField.
     , HasField "failedLoginAttempts" record Int
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
-    , FrameworkConfig
     , Show (PrimaryKey (GetTableName record))
+    , record ~ GetModelByTableName (GetTableName record)
     ) => IO ()
 createSessionAction = do
     query @record
@@ -86,6 +82,7 @@ createSessionAction = do
 
             if verifyPassword user (param @Text "password")
                 then do
+                    beforeLogin user
                     login user
                     user <- user
                             |> set #failedLoginAttempts 0
@@ -109,15 +106,13 @@ createSessionAction = do
 -- | Logs out the user and redirect back to the login page
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
-    , ?controllerContext :: ControllerContext
-    , ?requestContext :: RequestContext
+    , ?context :: ControllerContext
     , ?modelContext :: ModelContext
     , Data action
     , HasPath action
     , Show id
     , HasField "id" record id
     , SessionsControllerConfig record
-    , FrameworkConfig
     ) => IO ()
 deleteSessionAction = do
     case currentUserOrNothing @record of
@@ -127,9 +122,9 @@ deleteSessionAction = do
 {-# INLINE deleteSessionAction #-}
 
 
-currentUserOrNothing :: forall user. (?controllerContext :: ControllerContext, ?requestContext :: RequestContext, FrameworkConfig, HasNewSessionUrl user, Typeable user) => (Maybe user)
+currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
 currentUserOrNothing =
-    case maybeFromControllerContext @(Maybe user) of
+    case unsafePerformIO (maybeFromContext @(Maybe user)) of
         Just user -> user
         Nothing -> error "currentUserOrNothing: initAuthentication has not been called in initContext inside FrontController of this application"
 {-# INLINE currentUserOrNothing #-}
@@ -164,3 +159,16 @@ class ( Typeable record
     -- | After 10 failed login attempts the user will be locked for an hour
     maxFailedLoginAttemps :: record -> Int
     maxFailedLoginAttemps _ = 10
+
+    -- | Callback that is executed just before the user is logged
+    -- 
+    -- This is called only after checking that the password is correct. When a wrong password is given this callback is not executed.
+    -- 
+    -- __Example: Disallow login until user is confirmed__
+    --
+    -- > beforeLogin user = do
+    -- >     unless (get #isConfirmed user) do
+    -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
+    -- >         redirectTo NewSessionAction
+    beforeLogin :: (?context :: ControllerContext) => record -> IO ()
+    beforeLogin _ = pure ()

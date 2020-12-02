@@ -115,7 +115,20 @@ tests = do
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;\n"
-       
+        
+        it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
+            let statement = AddConstraint
+                    { tableName = "users"
+                    , constraintName = "users_ref_company_id"
+                    , constraint = ForeignKeyConstraint
+                        { columnName = "company_id"
+                        , referenceTable = "companies"
+                        , referenceColumn = "id"
+                        , onDelete = Just SetDefault
+                        }
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET DEFAULT;\n"
+
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             let statement = AddConstraint
                     { tableName = "users"
@@ -277,6 +290,26 @@ tests = do
                         , col { name = "truck_id", columnType = PBigserial, notNull = True}
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["order_id", "truck_id"]
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with an array column" do
+            let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "array_tests"
+                    , columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with an point column" do
+            let sql = cs [plain|CREATE TABLE point_tests (\n    pos POINT\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "point_tests"
+                    , columns = [ col { name = "pos", columnType = PPoint } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     }
             compileSql [statement] `shouldBe` sql

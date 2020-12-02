@@ -21,7 +21,7 @@ data ViewConfig = ViewConfig
 buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan viewName applicationName controllerName' =
     if (null viewName || null controllerName')
-        then pure $ Left "View name and controller name cannot be empty"
+        then pure $ Left "Neither view name nor controller name can be empty"
         else do
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
@@ -73,7 +73,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data " <> nameWithSuffix <> " = " <> nameWithSuffix <> "\n"
                 <> "\n"
-                <> "instance View " <> nameWithSuffix <> " ViewContext where\n"
+                <> "instance View " <> nameWithSuffix <> " where\n"
                 <> "    html " <> nameWithSuffix <> " { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -88,7 +88,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data ShowView = ShowView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
-                <> "instance View ShowView ViewContext where\n"
+                <> "instance View ShowView where\n"
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -97,13 +97,14 @@ buildPlan' schema config =
                 <> "            </ol>\n"
                 <> "        </nav>\n"
                 <> "        <h1>Show " <> singularName <> "</h1>\n"
-                <> "    |]\n"
+                <> "        <p>{" <> singularVariableName <> "}</p>\n"
+                 <> "    |]\n"
 
             newView =
                 viewHeader
                 <> "data NewView = NewView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
-                <> "instance View NewView ViewContext where\n"
+                <> "instance View NewView where\n"
                 <> "    html NewView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -117,7 +118,7 @@ buildPlan' schema config =
                 <> "\n"
                 <> "renderForm :: " <> singularName <> " -> Html\n"
                 <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
-                <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
+                <> (intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
@@ -125,7 +126,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data EditView = EditView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
                 <> "\n"
-                <> "instance View EditView ViewContext where\n"
+                <> "instance View EditView where\n"
                 <> "    html EditView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
@@ -139,7 +140,7 @@ buildPlan' schema config =
                 <> "\n"
                 <> "renderForm :: " <> singularName <> " -> Html\n"
                 <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
-                <> (intercalate "\n" (map (\field -> "    {textField #" <> field <> "}") modelFields)) <> "\n"
+                <> (intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)) <> "\n"
                 <> "    {submitButton}\n"
                 <> "|]\n"
 
@@ -147,7 +148,7 @@ buildPlan' schema config =
                 viewHeader
                 <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "] }\n"
                 <> "\n"
-                <> "instance View IndexView ViewContext where\n"
+                <> "instance View IndexView where\n"
                 <> "    html IndexView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"

@@ -22,7 +22,7 @@ data ActionConfig = ActionConfig
 buildPlan :: Text -> Text -> Text -> Bool -> IO (Either Text [GeneratorAction])
 buildPlan actionName applicationName controllerName doGenerateView=
     if (null actionName || null controllerName)
-        then pure $ Left "Action name and controller name cannot be empty"
+        then pure $ Left "Neither action name nor controller name can be empty"
         else do 
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
@@ -37,9 +37,9 @@ buildPlan actionName applicationName controllerName doGenerateView=
                         Left error -> pure $ Left error
                 else pure $ Right $ actionPlan
     where
-        viewName = if "Action" `isSuffixOf` actionName
-                        then Text.dropEnd 6 actionName
-                        else actionName
+        viewName = ucfirst $ if "Action" `isSuffixOf` actionName
+                             then Text.dropEnd 6 actionName
+                             else actionName
         modelName = tableNameToModelName controllerName
 
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"

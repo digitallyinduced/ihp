@@ -2,7 +2,6 @@ module IHP.IDE.SchemaDesigner.Controller.Tables where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.Tables.New
 import IHP.IDE.SchemaDesigner.View.Tables.Show
@@ -16,10 +15,12 @@ import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
-import IHP.IDE.SchemaDesigner.Controller.Schema
+import IHP.IDE.SchemaDesigner.Controller.Helper
+import IHP.IDE.SchemaDesigner.View.Layout
 
 instance Controller TablesController where
-    
+    beforeAction = setLayout schemaDesignerLayout
+
     action TablesAction = do
         statements <- readSchema
         render IndexView { .. }

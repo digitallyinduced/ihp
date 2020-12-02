@@ -76,11 +76,17 @@ action UpdateUserAction { userId } = do
 This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, strip all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
 
 In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
+Note that when you define the `picture_url` field in your `users` table that you
+must check the `Nullable` select box with a default `Null`. This ensures your
+`pictureUrl` data has a `Maybe Text` type and can handle 
+cases where the user has not uploaded any image.
+
+If ImageMagick is not installed you will get a `picture.upload` in the uploads folder, but no `picture.jpg`. Install ImageMagick, on Ubuntu it is `sudo apt-get install imagemagick`.
 
 There is currently no special form helper for file uploads. Just specificy it manually like this:
 
 ```haskell
-instance View EditView ViewContext where
+instance View EditView where
     html EditView { .. } = [hsx|
         <h1>Profil bearbeiten</h1>
 
@@ -139,6 +145,8 @@ isAge :: Int -> ValidatorResult
 isAge = isInRange (0, 100)
 ```
 
+This is also useful if you need the messages to be in another language.
+
 ## Checking that an email is unique
 
 Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).
@@ -169,13 +177,34 @@ In case the id is hardcoded, you can just type UUID value with the right type si
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 ```
 
+## Getting a `Id Something` from a `Text` / `ByteString` / `String`
+
+Sometimes you have a text, bytestring or string which represents some record id. You can transform it to an Id like this:
+
+```haskell
+let myUUID :: Text = ...
+let projectId = textToId myUUID
+```
+
+In case the id is hardcoded, you can just type UUID value with the right type signature like this:
+
+```haskell
+let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
+```
+
+## Having an image as Logout button
+
+The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by Javascript on click. This does not currently work well with an image inside a link. A workaround is to have the image be the background, like this:
+
+```html
+<a href={DeleteSessionAction} class="js-delete js-delete-no-confirm" style="background:url(/logout.svg) left center no-repeat;width:40px"></a>
+```
+
 ## Making a dynamic Login/Logout button
 
 Depending on the `user` object from the viewContext, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
 
 ```haskell
-type Html = HtmlWithContext ViewContext
-
 navbar :: Html
 navbar = [hsx|
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
@@ -241,3 +270,24 @@ handleFetchAction url = do
 ```
 
 When using `handleFetchAction "https://google.com/"`, your app would display the google homepage.
+
+## Confirm before link is used
+To confirm before a link is fired add an onclick to the link.
+
+```haskell
+[hsx|
+    <a href={UsersAction} onclick="if (!confirm('Do you really want to delete the internet?')) event.preventDefault();"></a>
+|]
+```
+
+## How to generate a random string
+
+To generate a random string which can be used as a secure token or hash use `generateAuthenticationToken`:
+
+```haskell
+import IHP.AuthSupport.Authentication -- Not needed if you're inside a IHP controller
+
+do
+    token <- generateAuthenticationToken
+    -- token = "11D3OAbUfL0P9KNJ09VcUfCO0S9RwI"
+```

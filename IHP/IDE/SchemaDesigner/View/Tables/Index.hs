@@ -4,18 +4,16 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data IndexView = IndexView
     { statements :: [Statement]
     }
 
-instance View IndexView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
-
+instance View IndexView where
     html IndexView { .. } = [hsx|
         {renderFlashMessages}
+        {modal}
         <div class="row no-gutters bg-white mb-4">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>

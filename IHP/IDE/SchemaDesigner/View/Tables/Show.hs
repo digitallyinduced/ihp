@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data ShowView = ShowView
@@ -13,9 +12,7 @@ data ShowView = ShowView
     , table :: Statement
     }
 
-instance View ShowView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
-
+instance View ShowView where
     html ShowView { .. } = [hsx|
         {renderFlashMessages}
         <div class="row no-gutters bg-white">

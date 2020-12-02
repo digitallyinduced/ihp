@@ -40,6 +40,7 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , HasField "id" model modelId
         , savedModelId ~ modelId
         , Eq modelId
+        , GetModelByTableName (GetTableName savedModel) ~ savedModel
     ) => Proxy field -> model -> IO model
 validateIsUnique fieldProxy model = do
     let value = getField @field model

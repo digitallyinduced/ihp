@@ -9,14 +9,14 @@ IHP views are usually represented as HTML, but can also be represented as json o
 
 The html templating is implemented on top of the well-known blaze-html Haskell library. To quickly build html views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to Haskell code at compile-time.
 
-To render a view, it has to be provided with a custom data structure called a ViewContext. A ViewContext provides the view with information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current http request, current logged in user, flash messages, the layout, etc..
+The controller provides the view with a key value map called `ControllerContext`. The `ControllerContext` provides the view with information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current http request, current logged in user, flash messages, the layout, etc..
 
 Usually a view consist of a data structure and a `View` instance. E.g. like this:
 
 ```haskell
 data ExampleView = ExampleView { optionA :: Text, optionB :: Bool }
 
-instance View ExampleView ViewContext where
+instance View ExampleView where
     html ExampleView { .. } = [hsx|Hello World {optionA}!|]
 ```
 
@@ -53,29 +53,37 @@ Now add `appLayout` to the export list of the module header:
 module Web.View.Layout (defaultLayout, appLayout) where
 ```
 
-### Using a layout
+### Using a layout inside a single view
 
-To use the layout inside a view, set the layout attribute of the view context inside your view:
+To use the layout inside a view, call `setLayout` from the `beforeRender`:
 
 ```haskell
-instance View MyView ViewContext where
-    beforeRender (context, view) = (context { layout = appLayout }, view)
+instance View MyView where
+    beforeRender = do
+        setLayout appLayout
+```
+
+### Using a layout for a complete controller
+
+When all views of a controller use a custom layout place the `setLayout` call in the `beforeAction` of the controller:
+
+```haskell
+instance Controller MyController where
+    beforeAction = do
+        setLayout appLayout
+
+    action MyAction = do
+        render MyView { .. }
 ```
 
 ### Changing the default layout
 
-You can change the default layout of your application by updating `createViewContext` in `Web.View.Context`.
+You can change the default layout of your application by updating `initContext` in `Web.FrontController`.
 
 ```haskell
-instance ViewSupport.CreateViewContext ViewContext where
-    -- ...
-    createViewContext = do
-        -- ...
-        let viewContext = ViewContext {
-                -- ...
-                layout = let ?viewContext = viewContext in appLayout
-            }
-        pure viewContext
+instance InitControllerContext WebApplication where
+    initContext = do
+        setLayout defaultLayout -- Change defaultLayout to your other layout function
 ```
 
 ### Disabling the Layout for a View
@@ -83,8 +91,9 @@ instance ViewSupport.CreateViewContext ViewContext where
 You can disable the layout for a specific view by overriding the `beforeRender` function like this:
 
 ```haskell
-instance View MyView ViewContext where
-    beforeRender (context, view) = (context { layout = \view -> view }, view)
+instance View MyView where
+    beforeRender = do
+        setLayout (\view -> view)
 
     -- ...
 ```
@@ -121,6 +130,21 @@ timeAgo (get #createdAt post) -- "1 minute ago"
 dateTime (get #createdAt post) -- "10.6.2019, 15:58"
 ```
 
+### Customizing Delete Confirmation
+
+By default a message `Are you sure you want to delete this?` is shown as a simple confirmation alert with yes/no choices. The message text can be customized.
+
+```haskell
+<a href={DeleteToolAction (get #id tool)} class="js-delete" data-confirm="Deleting a tool will also delete all usage of the tool. Continue?">Delete Tool</a>
+```
+
+#### Suppressing Delete Confirmation
+
+```haskell
+<a href={DeleteToolAction (get #id tool)} class="js-delete js-delete-no-confirm">Delete Tool</a>
+```
+
+
 ## Diff-Based DOM Updates
 
 When in development, your views will automatically refresh on code changes. This works by re-requesting the view from the server via AJAX and then using [morphdom](https://github.com/patrick-steele-idem/morphdom) to update the visible DOM.
@@ -137,13 +161,22 @@ Even when disabled, your application will still be amazingly fast.
 You can disable this behavior by removing the following code from your `Web/Layout.hs`:
 
 ```haskell
-    when (isProduction FrameworkConfig.environment) [hsx|
+    when (isProduction $ fromConfig environment) [hsx|
             <script src="/vendor/turbolinks.js"></script>
             <script src="/vendor/morphdom-umd.min.js"></script>
             <script src="/vendor/turbolinksMorphdom.js"></script>
             <script src="/vendor/turbolinksInstantClick.js"></script>
         |]
 ```
+
+Preloading with InstantClick on hover will only happen with links that
+
+1. Use the GET method
+2. Do not link to an anchor or end in `#`
+3. Actually link to a different url than `location.href`
+4. Do not have an attribute `data-turbolinks-preload='false'`
+
+(So putting an anchor on a link, or explicitly setting the `data-turbolinks-preload` attribute to `false`, will let you selectively turn off preloading for that link.)
 
 ## JSON
 
@@ -152,7 +185,7 @@ Views that are rendered by calling the `render` function can also respond with J
 Let's say we have a normal HTML view that renders all posts for our blog app:
 
 ```haskell
-instance View IndexView ViewContext where
+instance View IndexView where
     html IndexView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">
@@ -181,7 +214,7 @@ We can add a JSON output for all blog posts by add a `json` function to this:
 ```haskell
 import Data.Aeson -- <--- Add this import at the top of the file
 
-instance View IndexView ViewContext where
+instance View IndexView where
     html IndexView { .. } = [hsx|
         ...
     |]
@@ -212,7 +245,7 @@ import Data.Aeson
 
 data IndexView = IndexView { posts :: [Post] }
 
-instance View IndexView ViewContext where
+instance View IndexView where
     html IndexView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">

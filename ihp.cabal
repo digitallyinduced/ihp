@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             0.1.0.0
+version:             20201127
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             NONE
@@ -18,6 +18,7 @@ common shared-properties
             base
             , classy-prelude
             , mono-traversable
+            , transformers
             , directory
             , string-conversions
             , warp
@@ -26,7 +27,6 @@ common shared-properties
             , blaze-html
             , blaze-markup
             , wai-extra
-            , wai
             , http-types
             , inflections
             , text
@@ -65,14 +65,24 @@ common shared-properties
             , async
             , network
             , unliftio
-            , basic-prelude
-            , megaparsec
-            , async
             , unix
             , fsnotify
             , websockets
             , wai-websockets
             , regex-tdfa
+            , binary
+            , mime-mail
+            , mime-mail-ses
+            , http-client
+            , http-client-tls
+            , resource-pool
+            , unordered-containers
+            , scientific
+            , vector
+            , wreq
+            , cryptohash
+            , base16-bytestring
+            , deepseq
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -105,7 +115,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
-    ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 -threaded
+    ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 -threaded -haddock
 
 library IHPFramework
     import: shared-properties
@@ -120,6 +130,9 @@ library IHPFramework
         , IHP.Controller.Render
         , IHP.Controller.RequestContext
         , IHP.Controller.Session
+        , IHP.Controller.Context
+        , IHP.Controller.Layout
+        , IHP.Controller.BasicAuth
         , IHP.HtmlSupport.Parser
         , IHP.HtmlSupport.QQ
         , IHP.HtmlSupport.ToHtml
@@ -133,7 +146,9 @@ library IHPFramework
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.ConvertibleStrings
         , IHP.View.Form
-        , IHP.View.Modal
+        , IHP.Modal.Types
+        , IHP.Modal.ControllerFunctions
+        , IHP.Modal.ViewFunctions
         , IHP.View.TimeAgo
         , IHP.Welcome.Controller
         , IHP.ApplicationContext
@@ -171,6 +186,7 @@ library IHPFramework
         , IHP.IDE.CodeGen.View.NewController
         , IHP.IDE.CodeGen.View.NewScript
         , IHP.IDE.CodeGen.View.NewView
+        , IHP.IDE.CodeGen.View.NewMigration
         , IHP.IDE.CodeGen.ViewGenerator
         , IHP.IDE.Data.Controller
         , IHP.IDE.Data.View.EditRow
@@ -207,6 +223,7 @@ library IHPFramework
         , IHP.IDE.SchemaDesigner.View.Schema.Code
         , IHP.IDE.SchemaDesigner.View.Schema.Error
         , IHP.IDE.SchemaDesigner.View.Schema.GeneratedCode
+        , IHP.IDE.SchemaDesigner.View.Schema.SchemaUpdateFailed
         , IHP.IDE.SchemaDesigner.View.Tables.Edit
         , IHP.IDE.SchemaDesigner.View.Tables.Index
         , IHP.IDE.SchemaDesigner.View.Tables.New
@@ -217,8 +234,29 @@ library IHPFramework
         , IHP.IDE.ToolServer.Layout
         , IHP.IDE.ToolServer.Routes
         , IHP.IDE.ToolServer.Types
-        , IHP.IDE.ToolServer.ViewContext
         , IHP.IDE.Types
+        , IHP.AutoRefresh
+        , IHP.AutoRefresh.Types
+        , IHP.AutoRefresh.View
+        , IHP.WebSocket
+        , IHP.PGNotify
+        , IHP.Mail
+        , IHP.Mail.Types
+        , IHP.MailPrelude
+        , IHP.IDE.CodeGen.MailGenerator
+        , IHP.IDE.CodeGen.View.NewMail
+        , IHP.View.Classes
+        , IHP.View.CSSFramework
+        , IHP.View.Types
+        , IHP.FlashMessages.Types
+        , IHP.FlashMessages.ControllerFunctions
+        , IHP.FlashMessages.ViewFunctions
+        , IHP.SchemaMigration
+        , IHP.LibDir
+        , IHP.Telemetry
+        , IHP.Version
+        , IHP.Point
+        , Paths_ihp
 
 executable RunDevServer
     import: shared-properties
@@ -255,3 +293,21 @@ executable new-script
     build-depends: IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
+
+executable new-migration
+    import: shared-properties
+    build-depends: IHPFramework
+    hs-source-dirs: exe
+    main-is: IHP/CLI/NewMigration.hs
+
+executable migrate
+    import: shared-properties
+    build-depends: IHPFramework
+    hs-source-dirs: exe
+    main-is: IHP/CLI/Migrate.hs
+
+executable hash-password
+    import: shared-properties
+    build-depends: IHPFramework
+    hs-source-dirs: exe
+    main-is: IHP/CLI/HashPassword.hs

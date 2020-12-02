@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import qualified Text.Countable as Countable
 import IHP.IDE.SchemaDesigner.View.Columns.Edit (typeSelector)
@@ -16,15 +15,13 @@ data NewColumnView = NewColumnView
     , enumNames :: [Text]
     }
 
-instance View NewColumnView ViewContext where
-    beforeRender (context, view) = (context { layout = schemaDesignerLayout }, view)
-
+instance View NewColumnView where
     html NewColumnView { .. } = [hsx|
         <div class="row no-gutters bg-white">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
-        {Just modal}
+        {renderModal modal}
     |]
         where
             table = findStatementByName tableName statements
@@ -59,6 +56,9 @@ instance View NewColumnView ViewContext where
                             <label class="mx-2" style="font-size: 12px">
                                 <input type="checkbox" name="primaryKey" class="mr-1"/>Primary Key
                             </label>
+                            <label class="ml-1" style="font-size: 12px">
+                                <input type="checkbox" name="isArray" class="mr-1"/>Array Type
+                            </label>
                         </div>
                     </div>
 
@@ -73,6 +73,7 @@ instance View NewColumnView ViewContext where
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
                     <input type="hidden" name="isUnique" value={inputValue False}/>
+                    <input type="hidden" name="isArray" value={inputValue False}/>
                     <input type="hidden" name="isReference" value={inputValue False}/>
                     <input type="hidden" name="referenceTable" value=""/>
                 </form>

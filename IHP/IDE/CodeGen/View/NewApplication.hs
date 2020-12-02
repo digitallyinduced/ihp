@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.View.Generators (renderPlan)
@@ -14,7 +13,7 @@ data NewApplicationView = NewApplicationView
     , applicationName :: Text
     }
 
-instance View NewApplicationView ViewContext where
+instance View NewApplicationView where
     html NewApplicationView { .. } = [hsx|
         <div class="generators">
             {renderFlashMessages}

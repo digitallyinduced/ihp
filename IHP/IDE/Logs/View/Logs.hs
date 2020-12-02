@@ -6,7 +6,7 @@ import IHP.IDE.ToolServer.Layout
 
 data LogsView = LogsView { standardOutput :: ByteString, errorOutput :: ByteString }
 
-instance View LogsView ViewContext where
+instance View LogsView where
     html LogsView { .. } = [hsx|
         <div id="logs">
             <div class="logs-navigation">

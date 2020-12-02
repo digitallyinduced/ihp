@@ -33,8 +33,8 @@ Here is a short overview of the whole structure:
 | static/                       | Images, css and javascript files                                            |
 | .ghci                         | Default config file for the Haskell interpreter                             |
 | .gitignore                    | List of files to be ignored by git                                          |
-| App.cabal, Setup.hs           | Config for the cabal package manager (TODO: maybe move to Config/App.cabal) |
-| default.nix                   | Declares your app dependencies (like package.json or composer.json)         |
+| App.cabal, Setup.hs           | Config for the cabal package manager |
+| default.nix                   | Declares your app dependencies (like package.json for NPM or composer.json for PHP)         |
 | Makefile                      | Default config file for the make build system                               |
 
 ## 2. Hello, World!
@@ -60,6 +60,7 @@ By default, your app is available at `http://localhost:8000` and your developmen
 
 In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
 
+The very first time you start this make take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
 
 ## 3. Data Structures & PostgreSQL
 
@@ -108,8 +109,6 @@ Next we need to make sure that our database schema with our `posts` table is imp
 Open the `Application/Schema.sql` in your code editor to see the SQL queries which make up the database schema:
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 CREATE TABLE posts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     title TEXT NOT NULL,
@@ -359,6 +358,8 @@ instance AutoRoute PostsController
 
 This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the urls according to your needs (e.g. "beautiful urls" for SEO).
 
+*Note that the word 'Post' here still refers to a post on our blog and is unrelated to the HTTP-POST request method.*
+
 #### Views
 
 We should also quickly take a look at our views.
@@ -371,7 +372,7 @@ import Web.View.Prelude
 
 data ShowView = ShowView { post :: Post }
 
-instance View ShowView ViewContext where
+instance View ShowView where
     html ShowView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">
@@ -401,7 +402,7 @@ Click `Save Post`. You should now see the new post listed on the `index` view.
 
 ### Displaying a Post
 
-Let's first improve the `show` view. Right now the headline is "Show Post", and the actual post body is never shown.
+Let's first improve the `show` view. Right now the headline is "Show Post", and the actual post body is just a dump of the Post Data definition.
 
 Open the `Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{get #title post}</h1>`. Also add a `<div>{get #body post}</div>` below the `<h1>`.
 
@@ -412,7 +413,7 @@ import Web.View.Prelude
 
 data ShowView = ShowView { post :: Post }
 
-instance View ShowView ViewContext where
+instance View ShowView where
     html ShowView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">
@@ -462,7 +463,7 @@ buildPost post = post
     |> validateField #title nonEmpty
 ```
 
-Now open [http://localhost:8000/NewPost](http://localhost:8000/Posts/new) and click `Save Post` without filling the text fields. You will get a "This field cannot be empty" error message next to the empty title field.
+Now open [http://localhost:8000/NewPost](http://localhost:8000/NewPost) and click `Save Post` without filling the text fields. You will get a "This field cannot be empty" error message next to the empty title field.
 
 ![Schema Designer Title non empty](images/first-project/title_non_empty.png)
 
@@ -481,6 +482,8 @@ Take a look at `Application/Fixtures.sql`. The file should look like this:
 INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello World!', 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam');
 
 ```
+
+(If you don't see an entry for your test post in `Application/Fixtures.sql`, then click `Update DB` in the Schema Designer (or use `make db` from the command line).)
 
 All our existing posts are saved here. You should also commit this file to git to share your fixtures with your team mates. We will need these saved fixtures in a moment, when we want to update the database schema.
 
@@ -686,7 +689,7 @@ The controller is generated now. But we need to do some adjustments to better in
 First we need to make it possible to create a new comment for a post. Open `Web/View/Posts/Show.hs` and append `<a href={NewCommentAction}>Add Comment</a>` to the HSX code:
 
 ```html
-instance View ShowView ViewContext where
+instance View ShowView where
     html ShowView { .. } = [hsx|
         <nav>
             <ol class="breadcrumb">
@@ -988,7 +991,6 @@ You should have a rough understanding of IHP now. The best way to continue is to
 
 [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
 
-Questions, or need help with haskell type errors? Join our Gitter Chat:
+Questions, or need help with haskell type errors? Join our Slack:
 
-[![Gitter](https://badges.gitter.im/digitallyinduced/ihp.svg)](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-[(IRC available)](https://irc.gitter.im/)
+[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-im0do3yv-iryDNyvpwW~py40kvl_cpQ)

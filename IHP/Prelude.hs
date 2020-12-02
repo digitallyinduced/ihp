@@ -57,7 +57,7 @@ import GHC.OverloadedLabels
 import Data.Data (Data)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
-import IHP.ModelSupport (ModelContext, CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, createRecord, deleteRecord, MetaBag (..))
+import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, createRecord, deleteRecord, MetaBag (..))
 import Data.TMap (TMap)
 import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef

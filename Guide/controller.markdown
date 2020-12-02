@@ -86,7 +86,7 @@ When this action is called without the `maxItems` parameter being set (or when i
 There is also `paramOrNothing` which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
 
 
-### Multipe Params With Same Name (Checkboxes)
+### Multiple Params With Same Name (Checkboxes)
 
 When working with checkboxes sometimes there are multiple values for a given parameter name. Given a form like this:
 
@@ -127,7 +127,7 @@ And an `ExampleView` like this:
 ```haskell
 data ExampleView = ExampleView { }
 
-instance View ExampleView ViewContext where
+instance View ExampleView where
     html ExampleView { .. } = [hsx|Hello World!|]
 ```
 
@@ -136,7 +136,7 @@ Now we want to pass the user's firstname to the view, to make the hello world a 
 ```haskell
 data ExampleView = ExampleView { firstname :: Text }
 
-instance View ExampleView ViewContext where
+instance View ExampleView where
     html ExampleView { .. } = [hsx|Hello World, {firstname}!|]
 ```
 
@@ -159,6 +159,15 @@ action ExampleAction = do
 This will render `Hello World, Unnamed!` when the `ExampleAction` is called without a `firstname` parameter.
 
 
+### Accessing the FrameworkConfig inside Controllers and Views.
+The instance of the `FrameworkConfig` that is defined in `Config/Config.hs` will be part of the `RequestContext` and is thus available in controllers. To make it more convienient a  helper function called `fromConfig` is available. This function takes a record from the FrameworkConfig and evaluates it.
+
+For example:
+```haskell
+action MyAction = do
+    let env = fromConfig environment
+    when (isDevelopment env) (putStrLn "Running in dev mode")
+```
 
 
 ### Advanced: Working with Custom Types

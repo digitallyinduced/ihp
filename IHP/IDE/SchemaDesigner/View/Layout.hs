@@ -4,7 +4,7 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compileExpression)
+import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
@@ -117,7 +117,7 @@ renderColumn :: Column -> Int -> Text -> [Statement] -> Html
 renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tableName statements = [hsx|
 <tr class="column">
     <td class="context-column column-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}><a href={EditColumnAction tableName id} class="d-block text-body nounderline">{name}</a></td>
-    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{columnType}{renderAllowNull}</td>
+    <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{compilePostgresType columnType}{renderAllowNull}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderDefault}{renderIsUnique}</td>
     <td class="context-column" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>{renderPrimaryKey}{renderForeignKey}</td>
 </tr>
@@ -231,7 +231,8 @@ renderObjectSelector statements activeObjectName = [hsx|
                 contextMenuId = "context-menu-" <> tshow id
                 generateControllerLink = [hsx|<a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>|]
                 openControllerLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
-                controllerDoesNotExist = not $ (ucfirst name) `elem` (get #webControllers viewContext)
+                controllerDoesNotExist = not $ (ucfirst name) `elem` webControllers
+                (WebControllers webControllers) = fromFrozenContext @WebControllers
 
         renderObject CreateEnumType { name } id = [hsx|
         <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
@@ -426,4 +427,5 @@ isIllegalKeyword input = case (toUpper input) of
     "RIGHT" -> True
     "SIMILAR" -> True
     "VERBOSE" -> True
+    "BYTEA" -> True
     _ -> False

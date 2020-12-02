@@ -7,19 +7,9 @@ import qualified IHP.ViewSupport as ViewSupport
 import IHP.FrameworkConfig
 import IHP.Environment
 import qualified IHP.IDE.Types as DevServer
+import IHP.FlashMessages.Types
 
-data ViewContext = ViewContext
-    { requestContext :: ControllerSupport.RequestContext
-    , flashMessages :: [Session.FlashMessage]
-    , layout :: ViewSupport.Layout
-    , controllerContext :: ControllerSupport.ControllerContext
-    , appUrl :: Text
-    , webControllers :: [Text]
-    , appNames :: [Text]
-    }
-
-
-data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context } deriving (Eq)
+data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context }
 
 data SchemaController
     = PushToDbAction
@@ -81,8 +71,9 @@ data DataController
     | NewRowAction { tableName :: Text }
     | EditRowAction { tableName :: Text, targetPrimaryKey :: Text }
     | UpdateRowAction
-    | EditRowValueAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
     | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | UpdateValueAction
     deriving (Eq, Show, Data)
 
 data LogsController
@@ -96,13 +87,17 @@ data CodeGenController
     | NewControllerAction
     | NewScriptAction
     | NewViewAction
+    | NewMailAction
     | NewActionAction
     | NewApplicationAction
+    | NewMigrationAction
     | CreateControllerAction
     | CreateScriptAction
     | CreateViewAction
+    | CreateMailAction
     | CreateActionAction
     | CreateApplicationAction
+    | CreateMigrationAction
     | OpenControllerAction
     deriving (Eq, Show, Data)
 
@@ -116,8 +111,21 @@ data ColumnDefinition = ColumnDefinition
     { columnName :: Text
     , columnType :: Text
     , columnDefault :: Maybe Text
+    , isNullable :: Bool
     } deriving (Show)
 
-instance FrameworkConfig where
-    environment = Development
-    appHostname = "localhost"
+
+-- | Keeps track of all all available apps in the projects. Used to display 
+-- the apps inside the sidebar navigation
+--
+-- Usually this list is like: @["Web"]@ or @["Web", "Admin"]@
+newtype AvailableApps = AvailableApps [Text]
+
+-- | Wrapper to pass the app url to the layout.
+-- Usually "http://localhost:8000"
+newtype AppUrl = AppUrl Text
+
+-- | List of all controllers. Used inside e.g. the Schema Designer to decide whether to display
+-- the 'Generate Controller' option
+newtype WebControllers = WebControllers [Text]
+

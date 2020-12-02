@@ -43,7 +43,7 @@ run :: Script
 run = do
     users <- query @User |> fetch
     forEach users \user -> do
-        putStrLn "Hello World, " <> get #firstname user <> "!"
+        putStrLn $ "Hello World, " <> get #firstname user <> "!"
 ```
 
 This will fetch all users and then print out "Hello World, Firstname!".

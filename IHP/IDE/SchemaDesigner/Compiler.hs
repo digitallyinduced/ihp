@@ -46,6 +46,7 @@ compileOnDelete Nothing = ""
 compileOnDelete (Just NoAction) = "ON DELETE NO ACTION"
 compileOnDelete (Just Restrict) = "ON DELETE RESTRICT"
 compileOnDelete (Just SetNull) = "ON DELETE SET NULL"
+compileOnDelete (Just SetDefault) = "ON DELETE SET DEFAULT"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
@@ -74,7 +75,9 @@ compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
 
-compareStatement (StatementCreateTable CreateTable {}) _ = LT
+compareStatement (CreateEnumType {}) _ = LT
+compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
+compareStatement (a@AddConstraint {}) (b@AddConstraint {}) = compare (get #constraintName a) (get #constraintName b)
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
@@ -88,8 +91,9 @@ compilePostgresType PTimestamp = "TIMESTAMP WITHOUT TIME ZONE"
 compilePostgresType PTimestampWithTimezone = "TIMESTAMP WITH TIME ZONE"
 compilePostgresType PReal = "REAL"
 compilePostgresType PDouble = "DOUBLE PRECISION"
+compilePostgresType PPoint = "POINT"
 compilePostgresType PDate = "DATE"
-compilePostgresType PBinary = "BINARY"
+compilePostgresType PBinary = "BYTEA"
 compilePostgresType PTime = "TIME"
 compilePostgresType (PNumeric (Just precision) (Just scale)) = "NUMERIC(" <> show precision <> "," <> show scale <> ")"
 compilePostgresType (PNumeric (Just precision) Nothing) = "NUMERIC(" <> show precision <> ")"
@@ -99,9 +103,10 @@ compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType PJSONB = "JSONB"
+compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PCustomType theType) = theType
 
-compileIdentifier :: _ -> Text
+compileIdentifier :: Text -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
     where
         identifierNeedsQuoting = isKeyword || containsSpace

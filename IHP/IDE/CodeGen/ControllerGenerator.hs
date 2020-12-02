@@ -32,7 +32,7 @@ buildPlan' schema applicationName controllerName modelName =
         viewPlans = generateViews schema applicationName controllerName
     in
         [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
-        , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = (controllerInstance config) }
+        , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = "\n" <> (controllerInstance config) }
         , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
         , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
         , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller") }
@@ -47,8 +47,7 @@ data ControllerConfig = ControllerConfig
 
 controllerInstance :: ControllerConfig -> Text
 controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
-    "instance AutoRoute " <> controllerName <> "Controller\n"
-    <> "type instance ModelControllerMap " <> applicationName <> "Application " <> modelName <> " = " <> controllerName <> "Controller\n\n"
+    "instance AutoRoute " <> controllerName <> "Controller\n\n"
 
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 

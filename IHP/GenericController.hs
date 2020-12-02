@@ -18,11 +18,6 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Eq controller, KnownSymbol 
     action otherwise = renderPlain "unsupported action"
 
 
-data GenericControllerViewContext = GenericControllerViewContext
-    { layout :: Layout
-    }
-    deriving (Generic)
-
 renderLayout :: Layout
 renderLayout view = [hsx|
 <html lang="en">

@@ -2,11 +2,11 @@ module IHP.IDE.SchemaDesigner.Controller.Schema where
 
 import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.ViewContext
 
 import IHP.IDE.SchemaDesigner.View.Schema.Code
 import IHP.IDE.SchemaDesigner.View.Schema.Error
 import IHP.IDE.SchemaDesigner.View.Schema.GeneratedCode
+import IHP.IDE.SchemaDesigner.View.Schema.SchemaUpdateFailed
 
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
@@ -18,8 +18,13 @@ import System.Exit
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.Controller.Tables
+import IHP.IDE.SchemaDesigner.Controller.Helper
 
 instance Controller SchemaController where
+    beforeAction = setLayout schemaDesignerLayout
+
     action ShowCodeAction = do
         schema <- Text.readFile schemaFilePath
         error <- getSqlError
@@ -33,12 +38,18 @@ instance Controller SchemaController where
     action PushToDbAction = do
         (exitCode, stdOut, stdErr) <- shell "make db"
         let output = stdErr <> "\n\n" <> stdOut
-        case exitCode of
-            ExitSuccess -> if "ERROR:" `Text.isInfixOf` stdErr
-                then setErrorMessage output
-                else setSuccessMessage "Recreated DB"
-            ExitFailure code -> setErrorMessage output
-        redirectTo TablesAction
+
+        let isError = case exitCode of
+                ExitSuccess -> "ERROR:" `Text.isInfixOf` stdErr
+                ExitFailure _ -> True
+
+        if isError
+            then do
+                setModal SchemaUpdateFailedView { .. }
+                jumpToAction TablesAction
+            else do
+                setSuccessMessage "Recreated DB"
+                redirectTo TablesAction
 
     action DumpDbAction = do
         Process.system "make dumpdb"
@@ -50,35 +61,23 @@ instance Controller SchemaController where
 
         (exitCode, stdOut, stdErr) <- shell "make db"
         let output = stdErr <> "\n\n" <> stdOut
-        case exitCode of
-            ExitSuccess -> if "ERROR:" `Text.isInfixOf` stdErr
-                then setErrorMessage output
-                else setSuccessMessage "DB Update successful"
-            ExitFailure code -> setErrorMessage output
+        let isError = case exitCode of
+                ExitSuccess -> "ERROR:" `Text.isInfixOf` stdErr
+                ExitFailure _ -> True
 
-        redirectTo TablesAction
+        if isError
+            then do
+                setModal SchemaUpdateFailedView { .. }
+                jumpToAction TablesAction
+            else do
+                setSuccessMessage "DB Update successful"
+                redirectTo TablesAction
 
     action ShowGeneratedCodeAction { statementName } = do
         statements <- readSchema
         let (Just statement) = findStatementByName statementName statements
         let generatedHaskellCode = SchemaCompiler.compileStatementPreview statements statement
         render GeneratedCodeView { .. }
-
-readSchema :: _ => _
-readSchema = parseSchemaSql >>= \case
-        Left error -> do render ErrorView { error }; pure []
-        Right statements -> pure statements
-
-getSqlError :: _ => IO (Maybe ByteString)
-getSqlError = parseSchemaSql >>= \case
-        Left error -> do pure (Just error)
-        Right statements -> do pure Nothing
-
-updateSchema :: _ => _
-updateSchema updateFn = do
-    statements <- readSchema
-    let statements' = updateFn statements
-    writeSchema statements'
 
 shell :: String -> IO (ExitCode, Text, Text)
 shell command = do

@@ -15,10 +15,11 @@ import IHP.Controller.Session
 import IHP.QueryBuilder
 import IHP.ControllerSupport
 import IHP.ModelSupport
+import IHP.Controller.Context
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user.
-        ( ?requestContext :: RequestContext
+        ( ?context :: ControllerContext
         , ?modelContext :: ModelContext
         , Typeable (NormalizeModel user)
         , KnownSymbol (GetTableName (NormalizeModel user))
@@ -26,10 +27,10 @@ initAuthentication :: forall user.
         , GetTableName (NormalizeModel user) ~ GetTableName user
         , FromRow (NormalizeModel user)
         , PrimaryKey (GetTableName user) ~ UUID
-        , FilterPrimaryKey (NormalizeModel user)
-    ) => TypeMap.TMap -> IO TypeMap.TMap
-initAuthentication context = do
+        , FilterPrimaryKey (GetTableName user)
+    ) => IO ()
+initAuthentication = do
     user <- getSessionUUID (sessionKey @user)
             >>= pure . fmap (Newtype.pack @(Id user))
             >>= fetchOneOrNothing
-    pure (TypeMap.insert @(Maybe (NormalizeModel user)) user context)
+    putContext user

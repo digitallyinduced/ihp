@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
-import IHP.View.Modal
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
@@ -19,7 +18,7 @@ data ShowTableRowsView = ShowTableRowsView
     , primaryKeyFields :: [Text]
     }
 
-instance View ShowTableRowsView ViewContext where
+instance View ShowTableRowsView where
     html ShowTableRowsView { .. } = [hsx|
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
