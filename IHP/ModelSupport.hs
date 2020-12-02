@@ -8,7 +8,7 @@ module IHP.ModelSupport
 import IHP.HaskellSupport
 import IHP.NameSupport
 import qualified Prelude
-import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay, delete)
+import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
 import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
 import qualified Text.Inflections
@@ -342,7 +342,7 @@ logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, 
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
 deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
-deleteRecord model = get #id model |> delete @model @id
+deleteRecord model = get #id model |> deleteRecordById @model @id
 
 {-# INLINE deleteRecord #-}
 
@@ -352,14 +352,14 @@ deleteRecord model = get #id model |> delete @model @id
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-delete :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => id -> IO ()
-delete id = do
+deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => id -> IO ()
+deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
     logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
-{-# INLINE delete #-}
+{-# INLINE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
 --
