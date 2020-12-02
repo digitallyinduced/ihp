@@ -342,14 +342,24 @@ logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, 
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
 deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
-deleteRecord model = do
-    let id = getField @"id" model
+deleteRecord model = get #id model |> deleteRecordById @model @id
+
+{-# INLINE deleteRecord #-}
+
+-- | Like 'deleteRecord' but using an Id
+--
+-- >>> let project :: Id Project = ...
+-- >>> delete projectId
+-- DELETE FROM projects WHERE id = '..'
+--
+deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => id -> IO ()
+deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
     logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
-{-# INLINE deleteRecord #-}
+{-# INLINE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
 --
@@ -588,10 +598,10 @@ trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
 -- > withTableReadTracker do
 -- >     project <- query @Project |> fetchOne
 -- >     user <- query @User |> fetchOne
--- >     
+-- >
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
--- > 
+-- >
 withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set Text)) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
