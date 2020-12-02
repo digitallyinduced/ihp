@@ -295,8 +295,8 @@ getDefaultValue columnType value = case Megaparsec.runParser Parser.expression "
         Left _ -> Nothing
         Right expression -> Just expression
 
-isIllegalKeyword :: Text -> Bool
-isIllegalKeyword input = case (toUpper input) of
+isSQLKeyword :: Text -> Bool
+isSQLKeyword input = case (toUpper input) of
     "BIGINT" -> True
     "BIT" -> True
     "BOOLEAN" -> True
@@ -429,3 +429,62 @@ isIllegalKeyword input = case (toUpper input) of
     "VERBOSE" -> True
     "BYTEA" -> True
     _ -> False
+
+-- "toLower" feels more natural for Haskell keywords
+isHaskellKeyword :: Text -> Bool
+isHaskellKeyword input =
+    case (toLower input) of
+        "as" -> True
+        "case" -> True
+        "class" -> True
+        "data" -> True
+        "default" -> True
+        "deriving" -> True
+        "do" -> True
+        "else" -> True
+        "hiding" -> True
+        "if" -> True
+        "import" -> True
+        "in" -> True
+        "infix" -> True
+        "infixl" -> True
+        "infixr" -> True
+        "instance" -> True
+        "let" -> True
+        "module" -> True
+        "newtype" -> True
+        "of" -> True
+        "qualified" -> True
+        "then" -> True
+        "type" -> True
+        "where" -> True
+        "forall" -> True
+        "mdo" -> True
+        "family" -> True
+        "role" -> True
+        "pattern" -> True
+        "static" -> True
+        "group" -> True
+        "by" -> True
+        "using" -> True
+        "foreign" -> True
+        "export" -> True
+        "label" -> True
+        "dynamic" -> True
+        "safe" -> True
+        "interruptible" -> True
+        "unsafe" -> True
+        "stdcall" -> True
+        "ccall" -> True
+        "capi" -> True
+        "prim" -> True
+        "javascript" -> True
+        "rec" -> True
+        "proc" -> True
+        _ -> False
+
+isIllegalKeyword :: Text -> Bool
+isIllegalKeyword input =
+    case input of
+        "_" -> True
+        _ -> isSQLKeyword input || isHaskellKeyword input
