@@ -358,7 +358,7 @@ instance AutoRoute PostsController
 
 This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the urls according to your needs (e.g. "beautiful urls" for SEO).
 
-<sup>Note that the word 'Post' here still refers to a post on our blog and is unrelated to the HTTP-POST request method.</sup>
+*Note that the word 'Post' here still refers to a post on our blog and is unrelated to the HTTP-POST request method.*
 
 #### Views
 
