@@ -5,12 +5,11 @@
 
 ## Introduction
 
-The code of applications powered by IHP should always feel like it's the same kind of application. This helps to quickly switch between projects. Also the end user of your application does not care whether something uses camel case or snake case, but it's important that this decision is used consistently in the project. Therefore IHP comes with a set of rules on how to name certain things.
+The code of applications powered by IHP should always feel like it's the same kind of application. This helps to quickly switch between projects. Also, the end-user of your application does not care whether something uses camel-case or snake-case, but consistency is important in the project. Therefore IHP comes with a set of rules on how to name certain things.
 
 ## Database
 
 Table names should always use lowercase, snake case and be in the plural form.
-
 
 Here are some examples of good names:
 
@@ -45,7 +44,6 @@ module <app>.View.<controller>.<actionVerb>
 ```
 
 The `<controller>` should not end in `Controller`. The `<actionVerb>` should not end in `View`.
-
 
 Here are some examples of good names:
 
@@ -97,8 +95,7 @@ Controller modules should always follow this naming schema:
 module <app>.Controller.<controller>
 ```
 
-The `<controller>` should not end in `Controller`. It should usually be in plural form, unless it's only working on a single entity. E.g. you might have a `UserController` when only dealing with the current user, because from the users point of view, there is only a single user resource they can interact with.
-
+The `<controller>` should not end in `Controller`. It should usually be in plural form unless it's only working on a single entity. E.g. you might have a `UserController` when only dealing with the current user because from the users point of view, there is only a single user resource they can interact with.
 
 Here are some examples of good names:
 
@@ -173,4 +170,3 @@ data CompanyController -- Type should be plural in this case
     deriving (Eq, Show, Data)
 
 ```
-
