@@ -6,6 +6,7 @@ import           ClassyPrelude
 import           IHP.HtmlSupport.Parser
 import           Language.Haskell.Meta         (parseExp)
 import qualified "template-haskell" Language.Haskell.TH           as TH
+import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
 import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
@@ -17,6 +18,7 @@ import IHP.HtmlSupport.ToHtml
 import qualified Debug.Trace
 import Control.Monad.Fail
 import qualified Text.Megaparsec as Megaparsec
+import qualified Text.Blaze.Html.Renderer.String as BlazeString
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
@@ -41,12 +43,26 @@ quoteHsxExpression code = do
             pure $ Megaparsec.SourcePos (TH.loc_filename loc) (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 
 compileToHaskell :: Node -> TH.ExpQ
-compileToHaskell (Node name attributes children) =
+compileToHaskell (Node name attributes children isLeaf) =
     let
         renderedChildren = TH.listE $ map compileToHaskell children
         stringAttributes = TH.listE $ map toStringAttribute attributes
+        openTag :: String
+        openTag = "<" <> tag
+        tag :: String
+        tag = cs name
     in
-        [| (applyAttributes (makeElement name $(renderedChildren)) $(stringAttributes)) |]
+        if isLeaf
+            then
+                let
+                    closeTag :: String
+                    closeTag = ">"
+                in [| (applyAttributes (Leaf (fromString $(TH.lift tag)) (fromString $(TH.lift openTag)) (fromString $(TH.lift closeTag)) ()) $(stringAttributes)) |]
+            else
+                let
+                    closeTag :: String
+                    closeTag = "</" <> tag <> ">"
+                in [| (applyAttributes (makeParent $(TH.lift tag) $(TH.lift openTag) $(TH.lift closeTag) $renderedChildren) $(stringAttributes)) |]
 
 compileToHaskell (Children children) =
     let
@@ -130,28 +146,12 @@ applyAttributes !el [] = el
 applyAttributes !el (x:xs) = applyAttributes (x el) xs
 {-# INLINE applyAttributes #-}
 
-{-# INLINE makeElement #-}
-makeElement :: Text -> [Html] -> Html
-makeElement name' children =
-    let
-        name :: String
-        name = cs name'
-        {-# INLINE element #-}
-        element :: Html -> Html
-        element = (Parent (fromString name) (fromString $ "<" <> name) (fromString $ "</" <> name <> ">"))
-        {-# INLINE leaf #-}
-        leaf = (Leaf (fromString name) (fromString $ "<" <> name) (fromString $ ">"))
-    in if name' `elem` parents then
-            let !children' = case length children of
-                    0 -> mempty
-                    1 -> unsafeHead children
-                    _ -> (foldl' (<>) (unsafeHead children) (unsafeTail children))
-            in element children'
-        else
-            if name' `elem` leafs then
-                leaf ()
-            else
-                error ("makeElement: Unknown tag "  <> show name)
+makeParent :: String -> String -> String -> [Html] -> Html
+makeParent tag openTag closeTag children = ((Parent (fromString tag) (fromString openTag) (fromString closeTag))) case children of
+            [] -> mempty
+            child:[] -> child
+            (head:tail) -> (foldl' (<>) head tail)
+{-# INLINE makeParent #-}
 
 class ApplyAttribute value where
     applyAttribute :: Text -> Text -> value -> (Html5.Html -> Html5.Html)
@@ -164,3 +164,6 @@ instance ApplyAttribute Bool where
 instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
     applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (cs value))
     {-# INLINE applyAttribute #-}
+
+instance Show (MarkupM ()) where
+    show html = BlazeString.renderHtml html
