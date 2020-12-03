@@ -1,12 +1,11 @@
 # Database Migrations
 
-
 ```toc
 ```
 
 ## Introduction
 
-For development purposes you already know the `Update DB` workflow from the Schema Designer. Once your app is running in production you will at some point need to make changes to your database schema. With migrations you can evolve your production database schema by writing short SQL statements to make the necessary changes.
+For development purposes, you already know the `Update DB` workflow from the Schema Designer. Once your app is running in production you will at some point need to make changes to your database schema. With migrations, you can evolve your production database schema by writing short SQL statements to make the necessary changes.
 
 In IHP a migration file is a plain SQL file consisting of `ALTER TABLE` and other SQL statements that patch the database. They are stored in `Application/Migration` and are named by a timestamp and an optional description.
 
@@ -18,8 +17,6 @@ Application/Migration/
     1604852210-add-confirmed_at-to-users.sql
     1604847925-create-projects-table.sql
 ```
-
-
 
 ## Generating a Migration
 
@@ -43,7 +40,7 @@ CREATE TABLE posts (
 );
 ```
 
-After that we can already run this migration to update our production database.
+After that, we can already run this migration to update our production database.
 
 ## Running Migrations
 
@@ -55,7 +52,7 @@ To test your migrations locally, you can run this tool locally like:
 migrate
 ```
 
-In production context you need to specify the correct database url via the `DATABASE_URL` environment variable:
+In a production context you need to specify the correct database URL via the `DATABASE_URL` environment variable:
 
 ```
 DATABASE_URL=postgresql://... migrate
