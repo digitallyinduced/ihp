@@ -49,6 +49,7 @@ import qualified Control.Monad.State.Strict as State
 import qualified Data.Text as Text
 import Network.HTTP.Types.URI
 import Data.List ((!!))
+import qualified Data.List as List
 import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)
 import qualified Data.Typeable as Typeable
@@ -59,6 +60,8 @@ import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
 import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
+import qualified Data.List.Split as List
+import qualified Network.URI.Encode as URI
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
@@ -104,7 +107,7 @@ class Data controller => AutoRoute controller where
             parseCustomAction constructor = string prefix >> (string actionPath <* endOfInput >> checkRequestMethod action)
                 where
                     prefix :: ByteString
-                    prefix = actionPrefix @controller
+                    prefix = cs (actionPrefix @controller)
 
                     action :: controller
                     action = actionInstance constructor
@@ -227,25 +230,18 @@ parseUUIDArgument field value =
 -- All controllers defined in the `Web/` directory don't have a prefix at all.
 --
 -- E.g. controllers in the `Admin/` directory are prefixed with @/admin/@.
-actionPrefix :: forall controller. Typeable controller => ByteString
+actionPrefix :: forall controller. Typeable controller => String
 actionPrefix =
-        case appModule of
-            "Web" -> "/"
-            "IHP" -> "/"
-            "" -> "/"
-            appName -> "/" <> ByteString.map Char.toLower appName <> "/"
+        case moduleName of
+            ('W':'e':'b':'.':_) -> "/"
+            ('I':'H':'P':'.':_) -> "/"
+            ("") -> "/"
+            moduleName -> "/" <> let (prefix:_) = List.splitWhen (== '.') moduleName in map Char.toLower prefix <> "/"
     where
-        appModule :: ByteString
-        appModule = fromMaybe "" (headMay moduleParts)
-
-        moduleParts :: [ByteString]
-        moduleParts = ByteString.split '.' moduleName
-
-        moduleName :: ByteString
+        moduleName :: String
         moduleName = Typeable.typeOf (error "unreachable" :: controller)
                 |> Typeable.typeRepTyCon
                 |> Typeable.tyConModule
-                |> cs
 {-# INLINE actionPrefix #-}
 
 -- | Strips the "Action" at the end of action names
@@ -303,33 +299,39 @@ updateAction =
 {-# INLINE updateAction #-}
 
 instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => CanRoute controller where
-    {-# INLINE parseRoute' #-}
     parseRoute' = autoRoute
+    {-# INLINABLE parseRoute' #-}
 
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
-    {-# INLINE pathTo #-}
-    pathTo !action = appPrefix <> actionName <> cs arguments
+    {-# INLINABLE pathTo #-}
+    pathTo !action = cs (appPrefix <> actionName <> arguments)
         where
-            appPrefix :: Text 
-            !appPrefix = cs (actionPrefix @controller)
+            appPrefix :: String
+            !appPrefix = actionPrefix @controller
 
-            actionName :: Text
-            !actionName = cs (stripActionSuffix $! showConstr constructor) 
+            actionName :: String
+            !actionName = (stripActionSuffix $! showConstr constructor) 
 
             constructor = toConstr action
-            arguments :: ByteString
-            !arguments  = tshow action -- `SomeRecord { a = b, c = d }`
-                    |> Text.breakOn "{"
+
+            stripQuotes ('"':rest) = List.init rest
+            stripQuotes otherwise = otherwise
+            
+            arguments :: String
+            !arguments  = show action -- `SomeRecord { a = b, c = d }`
+                    |> List.filter (/= ' ')
+                    |> List.break (== '{')
                     |> snd
-                    |> Text.drop 1
-                    |> Text.breakOn "}"
-                    |> fst -- ` a = b, c = d`
-                    |> Text.splitOn "," -- [" a = b", " c = d "]
-                    |> map (\s -> let (key, value) = Text.breakOn "=" s in (Text.strip key, Text.strip (Text.drop 1 value)))
-                    |> map (\(k ,v) -> (k, Text.dropAround (== '"') v)) -- "value" -> value
-                    |> map (\(k, v) -> (cs k, cs v))
-                    |> filter (\(k, v) -> (not . ClassyPrelude.null) k && (not . ClassyPrelude.null) v)
-                    |> (\q -> if ClassyPrelude.null q then mempty else renderSimpleQuery True q)
+                    |> List.drop 1
+                    |> List.break (== '}')
+                    |> fst -- `a=b,c=d`
+                    |> List.splitWhen (== ',') -- ["a=b", "c=d"]
+                    |> map (\s -> let (key, value) = List.break (== '=') s in (key, List.drop 1 value))
+                    |> map (\(k ,v) -> (k, stripQuotes v)) -- "value" -> value
+                    |> filter (\(k, v) -> (not . List.null) k && (not . List.null) v)
+                    |> map (\(k, v) -> k <> "=" <> URI.encode v)
+                    |> List.intercalate "&"
+                    |> (\q -> if List.null q then q else '?':q)
 
 
 -- | Parses the HTTP Method from the request and returns it.
@@ -371,7 +373,7 @@ get path action = do
             string path
             pure (runActionWithNewContext action)
         _   -> fail "Invalid method, expected GET"
-{-# INLINE get #-}
+{-# INLINABLE get #-}
 
 -- | Routes a given path to an action when requested via POST.
 --
@@ -400,15 +402,15 @@ post path action = do
             string path
             pure (runActionWithNewContext action)
         _   -> fail "Invalid method, expected POST"
-{-# INLINE post #-}
+{-# INLINABLE post #-}
 
 -- | Defines the start page for a router (when @\/@ is requested).
 startPage :: (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser (IO ResponseReceived)
 startPage action = get "/" action
-{-# INLINE startPage #-}
+{-# INLINABLE startPage #-}
 
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
-{-# INLINE withPrefix #-}
+{-# INLINABLE withPrefix #-}
 
 runApp :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => Parser (IO ResponseReceived) -> IO ResponseReceived -> IO ResponseReceived
 runApp routes notFoundAction = do
@@ -421,26 +423,26 @@ runApp routes notFoundAction = do
     case routedAction of
         Left message -> notFoundAction
         Right action -> action
-{-# INLINE runApp #-}
+{-# INLINABLE runApp #-}
 
 frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
-{-# INLINE frontControllerToWAIApp #-}
+{-# INLINABLE frontControllerToWAIApp #-}
 
 mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
-{-# INLINE mountFrontController #-}
+{-# INLINABLE mountFrontController #-}
 
 parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
 parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
-{-# INLINE parseRoute #-}
+{-# INLINABLE parseRoute #-}
 
 catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
 catchAll action = do
-    string (actionPrefix @action)
+    string (cs (actionPrefix @action))
     _ <- takeByteString
     pure (runActionWithNewContext @application action)
-{-# INLINE catchAll #-}
+{-# INLINABLE catchAll #-}
 
 -- | This instances makes it possible to write @<a href={MyAction}/>@ in HSX
 instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
