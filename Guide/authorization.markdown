@@ -3,9 +3,9 @@
 ```toc
 ```
 
-## Restricting an action to logged in users
+## Restricting an action to logged-in users
 
-To restrict an action to a logged in user, use `ensureIsUser`:
+To restrict an action to a logged-in user, use `ensureIsUser`:
 
 ```haskell
 action PostsAction = do
@@ -14,9 +14,9 @@ action PostsAction = do
     render IndexView { .. }
 ```
 
-When someone is trying to access the `PostsAction` but is not logged in, the browser will be redirected to the login page. After the login succeeded, the user will be redirected back to the `PostsAction`.
+When someone is trying to access the `PostsAction` but is not logged-in, the browser will be redirected to the login page. After the login succeeded, the user will be redirected back to the `PostsAction`.
 
-It's common to restrict all actions inside a controller to logged in users only. Place the `ensureIsUser` inside the `beforeAction` hook to automatically apply it to all actions:
+It's common to restrict all actions inside a controller to logged-in users only. Place the `ensureIsUser` inside the `beforeAction` hook to automatically apply it to all actions:
 
 ```haskell
 instance Controller PostsController where
@@ -33,9 +33,9 @@ instance Controller PostsController where
 
 In this case `PostsAction` and `ShowPostAction` are only accessible to logged-in users.
 
-## Restricting an action to logged in admins
+## Restricting an action to logged-in admins
 
-To restrict an action to a logged in admin, use `ensureIsAdmin` instead of `ensureIsUser`. If you get
+To restrict an action to a logged-in admin, use `ensureIsAdmin` instead of `ensureIsUser`. If you get
 
 ```
 error:
@@ -53,7 +53,6 @@ instance Controller UserController where
     beforeAction =
         ensureIsAdmin @Admin
 ```
-
 
 ## Checking for Permissions
 
