@@ -1,14 +1,13 @@
 # Package Management
 
-
 ```toc
 ```
 
-IHP is using the Nix Package Manager for managing its dependencies, such as haskell packages, compilers and even postgres. You can find more about [the motivation on using nix on the IHP blog](https://ihp.digitallyinduced.com/blog/2020-07-22-why-ihp-is-using-nix.html).
+IHP is using the Nix Package Manager for managing its dependencies, such as Haskell packages, compilers, and even Postgres. You can find more about [the motivation on using nix on the IHP blog](https://ihp.digitallyinduced.com/blog/2020-07-22-why-ihp-is-using-nix.html).
 
 ## Using a Haskell Package
 
-To install a haskell package from hackage (the standard haskell package registry), open the `default.nix` file and append the package name.
+To install a Haskell package from Hackage (the standard Haskell package registry), open the `default.nix` file and append the package name.
 
 Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for rendering markdown in our project. The mmark library is not bundled with IHP, so we need to add this package as a dependency to our project. For that open the `default.nix`. The file will look like this:
 
@@ -38,8 +37,6 @@ in
 
 In the list following `haskellDeps` we can see a few haskell dependencies already. We have to append `mmark` to the list:
 
-
-
 ```nix
 let
     ihp = builtins.fetchGit {
@@ -65,7 +62,7 @@ in
     haskellEnv
 ```
 
-Run `nix-shell` to see that your project still builds fine. After that run `make -B .envrc` to rebuild the dev env used by IHP. Now you can run `./start` again to start the dev server. The `mmark` can now be used as expected:
+Run `nix-shell` to see that your project still builds fine. After that run `make -B .envrc` to rebuild the development environment used by IHP. Now you can run `./start` again to start the development server. The `mmark` can now be used as expected:
 
 ```bash
 nix-shell
@@ -74,12 +71,11 @@ make -B .envrc
 ./start
 ```
 
-
 ## Using a Native Dependency
 
-Sometimes your project uses some other software tool which is not bundled with IHP by default. Because we're using nix, we can easily manage that dependency for our project.
+Sometimes your project uses some other software tool that is not included with IHP by default. Because we're using nix, we can easily manage that dependency for our project.
 
-Let's say we want to add imagemagick to transform and resize images uploaded by the users of our application.
+Let's say we want to add [ImageMagick](https://imagemagick.org/) to transform and resize images uploaded by the users of our application.
 
 All dependencies of our project are listed in `default.nix` at the root of the project directory. The file looks like this:
 
@@ -132,7 +128,7 @@ let
         otherDeps = p: with p; [
 
             imagemagick # <-----------------------
-            
+
         ];
         projectPath = ./.;
     };
@@ -140,7 +136,7 @@ in
     haskellEnv
 ```
 
-If running, stop your development server. Now run `make -B .envrc`. This will install imagemagick locally to your project.
+If running, stop your development server. Now run `make -B .envrc`. This will install ImageMagick locally to your project.
 
 When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
 
@@ -151,7 +147,6 @@ You can look up the package name for the software you depend on inside the nixpk
 ### Using a Different Version of a Haskell Package
 
 Let's say we want to use [the google-oauth2 package from hackage](https://hackage.haskell.org/package/google-oauth2) to add Google OAuth to our application. We can install the package in our project by adding it to `haskellPackages` in our `default.nix`:
-
 
 ```nix
 let
@@ -178,7 +173,7 @@ in
     haskellEnv
 ```
 
-This will install version 0.3.0.0 of the google-oauth2 package, as this is the latest version available in the package set used by IHP. For our specific application need we want to use version 0.2.2, an older version of this package.
+This will install version 0.3.0.0 of the google-oauth2 package, as this is the latest version available in the package set used by IHP. For our specific application requirements, we want to use version 0.2.2, an older version of this package.
 
 To use the older version of the package we need to override the package definition. To do this you need to install install `cabal2nix` first:
 
@@ -213,10 +208,9 @@ mkDerivation {
 }
 ```
 
-Save this package definition code to a new file in `Config/nix/haskell-packages/google-oauth2.nix`. IHP projects are configured to automatically pick up any haskell package definitions in the `Config/nix/haskell-packages` directory. So this package definition will be used automatically.
+Save this package definition code to a new file in `Config/nix/haskell-packages/google-oauth2.nix`. IHP projects are configured to automatically pick up any Haskell package definitions in the `Config/nix/haskell-packages` directory. So this package definition will be used automatically.
 
 Go back to your project directory and run `nix-shell`. This will try to install the new `google-oauth2` package in the expected version `0.2.2`.
-
 
 This step might fail with an error like `Encountered missing or private dependencies`:
 
@@ -292,7 +286,7 @@ let
 
 After that try to run `nix-shell` again. This will most likely work now.
 
-When the run of `nix-shell` succeeds, you also need to run `make -B .envrc` to rebuild the `.envrc` file. Otherwise the new package might not be visible to all tools:
+When the run of `nix-shell` succeeds, you also need to run `make -B .envrc` to rebuild the `.envrc` file. Otherwise, the new package might not be visible to all tools:
 
 ```bash
 make -B .envrc
@@ -300,11 +294,9 @@ make -B .envrc
 
 ### Stopping Nix From Running Tests for a Haskell Dependency
 
-Nix will try to run a testsuite for a package when it's building it from source. Sometimes the tests fail which will stop your from installing the package. In case you want to ignore the failing tests and use the package anyway follow these steps.
+Nix will try to run a test suite for a package when it's building it from source code. Sometimes the tests fail which will stop you from installing the package. In case you want to ignore the failing tests and use the package anyway follow these steps.
 
 Open `Config/nix/nixpkgs-config.nix` and append the package name to the `dontCheckPackages` list:
-
-
 
 ```nix
 { ihp }:
@@ -335,7 +327,7 @@ let
 ...
 ```
 
-After that you can do `nix-shell` without running the failing tests.
+After that, you can do `nix-shell` without running the failing tests.
 
 ### Nixpkgs Pinning
 
@@ -348,12 +340,12 @@ All projects using IHP are using a specific pinned version of nixpkgs. You can f
 
 All nix packages installed for your project are using this specific version of nixpkgs.
 
-You can change the nixpkgs version by updating the `nixPkgsRev` and `nixPkgsSha256` to your custom values and then running `make -B .envrc` to rebuild the dev env.
+You can change the nixpkgs version by updating the `nixPkgsRev` and `nixPkgsSha256` to your custom values and then running `make -B .envrc` to rebuild the development environment.
 
-We highly recommend to only use nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally you will need to build a lot of packages from source as they will not be available in the digitally induced binary cache.
+We highly recommend only using nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally, you will need to build a lot of packages from source code as they will not be available in the digitally induced binary cache.
 
 ### Binary Cache
 
 When installing IHP, the `ihp-new` tool will add the `digitallyinduced.cachix.org` binary cache to your nix system. This binary cache provides binaries for all IHP packages and commonly used dependencies for all nixpkgs versions used by IHP.
 
-When you are using packages which are not in the binary cache and thus are compiled from source very often, we highly recommend to set up your own [cachix binary cache](https://cachix.org/) and use it next to the default `digitallyinduced.cachix.org` cache.
+When you are using packages that are not in the binary cache and thus are compiled from source code very often, we highly recommend setting up your own [cachix binary cache](https://cachix.org/) and use it next to the default `digitallyinduced.cachix.org` cache.
