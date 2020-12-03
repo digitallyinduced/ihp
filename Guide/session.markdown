@@ -58,7 +58,7 @@ Flash Messages provide a way to show success or error messages on the next reque
 
 In the following view you can see a success flash message `Post created`:
 
-![Example Flash Message](./images/first-project/index_view.png).
+![Example Flash Message](images/first-project/index_view.png).
 
 ### Setting a Message
 
@@ -115,3 +115,4 @@ To display the Flash Messages in custom way, you can always access them using `v
 ## Session Cookie
 
 The cookie max age is set to 30 days by default. To protect against CSRF, the SameSite Policy is set to Lax.
+

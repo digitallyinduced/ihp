@@ -85,7 +85,7 @@ To work with posts in our application, we now have to define this data schema.
 
 Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text columns. To do this click on the `New` button in the table view.
 
-![Schema Designer New Table](./images/first-project/new_table_view.png)
+![Schema Designer New Table](images/first-project/new_table_view.png)
 
 Enter the table name `posts` and click on `Create Table`.
 
@@ -93,13 +93,13 @@ In the right pane, you can see the columns of the newly created table. The id co
 
 Right click into the `Columns` pane and select `Add Column`:
 
-![Schema Designer Add Column menu](./images/first-project/add_column_menu.png)
+![Schema Designer Add Column menu](images/first-project/add_column_menu.png)
 
 Use this dialog to create the title and body columns.
 
 After that, your schema should look like this:
 
-![Schema Designer First Table](./images/first-project/first_table.png)
+![Schema Designer First Table](images/first-project/first_table.png)
 
         
 ### Loading the Schema
@@ -173,21 +173,21 @@ A controller belongs to an application. The default application is called `Web` 
 
 We can use the built-in code generators to generate a controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/Generators). There you can see everything that can be generated. Click on `Controller`:
 
-![](./images/first-project/code_gen_1.png)
+![](images/first-project/code_gen_1.png)
 
 You need to enter the controller name. Enter `Posts` and click `Preview`:
 
-![](./images/first-project/code_gen_2_posts.png)
+![](images/first-project/code_gen_2_posts.png)
 
 The preview will show you all the files which are going to be created or modified. Take a look and when you are ready, click on `Generate`.
 
-![](./images/first-project/code_gen_3_posts.png)
+![](images/first-project/code_gen_3_posts.png)
 
 After the files have been created as in the preview, your controller is ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Created, Read, Update, Delete) actions going.
 
 Here's how the new `/Posts` page looks like:
 
-![Screenshot of the /Posts view](./images/Posts.png)
+![Screenshot of the /Posts view](images/Posts.png)
 
 Next we're going to dig a bit deeper into all the changes made by the controller generator.
 
@@ -398,7 +398,7 @@ First we quickly need to create a new blog post. Open [http://localhost:8000/Pos
 
 Click `Save Post`. You should now see the new post listed on the `index` view.
 
-![Index View](./images/first-project/index_view.png)
+![Index View](images/first-project/index_view.png)
 
 ### Displaying a Post
 
@@ -465,7 +465,7 @@ buildPost post = post
 
 Now open [http://localhost:8000/NewPost](http://localhost:8000/NewPost) and click `Save Post` without filling the text fields. You will get a "This field cannot be empty" error message next to the empty title field.
 
-![Schema Designer Title non empty](./images/first-project/title_non_empty.png)
+![Schema Designer Title non empty](images/first-project/title_non_empty.png)
 
 You can find [a list of all available validator functions in the API Documentation](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html).
 
@@ -489,11 +489,11 @@ All our existing posts are saved here. You should also commit this file to git t
 
 Let's add a new `created_at` column. Open [http://localhost:8001/Tables](http://localhost:8001/Tables), enter `created_at` and select Timestamp for the type. Also set the default value to `NOW()`.
 
-![Schema Designer Timestamp column](./images/first-project/timestamp_column.png)
+![Schema Designer Timestamp column](images/first-project/timestamp_column.png)
 
 Now open the `/Posts` again inside your browser. You will see this error:
 
-![Database looks outdated. The database result does not match the expected type.](./images/first-project/database_error.png)
+![Database looks outdated. The database result does not match the expected type.](images/first-project/database_error.png)
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
@@ -529,7 +529,7 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
 
 Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58`), just use `dateTime` instead of `timeAgo`.
 
-![Schema Designer created at view](./images/first-project/created_at_view.png)
+![Schema Designer created at view](images/first-project/created_at_view.png)
 
 ### Markdown
 
@@ -658,7 +658,7 @@ Create a new post with just `#` (a headline without any text) as the content to 
 
 It's time to add comments to our blog. For that open the Schema Designer and add a new table `comments` with the fields `id`, `post_id`, `author` and `body`:
 
-![Schema Designer Comments](./images/first-project/post_table.png)
+![Schema Designer Comments](images/first-project/post_table.png)
 
 When adding the post\_id column, it will automatically set the type to UUID. Unless you unselect the checkbox `References posts` it will also automatically create a foreign key constraint for this column:
 
@@ -671,15 +671,15 @@ Press the `Update DB`-button to save our current posts to `Application/Fixtures.
 
 Let's add a controller for our comments. We can use the visual code generator for this:
 
-![](./images/first-project/code_gen_1.png)
+![](images/first-project/code_gen_1.png)
 
 Use `Comments` as the controller name:
 
-![](./images/first-project/code_gen_2.png)
+![](images/first-project/code_gen_2.png)
 
 Click `Generate`:
 
-![](./images/first-project/code_gen_3.png)
+![](images/first-project/code_gen_3.png)
 
 
 The controller is generated now. But we need to do some adjustments to better integrate the comments into the posts.
@@ -707,7 +707,7 @@ instance View ShowView where
 
 This creates an `Add Comment` link, which links to the New Comment Form we just generated. After clicking the `Add Comment` link, we can see this:
 
-![Pretty empty](./images/first-project/new_comment.png)
+![Pretty empty](images/first-project/new_comment.png)
 
 We can see, there is a post id field which is field with a lot of 0s. When we try to submit this form, it will fail because there is no post with this id. Let's first make it possible, that the post id is automatically set to the post where we originally clicked on "New Comment".
 
@@ -798,7 +798,7 @@ You can see that the `postId` has been passed as a query parameter. In the form,
 This will set the `postId` of our new comment record to the `postId` given to the action.
 
 Now take a look at your form. The `postId` will be prefilled now:
-![Pretty empty](./images/first-project/new_comment_with_postid.png)
+![Pretty empty](images/first-project/new_comment_with_postid.png)
 
 
 Of course, seeing the UUID is not very human-friendly. It would be better to just show the post title to our users. For that, we have to fetch and pass the post to our form and then make the `postId` a hidden field.
@@ -855,11 +855,11 @@ renderForm comment = formFor comment [hsx|
 
 Our form is complete now :-) Time to take a look:
 
-![New Comment View after our changes](./images/first-project/new_comment_hidden_field.png)
+![New Comment View after our changes](images/first-project/new_comment_hidden_field.png)
 
 Great, let's add our first comment:
 
-![Creating Our New Comment](./images/first-project/new_comment_created.png)
+![Creating Our New Comment](images/first-project/new_comment_created.png)
 
 It works. We're redirected to the `CommentsAction`. If you look at the table, we can see that our `postId` has been set successfully.
 
@@ -876,7 +876,7 @@ redirectTo ShowPostAction { postId = get #postId comment }
 
 Open the browser and create a new comment to verify that this redirect is working:
 
-![Redirect is working](./images/first-project/new_comment_redirected_to_post.png)
+![Redirect is working](images/first-project/new_comment_redirected_to_post.png)
 
 ### Show Comments of a Post
 
@@ -888,7 +888,7 @@ Next we're going to display our comments below the post. Open `Web/View/Posts/Sh
 
 It will display something like this:
 
-![Redirect is working](./images/first-project/show_post_comments_querybuilder.png)
+![Redirect is working](images/first-project/show_post_comments_querybuilder.png)
 
 What is shown is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")` (this representation changes a bit between versions still, so don't worry if yours does not look exactly like this). But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to acutally fetch them for us.
 
@@ -948,7 +948,7 @@ renderComment comment = [hsx|
 
 This is how it looks now:
 
-![Post with comments](./images/first-project/post_with_comments.png)
+![Post with comments](images/first-project/post_with_comments.png)
 
 ### Ordering Comments
 
@@ -981,7 +981,7 @@ The `modify #comments (orderByDesc #createdAt)` basically just does a `|> orderB
 
 That's it already. Taking a look at our post, we can see that the newest comment is shown first now.
 
-![Post with ordered comments](./images/first-project/post_with_ordered_comments.png)
+![Post with ordered comments](images/first-project/post_with_ordered_comments.png)
 
 ## Have Fun!
 

@@ -9,9 +9,9 @@ IHP views are usually represented as HTML, but can also be represented as json o
 
 The html templating is implemented on top of the well-known blaze-html Haskell library. To quickly build html views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to Haskell code at compile-time.
 
-The controller provides the view with a key-value map called `ControllerContext`. The `ControllerContext` provides the view with information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current http request, logged-in user, flash messages, the layout, etc..
+The controller provides the view with a key value map called `ControllerContext`. The `ControllerContext` provides the view with information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current http request, current logged in user, flash messages, the layout, etc..
 
-Usually, a view consists of a data structure and a `View` instance. E.g. like this:
+Usually a view consist of a data structure and a `View` instance. E.g. like this:
 
 ```haskell
 data ExampleView = ExampleView { optionA :: Text, optionB :: Bool }
