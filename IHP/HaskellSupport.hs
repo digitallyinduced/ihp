@@ -29,6 +29,7 @@ module IHP.HaskellSupport (
 , includes
 , stripTags
 , symbolToText
+, symbolToByteString
 ) where
 
 import ClassyPrelude
@@ -44,7 +45,8 @@ import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs)
 import qualified Debug.Trace
 import qualified Data.Text as Text
-import qualified Data.Maybe 
+import qualified Data.Maybe
+import qualified Data.ByteString.Char8 as ByteString
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
@@ -81,9 +83,11 @@ includes = elem
 
 instance Data.Default.Default UUID.UUID where
     def = UUID.nil
+    {-# INLINE def #-}
 
 instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
     fromLabel = Proxy @name'
+    {-# INLINE fromLabel #-}
 
 -- | Returns the field value for a field name
 --
@@ -171,6 +175,7 @@ isToday' currentTime timestamp = utcTimeToYearMonthDay currentTime == utcTimeToY
 -- | Allows `Just "someThing"` to be written as `"someThing"`
 instance IsString string => IsString (Maybe string) where
     fromString string = Just (fromString string)
+    {-# INLINE fromString #-}
 
 
 -- | Example:
@@ -254,6 +259,17 @@ stripTags html = let (a, b) = Text.splitAt 1 html in a <> stripTags b
 symbolToText :: forall symbol. (KnownSymbol symbol) => Text
 symbolToText = Text.pack (symbolVal @symbol Proxy)
 {-# INLINE symbolToText #-}
+
+-- | Returns the value of a type level symbol as a bytestring
+--
+-- >>> symbolToByteString @"hello"
+-- "hello"
+--
+-- >>> symbolToByteString @(GetTableName User)
+-- "users"
+symbolToByteString :: forall symbol. (KnownSymbol symbol) => ByteString
+symbolToByteString = ByteString.pack (symbolVal @symbol Proxy)
+{-# INLINE symbolToByteString #-}
 
 instance IsString UUID.UUID where
     fromString string = case UUID.fromString string of
