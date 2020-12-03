@@ -12,11 +12,11 @@ IHP comes with simple email sending functionality out of the box. It's built on 
 To send a mail we first need to generate a new email template. For that open the Mail Code Generator from the dev tools.
 
 
-![](images/mail/mail-codegen.png)
+![](./images/mail/mail-codegen.png)
 
 Inside the code generator we have to pick a controller. For our example we want to generate a confirmation mail to send to new users after they sign up. Therefore we select the `Users` controller from the dropdown. We want our mail to be called `Confirmation` mail, so we enter this into the text field:
 
-![](images/mail/mail-codegen-input.png)
+![](./images/mail/mail-codegen-input.png)
 
 Click `Preview` and after that confirm by clicking `Generate`.
 

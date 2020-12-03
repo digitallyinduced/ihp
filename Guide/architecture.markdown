@@ -7,7 +7,7 @@
 
 This section tries to answer common questions on where to place your code. These are recommendations found by digitally induced to be working well.
 
-In general remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different applications. E.g. code shared between your web application and your admin backend.
+In general, remember that all specific web app logic should stay in the `Web/` space. The `Application/` space is for sharing code across all your different applications. E.g. code shared between your web application and your admin backend.
 
 
 ## Directory Structure
@@ -51,7 +51,7 @@ Place it in `Web/Types.hs`.
 
 ##### Next to my main web application, I'm building an admin backend application. Where to place it?
 
-A IHP project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
+An IHP project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web, you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
 
 ##### How to structure my CSS?
 
@@ -107,9 +107,9 @@ CSS files from external libraries or components should be placed in `static/vend
 
 ##### How to structure my Javascript Code?
 
-JS files, as all your other static assets, should be place in the `static` directory.
+JS files, and all other static assets, should be placed in the `static` directory.
 
-In general we follow an approach where most of the business logic resides on the Haskell server. Only for small interactions, or client-side GUI niceness, we try to use a small isolated bit of javascript.
+In general, we follow an approach where most of the business logic resides on the Haskell server. Only for small interactions, or client-side GUI niceness, we try to use a small isolated bit of javascript.
 
 Your global, non-page specific, javascript code can be placed in `app.js`.
 
@@ -139,14 +139,14 @@ In the views, just import the javascript with `<script src="/users.js"></script>
 
 ###### Webpack
 
-We discourage the use of webpack or any other bundler because they have too much overhead. Of course this advice only applies if you follow the approach to use as little javascript as possible.
+We discourage the use of webpack or any other bundler because they have too much overhead. Of course, this advice only applies if you follow the approach to use as little javascript as possible.
 
 ###### Library JS
 
-JS files from external libraries or components should be placed in `static/vendor/`. For simplicity it might make sense to just download the javascript bundle of the library you want to use, and then just commit it into git instead of using NPM.
+JS files from external libraries or components should be placed in `static/vendor/`. For simplicity, it might make sense to just download the javascript bundle of the library you want to use, and then just commit it into git instead of using NPM.
 
 For more complex use-cases with lots of javascript, you should not follow this advice and just use NPM instead.
 
 ##### Where to place static images?
 
-Place your images in the `static` folder. We recommend to use SVG images.
+Place your images in the `static` folder. We recommend using SVG images.

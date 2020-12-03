@@ -1,17 +1,18 @@
 # Database
 
 ```toc
+
 ```
 
 ## Introduction
 
-IHP provides a few basic functions to access the database. On top of Postgres SQL, we try to provide a thin layer to make it easy to do all the common tasks your web application usually does.
+IHP provides a few basic functions to access the database. On top of Postgres SQL, we try to provide a thin layer to make it easier to do all the common tasks your web application usually does.
 
-The only supported database platform is Postgres. Focussing on Postgres allows us to better integrate advanced Postgres-specific solutions into your application.
+The only supported database platform is Postgres. Focusing on Postgres allows us to better integrate advanced Postgres-specific solutions into your application.
 
 In development, you do not need to set up anything to use Postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development Postgres server is only listening on a Unix socket and is not available via TCP.
 
-When the dev server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a Postgres REPL connected to the development database (named `app`), or start `psql` by pointing at the local sockets file `psql --host=/PATH/TO/PROJECT/DIRECTORY/build/db app`. The web interface of the dev server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
+When the development server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a Postgres REPL connected to the development database (named `app`), or start `psql` by pointing at the local sockets file `psql --host=/PATH/TO/PROJECT/DIRECTORY/build/db app`. The web interface of the development server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
 
 Haskell data structures and types are generated automatically based on your database schema.
 
@@ -19,7 +20,7 @@ Haskell data structures and types are generated automatically based on your data
 
 Once you have created your project, the first step is to define a database schema. The database schema is a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project, this file will be empty. The `uuid-ossp` extension is automatically enabled for the database by IHP. 
+In a new project, this file will be empty. The [`uuid-ossp`](https://www.postgresql.org/docs/current/uuid-ossp.html) extension is automatically enabled for the database by IHP. 
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
@@ -31,43 +32,43 @@ CREATE TABLE users (
 );
 ```
 
-Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every file change of the `Schema.sql`. We use the well-known `postgresql-simple` Haskell library to connect to the database. 
+Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every change in the `Schema.sql`. We use the well-known [`postgresql-simple`](https://hackage.haskell.org/package/postgresql-simple) Haskell library to connect to the database. 
 
 ### Schema Designer
 
 Because the SQL syntax is sometimes hard to remember, the framework provides a GUI-based database editor called IHP Schema Designer. You can find the Schema Designer at `http://localhost:8001/Tables`.
 
-![The Schema Designer in Visual Mode](images/database/schema-designer-visual.png)
+![The Schema Designer in Visual Mode](./images/database/schema-designer-visual.png)
 
 Keep in mind that the Schema Editor also only modifies the `Schema.sql`. This works by parsing the SQL DDL-statements and applying transformations on the AST, compiling and writing it back to `Schema.sql`. When there is a syntax error in the `Schema.sql` file the visual mode will be unavailable and you have to work with the code editor to fix the problem.
 
 You can add tables, columns, foreign key constraints, and enums. You can also edit these objects by right-clicking them. New tables have an `id` column by default. Lots of opinionated short-cuts for rapid application development like automatically offering to add foreign key constraints are built-in.
 
-![An example of using the context menu for editing a table](images/database/schema-designer-context-menu.png)
+![An example of using the context menu for editing a table](./images/database/schema-designer-context-menu.png)
 
 When the Visual Editor is not powerful enough, just switch back to the code editor. For convenience, the Schema Designer also allows you to toggle to the Code Editor inside the web browser:
 
-![The Schema Designer in Code Mode](images/database/schema-designer-code.png)
+![The Schema Designer in Code Mode](./images/database/schema-designer-code.png)
 
 ### Push to DB
 
-After we have added a few data structures to our `Schema.sql`, our running Postgres database is still empty. This is because we still need to import our database schema into the database.
+After we have added a few data structures to our `Schema.sql`, our running Postgres database is still empty. This is because we also need to import our database schema into the database.
 
 **In the Schema Designer:** Click on `Push to DB`:
 
-![Push to DB Button](images/database/schema-designer-push-to-db.png)
+![Push to DB Button](./images/database/schema-designer-push-to-db.png)
 
 **In the command line:** Run `make db` while the server is running.
 
 This will delete and re-create the current database and import the `Schema.sql`. After importing the Schema, it will also import the `Application/Fixtures.sql` which is used for pre-populating the empty database with some data. It's equivalent to running `psql < Schema.sql; psql < Fixtures.sql` inside an empty database.
 
-When the dev server is started the first time, the `Schema.sql` and `Fixtures.sql` are automatically imported.
+When the development server is started for the first time, the `Schema.sql` and `Fixtures.sql` are automatically imported.
 
 ### Fixtures.sql
 
 The `Fixtures.sql` includes a lot of `INSERT INTO` statements to pre-fill your database once the schema has been created.
 
-You can manually add `INSERT INTO` statements to this file. You can also *migrate* your fixtures by just making the required changes to this sql file.
+You can manually add `INSERT INTO` statements to this file. You can also *migrate* your fixtures by just making the required changes to this SQL file.
 
 You can dump your current database state into the `Fixtures.sql` by running `make dumpdb`. This way you can regularly commit the database state to git, so other developers have the same data inside their local development database as you have.
 
@@ -77,17 +78,17 @@ You can also update the database while keeping its contents.
 
 **In the Schema Designer:** Click on `Update DB`:
 
-![Push to DB Button](images/database/schema-designer-push-to-db.png)
+![Push to DB Button](./images/database/schema-designer-push-to-db.png)
 
 **In the command line:** Run `make dumpdb` and after that `make db`.
 
-When dumping the database into the `Fixtures.sql` first and then rebuilding the database with the dump, the contents will be kept when changing the schema.
+When dumping the database into the `Fixtures.sql` first, and then rebuilding the database with the dump, the contents will be kept when changing the schema.
 
 ## Haskell Bindings
 
 ### Model Context
 
-In a pure functional programming language like Haskell, we need to pass the database connection to all functions which need to access the database. We use an implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The `ModelContext` data structure is basically just a wrapper around the actual database connection.
+In a purely functional programming language like Haskell, we need to pass the database connection to all functions which need to access the database. We use an implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The `ModelContext` data structure is basically just a wrapper around the actual database connection.
 
 An implicit parameter is a parameter which is automatically passed to certain functions, it just needs to be available in the current scope.
 
@@ -125,7 +126,7 @@ data User = User
 
 The `id` field type `Id User` is basically just a wrapper around `UUID` for type-safety reasons. All database field names are mapped from `under_score` to `camelCase` on the Haskell side.
 
-When a sql field can be `NULL`, the Haskell field type will be contained in `Maybe`.
+When a SQL field can be `NULL`, the Haskell field type will be contained in `Maybe`.
 
 In the Schema Designer, you can take a look at the generated Haskell code by right-clicking the table and clicking `Show Generated Haskell Code`.
 
@@ -216,7 +217,7 @@ do
         |> fetch
 ```
 
-This will run a `SELECT * FROM users ORDER BY firstname LIMIT 10` query and will return the first 10 users ordered by their firstname.
+This will run a `SELECT * FROM users ORDER BY firstname LIMIT 10` query and will return the first 10 users ordered by their `firstname`.
 
 When you are only interested in the first result you can also use `fetchOne` as a shortcut for `|> limit 1`:
 
@@ -257,7 +258,7 @@ do
 
 ## Raw SQL Queries
 
-Use the function `sqlQuery` to run a raw sql query.
+Use the function `sqlQuery` to run a raw SQL query.
 
 ```haskell
 do
@@ -363,7 +364,7 @@ do
         |> updateRecord
 ```
 
-This will set the lastname of user `cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7` to `Tester` and run an `UPDATE` query to persist that:
+This will set the `lastname` of user `cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7` to `Tester` and run an `UPDATE` query to persist that:
 
 ```sql
 UPDATE users SET firstname = firstname, lastname = "Tester" WHERE id = "cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7"
@@ -427,7 +428,7 @@ It's possible to define and use custom enum types with IHP. An enum can be creat
 
 Open the Schema Designer, right-click into the `Objects` Pane, and then select `Add Enum`:
 
-![](/images/database/schema-designer-context-menu.png)
+![](./images/database/schema-designer-context-menu.png)
 
 You have to give a name to your enum type. The name should be in plural form, like with table names. E.g. we could name our enum `colors`.
 

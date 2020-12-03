@@ -13,7 +13,7 @@ Each action needs to be defined as a data structure inside `Web/Types.hs`. There
 
 ## Creating a new Controller
 
-We recommend to use the code generators for adding a new controller. Using the GUI, you can open [http://localhost:8001/NewController](http://localhost:8001/NewController). Using the CLI run `new-controller CONTROLLER_NAME`.
+We recommend using the code generators for adding a new controller. Using the GUI, you can open [http://localhost:8001/NewController](http://localhost:8001/NewController). Using the CLI run `new-controller CONTROLLER_NAME`.
 
 The following section will guide you through the manual process of creating a new controller.
 
@@ -25,7 +25,7 @@ data PostsController
     deriving (Eq, Show, Data)
 ```
 
-This defines a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The arguent `postId` will later be filled with the `postId` parameter of the request url. This is done automatically by the IHP router. IHP also requires the controller to have `Eq`, `Show` and `Data` instances. Therefore we derive them here.
+This defines a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The argument `postId` will later be filled with the `postId` parameter of the request url. This is done automatically by the IHP router. IHP also requires the controller to have `Eq`, `Show` and `Data` instances. Therefore we derive them here.
 
 After we have defined the "interface" for our controller, we need to implement the actual request handling logic. IHP expects to find this inside the `action` function of the [`Controller`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:Controller) instance. We can define this instance in `Web/Controller/Posts.hs`:
 
@@ -42,7 +42,7 @@ This implementation for `ShowPostAction` responds with a simple plain text messa
 
 ## Reading Query and Body Parameters
 
-Inside the action you can access request parameters using the `param` function. A parameter can either be a url parameter like `?paramName=paramValue` (*this is also called a query parameter*), or given as a form field like `<form><input name="paramName" value="paramValue"/></form>` (*in that case we're talking about a body parameter*). The `param` function will work with query and body parameters, so you don't have to worry about that (in case a query and body parameter is set with the same name, the body parameter will take priority).
+Inside the action, you can access request parameters using the `param` function. A parameter can either be a url parameter like `?paramName=paramValue` (*this is also called a query parameter*), or given as a form field like `<form><input name="paramName" value="paramValue"/></form>` (*in that case we're talking about a body parameter*). The `param` function will work with query and body parameters, so you don't have to worry about that (in case a query and body parameter is set with the same name, the body parameter will take priority).
 
 Given a request like `GET /UsersAction?maxItems=50`, you can access the `maxItems` like this:
 
@@ -107,7 +107,7 @@ action BuildFood = do
 
 When this action is called with both checkboxes checked `ingredients` will be set to `["milk", "egg"]`. When no checkbox is checked it will return an empty list.
 
-Similiar to `param` this works out of the box for Ids, UUID, Bools, Timestamps, etc. 
+Similar to `param` this works out of the box for Ids, UUID, Bools, Timestamps, etc. 
 
 
 ### Passing Data from the Action to the View
@@ -172,7 +172,7 @@ action MyAction = do
 
 ### Advanced: Working with Custom Types
 
-Rarely you might want to work with a custom scalar value which is not yet supported with `param`. Define a custom `ParamReader` instance to be able to use the `param` functions with your custom value type. [For that, take a look at the existing instances of `ParamReader`.](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader)
+Rarely you might want to work with a custom scalar value that is not yet supported with `param`. Define a custom `ParamReader` instance to be able to use the `param` functions with your custom value type. [For that, take a look at the existing instances of `ParamReader`.](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader)
 
 ### Records
 
@@ -262,7 +262,7 @@ action ExampleAction = do
 ```
 
 In this example, when the `User-Agent` header is not provided by the request
-the `userAgent` variable will be set to `Nothing`. Otherwise it will be set
+the `userAgent` variable will be set to `Nothing`. Otherwise, it will be set
 to `Just "the user agent value"`.
 
 The lookup for the header in the request is case insensitive.
@@ -278,7 +278,7 @@ Inside a controller, you have several ways of sending a response. The most commo
 render ShowPostView { .. }
 ```
 
-The `render` function automatically picks the right response format based on the `Accept` header of the browser. It will try to send a html response when html is requested, and will also try to send a json response when a json response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the `render` function cannot fullfil the requested `Accept` formats.
+The `render` function automatically picks the right response format based on the `Accept` header of the browser. It will try to send an html response when html is requested, and will also try to send a json response when a json response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the `render` function cannot fulfill the requested `Accept` formats.
 
 ### Rendering Plain Text
 
@@ -291,7 +291,7 @@ action ExampleAction = do
 
 ### Rendering HTML
 
-Usually you want to render your html using a view. See `Rendering Views` for details.
+Usually, you want to render your html using a view. See `Rendering Views` for details.
 
 Sometimes you want to render html without using views, e.g. doing it inline in the action. Call `respondHtml` for that:
 
@@ -363,7 +363,7 @@ action ExampleAction = do
 
 ## Action Execution
 
-When calling a function to send the response, IHP will stop execution of the action. Internally this is implemented by throwing and catching a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#ResponseException). Any code after e.g. a `render SomeView { .. }` call will not be called. This also applies to all redirect helpers.
+When calling a function to send the response, IHP will stop the execution of the action. Internally this is implemented by throwing and catching a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#ResponseException). Any code after e.g. a `render SomeView { .. }` call will not be called. This also applies to all redirect helpers.
 
 Here is an example of this behavior:
 
@@ -381,7 +381,7 @@ When you have created a [`Response`](https://hackage.haskell.org/package/wai-3.2
 
 Actions have access to the special variable `?requestContext`.
 
-The `?requestContext` provides access to the Wai request as well as infos like the request query and post params and the uploaded files. It's usually used by other functions to provide high level functionality. E.g. the `getHeader` function uses the `?requestContext` to access the request headers.
+The `?requestContext` provides access to the Wai request as well as information like the request query and post params and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the `getHeader` function uses the `?requestContext` to access the request headers.
 
 ## Controller Context
 

@@ -7,7 +7,7 @@
 
 IHP provides support to render [Bootstrap 4 Modals](https://getbootstrap.com/docs/4.5/components/modal/) out of the box. Here's how the result can look like:
 
-![](images/modal/modal.png)
+![](./images/modal/modal.png)
 
 ## Layout Setup
 
@@ -59,7 +59,7 @@ action NewProjectAction = do
 
 Let's take a look at `/NewPost`, it now looks like this:
 
-![](images/modal/modal-2.png)
+![](./images/modal/modal-2.png)
 
 The `NewView` is now rendered inside the `ProjectsView` (it's rendered where the `{modal}` is placed). Next we're going to add the modal styling.
 
@@ -109,6 +109,6 @@ instance View NewView where
 
 After that our `/NewProject` view looks like this:
 
-![](images/modal/modal.png)
+![](./images/modal/modal.png)
 
 The call to `renderModal Modal { .. }` returns the HTML code for the bootstrap modal. You can think of it as a template function where `modalTitle`, `modaCloseUrl`, etc. just fill in the placeholder variables for the modal.

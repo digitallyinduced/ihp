@@ -109,7 +109,7 @@ When a post with an empty title is now submitted to this action, an error messag
 
 The default form helpers like `{textField #title}` automatically render the error message below the field. Here is how this looks:
 
-![Validation Error Message Below Title Input](images/first-project/title_non_empty.png)
+![Validation Error Message Below Title Input](./images/first-project/title_non_empty.png)
 
 
 ### Validating An Email Is Unique
