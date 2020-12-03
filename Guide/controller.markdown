@@ -289,7 +289,7 @@ action ExampleAction = do
 
 Usually, you want to render your HTML using a view. See `Rendering Views` for details.
 
-Sometimes you want to render html without using views, e.g. doing it inline in the action. Call `respondHtml` for that:
+Sometimes you want to render HTML without using views, e.g. doing it inline in the action. Call `respondHtml` for that:
 
 ```haskell
 action ExampleAction = do
@@ -347,9 +347,9 @@ action ExampleAction = do
     redirectToPath ((pathTo ShowPostAction { .. }) <> "&details=on")
 ```
 
-### Redirect to a Url
+### Redirect to a URL
 
-Use `redirectToUrl` to redirect to some external url:
+Use `redirectToUrl` to redirect to some external URL:
 
 ```haskell
 action ExampleAction = do
@@ -376,7 +376,7 @@ When you have created a [`Response`](https://hackage.haskell.org/package/wai-3.2
 
 Actions have access to the special variable `?requestContext`.
 
-The `?requestContext` provides access to the Wai request as well as information like the request query and post params and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the `getHeader` function uses the `?requestContext` to access the request headers.
+The `?requestContext` provides access to the Wai request as well as information like the request query and post parameters and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the `getHeader` function uses the `?requestContext` to access the request headers.
 
 ## Controller Context
 
