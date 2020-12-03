@@ -11,7 +11,7 @@ IHP provides support to render [Bootstrap 4 Modals](https://getbootstrap.com/doc
 
 ## Layout Setup
 
-Before we can build our modal, we have to make sure that your current application layout has rendering for modals enabled.
+Before we can build our modal, we have to make sure that your current application layout has modal rendering enabled.
 
 Open your `Web/View/Layout.hs` and add a `{modal}` just before the closing `</body>` tag:
 
@@ -61,7 +61,7 @@ Let's take a look at `/NewPost`, it now looks like this:
 
 ![](images/modal/modal-2.png)
 
-The `NewView` is now rendered inside the `ProjectsView` (it's rendered where the `{modal}` is placed). Next we're going to add the modal styling.
+The `NewView` is now rendered inside the `ProjectsView` (it's rendered where the `{modal}` is placed). Next, we're going to add the modal styling.
 
 ## Modal Styling
 
@@ -111,4 +111,4 @@ After that our `/NewProject` view looks like this:
 
 ![](images/modal/modal.png)
 
-The call to `renderModal Modal { .. }` returns the HTML code for the bootstrap modal. You can think of it as a template function where `modalTitle`, `modaCloseUrl`, etc. just fill in the placeholder variables for the modal.
+The call to `renderModal Modal { .. }` returns the HTML code for the bootstrap modal. You can think of it as a template function where `modalTitle`, `modalCloseUrl`, etc. just fill in the placeholder variables for the modal.
