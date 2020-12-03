@@ -35,6 +35,7 @@ common shared-properties
             , wai-util
             , bytestring
             , network-uri
+            , uri-encode
             , aeson
             , wai-session
             , wai-session-clientsession
