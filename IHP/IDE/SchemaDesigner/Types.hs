@@ -19,7 +19,7 @@ data Statement
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 data CreateTable
   = CreateTable
@@ -28,7 +28,7 @@ data CreateTable
       , primaryKeyConstraint :: PrimaryKeyConstraint
       , constraints :: [Constraint]
       }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data Column = Column
     { name :: Text
@@ -37,7 +37,7 @@ data Column = Column
     , notNull :: Bool
     , isUnique :: Bool
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 data OnDelete
     = NoAction
@@ -45,11 +45,11 @@ data OnDelete
     | SetNull
     | SetDefault
     | Cascade
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
 newtype PrimaryKeyConstraint
   = PrimaryKeyConstraint { primaryKeyColumnNames :: [Text] }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data Constraint
     -- | FOREIGN KEY (columnName) REFERENCES referenceTable (referenceColumn) ON DELETE onDelete;
@@ -61,7 +61,7 @@ data Constraint
         }
     | UniqueConstraint
         { columnNames :: [Text] }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 data Expression =
     -- | Sql string like @'hello'@
@@ -70,7 +70,7 @@ data Expression =
     | VarExpression Text
     -- | Simple call, like @COALESCE(name, 'unknown name')@
     | CallExpression Text [Expression]
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 data PostgresType
     = PUUID
@@ -94,4 +94,4 @@ data PostgresType
     | PJSONB
     | PArray PostgresType
     | PCustomType Text
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
