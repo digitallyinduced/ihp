@@ -24,15 +24,15 @@ import IHP.Controller.Layout
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
-{-# INLINE renderPlain #-}
+{-# INLINABLE renderPlain #-}
 
 respondHtml :: (?context :: ControllerContext) => Html -> IO ()
 respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
-{-# INLINE respondHtml #-}
+{-# INLINABLE respondHtml #-}
 
 respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
-{-# INLINE respondSvg #-}
+{-# INLINABLE respondSvg #-}
 
 renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?theAction :: controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
 renderHtml !view = do
@@ -49,23 +49,23 @@ renderHtml !view = do
     
     let boundHtml = let ?context = frozenContext in layout (ViewSupport.html ?view)
     pure boundHtml
-{-# INLINE renderHtml #-}
+{-# INLINABLE renderHtml #-}
 
 renderFile :: (?context :: ControllerContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
-{-# INLINE renderFile #-}
+{-# INLINABLE renderFile #-}
 
 renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderJson json = respondAndExit $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
-{-# INLINE renderJson #-}
+{-# INLINABLE renderJson #-}
 
 renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
-{-# INLINE renderJson' #-}
+{-# INLINABLE renderJson' #-}
 
 renderNotFound :: (?context :: ControllerContext) => IO ()
 renderNotFound = renderPlain "Not Found"
-{-# INLINE renderNotFound #-}
+{-# INLINABLE renderNotFound #-}
 
 data PolymorphicRender
     = PolymorphicRender
@@ -84,7 +84,7 @@ data PolymorphicRender
 --     }
 -- `
 -- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
-{-# INLINE renderPolymorphic #-}
+{-# INLINABLE renderPolymorphic #-}
 renderPolymorphic :: forall viewContext jsonType htmlType. (?context :: ControllerContext) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
     let headers = Network.Wai.requestHeaders request
@@ -105,7 +105,7 @@ polymorphicRender :: PolymorphicRender
 polymorphicRender = PolymorphicRender Nothing Nothing
 
 
-{-# INLINE render #-}
+{-# INLINABLE render #-}
 render :: forall view controller. (ViewSupport.View view, ?theAction :: controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender

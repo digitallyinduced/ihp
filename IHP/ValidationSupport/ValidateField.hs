@@ -111,7 +111,7 @@ withCustomErrorMessage errorMessage validator value =
     case validator value of
         Failure _ -> Failure errorMessage
         Success -> Success
-{-# INLINE withCustomErrorMessage #-}
+{-# INLINABLE withCustomErrorMessage #-}
 
 
 -- | Validates that value passes at least one of the given validators
@@ -164,7 +164,7 @@ validateAll validators text =
 nonEmpty :: MonoFoldable value => value -> ValidatorResult
 nonEmpty value | null value = Failure "This field cannot be empty"
 nonEmpty _ = Success
-{-# INLINE nonEmpty #-}
+{-# INLINABLE nonEmpty #-}
 
 
 -- | Validates that value is empty
@@ -183,7 +183,7 @@ nonEmpty _ = Success
 isEmptyValue :: MonoFoldable value => value -> ValidatorResult
 isEmptyValue value | null value = Success
 isEmptyValue _ = Failure "This field must be empty"
-{-# INLINE isEmptyValue #-}
+{-# INLINABLE isEmptyValue #-}
 
 
 -- | Validates that value looks like a phone number
@@ -198,7 +198,7 @@ isEmptyValue _ = Failure "This field must be empty"
 isPhoneNumber :: Text -> ValidatorResult
 isPhoneNumber text | "+" `isPrefixOf` text && length text > 5 = Success
 isPhoneNumber text = Failure "is not a valid phone number (has to start with +, at least 5 characters)"
-{-# INLINE isPhoneNumber #-}
+{-# INLINABLE isPhoneNumber #-}
 
 
 -- | Validates that value is an email address
@@ -226,7 +226,7 @@ isPhoneNumber text = Failure "is not a valid phone number (has to start with +, 
 isEmail :: Text -> ValidatorResult
 isEmail text | text =~ ("^[^ @]+@[^ @_+]+\\.?[^ @_+-]+$" :: Text) = Success
 isEmail text = Failure "is not a valid email"
-{-# INLINE isEmail #-}
+{-# INLINABLE isEmail #-}
 
 
 -- | Validates that value is between min and max
@@ -246,7 +246,7 @@ isEmail text = Failure "is not a valid email"
 isInRange :: (Show value, Ord value) => (value, value) -> value -> ValidatorResult
 isInRange (min, max) value | value >= min && value <= max = Success
 isInRange (min, max) value = Failure ("has to be between " <> tshow min <> " and " <> tshow max)
-{-# INLINE isInRange #-}
+{-# INLINABLE isInRange #-}
 
 
 -- | Validates that value is less than a max value
@@ -259,7 +259,7 @@ isInRange (min, max) value = Failure ("has to be between " <> tshow min <> " and
 isLessThan :: (Show value, Ord value) => value -> value -> ValidatorResult
 isLessThan max value | value < max = Success
 isLessThan max value = Failure ("has to be less than " <> tshow max)
-{-# INLINE isLessThan #-}
+{-# INLINABLE isLessThan #-}
 
 
 -- | Validates that value is greater than a min value
@@ -272,7 +272,7 @@ isLessThan max value = Failure ("has to be less than " <> tshow max)
 isGreaterThan :: (Show value, Ord value) => value -> value -> ValidatorResult
 isGreaterThan min value | value > min = Success
 isGreaterThan min value = Failure ("has to be greater than " <> tshow min)
-{-# INLINE isGreaterThan #-}
+{-# INLINABLE isGreaterThan #-}
 
 
 -- | Validates that value has a max length
@@ -285,7 +285,7 @@ isGreaterThan min value = Failure ("has to be greater than " <> tshow min)
 hasMaxLength :: Int -> Text -> ValidatorResult
 hasMaxLength max text | length text <= max = Success
 hasMaxLength max text = Failure ("is longer than " <> tshow max <> " characters")
-{-# INLINE hasMaxLength #-}
+{-# INLINABLE hasMaxLength #-}
 
 
 -- | Validates that value has a min length
@@ -298,7 +298,7 @@ hasMaxLength max text = Failure ("is longer than " <> tshow max <> " characters"
 hasMinLength :: Int -> Text -> ValidatorResult
 hasMinLength min text | length text >= min = Success
 hasMinLength min text = Failure ("is shorter than " <> tshow min <> " characters")
-{-# INLINE hasMinLength #-}
+{-# INLINABLE hasMinLength #-}
 
 
 -- | Validates that value is a hex-based rgb color string
@@ -314,7 +314,7 @@ hasMinLength min text = Failure ("is shorter than " <> tshow min <> " characters
 isRgbHexColor :: Text -> ValidatorResult
 isRgbHexColor text | text =~ ("^#([0-9a-f]{3}|[0-9a-f]{6})$" :: Text) = Success
 isRgbHexColor text = Failure "is not a valid rgb hex color"
-{-# INLINE isRgbHexColor #-}
+{-# INLINABLE isRgbHexColor #-}
 
 
 -- | Validates that value is a hex-based rgb color string
@@ -330,7 +330,7 @@ isRgbHexColor text = Failure "is not a valid rgb hex color"
 isRgbaHexColor :: Text -> ValidatorResult
 isRgbaHexColor text | text =~ ("^#([0-9a-f]{4}|[0-9a-f]{8})$" :: Text) = Success
 isRgbaHexColor text = Failure "is not a valid rgba hex color"
-{-# INLINE isRgbaHexColor #-}
+{-# INLINABLE isRgbaHexColor #-}
 
 
 -- | Validates that value is a hex-based rgb(a) color string
@@ -346,7 +346,7 @@ isRgbaHexColor text = Failure "is not a valid rgba hex color"
 isHexColor :: Text -> ValidatorResult
 isHexColor = validateAny [isRgbHexColor, isRgbaHexColor]
   |> withCustomErrorMessage "is not a valid hex color"
-{-# INLINE isHexColor #-}
+{-# INLINABLE isHexColor #-}
 
 
 -- | Validates that value is a rgb() color string
@@ -359,7 +359,7 @@ isHexColor = validateAny [isRgbHexColor, isRgbaHexColor]
 isRgbColor :: Text -> ValidatorResult
 isRgbColor text | text =~ ("^rgb\\( *([0-9]*\\.)?[0-9]+ *, *([0-9]*\\.)?[0-9]+ *, *([0-9]*\\.)?[0-9]+ *\\)$" :: Text) = Success
 isRgbColor text = Failure "is not a valid rgb() color"
-{-# INLINE isRgbColor #-}
+{-# INLINABLE isRgbColor #-}
 
 
 -- | Validates that value is a rgba() color string
@@ -372,7 +372,7 @@ isRgbColor text = Failure "is not a valid rgb() color"
 isRgbaColor :: Text -> ValidatorResult
 isRgbaColor text | text =~ ("^rgba\\( *([0-9]*\\.)?[0-9]+ *, *([0-9]*\\.)?[0-9]+ *, *([0-9]*\\.)?[0-9]+ *, *([0-9]*\\.)?[0-9]+ *\\)$" :: Text) = Success
 isRgbaColor text = Failure "is not a valid rgba() color"
-{-# INLINE isRgbaColor #-}
+{-# INLINABLE isRgbaColor #-}
 
 
 -- | Validates that value is a hex-based or rgb(a) color string
@@ -388,7 +388,7 @@ isRgbaColor text = Failure "is not a valid rgba() color"
 isColor :: Text -> ValidatorResult
 isColor = validateAny [isRgbHexColor, isRgbaHexColor, isRgbColor, isRgbaColor]
   |> withCustomErrorMessage "is not a valid color"
-{-# INLINE isColor #-}
+{-# INLINABLE isColor #-}
 
 -- | Validates string starts with @http://@ or @https://@
 --
@@ -400,7 +400,7 @@ isColor = validateAny [isRgbHexColor, isRgbaHexColor, isRgbColor, isRgbaColor]
 isUrl :: Text -> ValidatorResult
 isUrl text | "http://" `isPrefixOf` text || "https://" `isPrefixOf` text = Success
 isUrl text = Failure "is not a valid url. It needs to start with http:// or https://"
-{-# INLINE isUrl #-}
+{-# INLINABLE isUrl #-}
 
 
 isInList :: (Eq value, Show value) => [value] -> value -> ValidatorResult

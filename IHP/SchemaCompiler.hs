@@ -534,6 +534,7 @@ type instance PrimaryKey #{tshow name} = #{idType}
 instance QueryBuilder.FilterPrimaryKey "#{name}" where
     filterWhereId #{primaryKeyPattern} builder =
         builder |> #{intercalate " |> " primaryKeyFilters}
+    {-# INLINE filterWhereId #-}
 |]
     where
         idType :: Text
@@ -628,6 +629,7 @@ compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
 instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
     getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue}
+    {-# INLINE getField #-}
 |]
     where
         compilePrimaryKeyValue = case primaryKeyColumnNames primaryKeyConstraint of
