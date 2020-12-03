@@ -51,7 +51,7 @@ Place it in `Web/Types.hs`.
 
 ##### Next to my main web application, I'm building an admin backend application. Where to place it?
 
-A IHP project can consist of multiple applications. Run `new-application admin` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
+A IHP project can consist of multiple applications. Run `new-application admin` inside a `nix-shell` to generate a new admin application. The logic for the new application is located in the `Admin/` directory. On the web you can find it at `http://localhost:8000/admin/` (all actions are prefixed with `/admin/`).
 
 ##### How to structure my CSS?
 
