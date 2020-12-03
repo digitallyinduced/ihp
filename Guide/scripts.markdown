@@ -5,14 +5,14 @@
 
 ## Introduction
 
-Scripts provide a way to run simple scripts inside the framework context, but outside of the usual web request response lifecycle.
+Scripts provide a way to run simple scripts inside the framework context, but outside of the usual web request/response lifecycle.
 
 Common use-cases include:
 
-- Sending periodic email reminders
-- Sending invoices
-- Anything to be run as a cronjob
-- Background job-queue processing
+-   Sending periodic email reminders
+-   Sending invoices
+-   Anything to be run as a cronjob
+-   Background job-queue processing
 
 ## Creating a new script
 
@@ -28,10 +28,9 @@ run :: Script
 run = do
 ```
 
-The `run` function is our entrypoint. There we can write our logic, just like inside an action. This means we can call other framework functions, access the database using the usual way, send emails, render views, etc.
+The `run` function is our entry point. There we can write our logic, just like inside an action. This means we can call other framework functions, access the database using the usual way, send emails, render views, etc.
 
 Let's print out a hello world to all our users in the console:
-
 
 ```haskell
 #!/usr/bin/env run-script
@@ -66,7 +65,7 @@ In case you get a permission error, try to add the executable flag via `chmod +x
 
 ## Building a script
 
-In production you might want to build a script to a binary for performance reasons. Use make like this:
+In production, you might want to build a script to a binary for performance reasons. Use make like this:
 
 ```bash
 make build/bin/Script/HelloWorldToAllUsers
