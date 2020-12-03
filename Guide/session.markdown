@@ -7,7 +7,7 @@
 
 The session provides a way for your application to store small amounts of information that will be persisted between requests. It's mainly used from inside your controller actions.
 
-In general you should not store complex data structures in the session. It's better to store scalar values in there only. For example: Store the current user id instead of the current user record.
+In general, you should not store complex data structures in the session. It's better to store scalar values in there only. For example: Store the current user-id instead of the current user record.
 
 The session works by storing the data inside a cryptographically signed and encrypted cookie on the client. The encryption key is generated automatically and is stored at `Config/client_session_key.aes`. Internally IHP uses the [clientsession](https://hackage.haskell.org/package/clientsession-0.9.1.2/docs/Web-ClientSession.html) library. You can find more technical details on the implementation in the clientsession documentation.
 
@@ -33,9 +33,9 @@ action SessionExampleAction = do
     userEmail <- getSession "userEmail"
 ```
 
-`userEmail` is set to `Just "hi@digitallyinduced.com"` when the value has been set before. Otherwise it will be `Nothing`.
+`userEmail` is set to `Just "hi@digitallyinduced.com"` when the value has been set before. Otherwise, it will be `Nothing`.
 
-For convience you can use `getSessionInt` to retrieve the value as a `Maybe Int`, and `getSessionUUID` to retrieve the value as a `Maybe UUID`:
+For convenience you can use `getSessionInt` to retrieve the value as a `Maybe Int`, and `getSessionUUID` to retrieve the value as a `Maybe UUID`:
 
 ```haskell
 action SessionExampleAction = do
@@ -78,15 +78,15 @@ action CreatePostAction = do
     unless isAllowedToPost do
         setErrorMessage "You don't have the required permissions to create a post"
         redirectTo NewPostAction
-    
+
     ...
 ```
 
-In both cases the messages are stored inside the session. The message value is automatically cleared after the next request (except redirects or when sending a JSON response).
+In both cases, the messages are stored inside the session. The message value is automatically cleared after the next request (except redirects or when sending a JSON response).
 
 ### Rendering a Message
 
-You have to make sure that `{renderFlashMessages}` is displayed somewhere in your layout or view, otherwise the flash message is not visible.
+You have to make sure that `{renderFlashMessages}` is displayed somewhere in your layout or view, otherwise, the flash message is not visible.
 
 Here is an example of a layout calling `renderFlashMessages`:
 
@@ -110,9 +110,8 @@ The rendered HTML looks like this:
 <div class="alert alert-danger">{errorMessage}</div>
 ```
 
-To display the Flash Messages in custom way, you can always access them using `viewContext |> #flashMessages` in your views. This returns a list of `FlashMessage`. You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
+To display the Flash Messages in a custom way, you can always access them using `viewContext |> #flashMessages` in your views. This returns a list of `FlashMessage`. You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
 
 ## Session Cookie
 
-The cookie max age is set to 30 days by default. To protect against CSRF, the SameSite Policy is set to Lax.
-
+The cookie max-age is set to 30 days by default. To protect against CSRF, the SameSite Policy is set to Lax.
