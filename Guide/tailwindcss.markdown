@@ -1,6 +1,7 @@
 # [Tailwind CSS](https://tailwindcss.com/)
 
 ```toc
+
 ```
 
 ## Introduction
@@ -56,16 +57,19 @@ Create the tailwind configuration file at `tailwind/tailwind.config.js` with the
 
 ```javascript
 module.exports = {
-  purge: { mode: "all", content: ["./Web/View/**/*.hs", "./assets/**/*.css"] },
-  darkMode: false, // or 'media' or 'class'
-  theme: {
-    extend: {},
-  },
-  variants: {
-    extend: {},
-  },
-  plugins: [],
-}
+    purge: {
+        mode: "all",
+        content: ["./Web/View/**/*.hs", "./assets/**/*.css"],
+    },
+    darkMode: false, // or 'media' or 'class'
+    theme: {
+        extend: {},
+    },
+    variants: {
+        extend: {},
+    },
+    plugins: [],
+};
 ```
 
 We also need a CSS entry point for tailwind. Create a new file at `tailwind/app.css`:
@@ -76,31 +80,31 @@ We also need a CSS entry point for tailwind. Create a new file at `tailwind/app.
 @tailwind components;
 
 .btn {
-  @apply px-4 py-2 bg-blue-600 text-white rounded;
+    @apply px-4 py-2 bg-blue-600 text-white rounded;
 }
 
 form > div {
-  @apply mb-4;
+    @apply mb-4;
 }
 
 form input {
-  @apply shadow;
-  @apply appearance-none;
-  @apply border;
-  @apply rounded;
-  @apply w-full;
-  @apply py-2;
-  @apply px-3;
-  @apply text-gray-700;
-  @apply leading-tight;
+    @apply shadow;
+    @apply appearance-none;
+    @apply border;
+    @apply rounded;
+    @apply w-full;
+    @apply py-2;
+    @apply px-3;
+    @apply text-gray-700;
+    @apply leading-tight;
 }
 
 form label {
-  @apply block;
-  @apply text-gray-700;
-  @apply text-sm;
-  @apply font-bold;
-  @apply mb-2;
+    @apply block;
+    @apply text-gray-700;
+    @apply text-sm;
+    @apply font-bold;
+    @apply mb-2;
 }
 
 @tailwind utilities;

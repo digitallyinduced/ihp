@@ -82,7 +82,7 @@ This will render like
 
 ```html
 <div id="projects-show">
-  <h1>Hello World!</h1>
+    <h1>Hello World!</h1>
 </div>
 `
 ```
@@ -91,7 +91,7 @@ So in your `projects.css` you can just do rules like
 
 ```css
 #projects-show h1 {
-  color: blue;
+    color: blue;
 }
 ```
 
@@ -115,11 +115,11 @@ E.g. the `app.js` could look like this:
 
 ```javascript
 $(function () {
-  initNavbarEffects();
+    initNavbarEffects();
 });
 
 function initNavbarEffects() {
-  // ...
+    // ...
 }
 ```
 

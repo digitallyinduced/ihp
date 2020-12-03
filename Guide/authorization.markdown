@@ -1,6 +1,7 @@
 # Authorization
 
 ```toc
+
 ```
 
 ## Restricting an action to logged-in users

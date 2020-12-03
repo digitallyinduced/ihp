@@ -3,6 +3,7 @@
 This section describes best-practice solutions to the common tasks you are facing when building web applications.
 
 ```toc
+
 ```
 
 ## Static Pages

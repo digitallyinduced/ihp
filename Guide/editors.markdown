@@ -1,6 +1,7 @@
 # Editors & Tooling
 
 ```toc
+
 ```
 
 ## Introduction
@@ -13,8 +14,8 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 
 You need to install the following extensions:
 
-- [`nix-env-selector`](https://marketplace.visualstudio.com/items?itemName=arrterian.nix-env-selector), this loads the project `default.nix` file, so all the right Haskell packages are available to VSCode
-- [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
+-   [`nix-env-selector`](https://marketplace.visualstudio.com/items?itemName=arrterian.nix-env-selector), this loads the project `default.nix` file, so all the right Haskell packages are available to VSCode
+-   [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
 
 ### VSCode on Windows with Windows Subsystem for Linux
 
@@ -26,17 +27,17 @@ Works great already out of the box.
 
 Recommended packages:
 
-- `Nix` for syntax highlighting of nix files
-- `Direnv` to load the `.envrc` file of the project.
-- [`LSP`](https://packagecontrol.io/packages/LSP) for smart IDE features. Use `LSP: Enable Language Server in Project -> Haskell Language Server` to activate.
+-   `Nix` for syntax highlighting of nix files
+-   `Direnv` to load the `.envrc` file of the project.
+-   [`LSP`](https://packagecontrol.io/packages/LSP) for smart IDE features. Use `LSP: Enable Language Server in Project -> Haskell Language Server` to activate.
 
 ## Using IHP with Emacs
 
 Install the following packages from [Melpa](https://melpa.org/#/getting-started):
 
-- `dante` – gives IDE features via ghci, see https://github.com/jyp/dante#installation
-- `direnv-mode` – lets haskell-mode and dante-mode find the PATH to ghci, see https://github.com/wbolster/emacs-direnv#installation
-- `attrap` (optional) – apply fixes at point, see https://github.com/jyp/attrap
+-   `dante` – gives IDE features via ghci, see https://github.com/jyp/dante#installation
+-   `direnv-mode` – lets haskell-mode and dante-mode find the PATH to ghci, see https://github.com/wbolster/emacs-direnv#installation
+-   `attrap` (optional) – apply fixes at point, see https://github.com/jyp/attrap
 
 and put a `.dir-locals.el` file in your project root with:
 
@@ -54,20 +55,20 @@ Provided you already have CoC setup, just run `:CocConfig` and add the following
 
 ```json
 {
-  "languageserver": {
-    "haskell": {
-      "command": "haskell-language-server-wrapper",
-      "args": ["--lsp"],
-      "rootPatterns": [
-        "*.cabal",
-        "stack.yaml",
-        "cabal.project",
-        "package.yaml",
-        "hie.yaml"
-      ],
-      "filetypes": ["haskell", "lhaskell"]
+    "languageserver": {
+        "haskell": {
+            "command": "haskell-language-server-wrapper",
+            "args": ["--lsp"],
+            "rootPatterns": [
+                "*.cabal",
+                "stack.yaml",
+                "cabal.project",
+                "package.yaml",
+                "hie.yaml"
+            ],
+            "filetypes": ["haskell", "lhaskell"]
+        }
     }
-  }
 }
 ```
 

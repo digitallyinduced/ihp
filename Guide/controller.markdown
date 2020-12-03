@@ -1,6 +1,7 @@
 # Controller & Actions
 
 ```toc
+
 ```
 
 ## Introduction
@@ -53,10 +54,10 @@ action UsersAction = do
 
 An alternative request to that action can use a form for passing the `maxItems`:
 
-```html
-<form action="{UsersAction}" method="POST">
-  <input type="text" name="maxItems" value="50" />
-  <button type="submit">Send</button>
+```haskell
+<form action={UsersAction} method="POST">
+    <input type="text" name="maxItems" value="50" />
+    <button type="submit">Send</button>
 </form>
 ```
 

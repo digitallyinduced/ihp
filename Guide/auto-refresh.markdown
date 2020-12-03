@@ -1,6 +1,7 @@
 # Auto Refresh
 
 ```toc
+
 ```
 
 ## Introduction

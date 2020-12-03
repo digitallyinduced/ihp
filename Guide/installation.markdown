@@ -1,6 +1,7 @@
 # Installing IHP
 
 ```toc
+
 ```
 
 ## 1. Dependency: Nix Package Manager

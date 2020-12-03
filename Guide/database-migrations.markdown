@@ -1,6 +1,7 @@
 # Database Migrations
 
 ```toc
+
 ```
 
 ## Introduction

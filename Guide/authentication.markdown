@@ -1,6 +1,7 @@
 # Authentication
 
 ```toc
+
 ```
 
 ## Quick-and-Dirty: HTTP Basic Auth
@@ -262,7 +263,7 @@ You can also access the user using `currentUser` inside your views:
 
 You can simply render a link inside your layout or view to send the user to the logout:
 
-```html
+```haskell
 <a class="js-delete js-delete-no-confirm" href={DeleteSessionAction}>Logout</a>
 ```
 

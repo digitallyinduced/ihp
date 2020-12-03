@@ -1,6 +1,7 @@
 # Package Management
 
 ```toc
+
 ```
 
 IHP is using the Nix Package Manager for managing its dependencies, such as Haskell packages, compilers, and even Postgres. You can find more about [the motivation on using nix on the IHP blog](https://ihp.digitallyinduced.com/blog/2020-07-22-why-ihp-is-using-nix.html).
