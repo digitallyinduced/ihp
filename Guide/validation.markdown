@@ -5,13 +5,13 @@
 
 ## Introduction
 
-IHP provides a simple infrastructure for validation of incoming data. This guide will tell you more about validating new and existing records, as well as how to use more complex validations with database access.
+IHP provides a simple infrastructure for validating incoming data. This guide will tell you more about validating new and existing records, as well as how to use more complex validations with database access.
 
 ## Quickstart
 
 ### Setting up the controller
 
-Let's asume we have generated a `Posts` controller using the code generator. Our `Post` has a `title` and a `body`. The `CreatePostAction` looks like this:
+Let's assume we have generated a `Posts` controller using the code generator. Our `Post` has a `title` and a `body`. The `CreatePostAction` looks like this:
 
 ```haskell
     action CreatePostAction = do
@@ -19,14 +19,14 @@ Let's asume we have generated a `Posts` controller using the code generator. Our
         post
             |> buildPost
             |> ifValid \case
-                Left post -> render NewView { .. } 
+                Left post -> render NewView { .. }
                 Right post -> do
                     post <- post |> createRecord
                     setSuccessMessage "Post created"
                     redirectTo PostsAction
 ```
 
-This action is executed when a form like below is submitted:
+This action is executed when a form like the one below is submitted:
 
 ```haskell
 module Web.View.Posts.New where
@@ -62,7 +62,7 @@ To make sure that the `title` and `body` are not empty, we can `validateField ..
             |> validateField #title nonEmpty
             |> validateField #body nonEmpty
             |> ifValid \case
-                Left post -> render NewView { post } 
+                Left post -> render NewView { post }
                 Right post -> do
                     post <- post |> createRecord
                     setSuccessMessage "Post created"
@@ -101,7 +101,7 @@ When using `fill`, like `|> fill @'["title", "body"]`, any error parsing the inp
 
 E.g. when `fill` fills in an integer attribute, but the string `"hello"` is submitted, an error will be added to the record and the record is not valid anymore. The record attribute will then keep its old value (before applying `fill`) and later re-render in the error case of `ifValid`. This applies to all arguments read via `fill`. It's very helpful when dealing with strings expected in a certain format, like date times.
 
-As IHP is never putting raw strings into the records, without previously parsing them, it does not provide validators like rails's `:only_integer`.
+As IHP is never putting raw strings into the records, without previously parsing them, it does not provide validators like Rails's `:only_integer`.
 
 ### Rendering Errors
 
@@ -111,10 +111,9 @@ The default form helpers like `{textField #title}` automatically render the erro
 
 ![Validation Error Message Below Title Input](images/first-project/title_non_empty.png)
 
-
 ### Validating An Email Is Unique
 
-For example when dealing with users, you usually want to make sure that an email is only used once for a single user. You can use `|> validateIsUnique #email` to validate that an email is unique for a given record.
+For example, when dealing with users, you usually want to make sure that an email is only used once for a single user. You can use `|> validateIsUnique #email` to validate that an email is unique for a given record.
 
 This function queries the database and checks whether there exists a record with the same email value. The function ignores the current entity of course.
 
@@ -127,7 +126,7 @@ action CreateUserAction = do
         |> fill @'["email"]
         |> validateIsUnique #email
         >>= ifValid \case
-            Left user -> render NewView { .. } 
+            Left user -> render NewView { .. }
             Right user -> do
                 createRecord user
                 redirectTo UsersAction
@@ -135,7 +134,7 @@ action CreateUserAction = do
 
 ### Sharing Between Create and Update Action
 
-Usually you have a lot of the same validation logic when creating and updating a record. To avoid duplicating the validation rules, you can apply them inside the `buildPost` function. This function is used by the create as well as the update action to read in the form values.
+Usually, you have a lot of the same validation logic when creating and updating a record. To avoid duplicating the validation rules, you can apply them inside the `buildPost` function. This function is used by the create as well as the update action to read in the form values.
 
 Here is how this can look:
 
@@ -146,7 +145,7 @@ Here is how this can look:
             |> buildPost
             -- <------------ Here we removed the `validateField ...`
             |> ifValid \case
-                Left post -> render NewView { post } 
+                Left post -> render NewView { post }
                 Right post -> do
                     post <- post |> createRecord
                     setSuccessMessage "Post created"
@@ -162,7 +161,7 @@ In case a validation should only be used for e.g. updating a record or creating 
 
 ### Creating a custom validator
 
-You can just write your own constraint like this:
+You can just write your constraint like this:
 
 ```haskell
 nonEmpty :: Text -> ValidatorResult
@@ -219,16 +218,15 @@ In this example, when the `nonEmpty` adds an error to the user, the message `Ple
 
 IHP's validation is built with a few small operations.
 
-### validateField
+### `validateField`
 
 The primary operation is `validateField #field validationFunction record`.
 
-
-This function does the follwing thing:
+This function does the following thing:
 
 1. Read the `#field` from the record
 2. Apply the `validationFunction` to the field value
-3. When the validator returns an errors, store the errors inside the `meta` attribute of the record.
+3. When the validator returns errors, store the errors inside the `meta` attribute of the record.
 
 The `validateField` function expects the `record` to have a field `meta :: MetaBag`. This `meta` field is used to store validation errors.
 
@@ -238,7 +236,7 @@ Let's say we have an example data type `Post`:
 data Post = Post { title :: Text, meta :: MetaBag }
 ```
 
-A call to validateField will result in the following:
+A call to `validateField` will result in the following:
 
 ```haskell
 let post = Post { title = "" , meta = def } -- def stands for default :)
