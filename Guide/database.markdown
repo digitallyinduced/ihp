@@ -1,7 +1,6 @@
 # Database
 
 ```toc
-
 ```
 
 ## Introduction
@@ -20,7 +19,7 @@ Haskell data structures and types are generated automatically based on your data
 
 Once you have created your project, the first step is to define a database schema. The database schema is a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project, this file will be empty. The [`uuid-ossp`](https://www.postgresql.org/docs/current/uuid-ossp.html) extension is automatically enabled for the database by IHP. 
+In a new project, this file will be empty. The [`uuid-ossp`](https://www.postgresql.org/docs/current/uuid-ossp.html) extension is automatically enabled for the database by IHP.
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
@@ -32,7 +31,7 @@ CREATE TABLE users (
 );
 ```
 
-Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every file change of the `Schema.sql`. We use the well-known [`postgresql-simple`](https://hackage.haskell.org/package/postgresql-simple) Haskell library to connect to the database. 
+Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every file change of the `Schema.sql`. We use the well-known [`postgresql-simple`](https://hackage.haskell.org/package/postgresql-simple) Haskell library to connect to the database.
 
 ### Schema Designer
 
@@ -68,7 +67,7 @@ When the development server is started the first time, the `Schema.sql` and `Fix
 
 The `Fixtures.sql` includes a lot of `INSERT INTO` statements to pre-fill your database once the schema has been created.
 
-You can manually add `INSERT INTO` statements to this file. You can also *migrate* your fixtures by just making the required changes to this SQL file.
+You can manually add `INSERT INTO` statements to this file. You can also _migrate_ your fixtures by just making the required changes to this SQL file.
 
 You can dump your current database state into the `Fixtures.sql` by running `make dumpdb`. This way you can regularly commit the database state to git, so other developers have the same data inside their local development database as you have.
 
@@ -126,7 +125,7 @@ data User = User
 
 The `id` field type `Id User` is basically just a wrapper around `UUID` for type-safety reasons. All database field names are mapped from `under_score` to `camelCase` on the Haskell side.
 
-When a sql field can be `NULL`, the Haskell field type will be contained in `Maybe`.
+When a SQL field can be `NULL`, the Haskell field type will be contained in `Maybe`.
 
 In the Schema Designer, you can take a look at the generated Haskell code by right-clicking the table and clicking `Show Generated Haskell Code`.
 
@@ -206,7 +205,6 @@ action ShowTask { taskId } = do
 
 ### Fetching `n` records (LIMIT)
 
-
 Use `limit` to query only up to `n` records from a table:
 
 ```haskell
@@ -241,7 +239,6 @@ do
 ```
 
 This is most often used together with `limit` to implement paging.
-
 
 ### Counting records (COUNT queries)
 
@@ -351,7 +348,6 @@ INSERT INTO users (id, firstname, lastname)
     VALUES (DEFAULT, "", ""), (DEFAULT, "", "") , (DEFAULT, "", "") ... ;
 ```
 
-
 ## Update
 
 The function `updateRecord` runs an `UPDATE` query for a specific record:
@@ -385,10 +381,10 @@ do
 ```
 
 This will execute:
+
 ```sql
 DELETE FROM users WHERE id = "cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7"
 ```
-
 
 ### Deleting many records
 
@@ -401,6 +397,7 @@ do
 ```
 
 This will execute:
+
 ```sql
 DELETE FROM users WHERE id IN (...)
 ```
@@ -415,10 +412,10 @@ do
 ```
 
 This will execute:
+
 ```sql
 DELETE FROM users
 ```
-
 
 ## Enums
 
@@ -470,7 +467,7 @@ You can use `fill` even with custom enums:
         post
             |> fill @["body", "color"]
             |> ifValid \case
-                Left post -> render NewView { .. } 
+                Left post -> render NewView { .. }
                 Right post -> do
                     post <- post |> createRecord
                     setSuccessMessage "Post created"
@@ -481,20 +478,19 @@ In your views, use `inputValue` to get a textual representation for your enum wh
 
 ```html
 [hsx|
-    <input type="text" value={inputValue Blue}/>
+<input type="text" value="{inputValue" Blue} />
 |]
 ```
 
 ## Database Updates
 
-The *Update DB* operation is three steps:
+The _Update DB_ operation is three steps:
 
 1. Data is read from the database and stored in `Fixtures.sql`
 2. The database is deleted and the schema in `Schema.sql` created
 3. The data in `Fixtures.sql` is (re-)inserted.
 
-The small arrow on the Update DB button shows a menu where it is possible to just run *Save DB to Fixtures* (step 1) or *Push to DB* (steps 2 + 3).
-
+The small arrow on the Update DB button shows a menu where it is possible to just run _Save DB to Fixtures_ (step 1) or _Push to DB_ (steps 2 + 3).
 
 ## Making Changes to the Database
 
@@ -505,7 +501,6 @@ The main reason for the steps outlined below is that changes to the database sch
 When the schemas are out of sync, the INSERT statements in `Fixtures.sql` will fail. If this happens, and you attempt to update, the target table will be empty after the update. Try again, and the empty table is read from the database and the data in `Fixtures.sql` is gone.
 
 If you feel this is all a bit less streamlined compared to the rest of the development experience, you are correct. We will work on improving handling changes to the database.
-
 
 ### Adding a Column
 
@@ -519,7 +514,6 @@ It's best to do this in two steps. First, follow the above. After updating the D
 
 Data can be updated by manually editing the table in the data view or by running UPDATE statements in the custom query field below the data view.
 
-
 ### Renaming a Column
 
 When you are renaming a column, the development process of using `Update DB` will not work. This is because `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names. It will then fail on the next update.
@@ -527,14 +521,12 @@ When you are renaming a column, the development process of using `Update DB` wil
 1. Rename your column `col_a` to `col_b` in the Schema Designer
 2. Rename the column in the database by executing `ALTER TABLE tablename RENAME COLUMN col_a TO col_b` in the custom query field below the data view.
 
-
 ### Deleting a Column
 
 Similarly as for renaming, deleting a column currently won't work automatically either.
 
 1. Delete your column in the Schema Designer
 2. Delete the column from the database by executing `ALTER TABLE tablename DROP COLUMN colname`
-
 
 ### Alternate Method
 
@@ -544,7 +536,6 @@ There's always more than one way. This is another.
 2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
 3. Edit `Fixtures.sql` to your heart's content.
 4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
-
 
 ### Migrations In Production
 
