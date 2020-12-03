@@ -269,7 +269,7 @@ You might need to specify the expected result type, as type inference might not 
 
 ```haskell
 do
-    result :: Project <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+    result :: [Project] <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
 ### Scalar Results
