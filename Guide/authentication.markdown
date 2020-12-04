@@ -1,25 +1,26 @@
 # Authentication
 
 ```toc
+
 ```
 
 ## Quick-and-Dirty: HTTP Basic Auth
 
-While IHP provides an authentication toolkit out of the box, it also provides a shortcut for cases where you just want the simplest possible way to enforce a hard-coded username/password before accessing your new web application. This shortcut leverages HTTP Basic Authentication built in to all browsers:
+While IHP provides an authentication toolkit out of the box, it also provides a shortcut for cases where you just want the simplest possible way to enforce a hard-coded username/password before accessing your new web application. This shortcut leverages HTTP Basic Authentication built into all browsers:
 
 ```haskell
 instance Controller WidgetsController where
     beforeAction = basicAuth "sanja" "hunter2" "myapp"
 ```
 
-The parameters are: username, password and authentication realm. The realm can be thought of as an area of validity for the credentials. It is common to put the project name, but it can also be blank (meaning the entire domain).
-
+The parameters are: username, password, and authentication realm. The realm can be thought of as an area of validity for the credentials. It is common to put the project name, but it can also be blank (meaning the entire domain).
 
 ## Introduction - Real Authentication
 
-The usual convention in IHP is to call your user record `User`. When there is an admin user, we usually call the record `Admin`. In general the authentication can work with any kind of record. The only requirement is that it has an id field.
+The usual convention in IHP is to call your user record `User`. When there is an admin user, we usually call the record `Admin`. In general, the authentication can work with any kind of record. The only requirement is that it has an id field.
 
 To use the authentication module, your `users` table needs to have at least an `id`, `email`, `password_hash`, `locked_at` and `failed_login_attempts` field. Add this to `Schema.sql`:
+
 ```sql
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -38,12 +39,11 @@ If you are creating an admin sub-application, first use the code generator to cr
 
 ## Setup
 
-Currently the authentication toolkit has to be enabled manually. We plan to do this setup using a code generator in the future. 
-
+Currently, the authentication toolkit has to be enabled manually. We plan to do this setup using a code generator in the future.
 
 #### Controller Helpers
 
-First we need to enable the controller helpers. Open `Application/Helper/Controller.hs`. It will look like this:
+First, we need to enable the controller helpers. Open `Application/Helper/Controller.hs`. It will look like this:
 
 ```haskell
 module Application.Helper.Controller (
@@ -72,11 +72,9 @@ import Generated.Types
 type instance CurrentUserRecord = User
 ```
 
-
-
 #### View Helpers
 
-Additionally we also need to enable the view helpers. Open `Application/Helper/View.hs`. It will look like this:
+Additionally, we also need to enable the view helpers. Open `Application/Helper/View.hs`. It will look like this:
 
 ```haskell
 module Application.Helper.View (
@@ -122,7 +120,7 @@ instance FrontController WebApplication where
         ]
 ```
 
-At the end of the file there is a line like:
+At the end of the file, there is a line like:
 
 ```haskell
 instance InitControllerContext WebApplication
@@ -140,9 +138,9 @@ This will fetch the user from the database when a `userId` is given in the sessi
 
 #### Adding a Session Controller
 
-In the last step we need to add a new controller which will deal with the login and logout. We call this the `SessionsController`.
+In the last step, we need to add a new controller that will deal with the login and logout. We call this the `SessionsController`.
 
-First we have to update `Web/Types.hs`. The auth module directs users to the login page automatically if required by a view, to set this up we add the following to `Web/Types.hs`:
+First, we have to update `Web/Types.hs`. The auth module directs users to the login page automatically if required by a view, to set this up we add the following to `Web/Types.hs`:
 
 ```haskell
 import IHP.LoginSupport.Types
@@ -151,7 +149,7 @@ instance HasNewSessionUrl User where
     newSessionUrl _ = "/NewSession"
 ```
 
-You also need to add the type definitions for the SessionsController:
+You also need to add the type definitions for the `SessionsController`:
 
 ```haskell
 data SessionsController
@@ -184,7 +182,7 @@ instance Controller SessionsController where
 instance Sessions.SessionsControllerConfig User where
 ```
 
-Additionally we need to implement a login view at `Web/View/Sessions/New.hs` like this:
+Additionally, we need to implement a login view at `Web/View/Sessions/New.hs` like this:
 
 ```haskell
 module Web.View.Sessions.New where
@@ -225,7 +223,7 @@ renderForm user = [hsx|
 After you have completed the above steps, you can open the login at `/NewSession`. You can generate a link to your login page like this:
 
 ```html
-<a href={NewSessionAction}>Login</a>
+<a href="{NewSessionAction}">Login</a>
 ```
 
 ## Accessing the current user
@@ -257,7 +255,7 @@ You can also access the user using `currentUser` inside your views:
 
 ```html
 [hsx|
-    <h1>Hello {get #email currentUser}</h1>
+<h1>Hello {get #email currentUser}</h1>
 |]
 ```
 
@@ -265,7 +263,7 @@ You can also access the user using `currentUser` inside your views:
 
 You can simply render a link inside your layout or view to send the user to the logout:
 
-```html
+```haskell
 <a class="js-delete js-delete-no-confirm" href={DeleteSessionAction}>Logout</a>
 ```
 
@@ -281,7 +279,7 @@ To create a user with a hashed password, you just need to call the hashing funct
             |> validateField #email isEmail
             |> validateField #passwordHash nonEmpty
             |> ifValid \case
-                Left user -> render NewView { .. } 
+                Left user -> render NewView { .. }
                 Right user -> do
                     hashed <- hashPassword (get #passwordHash user)
                     user <- user

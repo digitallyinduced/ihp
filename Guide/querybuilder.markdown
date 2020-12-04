@@ -1,6 +1,7 @@
 # QueryBuilder
 
 ```toc
+
 ```
 
 ## Introduction
@@ -8,6 +9,7 @@
 The QueryBuilder module allows you to compose database queries in a type-safe way. Below you can find a short reference to all the commonly-used functions.
 
 ## Creating a new query
+
 To query the database for some records, you first need to build a query.
 You can just use the `query` function for that.
 
@@ -26,7 +28,9 @@ let myProjectQueryBuilder = query @Project
 You can run a query using `fetch`, `fetchOneOrNothing` or `fetchOne`:
 
 ### many rows: `fetch`
+
 To run a query which will return many rows use `fetch`:
+
 ```haskell
 example :: IO [Project]
 example = do
@@ -36,7 +40,9 @@ example = do
 ```
 
 ### maybe single row: `fetchOneOrNothing`
+
 To run a query which will maybe return a single row use `fetchOneOrNothing`:
+
 ```haskell
 example :: IO (Maybe Project)
 example = do
@@ -46,7 +52,9 @@ example = do
 ```
 
 ### single row: `fetchOne`
+
 To run a query which will return a single row and **throw an error if no record is found** use `fetchOne`:
+
 ```haskell
 example :: IO Project
 example = do
@@ -84,10 +92,10 @@ retiredEmployees = do
 
 Several other filter-functions for generating `WHERE` clauses exist, such as `filterWhereIn` and `filterWhereNotIn` which take lists of items. Read more about these in the [API docs on QueryBuilder](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html)
 
-
 ## Order By
 
 You can just use `orderBy #field`:
+
 ```haskell
 projects <- query @Project
         |> orderBy #createdAt
@@ -95,7 +103,8 @@ projects <- query @Project
 -- Query: `SELECT * FROM projects ORDER BY created_at`
 ```
 
-Nested orderBys work as expected:
+Nested `orderBy`s work as expected:
+
 ```haskell
 projects <- query @Employee
         |> orderBy #lastname
@@ -107,6 +116,7 @@ projects <- query @Employee
 ## Limit
 
 To limit the number of rows returned:
+
 ```haskell
 projects <- query @Project
         |> limit 10
@@ -116,15 +126,16 @@ projects <- query @Project
 
 ## Offset
 
-To skip a number of rows:
+To skip multiple rows:
+
 ```haskell
 projects <- query @Project
         |> offset 10
         |> fetch
 -- Query: `SELECT * FROM projects OFFSET 10`
 ```
-Offset is most often used together with limit to implement paging.
 
+Offset is most often used together with a limit to implement pagination.
 
 ## Or
 
@@ -152,7 +163,9 @@ let projects :: QueryBuilder Project = queryUnion teamProjects personalProjects
 ```
 
 ## Shortcuts
+
 ### `findBy #field value`
+
 Just a shortcut for `filterWhere (#field, value) |> fetchOne`
 
 ```haskell
@@ -163,6 +176,7 @@ project <- query @Project |> findBy #userId userId
 ```
 
 ### `findMaybeBy #field value`
+
 Just a shortcut for `filterWhere (#field, value) |> fetchOneOrNothing`
 
 ```haskell
@@ -173,6 +187,7 @@ project <- query @Project |> findMaybeBy #userId userId
 ```
 
 ### `findManyBy #field value`
+
 Just a shortcut for `filterWhere (#field, value) |> fetch`
 
 ```haskell
@@ -183,6 +198,7 @@ projects <- query @Project |> findManyBy #userId userId
 ```
 
 ## `projectId |> fetch`
+
 Ids also have `fetch` implementations, that way you can just run:
 
 ```haskell
@@ -196,4 +212,3 @@ For convenience there is also a `fetch` implementation for `Maybe SomeId`:
 let assignedUserId :: Maybe UserId = project |> get #assignedUserId
 assignedUser <- assignedUserId |> fetchOneOrNothing
 ```
-

@@ -1,6 +1,7 @@
 # Deployment
 
 ```toc
+
 ```
 
 ## Deploying with IHP Cloud
@@ -15,10 +16,10 @@ IHP Cloud is currently still in beta. To register a new account you need an invi
 
 Once you're logged in to IHP Cloud, follow the instructions to create a project for your application.
 
-**Private Git Repos:**
-When you connect a private git repository make sure to provide a SSH git clone url. IHP Cloud will provide you with a SSH public key. You need to add this deploy key to your repository.
+**Private Git Repositories:**
+When you connect a private git repository make sure to provide an SSH git clone URL. IHP Cloud will provide you with an SSH public key. You need to add this deploy key to your repository.
 
-On GitHub you can do this by opening the repository settings and clicking on `Deploy keys`.
+On GitHub, you can do this by opening the repository settings and clicking on `Deploy keys`.
 
 ### First Deployment
 
@@ -28,9 +29,9 @@ When your CSS or JS looks broken, take a look at the next section `CSS & JS Bund
 
 ### CSS & JS Bundling
 
-In production all your CSS and JS is bundled into a single file.
+In production, all your CSS and JS will be bundled into a single file.
 
-By default the `Web.View.Layout` is configured to serve these `prod.css` and `prod.js` files.
+By default, the `Web.View.Layout` is configured to serve these `prod.css` and `prod.js` files.
 
 Take a short look at `Web/View/Layout.hs`. You can see that depending on whether the app is running in `development` or `production` mode it includes your CSS files or the `prod.css` / `prod.js` file.
 
@@ -68,7 +69,7 @@ make static/prod.js
 make static/prod.css
 ```
 
-The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently there is no minification or transpiling applied.
+The bundling process is only concatenating the files (along the lines of `cat a.css b.css c.css > static/prod.css`). Currently, there is no minification or transpiling applied.
 
 #### Configuring the CSS & JS Bundling
 
@@ -90,7 +91,7 @@ JS_FILES += ${IHP}/static/vendor/turbolinksInstantClick.js
 JS_FILES += ${IHP}/static/vendor/turbolinksMorphdom.js
 ```
 
-You need to add your app specific CSS and JS files here as well. E.g. if you have a `app.css`, a `layout.css` and a `app.js` add them by appending this:
+You need to add your app-specific CSS and JS files here as well. E.g. if you have an `app.css`, `layout.css` and `app.js` add them by appending this:
 
 ```bash
 CSS_FILES += static/app.css
@@ -104,32 +105,30 @@ You can also remove the JS and CSS files that are provided by IHP (like `${IHP}/
 
 ### DB Migrations
 
-Currently IHP has no standard way of doing migrations. Therefore currently you need to manually migrate your IHP Cloud database after deploying.
+Currently, IHP has no standard way of doing migrations. Therefore currently you need to manually migrate your IHP Cloud database after deploying.
 
-Open the project in IHP Cloud, click  `Settings`, then click `Database`. There you can find the database credentials for the postgres DB that is running for your application. Connect to your database and manually apply the migrations.
+Open the project in IHP Cloud, click `Settings`, then click `Database`. There you can find the database credentials for the Postgres DB that is running for your application. Connect to your database and manually apply the migrations.
 
 ### Changing the domain
 
-Open the project in IHP Cloud, click `Settings` and click `Domain`. You can set a `***.ihpapp.com` domain in here. 
+Open the project in IHP Cloud, click `Settings` and click `Domain`. You can set a `***.ihpapp.com` domain in here.
 
-#### Using your own domain instead of .ihpapp.com
+#### Using your domain instead of .ihpapp.com
 
-Using your own domain with IHP Cloud is only available for IHP Cloud Pro users. 
-To use your own domain point a CNAME record to `ihpapp.com`.
+Using your domain with IHP Cloud is only available for IHP Cloud Pro users.
+To use your domain point a CNAME record to `ihpapp.com`.
 
 After that go to `Settings`, click `Domain` and enter your domain name.
-When you change your domain to a custom domain we are automatically getting a SSL certificate from
+When you change your domain to a custom domain we are automatically getting an SSL certificate from
 LetsEncrypt for you so please make sure to set the CNAME record a few minutes before changing the domain inside your project.
-
 
 ## Deploying manually
 
 You can build and deploy your IHP app yourself.
 
-Make sure that the infrastructure you pick to buid your IHP app has enough memory. Otherwise the build might fail because GHC is very memory hungry. You can also set up a swap file to work around this.
+Make sure that the infrastructure you pick to build your IHP app has enough memory. Otherwise, the build might fail because GHC is very memory hungry. You can also set up a swap file to work around this.
 
-
-### Install nix on your server
+### Install Nix on your server
 
 Nix is needed to build your application. Install it the usual way:
 
@@ -156,22 +155,21 @@ Make required modifications to your `Config/Config.hs`:
 1. Switch `environment = Development` to `environment = Production`
 2. Set `appHostname = "YOUR_HOSTNAME"`
 3. Configure any custom settings
-(This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
+   (This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
 
 `appHostname` is used to build your `baseUrl` when this is not set manually.
 `baseUrl` equals `http://{appHostname}:{port}` or `http://{appHostname}` if port is 80.
 You can overwrite `baseUrl` by setting it in `Config/Config.hs`
 
-If you deploy behind an nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the baseUrl must still have `https` as it is used to form absolute URLs.
+If you deploy behind an Nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the baseUrl must still have `https` as it is used to form absolute URLs.
 
-When you deploy with IHP Cloud your Config.hs is set automatically on project creation.
+When you deploy with IHP Cloud your `Config.hs` is set automatically on project creation.
 IHP Cloud sets your `baseUrl` to `https://{appHostname}` because every deployed app is served with SSL enabled.
 
-To configure your database connection: Set the env var `DATABASE_URL` to your postgres connection url. 
+To configure your database connection: Set the env var `DATABASE_URL` to your Postgres connection URL.
 Set the env var `PORT` to the port the app will listen on.
 
 The database needs the UUID-extension which is enabled by running `create extension if not exists "uuid-ossp";`
-
 
 ### Building
 
@@ -179,16 +177,15 @@ Inside your project directory start a `nix-shell` for the following steps.
 
 We can use `make` to build the application binary. The default IHP Makefile provides two target: `build/bin/RunUnoptimizedProdServer` and `build/bin/RunOptimizedProdServer`.
 
-The first target runs with `-O0`. It's useful when you're setting up the deployment workflow for the first time. Otherwise you will always need to spend lots of time waiting for GHC to optimize your haskell code.
+The first target runs with `-O0`. It's useful when you're setting up the deployment workflow for the first time. Otherwise, you will always need to spend lots of time waiting for GHC to optimize your Haskell code.
 
-Both make targets will generate a binary at `build/bin/RunUnoptimizedProdServer` or `build/bin/RunOptimizedProdServer` and will create a symlink at `build/bin/RunProdServer` targeting to the binary. 
+Both make targets will generate a binary at `build/bin/RunUnoptimizedProdServer` or `build/bin/RunOptimizedProdServer` and will create a symlink at `build/bin/RunProdServer` targeting to the binary.
 
 Run `make static/prod.css static/prod.js` to build the asset bundles.
 
 ### Starting the app
 
 Now you should be able to start your app by running `build/bin/RunProdServer`.
-
 
 ### More Resources
 
