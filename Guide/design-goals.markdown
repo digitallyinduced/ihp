@@ -14,7 +14,7 @@ Here are some examples of improved error messages.
 AutoRoute: Failed parsing UUID
 ```
 
-[**Improved:**](https://github.com/digitallyinduced/ihp/pull/334)
+**[Improved:](https://github.com/digitallyinduced/ihp/pull/334)**
 
 ```
 AutoRoute: Failed parsing argument as UUID. You most likely are trying to use AutoRoute with a non-UUID attribute. See https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types for details on how to configure this.
