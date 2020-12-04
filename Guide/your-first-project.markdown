@@ -655,7 +655,7 @@ It's time to add comments to our blog. For that open the Schema Designer and add
 
 ![Schema Designer Comments](images/first-project/post_table.png)
 
-When adding the post_id column, it will automatically set the type to UUID. Unless you unselect the checkbox `References posts` it will also automatically create a foreign key constraint for this column:
+When adding the `post_id` column, it will automatically set the type to UUID. Unless you unselect the checkbox `References posts` it will also automatically create a foreign key constraint for this column:
 
 By default the foreign key constraint has set its `ON DELETE` behavior to `NO ACTION`. To change the `ON DELETE`, click on the `FOREIGN KEY: posts` next to the `post_id` field.
 
