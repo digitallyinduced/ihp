@@ -995,4 +995,4 @@ You should have a rough understanding of IHP now. The best way to continue is to
 
 Questions, or need help with Haskell type errors? Join our Slack:
 
-[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-im0do3yv-iryDNyvpwW~py40kvl_cpQ)
+[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-js1xo46t-4MdSvMQVoLYvxRz8rvGYig)
