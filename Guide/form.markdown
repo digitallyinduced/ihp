@@ -447,6 +447,27 @@ If you want a certain value to be preselected, set the value in the controller. 
         render NewView { .. }
 ```
 
+### Select Inputs with Nullable Value
+
+Sometimes we want to allow the user to specifically make a choice of missing/none. To have our user-dropdown from the previous example allow this we need to adjust the `CanSelect` instance.
+
+```haskell
+instance CanSelect (Maybe User) where
+    type SelectValue (Maybe User) = Maybe (Id User)
+    selectValue (Just user) = Just (get #id user)
+    selectValue Nothing = Nothing
+    selectLabel (Just user) = get #name user
+    selectLabel Nothing = "(none selected)"
+```
+
+Our select-helper also needs the list of options amended with the choice of `Nothing`. We add it as the first item in the list:
+
+```haskell
+formFor project [hsx|
+    {selectField #userId (Nothing:(map Just users))}
+|]
+```
+
 ### Select Inputs with Custom Enums
 
 You can use select fields with custom-defined enums too.
