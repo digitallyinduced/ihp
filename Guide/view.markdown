@@ -161,7 +161,7 @@ Even when disabled, your application will still be amazingly fast.
 You can disable this behavior by removing the following code from your `Web/Layout.hs`:
 
 ```haskell
-    when (isProduction $ fromConfig environment) [hsx|
+    when isProduction [hsx|
             <script src="/vendor/turbolinks.js"></script>
             <script src="/vendor/morphdom-umd.min.js"></script>
             <script src="/vendor/turbolinksMorphdom.js"></script>

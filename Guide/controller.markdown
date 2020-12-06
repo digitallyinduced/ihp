@@ -159,15 +159,16 @@ This will render `Hello World, Unnamed!` when the `ExampleAction` is called with
 
 ### Accessing the FrameworkConfig inside Controllers and Views.
 
-The instance of the `FrameworkConfig` that is defined in `Config/Config.hs` will be part of the `RequestContext` and is thus available in controllers. To make it more convenient a helper function called `fromConfig` is available. This function takes a record from the FrameworkConfig and evaluates it.
+The config defined in `Config/Config.hs` is available through the implicit parameter `context`, a `ConfigProvider` that is available in controllers.
 
-For example:
+There are helpers that use this implicit parameter, e.g. `isDevelopment/isProduction`:
 
 ```haskell
 action MyAction = do
-    let env = fromConfig environment
-    when (isDevelopment env) (putStrLn "Running in dev mode")
+    when isDevelopment (putStrLn "Running in dev mode")
 ```
+
+or you can use the function `getFrameworkConfig` if you need to access the config yourself.
 
 ### Advanced: Working with Custom Types
 

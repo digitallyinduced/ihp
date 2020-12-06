@@ -69,7 +69,7 @@ Additionally you need to include the `/ihp-auto-refresh.js` in your `Web/View/La
 
 ```haskell
 scripts = do
-    when (isDevelopment FrameworkConfig.environment) [hsx|
+    when isDevelopment [hsx|
         ...
         <script src="/ihp-auto-refresh.js"></script> <------ ADD THIS
     |]
