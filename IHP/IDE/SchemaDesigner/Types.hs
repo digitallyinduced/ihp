@@ -26,7 +26,7 @@ instance Ord Statement where
         compare name1 name2 <> compare ifNotExists1 ifNotExists2
     compare CreateExtension{..} _ = GT
     compare _ CreateExtension{..} = GT
-    compare (CreateEnumType name1 values2) (CreateEnumType name2 values2) =
+    compare (CreateEnumType name1 values1) (CreateEnumType name2 values2) =
         compare name1 name2 <> compare (sort values1) (sort values2)
     compare CreateEnumType{..} _ = GT
     compare _ CreateEnumType{..} = GT
