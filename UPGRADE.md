@@ -58,6 +58,20 @@ config = do
     option (AppHostname "localhost")
 ```
 
+Do you have a ´baseUrl´ key in your config?
+
+Old:
+
+```haskell
+    baseUrl = "https://..."
+```
+
+New:
+
+```haskell
+    option (BaseUrl "https://...")
+```
+
 ### MailServer
 
 Do you have a `mailServer` key in your config?
