@@ -53,7 +53,7 @@ newControllerContext :: (?requestContext :: RequestContext) => IO ControllerCont
 newControllerContext = do
     customFieldsRef <- newIORef TypeMap.empty
     pure ControllerContext { requestContext = ?requestContext, customFieldsRef }
-{-# INLINE newControllerContext #-}
+{-# INLINABLE newControllerContext #-}
 
 -- | After freezing a container you can access it's values from pure non-IO code by using 'fromFronzenContext'
 --
@@ -61,6 +61,7 @@ newControllerContext = do
 freeze :: ControllerContext -> IO ControllerContext
 freeze ControllerContext { requestContext, customFieldsRef } = FrozenControllerContext requestContext <$> readIORef customFieldsRef
 freeze frozen = pure frozen
+{-# INLINABLE freeze #-}
 
 -- | Returns a value from the current controller context
 --
@@ -78,7 +79,7 @@ fromContext = maybeFromContext @value >>= \case
             let notFoundMessage = ("Unable to find " <> (show (Typeable.typeRep (Typeable.Proxy @value))) <> " in controller context: " <> show customFields)
             
             error notFoundMessage
-{-# INLINE fromContext #-}
+{-# INLINABLE fromContext #-}
 
 -- | Returns a value from the current controller context. Requires the context to be frozen.
 --
@@ -93,20 +94,20 @@ fromFrozenContext = case maybeFromFrozenContext @value of
             let notFoundMessage = ("Unable to find " <> (show (Typeable.typeRep (Typeable.Proxy @value))) <> " in controller context: " <> show customFields)
             
             error notFoundMessage
-{-# INLINE fromFrozenContext #-}
+{-# INLINABLE fromFrozenContext #-}
 
 maybeFromContext :: forall value. (?context :: ControllerContext, Typeable value) => IO (Maybe value)
 maybeFromContext = do
     frozen <- freeze ?context
     let ?context = frozen
     pure (maybeFromFrozenContext @value)
-{-# INLINE maybeFromContext #-}
+{-# INLINABLE maybeFromContext #-}
 
 maybeFromFrozenContext :: forall value. (?context :: ControllerContext, Typeable value) => Maybe value
 maybeFromFrozenContext = case ?context of
         FrozenControllerContext { customFields } -> TypeMap.lookup @value customFields
         ControllerContext {} -> error ("maybeFromFrozenContext called on a non frozen context while trying to access " <> (show (Typeable.typeRep (Typeable.Proxy @value))))
-{-# INLINE maybeFromFrozenContext #-}
+{-# INLINABLE maybeFromFrozenContext #-}
 
 -- | Puts a value into the context
 --
@@ -116,8 +117,10 @@ putContext value = do
     let ControllerContext { customFieldsRef } = ?context
     modifyIORef customFieldsRef (TypeMap.insert value)
     pure ()
+{-# INLINABLE putContext #-}
 
 newtype ActionType = ActionType Typeable.TypeRep
 
 instance ConfigProvider ControllerContext where
     getFrameworkConfig context = getFrameworkConfig (get #requestContext context)
+    {-# INLINABLE getFrameworkConfig #-}

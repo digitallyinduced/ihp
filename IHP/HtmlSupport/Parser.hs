@@ -22,9 +22,9 @@ import Prelude (show)
 
 data AttributeValue = TextValue !Text | ExpressionValue !Text deriving (Eq, Show)
 
-data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes Text deriving (Eq, Show)
+data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes !Text deriving (Eq, Show)
 
-data Node = Node !Text ![Attribute] ![Node]
+data Node = Node !Text ![Attribute] ![Node] !Bool
     | TextNode !Text
     | PreEscapedTextNode !Text -- ^ Used in @script@ or @style@ bodies
     | SplicedNode !Text -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
@@ -69,12 +69,13 @@ manyHsxElement = do
 hsxSelfClosingElement = do
     _ <- char '<'
     name <- hsxElementName
+    let isLeaf = name `List.elem` leafs
     attributes <-
-      if name `List.elem` leafs
+      if isLeaf
         then hsxNodeAttributes (string ">" <|> string "/>")
         else hsxNodeAttributes (string "/>")
     space
-    pure (Node name attributes [])
+    pure (Node name attributes [] isLeaf)
 
 hsxNormalElement = do
     (name, attributes) <- hsxOpeningElement
@@ -98,7 +99,7 @@ hsxNormalElement = do
             "script" -> parsePreEscapedTextChildren Text.strip
             "style" -> parsePreEscapedTextChildren (collapseSpace . Text.strip)
             otherwise -> parseNormalHSXChildren
-    pure (Node name attributes children)
+    pure (Node name attributes children False)
 
 hsxOpeningElement = do
     char '<'

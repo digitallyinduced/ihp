@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes #-}
+{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
 {-|
 Module: IHP.QueryBuilder
 Description:  Tool to build simple sql queries
@@ -53,6 +53,8 @@ import GHC.OverloadedLabels
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as ByteStringBuilder
 import IHP.HtmlSupport.ToHtml
+import qualified Data.ByteString.Char8 as ByteString
+import qualified Control.DeepSeq as DeepSeq
 
 -- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.
 -- Used togehter with the other functions to compose a sql query.
@@ -106,7 +108,7 @@ data QueryBuilder (table :: Symbol) where
     OffsetQueryBuilder :: Int -> !(QueryBuilder table) -> QueryBuilder table
     UnionQueryBuilder :: !(QueryBuilder table) -> !(QueryBuilder table) -> QueryBuilder table
 
-data Condition = VarCondition !Text !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show)
+data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show)
 
 deriving instance Show (QueryBuilder a)
 
@@ -119,11 +121,11 @@ instance Eq (IHP.QueryBuilder.QueryBuilder table) where a == b = True
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
-        selectFrom :: !Text,
+        selectFrom :: !ByteString,
         whereCondition :: !(Maybe Condition),
-        orderByClause :: !([(Text, OrderByDirection)]),
-        limitClause :: !(Maybe Text),
-        offsetClause :: !(Maybe Text)
+        orderByClause :: !([(ByteString, OrderByDirection)]),
+        limitClause :: !(Maybe ByteString),
+        offsetClause :: !(Maybe ByteString)
     }
 
 {-# INLINE buildQuery #-}
@@ -131,19 +133,19 @@ buildQuery :: forall table. (KnownSymbol table) => QueryBuilder table -> SQLQuer
 buildQuery !queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
-            let tableName = symbolToText @table
+            let tableName = symbolToByteString @table
             in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = buildQuery queryBuilder
-                condition = VarCondition ((fieldNameToColumnName . cs $ symbolVal fieldProxy) <> " " <> compileOperator fieldProxy operator <> " ?") value
+                condition = VarCondition ((cs $ fieldNameToColumnName . cs $ symbolVal fieldProxy) <> " " <> compileOperator fieldProxy operator <> " ?") value
             in
                 query { whereCondition = Just $ case whereCondition query of Just c -> AndCondition c condition; Nothing -> condition }
         OrderByQueryBuilder (fieldProxy, orderByDirection) queryBuilder ->
             let query = buildQuery queryBuilder
-            in query { orderByClause = (orderByClause query) ++ [(fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection)] } -- although adding to the end of a list is bad form, these lists are very short
-        LimitQueryBuilder limit queryBuilder -> (buildQuery queryBuilder) { limitClause = Just ("LIMIT " <> tshow limit) }
-        OffsetQueryBuilder offset queryBuilder -> (buildQuery queryBuilder) { offsetClause = Just ("OFFSET " <> tshow offset) }
+            in query { orderByClause = (orderByClause query) ++ [(cs $ fieldNameToColumnName . cs $ symbolVal fieldProxy, orderByDirection)] } -- although adding to the end of a list is bad form, these lists are very short
+        LimitQueryBuilder limit queryBuilder -> (buildQuery queryBuilder) { limitClause = Just ("LIMIT " <> cs (show limit)) }
+        OffsetQueryBuilder offset queryBuilder -> (buildQuery queryBuilder) { offsetClause = Just ("OFFSET " <> cs (show offset)) }
         UnionQueryBuilder firstQueryBuilder secondQueryBuilder ->
             let
                 firstQuery = buildQuery firstQueryBuilder
@@ -175,7 +177,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
     fetch !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder)
         logQuery theQuery theParameters
-        trackTableRead (tableName @model)
+        trackTableRead (tableNameByteString @model)
         sqlQuery (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
@@ -183,7 +185,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
     fetchOneOrNothing !queryBuilder = do
         let !(theQuery, theParameters) = toSQL' (buildQuery queryBuilder) { limitClause = Just "LIMIT 1"}
         logQuery theQuery theParameters
-        trackTableRead (tableName @model)
+        trackTableRead (tableNameByteString @model)
         results <- sqlQuery (Query $ cs theQuery) theParameters
         pure $ listToMaybe results
 
@@ -213,7 +215,7 @@ fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
     logQuery theQuery theParameters
-    trackTableRead (symbolToText @table)
+    trackTableRead (symbolToByteString @table)
     [PG.Only count] <- sqlQuery (Query $! cs theQuery) theParameters
     pure count
 {-# INLINE fetchCount #-}
@@ -233,7 +235,7 @@ fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
     logQuery theQuery theParameters
-    trackTableRead (symbolToText @table)
+    trackTableRead (symbolToByteString @table)
     [PG.Only exists] <- sqlQuery (Query $! cs theQuery) theParameters
     pure exists
 {-# INLINE fetchExists #-}
@@ -262,10 +264,12 @@ genericfetchIdsOneOrNothing !ids = query @model |> filterWhereIn (#id, ids) |> f
 genericFetchIdsOne :: forall model value table. (KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value, model ~ GetModelByTableName table, GetTableName model ~ table) => [value] -> IO model
 genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
-toSQL :: forall table. (KnownSymbol table) => QueryBuilder table -> (Text, [Action])
+toSQL :: forall table. (KnownSymbol table) => QueryBuilder table -> (ByteString, [Action])
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
+{-# INLINE toSQL #-}
+
 toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause } =
-        (theQuery, theParams)
+        (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
             "SELECT " <> selectors <> " FROM "
@@ -275,9 +279,9 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause 
             <> limitClause'
             <> offsetClause'
 
-        selectors :: Text
+        selectors :: ByteString
         selectors = selectFrom <> ".*"
-        fromClause :: Text
+        fromClause :: ByteString
         fromClause = selectFrom
         !theParams =
             case whereCondition sqlQuery of
@@ -291,12 +295,13 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause 
         orderByClause' =
             case orderByClause of
                 [] -> mempty
-                xs -> " ORDER BY " <> intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
+                xs -> " ORDER BY " <> ByteString.intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
         limitClause' = fromMaybe "" limitClause
         offsetClause' = fromMaybe "" offsetClause
+{-# INLINE toSQL' #-}
 
 {-# INLINE compileConditionQuery #-}
-compileConditionQuery :: Condition -> Text
+compileConditionQuery :: Condition -> ByteString
 compileConditionQuery (VarCondition var _) =  var
 compileConditionQuery (OrCondition a b) =  "(" <> compileConditionQuery a <> ") OR (" <> compileConditionQuery b <> ")"
 compileConditionQuery (AndCondition a b) =  "(" <> compileConditionQuery a <> ") AND (" <> compileConditionQuery b <> ")"

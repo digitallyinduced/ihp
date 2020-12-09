@@ -53,11 +53,13 @@ type Action' = IO ResponseReceived
 class (Show controller, Eq controller) => Controller controller where
     beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => IO ()
     beforeAction = pure ()
+    {-# INLINABLE beforeAction #-}
     action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?context :: ControllerContext) => IO ()
     initContext = pure ()
+    {-# INLINABLE initContext #-}
 
 {-# INLINE runAction #-}
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
@@ -105,12 +107,12 @@ getRequestBody = Network.Wai.getRequestBodyChunk request
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
 getRequestPath :: (?context :: ControllerContext) => ByteString
 getRequestPath = Network.Wai.rawPathInfo request
-{-# INLINE getRequestPath #-}
+{-# INLINABLE getRequestPath #-}
 
 -- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
 getRequestPathAndQuery :: (?context :: ControllerContext) => ByteString
 getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQueryString request
-{-# INLINE getRequestPathAndQuery #-}
+{-# INLINABLE getRequestPathAndQuery #-}
 
 -- | Returns a header value for a given header name. Returns Nothing if not found
 --
@@ -124,7 +126,7 @@ getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQuery
 --
 getHeader :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
-{-# INLINE getHeader #-}
+{-# INLINABLE getHeader #-}
 
 -- | Returns the current HTTP request.
 --
@@ -171,7 +173,7 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
 
 -- Can be thrown from inside the action to abort the current action execution.
 -- Does not indicates a runtime error. It's just used for control flow management.
-data ResponseException = ResponseException Response
+newtype ResponseException = ResponseException Response
 
 instance Show ResponseException where show _ = "ResponseException { .. }"
 

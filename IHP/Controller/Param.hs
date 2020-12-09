@@ -90,7 +90,7 @@ param :: (?context :: ControllerContext) => (ParamReader valueType) => ByteStrin
 param !name = case paramOrError name of
         Left exception -> Exception.throw exception
         Right value -> value
-{-# INLINE param #-}
+{-# INLINABLE param #-}
 
 -- | Similiar to 'param' but works with multiple params. Useful when working with checkboxes.
 --
@@ -119,7 +119,7 @@ paramList name =
     |> map (readParameter @valueType)
     |> map (Either.fromRight (error (paramParserErrorMessage name)))
     |> DeepSeq.force
-{-# INLINE paramList #-}
+{-# INLINABLE paramList #-}
 
 paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 
@@ -173,7 +173,7 @@ paramUUID = param @UUID
 -- This will render @Please provide your firstname@ because @hasParam "firstname"@ returns @False@
 hasParam :: (?context :: ControllerContext) => ByteString -> Bool
 hasParam = isJust . queryOrBodyParam
-{-# INLINE hasParam #-}
+{-# INLINABLE hasParam #-}
 
 -- | Like 'param', but returns a default value when the parameter is missing instead of throwing
 -- an exception.
@@ -190,7 +190,7 @@ hasParam = isJust . queryOrBodyParam
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
 paramOrDefault :: (?context :: ControllerContext) => ParamReader a => a -> ByteString -> a
 paramOrDefault !defaultValue = fromMaybe defaultValue . paramOrNothing
-{-# INLINE paramOrDefault #-}
+{-# INLINABLE paramOrDefault #-}
 
 -- | Like 'param', but returns @Nothing@ the parameter is missing instead of throwing
 -- an exception.
@@ -211,7 +211,7 @@ paramOrNothing !name =
         Left ParamNotFoundException {} -> Nothing
         Left otherException -> Exception.throw otherException
         Right value -> value
-{-# INLINE paramOrNothing #-}
+{-# INLINABLE paramOrNothing #-}
 
 -- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid
 paramOrError :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Either ParamException paramType
@@ -230,12 +230,12 @@ paramOrError !name =
                         Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
                         Right value -> Right value
                 _ -> Left ParamNotFoundException { name }
-{-# INLINE paramOrError #-}
+{-# INLINABLE paramOrError #-}
 
 -- | Returns a parameter without any parsing. Returns @Nothing@ when the parameter is missing.
 queryOrBodyParam :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
 queryOrBodyParam !name = join (lookup name allParams)
-{-# INLINE queryOrBodyParam #-}
+{-# INLINABLE queryOrBodyParam #-}
 
 -- | Returns all params available in the current request
 allParams :: (?context :: ControllerContext) => [(ByteString, Maybe ByteString)]
@@ -254,14 +254,14 @@ class ParamReader a where
     readParameterJSON :: Aeson.Value -> Either ByteString a
 
 instance ParamReader ByteString where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString = pure byteString
 
     readParameterJSON (Aeson.String bytestring) = Right (cs bytestring)
     readParameterJSON _ = Left "ParamReader ByteString: Expected String"
 
 instance ParamReader Int where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
@@ -274,7 +274,7 @@ instance ParamReader Int where
     readParameterJSON _ = Left "ParamReader Int: Expected Int"
 
 instance ParamReader Integer where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
@@ -287,7 +287,7 @@ instance ParamReader Integer where
     readParameterJSON _ = Left "ParamReader Integer: Expected Integer"
 
 instance ParamReader Double where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
@@ -300,7 +300,7 @@ instance ParamReader Double where
     readParameterJSON _ = Left "ParamReader Double: Expected Double"
 
 instance ParamReader Float where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right (Float.double2Float value)
@@ -313,7 +313,7 @@ instance ParamReader Float where
     readParameterJSON _ = Left "ParamReader Float: Expected Float"
 
 instance ParamReader ModelSupport.Point where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure ModelSupport.Point { x, y }) byteString of
             Right value -> Right value
@@ -323,7 +323,7 @@ instance ParamReader ModelSupport.Point where
     readParameterJSON _ = Left "ParamReader Point: Expected Point"
 
 instance ParamReader Text where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString = pure (cs byteString)
 
     readParameterJSON (Aeson.String text) = Right text
@@ -335,7 +335,7 @@ instance ParamReader Text where
 --
 -- >>> let userIds :: [Int] = param "userIds"
 instance ParamReader value => ParamReader [value] where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString =
         byteString
         |> Char8.split ','
@@ -360,7 +360,7 @@ instance ParamReader value => ParamReader [value] where
 -- Html form checkboxes usually use @on@ or @off@ for representation. These
 -- values are supported here.
 instance ParamReader Bool where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter on | on == cs (ModelSupport.inputValue True) = pure True
     readParameter true | toLower (cs true) == "true" = pure True
     readParameter _ = pure False
@@ -369,7 +369,7 @@ instance ParamReader Bool where
     readParameterJSON _ = Left "ParamReader Bool: Expected Bool"
 
 instance ParamReader UUID where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter byteString =
         case UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
@@ -383,7 +383,7 @@ instance ParamReader UUID where
 
 -- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
 instance ParamReader UTCTime where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter "" = Left "ParamReader UTCTime: Parameter missing"
     readParameter byteString =
         let
@@ -401,7 +401,7 @@ instance ParamReader UTCTime where
 
 -- | Accepts values such as @2020-11-08@
 instance ParamReader Day where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter "" = Left "ParamReader Day: Parameter missing"
     readParameter byteString =
         let
@@ -415,12 +415,12 @@ instance ParamReader Day where
     readParameterJSON _ = Left "ParamReader Day: Expected String"
 
 instance {-# OVERLAPS #-} (ParamReader (ModelSupport.PrimaryKey model')) => ParamReader (ModelSupport.Id' model') where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter uuid = ModelSupport.Id <$> readParameter uuid
     readParameterJSON value = ModelSupport.Id <$> readParameterJSON value
 
 instance ParamReader param => ParamReader (Maybe param) where
-    {-# INLINE readParameter #-}
+    {-# INLINABLE readParameter #-}
     readParameter param =
         case (readParameter param) :: Either ByteString param of
             Right value -> Right (Just value)
@@ -493,6 +493,7 @@ class FillParams (params :: [Symbol]) record where
 
 instance FillParams ('[]) record where
     fill !record = record
+    {-# INLINABLE fill #-}
 
 instance (FillParams rest record
     , KnownSymbol fieldName
@@ -509,6 +510,7 @@ instance (FillParams rest record
                     Left !error -> fill @rest (attachFailure (Proxy @fieldName) (cs error) record)
                     Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
             Nothing -> fill @rest record
+    {-# INLINABLE fill #-}
 
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
 ifValid branch model = branch ((if null annotations then Right else Left) model)

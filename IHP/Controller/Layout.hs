@@ -18,6 +18,7 @@ newtype ViewLayout = ViewLayout ((?context :: ControllerContext) => Layout)
 setLayout :: (?context :: ControllerContext) => ((?context :: ControllerContext) => Layout) -> IO ()
 setLayout layout = do
     putContext (ViewLayout layout)
+{-# INLINE setLayout #-}
 
 getLayout :: (?context :: ControllerContext) => IO Layout
 getLayout = do

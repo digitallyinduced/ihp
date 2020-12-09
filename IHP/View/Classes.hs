@@ -46,10 +46,11 @@ classes !classNameBoolPairs =
     |> filter snd
     |> map fst
     |> unwords
-{-# INLINE classes #-}
+{-# INLINABLE classes #-}
 
 -- | Allows `("my-class", True)` to be written as `"my-class"`
 --
 -- Useful together with 'classes'
 instance IsString (Text, Bool) where
     fromString string = (cs string, True)
+    {-# INLINABLE fromString #-}

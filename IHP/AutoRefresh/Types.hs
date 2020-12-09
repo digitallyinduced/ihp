@@ -18,14 +18,14 @@ data AutoRefreshSession = AutoRefreshSession
         -- | MVar that is filled whenever some table changed
         , event :: MVar ()
         -- | All tables this auto refresh session watches
-        , tables :: Set Text
+        , tables :: Set ByteString
         -- | The last rendered html of this action. Initially this is the result of the initial page rendering
         , lastResponse :: LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
         , lastPing :: UTCTime
         }
 
-data AutoRefreshServer = AutoRefreshServer { sessions :: [AutoRefreshSession], subscribedTables :: Set Text }
+data AutoRefreshServer = AutoRefreshServer { sessions :: [AutoRefreshSession], subscribedTables :: Set ByteString }
 
 newAutoRefreshServer :: AutoRefreshServer
 newAutoRefreshServer = AutoRefreshServer { sessions = [], subscribedTables = mempty }

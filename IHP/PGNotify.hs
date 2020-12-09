@@ -32,11 +32,11 @@ import IHP.ModelSupport
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => Text -> IO () -> IO (Async ())
+watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => ByteString -> IO () -> IO (Async ())
 watchInsertOrUpdateTable tableName onInsertOrUpdate = do
-    sqlExec (PG.Query $ cs $ createNotificationTrigger tableName) ()
+    sqlExec (PG.Query $ createNotificationTrigger tableName) ()
 
-    let listenStatement = "LISTEN " <> PG.Query (cs $ eventName tableName)
+    let listenStatement = "LISTEN " <> PG.Query (eventName tableName)
     async do
         forever do
             notification <- withDatabaseConnection \databaseConnection -> do
@@ -47,7 +47,7 @@ watchInsertOrUpdateTable tableName onInsertOrUpdate = do
             async onInsertOrUpdate
     
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
-createNotificationTrigger :: Text -> Text
+createNotificationTrigger :: ByteString -> ByteString
 createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
         <> "BEGIN\n"
         <> "    PERFORM pg_notify('" <> eventName tableName <> "', '');\n"
@@ -64,5 +64,5 @@ createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionN
         deleteTriggerName = "did_delete_" <> tableName
 
 -- | Retuns the event name of the event that the pg notify trigger dispatches
-eventName :: Text -> Text
+eventName :: ByteString -> ByteString
 eventName tableName = "did_change_" <> tableName
