@@ -1,6 +1,7 @@
 # Creating Your First Project
 
 ```toc
+
 ```
 
 ## 1. Project Setup
@@ -11,31 +12,31 @@ This guide will lead you through creating a small blog application. To set up th
 $ ihp-new blog
 ```
 
-The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding on how Nix works.
+The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding of how Nix works.
 
-In case some errors appear now or in later steps, [check out the troubleshooting section](https://github.com/digitallyinduced/ihp/wiki/Troubleshooting) to get a quick solution. You can also [join our awesome gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
+In case some errors appear now or in later steps, [check out the troubleshooting section](https://github.com/digitallyinduced/ihp/wiki/Troubleshooting) to get a quick solution. You can also [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
 
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
 Here is a short overview of the whole structure:
 
-| File or Directory             | Purpose                                                                     |
-|-------------------------------|-----------------------------------------------------------------------------|
-| Config/                       |                                                                             |
-| Config/Config.hs              | Configuration for the framework and your application                        |
-| Config/nix/nixpkgs-config.nix | Configuration for the Nix package manager                                   |
-| Config/nix/haskell-packages/  | Custom Haskell dependencies can be placed here                              |
-| Application/                          | Your domain logic lives here                                           |
-| Application/Schema.sql           | Models and database tables are defined here                                 |
-| Web/Controller       | Web application controllers                                                             |
-| Web/View/            | Web application html template files                                                         |
-| Web/Types.hs            | Central place for all web application types                                                         |
-| static/                       | Images, css and javascript files                                            |
-| .ghci                         | Default config file for the Haskell interpreter                             |
-| .gitignore                    | List of files to be ignored by git                                          |
-| App.cabal, Setup.hs           | Config for the cabal package manager |
-| default.nix                   | Declares your app dependencies (like package.json for NPM or composer.json for PHP)         |
-| Makefile                      | Default config file for the make build system                               |
+| File or Directory             | Purpose                                                                             |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| Config/                       |                                                                                     |
+| Config/Config.hs              | Configuration for the framework and your application                                |
+| Config/nix/nixpkgs-config.nix | Configuration for the Nix package manager                                           |
+| Config/nix/haskell-packages/  | Custom Haskell dependencies can be placed here                                      |
+| Application/                  | Your domain logic lives here                                                        |
+| Application/Schema.sql        | Models and database tables are defined here                                         |
+| Web/Controller                | Web application controllers                                                         |
+| Web/View/                     | Web application HTML template files                                                 |
+| Web/Types.hs                  | Central place for all web application types                                         |
+| static/                       | Images, CSS and JavaScript files                                                    |
+| .ghci                         | Default config file for the Haskell interpreter                                     |
+| .gitignore                    | List of files to be ignored by git                                                  |
+| App.cabal, Setup.hs           | Config for the cabal package manager                                                |
+| default.nix                   | Declares your app dependencies (like package.json for NPM or composer.json for PHP) |
+| Makefile                      | Default config file for the make build system                                       |
 
 ## 2. Hello, World!
 
@@ -56,11 +57,11 @@ $ ./start
 Your application is starting now. The development server will automatically launch the built-in IDE.
 The server can be stopped by pressing CTRL+C.
 
-By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`. The dev server automatically picks other ports when they are already in use by some other server. For example it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
+By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`. The development server automatically picks other ports when they are already in use by some other server. For example, it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
 
-In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a websocket server to power live reloads on file saves inside your app.
+In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a WebSocket server to power live reloads on file saves inside your app.
 
-The very first time you start this make take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
+The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
 
 ## 3. Data Structures & PostgreSQL
 
@@ -72,16 +73,14 @@ For working with posts, we first need to create a `posts` table inside our datab
 
 **This is how our `posts` table might look like for our blog:**
 
-
 | id :: UUID                           | title :: Text                                          | body :: Text                                                                                                       |
-|--------------------------------------|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| ------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | 8d040c2d-0199-4695-ac13-c301970cff1d | My Experience With Nix On OS X                         | Some time ago, I’ve moved this jekyll-based blog ...                                                               |
 | b739bc7c-5ed1-43f4-944c-385aea80f182 | Deploying Private GitHub Repositories To NixOS Servers | In a previous post I’ve already shared a way to deploy private git repositories to a NixOS based server. While ... |
 
-
 To work with posts in our application, we now have to define this data schema.
 
-**For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly build the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the Postgresql syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consist of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree and then writes it back into the `Application/Schema.sql`. If you love your VIM, you can always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
+**For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly build the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the PostgreSQL syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consists of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree, and then writes it back into the `Application/Schema.sql`. If you love your VIM, you can always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
 
 Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text columns. To do this click on the `New` button in the table view.
 
@@ -91,7 +90,7 @@ Enter the table name `posts` and click on `Create Table`.
 
 In the right pane, you can see the columns of the newly created table. The id column has been automatically created for us.
 
-Right click into the `Columns` pane and select `Add Column`:
+Right-click into the `Columns` pane and select `Add Column`:
 
 ![Schema Designer Add Column menu](images/first-project/add_column_menu.png)
 
@@ -101,10 +100,9 @@ After that, your schema should look like this:
 
 ![Schema Designer First Table](images/first-project/first_table.png)
 
-        
 ### Loading the Schema
 
-Next we need to make sure that our database schema with our `posts` table is imported into the local postgresql database. Don't worry, the local development postgresql server is already running. The dev server has conveniently already started it.
+Next, we need to make sure that our database schema with our `posts` table is imported into the local PostgreSQL database. Don't worry, the local development PostgreSQL server is already running. The development server has conveniently already started it.
 
 Open the `Application/Schema.sql` in your code editor to see the SQL queries which make up the database schema:
 
@@ -116,7 +114,7 @@ CREATE TABLE posts (
 );
 ```
 
-To load the table into our local postgres server, we need to click `Update DB` in the Schema Designer (use `make db` from the command line).
+To load the table into our local Postgres server, we need to click `Update DB` in the Schema Designer (use `make db` from the command line).
 
 The `posts` table has been created now. Let's quickly connect to our database and see that everything is correct:
 
@@ -138,7 +136,7 @@ app=# SELECT * FROM posts;
 
 
 
--- We can quit the postgresql console by typing \q
+-- We can quit the PostgreSQL console by typing \q
 
 app=# \q
 ```
@@ -147,31 +145,29 @@ Now our database is ready to be consumed by our app.
 
 ### Record Types
 
-By specificing the above schema, the framework automatically provides several types for us. Here is a short overview:
+By specifying the above schema, the framework automatically provides several types for us. Here is a short overview:
 
-|        Type | `Post`                                                                     |
-|------------:|----------------------------------------------------------------------------|
-|  Definition | `data Post = Post { id :: Id Post, title :: Text, body :: Text }` |
-| Description | A single record from the `posts` table                                                                      |
-| Example     | `Post { id = cfefdc6c-c097-414c-91c0-cbc9a79fbe4f, title = "Hello World", body = "Some body text" } :: Post` |
+|        Type | `Post`                                                                                                       |
+| ----------: | ------------------------------------------------------------------------------------------------------------ |
+|  Definition | `data Post = Post { id :: Id Post, title :: Text, body :: Text }`                                            |
+| Description | A single record from the `posts` table                                                                       |
+|     Example | `Post { id = cfefdc6c-c097-414c-91c0-cbc9a79fbe4f, title = "Hello World", body = "Some body text" } :: Post` |
 
+|        Type | `Id Post`                                           |
+| ----------: | --------------------------------------------------- |
+|  Definition | `newtype Id Post = Id UUID`                         |
+| Description | Type for the `id` field                             |
+|     Example | `"5a8d1be2-33e3-4d3f-9812-b16576fe6a38" :: Id Post` |
 
-|        Type | `Id Post`                                                               |
-|------------:|-------------------------------------------------------------------------|
-|  Definition | `newtype Id Post = Id UUID`                                             |
-| Description | Type for the `id` field                                                 |
-| Example     | `"5a8d1be2-33e3-4d3f-9812-b16576fe6a38" :: Id Post` |
-
-
-**For the curious:** To dig deeper into the generated code, open the Schema Designer, right-click a table and click `Show Generated Haskell Code` or look into `build/Generated/Types.hs`.
+**For the curious:** To dig deeper into the generated code, open the Schema Designer, right-click a table, and click `Show Generated Haskell Code` or look into `build/Generated/Types.hs`.
 
 ## 4. Apps, Controllers, Views
 
 IHP follows the well-known [MVC](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller) (Model-View-Controller) structure. Controllers and actions are used to deal with incoming requests.
 
-A controller belongs to an application. The default application is called `Web` (that's why all controller and views are located there). Your whole project can consist of multiple sub-applications. Typically your production app will need e.g. an admin backend application next to the default web application.
+A controller belongs to an application. The default application is called `Web` (that's why all the controller and views are located there). Your whole project can consist of multiple sub-applications. Typically your production app will need e.g. an admin back-end application next to the default web application.
 
-We can use the built-in code generators to generate a controller for our posts. Inside the dev server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/Generators). There you can see everything that can be generated. Click on `Controller`:
+We can use the built-in code generators to generate a controller for our posts. Inside the development server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/Generators). There you can see everything that can be generated. Click on `Controller`:
 
 ![](images/first-project/code_gen_1.png)
 
@@ -189,12 +185,11 @@ Here's how the new `/Posts` page looks like:
 
 ![Screenshot of the /Posts view](images/Posts.png)
 
-Next we're going to dig a bit deeper into all the changes made by the controller generator.
+Next, we're going to dig a bit deeper into all the changes made by the controller generator.
 
 ### New Types
 
 Let's first take a closer look at the changes in `Web/Types.hs`. Here a new data structure was created:
-
 
 ```haskell
 data PostsController
@@ -208,21 +203,19 @@ data PostsController
     deriving (Eq, Show, Data)
 ```
 
-We have one constructor for each possible action. Here you can see a short description for all the constructors:
+We have one constructor for each possible action. Here you can see a short description of all the constructors:
 
-| Action                                 | Request                    | Description                        |
-|----------------------------------------|----------------------------|------------------------------------|
-| `PostsAction`                          | `GET /Posts`               | Lists all posts                    |
-| `NewPostAction`                        | `GET /NewPost`           | Displays the form to create a post |
+| Action                                 | Request                              | Description                        |
+| -------------------------------------- | ------------------------------------ | ---------------------------------- |
+| `PostsAction`                          | `GET /Posts`                         | Lists all posts                    |
+| `NewPostAction`                        | `GET /NewPost`                       | Displays the form to create a post |
 | `ShowPostAction { postId = someId }`   | `GET /ShowPost?postId={someId}`      | Shows the posts with id $someId    |
-| `CreatePostAction`                     | `POST /CreatePost`              | Endpoint to create a Post          |
-| `EditPostAction { postId = someId }`   | `GET /EditPost?postId={someId}` | Displays the form to edit a post   |
-| `UpdatePostAction { postId = someId }` | `POST /UpdatePost?postId={someId}`     | Endpoint to submit a post update   |
-| `DeletePostAction { postId = someId }` | `DELETE /DeletePost?postId={someId}`   | Deletes the post                   |
-
+| `CreatePostAction`                     | `POST /CreatePost`                   | Endpoint to create a Post          |
+| `EditPostAction { postId = someId }`   | `GET /EditPost?postId={someId}`      | Displays the form to edit a post   |
+| `UpdatePostAction { postId = someId }` | `POST /UpdatePost?postId={someId}`   | Endpoint to submit a post update   |
+| `DeletePostAction { postId = someId }` | `DELETE /DeletePost?postId={someId}` | Deletes the post                   |
 
 A request like "Show me the post with id `e57cfb85-ad55-4d5c-b3b6-3affed9c662c`" can be represented like `ShowPostAction { postId = e57cfb85-ad55-4d5c-b3b6-3affed9c662c }`. Basically, the IHP router always maps an HTTP request to such an action data type. (By the way: The type `Id Post` is just a UUID, but wrapped within a newtype, `newtype Id model = Id UUID`).
-
 
 ### Controller Implementation: `Web/Controller/Posts.hs`
 
@@ -240,10 +233,9 @@ import Web.View.Posts.Edit
 import Web.View.Posts.Show
 ```
 
-In the header we just see some imports. Controllers always import a special `Web.Controller.Prelude` module. It provides e.g. controller helpers and also the framework specific functions we will see below. The controller also imports all its views. Views are also just "normal" Haskell modules.
+In the header we just see some imports. Controllers always import a special `Web.Controller.Prelude` module. It provides e.g. controller helpers and also the framework-specific functions we will see below. The controller also imports all its views. Views are also just "normal" Haskell modules.
 
 #### Controller Instance
-
 
 ```haskell
 instance Controller PostsController where
@@ -253,7 +245,7 @@ The controller logic is specified by implementing an instance of the `Controller
 
 #### Index Action
 
-This is where the interesting part begins. As we will see below, the controller implementation is just an `action` function, pattern mattching over our `data PostsController` structure we defined in `Web/Types.hs`.
+This is where the interesting part begins. As we will see below, the controller implementation is just an `action` function, pattern matching over our `data PostsController` structure we defined in `Web/Types.hs`.
 
 ```haskell
     action PostsAction = do
@@ -261,7 +253,7 @@ This is where the interesting part begins. As we will see below, the controller 
         render IndexView { .. }
 ```
 
-This is the index action. It's called when opening `/Posts`. First it fetches all the posts from the database and then passes them along to the view. The `IndexView { .. }` is just shorthand for `IndexView { posts = posts }`.
+This is the index action. It's called when opening `/Posts`. First, it fetches all the posts from the database and then passes them along to the view. The `IndexView { .. }` is just shorthand for `IndexView { posts = posts }`.
 
 #### New Action
 
@@ -280,7 +272,8 @@ This is our endpoint for `/NewPost`. It just creates an empty new post and then 
         post <- fetch postId
         render ShowView { .. }
 ```
-This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get the post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Finally we just pass that post to the view.
+
+This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get the post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Finally, we just pass that post to the view.
 
 #### Edit Action
 
@@ -289,8 +282,8 @@ This is our show action at `/ShowPost?postId=postId`. Here we pattern match on t
         post <- fetch postId
         render EditView { .. }
 ```
-Our `/EditPost?postId=postId` action. It's pretty much the same as in the `action ShowPostAction`, just with a different view.
 
+Our `/EditPost?postId=postId` action. It's pretty much the same as in the `action ShowPostAction`, just with a different view.
 
 #### Update Action
 
@@ -307,11 +300,11 @@ Our `/EditPost?postId=postId` action. It's pretty much the same as in the `actio
                     redirectTo EditPostAction { .. }
 ```
 
-This action deals with update requests for a specific post. As usual we pattern match on the `postId` and fetch it. 
+This action deals with update requests for a specific post. As usual, we pattern match on the `postId` and fetch it.
 
 The interesting part is `buildPost`. It is a helper function defined later in the controller: `buildPost = fill @["title", "body"]`. The `fill` call inside `buildPost` reads the `title` and `body` attributes from the browser request and fills them into the `post` record. The `buildPost` is also the place for validation logic.
 
-`ifValid` returns `Either Post Post`. `Left post` means that e.g. the `title` or `body` did not pass validation. `Right post` means that all parameters could be set on `post` without any errors. 
+`ifValid` returns `Either Post Post`. `Left post` means that e.g. the `title` or `body` did not pass validation. `Right post` means that all parameters could be set on `post` without any errors.
 
 In the error case (`Left post ->`) we just re-render the `EditView`. The `EditView` then tells the user about validation errors.
 
@@ -325,7 +318,7 @@ In the success case (`Right post ->`) we save the updated post to the database (
         post
             |> buildPost
             |> ifValid \case
-                Left post -> render NewView { .. } 
+                Left post -> render NewView { .. }
                 Right post -> do
                     post <- post |> createRecord
                     setSuccessMessage "Post created"
@@ -356,9 +349,9 @@ The router is configured in `Web/Routes.hs`. The generator just places a single 
 instance AutoRoute PostsController
 ```
 
-This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the urls according to your needs (e.g. "beautiful urls" for SEO).
+This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the URLs according to your needs (e.g. "beautiful URLs" for SEO).
 
-<sup>Note that the word 'Post' here still refers to a post on our blog and is unrelated to the HTTP-POST request method.</sup>
+_Note that the word 'Post' here still refers to a post on our blog and is unrelated to the HTTP-POST request method._
 
 #### Views
 
@@ -384,7 +377,7 @@ instance View ShowView where
     |]
 ```
 
-We can see that the `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the `html` function is `hsx` code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the `[hsx|...|]` block is also type-checked and converted to Haskell code at compile-time.
+We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the `html` function is `hsx` code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the `[hsx|...|]` block is also type-checked and converted to Haskell code at compile-time.
 
 Now that we have a rough overview of all the parts belonging to our `Post`, it's time to do some coding ourselves.
 
@@ -394,7 +387,7 @@ The generated controller already feels close to a super simple blog. Now it's ti
 
 ### Creating a Post
 
-First we quickly need to create a new blog post. Open [http://localhost:8000/Posts](http://localhost:8000/Posts) and click on `+ New`. Then enter `Hello World!` into the "Title" field and `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam` into the "Body".
+First, we quickly need to create a new blog post. Open [http://localhost:8000/Posts](http://localhost:8000/Posts) and click on `+ New`. Then enter `Hello World!` into the "Title" field and `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam` into the "Body".
 
 Click `Save Post`. You should now see the new post listed on the `index` view.
 
@@ -407,7 +400,8 @@ Let's first improve the `show` view. Right now the headline is "Show Post", and 
 Open the `Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{get #title post}</h1>`. Also add a `<div>{get #body post}</div>` below the `<h1>`.
 
 The `Web/View/Posts/Show.hs` file should look like this:
-```html
+
+```haskell
 module Web.View.Posts.Show where
 import Web.View.Prelude
 
@@ -424,31 +418,29 @@ instance View ShowView where
         <h1>{get #title post}</h1>
         <div>{get #body post}</div>
     |]
-
 ```
 
-After you saved the changes, you should see that the changes have been reflected in the browser already. In the background the page has been refreshed automatically. This refresh is using a diff based approach by using [morphdom](https://github.com/patrick-steele-idem/morphdom).
+After you saved the changes, you should see that the changes have been reflected in the browser already. In the background, the page has been refreshed automatically. This refresh is using a diff based approach by using [morphdom](https://github.com/patrick-steele-idem/morphdom).
 
 ### Display all posts
 
-After creating your post, you should have already seen that posts list is right now displaying all the post fields. Let's change it to only display the post's title.
+After creating your post, you should have already seen that the posts list is now displaying all the post fields. Let's change it to only display the post's title.
 
 Open the `Web/View/Posts/Index.hs` and replace `<td>{post}</td>` with `<td>{get #title post}</td>`.
 
 Let's also make it clickable by wrapping it in a link. We can just put a `<a href={ShowPostAction (get #id post)}>` around it. The line should now look like:
-```html
+
+```haskell
 <td><a href={ShowPostAction (get #id post)}>{get #title post}</a></td>
 ```
 
 Now we can also remove the "Show" link. We can do that by removing the next line `<td><a href={ShowPostAction (get #id post)}>Show</a></td>`.
 
-
 ### Adding Validation
 
 Let's make sure that every post has at least a title. Validations can be defined inside our controller `Web/Controller/Posts.hs`.
 
-Right now at the bottom of the file we have this:
-
+Right now at the bottom of the file, we have this:
 
 ```haskell
 buildPost post = post
@@ -485,7 +477,7 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 (If you don't see an entry for your test post in `Application/Fixtures.sql`, then click `Update DB` in the Schema Designer (or use `make db` from the command line).)
 
-All our existing posts are saved here. You should also commit this file to git to share your fixtures with your team mates. We will need these saved fixtures in a moment, when we want to update the database schema.
+All our existing posts are saved here. You should also commit this file to git to share your fixtures with your teammates. We will need these saved fixtures in a moment when we want to update the database schema.
 
 Let's add a new `created_at` column. Open [http://localhost:8001/Tables](http://localhost:8001/Tables), enter `created_at` and select Timestamp for the type. Also set the default value to `NOW()`.
 
@@ -497,9 +489,9 @@ Now open the `/Posts` again inside your browser. You will see this error:
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
-To update the local database, open the Schema Designer and click the `Update DB` button. This button will save the current database content to the fixtures, destroy the database, reload the schema and then insert the fixtures.
+To update the local database, open the Schema Designer, and click the `Update DB` button. This button will save the current database content to the fixtures, destroy the database, reload the schema, and then insert the fixtures.
 
-In general the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Update DB`.
+In general, the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Update DB`.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
@@ -515,7 +507,7 @@ action PostsAction = do
 
 Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`. There we add `<p>{get #createdAt post |> timeAgo}</p>` below the title:
 
-```html
+```haskell
 <nav>
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
@@ -537,7 +529,7 @@ Right now our posts can only be plain text. Let's make it more powerful by addin
 
 #### Adding a Markdown Library
 
-To deal with Markdown, instead of implementing our own Markdown parser, let's just use an existing package. There's the excellent `mmark` package we can use.
+To deal with Markdown, instead of implementing a custom Markdown parser, let's just use an existing package. There's the excellent `mmark` package we can use.
 
 To install this package, open the `default.nix` file and append `mmark` to the `haskellDeps` list. The file will now look like this:
 
@@ -571,14 +563,16 @@ Stop the development server by pressing CTRL+C. Then update the local developmen
 
 #### Markdown Rendering
 
-Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First we need to import it: add the following line to the top of `Web/View/Posts/Show.hs`:
+Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First, we need to import it: add the following line to the top of `Web/View/Posts/Show.hs`:
+
 ```haskell
 import qualified Text.MMark as MMark
 ```
 
-Next change `{get #body post}` to `{get #body post |> renderMarkdown}`. This pipes the body field through a function `renderMarkdown`. Of course we also have to define the function now.
+Next change `{get #body post}` to `{get #body post |> renderMarkdown}`. This pipes the body field through a function `renderMarkdown`. Of course, we also have to define the function now.
 
 Add the following to the bottom of the show view:
+
 ```haskell
 renderMarkdown text = text
 ```
@@ -588,6 +582,7 @@ This function now does nothing except return its input text. Our Markdown packag
 ```haskell
 renderMarkdown text = text |> MMark.parse ""
 ```
+
 The empty string we pass to `MMark.parse` is usually the file name of the `.markdown` file. As we don't have any Markdown file, we just pass an empty string.
 
 Now open the web app and take a look at a blog post. You will see something like this:
@@ -596,7 +591,7 @@ Now open the web app and take a look at a blog post. You will see something like
 Right MMark {..}
 ```
 
-This is the parsed representation of the Markdown. Of course that's not very helpful. We also have to connect it with `MMark.render` to get html code for our Markdown. Replace the `renderMarkdown` with the following code:
+This is the parsed representation of the Markdown. Of course, that's not very helpful. We also have to connect it with `MMark.render` to get HTML code for our Markdown. Replace the `renderMarkdown` with the following code:
 
 ```haskell
 renderMarkdown text =
@@ -609,7 +604,7 @@ The `show` view will now show real formatted text, as we would have expected.
 
 #### Forms & Validation
 
-Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a text area to support multi line text.
+Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a text area to support multi-line text.
 
 Open `Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports Markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use Markdown here"} }`.
 
@@ -660,12 +655,11 @@ It's time to add comments to our blog. For that open the Schema Designer and add
 
 ![Schema Designer Comments](images/first-project/post_table.png)
 
-When adding the post\_id column, it will automatically set the type to UUID. Unless you unselect the checkbox `References posts` it will also automatically create a foreign key constraint for this column:
+When adding the `post_id` column, it will automatically set the type to UUID. Unless you unselect the checkbox `References posts` it will also automatically create a foreign key constraint for this column:
 
 By default the foreign key constraint has set its `ON DELETE` behavior to `NO ACTION`. To change the `ON DELETE`, click on the `FOREIGN KEY: posts` next to the `post_id` field.
 
-Press the `Update DB`-button to save our current posts to `Application/Fixtures.sql`, rebuild the database and reload the `Fixtures.sql` to add our new `comments` table.
-
+Press the `Update DB`-button to save our current posts to `Application/Fixtures.sql`, rebuild the database, and reload the `Fixtures.sql` to add our new `comments` table.
 
 ### The Controller
 
@@ -681,14 +675,13 @@ Click `Generate`:
 
 ![](images/first-project/code_gen_3.png)
 
-
 The controller is generated now. But we need to do some adjustments to better integrate the comments into the posts.
 
 ### "Add comment"
 
 First we need to make it possible to create a new comment for a post. Open `Web/View/Posts/Show.hs` and append `<a href={NewCommentAction}>Add Comment</a>` to the HSX code:
 
-```html
+```haskell
 instance View ShowView where
     html ShowView { .. } = [hsx|
         <nav>
@@ -709,7 +702,7 @@ This creates an `Add Comment` link, which links to the New Comment Form we just 
 
 ![Pretty empty](images/first-project/new_comment.png)
 
-We can see, there is a post id field which is field with a lot of 0s. When we try to submit this form, it will fail because there is no post with this id. Let's first make it possible, that the post id is automatically set to the post where we originally clicked on "New Comment".
+We can see, there is a post id field which is a field with a lot of 0s. When we try to submit this form, it will fail because there is no post with this id. Let's first make it possible, that the post id is automatically set to the post where we originally clicked on "New Comment".
 
 For that, open `Web/Types.hs`. We can see the definition of `CommentsController`:
 
@@ -734,7 +727,7 @@ data CommentsController
     -- ...
 ```
 
-After making this change, we can see some type errors in the browser. This is because all references to `NewCommentAction` now need to be passed the `postId` value. Think of these type errors as a todo list of changes to be made, reported to us by the compiler. 
+After making this change, we can see some of the type errors in the browser. This is because all references to `NewCommentAction` now need to be passed the `postId` value. Think of these type errors as a TODO list of changes to be made, reported to us by the compiler.
 
 Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment</a>` to:
 
@@ -797,9 +790,8 @@ You can see that the `postId` has been passed as a query parameter. In the form,
 
 This will set the `postId` of our new comment record to the `postId` given to the action.
 
-Now take a look at your form. The `postId` will be prefilled now:
+Now take a look at your form. The `postId` will be pre-filled now:
 ![Pretty empty](images/first-project/new_comment_with_postid.png)
-
 
 Of course, seeing the UUID is not very human-friendly. It would be better to just show the post title to our users. For that, we have to fetch and pass the post to our form and then make the `postId` a hidden field.
 
@@ -820,7 +812,7 @@ Because the error view is rendering our `NewView` in an error case, we also have
         -- ...
                 Left comment -> do
                     post <- fetch (get #postId comment) -- <---- NEW
-                    render NewView { .. } 
+                    render NewView { .. }
                 Right comment -> - ....
 ```
 
@@ -866,10 +858,13 @@ It works. We're redirected to the `CommentsAction`. If you look at the table, we
 Let's change our `CreateCommentAction` to make it redirect back to our Post again after commenting. Open `Web/Controller/Comments.hs` and take a look at the `CreateCommentAction`.
 
 In the success case (`Right comment -> ...`) we see:
+
 ```haskell
 redirectTo CommentsAction
 ```
+
 Change this to:
+
 ```haskell
 redirectTo ShowPostAction { postId = get #postId comment }
 ```
@@ -890,26 +885,30 @@ It will display something like this:
 
 ![Redirect is working](images/first-project/show_post_comments_querybuilder.png)
 
-What is shown is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")` (this representation changes a bit between versions still, so don't worry if yours does not look exactly like this). But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to acutally fetch them for us.
+What is shown is the technical representation of a query like `query @Comment |> filterWhere (#id, "'7f37115f-c850-4fcb-838f-1971cea0544e")` (this representation changes a bit between versions still, so don't worry if yours does not look exactly like this). But we don't want just the query, we want the actual comments. We cannot do this from our view, because views should be pure functions without IO. So we need to tell the action to actually fetch them for us.
 
 Inside the `Show.hs` we need to update the type signature to tell our action what we want. Right now we have:
+
 ```haskell
 data ShowView = ShowView { post :: Post }
 ```
 
 Add an `Include "comments"` like this:
+
 ```haskell
 data ShowView = ShowView { post :: Include "comments" Post }
 ```
 
 This specifies that our view requires a post and should also include its comments. This will trigger a type error to be shown in the browser because our `ShowPostAction` is not passing the comments yet.
 
-To fix this, open `Web/Controller/Posts.hs` and take a look at the`ShowPostAction`. Right now we have a `fetch` call:
+To fix this, open `Web/Controller/Posts.hs` and take a look at the `ShowPostAction`. Right now we have a `fetch` call:
+
 ```haskell
 post <- fetch postId
 ```
 
 We need to extend our fetch to also include comments. We can use `fetchRelated` for this:
+
 ```haskell
 post <- fetch postId
     >>= fetchRelated #comments
@@ -917,7 +916,7 @@ post <- fetch postId
 
 The type of `post` has changed from `Post` to `Include "comments" Post`. In general, when you're dealing with has-many relationships, use `Include "relatedRecords"` and `fetchRelated` to specify and fetch data according to your needs.
 
-The type error is fixed now. When opening the Show View of a post, you will see that the comments are displayed. When you take a look at the [`Logs` in the Dev tools](http://localhost:8001/AppLogs) you can see, that when opening a Post, two sql queries will be fired:
+The type error is fixed now. When opening the Show View of a post, you will see that the comments are displayed. When you take a look at the [`Logs` in the Dev tools](http://localhost:8001/AppLogs) you can see, that when opening a Post, two SQL queries will be fired:
 
 ```haskell
 ("SELECT posts.* FROM posts WHERE id = ?  LIMIT 1",[Plain "'7f37115f-c850-4fcb-838f-1971cea0544e'"])
@@ -927,16 +926,19 @@ The type error is fixed now. When opening the Show View of a post, you will see 
 Right now the view is displaying the comments as a string. Let's make it more beautiful. Open `Web/View/Posts/Show.hs`.
 
 Let's first change the `{get #comments post}` to make a `<div>` for each comment:
+
 ```haskell
 <div>{forEach (get #comments post) renderComment}</div>
 ```
 
 We also need to define the `renderComment` at the end of the file:
+
 ```haskell
 renderComment comment = [hsx|<div>{comment}</div>|]
 ```
 
 Let's also add some more structure for displaying the comments:
+
 ```haskell
 renderComment comment = [hsx|
         <div class="mt-4">
@@ -952,9 +954,9 @@ This is how it looks now:
 
 ### Ordering Comments
 
-Right now comments are displayed in the order they're stored in the database. So updating a comment will change the order. Let's change this, so that the newest comment is always displayed first.
+Right now comments are displayed in the order they're stored in the database. So updating a comment will change the order. Let's change this so that the newest comment is always displayed first.
 
-[Open the Schema Designer](http://localhost:8001/). Select the `comments` Table. Right click in the Columns Pane, Click `Add Column`. Enter `created_at`. The column type will be auto selected, and the default value automatically sets to `NOW()`. Click `Create Column`.
+[Open the Schema Designer](http://localhost:8001/). Select the `comments` Table. Right-click in the Columns Pane, Click `Add Column`. Enter `created_at`. The column type will be auto-selected, and the default value automatically sets to `NOW()`. Click `Create Column`.
 
 Now click `Update DB` to save the fixtures and then rebuild the database.
 
@@ -991,6 +993,6 @@ You should have a rough understanding of IHP now. The best way to continue is to
 
 [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
 
-Questions, or need help with haskell type errors? Join our Slack:
+Questions, or need help with Haskell type errors? Join our Slack:
 
-[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-im0do3yv-iryDNyvpwW~py40kvl_cpQ)
+[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-js1xo46t-4MdSvMQVoLYvxRz8rvGYig)

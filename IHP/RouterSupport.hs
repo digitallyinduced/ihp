@@ -405,8 +405,8 @@ post path action = do
 {-# INLINABLE post #-}
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage :: (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser (IO ResponseReceived)
-startPage action = get "/" action
+startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser (IO ResponseReceived)
+startPage action = get (actionPrefix @action) action
 {-# INLINABLE startPage #-}
 
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)

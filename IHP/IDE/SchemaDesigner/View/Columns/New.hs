@@ -7,6 +7,7 @@ import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
 import qualified Text.Countable as Countable
 import IHP.IDE.SchemaDesigner.View.Columns.Edit (typeSelector)
+import Text.Countable (singularize)
 
 data NewColumnView = NewColumnView
     { statements :: [Statement]
@@ -39,6 +40,7 @@ instance View NewColumnView where
                             class="form-control"
                             autofocus="autofocus"
                             placeholder="Name:"
+                            data-table-name-singular={singularize tableName}
                             />
                     </div>
 

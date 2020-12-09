@@ -6,6 +6,7 @@ import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
+import Text.Countable (singularize)
 
 data EditColumnView = EditColumnView
     { statements :: [Statement]
@@ -70,6 +71,7 @@ instance View EditColumnView where
                             class="form-control"
                             autofocus="autofocus"
                             value={get #name column}
+                            data-table-name-singular={singularize tableName}
                             />
                     </div>
 
