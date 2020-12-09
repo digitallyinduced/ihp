@@ -210,6 +210,9 @@ instance InputValue (PrimaryKey model') => InputValue (Id' model') where
     {-# INLINE inputValue #-}
     inputValue = inputValue . Newtype.unpack
 
+instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
+    isEmpty (Id primaryKey) = isEmpty primaryKey
+
 recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
     getField @"id" entity
