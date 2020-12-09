@@ -70,6 +70,11 @@ instance IsEmpty (Maybe value) where
 instance IsEmpty [a] where
     isEmpty [] = True
     isEmpty _ = False
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty UUID.UUID where
+    isEmpty uuid = UUID.nil == uuid
+    {-# INLINE isEmpty #-}
 
 ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
