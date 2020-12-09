@@ -29,6 +29,7 @@ module IHP.HaskellSupport (
 , includes
 , stripTags
 , symbolToText
+, IsEmpty (..)
 ) where
 
 import ClassyPrelude
@@ -51,9 +52,29 @@ infixl 8 |>
 a |> f = f a
 {-# INLINE (|>) #-}
 
-isEmpty :: MonoFoldable value => value -> Bool
-isEmpty value = null value
-{-# INLINE isEmpty #-}
+-- | Used by 'nonEmpty' and 'isEmptyValue' to check for emptyness
+class IsEmpty value where
+    -- | Returns True when the value is an empty string, empty list, zero UUID, etc.
+    isEmpty :: value -> Bool
+
+instance IsEmpty Text where
+    isEmpty "" = True
+    isEmpty _ = False
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty (Maybe value) where
+    isEmpty Nothing = True
+    isEmpty (Just _) = False
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty [a] where
+    isEmpty [] = True
+    isEmpty _ = False
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty UUID.UUID where
+    isEmpty uuid = UUID.nil == uuid
+    {-# INLINE isEmpty #-}
 
 ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
@@ -62,7 +83,7 @@ ifOrEmpty bool a = if bool then a else mempty
 whenEmpty condition = when (isEmpty condition)
 {-# INLINE whenEmpty #-}
 
-whenNonEmpty :: (MonoFoldable a, Applicative f) => a -> f () -> f ()
+whenNonEmpty :: (IsEmpty a, Applicative f) => a -> f () -> f ()
 whenNonEmpty condition = unless (isEmpty condition)
 {-# INLINE whenNonEmpty #-}
 
