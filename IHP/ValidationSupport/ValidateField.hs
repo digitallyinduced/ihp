@@ -147,7 +147,6 @@ validateAll validators text =
     True -> Success
     False -> (filter isFailure results) !! 0
 
-
 -- | Validates that value is not empty
 --
 -- >>> nonEmpty "hello world"
@@ -161,8 +160,8 @@ validateAll validators text =
 --
 -- >>> nonEmpty Nothing
 -- Failure "This field cannot be empty"
-nonEmpty :: MonoFoldable value => value -> ValidatorResult
-nonEmpty value | null value = Failure "This field cannot be empty"
+nonEmpty :: IsEmpty value => value -> ValidatorResult
+nonEmpty value | isEmpty value = Failure "This field cannot be empty"
 nonEmpty _ = Success
 {-# INLINE nonEmpty #-}
 
@@ -180,8 +179,8 @@ nonEmpty _ = Success
 --
 -- >>> isEmptyValue Nothing
 -- Success
-isEmptyValue :: MonoFoldable value => value -> ValidatorResult
-isEmptyValue value | null value = Success
+isEmptyValue :: IsEmpty value => value -> ValidatorResult
+isEmptyValue value | isEmpty value = Success
 isEmptyValue _ = Failure "This field must be empty"
 {-# INLINE isEmptyValue #-}
 
