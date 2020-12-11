@@ -36,42 +36,42 @@ import IHP.Controller.Context
 type family CurrentUserRecord
 type family CurrentAdminRecord
 
-{-# INLINE currentUser #-}
+{-# INLINABLE currentUser #-}
 currentUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
 currentUser = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) currentUserOrNothing
 
-{-# INLINE currentUserOrNothing #-}
+{-# INLINABLE currentUserOrNothing #-}
 currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => (Maybe user)
 currentUserOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
     Just user -> user
     Nothing -> error "currentUserOrNothing: initAuthentication @User has not been called in initContext inside FrontController of this application"
 
-{-# INLINE currentUserId #-}
+{-# INLINABLE currentUserId #-}
 currentUserId :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
 currentUserId = currentUser @user |> get #id
 
-{-# INLINE ensureIsUser #-}
+{-# INLINABLE ensureIsUser #-}
 ensureIsUser :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser =
     case currentUserOrNothing @user of
         Just _ -> pure ()
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
 
-{-# INLINE currentAdmin #-}
+{-# INLINABLE currentAdmin #-}
 currentAdmin :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => admin
 currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) currentAdminOrNothing
 
-{-# INLINE currentAdminOrNothing #-}
+{-# INLINABLE currentAdminOrNothing #-}
 currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => (Maybe admin)
 currentAdminOrNothing = case unsafePerformIO (maybeFromContext @(Maybe admin)) of
     Just admin -> admin
     Nothing -> error "currentAdminOrNothing: initAuthentication @Admin has not been called in initContext inside FrontController of this application"
 
-{-# INLINE currentAdminId #-}
+{-# INLINABLE currentAdminId #-}
 currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin) => adminId
 currentAdminId = currentAdmin @admin |> get #id
 
-{-# INLINE ensureIsAdmin #-}
+{-# INLINABLE ensureIsAdmin #-}
 ensureIsAdmin :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => IO ()
 ensureIsAdmin =
     case currentAdminOrNothing @admin of
@@ -84,16 +84,16 @@ ensureIsAdmin =
 -- let user :: User = ... in login user
 -- let admin :: Admin = ... in login admin
 -- ```
-{-# INLINE login #-}
+{-# INLINABLE login #-}
 login :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
 login user = Session.setSession (sessionKey @user) (tshow (get #id user))
 
 -- Log's out an entity
-{-# INLINE logout #-}
+{-# INLINABLE logout #-}
 logout :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
 logout user = Session.setSession (sessionKey @user) ""
 
-{-# INLINE sessionKey #-}
+{-# INLINABLE sessionKey #-}
 sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Text
 sessionKey = "login." <> ModelSupport.getModelName @user
 

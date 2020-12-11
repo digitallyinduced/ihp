@@ -17,6 +17,7 @@ import qualified Text.Countable as Countable
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import Control.Monad.Fail
+import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
 
 compile :: IO ()
 compile = do
@@ -354,7 +355,17 @@ compileCreate table@(CreateTable { name, columns }) =
     let
         modelName = tableNameToModelName name
         columnNames = commaSep (map (get #name) columns)
-        values = commaSep (map (const "?") columns)
+        values = commaSep (map columnPlaceholder columns)
+
+        -- When we do an INSERT query like @INSERT INTO values (uuids) VALUES (?)@ where the type of @uuids@ is @UUID[]@
+        -- we need to add a typecast to the placeholder @?@, otherwise this will throw an sql error
+        -- See https://github.com/digitallyinduced/ihp/issues/593
+        columnPlaceholder column@(Column { columnType }) = if columnPlaceholderNeedsTypecast column
+                then "? :: " <> SqlCompiler.compilePostgresType columnType
+                else "?"
+            where
+                columnPlaceholderNeedsTypecast Column { columnType = PArray {} } = True
+                columnPlaceholderNeedsTypecast _ = False
 
         toBinding column@(Column { name }) =
             if hasExplicitOrImplicitDefault column
@@ -536,6 +547,7 @@ type instance PrimaryKey #{tshow name} = #{idType}
 instance QueryBuilder.FilterPrimaryKey "#{name}" where
     filterWhereId #{primaryKeyPattern} builder =
         builder |> #{intercalate " |> " primaryKeyFilters}
+    {-# INLINE filterWhereId #-}
 |]
     where
         idType :: Text
@@ -630,6 +642,7 @@ compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
 instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
     getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue}
+    {-# INLINE getField #-}
 |]
     where
         compilePrimaryKeyValue = case primaryKeyColumnNames primaryKeyConstraint of

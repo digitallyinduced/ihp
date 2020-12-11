@@ -1,22 +1,25 @@
 # Installing IHP
 
 ```toc
+
 ```
 
 ## 1. Dependency: Nix Package Manager
 
 The framework uses the nix package manager to manage the whole set of dependencies of your application
 
-For example, postgresql and the Haskell compiler are both dependencies of your app, as well as all the Haskell or javascript packages you want to use. We use nix to make sure that these dependencies are available to the app - in development, as well as in production.
+For example, PostgreSQL and the Haskell compiler are both dependencies of your app, as well as all the Haskell or JavaScript packages you want to use. We use nix to make sure that these dependencies are available to the app - in development, as well as in production.
 
 That's why we first need to make sure that you have nix installed.
 
 ### Mac
+
 Run this command in your terminal to install nix on your machine.
 
 ```bash
 sh <(curl -L https://nixos.org/nix/install) --darwin-use-unencrypted-nix-store-volume
 ```
+
 After this restart your terminal.
 
 If you get an error like `error: refusing to create Nix store volume because the boot volume is FileVault encrypted, but encryption-at-rest is not available.`, follow the steps described [in this GitHub Issue](https://github.com/digitallyinduced/ihp/issues/93#issuecomment-639611313). We're working on improving this step.
@@ -40,6 +43,7 @@ curl -L https://nixos.org/nix/install | sh
 ```
 
 Due to Linux not loading the `.profile` file, nix will not be loaded. To fix that, we need to add this line to the rc file of your shell (usually `.bashrc`). Open it, and add this line
+
 ```bash
 . ~/.nix-profile/etc/profile.d/nix.sh
 ```
@@ -47,6 +51,7 @@ Due to Linux not loading the `.profile` file, nix will not be loaded. To fix tha
 There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
 
 ### Windows
+
 Running nix on Windows requires the Windows Subsystem for Linux, which first needs manual activation via **Powershell with Administrator Privileges**:
 
 ```bash
@@ -55,7 +60,7 @@ dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux 
 
 Enabling this Feature needs a restart (even though it won't prompt, and the command-line says /norestart).
 
-To download a Linux Distribution, open the Microsoft Store and search for Ubuntu or Debian. We recommend Ubuntu, since it works best with nix on Windows.
+To download a Linux Distribution, open the Microsoft Store and search for Ubuntu or Debian. We recommend Ubuntu since it works best with nix on Windows.
 
 Note: You **do not** need a Microsoft account to download. You can simply cancel or close the login forms and the download will continue.
 
@@ -68,6 +73,7 @@ sudo apt install git curl make xdg-utils -y
 ```
 
 WSL will add your Windows System Paths in your Linux Subsystem. These tend to generate errors due to spaces and brackets in folder names. Also, due to Linux not loading the `.profile`, we need to add the nix.sh manually. To fix these two issues, just add these lines to the end of your `.bashrc`
+
 ```bash
 PATH=$(/usr/bin/printenv PATH | /usr/bin/perl -ne 'print join(":", grep { !/\/mnt\/[a-z]/ } split(/:/));')
 . ~/.nix-profile/etc/profile.d/nix.sh
@@ -92,13 +98,15 @@ After saving the file, you can now install nix:
 curl -L https://nixos.org/nix/install | sh
 ```
 
-When the installation finishes successfuly, you will be prompted to either reload your environment with the given command, or restart your shell. 
+When the installation finishes successfully, you will be prompted to either reload your environment with the given command, or restart your shell.
 
 If in doubt, just close and reopen Ubuntu/Your Distro.
 
 **NOTES FOR WINDOWS USERS**:
+
 ###### Windows Firewall
-When using Windows, you will be asked if tasks like ghc-iserv or rundevserver should be allowed by the firewall. This is needed to access the devserver interface and the webapp itself.
+
+When using Windows, you will be asked if tasks like ghc-iserv or rundevserver should be allowed by the firewall. This is needed to access the devserver interface and the web application itself.
 
 Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/nix-on-windows/).
 
@@ -123,6 +131,7 @@ MustBeRoot "Run command as root OR execute: $ echo \"trusted-users = root $USER\
 ```
 
 You have to add this to your NixOS configuration:
+
 ```bash
 nix.trustedUsers = [ "root" "USERNAME_HERE" ];
 ```

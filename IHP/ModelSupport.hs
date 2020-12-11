@@ -49,7 +49,7 @@ data ModelContext = ModelContext
     -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
     , queryDebuggingEnabled :: Bool
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
-    , trackTableReadCallback :: Maybe (Text -> IO ())
+    , trackTableReadCallback :: Maybe (ByteString -> IO ())
     }
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -210,6 +210,9 @@ instance InputValue (PrimaryKey model') => InputValue (Id' model') where
     {-# INLINE inputValue #-}
     inputValue = inputValue . Newtype.unpack
 
+instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
+    isEmpty (Id primaryKey) = isEmpty primaryKey
+
 recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
     getField @"id" entity
@@ -284,7 +287,7 @@ sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) =>
 sqlQuery theQuery theParameters = do
     logQuery theQuery theParameters
     withDatabaseConnection \connection -> PG.query connection theQuery theParameters
-{-# INLINE sqlQuery #-}
+{-# INLINABLE sqlQuery #-}
 
 
 -- | Runs a sql statement (like a CREATE statement)
@@ -296,11 +299,11 @@ sqlExec :: (?modelContext :: ModelContext, PG.ToRow q, Show q) => Query -> q -> 
 sqlExec theQuery theParameters = do
     logQuery theQuery theParameters
     withDatabaseConnection \connection -> PG.execute connection theQuery theParameters
-{-# INLINE sqlExec #-}
+{-# INLINABLE sqlExec #-}
 
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
 withDatabaseConnection block = let ModelContext { connectionPool } = ?modelContext in Pool.withResource connectionPool block
-{-# INLINE withDatabaseConnection #-}
+{-# INLINABLE withDatabaseConnection #-}
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
@@ -315,7 +318,7 @@ sqlQueryScalar query parameters = do
     pure case result of
         [PG.Only result] -> result
         _ -> error "sqlQueryScalar: Expected a scalar result value"
-{-# INLINE sqlQueryScalar #-}
+{-# INLINABLE sqlQueryScalar #-}
 
 -- | Returns the table name of a given model.
 --
@@ -328,11 +331,23 @@ tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
 tableName = symbolToText @(GetTableName model)
 {-# INLINE tableName #-}
 
+-- | Returns the table name of a given model as a bytestring.
+--
+-- __Example:__
+--
+-- >>> tableNameByteString @User
+-- "users"
+--
+tableNameByteString :: forall model. (KnownSymbol (GetTableName model)) => ByteString
+tableNameByteString = symbolToByteString @(GetTableName model)
+{-# INLINE tableNameByteString #-}
+
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()
 logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, parameters)))
     where
         ModelContext { queryDebuggingEnabled } = ?modelContext
             -- Env.isProduction FrameworkConfig.environment
+{-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
 --
@@ -342,14 +357,23 @@ logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, 
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
 deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
-deleteRecord model = do
-    let id = getField @"id" model
+deleteRecord model = get #id model |> deleteRecordById @model @id
+{-# INLINABLE deleteRecord #-}
+
+-- | Like 'deleteRecord' but using an Id
+--
+-- >>> let project :: Id Project = ...
+-- >>> delete projectId
+-- DELETE FROM projects WHERE id = '..'
+--
+deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => id -> IO ()
+deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
     logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
-{-# INLINE deleteRecord #-}
+{-# INLINABLE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
 --
@@ -365,7 +389,7 @@ deleteRecords records = do
         else logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
-{-# INLINE deleteRecords #-}
+{-# INLINABLE deleteRecords #-}
 
 -- | Runs a @DELETE@ query to delete all rows in a table.
 --
@@ -377,7 +401,7 @@ deleteAll = do
     logQuery theQuery ()
     sqlExec (PG.Query . cs $! theQuery) ()
     pure ()
-{-# INLINE deleteAll #-}
+{-# INLINABLE deleteAll #-}
 
 type family Include (name :: GHC.Types.Symbol) model
 
@@ -433,12 +457,15 @@ data MetaBag = MetaBag
 
 instance Default MetaBag where
     def = MetaBag { annotations = [], touchedFields = [] }
+    {-# INLINE def #-}
 
 instance SetField "annotations" MetaBag [(Text, Text)] where
     setField value meta = meta { annotations = value }
+    {-# INLINE setField #-}
 
 instance SetField "touchedFields" MetaBag [Text] where
     setField value meta = meta { touchedFields = value }
+    {-# INLINE setField #-}
 
 -- | Returns 'True' if any fields of the record have unsaved changes
 --
@@ -554,7 +581,7 @@ instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
 
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException
-    = RecordNotFoundException { queryAndParams :: (Text, [Action]) }
+    = RecordNotFoundException { queryAndParams :: (ByteString, [Action]) }
     deriving (Show)
 
 instance Exception RecordNotFoundException
@@ -573,11 +600,11 @@ instance ToField value => ToField [value] where
 instance (FromField value, Typeable value) => FromField [value] where
     fromField field value = PG.fromPGArray <$> (fromField field value)
 
-trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
+trackTableRead :: (?modelContext :: ModelContext) => ByteString -> IO ()
 trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
     Just callback -> callback tableName
     Nothing -> pure ()
-{-# INLINE trackTableRead #-}
+{-# INLINABLE trackTableRead #-}
 
 -- | Track all tables in SELECT queries executed within the given IO action.
 --
@@ -588,11 +615,11 @@ trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
 -- > withTableReadTracker do
 -- >     project <- query @Project |> fetchOne
 -- >     user <- query @User |> fetchOne
--- >     
+-- >
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
--- > 
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set Text)) => IO ()) -> IO ()
+-- >
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set ByteString)) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
     let trackTableReadCallback = Just \tableName -> modifyIORef touchedTablesVar (Set.insert tableName)

@@ -38,7 +38,7 @@ tableNameToModelName tableName = do
     if "_" `isInfixOf` singularizedTableName 
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else ucfirst singularizedTableName
-{-# INLINE tableNameToModelName #-}
+{-# INLINABLE tableNameToModelName #-}
 
 -- | Transforms a underscore table name to a name for a controller
 --
@@ -55,7 +55,7 @@ tableNameToControllerName tableName = do
     if "_" `isInfixOf` tableName 
         then unwrapEither tableName $ Inflector.toCamelCased True tableName
         else ucfirst tableName
-{-# INLINE tableNameToControllerName #-}
+{-# INLINABLE tableNameToControllerName #-}
 
 -- | Transforms a camel case model name to a underscored table name.
 --
@@ -69,7 +69,7 @@ modelNameToTableName modelName =
         Inflector.toUnderscore modelName
         |> unwrapEither modelName
         |> Countable.pluralize
-{-# INLINE modelNameToTableName #-}
+{-# INLINABLE modelNameToTableName #-}
 
 -- | Transforms a underscore table column name to a camel case attribute name for use in haskell.
 --
@@ -80,9 +80,9 @@ modelNameToTableName modelName =
 -- "projectId"
 columnNameToFieldName :: Text -> Text
 columnNameToFieldName columnName = escapeHaskellKeyword (unwrapEither columnName $ Inflector.toCamelCased False columnName)
-{-# INLINE columnNameToFieldName #-}
+{-# INLINABLE columnNameToFieldName #-}
 
-{-# INLINE unwrapEither #-}
+{-# INLINABLE unwrapEither #-}
 unwrapEither _ (Right value) = value
 unwrapEither input (Left value) = error ("IHP.NameSupport: " <> show value <> " (value to be transformed: " <>  show input <> ")")
 
@@ -95,14 +95,14 @@ unwrapEither input (Left value) = error ("IHP.NameSupport: " <> show value <> " 
 -- "project_id"
 fieldNameToColumnName :: Text -> Text
 fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUnderscore columnName
-{-# INLINE fieldNameToColumnName #-}
+{-# INLINABLE fieldNameToColumnName #-}
 
 -- | Returns a more friendly version for an identifier
 humanize :: Text -> Text
 humanize text = unwrapEither text $ Inflector.toHumanized True text
-{-# INLINE humanize #-}
+{-# INLINABLE humanize #-}
 
-{-# INLINE applyFirst #-}
+{-# INLINABLE applyFirst #-}
 applyFirst :: (Text -> Text) -> Text -> Text
 applyFirst f text =
     let (first, rest) = splitAt 1 text
@@ -117,7 +117,7 @@ applyFirst f text =
 -- "already lowercase"
 lcfirst :: Text -> Text
 lcfirst = applyFirst toLower
-{-# INLINE lcfirst #-}
+{-# INLINABLE lcfirst #-}
 
 -- | Make a text's first character uppercase
 --
@@ -128,7 +128,7 @@ lcfirst = applyFirst toLower
 -- "Already uppercase"
 ucfirst :: Text -> Text
 ucfirst = applyFirst toUpper
-{-# INLINE ucfirst #-}
+{-# INLINABLE ucfirst #-}
 
 -- | Add '_' to the end of a name if it is a reserved haskell keyword
 --
@@ -139,9 +139,7 @@ ucfirst = applyFirst toUpper
 -- "type_"
 escapeHaskellKeyword :: Text -> Text
 escapeHaskellKeyword name = if toLower name `elem` haskellKeywords then name <> "_" else name
-{-# INLINE escapeHaskellKeyword #-}
 
-{-# INLINE haskellKeywords #-}
 haskellKeywords :: [Text]
 haskellKeywords = [ "_"
     , "as"

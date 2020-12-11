@@ -1,13 +1,14 @@
 # Recipes
 
-This section describes best-practise solutions to the common tasks you are facing when building web applications.
+This section describes best-practice solutions to the common tasks you are facing when building web applications.
 
 ```toc
+
 ```
 
 ## Static Pages
 
-For adding a static page like e.g. a start page, terms of service, privacy, pricing etc. you usually use a normal controller which just renders the view for that page. The only special thing is, that you might want to customize the routing to have SEO-friendly urls.
+For adding a static page like e.g. a start page, terms of service, privacy, pricing, etc. you usually use a normal controller which just renders the view for that page. The only special thing is, that you might want to customize the routing to have SEO-friendly URLs.
 
 Let's say we have a controller like this defined in `Web.Types`:
 
@@ -40,13 +41,12 @@ instance HasPath StaticController where
     pathTo AboutAction = "/about"
 
 instance CanRoute StaticController where
-    parseRoute' = 
+    parseRoute' =
         (string "/terms" <* endOfInput >> pure TermsAction)
         <|> (string "/about" <* endOfInput >> pure AboutAction)
 ```
 
 Now the terms can be reached at `/terms` instead of `/Terms`. The about is at `/about` now, instead of `/About`.
-
 
 ## Uploading a user profile picture
 
@@ -73,17 +73,17 @@ action UpdateUserAction { userId } = do
                 redirectTo EditUserAction { .. }
 ```
 
-This accepts any kind of image file compatible with imagemagick, resize it, reduce the image quality, strip all meta information and save it as jpg. The file is stored inside the `static/uploads` folder in the project (directory will be created if it does not exist).
+This accepts any kind of image file compatible with ImageMagick, resize it, reduce the image quality, strip all meta information, and save it as JPG. The file is stored inside the `static/uploads` folder in the project (the directory will be created if it does not exist).
 
-In your view, just use the image url like `<img src={get #pictureUrl currentUser}/>`.
+In your view, just use the image URL like `<img src={get #pictureUrl currentUser}/>`.
 Note that when you define the `picture_url` field in your `users` table that you
 must check the `Nullable` select box with a default `Null`. This ensures your
-`pictureUrl` data has a `Maybe Text` type and can handle 
+`pictureUrl` data has a `Maybe Text` type and can handle
 cases where the user has not uploaded any image.
 
 If ImageMagick is not installed you will get a `picture.upload` in the uploads folder, but no `picture.jpg`. Install ImageMagick, on Ubuntu it is `sudo apt-get install imagemagick`.
 
-There is currently no special form helper for file uploads. Just specificy it manually like this:
+There is currently no special form helper for file uploads. Just specify it manually like this:
 
 ```haskell
 instance View EditView where
@@ -128,13 +128,13 @@ Use [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupp
 action EditPostAction { postId } = do
     post <- fetch postId
     accessDeniedUnless (get #authorId post == currentUserId)
-    
+
     renderHtml EditView { .. }
 ```
 
 ## Creating a custom validator
 
-If needed you can just write your own constraint, e.g. like this:
+If needed you can just write your constraint, e.g. like this:
 
 ```haskell
 nonEmpty :: Text -> ValidatorResult
@@ -153,25 +153,25 @@ Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-Validatio
 
 ## Don't auto-open the app in the browser
 
-To prevent the IHP dev server automatically opening the dev tooling in your web browser when running `./start`, set the `IHP_BROWSER` env variable to `echo`:
+To prevent the IHP development server from automatically opening the development tooling in your web browser when running `./start`, set the `IHP_BROWSER` environment variable to `echo`:
 
 ```bash
 export IHP_BROWSER=echo
 ./start
 ```
 
-This will then just print out the url which would be opened on start.
+This will then just print out the URL which would be opened on start.
 
-## Getting a `Id Something` from a `UUID`
+## Getting an `Id Something` from a `UUID`
 
-Sometimes you have a UUID value which represents some record id. To get the types right, you can transform it like this:
+Sometimes you have a UUID value that represents some record id. To get the types right, you can transform it like this:
 
 ```haskell
 let myUUID = ...
 let projectId = (Id myUUID) :: Id Project
 ```
 
-In case the id is hardcoded, you can just type UUID value with the right type signature like this:
+In case the id is hard coded, you can just type UUID value with the right type signature like this:
 
 ```haskell
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
@@ -179,30 +179,34 @@ let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 
 ## Getting a `Id Something` from a `Text` / `ByteString` / `String`
 
-Sometimes you have a text, bytestring or string which represents some record id. You can transform it to an Id like this:
+Sometimes you have a text, bytestring, or string which represents some record id. You can transform it into an Id like this:
 
 ```haskell
 let myUUID :: Text = ...
 let projectId = textToId myUUID
 ```
 
-In case the id is hardcoded, you can just type UUID value with the right type signature like this:
+In case the id is hard coded, you can just type UUID value with the right type signature like this:
 
 ```haskell
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 ```
 
-## Having an image as Logout button
+## Having an image as a Logout button
 
-The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by Javascript on click. This does not currently work well with an image inside a link. A workaround is to have the image be the background, like this:
+The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by JavaScript on click. This does not currently work well with an image inside a link. A workaround is to have the image be the background, like this:
 
 ```html
-<a href={DeleteSessionAction} class="js-delete js-delete-no-confirm" style="background:url(/logout.svg) left center no-repeat;width:40px"></a>
+<a
+    href="{DeleteSessionAction}"
+    class="js-delete js-delete-no-confirm"
+    style="background:url(/logout.svg) left center no-repeat;width:40px"
+></a>
 ```
 
 ## Making a dynamic Login/Logout button
 
-Depending on the `user` object from the viewContext, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
+Depending on the `user` object from the `viewContext`, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
 
 ```haskell
 navbar :: Html
@@ -232,11 +236,11 @@ navbar = [hsx|
 
 You can see this code in action in the [`auth` branch from our example blog](https://github.com/digitallyinduced/ihp-blog-example-app/blob/auth/Web/View/Layout.hs).
 
-Protip: If the `user` is a `Just user` you can use the user object to run specific actions or retrieve information from it. This way you could display the username of the logged in user above the logout button.
+Protip: If the `user` is a `Just user` you can use the user object to run specific actions or retrieve information from it. This way you could display the username of the logged-in user above the logout button.
 
-## Making a HTTP request
+## Making an HTTP request
 
-To make a HTTP request, you need `Wreq`. You need to add it to your haskell dependencies in the `default.nix` file, like here:
+To make an HTTP request, you need `Wreq`. You need to add it to your Haskell dependencies in the `default.nix` file, like here:
 
 ```bash
 ...
@@ -271,8 +275,9 @@ handleFetchAction url = do
 
 When using `handleFetchAction "https://google.com/"`, your app would display the google homepage.
 
-## Confirm before link is used
-To confirm before a link is fired add an onclick to the link.
+## Confirm before the link is used
+
+To confirm before a link is fired add an `onclick` to the link.
 
 ```haskell
 [hsx|

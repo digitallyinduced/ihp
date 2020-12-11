@@ -137,7 +137,7 @@ instance WSApp AutoRefreshWSApp where
             AwaitingSessionID -> pure ()
 
 
-registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (get #subscribedTables) <$> (autoRefreshServer |> readIORef)

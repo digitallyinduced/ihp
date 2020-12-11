@@ -15,7 +15,7 @@ import qualified Web.Cookie as Cookie
 import Data.Default (def)
 import Data.Time.Clock (NominalDiffTime)
 import IHP.Mail.Types
-import qualified Control.Monad.Trans.State.Lazy as State
+import qualified Control.Monad.Trans.State.Strict as State
 import Data.Maybe (fromJust)
 import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
@@ -72,6 +72,7 @@ type ConfigBuilder = State.StateT TMap.TMap IO ()
 -- This code will return 'Production' as the second call to 'option' is ignored to not override the existing option.
 option :: forall option. Typeable option => option -> State.StateT TMap.TMap IO ()
 option value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
+{-# INLINE option #-}
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
@@ -103,6 +104,7 @@ ihpDefaultConfig = do
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
 
     option bootstrap
+{-# INLINE ihpDefaultConfig #-}
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
 findOption = do
@@ -111,6 +113,7 @@ findOption = do
         |> TMap.lookup @option
         |> fromMaybe (error $ "Could not find " <> show (Typeable.typeOf (undefined :: option)))
         |> pure
+{-# INLINE findOption #-}
 
 buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
 buildFrameworkConfig appConfig = do
@@ -132,12 +135,13 @@ buildFrameworkConfig appConfig = do
     (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
 
     pure frameworkConfig
+{-# INLINE buildFrameworkConfig #-}
 
 data FrameworkConfig = FrameworkConfig 
-    { appHostname :: Text
-    , environment :: Environment
-    , appPort :: Int
-    , baseUrl :: Text
+    { appHostname :: !Text
+    , environment :: !Environment
+    , appPort :: !Int
+    , baseUrl :: !Text
 
     -- | Provides IHP with a middleware to log requests and responses.
     --
@@ -148,7 +152,7 @@ data FrameworkConfig = FrameworkConfig
     -- 
     --
     -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
-    , requestLoggerMiddleware :: Middleware
+    , requestLoggerMiddleware :: !Middleware
 
     -- | Provides the default settings for the session cookie.
     --
@@ -161,21 +165,21 @@ data FrameworkConfig = FrameworkConfig
     --
     -- __Example: Set max age to 90 days__
     -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
-    , sessionCookie :: Cookie.SetCookie
+    , sessionCookie :: !Cookie.SetCookie
 
-    , mailServer :: MailServer
+    , mailServer :: !MailServer
 
-    , databaseUrl :: ByteString 
+    , databaseUrl :: !ByteString 
     -- | How long db connection are kept alive inside the connecton pool when they're idle
-    , dbPoolIdleTime :: NominalDiffTime
+    , dbPoolIdleTime :: !NominalDiffTime
 
     -- | Max number of db connections the connection pool can open to the database
-    , dbPoolMaxConnections :: Int
+    , dbPoolMaxConnections :: !Int
 
     -- | Bootstrap 4 by default
     --
     -- Override this if you use a CSS framework that is not bootstrap
-    , cssFramework :: CSSFramework
+    , cssFramework :: !CSSFramework
 }
 
 class ConfigProvider a where
@@ -187,10 +191,12 @@ instance ConfigProvider FrameworkConfig where
 -- | Proxies FrameworkConfig fields contained in some context that can provider a FrameworkConfig
 fromConfig :: (?context :: context, ConfigProvider context) => (FrameworkConfig -> a) -> a
 fromConfig selector = (selector . getFrameworkConfig) ?context
+{-# INLINE fromConfig #-}
 
 -- | Get the current frameworkConfig
 getConfig :: (?context :: context, ConfigProvider context) => FrameworkConfig
 getConfig = fromConfig id
+{-# INLINE getConfig #-}
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: Text -> Cookie.SetCookie
@@ -223,15 +229,18 @@ defaultDatabaseUrl = do
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
 isEnvironment environment = (getFrameworkConfig ?context |> get #environment) == environment
+{-# INLINE isEnvironment #-}
 
 -- | Returns 'True'  when the application is running in Development mode
 --
 -- Development mode means that the Development option is configured in Config/Config.hs
 isDevelopment :: (?context :: context, ConfigProvider context) => Bool
 isDevelopment = isEnvironment Development
+{-# INLINE isDevelopment #-}
 
 -- | Returns 'True' when the application is running in Production mode
 --
 -- Production mode means that the Production option is configured in Config/Config.hs
 isProduction :: (?context :: context, ConfigProvider context) => Bool
 isProduction = isEnvironment Production
+{-# INLINE isProduction #-}

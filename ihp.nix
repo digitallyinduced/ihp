@@ -58,7 +58,6 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   allowInconsistentDependencies = true;
-  buildDepends = [ (import <nixpkgs> {}).git ];
   libraryHaskellDepends = [
     base
     classy-prelude
@@ -106,6 +105,7 @@ mkDerivation {
     resource-pool
     wreq
     deepseq
+    uri-encode
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

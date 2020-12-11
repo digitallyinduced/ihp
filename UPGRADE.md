@@ -2,6 +2,27 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 27.11.2020 (v20201127) from Beta 13.11.2020 (v20201113)
+
+## Switch IHP version
+
+First open `default.nix` and change the git commit in line 4 to the following:
+
+```bash
+rev = "79d4892d6cd531eb2b446a46a2a0e434c8a39895";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+
 # Upgrade to Beta 13.11.2020 (v20201113) from Beta 30.10.2020 (v20201030)
 
 ## Update your `Config/Config.hs`
@@ -35,6 +56,20 @@ config :: ConfigBuilder
 config = do
     option Development
     option (AppHostname "localhost")
+```
+
+Do you have a ´baseUrl´ key in your config?
+
+Old:
+
+```haskell
+    baseUrl = "https://..."
+```
+
+New:
+
+```haskell
+    option (BaseUrl "https://...")
 ```
 
 ### MailServer

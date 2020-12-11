@@ -29,6 +29,8 @@ module IHP.HaskellSupport (
 , includes
 , stripTags
 , symbolToText
+, symbolToByteString
+, IsEmpty (..)
 ) where
 
 import ClassyPrelude
@@ -44,16 +46,37 @@ import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs)
 import qualified Debug.Trace
 import qualified Data.Text as Text
-import qualified Data.Maybe 
+import qualified Data.Maybe
+import qualified Data.ByteString.Char8 as ByteString
 
 --(|>) :: a -> f -> f a
 infixl 8 |>
 a |> f = f a
 {-# INLINE (|>) #-}
 
-isEmpty :: MonoFoldable value => value -> Bool
-isEmpty value = null value
-{-# INLINE isEmpty #-}
+-- | Used by 'nonEmpty' and 'isEmptyValue' to check for emptyness
+class IsEmpty value where
+    -- | Returns True when the value is an empty string, empty list, zero UUID, etc.
+    isEmpty :: value -> Bool
+
+instance IsEmpty Text where
+    isEmpty "" = True
+    isEmpty _ = False
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty (Maybe value) where
+    isEmpty Nothing = True
+    isEmpty (Just _) = False
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty [a] where
+    isEmpty [] = True
+    isEmpty _ = False
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty UUID.UUID where
+    isEmpty uuid = UUID.nil == uuid
+    {-# INLINE isEmpty #-}
 
 ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
@@ -62,7 +85,7 @@ ifOrEmpty bool a = if bool then a else mempty
 whenEmpty condition = when (isEmpty condition)
 {-# INLINE whenEmpty #-}
 
-whenNonEmpty :: (MonoFoldable a, Applicative f) => a -> f () -> f ()
+whenNonEmpty :: (IsEmpty a, Applicative f) => a -> f () -> f ()
 whenNonEmpty condition = unless (isEmpty condition)
 {-# INLINE whenNonEmpty #-}
 
@@ -81,9 +104,11 @@ includes = elem
 
 instance Data.Default.Default UUID.UUID where
     def = UUID.nil
+    {-# INLINE def #-}
 
 instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
     fromLabel = Proxy @name'
+    {-# INLINE fromLabel #-}
 
 -- | Returns the field value for a field name
 --
@@ -171,6 +196,7 @@ isToday' currentTime timestamp = utcTimeToYearMonthDay currentTime == utcTimeToY
 -- | Allows `Just "someThing"` to be written as `"someThing"`
 instance IsString string => IsString (Maybe string) where
     fromString string = Just (fromString string)
+    {-# INLINE fromString #-}
 
 
 -- | Example:
@@ -254,6 +280,17 @@ stripTags html = let (a, b) = Text.splitAt 1 html in a <> stripTags b
 symbolToText :: forall symbol. (KnownSymbol symbol) => Text
 symbolToText = Text.pack (symbolVal @symbol Proxy)
 {-# INLINE symbolToText #-}
+
+-- | Returns the value of a type level symbol as a bytestring
+--
+-- >>> symbolToByteString @"hello"
+-- "hello"
+--
+-- >>> symbolToByteString @(GetTableName User)
+-- "users"
+symbolToByteString :: forall symbol. (KnownSymbol symbol) => ByteString
+symbolToByteString = ByteString.pack (symbolVal @symbol Proxy)
+{-# INLINE symbolToByteString #-}
 
 instance IsString UUID.UUID where
     fromString string = case UUID.fromString string of

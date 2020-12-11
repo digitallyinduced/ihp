@@ -16,6 +16,12 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://ihp.digitallyinduced.com/" target="_blank">
+    IHP Website
+  </a>
+</p>
+
 # About IHP
 
 IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.
@@ -143,12 +149,9 @@ There's more on the IHP website.
 
 ## Community
 
-Questions, or need help with haskell type errors? Join our Gitter Chat:
+Questions, or need help with haskell type errors? [Join our Slack Community](https://join.slack.com/t/ihpframework/shared_invite/zt-js1xo46t-4MdSvMQVoLYvxRz8rvGYig)
 
-[![Gitter](https://badges.gitter.im/digitallyinduced/ihp.svg)](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-[(IRC available)](https://irc.gitter.im/)
-
-[Also check out the IHP Forum!](https://ihp-forum.digitallyinduced.com/)
+[Also check out the IHP Forum!](https://forum.ihpapp.com/)
 
 ## Contributing
 
