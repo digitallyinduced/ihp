@@ -129,6 +129,9 @@ instance InputValue fieldType => InputValue (Maybe fieldType) where
 instance InputValue value => InputValue [value] where
     inputValue list = list |> map inputValue |> intercalate ","
 
+instance InputValue Aeson.Value where
+    inputValue json = json |> Aeson.encode |> cs
+
 instance Default Text where
     {-# INLINE def #-}
     def = ""
