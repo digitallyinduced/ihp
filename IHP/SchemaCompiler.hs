@@ -142,6 +142,8 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Data.Aeson\n"
                   <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))\n"
                   <> "import qualified Database.PostgreSQL.Simple.Types\n"
+                  <> "import IHP.Job.Types\n"
+                  <> "import IHP.Job.Queue ()\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement

@@ -178,6 +178,22 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript Config.config run" >> $@
 
+build/bin/RunJobs: build/RunJobs.hs
+	mkdir -p build/bin
+	ghc -O2 -main-is 'RunJobs.main' ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build -hidir build
+
+build/RunJobs.hs: build/Generated/Types.hs
+	echo "module RunJobs (main) where" > $@
+	echo "import Application.Script.Prelude" >> $@
+	echo "import IHP.ScriptSupport" >> $@
+	echo "import IHP.Job.Runner" >> $@
+	echo "import qualified Config" >> $@
+	echo "import Main" >> $@
+	echo "main :: IO ()" >> $@
+	echo "main = runScript Config.config run" >> $@
+	echo "run :: Script" >> $@
+	echo "run = runJobWorkers (workers RootApplication)" >> $@
+
 hie.yaml: # Configuration for haskell-language-server
 	echo "cradle:" > hie.yaml
 	echo "  bios:" >> hie.yaml

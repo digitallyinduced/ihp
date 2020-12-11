@@ -22,6 +22,7 @@ import qualified Test.ValidationSupport.ValidateFieldSpec
 import qualified Test.IDE.CodeGeneration.ControllerGenerator
 import qualified Test.IDE.CodeGeneration.ViewGenerator
 import qualified Test.IDE.CodeGeneration.MailGenerator
+import qualified Test.IDE.CodeGeneration.JobGenerator
 import qualified Test.HtmlSupport.QQSpec
 import qualified Test.HtmlSupport.ParserSpec
 import qualified Test.NameSupportSpec
@@ -39,6 +40,7 @@ main = hspec do
     Test.IDE.CodeGeneration.ControllerGenerator.tests
     Test.IDE.CodeGeneration.ViewGenerator.tests
     Test.IDE.CodeGeneration.MailGenerator.tests
+    Test.IDE.CodeGeneration.JobGenerator.tests
     Test.HtmlSupport.QQSpec.tests
     Test.NameSupportSpec.tests
     Test.HaskellSupportSpec.tests

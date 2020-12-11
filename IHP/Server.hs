@@ -29,8 +29,11 @@ import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.WebSocket as WS
 import IHP.LibDir
+import qualified IHP.Job.Runner as Job
+import qualified IHP.Job.Types as Job
+import qualified Control.Concurrent.Async as Async
 
-run :: (FrontController RootApplication) => ConfigBuilder -> IO ()
+run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
     frameworkConfig@(FrameworkConfig { environment, appPort, dbPoolMaxConnections, dbPoolIdleTime, databaseUrl, sessionCookie, requestLoggerMiddleware }) <- buildFrameworkConfig configBuilder
     session <- Vault.newKey
@@ -57,13 +60,22 @@ run configBuilder = do
                         |> Warp.setPort appPort
                 in Warp.runSettings settings
             else Warp.runEnv appPort
-    runServer $
-        staticMiddleware $
-                sessionMiddleware $
-                    ihpWebsocketMiddleware $
-                        requestLoggerMiddleware $
-                                methodOverridePost $
-                                    application
+
+    let jobWorkers = Job.workers RootApplication
+    let withBackgroundWorkers app = 
+            if isDevelopment && not (isEmpty jobWorkers)
+                    then Async.withAsync (let ?context = frameworkConfig in Job.runJobWorkers jobWorkers) (\_ -> app)
+                    else app
+            
+
+    withBackgroundWorkers do
+        runServer $
+            staticMiddleware $
+                    sessionMiddleware $
+                        ihpWebsocketMiddleware $
+                            requestLoggerMiddleware $
+                                    methodOverridePost $
+                                        application
 {-# INLINE run #-}
 
 ihpWebsocketMiddleware :: (?applicationContext :: ApplicationContext) => Middleware

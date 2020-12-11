@@ -258,6 +258,11 @@ library IHPFramework
         , IHP.Version
         , IHP.Point
         , Paths_ihp
+        , IHP.IDE.CodeGen.JobGenerator
+        , IHP.IDE.CodeGen.View.NewJob
+        , IHP.Job.Queue
+        , IHP.Job.Runner
+        , IHP.Job.Types
 
 executable RunDevServer
     import: shared-properties

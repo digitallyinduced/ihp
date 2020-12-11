@@ -28,7 +28,8 @@ module IHP.ViewPrelude (
     module IHP.Controller.Context,
     module IHP.Controller.Layout,
     module IHP.Modal.Types,
-    module IHP.Modal.ViewFunctions
+    module IHP.Modal.ViewFunctions,
+    module IHP.Job.Types
 ) where
 
 import IHP.Prelude
@@ -56,3 +57,4 @@ import IHP.Controller.Layout
 
 import IHP.Modal.Types
 import IHP.Modal.ViewFunctions
+import IHP.Job.Types
