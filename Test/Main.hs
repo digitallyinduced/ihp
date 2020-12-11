@@ -31,6 +31,7 @@ import qualified Test.View.CSSFrameworkSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
 import qualified Test.SchemaMigrationSpec
+import qualified Test.ModelSupportSpec
 
 main :: IO ()
 main = hspec do
@@ -49,3 +50,4 @@ main = hspec do
     Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
     Test.SchemaMigrationSpec.tests
+    Test.ModelSupportSpec.tests
