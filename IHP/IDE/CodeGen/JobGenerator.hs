@@ -13,8 +13,8 @@ import qualified Text.Countable as Countable
 
 data JobConfig = JobConfig
     { applicationName :: Text
-    , tableName :: Text -- | E.g. create_container_jobs
-    , modelName :: Text -- | E.g. CreateContainerJob
+    , tableName :: Text -- E.g. create_container_jobs
+    , modelName :: Text -- E.g. CreateContainerJob
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
