@@ -105,6 +105,7 @@ mkDerivation {
     resource-pool
     wreq
     deepseq
+    uri-encode
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
