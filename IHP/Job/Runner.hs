@@ -6,10 +6,11 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Job.Runner where
 
-import Application.Script.Prelude
+import IHP.Prelude
+import IHP.ControllerPrelude
+import IHP.ScriptSupport
 import IHP.Job.Types
 import qualified IHP.Job.Queue as Queue
-import Application.Helper.Controller
 import qualified Control.Exception as Exception
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
