@@ -10,15 +10,19 @@ import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import qualified Text.Countable as Countable
+import qualified System.Directory as Directory
+import qualified Data.Maybe as Maybe
 
 data JobConfig = JobConfig
     { applicationName :: Text
     , tableName :: Text -- E.g. create_container_jobs
     , modelName :: Text -- E.g. CreateContainerJob
+    , isFirstJobInApplication :: Bool -- If true, creates Web/Worker.hs
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
-buildPlan jobName applicationName =
+buildPlan jobName applicationName = do
+    isFirstJobInApplication <- not <$> Directory.doesFileExist (cs $ applicationName <> "/Worker.hs")
     if null jobName
         then pure $ Left "Job name can be empty"
         else do
@@ -26,6 +30,7 @@ buildPlan jobName applicationName =
                     { applicationName
                     , tableName = jobName
                     , modelName = tableNameToModelName jobName
+                    , isFirstJobInApplication
                     }
             pure $ Right $ buildPlan' jobConfig
 
@@ -41,7 +46,7 @@ buildPlan' :: JobConfig -> [GeneratorAction]
 buildPlan' config =
         let
             name = get #modelName config
-            tableName = modelNameToTableName name
+            tableName = modelNameToTableName nameWithSuffix
             nameWithSuffix = if "Job" `isSuffixOf` name
                 then name
                 else name <> "Job" --e.g. "Test" -> "TestJob"
@@ -55,7 +60,7 @@ buildPlan' config =
                 <> "import " <> get #applicationName config <> ".Controller.Prelude\n"
                 <> "\n"
                 <> "instance Job " <> nameWithSuffix <> " where\n"
-                <> "    perform " <> name <> " { .. } = do\n"
+                <> "    perform " <> nameWithSuffix <> " { .. } = do\n"
                 <> "        putStrLn \"Hello World!\"\n"
 
             schemaSql =
@@ -70,10 +75,36 @@ buildPlan' config =
                 <> "    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,\n"
                 <> "    locked_by UUID DEFAULT NULL\n"
                 <> ");\n"
+
+
+            emptyWorkerHs :: Text
+            emptyWorkerHs =
+                        let
+                            applicationName = get #applicationName config
+                        in cs [plain|module #{applicationName}.Worker where
+
+import IHP.Prelude
+import Web.Types
+import Generated.Types
+import IHP.Job.Runner
+import IHP.Job.Types
+
+import #{qualifiedJobModuleName config}
+
+instance Worker #{applicationName}Application where
+    workers _ =
+        [ worker @#{nameWithSuffix}
+        -- Generator Marker
+        ]
+|]
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/Job" }
-            , CreateFile { filePath = get #applicationName config <> "/Job/" <> nameWithoutSuffix <> ".hs", fileContent = job }
             , AppendToFile { filePath = "Application/Schema.sql", fileContent = schemaSql }
-            , AppendToMarker { marker = "-- Job Imports", filePath = get #applicationName config <> "/Worker.hs", fileContent = ("import " <> qualifiedJobModuleName config) }
-            --, AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            , CreateFile { filePath = get #applicationName config <> "/Job/" <> nameWithoutSuffix <> ".hs", fileContent = job }
             ]
+            <> if get #isFirstJobInApplication config
+                    then [ CreateFile { filePath = get #applicationName config <> "/Worker.hs", fileContent = emptyWorkerHs } ]
+                    else
+                        [ AddImport { filePath = get #applicationName config <> "/Worker.hs", fileContent = "import " <> qualifiedJobModuleName config }
+                        , AppendToMarker { marker = "-- Generator Marker", filePath = get #applicationName config <> "/Worker.hs", fileContent = "        , worker @" <> nameWithSuffix }
+                        ]

@@ -54,7 +54,7 @@ instance View NewJobView where
                     {renderApplicationOptions}
                 </select>|]
             renderPreview = [hsx|
-                <form method="POST" action={CreateMailAction} class="d-flex">
+                <form method="POST" action={CreateJobAction} class="d-flex">
                     <div class="object-name flex-grow-1">{applicationName}.Job.{jobName}</div>
 
                     <input type="hidden" name="name" value={jobName}/>
