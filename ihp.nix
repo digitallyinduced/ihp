@@ -53,7 +53,7 @@
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v20201127-dev";
+  version = "v20201213";
   src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] ./.;
   isLibrary = true;
   isExecutable = true;
