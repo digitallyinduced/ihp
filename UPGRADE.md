@@ -2,6 +2,40 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 13.12.2020 (v20201213) from Beta Beta 27.11.2020 (v20201127)
+
+## Update `Main.hs`
+
+1. Add import for `import IHP.Job.Types` to your `Main.hs`:
+    
+    ```haskell
+    import IHP.Job.Types
+    ```
+2. Add the following instance to your `Main.hs`:
+    ```haskell
+    instance Worker RootApplication where
+        workers _ = []
+    ```
+
+## Switch IHP version
+
+First open `default.nix` and change the git commit in line 4 to the following:
+
+```bash
+rev = "17c9507e519a7c37ccf001ada050df171e4af8ef";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+
 # Upgrade to Beta 27.11.2020 (v20201127) from Beta 13.11.2020 (v20201113)
 
 ## Switch IHP version
