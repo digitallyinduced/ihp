@@ -254,6 +254,7 @@ library IHPFramework
         , IHP.SchemaMigration
         , IHP.LibDir
         , IHP.Telemetry
+        , IHP.Test.Mocking
         , IHP.Version
         , IHP.Point
         , Paths_ihp
