@@ -460,7 +460,7 @@ parseUUID = do
 {-# INLINE parseUUID #-}
 
 -- | Parses an UUID, afterwards wraps it in an Id
-parseId :: ((ModelSupport.PrimaryKey (ModelSupport.GetTableName record)) ~ UUID) => Parser (ModelSupport.Id record)
+parseId :: ((ModelSupport.PrimaryKey table) ~ UUID) => Parser (ModelSupport.Id' table)
 parseId = ModelSupport.Id <$> parseUUID
 {-# INLINE parseId #-}
 
