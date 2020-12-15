@@ -56,7 +56,7 @@ run configBuilder = do
                             requestLoggerMiddleware $
                                     methodOverridePost $
                                         application
-{-# INLINE run #-}
+{-# INLINABLE run #-}
 
 withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => FrameworkConfig -> _
 withBackgroundWorkers frameworkConfig app = do
@@ -103,7 +103,6 @@ ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
             Websocket.defaultConnectionOptions
             (websocketServer request respond)
             next) request respond
-{-# INLINE ihpWebsocketMiddleware #-}
 
 websocketServer :: (?applicationContext :: ApplicationContext) => Request -> RequestContext.Respond -> Websocket.ServerApp
 websocketServer request respond pendingConnection = do
