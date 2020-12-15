@@ -266,8 +266,8 @@ Now we define our `CanRoute` instance like this:
 instance CanRoute PostsController where
     parseRoute' = do
         string "/posts/"
-        let postById = do id <- parseId; endOfInput; pure ShowPostAction { postId, slug = Nothing }
-        let postBySlug = do slug <- remainingText; pure ShowPostAction { postId = Nothing, slug }
+        let postById = do id <- parseId; endOfInput; pure ShowPostAction { postId = Just id, slug = Nothing }
+        let postBySlug = do slug <- remainingText; pure ShowPostAction { postId = Nothing, slug = Just slug }
         postById <|> postBySlug
 ```
 
