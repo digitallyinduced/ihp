@@ -35,41 +35,21 @@ import qualified Control.Concurrent.Async as Async
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
-    frameworkConfig@(FrameworkConfig { environment, appPort, dbPoolMaxConnections, dbPoolIdleTime, databaseUrl, sessionCookie, requestLoggerMiddleware }) <- buildFrameworkConfig configBuilder
-    session <- Vault.newKey
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let isDevelopment = environment == Env.Development
-    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl
-    let ?modelContext = modelContext
+    frameworkConfig <- buildFrameworkConfig configBuilder
+    
+    sessionVault <- Vault.newKey
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
-    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session, autoRefreshServer, frameworkConfig }
-    let application :: Application = \request respond -> do
-            requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
-            let ?context = requestContext
-            frontControllerToWAIApp RootApplication ErrorController.handleNotFound
+    modelContext <- initModelContext frameworkConfig
 
-    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie session
+    let ?modelContext = modelContext
+    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig }
 
-    libDirectory <- cs <$> findLibDirectory
-    let staticMiddleware :: Middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
+    sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig            
+    staticMiddleware <- initStaticMiddleware
+    let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
 
-    let runServer = if isDevelopment
-            then
-                let settings = Warp.defaultSettings
-                        |> Warp.setBeforeMainLoop (putStrLn "Server started")
-                        |> Warp.setPort appPort
-                in Warp.runSettings settings
-            else Warp.runEnv appPort
-
-    let jobWorkers = Job.workers RootApplication
-    let withBackgroundWorkers app = 
-            if isDevelopment && not (isEmpty jobWorkers)
-                    then Async.withAsync (let ?context = frameworkConfig in Job.runJobWorkers jobWorkers) (\_ -> app)
-                    else app
-            
-
-    withBackgroundWorkers do
-        runServer $
+    withBackgroundWorkers frameworkConfig do
+        runServer frameworkConfig $
             staticMiddleware $
                     sessionMiddleware $
                         ihpWebsocketMiddleware $
@@ -77,6 +57,45 @@ run configBuilder = do
                                     methodOverridePost $
                                         application
 {-# INLINE run #-}
+
+withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => FrameworkConfig -> _
+withBackgroundWorkers frameworkConfig app = do
+    let jobWorkers = Job.workers RootApplication
+    let isDevelopment = get #environment frameworkConfig == Env.Development
+    if isDevelopment && not (isEmpty jobWorkers)
+            then Async.withAsync (let ?context = frameworkConfig in Job.runJobWorkers jobWorkers) (\_ -> app)
+            else app
+
+initStaticMiddleware :: IO Middleware
+initStaticMiddleware = do
+    libDirectory <- cs <$> findLibDirectory
+    let middleware = staticPolicy (addBase "static/") . staticPolicy (addBase (libDirectory <> "static/"))
+    pure middleware
+
+initSessionMiddleware :: _ -> FrameworkConfig -> IO Middleware
+initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
+    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
+    pure sessionMiddleware
+
+initModelContext :: FrameworkConfig -> IO ModelContext
+initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl } = do
+    let isDevelopment = environment == Env.Development
+    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl
+    pure modelContext
+
+application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application
+application request respond = do
+        requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
+        let ?context = requestContext
+        frontControllerToWAIApp RootApplication ErrorController.handleNotFound
+
+runServer :: FrameworkConfig -> _
+runServer FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
+                Warp.defaultSettings
+                    |> Warp.setBeforeMainLoop (putStrLn "Server started")
+                    |> Warp.setPort appPort
+runServer FrameworkConfig { environment = Env.Production, appPort } = Warp.runEnv appPort
 
 ihpWebsocketMiddleware :: (?applicationContext :: ApplicationContext) => Middleware
 ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
