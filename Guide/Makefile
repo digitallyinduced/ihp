@@ -9,6 +9,7 @@ HTML_FILES+= installation.html
 HTML_FILES+= index.html
 HTML_FILES+= database.html
 HTML_FILES+= debugging.html
+HTML_FILES+= testing.html
 HTML_FILES+= querybuilder.html
 HTML_FILES+= view.html
 HTML_FILES+= form.html
