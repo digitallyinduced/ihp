@@ -57,7 +57,7 @@ GHC_EXTENSIONS+= -XDerivingVia
 GHC_EXTENSIONS+= -Werror=missing-fields
 GHC_EXTENSIONS+= -fwarn-incomplete-patterns
 
-GHC_RTS_FLAGS := -A256m -n2m
+GHC_RTS_FLAGS := -A256m -n2m -N
 
 GHC_OPTIONS=-threaded -i. -ibuild -iConfig -iIHP
 GHC_OPTIONS+= ${GHC_EXTENSIONS}

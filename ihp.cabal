@@ -269,6 +269,7 @@ executable RunDevServer
     build-depends: IHPFramework
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
+    ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 -threaded -haddock  -fmax-worker-args=200 -fstatic-argument-transformation -with-rtsopts=-A512m -with-rtsopts=-n4m -with-rtsopts=-N
 
 executable new-application
     import: shared-properties

@@ -213,7 +213,7 @@ stopFileWatcher _ = pure ()
 
 startGHCI :: IO ManagedProcess
 startGHCI = do
-    let args = ["-threaded", "-fomit-interface-pragmas", "-j", "-O0", "+RTS", "-A512m", "-n4m", "-H512m", "-G3", "-qg"]
+    let args = ["-threaded", "-fomit-interface-pragmas", "-j", "-O0", "+RTS", "-A512m", "-n4m", "-H512m", "-G3", "-qg", "-N"]
     createManagedProcess (Process.proc "ghci" args)
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
