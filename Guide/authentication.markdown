@@ -144,6 +144,7 @@ First, we have to update `Web/Types.hs`. The auth module directs users to the lo
 
 ```haskell
 import IHP.LoginSupport.Types
+import Generated.Types
 
 instance HasNewSessionUrl User where
     newSessionUrl _ = "/NewSession"
