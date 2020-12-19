@@ -15,6 +15,8 @@ import qualified Control.Exception as Exception
 import qualified Crypto.Hash.SHA512 as SHA512
 import qualified System.Directory as Directory
 import qualified Data.ByteString.Base16 as Base16
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 
 data TelemetryInfo = TelemetryInfo
     { ihpVersion :: !Text
@@ -31,15 +33,26 @@ reportTelemetry = do
     isDisabled <- maybe False (\value -> value == "1") <$> Env.lookupEnv "IHP_TELEMETRY_DISABLED"
     unless isDisabled do
         payload <- toPayload <$> getTelemetryInfo
+        putStrLn $ show payload
         result <- Exception.try (Wreq.post "https://ihp-telemetry.digitallyinduced.com/CreateEvent" payload)
         case result of
-            Left (e :: SomeException) -> putStrLn ("Telemetry failed: " <> show e)
-            Right _ -> putStrLn "IHP Telemetry is activated. This can be disabled by setting a env variable to IHP_TELEMETRY_DISABLED=1"
+            Left (e :: IOException) -> putStrLn ("Telemetry failed: " <> show e)
+            Right _ -> putStrLn "IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1"
 
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do
     projectId <- getProjectId
-    pure TelemetryInfo { ihpVersion = Version.ihpVersion, os = cs System.os, arch = cs System.arch, projectId }
+    iswin <- isWindows `catch` \(_ :: IOException) -> pure False
+    let opsys
+         | System.os == "linux" && iswin = "linux (WSL)"
+         | otherwise = System.os
+    pure TelemetryInfo { ihpVersion = Version.ihpVersion, os = cs opsys, arch = cs System.arch, projectId }
+
+-- this seems to be the generally accepted way of detecting running under the Windows Subsystem for Linux
+isWindows :: IO Bool
+isWindows = do
+    p <- TIO.readFile "/proc/version"
+    pure $ T.isInfixOf "Microsoft" p
 
 -- | The project id is a an anonymous identifier to keep track of distinct projects.
 --
