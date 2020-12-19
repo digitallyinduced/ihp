@@ -19,15 +19,19 @@ import Data.String.Conversions
 import qualified Data.List as List
 import Control.Monad (unless)
 import Prelude (show)
+import qualified Language.Haskell.Meta as Haskell
+import qualified Language.Haskell.TH.Syntax as Haskell
+import qualified "template-haskell" Language.Haskell.TH as TH
+import qualified "template-haskell" Language.Haskell.TH.Syntax as TH
 
-data AttributeValue = TextValue !Text | ExpressionValue !Text deriving (Eq, Show)
+data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 
-data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes !Text deriving (Eq, Show)
+data Attribute = StaticAttribute !Text !AttributeValue | SpreadAttributes !Haskell.Exp deriving (Eq, Show)
 
 data Node = Node !Text ![Attribute] ![Node] !Bool
     | TextNode !Text
     | PreEscapedTextNode !Text -- ^ Used in @script@ or @style@ bodies
-    | SplicedNode !Text -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
+    | SplicedNode !Haskell.Exp -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
     | Children ![Node]
     | CommentNode !Text
     deriving (Eq, Show)
@@ -134,7 +138,10 @@ hsxSplicedAttributes :: Parser Attribute
 hsxSplicedAttributes = do
     name <- between (string "{...") (string "}") (takeWhile1P Nothing (\c -> c /= '}'))
     space
-    pure (SpreadAttributes name)
+    haskellExpression <- case Haskell.parseExp (cs name) of
+            Right expression -> pure (patchExpr expression)
+            Left error -> fail (show error)
+    pure (SpreadAttributes haskellExpression)
 
 hsxNodeAttribute = do
     key <- hsxAttributeName
@@ -182,7 +189,10 @@ hsxQuotedValue = do
 hsxSplicedValue :: Parser AttributeValue
 hsxSplicedValue = do
     value <- between (char '{') (char '}') (takeWhile1P Nothing (\c -> c /= '}'))
-    pure (ExpressionValue value)
+    haskellExpression <- case Haskell.parseExp (cs value) of
+            Right expression -> pure (patchExpr expression)
+            Left error -> fail (show error)
+    pure (ExpressionValue haskellExpression)
 
 hsxClosingElement name = do
     _ <- string ("</" <> name <> ">")
@@ -208,7 +218,10 @@ hsxSplicedNode :: Parser Node
 hsxSplicedNode = do
         expression <- doParse
         space
-        pure (SplicedNode expression)
+        haskellExpression <- case Haskell.parseExp (cs expression) of
+                Right expression -> pure (patchExpr expression)
+                Left error -> fail (show error)
+        pure (SplicedNode haskellExpression)
     where
         doParse = do
             tree <- node
@@ -381,3 +394,40 @@ collapseSpace text = Text.intercalate " " (filterDuplicateSpaces $ Text.split Ch
         filterDuplicateSpaces ("":"":rest) = (filterDuplicateSpaces ("":rest))
         filterDuplicateSpaces (a:rest) = a:(filterDuplicateSpaces rest)
         filterDuplicateSpaces [] = []
+
+
+patchExpr :: TH.Exp -> TH.Exp
+patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.VarE labelValue)) | hash == TH.mkName "#" = TH.AppE (TH.VarE varName) fromLabel
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+--- UInfixE (UInfixE a (VarE |>) (VarE get)) (VarE #) (VarE firstName)
+patchExpr input@(TH.UInfixE (TH.UInfixE a (TH.VarE arrow) (TH.VarE get)) (TH.VarE hash) (TH.VarE labelValue)) | (hash == TH.mkName "#") && (arrow == TH.mkName "|>") && (get == TH.mkName "get") =
+        (TH.UInfixE (patchExpr a) (TH.VarE arrow) (TH.AppE (TH.VarE get) fromLabel))
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+-- UInfixE (UInfixE a (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
+patchExpr (TH.UInfixE (TH.UInfixE a b get) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) (TH.VarE d))) | (hash == TH.mkName "#") =
+        TH.UInfixE (patchExpr a) (patchExpr b) (TH.AppE (TH.AppE get fromLabel) (TH.VarE d))
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) arg)) | hash == TH.mkName "#" = TH.AppE (TH.AppE (TH.VarE varName) fromLabel) arg
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+patchExpr (TH.UInfixE (TH.VarE a) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) (TH.VarE b))) | hash == TH.mkName "#" =
+        TH.AppE (TH.AppE (TH.VarE a) fromLabel) (TH.VarE b)
+    where
+            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
+
+patchExpr (TH.UInfixE a b c) = TH.UInfixE (patchExpr a) (patchExpr b) (patchExpr c)
+patchExpr (TH.ParensE e) = TH.ParensE (patchExpr e)
+patchExpr (TH.RecUpdE a b) = TH.RecUpdE (patchExpr a) b
+patchExpr (TH.AppE a b) = TH.AppE (patchExpr a) (patchExpr b)
+patchExpr (TH.LamE a b) = TH.LamE a (patchExpr b)
+patchExpr (TH.LetE a b) = TH.LetE a' (patchExpr b)
+    where
+        a' = List.map patchDec a
+        patchDec (TH.ValD a (TH.NormalB b) c) = (TH.ValD a (TH.NormalB (patchExpr b)) c)
+        patchDec a = a
+patchExpr (TH.CondE a b c) = TH.CondE (patchExpr a) (patchExpr b) (patchExpr c)
+patchExpr (TH.SigE a b) = TH.SigE (patchExpr a) b
+patchExpr e = e

@@ -4,7 +4,6 @@ module IHP.HtmlSupport.QQ (hsx) where
 
 import           ClassyPrelude
 import           IHP.HtmlSupport.Parser
-import           Language.Haskell.Meta         (parseExp)
 import qualified "template-haskell" Language.Haskell.TH           as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
@@ -12,13 +11,14 @@ import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
 import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
-import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString)
+import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
 import Data.String.Conversions
 import IHP.HtmlSupport.ToHtml
-import qualified Debug.Trace
 import Control.Monad.Fail
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Blaze.Html.Renderer.String as BlazeString
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
@@ -47,111 +47,58 @@ compileToHaskell (Node name attributes children isLeaf) =
     let
         renderedChildren = TH.listE $ map compileToHaskell children
         stringAttributes = TH.listE $ map toStringAttribute attributes
-        openTag :: String
+        openTag :: Text
         openTag = "<" <> tag
-        tag :: String
+        tag :: Text 
         tag = cs name
     in
         if isLeaf
             then
                 let
-                    closeTag :: String
+                    closeTag :: Text
                     closeTag = ">"
-                in [| (applyAttributes (Leaf (fromString $(TH.lift tag)) (fromString $(TH.lift openTag)) (fromString $(TH.lift closeTag)) ()) $(stringAttributes)) |]
+                in [| (applyAttributes (Leaf (textToStaticString $(TH.lift tag)) (textToStaticString $(TH.lift openTag)) (textToStaticString $(TH.lift closeTag)) ()) $(stringAttributes)) |]
             else
                 let
-                    closeTag :: String
+                    closeTag :: Text
                     closeTag = "</" <> tag <> ">"
-                in [| (applyAttributes (makeParent $(TH.lift tag) $(TH.lift openTag) $(TH.lift closeTag) $renderedChildren) $(stringAttributes)) |]
+                in [| (applyAttributes (makeParent (textToStaticString $(TH.lift name)) (textToStaticString $(TH.lift openTag)) (textToStaticString $(TH.lift closeTag)) $renderedChildren) $(stringAttributes)) |]
 
 compileToHaskell (Children children) =
     let
         renderedChildren = TH.listE $ map compileToHaskell children
-    in [| foldl' (>>) mempty $(renderedChildren) |]
+    in [| mconcat $(renderedChildren) |]
 
-compileToHaskell (TextNode value) = let value' :: String = cs value in [| Html5.string value' |]
+compileToHaskell (TextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (PreEscapedTextNode value) = [| Html5.preEscapedText value |]
-compileToHaskell (SplicedNode code) =
-    case parseExp (cs code) of
-        Right expression -> let patched = patchExpr expression in [| toHtml $(pure patched) |]
-        Left error -> fail ("compileToHaskell(" <> (cs code) <> "): " <> show error)
+compileToHaskell (SplicedNode expression) = [| toHtml $(pure expression) |]
 compileToHaskell (CommentNode value) = [| Html5.textComment value |]
-
-patchExpr :: TH.Exp -> TH.Exp
-patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.VarE labelValue)) | hash == TH.mkName "#" = TH.AppE (TH.VarE varName) fromLabel
-    where
-            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
---- UInfixE (UInfixE a (VarE |>) (VarE get)) (VarE #) (VarE firstName)
-patchExpr input@(TH.UInfixE (TH.UInfixE a (TH.VarE arrow) (TH.VarE get)) (TH.VarE hash) (TH.VarE labelValue)) | (hash == TH.mkName "#") && (arrow == TH.mkName "|>") && (get == TH.mkName "get") =
-        (TH.UInfixE (patchExpr a) (TH.VarE arrow) (TH.AppE (TH.VarE get) fromLabel))
-    where
-            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
--- UInfixE (UInfixE a (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
-patchExpr (TH.UInfixE (TH.UInfixE a b get) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) (TH.VarE d))) | (hash == TH.mkName "#") =
-        TH.UInfixE (patchExpr a) (patchExpr b) (TH.AppE (TH.AppE get fromLabel) (TH.VarE d))
-    where
-            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
-patchExpr (TH.UInfixE (TH.VarE varName) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) arg)) | hash == TH.mkName "#" = TH.AppE (TH.AppE (TH.VarE varName) fromLabel) arg
-    where
-            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
-patchExpr (TH.UInfixE (TH.VarE a) (TH.VarE hash) (TH.AppE (TH.VarE labelValue) (TH.VarE b))) | hash == TH.mkName "#" =
-        TH.AppE (TH.AppE (TH.VarE a) fromLabel) (TH.VarE b)
-    where
-            fromLabel = TH.AppTypeE (TH.VarE (TH.mkName "fromLabel")) (TH.LitT (TH.StrTyLit (show labelValue)))
-
-patchExpr (TH.UInfixE a b c) = TH.UInfixE (patchExpr a) (patchExpr b) (patchExpr c)
-patchExpr (TH.ParensE e) = TH.ParensE (patchExpr e)
-patchExpr (TH.RecUpdE a b) = TH.RecUpdE (patchExpr a) b
-patchExpr (TH.AppE a b) = TH.AppE (patchExpr a) (patchExpr b)
-patchExpr (TH.LamE a b) = TH.LamE a (patchExpr b)
-patchExpr (TH.LetE a b) = TH.LetE a' (patchExpr b)
-    where
-        a' = map patchDec a
-        patchDec (TH.ValD a (TH.NormalB b) c) = (TH.ValD a (TH.NormalB (patchExpr b)) c)
-        patchDec a = a
-patchExpr (TH.CondE a b c) = TH.CondE (patchExpr a) (patchExpr b) (patchExpr c)
-patchExpr (TH.SigE a b) = TH.SigE (patchExpr a) b
-patchExpr e = e
-
--- UInfixE (VarE get) (VarE #) (AppE (VarE id) (VarE step))
-
--- UInfixE (UInfixE (UInfixE (UInfixE (UInfixE (UInfixE (VarE currentUser) (VarE |>) (VarE get)) (VarE #) (VarE firstName)) (VarE <>) (LitE (StringL " "))) (VarE <>) (VarE currentUser)) (VarE |>) (VarE get)) (VarE #) (VarE lastName)
--- UInfixE (UInfixE (VarE tshow) (VarE $) (VarE get)) (VarE #) (AppE (VarE id) (VarE checklist))
 
 
 toStringAttribute :: Attribute -> TH.ExpQ
-toStringAttribute (StaticAttribute name' (TextValue value)) = do
-    let name :: String = cs name'
+toStringAttribute (StaticAttribute name (TextValue value)) = do
     let nameWithSuffix = " " <> name <> "=\""
     if null value
-        then [| \h -> h ! ((attribute name nameWithSuffix) mempty) |]
-        else [| \h -> h ! ((attribute name nameWithSuffix) (cs value :: Html5.AttributeValue)) |]
+        then [| \h -> h ! ((attribute (Html5.textTag name) (Html5.textTag nameWithSuffix)) mempty) |]
+        else [| \h -> h ! ((attribute (Html5.textTag name) (Html5.textTag nameWithSuffix)) (Html5.preEscapedTextValue value)) |]
 
-toStringAttribute (StaticAttribute name' (ExpressionValue code)) = do
-    let name :: String = cs name'
-    let nameWithSuffix = " " <> name <> "=\""
-    case parseExp (cs code) of
-        Right expression -> let patched = patchExpr expression in [| applyAttribute name nameWithSuffix $(pure patched) |]
-        Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
-
-toStringAttribute (SpreadAttributes code) = case parseExp (cs code) of
-        Right expression -> let patched = patchExpr expression in [| spreadAttributes $(pure patched) |]
-        Left error -> fail ("toStringAttribute.compileToHaskell(" <> cs code <> "): " <> show error)
+toStringAttribute (StaticAttribute name (ExpressionValue expression)) = let nameWithSuffix = " " <> name <> "=\"" in [| applyAttribute name nameWithSuffix $(pure expression) |]
+toStringAttribute (SpreadAttributes expression) = [| spreadAttributes $(pure expression) |]
 
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Html5.Html -> Html5.Html
 spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (name <> "=\"") value) attributes
 
 applyAttributes :: Html5.Html -> [Html5.Html -> Html5.Html] -> Html5.Html
-applyAttributes !el [] = el
-applyAttributes !el (x:xs) = applyAttributes (x el) xs
+applyAttributes element attributes = foldl' (\element attribute -> attribute element) element attributes
 {-# INLINE applyAttributes #-}
 
-makeParent :: String -> String -> String -> [Html] -> Html
-makeParent tag openTag closeTag children = ((Parent (fromString tag) (fromString openTag) (fromString closeTag))) case children of
-            [] -> mempty
-            child:[] -> child
-            (head:tail) -> (foldl' (<>) head tail)
+makeParent :: StaticString -> StaticString -> StaticString -> [Html] -> Html
+makeParent tag openTag closeTag children = Parent tag openTag closeTag (mconcat children)
 {-# INLINE makeParent #-}
+
+textToStaticString :: Text -> StaticString
+textToStaticString text = StaticString (Text.unpack text ++) (Text.encodeUtf8 text) text
+{-# INLINE textToStaticString #-}
 
 class ApplyAttribute value where
     applyAttribute :: Text -> Text -> value -> (Html5.Html -> Html5.Html)
