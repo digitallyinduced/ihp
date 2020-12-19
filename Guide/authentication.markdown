@@ -259,6 +259,22 @@ You can also access the user using `currentUser` inside your views:
 |]
 ```
 
+## Performing actions after login
+
+The sessioncontroller has a convenient beforeLogin which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins etc. Add code for it in your `Web/Controller/Sessions.hs`
+
+```haskell
+instance Sessions.SessionsControllerConfig User where
+    beforeLogin = updateLoginHistory
+
+updateLoginHistory user = do
+    let n = get #logins user
+    user
+        |> set #logins (n+1)
+        |> updateRecord
+    pure ()
+```
+
 ## Logout
 
 You can simply render a link inside your layout or view to send the user to the logout:

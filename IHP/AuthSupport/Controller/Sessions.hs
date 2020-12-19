@@ -170,5 +170,5 @@ class ( Typeable record
     -- >     unless (get #isConfirmed user) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
     -- >         redirectTo NewSessionAction
-    beforeLogin :: (?context :: ControllerContext) => record -> IO ()
+    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogin _ = pure ()
