@@ -114,9 +114,9 @@ form label {
 
 We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
 
-```makefile
+```
 tailwind-dev:
-    ls tailwind/*.css|NODE_ENV=development entr npx tailwindcss build tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
+        ls tailwind/*.css|NODE_ENV=development entr npx tailwindcss build tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -125,10 +125,10 @@ This defines a new command `make tailwind-dev` that runs `npx tailwindcss build`
 
 For production builds we also need a new make target:
 
-```makefile
+```
 static/app.css:
-    NODE_ENV=production npm ci
-    NODE_ENV=production npx tailwindcss build tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
+        NODE_ENV=production npm ci
+        NODE_ENV=production npx tailwindcss build tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -139,7 +139,7 @@ As the `static/app.css` is now generated code, it's best to put the `static/app.
 
 ```bash
 git rm -f static/app.css # Remove the existing app.css
-echo static/app.css >> .gitignore
+printf '\nstatic/app.css' >> .gitignore
 git add .gitignore
 ```
 
@@ -155,7 +155,7 @@ We don't need to make any additions for tailwind here. Just get rid of bootstrap
 
 Bootstrap is also part of the production CSS build, we need to remove that as well. Open `Makefile` and remove this line:
 
-```makefile
+```
 CSS_FILES += ${IHP}/static/vendor/bootstrap.min.css
 ```
 
@@ -218,7 +218,11 @@ Once everything is installed you can start your tailwind build by calling:
 make tailwind-dev
 ```
 
-You should have this process running next to your terminal that runs `./start`.
+You should have this process running next to your terminal that runs `./start`. Alternatively, you could add this to the `start` file like so:
+
+```bash
+make tailwind-dev & RunDevServer
+```
 
 Whenever you make a change to any CSS file in `tailwind/` it will automatically rebuild your styles and write it to `static/app.css`.
 
