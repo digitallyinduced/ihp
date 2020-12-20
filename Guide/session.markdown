@@ -111,7 +111,7 @@ The rendered HTML looks like this:
 <div class="alert alert-danger">{errorMessage}</div>
 ```
 
-To display the Flash Messages in a custom way, you can always access them using `viewContext |> #flashMessages` in your views. This returns a list of `FlashMessage`. You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
+To display the Flash Messages in a custom way, you can always access them using `viewContext |> #flashMessages` in your views. This returns a list of `FlashMessage`. You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ViewFunctions.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
 
 ## Session Cookie
 
