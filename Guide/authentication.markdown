@@ -260,7 +260,7 @@ You can also access the user using `currentUser` inside your views:
 |]
 ```
 
-## Performing actions after login
+## Performing actions on login
 
 The sessioncontroller has a convenient `beforeLogin` which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins, aborting the login when the user is blocked etc. Add code for it in your `Web/Controller/Sessions.hs`
 
