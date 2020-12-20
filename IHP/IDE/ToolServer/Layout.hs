@@ -17,7 +17,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 
     <link rel="shortcut icon" type="image/x-icon" href="/ihp-logo.svg"/>
     <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
-    <link rel="stylesheet" href="/schema-designer.css"/>
+    <link rel="stylesheet" href="/IDE/schema-designer.css"/>
     <link rel="stylesheet" href="/vendor/select2.min.css"/>
 
     <script src="/vendor/morphdom-umd.min.js"></script>
@@ -34,13 +34,13 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     
 
     <script src="/helpers.js"></script>
-    <script src="/vendor/contextmenu.js"></script>
+    <script src="/IDE/contextmenu.js"></script>
 
     <script src="/vendor/select2.min.js"></script>
     <script src="/vendor/src-min/ace.js"></script>
     <script src="/vendor/src-min/ext-language_tools.js"></script>
-    <script src="/ihp-schemadesigner.js"></script>
-    <script src="/ihp-codegen.js"></script>
+    <script src="/IDE/ihp-schemadesigner.js"></script>
+    <script src="/IDE/ihp-codegen.js"></script>
 
 
     <title>IHP</title>
