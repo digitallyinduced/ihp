@@ -81,7 +81,7 @@ must check the `Nullable` select box with a default `Null`. This ensures your
 `pictureUrl` data has a `Maybe Text` type and can handle
 cases where the user has not uploaded any image.
 
-If ImageMagick is not installed you will get a `picture.upload` in the uploads folder, but no `picture.jpg`. To install ImageMagick, checkout (Using a native dependency)[package-management.html#using-a-native-dependency].
+If ImageMagick is not installed you will get a `picture.upload` in the uploads folder, but no `picture.jpg`. To install ImageMagick, checkout [Using a native dependency](package-management.html#using-a-native-dependency).
 
 There is currently no special form helper for file uploads. Just specify it manually like this:
 
