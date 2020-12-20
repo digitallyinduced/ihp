@@ -269,9 +269,8 @@ instance Sessions.SessionsControllerConfig User where
     beforeLogin = updateLoginHistory
 
 updateLoginHistory user = do
-    let n = get #logins user
     user
-        |> set #logins (n+1)
+        |> modify #logins (\count -> count + 1)
         |> updateRecord
     pure ()
 ```
