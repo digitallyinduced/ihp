@@ -262,7 +262,7 @@ You can also access the user using `currentUser` inside your views:
 
 ## Performing actions on login
 
-The sessioncontroller has a convenient `beforeLogin` which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins, aborting the login when the user is blocked etc. Add code for it in your `Web/Controller/Sessions.hs`
+The sessioncontroller has a convenient `beforeLogin` which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins or aborting the login when the user is blocked. Add code for it in your `Web/Controller/Sessions.hs`. To update number of logins (requires `logins` integer field in `Users` table):
 
 ```haskell
 instance Sessions.SessionsControllerConfig User where
@@ -273,6 +273,16 @@ updateLoginHistory user = do
         |> modify #logins (\count -> count + 1)
         |> updateRecord
     pure ()
+```
+
+To block login (requires `isConfirmed`boolean field in `Users` table):
+
+```haskell
+instance Sessions.SessionsControllerConfig User where
+    beforeLogin = do
+        unless (get #isConfirmed user) do
+            setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
+            redirectTo NewSessionAction
 ```
 
 ## Logout
