@@ -19,3 +19,12 @@ AutoRoute: Failed parsing UUID
 ```
 AutoRoute: Failed parsing argument as UUID. You most likely are trying to use AutoRoute with a non-UUID attribute. See https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types for details on how to configure this.
 ```
+
+## GHC Error Messages
+
+When GHC Haskell error messages are not helpful or confusing it's best to write down a better alternative and submit it to the [GHC issue tracker](https://gitlab.haskell.org/ghc/ghc/-/issues).
+
+Examples of this:
+- [Improve error messages when dealing with type level lists](https://gitlab.haskell.org/ghc/ghc/-/issues/19096)
+- [Improve error message on wrong indentation of let expression inside do block](https://gitlab.haskell.org/ghc/ghc/-/issues/19097)
+- [Improve error messages of implicit parameter constraints](https://gitlab.haskell.org/ghc/ghc/-/issues/19098)
