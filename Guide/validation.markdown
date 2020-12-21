@@ -87,7 +87,7 @@ Here is a list of the most common validators:
 ```haskell
 -- works with Text fields
 |> validateField #name nonEmpty
-|> validateField #email isEma
+|> validateField #email isEmail
 |> validateField #phoneNumber isPhoneNumber
 
 -- works with ints
