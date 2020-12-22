@@ -206,7 +206,9 @@ The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by JavaS
 
 ## Making a dynamic Login/Logout button
 
-Depending on the `user` object from the `viewContext`, we can tell that there is no user logged in when the `user` is `Nothing`, and confirm someone is logged in if the `user` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
+Depending on the `Maybe User` type in the [ControllerContext](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html), by using `fromFrozenContext` we can tell if no user logged in when the `Maybe User` is `Nothing`, and confirm someone is logged in if the `Maybe User` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
+
+> The `@` syntax from `fromFrozenContext @(Maybe User)` is just syntax sugar for `let maybeUser :: Maybe User = fromFrozenContext`
 
 ```haskell
 navbar :: Html
@@ -229,14 +231,15 @@ navbar = [hsx|
 |]
     where
         loginLogoutButton :: Html
-        loginLogoutButton = case (get #user viewContext) of
-            Just user -> [hsx|<a class="js-delete js-delete-no-confirm text-secondary" href={DeleteSessionAction}>Logout</a>|]
-            Nothing -> [hsx|<a class="text-secondary" href={NewSessionAction}>Login</a>|]
+        loginLogoutButton =
+            case fromFrozenContext @(Maybe User) of
+                Just user -> [hsx|<a class="js-delete js-delete-no-confirm text-secondary" href={DeleteSessionAction}>Logout</a>|]
+                Nothing -> [hsx|<a class="text-secondary" href={NewSessionAction}>Login</a>|]
 ```
 
 You can see this code in action in the [`auth` branch from our example blog](https://github.com/digitallyinduced/ihp-blog-example-app/blob/auth/Web/View/Layout.hs).
 
-Protip: If the `user` is a `Just user` you can use the user object to run specific actions or retrieve information from it. This way you could display the username of the logged-in user above the logout button.
+Protip: If the `Maybe User` is a `Just user` you can use the user object to run specific actions or retrieve information from it. This way you could display the username of the logged-in user above the logout button.
 
 ## Making an HTTP request
 
