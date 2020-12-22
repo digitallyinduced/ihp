@@ -358,6 +358,7 @@ parents =
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
         , "thead", "time", "title", "tr", "u", "ul", "var", "video"
         , "svg", "path", "text", "circle", "marquee", "blink"
+        , "loading"
         ]
 
 leafs :: [Text]
