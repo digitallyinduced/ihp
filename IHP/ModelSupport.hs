@@ -42,6 +42,7 @@ import qualified Text.Read as Read
 import qualified Data.Pool as Pool
 import qualified GHC.Conc
 import IHP.Point
+import qualified Data.ByteString.Char8 as ByteString
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -346,7 +347,11 @@ tableNameByteString = symbolToByteString @(GetTableName model)
 {-# INLINE tableNameByteString #-}
 
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()
-logQuery query parameters = when queryDebuggingEnabled (putStrLn (tshow (query, parameters)))
+logQuery query parameters = when queryDebuggingEnabled do
+        let logMessage = (query, parameters)
+                |> tshow
+                |> cs
+        ByteString.putStrLn logMessage
     where
         ModelContext { queryDebuggingEnabled } = ?modelContext
             -- Env.isProduction FrameworkConfig.environment
