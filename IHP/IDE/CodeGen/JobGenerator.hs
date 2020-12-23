@@ -24,7 +24,7 @@ buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan jobName applicationName = do
     isFirstJobInApplication <- not <$> Directory.doesFileExist (cs $ applicationName <> "/Worker.hs")
     if null jobName
-        then pure $ Left "Job name can be empty"
+        then pure $ Left "Job name cannot be empty"
         else do
             let jobConfig = JobConfig
                     { applicationName
