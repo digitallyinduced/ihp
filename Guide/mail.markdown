@@ -89,15 +89,13 @@ action MyAction = do
 
 ## Mail Servers
 
-By default, IHP uses your local `sendmail` to send out the email. IHP also supports sending mail via AWS Simple Email Service (SES). This is recommended for production.
+By default, IHP uses your local `sendmail` to send out the email. IHP also supports sending mail via AWS Simple Email Service (SES), SendGrid (via Azure or directly) or via any standard SMTP server.
 
-### Custom SMTP Server
+Remember that the successfull delivery of email largely depends on the from-domain allowing your mailserver by means of SPF and/or DKIM. Consult your chosen email server documentation for details.
 
-Currently using a custom SMTP server is not yet supported. We recommend to use `sendmail` locally (the default) and AWS SES in production.
+The delivery method is set in `Config/Config.hs` as shown below.
 
-### AWS SES
-
-To use SES open `Config/Config.hs` and add a `mailServer` function to the construction of `FrameworkConfig`:
+### Any SMTP Server
 
 ```haskell
 -- Add this import
@@ -105,8 +103,39 @@ import IHP.Mail
 
 config :: ConfigBuilder
 config = do
-    option Development
-    option $ AppHostname "localhost"
+    -- other options here, then add:
+    option $ GenericSMTP
+        { host = "smtp.myisp.com"
+        , port = 2525
+        , credentials = Nothing -- or Just ("myusername","hunter2")
+        }
+```
+
+### SendGrid
+
+```haskell
+-- Add this import
+import IHP.Mail
+
+config :: ConfigBuilder
+config = do
+    -- other options here, then add:
+    option $ SendGrid
+        { apiKey = "YOUR SENDGRID API KEY"
+        , category = Nothing -- or Just "mailcategory"
+        }
+```
+
+
+### AWS SES
+
+```haskell
+-- Add this import
+import IHP.Mail
+
+config :: ConfigBuilder
+config = do
+    -- other options here, then add:
     option $ SES
         { accessKey = "YOUR AWS ACCESS KEY"
         , secretKey = "YOUR AWS SECRET KEY"
@@ -114,7 +143,6 @@ config = do
         }
 ```
 
-After that, all emails will be sent through AWS SES.
 
 ## Email Attachments
 
