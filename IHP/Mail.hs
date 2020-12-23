@@ -28,11 +28,6 @@ import qualified Data.ByteString.Lazy.Char8 as B8
 import qualified Data.Text as T
 import Data.Maybe
 
-import Control.Exception
-data MyException = ThisException | ThatException
-   deriving (Show, Typeable)
-instance Exception MyException
-
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO Mail
 buildMail mail = let ?mail = mail in simpleMail (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) []
 
