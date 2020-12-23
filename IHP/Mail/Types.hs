@@ -9,17 +9,22 @@ module IHP.Mail.Types
 where
 
 import IHP.Prelude
-import Network.Mail.Mime
-import qualified Network.Mail.Mime.SES as Mailer
-import Text.Blaze.Html5 (Html)
-import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import Network.Socket (PortNumber) 
 
 -- | Configuration for a mailer used by IHP
 data MailServer =
-    -- | Uses AWS SES for sending emails. Highly recommended in production
+    -- | Uses AWS SES for sending emails
     SES { accessKey :: ByteString
         , secretKey :: ByteString
         --  | E.g. @"us-east-1"@ or @"eu-west-1"@
         , region :: Text }
-    -- | Uses the local Sendmail binary for sending emails
+    -- | Uses the local Sendmail binary for sending emails. Avoid this with IHP Cloud
     | Sendmail
+    -- | Uses SendGrid for sending emails
+    | SendGrid { apiKey :: Text
+               , category :: Maybe Text }
+    -- | Uses a generic SMTP for sending emails
+    | GenericSMTP { host :: String
+                  , port :: PortNumber
+                  -- (Username,Password) combination
+                  , credentials :: Maybe (String, String)}

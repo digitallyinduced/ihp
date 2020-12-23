@@ -73,6 +73,7 @@ common shared-properties
             , binary
             , mime-mail
             , mime-mail-ses
+            , smtp-mail
             , http-client
             , http-client-tls
             , resource-pool

@@ -35,6 +35,7 @@ let
 	    wai-websockets
 	    mime-mail
 	    mime-mail-ses
+	    smtp-mail
 	    attoparsec
 	    case-insensitive
 	    http-media
