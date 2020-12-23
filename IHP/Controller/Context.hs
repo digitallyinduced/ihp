@@ -63,6 +63,17 @@ freeze ControllerContext { requestContext, customFieldsRef } = FrozenControllerC
 freeze frozen = pure frozen
 {-# INLINABLE freeze #-}
 
+-- | Returns a unfrozen version of the controller context that can be modified again
+--
+-- This is used together with 'freeze' by e.g. AutoRefresh to make a immutable copy of the current controller context state
+unfreeze :: ControllerContext -> IO ControllerContext
+unfreeze FrozenControllerContext { requestContext, customFields } = do
+    customFieldsRef <- newIORef customFields
+    pure ControllerContext { .. }
+unfreeze ControllerContext {} = error "Cannot call unfreeze on a controller context that is not frozen"
+{-# INLINABLE unfreeze #-}
+
+
 -- | Returns a value from the current controller context
 --
 -- Throws an exception if the there is no value with the type inside the context

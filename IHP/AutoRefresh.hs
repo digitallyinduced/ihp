@@ -54,8 +54,18 @@ autoRefresh runAction = do
             availableSessions <- getAvailableSessions autoRefreshServer
 
             id <- UUID.nextRandom
-            let controllerContext = ?context
-            let renderView = \requestContext -> let ?context = controllerContext { requestContext } in action ?theAction
+
+            -- We save the current state of the controller context here. This includes e.g. all current
+            -- flash messages, the current user, ...
+            --
+            -- This frozen context is used as a "template" inside renderView to make a new controller context
+            -- with the exact same content we had when rendering the initial page, whenever we do a serverside rerendering
+            frozenControllerContext <- freeze ?context
+
+            let renderView = \requestContext -> do
+                    controllerContext <- unfreeze frozenControllerContext
+                    let ?context = controllerContext { requestContext }
+                    action ?theAction
 
             putContext (AutoRefreshEnabled id)
 
@@ -108,13 +118,12 @@ instance WSApp AutoRefreshWSApp where
                         let html = ByteString.toLazyByteString builder
 
                         when (html /= lastResponse) do
-                            updateSession sessionId (\session -> session { lastResponse = html })
                             sendTextData html
+                            updateSession sessionId (\session -> session { lastResponse = html })
                     _   -> error "Unimplemented WAI response type."
 
             async $ forever do
                 MVar.takeMVar event
-                Concurrent.threadDelay (100000)
                 let requestContext = get #requestContext ?context
                 (renderView requestContext) `catch` handleResponseException
                 pure ()
