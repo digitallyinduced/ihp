@@ -98,25 +98,6 @@ formFor' :: forall record parent id application. (
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
 
-horizontalFormFor :: forall record parent id application. (
-        ?context :: ControllerContext
-        , Eq record
-        , Typeable record
-        , ModelFormAction application record
-        , HasField "id" record id
-        , HasField "meta" record MetaBag
-        , Default id
-        , Eq id
-        ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
-horizontalFormFor record = undefined
--- 
---  buildForm (createFormContext record)
---         { renderFormField = renderHorizontalBootstrapFormField
---         , renderSubmit = renderHorizontalBootstrapSubmitButton
---         }
--- {-# INLINE horizontalFormFor #-}
-
-
 createFormContext :: forall record viewContext parent id application. (
         ?context :: ControllerContext
         , Eq record
@@ -157,72 +138,6 @@ submitButton =
     , buttonClass = mempty
     , cssFramework = get #cssFramework ?formContext
     }
-
-
-
--- {-# INLINE renderHorizontalBootstrapFormField #-}
--- renderHorizontalBootstrapFormField :: FormField -> Html5.Html
--- renderHorizontalBootstrapFormField formField@(FormField { fieldType }) =
---         case fieldType of
---             TextInput -> renderTextField "text" formField
---             NumberInput -> renderTextField "number" formField
---             PasswordInput -> renderTextField "password" formField
---             ColorInput -> renderTextField "color" formField
---             EmailInput -> renderTextField "email" formField
---             DateInput -> renderTextField "date" formField
---             DateTimeInput -> renderTextField "datetime-local" formField
---             CheckboxInput -> renderCheckboxFormField formField
---             HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
---             TextareaInput -> renderTextField "text" formField
---             SelectInput {} -> renderSelectField formField
---     where
---         renderCheckboxFormField :: FormField -> Html5.Html
---         renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, required }) = div ! class_ "form-group" $ div ! class_ "form-check" $ do
---             (if disableLabel then div else H.label ! class_ "form-check-label") $ do
---                 let theInput = input
---                         ! A.type_ "checkbox"
---                         ! A.name fieldName
---                         ! A.class_ (cs $ classes ["form-check-input", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))])
---                         !? (required, A.required "required")
---                         !? (fieldValue == "yes", A.checked "checked")
---                 theInput
---                 input ! type_ "hidden" ! name fieldName ! A.value (cs $ inputValue False)
---                 Html5.text fieldLabel
---                 unless disableValidationResult (renderValidationResult formField)
---         renderTextField :: Html5.AttributeValue -> FormField -> Html5.Html
---         renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
---             where
---                 renderInner = do
---                     unless (disableLabel || null fieldLabel) [hsx|<label class={classes ["col-sm-4 col-form-label ", (labelClass, True)]} for={fieldInputId}>{fieldLabel}</label>|]
---                     div ! class_ "col-sm-8" $ do
---                         (fieldInput formField)
---                                 ! A.type_ inputType
---                                 ! A.name fieldName
---                                 ! A.placeholder (cs placeholder)
---                                 ! A.id (cs fieldInputId)
---                                 ! A.class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))])
---                                 ! A.value (cs fieldValue)
---                                 !? (required, A.required "required")
---                         if disableValidationResult then mempty else renderValidationResult formField
---                         renderHelpText formField
---         renderSelectField :: FormField -> Html5.Html
---         renderSelectField formField@(FormField {fieldType, placeholder, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, labelClass, required }) = if disableLabel then renderInner else div ! A.class_ "form-group row" $ renderInner
---             where
---                 renderInner = do
---                     if disableLabel || fieldLabel == "" then pure () else H.label ! A.class_ (cs $ "col-sm-4 col-form-label " <> labelClass) ! A.for (cs fieldInputId) $ cs fieldLabel
---                     div ! class_ "col-sm-8" $ do
---                         Html5.select ! name fieldName ! A.id (cs fieldInputId) ! A.class_ (cs $ classes ["form-control", ("is-invalid", isJust validatorResult), (fieldClass, not (null fieldClass))]) ! value (cs fieldValue) !? (required, A.required "required") $ do
---                             --Html5.option ! A.disabled "disabled" ! A.selected "selected" $ Html5.text ("Bitte auswählen" :: Text)
---                             let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
---                             (if isValueSelected then Html5.option else Html5.option ! A.selected "selected") ! A.disabled "disabled" $ Html5.text (if null placeholder then "Please select" else placeholder)
---                             forEach (options fieldType) $ \(optionLabel, optionValue) -> (let option = Html5.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
---                         unless disableValidationResult (renderValidationResult formField)
---                         renderHelpText formField
--- 
--- {-# INLINE renderHorizontalBootstrapSubmitButton #-}
--- renderHorizontalBootstrapSubmitButton SubmitButton { modelIsNew, modelName } = div ! class_ "form-group row" $ do
---     div ! class_ "offset-sm-5 col-sm-3 text-left" $ do
---         button ! class_ "btn btn-primary btn-lg pl-4 pr-4 w-100" $ (if modelIsNew then "Create " else "Save ") <> (cs $ modelName)
 
 {-# INLINE fieldNameToFieldLabel #-}
 fieldNameToFieldLabel :: Text -> Text
