@@ -24,7 +24,7 @@ data MailServer =
     | SendGrid { apiKey :: Text
                , category :: Maybe Text }
     -- | Uses a generic SMTP for sending emails
-    | GenericSMTP { host :: String
-                  , port :: PortNumber
-                  -- (Username,Password) combination
-                  , credentials :: Maybe (String, String)}
+    | SMTP { host :: String
+           , port :: PortNumber
+           -- (Username,Password) combination
+           , credentials :: Maybe (String, String)}

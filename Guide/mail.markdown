@@ -104,7 +104,7 @@ import IHP.Mail
 config :: ConfigBuilder
 config = do
     -- other options here, then add:
-    option $ GenericSMTP
+    option $ SMTP
         { host = "smtp.myisp.com"
         , port = 2525
         , credentials = Nothing -- or Just ("myusername","hunter2")

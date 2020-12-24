@@ -24,8 +24,7 @@ import qualified Network.HTTP.Client
 import qualified Network.HTTP.Client.TLS
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
-import qualified Data.ByteString.Lazy.Char8 as B8
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Data.Maybe
 
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO Mail
@@ -52,10 +51,10 @@ sendWithMailServer SES { .. } mail = do
 
 sendWithMailServer SendGrid { .. } mail = do
     let mail' = if isJust category then mail {mailHeaders = ("X-SMTPAPI","{\"category\": \"" ++ (fromJust category) ++ "\"}") : headers} else mail
-    SMTP.sendMailWithLoginSTARTTLS' "smtp.sendgrid.net" 587 "apikey" (T.unpack apiKey) mail'
+    SMTP.sendMailWithLoginSTARTTLS' "smtp.sendgrid.net" 587 "apikey" (Text.unpack apiKey) mail'
     where headers = mailHeaders mail
 
-sendWithMailServer GenericSMTP { .. } mail
+sendWithMailServer IHP.Mail.Types.SMTP { .. } mail
     | isNothing credentials = SMTP.sendMail' host port mail
     | otherwise = SMTP.sendMailWithLogin' host port (fst creds) (snd creds) mail
     where creds = fromJust credentials
