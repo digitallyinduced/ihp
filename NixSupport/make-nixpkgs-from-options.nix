@@ -36,6 +36,10 @@ let
 
   composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
+  ihpDontCheckPackages = [];
+  ihpDoJailbreakPackages = [];
+  ihpDontHaddockPackages = [];
+
   config = {
     allowBroken = true;
     packageOverrides = pkgs: rec {
@@ -45,6 +49,13 @@ let
           pkgs.haskell.packages."${compiler}".override {
             overrides = composeExtensionsList [
               generatedOverrides
+              
+              # Overrides provided by IHP
+              (makeOverrides pkgs.haskell.lib.dontCheck   ihpDontCheckPackages  )
+              (makeOverrides pkgs.haskell.lib.doJailbreak ihpDoJailbreakPackages)
+              (makeOverrides pkgs.haskell.lib.dontHaddock ihpDontHaddockPackages)
+
+              # Project specific overrides
               (makeOverrides pkgs.haskell.lib.dontCheck   dontCheckPackages  )
               (makeOverrides pkgs.haskell.lib.doJailbreak doJailbreakPackages)
               (makeOverrides pkgs.haskell.lib.dontHaddock dontHaddockPackages)
