@@ -59,7 +59,7 @@ run configBuilder = do
                                         application
 {-# INLINABLE run #-}
 
-withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => FrameworkConfig -> _
+withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => FrameworkConfig -> IO a -> IO a
 withBackgroundWorkers frameworkConfig app = do
     let jobWorkers = Job.workers RootApplication
     let isDevelopment = get #environment frameworkConfig == Env.Development
@@ -120,7 +120,7 @@ initStaticMiddleware FrameworkConfig { environment } = do
                     , ("Vary", "Accept-Encoding")
                     ]
 
-initSessionMiddleware :: _ -> FrameworkConfig -> IO Middleware
+initSessionMiddleware :: Vault.Key (Session IO String String) -> FrameworkConfig -> IO Middleware
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
@@ -138,7 +138,7 @@ application request respond = do
         let ?context = requestContext
         frontControllerToWAIApp RootApplication ErrorController.handleNotFound
 
-runServer :: FrameworkConfig -> _
+runServer :: FrameworkConfig -> Application -> IO ()
 runServer FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
                 Warp.defaultSettings
                     |> Warp.setBeforeMainLoop (putStrLn "Server started")
