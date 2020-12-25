@@ -21,6 +21,28 @@ data Statement
     | Comment { content :: Text }
     deriving (Eq, Show)
 
+instance Ord Statement where
+    compare (CreateExtension name1 ifNotExists1) (CreateExtension name2 ifNotExists2) =
+        compare name1 name2 <> compare ifNotExists1 ifNotExists2
+    compare CreateExtension{..} _ = GT
+    compare _ CreateExtension{..} = GT
+    compare (CreateEnumType name1 values1) (CreateEnumType name2 values2) =
+        compare name1 name2 <> compare (sort values1) (sort values2)
+    compare CreateEnumType{..} _ = GT
+    compare _ CreateEnumType{..} = GT
+    compare (StatementCreateTable unsafeGetCreateTable1) (StatementCreateTable unsafeGetCreateTable2) = compare unsafeGetCreateTable1 unsafeGetCreateTable2
+    compare StatementCreateTable{..} _ = GT
+    compare _ StatementCreateTable{..} = GT
+    compare (AddConstraint tableName1 constraintName1 constraint1) (AddConstraint tableName2 constraintName2 constraint2) =
+        compare tableName1 tableName2 <> compare constraintName1 constraintName2 <> compare constraint1 constraint2
+    compare AddConstraint{..} _ = GT
+    compare _ AddConstraint{..} = GT
+    compare (UnknownStatement raw1) (UnknownStatement raw2) =
+        compare raw1 raw2
+    compare UnknownStatement{..} _ = GT
+    compare _ UnknownStatement{..} = GT
+    compare (Comment content1) (Comment content2) = compare content1 content2
+
 data CreateTable
   = CreateTable
       { name :: Text
@@ -28,7 +50,7 @@ data CreateTable
       , primaryKeyConstraint :: PrimaryKeyConstraint
       , constraints :: [Constraint]
       }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data Column = Column
     { name :: Text
@@ -37,7 +59,7 @@ data Column = Column
     , notNull :: Bool
     , isUnique :: Bool
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 data OnDelete
     = NoAction
@@ -45,11 +67,11 @@ data OnDelete
     | SetNull
     | SetDefault
     | Cascade
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
 newtype PrimaryKeyConstraint
   = PrimaryKeyConstraint { primaryKeyColumnNames :: [Text] }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data Constraint
     -- | FOREIGN KEY (columnName) REFERENCES referenceTable (referenceColumn) ON DELETE onDelete;
@@ -61,7 +83,7 @@ data Constraint
         }
     | UniqueConstraint
         { columnNames :: [Text] }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 data Expression =
     -- | Sql string like @'hello'@
@@ -70,7 +92,7 @@ data Expression =
     | VarExpression Text
     -- | Simple call, like @COALESCE(name, 'unknown name')@
     | CallExpression Text [Expression]
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 data PostgresType
     = PUUID
@@ -94,4 +116,4 @@ data PostgresType
     | PJSONB
     | PArray PostgresType
     | PCustomType Text
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)

@@ -31,7 +31,7 @@ parseSchemaSql = do
     let result = runParser parseDDL (cs schemaFilePath) schemaSql
     case result of
         Left error -> pure (Left (cs $ errorBundlePretty error))
-        Right r -> pure (Right r)
+        Right r -> pure (Right (sort r))
 
 type Parser = Parsec Void Text
 
@@ -330,8 +330,8 @@ sqlType = choice $ map optionalArray
 
 expression :: Parser Expression
 expression = do
-    e <- try callExpr <|> varExpr <|> textExpr 
-    space 
+    e <- try callExpr <|> varExpr <|> textExpr
+    space
     pure e
 
 varExpr :: Parser Expression
