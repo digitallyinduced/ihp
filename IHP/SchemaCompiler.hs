@@ -378,6 +378,7 @@ compileCreate table@(CreateTable { name, columns }) =
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
                 <> indent ("List.head <$> withDatabaseConnection \\databaseConnection -> Database.PostgreSQL.Simple.query databaseConnection \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n")
+                <> "createMany [] = pure []\n"
                 <> "createMany models = do\n"
                 <> indent ("withDatabaseConnection \\databaseConnection -> "
                     <> createManyQueryFn <> " databaseConnection (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
