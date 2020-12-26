@@ -13,6 +13,10 @@ module IHP.Prelude
 , headMay
 , last
 , lastMay
+, tail
+, tailMay
+, init
+, initMay
 , show
 , module Data.String.Conversions
 , module Data.Time.Clock
@@ -46,7 +50,7 @@ import qualified Prelude
 import qualified Data.Text as Text
 import Data.Proxy (Proxy (Proxy))
 import Control.Monad (when, unless, mapM, mapM_, forM, forM_, sequence, sequence_, join, forever)
-import Data.List hiding (head, last, unwords, unlines, words, lines, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, (++), splitAt, null)
+import Data.List hiding (head, last, unwords, unlines, words, lines, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, (++), splitAt, null, tail, init)
 import qualified Data.List as List
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.Time.Clock
@@ -89,5 +93,19 @@ last list = Just (List.last list)
 
 lastMay :: [a] -> Maybe a
 lastMay = last
+
+tail :: [a] -> Maybe [a]
+tail [] = Nothing
+tail list = Just (List.tail list)
+
+tailMay :: [a] -> Maybe [a]
+tailMay = tail
+
+init :: [a] -> Maybe [a]
+init [] = Nothing
+init list = Just (List.init list)
+
+initMay :: [a] -> Maybe [a]
+initMay = init
 
 plain = Data.String.Interpolate.i
