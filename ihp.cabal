@@ -85,6 +85,7 @@ common shared-properties
             , cryptohash
             , base16-bytestring
             , deepseq
+            , parser-combinators
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
