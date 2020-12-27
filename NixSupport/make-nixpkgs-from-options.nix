@@ -6,9 +6,9 @@
 , dontCheckPackages ? []
 , doJailbreakPackages ? []
 , dontHaddockPackages ? []
-, nixPkgsRev ? "2ae527c50e049570dd25132f9325527aa2320e32"
-, nixPkgsSha256 ? "0rggj7d5j6mmn5l4p72pj0bdxcsid0wxyjqfivdhmfvlsmh8hadn"
-, compiler ? "ghc8102"
+, nixPkgsRev ? "c7f75838c360473805afcf5fb2fa65e678efd94b"
+, nixPkgsSha256 ? "04vx1j2gybm1693a8wxw6bpcsd4h1jdw541vwic8nfm3n80r4ckm"
+, compiler ? "ghc8103"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 }:
 let

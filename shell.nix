@@ -1,6 +1,6 @@
 let
 	pkgs = import ./NixSupport/pkgs.nix;
-	ghc = pkgs.haskell.packages.ghc8102;
+	ghc = pkgs.haskell.packages.ghc8103;
 	haskellDeps = ghc.ghcWithPackages (p: with p; [
 	    cabal-install
 	    base
