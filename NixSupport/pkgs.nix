@@ -48,14 +48,6 @@ let
     composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
     manualOverrides = haskellPackagesNew: haskellPackagesOld: {
-        haskell-language-server = haskellPackagesOld.haskell-language-server.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
-        hls-plugin-api = haskellPackagesOld.hls-plugin-api.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
-        yaml = haskellPackagesOld.yaml.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
-        lsp-test = haskellPackagesOld.lsp-test.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
-        haskell-lsp-types = haskellPackagesOld.haskell-lsp-types.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
-        haskell-lsp = haskellPackagesOld.haskell-lsp.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
-        aeson-pretty = haskellPackagesOld.aeson-pretty.overrideScope ( self: super: { aeson = pkgs.haskell.lib.dontCheck haskellPackagesNew.aeson_1_5_2_0; } );
-        aeson = pkgs.haskell.lib.dontCheck haskellPackagesOld.aeson_1_5_2_0;
     };
 
     #mkDerivation = args: super.mkDerivation (args // {
