@@ -68,7 +68,7 @@ instance (
                 else "Update" <> getModelName @record <> "?" <> lcfirst (getModelName @record) <> "Id=" <> tshow (get #id record)
         in
             init path
-                |> (\path -> [""] <> path <> [action])
+                |> (\path -> [""] <> (fromMaybe [] path) <> [action])
                 |> intercalate "/"
 
 
