@@ -27,9 +27,9 @@ import IHP.ControllerSupport
 -- > redirectTo ShowProjectAction { projectId = get #id project }
 --
 -- Use 'redirectToPath' if you want to redirect to a non-action url.
-{-# INLINE redirectTo #-}
 redirectTo :: (?context :: ControllerContext, HasPath action) => action -> IO ()
 redirectTo action = redirectToPath (pathTo action)
+{-# INLINABLE redirectTo #-}
 
 -- TODO: redirectTo user
 
@@ -40,9 +40,9 @@ redirectTo action = redirectToPath (pathTo action)
 -- > redirectToPath "/blog/wp-login.php"
 --
 -- Use 'redirectTo' if you want to redirect to a controller action.
-{-# INLINE redirectToPath #-}
 redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
 redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
+{-# INLINABLE redirectToPath #-}
 
 -- | Redirects to a url (given as a string)
 -- 
@@ -50,8 +50,7 @@ redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
 --
 -- > redirectToUrl "https://example.com/hello-world.html"
 --
--- Use 'redirectToPath' if you want to redirect to a relative path like "/hello-world.html"
-{-# INLINE redirectToUrl #-}
+-- Use 'redirectToPath' if you want to redirect to a relative path like @/hello-world.html@
 redirectToUrl :: (?context :: ControllerContext) => Text -> IO ()
 redirectToUrl url = do
     let RequestContext { respond } = ?context |> get #requestContext
@@ -62,3 +61,46 @@ redirectToUrl url = do
             (error "redirectToPath: Unable to construct redirect response")
             (Network.Wai.Util.redirect status302 [] parsedUrl)
     respondAndExit redirectResponse
+{-# INLINABLE redirectToUrl #-}
+
+-- | Redirects back to the last page
+--
+-- Uses the Referer header to do a redirect to page that got you here.
+-- 
+-- In case the Referer header is not set this function will redirect to @/@. Use 'redirectBackWithFallback' when you want
+-- to specify a custom fallback url.
+--
+-- __Example:__
+--
+-- > action LikeAction { postId } = do
+-- >     post <- fetch postId
+-- >     post
+-- >         |> incrementField #likesCount
+-- >         |> updateRecord
+-- >     
+-- >     redirectBack
+--
+redirectBack :: (?context :: ControllerContext) => IO ()
+redirectBack = redirectBackWithFallback "/"
+{-# INLINABLE redirectBack #-}
+
+-- | Redirects back to the last page or the given fallback path in case the Referer header is missing
+-- 
+-- If you don't care about the missing-Referer-header case, use 'redirectBack'.
+--
+-- __Example:__
+--
+-- > action LikeAction { postId } = do
+-- >     post <- fetch postId
+-- >     post
+-- >         |> incrementField #likesCount
+-- >         |> updateRecord
+-- >     
+-- >     redirectBackWithFallback (pathTo ShowPostAction { postId = get #id post })
+--
+redirectBackWithFallback :: (?context :: ControllerContext) => Text -> IO ()
+redirectBackWithFallback fallbackPath = do
+    case getHeader "Referer" of
+        Just referer -> redirectToPath (cs referer)
+        Nothing -> redirectToPath fallbackPath
+{-# INLINABLE redirectBackWithFallback #-}
