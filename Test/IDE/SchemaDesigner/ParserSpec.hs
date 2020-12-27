@@ -176,6 +176,15 @@ tests = do
                         }
                     }
 
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraintName = "check_title_length"
+                    , constraint = CheckConstraint
+                        { checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
+                        }
+                    }
+
         it "should parse CREATE TYPE .. AS ENUM" do
             parseSql "CREATE TYPE colors AS ENUM ('yellow', 'red', 'green');" `shouldBe` CreateEnumType { name = "colors", values = ["yellow", "red", "green"] }
         

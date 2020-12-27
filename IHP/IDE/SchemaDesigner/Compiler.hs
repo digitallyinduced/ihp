@@ -40,6 +40,7 @@ compilePrimaryKeyConstraint PrimaryKeyConstraint { primaryKeyColumnNames } =
 compileConstraint :: Constraint -> Text
 compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
 compileConstraint UniqueConstraint { columnNames } = "UNIQUE(" <> intercalate ", " columnNames <> ")"
+compileConstraint CheckConstraint { checkExpression } = "CHECK (" <> compileExpression checkExpression <> ")"
 
 compileOnDelete :: Maybe OnDelete -> Text
 compileOnDelete Nothing = ""
@@ -74,6 +75,7 @@ compileExpression :: Expression -> Text
 compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
+compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT

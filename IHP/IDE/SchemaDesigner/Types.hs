@@ -61,6 +61,7 @@ data Constraint
         }
     | UniqueConstraint
         { columnNames :: [Text] }
+    | CheckConstraint { checkExpression :: Expression }
     deriving (Eq, Show)
 
 data Expression =
@@ -70,6 +71,8 @@ data Expression =
     | VarExpression Text
     -- | Simple call, like @COALESCE(name, 'unknown name')@
     | CallExpression Text [Expression]
+    -- | Not equal operator, a <> b
+    | NotEqExpression Expression Expression
     deriving (Eq, Show)
 
 data PostgresType
