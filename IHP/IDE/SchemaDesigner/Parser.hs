@@ -22,6 +22,7 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
 import Data.Char
 import IHP.IDE.SchemaDesigner.Compiler (compileSql)
+import Control.Monad.Combinators.Expr
 
 schemaFilePath = "Application/Schema.sql"
 
@@ -132,7 +133,7 @@ parseTableConstraint = do
         lexeme "CONSTRAINT"
         identifier
     (Left <$> parsePrimaryKeyConstraint) <|>
-      (Right <$> (parseForeignKeyConstraint <|> parseUniqueConstraint))
+      (Right <$> (parseForeignKeyConstraint <|> parseUniqueConstraint <|> parseCheckConstraint))
 
 parsePrimaryKeyConstraint = do
     lexeme "PRIMARY"
@@ -158,6 +159,10 @@ parseUniqueConstraint = do
     columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
     pure UniqueConstraint { columnNames }
 
+parseCheckConstraint = do
+    lexeme "CHECK"
+    checkExpression <- between (char '(' >> space) (char ')' >> space) expression
+    pure CheckConstraint { checkExpression }
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
@@ -328,9 +333,22 @@ sqlType = choice $ map optionalArray
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
 
+term = parens expression <|> try callExpr <|> varExpr <|> textExpr
+    where
+        parens f = between (char '(' >> space) (char ')' >> space) f
+
+table = [ [ binary  "<>"  NotEqExpression ] ]
+    where
+        binary  name f = InfixL  (f <$ symbol name)
+        prefix  name f = Prefix  (f <$ symbol name)
+        postfix name f = Postfix (f <$ symbol name)
+
+-- | Parses a SQL expression
+-- 
+-- This parser makes use of makeExprParser as described in https://hackage.haskell.org/package/parser-combinators-1.2.0/docs/Control-Monad-Combinators-Expr.html
 expression :: Parser Expression
 expression = do
-    e <- try callExpr <|> varExpr <|> textExpr 
+    e <- makeExprParser term table <?> "expression"
     space 
     pure e
 

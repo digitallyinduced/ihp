@@ -180,6 +180,16 @@ tests = do
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ;\n"
+        
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraintName = "check_title_length"
+                    , constraint = CheckConstraint
+                        { checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
+                        }
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');\n"
 
 
         it "should compile a CREATE TABLE with text default value in columns" do
