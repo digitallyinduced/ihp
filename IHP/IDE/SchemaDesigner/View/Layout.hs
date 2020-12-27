@@ -263,7 +263,7 @@ renderObjectSelector statements activeObjectName = [hsx|
         shouldRenderObject _ = False
 
 removeQuotes :: [Char] -> Text
-removeQuotes (x:xs) = cs (init xs)
+removeQuotes (x:xs) = cs $ fromMaybe [] (init xs)
 removeQuotes n = cs n
 
 findForeignKey statements tableName columnName = 
