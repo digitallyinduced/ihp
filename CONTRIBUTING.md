@@ -99,6 +99,8 @@ The documentation reads a bit like a tutorial, but should still be kept somewhat
 
 - Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
 
+- Please consider carefully before adding new packages as requirements to IHP itself. Make sure the packages are actively maintained.
+
 ## Running Tests
 
 When inside the IHP directory, you can run the Test Suite by loading it into a `ghci` like this:

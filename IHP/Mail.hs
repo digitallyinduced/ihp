@@ -19,10 +19,13 @@ import IHP.FrameworkConfig
 
 import           Network.Mail.Mime
 import qualified Network.Mail.Mime.SES                as Mailer
+import qualified Network.Mail.SMTP                    as SMTP
 import qualified Network.HTTP.Client
 import qualified Network.HTTP.Client.TLS
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import qualified Data.Text as Text
+import Data.Maybe
 
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO Mail
 buildMail mail = let ?mail = mail in simpleMail (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) []
@@ -45,6 +48,16 @@ sendWithMailServer SES { .. } mail = do
             Mailer.sesRegion = region
         }
     Mailer.renderSendMailSES manager ses mail
+
+sendWithMailServer SendGrid { .. } mail = do
+    let mail' = if isJust category then mail {mailHeaders = ("X-SMTPAPI","{\"category\": \"" ++ (fromJust category) ++ "\"}") : headers} else mail
+    SMTP.sendMailWithLoginSTARTTLS' "smtp.sendgrid.net" 587 "apikey" (Text.unpack apiKey) mail'
+    where headers = mailHeaders mail
+
+sendWithMailServer IHP.Mail.Types.SMTP { .. } mail
+    | isNothing credentials = SMTP.sendMail' host port mail
+    | otherwise = SMTP.sendMailWithLogin' host port (fst creds) (snd creds) mail
+    where creds = fromJust credentials
 
 sendWithMailServer Sendmail mail = do
     message <- renderMail' mail
