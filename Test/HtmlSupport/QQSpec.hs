@@ -67,6 +67,11 @@ tests = do
             let variableContent :: Text = "<script>alert(1);</script>"
             [hsx|{variableContent}|] `shouldBeHtml` "&lt;script&gt;alert(1);&lt;/script&gt;"
 
+        it "should parse custom web component tags" do
+            [hsx|<confetti-effect></confetti-effect>|] `shouldBeHtml` "<confetti-effect></confetti-effect>"
+            [hsx|<confetti-effect/>|] `shouldBeHtml` "<confetti-effect></confetti-effect>" -- Currently we cannot deal with self closing tags as expected
+            [hsx|<div is="confetti-effect"></div>|] `shouldBeHtml` "<div is=\"confetti-effect\"></div>"
+
 data Project = Project { name :: Text }
 
 shouldBeHtml hsx expectedHtml = (Blaze.renderMarkup hsx) `shouldBe` expectedHtml

@@ -3,9 +3,6 @@ module IHP.HtmlSupport.Parser
 , Node (..)
 , Attribute (..)
 , AttributeValue (..)
-, attributes
-, parents
-, leafs
 ) where
 
 import CorePrelude
@@ -23,6 +20,8 @@ import qualified Language.Haskell.Meta as Haskell
 import qualified Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax as TH
+import qualified Data.Set as Set
+import Data.Set (Set)
 
 data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 
@@ -73,7 +72,7 @@ manyHsxElement = do
 hsxSelfClosingElement = do
     _ <- char '<'
     name <- hsxElementName
-    let isLeaf = name `List.elem` leafs
+    let isLeaf = name `Set.member` leafs
     attributes <-
       if isLeaf
         then hsxNodeAttributes (string ">" <|> string "/>")
@@ -176,7 +175,7 @@ hsxAttributeName = do
             || "aria-" `Text.isPrefixOf` name
             || "hx-" `Text.isPrefixOf` name
             || "hx-" `Text.isPrefixOf` name
-            || name `List.elem` attributes
+            || name `Set.member` attributes
 
         rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-')
 
@@ -240,7 +239,10 @@ hsxSplicedNode = do
 hsxElementName :: Parser Text
 hsxElementName = do
     name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_' || c == '-')
-    unless (name `List.elem` parents || name `List.elem` leafs) (fail $ "Invalid tag name: " <> cs name)
+    let isValidParent = name `Set.member` parents
+    let isValidLeaf = name `Set.member` leafs
+    let isValidCustomWebComponent = "-" `Text.isInfixOf` name
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent) (fail $ "Invalid tag name: " <> cs name)
     space
     pure name
 
@@ -251,8 +253,8 @@ hsxIdentifier = do
     pure name
 
 
-attributes :: [Text]
-attributes =
+attributes :: Set Text
+attributes = Set.fromList
         [ "accept", "accept-charset", "accesskey", "action", "alt", "async"
         , "autocomplete", "autofocus", "autoplay", "challenge", "charset"
         , "checked", "cite", "class", "cols", "colspan", "content"
@@ -340,11 +342,11 @@ attributes =
         , "stop-opacity", "stroke-dasharray", "stroke-dashoffset", "stroke-linecap"
         , "stroke-linejoin", "stroke-miterlimit", "stroke-opacity", "stroke-width"
         , "stroke", "text-anchor", "text-decoration", "text-rendering", "unicode-bidi"
-        , "visibility", "word-spacing", "writing-mode"
+        , "visibility", "word-spacing", "writing-mode", "is"
         ]
 
-parents :: [Text]
-parents =
+parents :: Set Text
+parents = Set.fromList
         [ "a", "abbr", "address", "article", "aside", "audio", "b"
         , "bdo", "blockquote", "body", "button", "canvas", "caption", "cite"
         , "code", "colgroup", "command", "datalist", "dd", "del", "details"
@@ -361,8 +363,8 @@ parents =
         , "loading"
         ]
 
-leafs :: [Text]
-leafs =
+leafs :: Set Text
+leafs = Set.fromList
         [ "area", "br", "col", "hr", "link", "img", "input",  "meta", "param"
         ]
 

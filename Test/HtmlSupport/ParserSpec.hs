@@ -14,8 +14,8 @@ tests = do
     let position = Megaparsec.SourcePos "" (Megaparsec.mkPos 0) (Megaparsec.mkPos 0)
     describe "HSX Parser" do
         it "should fail on invalid html tags" do
-            let errorText = "1:15:\n  |\n1 | <my-invalid-el>\n  |               ^\nInvalid tag name: my-invalid-el\n"
-            let (Left error) = parseHsx position "<my-invalid-el>"
+            let errorText = "1:13:\n  |\n1 | <myinvalidel>\n  |             ^\nInvalid tag name: myinvalidel\n"
+            let (Left error) = parseHsx position "<myinvalidel>"
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
 
         it "should fail on invalid attribute names" do
