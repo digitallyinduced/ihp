@@ -1,8 +1,10 @@
 let
-	pkgs = import ./NixSupport/pkgs.nix;
+	pkgs = (import ./NixSupport/make-nixpkgs-from-options.nix) {
+		ihp = ./.;
+		haskellPackagesDir = ./NixSupport/haskell-packages;
+	};
 	ghc = pkgs.haskell.packages.ghc8103;
 	haskellDeps = ghc.ghcWithPackages (p: with p; [
-	    cabal-install
 	    base
 	    classy-prelude
 	    directory
@@ -19,7 +21,6 @@ let
 	    postgresql-simple
 	    wai-middleware-static
 	    wai-util
-	    http-client
 	    aeson
 	    uuid
 	    wai-session
@@ -30,7 +31,6 @@ let
 	    haskell-src-meta
 	    random-strings
 	    interpolate
-	    uri-encode
 	    websockets
 	    wai-websockets
 	    mime-mail
@@ -46,16 +46,18 @@ let
 	    fsnotify
 	    countable-inflections
 	    typerep-map
-	    mmark-cli
+	    basic-prelude
 	    data-default
-	    hspec
 	    regex-tdfa
 	    resource-pool
 	    wreq
+	    deepseq
+	    uri-encode
+	    parser-combinators
     ]);
 in
     pkgs.stdenv.mkDerivation {
-        name = "app";
+        name = "ihp-dev";
         src = ./../.;
         buildInputs = [haskellDeps pkgs.entr];
         shellHook = "eval $(egrep ^export ${haskellDeps}/bin/ghc)";
