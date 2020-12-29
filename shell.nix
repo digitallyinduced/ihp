@@ -54,6 +54,7 @@ let
 	    deepseq
 	    uri-encode
 	    parser-combinators
+	    mmark-cli
     ]);
 in
     pkgs.stdenv.mkDerivation {
