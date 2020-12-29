@@ -52,6 +52,7 @@ module Application.Helper.Controller (
 ) where
 
 -- Here you can add functions which are available in all your controllers
+import IHP.ControllerPrelude
 
 -- To use the built in login:
 -- import IHP.LoginSupport.Helper.Controller
@@ -65,7 +66,7 @@ module Application.Helper.Controller (
 ) where
 
 -- Here you can add functions which are available in all your controllers
-
+import IHP.ControllerPrelude
 import IHP.LoginSupport.Helper.Controller
 import Generated.Types
 
@@ -83,7 +84,7 @@ module Application.Helper.View (
 ) where
 
 -- Here you can add functions which are available in all your views
-
+import IHP.ViewPrelude
 -- To use the built in login:
 -- import IHP.LoginSupport.Helper.View
 ```
@@ -96,7 +97,7 @@ module Application.Helper.View (
 ) where
 
 -- Here you can add functions which are available in all your views
-
+import IHP.ViewPrelude
 import IHP.LoginSupport.Helper.View
 ```
 
@@ -123,14 +124,17 @@ instance FrontController WebApplication where
 At the end of the file, there is a line like:
 
 ```haskell
-instance InitControllerContext WebApplication
+instance InitControllerContext WebApplication where
+    initContext = do
+        setLayout defaultLayout
 ```
 
 We need to extend this function with the following code:
 
 ```haskell
 instance InitControllerContext WebApplication where
-    initContext =
+    initContext = do
+        setLayout defaultLayout
         initAuthentication @User
 ```
 
@@ -144,7 +148,6 @@ First, we have to update `Web/Types.hs`. The auth module directs users to the lo
 
 ```haskell
 import IHP.LoginSupport.Types
-import Generated.Types
 
 instance HasNewSessionUrl User where
     newSessionUrl _ = "/NewSession"
