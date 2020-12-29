@@ -2,11 +2,11 @@ name: Binary Build
 on:
   push:
     branches: [master]
-strategy:
-  matrix:
-    os: [ubuntu-latest, macos-latest]
 jobs:
   build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2.3.4
