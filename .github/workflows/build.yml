@@ -18,9 +18,15 @@ jobs:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-
     - run: |
           git clone https://github.com/digitallyinduced/ihp-boilerplate.git
+    - name: Cache build directory
+      uses: actions/cache@v2
+      with:
+        path: |
+          ihp-boilerplate/build
+        key: ${{ runner.os }}-ghc
+    - run: |
           cd ihp-boilerplate
           git checkout nixpkgs-update
           echo "<?php" >> replace.php
