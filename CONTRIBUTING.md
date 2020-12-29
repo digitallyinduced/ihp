@@ -136,4 +136,4 @@ Perhaps a package was added to IHP recently. Start a `nix-shell` in the IHP dire
 
 ### Trouble adding packages to IHP
 
-Either add the package to your project's `default.nix` as well, or change the section `ihp = builtins.fetchGit ...` to `ihp = ./IHP;`in your project's `default.nix`. Then the `IHP\ihp.nix` will be used to fetch packages.
+Either add the package to your project's `default.nix` as well, or change the section `ihp = builtins.fetchGit ...` to `ihp = ./IHP;`in your project's `default.nix`. Then the `IHP/ihp.nix` will be used to fetch packages.
