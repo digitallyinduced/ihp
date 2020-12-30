@@ -18,6 +18,8 @@ In case some errors appear now or in later steps, [check out the troubleshooting
 
 The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
+*Note for Windows:* Make sure that you are located in the Linux part of the filesystem and not on the Linux-mounted Windows filesystem, i.e. not on a path starting with `/mnt/`. Otherwise PostgreSQL will complain about the accessibility of the project's PostgreSQL database.
+
 Here is a short overview of the whole structure:
 
 | File or Directory             | Purpose                                                                             |
@@ -987,7 +989,7 @@ That's it already. Taking a look at our post, we can see that the newest comment
 
 ## Have Fun!
 
-You should have a rough understanding of IHP now. The best way to continue is to start building things. Take a look at the `The Basics` Section to learn more about all the provided modules.
+You should have a rough understanding of IHP now. The best way to continue is to start building things. When you want to delete a project just delete the project directory. Take a look at the `The Basics` Section to learn more about all the provided modules.
 
 [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
 

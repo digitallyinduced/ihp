@@ -8,25 +8,22 @@ To work on the framework in your application, you need to clone this repository 
 
 ```
 # Set up a local IHP project
-ihp-new ihp-test-project
-cd ihp-test-project
+ihp-new myproject
+cd myproject
 ./start
+```
 
-# Clone the IHP repository into the project directory
-# The `IHP` directory is added to the GHC search path in applicationGhciConfig
-# Therefore when the `IHP` directory exists, GHC will load all IHP modules from there
+Running `./start` is necessary, even if you don't intend to run it this way (e.g. you intend to do development and don't intend to run it "normally"), to do some initial setup like creating the database. When it starts normally, just CTRL+C to exit.
+
+Clone the IHP repository into the project directory. The `IHP` directory is added to the GHC search path in applicationGhciConfig. Therefore when the `IHP` directory exists, GHC will load all IHP modules from there.
+
+```
 git clone git@github.com:digitallyinduced/ihp.git IHP
+# only needs to be run once (do not run inside the IHP directory)
+make -B build/ihp-lib  
 ```
 
-Note that the `./start` is necessary, even if you don't intend to run it this way (e.g. you intend to contribute and don't intend to run it "normally"), to do some initial setup like creating the database. When it starts normally, just CTRL+C to exit.
-
-The best workflow is to use `ghci` to load your application together with the framework version in `IHP`. Then, in your app directory (NOT the IHP directory):
-
-```
-make -B build/ihp-lib # only needs to be run once
-```
-
-Next, in a `nix-shell`:
+The best workflow is to use `ghci` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
 ghci
@@ -132,3 +129,11 @@ Try to run `make -B build/ihp-lib` to create the symlink.
 ### `direnv: error .envrc file not found`
 
 In the project directory, try `make -B .envrc`
+
+### Error messages about missing packages in `ghci`
+
+Perhaps a package was added to IHP recently. Start a `nix-shell` in the IHP directory to fetch missing packages.
+
+### Trouble adding packages to IHP
+
+Either add the package to your project's `default.nix` as well, or change the section `ihp = builtins.fetchGit ...` to `ihp = ./IHP;`in your project's `default.nix`. Then the `IHP/ihp.nix` will be used to fetch packages.
