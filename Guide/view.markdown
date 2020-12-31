@@ -93,7 +93,7 @@ You can disable the layout for a specific view by overriding the `beforeRender` 
 
 ```haskell
 instance View MyView where
-    beforeRender = do
+    beforeRender view = do
         setLayout (\view -> view)
 
     -- ...
