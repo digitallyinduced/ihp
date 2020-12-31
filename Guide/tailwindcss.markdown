@@ -139,7 +139,7 @@ As the `static/app.css` is now generated code, it's best to put the `static/app.
 
 ```bash
 git rm -f static/app.css # Remove the existing app.css
-echo static/app.css >> .gitignore
+printf '\nstatic/app.css' >> .gitignore
 git add .gitignore
 ```
 
@@ -218,7 +218,11 @@ Once everything is installed you can start your tailwind build by calling:
 make tailwind-dev
 ```
 
-You should have this process running next to your terminal that runs `./start`.
+You should have this process running next to your terminal that runs `./start`. Alternatively, you could add this to the `start` file like so:
+
+```bash
+make tailwind-dev & RunDevServer
+```
 
 Whenever you make a change to any CSS file in `tailwind/` it will automatically rebuild your styles and write it to `static/app.css`.
 
