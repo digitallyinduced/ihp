@@ -60,7 +60,7 @@ To use the layout inside a view, call `setLayout` from the `beforeRender`:
 
 ```haskell
 instance View MyView where
-    beforeRender = do
+    beforeRender view = do
         setLayout appLayout
 ```
 
