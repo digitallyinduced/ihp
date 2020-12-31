@@ -114,7 +114,7 @@ form label {
 
 We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
 
-```
+```makefile
 tailwind-dev:
     ls tailwind/*.css|NODE_ENV=development entr npx tailwindcss build tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
 ```
@@ -125,7 +125,7 @@ This defines a new command `make tailwind-dev` that runs `npx tailwindcss build`
 
 For production builds we also need a new make target:
 
-```
+```makefile
 static/app.css:
     NODE_ENV=production npm ci
     NODE_ENV=production npx tailwindcss build tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
@@ -155,7 +155,7 @@ We don't need to make any additions for tailwind here. Just get rid of bootstrap
 
 Bootstrap is also part of the production CSS build, we need to remove that as well. Open `Makefile` and remove this line:
 
-```
+```makefile
 CSS_FILES += ${IHP}/static/vendor/bootstrap.min.css
 ```
 
