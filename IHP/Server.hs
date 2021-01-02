@@ -33,6 +33,7 @@ import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
+import qualified Data.ByteString.Char8 as ByteString
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -141,7 +142,7 @@ application request respond = do
 runServer :: FrameworkConfig -> Application -> IO ()
 runServer FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
                 Warp.defaultSettings
-                    |> Warp.setBeforeMainLoop (putStrLn "Server started")
+                    |> Warp.setBeforeMainLoop (ByteString.putStrLn "Server started")
                     |> Warp.setPort appPort
 runServer FrameworkConfig { environment = Env.Production, appPort } = Warp.runEnv appPort
 
