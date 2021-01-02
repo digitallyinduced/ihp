@@ -16,6 +16,7 @@ import qualified Database.PostgreSQL.Simple.FromRow as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
+import qualified Data.ByteString.Builder
 
 instance Controller DataController where
     action ShowDatabaseAction = do
@@ -67,9 +68,9 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         let tableName = param "tableName"
         tableCols <- fetchTableCols connection tableName
-        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
-        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," values <> ")"
-        PG.execute_ connection (PG.Query . cs $! query)
+        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
+        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," (map (const "?") values) <> ")"
+        PG.execute connection (PG.Query . cs $! query) values
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
@@ -94,12 +95,12 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
 
-        let values :: [Text] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
+        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
         let columns :: [Text] = map (\col -> cs (get #columnName col)) tableCols
         let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
-        let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns values)) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))
-        PG.execute_ connection (PG.Query . cs $! query)
+        let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns (map (const "?") values))) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))
+        PG.execute connection (PG.Query . cs $! query) values
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
@@ -179,13 +180,11 @@ fetchRows connection tableName = do
     PG.query_ connection (PG.Query . cs $! query)
 
 -- parseValues sqlMode isBoolField input
-parseValues :: Bool -> Bool -> Text -> Text
-parseValues _ True "on" = "true"
-parseValues _ True "off" = "false"
-parseValues False False text = "'" <> text <> "'"
-parseValues True False text = text
-parseValues False True text = text
-parseValues True True text = text
+parseValues :: Bool -> Bool -> Text -> PG.Action
+parseValues _ True "on" = PG.toField True
+parseValues _ True "off" = PG.toField False
+parseValues False _ text = PG.toField text
+parseValues _ _ text = PG.Plain (Data.ByteString.Builder.byteString (cs text))
 
 updateValues list = map (\elem -> fst elem <> " = " <> snd elem) list
 
