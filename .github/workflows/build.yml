@@ -38,4 +38,7 @@ jobs:
           echo "?>" >> replace.php
           php replace.php $GITHUB_SHA
           cat default.nix
-          nix-shell --run "echo 'It worked'"
+          mv Makefile Makefile.old
+          echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
+          nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
+          
