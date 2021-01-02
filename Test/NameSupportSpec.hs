@@ -32,6 +32,19 @@ tests = do
                 tableNameToControllerName "user_projects" `shouldBe` "UserProjects"
                 tableNameToControllerName "users_projects" `shouldBe` "UsersProjects"
                 tableNameToControllerName "people" `shouldBe` "People"
+
+        describe "enumValueToControllerName" do
+            it "should handle spaces in table names" do
+                enumValueToControllerName "very happy" `shouldBe` "VeryHappy"
+                enumValueToControllerName "sad" `shouldBe` "Sad"
+                enumValueToControllerName "very sad" `shouldBe` "VerySad"
+
+            it "should deal with typical enum cases" do
+                enumValueToControllerName "job_status_not_started" `shouldBe` "JobStatusNotStarted"
+                enumValueToControllerName "job_status_running" `shouldBe` "JobStatusRunning"
+                enumValueToControllerName "job_status_failed" `shouldBe` "JobStatusFailed"
+                enumValueToControllerName "job_status_succeeded" `shouldBe` "JobStatusSucceeded"
+                enumValueToControllerName "job_status_retry" `shouldBe` "JobStatusRetry"
         
         describe "modelNameToTableName" do
             it "should deal with empty input" do
