@@ -182,7 +182,7 @@ fetchRows connection tableName = do
 parseValues :: Bool -> Bool -> Text -> Text
 parseValues _ True "on" = "true"
 parseValues _ True "off" = "false"
-parseValues False False text = "'" <> text <> "'"
+parseValues False False text = "'" <> (T.replace "'" "''" text) <> "'"
 parseValues True False text = text
 parseValues False True text = text
 parseValues True True text = text
