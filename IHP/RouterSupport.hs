@@ -35,7 +35,6 @@ import Network.HTTP.Types.Method
 import GHC.Records
 import IHP.Controller.RequestContext
 import Network.Wai
-import Data.String.Conversions (cs)
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
@@ -62,6 +61,9 @@ import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
 import qualified Data.List.Split as List
 import qualified Network.URI.Encode as URI
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text
+import IHP.Router.Types
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
@@ -92,12 +94,12 @@ urlTo action = (fromConfig baseUrl) <> pathTo action
 {-# INLINE urlTo #-}
 
 class HasPath controller => CanRoute controller where
-    parseRoute' :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => Parser controller
+    parseRoute' :: (?context :: RequestContext) => Parser controller
 
 
 class Data controller => AutoRoute controller where
     {-# INLINE autoRoute #-}
-    autoRoute :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => Parser controller
+    autoRoute :: (?context :: RequestContext) => Parser controller
     autoRoute  =
         let
             allConstructors :: [Constr]
@@ -107,13 +109,13 @@ class Data controller => AutoRoute controller where
             parseCustomAction constructor = string prefix >> (string actionPath <* endOfInput >> checkRequestMethod action)
                 where
                     prefix :: ByteString
-                    prefix = cs (actionPrefix @controller)
+                    prefix = ByteString.pack (actionPrefix @controller)
 
                     action :: controller
                     action = actionInstance constructor
 
-                    fields :: [String]
-                    fields = constrFields constructor
+                    fields :: [ByteString]
+                    fields = map ByteString.pack (constrFields constructor)
 
                     query :: Query
                     query = queryString (getField @"request" ?context)
@@ -121,7 +123,7 @@ class Data controller => AutoRoute controller where
                     actionInstance :: Constr -> controller
                     actionInstance constructor = State.evalState ((fromConstrM (do
                             i <- State.get
-                            let field :: ByteString = cs (fields !! i)
+                            let field :: ByteString = fields !! i
                             let value :: ByteString = fromMaybe (error "AutoRoute: Param empty") $ fromMaybe (error "AutoRoute: Param missing") (lookup field query)
                             let id = parseArgument @controller field value
 
@@ -129,10 +131,10 @@ class Data controller => AutoRoute controller where
                             pure id
                         )) constructor) 0
 
-                    actionName = showConstr constructor
+                    actionName = ByteString.pack (showConstr constructor)
 
                     actionPath :: ByteString
-                    actionPath = cs $! stripActionSuffix actionName
+                    actionPath = stripActionSuffix actionName
 
                     allowedMethods = allowedMethodsForAction @controller actionName
 
@@ -168,13 +170,13 @@ class Data controller => AutoRoute controller where
     -- >>> allowedMethodsForAction @ProjectsController "HelloAction"
     -- [GET, POST, HEAD]
     --
-    allowedMethodsForAction :: String -> [StdMethod]
+    allowedMethodsForAction :: ByteString -> [StdMethod]
     allowedMethodsForAction actionName =
             case actionName of
-                a | "Delete" `isPrefixOf` a -> [DELETE]
-                a | "Update" `isPrefixOf` a -> [POST, PATCH]
-                a | "Create" `isPrefixOf` a -> [POST]
-                a | "Show"   `isPrefixOf` a -> [GET, HEAD]
+                a | "Delete" `ByteString.isPrefixOf` a -> [DELETE]
+                a | "Update" `ByteString.isPrefixOf` a -> [POST, PATCH]
+                a | "Create" `ByteString.isPrefixOf` a -> [POST]
+                a | "Show"   `ByteString.isPrefixOf` a -> [GET, HEAD]
                 _ -> [GET, POST, HEAD]
     {-# INLINE allowedMethodsForAction #-}
 
@@ -191,7 +193,7 @@ class Data controller => AutoRoute controller where
 -- > instance AutoRoute HelloWorldController where
 -- >     parseArgument = parseTextArgument
 parseTextArgument :: forall d. Data d => ByteString -> ByteString -> d
-parseTextArgument field value = unsafeCoerce ((cs value) :: Text)
+parseTextArgument field value = unsafeCoerce ((Text.decodeUtf8 value) :: Text)
 {-# INLINE parseTextArgument #-}
 
 -- | When the arguments for your AutoRoute based actions are Integers instead
@@ -212,7 +214,7 @@ parseIntArgument field value =
     |> Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput)
     |> \case
         Right value -> unsafeCoerce value
-        Left _ -> error "AutoRoute: Failed parsing Int"
+        Left _ -> Exception.throw InvalidActionArgumentException { expectedType = "Int", value, field }
 {-# INLINE parseIntArgument #-}
 
 -- | The default implementation for 'parseArgument' in 'AutoRoute'.
@@ -220,7 +222,7 @@ parseUUIDArgument :: forall d. Data d => ByteString -> ByteString -> d
 parseUUIDArgument field value =
     value
     |> fromASCIIBytes
-    |> fromMaybe (error "AutoRoute: Failed parsing argument as UUID. You most likely are trying to use AutoRoute with a non-UUID attribute. See https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types for details on how to configure this.")
+    |> fromMaybe (Exception.throw InvalidActionArgumentException { expectedType = "UUID", value, field })
     |> unsafeCoerce
 {-# INLINE parseUUIDArgument #-}
 
@@ -304,7 +306,7 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
 
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
     {-# INLINABLE pathTo #-}
-    pathTo !action = cs (appPrefix <> actionName <> arguments)
+    pathTo !action = Text.pack (appPrefix <> actionName <> arguments)
         where
             appPrefix :: String
             !appPrefix = actionPrefix @controller
@@ -342,9 +344,9 @@ getMethod =
         |> requestMethod
         |> parseMethod
         |> \case
-            Left error -> fail (cs error)
+            Left error -> fail (ByteString.unpack error)
             Right method -> pure method
-{-# INLINE getMethod #-}
+{-# INLINABLE getMethod #-}
 
 -- | Routes a given path to an action when requested via GET.
 --
@@ -434,12 +436,14 @@ mountFrontController application = let ?application = application in choice (map
 {-# INLINABLE mountFrontController #-}
 
 parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
-parseRoute = parseRoute' @controller >>= pure . runActionWithNewContext @application
+parseRoute = do
+    action <- parseRoute' @controller
+    pure (runActionWithNewContext @application action)
 {-# INLINABLE parseRoute #-}
 
 catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
 catchAll action = do
-    string (cs (actionPrefix @action))
+    string (ByteString.pack (actionPrefix @action))
     _ <- takeByteString
     pure (runActionWithNewContext @application action)
 {-# INLINABLE catchAll #-}
@@ -457,19 +461,19 @@ parseUUID = do
         case fromASCIIBytes uuid of 
             Just theUUID -> pure theUUID
             Nothing -> fail "not uuid"
-{-# INLINE parseUUID #-}
+{-# INLINABLE parseUUID #-}
 
 -- | Parses an UUID, afterwards wraps it in an Id
 parseId :: ((ModelSupport.PrimaryKey table) ~ UUID) => Parser (ModelSupport.Id' table)
 parseId = ModelSupport.Id <$> parseUUID
-{-# INLINE parseId #-}
+{-# INLINABLE parseId #-}
 
 -- | Returns all the remaining text until the end of the input
 remainingText :: Parser Text
-remainingText = cs <$> takeByteString
-{-# INLINE remainingText #-}
+remainingText = Text.decodeUtf8 <$> takeByteString
+{-# INLINABLE remainingText #-}
 
 -- | Parses until the next @/@
 parseText :: Parser Text
-parseText = cs <$> takeTill ('/' ==)
-{-# INLINE parseText #-}
+parseText = Text.decodeUtf8 <$> takeTill ('/' ==)
+{-# INLINABLE parseText #-}

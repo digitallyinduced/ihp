@@ -12,12 +12,13 @@ module IHP.ErrorController
 
 import IHP.Prelude hiding (displayException)
 import qualified IHP.Controller.Param as Param
+import qualified IHP.Router.Types as Router
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import System.IO (stderr)
 import IHP.Controller.RequestContext
-import Network.HTTP.Types (status500, status404)
+import Network.HTTP.Types (status500, status404, status400)
 import Network.Wai
 import Network.HTTP.Types.Header
 
@@ -64,7 +65,7 @@ handleNotFound = do
     respond response
 
 -- | The default IHP 404 not found page
-defaultNotFoundResponse :: Response
+defaultNotFoundResponse :: (?context :: RequestContext) => Response
 defaultNotFoundResponse = do
     let errorMessage = [hsx|Router failed to find an action to handle this request.|]
     let title = H.text "Action Not Found"
@@ -74,28 +75,27 @@ defaultNotFoundResponse = do
 customNotFoundResponse :: Response
 customNotFoundResponse = responseFile status404 [(hContentType, "text/html")] "static/404.html" Nothing
 
-handleRouterException :: (?context :: RequestContext) => SomeException -> IO ResponseReceived
-handleRouterException exception = do
-    let errorMessage = [hsx|
-            Routing failed with: {tshow exception}
-            
-            <h2>Possible Solutions</h2>
-            <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
-            <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
-        |]
-    let title = H.text "Routing failed"
-    let RequestContext { respond } = ?context
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
-
-
 displayException :: (Show action, ?context :: ControllerContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
-    let allHandlers =
+    -- Dev handlers display helpful tips on how to resolve the problem
+    let devHandlers =
             [ postgresHandler
             , paramNotFoundExceptionHandler
             , patternMatchFailureHandler
-            , recordNotFoundExceptionHandler
+            , recordNotFoundExceptionHandlerDev
+            , handleInvalidActionArgumentExceptionDev
             ]
+
+    -- Prod handlers should not leak any information about the system
+    let prodHandlers =
+            [ recordNotFoundExceptionHandlerProd
+            , handleInvalidActionArgumentExceptionProd
+            ]
+
+    let allHandlers = if fromConfig environment == Environment.Development
+            then devHandlers
+            else prodHandlers
+
     let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
 
     -- Additionally to rendering the error message to the browser we also print out 
@@ -104,18 +104,28 @@ displayException exception action additionalInfo = do
 
     let displayGenericError = genericHandler exception action additionalInfo
 
-    if (fromConfig environment) == Environment.Development
-        then supportingHandlers
-            |> head
-            |> fromMaybe displayGenericError
-        else displayGenericError
+    supportingHandlers
+        |> head
+        |> fromMaybe displayGenericError
 
+-- | Responds to all exceptions with a generic error message.
+--
+-- In dev mode the action and exception is added to the output.
+-- In production mode nothing is specific is communicated about the exception
 genericHandler :: (Show controller, ?context :: ControllerContext) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
 genericHandler exception controller additionalInfo = do
-    let errorMessage = [hsx|An exception was raised while running the action {tshow controller}{additionalInfo}|]
+    let devErrorMessage = [hsx|An exception was raised while running the action {tshow controller}{additionalInfo}|]
+    let devTitle = [hsx|{Exception.displayException exception}|]
+
+    let prodErrorMessage = [hsx|An exception was raised while running the action|]
+    let prodTitle = [hsx|An error happend|]
+
+    let (errorMessage, errorTitle) = if fromConfig environment == Environment.Development
+            then (devErrorMessage, devTitle)
+            else (prodErrorMessage, prodTitle)
     let RequestContext { respond } = get #requestContext ?context
-    let title = H.string (Exception.displayException exception)
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+    
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError errorTitle errorMessage))
 
 postgresHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
@@ -239,8 +249,10 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
         Nothing -> Nothing
 
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
-recordNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
-recordNotFoundExceptionHandler exception controller additionalInfo = do
+--
+-- Used only in development mode of the app.
+recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerDev exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
@@ -281,7 +293,59 @@ recordNotFoundExceptionHandler exception controller additionalInfo = do
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
-renderError :: H.Html -> H.Html -> H.Html
+-- Handler for 'IHP.ModelSupport.RecordNotFoundException'
+--
+-- Used only in production mode of the app. The exception is handled by calling 'handleNotFound'
+recordNotFoundExceptionHandlerProd :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerProd exception controller additionalInfo =
+    case fromException exception of
+        Just (exception@(ModelSupport.RecordNotFoundException {})) ->
+            let requestContext = get #requestContext ?context
+            in
+                let ?context = requestContext
+                in Just handleNotFound
+        Nothing -> Nothing
+
+handleRouterException :: (?context :: RequestContext) => SomeException -> IO ResponseReceived
+handleRouterException exception = do
+    let errorMessage = [hsx|
+            Routing failed with: {tshow exception}
+            
+            <h2>Possible Solutions</h2>
+            <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
+            <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
+        |]
+    let title = H.text "Routing failed"
+    let RequestContext { respond } = ?context
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+-- | Renders a helpful error when e.g. an UUID value is expected as an action argument, but something else is given
+handleInvalidActionArgumentExceptionDev :: (?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+handleInvalidActionArgumentExceptionDev exception controller additionalInfo = do
+    case fromException exception of
+        Just Router.InvalidActionArgumentException { expectedType, value, field } -> do
+            let errorMessage = [hsx|
+                    Routing failed with: {tshow exception}
+                    
+                    <h2>Possible Solutions</h2>
+                    <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
+                    <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
+                |]
+            let title = [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
+            let RequestContext { respond } = get #requestContext ?context
+            Just $ respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+        Nothing -> Nothing
+
+handleInvalidActionArgumentExceptionProd :: (?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+handleInvalidActionArgumentExceptionProd exception controller additionalInfo = do
+    case fromException exception of
+        Just Router.InvalidActionArgumentException { expectedType, value, field } -> do
+            let title = [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong>|]
+            let RequestContext { respond } = get #requestContext ?context
+            Just $ respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title mempty))
+        Nothing -> Nothing
+
+renderError :: forall context. (?context :: context, ConfigProvider context) => H.Html -> H.Html -> H.Html
 renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
     <meta charset="utf-8"/>
@@ -345,14 +409,19 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
                 {view}
             </div>
 
-            <div class="ihp-error-other-solutions">
-                <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask the IHP Community on StackOverflow</a>
-                <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
-                <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open GitHub Issue</a>
-                <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Gitter</a>
-                <a href="https://www.reddit.com/r/IHPFramework/" target="_blank">Reddit</a>
-            </div>
+            {when shouldShowHelpFooter helpFooter}
         </div>
     </div>
 </body>
     |]
+        where
+            shouldShowHelpFooter = (fromConfig environment) == Environment.Development
+            helpFooter = [hsx|
+                <div class="ihp-error-other-solutions">
+                    <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask the IHP Community on StackOverflow</a>
+                    <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
+                    <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open GitHub Issue</a>
+                    <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Gitter</a>
+                    <a href="https://www.reddit.com/r/IHPFramework/" target="_blank">Reddit</a>
+                </div>
+            |]
