@@ -63,7 +63,7 @@ let
 in
     pkgs.stdenv.mkDerivation {
         name = "ihp-dev";
-        src = ./../.;
+        src = ./.;
         buildInputs = [haskellDeps pkgs.entr];
         shellHook = "eval $(egrep ^export ${haskellDeps}/bin/ghc)";
     }
