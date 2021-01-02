@@ -171,6 +171,7 @@ library IHPFramework
         , IHP.ViewPrelude
         , IHP.ViewSupport
         , IHP.RouterSupport
+        , IHP.Router.Types
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
