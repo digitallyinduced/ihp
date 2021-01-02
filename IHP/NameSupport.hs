@@ -13,6 +13,7 @@ module IHP.NameSupport
 , fieldNameToColumnName
 , escapeHaskellKeyword
 , tableNameToControllerName
+, enumValueToControllerName
 , toSlug
 ) where
 
@@ -23,6 +24,9 @@ import Data.String.Conversions (cs)
 import qualified Data.Char as Char
 import qualified Text.Inflections as Inflector
 import qualified Text.Countable as Countable
+import qualified Data.Maybe as Maybe
+import qualified Data.List as List
+import Control.Monad (join)
 
 -- | Transforms a underscore table name to a camel case model name.
 --
@@ -56,6 +60,31 @@ tableNameToControllerName tableName = do
         then unwrapEither tableName $ Inflector.toCamelCased True tableName
         else ucfirst tableName
 {-# INLINABLE tableNameToControllerName #-}
+
+-- | Transforms a enum value to a name for a model
+--
+-- >>> enumValueToControllerName "happy"
+-- "Happy"
+--
+-- >>> enumValueToControllerName "very happy"
+-- "VeryHappy"
+--
+-- >>> enumValueToControllerName "very_happy"
+-- "VeryHappy"
+enumValueToControllerName :: Text -> Text
+enumValueToControllerName enumValue =
+    let
+        words :: [Inflector.SomeWord]
+        words = 
+                enumValue
+                |> splitOn " "
+                |> List.map (Inflector.parseSnakeCase [])
+                |> List.map (\case
+                        Left failed -> error (cs $ "enumValueToControllerName failed for " <> show failed)
+                        Right result -> result)
+                |> join
+    in
+        Inflector.camelizeCustom True words
 
 -- | Transforms a camel case model name to a underscored table name.
 --

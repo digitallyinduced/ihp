@@ -6,7 +6,7 @@ module IHP.SchemaCompiler
 import ClassyPrelude
 import Data.String.Conversions (cs)
 import Data.String.Interpolate (i)
-import IHP.NameSupport (tableNameToModelName, columnNameToFieldName)
+import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
@@ -334,16 +334,16 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> indent (unlines (map compileFromFieldInstanceForValue values))
         <> "    fromField field (Just value) = returnError ConversionFailed field (\"Unexpected value for enum value. Got: \" <> Data.String.Conversions.cs value)\n"
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
-        <> "instance Default " <> modelName <> " where def = " <> tableNameToModelName (unsafeHead values) <> "\n"
+        <> "instance Default " <> modelName <> " where def = " <> enumValueToControllerName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
         <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader\n"
     where
         modelName = tableNameToModelName name
-        valueConstructors = map tableNameToModelName values
-        compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> tableNameToModelName value
-        compileToFieldInstanceForValue value = "toField " <> tableNameToModelName value <> " = toField (" <> tshow value <> " :: Text)"
-        compileInputValue value = "inputValue " <> tableNameToModelName value <> " = " <> tshow value <> " :: Text"
+        valueConstructors = map enumValueToControllerName values
+        compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> enumValueToControllerName value
+        compileToFieldInstanceForValue value = "toField " <> enumValueToControllerName value <> " = toField (" <> tshow value <> " :: Text)"
+        compileInputValue value = "inputValue " <> enumValueToControllerName value <> " = " <> tshow value <> " :: Text"
 
 compileToRowValues :: [Text] -> Text
 compileToRowValues bindingValues | length bindingValues == 1 = "Only (" <> (unsafeHead bindingValues) <> ")"
