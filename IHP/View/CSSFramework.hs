@@ -166,7 +166,7 @@ bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupCl
 tailwind :: CSSFramework
 tailwind = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }
     where
-        styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-teal-100 border-t-4 border-teal-500 rounded-b text-teal-900 px-4 py-3 shadow-md">{message}</div>|]
+        styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-green-100 border border-green-500 text-green-900 px-4 py-3 rounded relative">{message}</div>|]
         styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">{message}</div>|]
 
         styledInputClass FormField {} = "form-control"
