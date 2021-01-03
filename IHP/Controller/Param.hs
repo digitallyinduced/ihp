@@ -399,6 +399,24 @@ instance ParamReader UTCTime where
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "ParamReader UTCTime: Expected String"
 
+-- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
+instance ParamReader LocalTime where
+    {-# INLINABLE readParameter #-}
+    readParameter "" = Left "ParamReader LocalTime: Parameter missing"
+    readParameter byteString =
+        let
+            input = (cs byteString)
+            dateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
+            date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
+        in case dateTime of
+            Nothing -> case date of
+                Just value -> Right value
+                Nothing -> Left ("ParamReader LocalTime: Failed parsing " ++ cs input)
+            Just value -> Right value
+
+    readParameterJSON (Aeson.String string) = readParameter (cs string)
+    readParameterJSON _ = Left "ParamReader LocalTime: Expected String"
+
 -- | Accepts values such as @2020-11-08@
 instance ParamReader Day where
     {-# INLINABLE readParameter #-}
