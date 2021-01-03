@@ -270,7 +270,7 @@ tests = do
                     (readParameter @LocalTime "not a timestamp") `shouldBe` (Left "ParamReader LocalTime: Failed parsing")
                 
                 it "should accept JSON strings" do
-                    (tshow (readParameterJSON @UTCTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35")
+                    (tshow (readParameterJSON @LocalTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35")
 
             describe "Day" do
                 it "should accept dates" do
