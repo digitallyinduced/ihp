@@ -411,7 +411,7 @@ instance ParamReader LocalTime where
         in case dateTime of
             Nothing -> case date of
                 Just value -> Right value
-                Nothing -> Left ("ParamReader LocalTime: Failed parsing " ++ cs input)
+                Nothing -> Left "ParamReader LocalTime: Failed parsing"
             Just value -> Right value
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
