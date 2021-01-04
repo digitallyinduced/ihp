@@ -204,6 +204,7 @@ deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
 deriving instance (Ord (PrimaryKey table)) => Ord (Id' table)
 deriving instance (Hashable (PrimaryKey table)) => Hashable (Id' table)
 deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
+deriving instance (KnownSymbol table, NFData (PrimaryKey table)) => NFData (Id' table)
 
 -- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
