@@ -13,9 +13,9 @@ import IHP.Prelude
 -- When opening @/ShowProject?projectId=ab55d579-80cd-4608-9a8f-c76dea6c2332@ everything is fine.
 -- But when opening @/ShowProject?projectId=not-an-uuid@ this exception will be thrown.
 data InvalidActionArgumentException = InvalidActionArgumentException
-        { expectedType :: ByteString
-        , value :: ByteString
-        , field :: ByteString
+        { expectedType :: !ByteString
+        , value :: !ByteString
+        , field :: !ByteString
         } deriving (Eq, Show)
 
 instance Exception InvalidActionArgumentException

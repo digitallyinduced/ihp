@@ -10,22 +10,22 @@ import IHP.Controller.RequestContext
 import Control.Concurrent.MVar (MVar)
 import Data.Set (Set)
 
-data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: UUID }
+data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshSession = AutoRefreshSession
-        { id :: UUID
+        { id :: !UUID
         -- | A callback to rerun an action within a given request context
-        , renderView :: RequestContext -> IO ()
+        , renderView :: !(RequestContext -> IO ())
         -- | MVar that is filled whenever some table changed
-        , event :: MVar ()
+        , event :: !(MVar ())
         -- | All tables this auto refresh session watches
-        , tables :: Set ByteString
+        , tables :: !(Set ByteString)
         -- | The last rendered html of this action. Initially this is the result of the initial page rendering
-        , lastResponse :: LByteString
+        , lastResponse :: !LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
-        , lastPing :: UTCTime
+        , lastPing :: !UTCTime
         }
 
-data AutoRefreshServer = AutoRefreshServer { sessions :: [AutoRefreshSession], subscribedTables :: Set ByteString }
+data AutoRefreshServer = AutoRefreshServer { sessions :: ![AutoRefreshSession], subscribedTables :: !(Set ByteString) }
 
 newAutoRefreshServer :: AutoRefreshServer
 newAutoRefreshServer = AutoRefreshServer { sessions = [], subscribedTables = mempty }

@@ -9,5 +9,5 @@ module IHP.FlashMessages.Types
 import IHP.Prelude
 
 data FlashMessage
-    = SuccessFlashMessage Text
-    | ErrorFlashMessage Text
+    = SuccessFlashMessage !Text
+    | ErrorFlashMessage !Text
