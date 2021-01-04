@@ -137,3 +137,13 @@ Perhaps a package was added to IHP recently. Start a `nix-shell` in the IHP dire
 ### Trouble adding packages to IHP
 
 Either add the package to your project's `default.nix` as well, or change the section `ihp = builtins.fetchGit ...` to `ihp = ./IHP;`in your project's `default.nix`. Then the `IHP/ihp.nix` will be used to fetch packages.
+
+### Reverting back to running with stock IHP library
+
+If you want to go back and use the standard IHP library instead of the cloned source, for instance when your much needed, contributed and approved feature becomes part of the release, then in your project directory:
+
+```
+rm -rf IHP
+rm build/ihp-lib
+./start
+```
