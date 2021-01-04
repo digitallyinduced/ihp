@@ -120,6 +120,9 @@ instance InputValue () where
 instance InputValue UTCTime where
     inputValue time = cs (iso8601Show time)
 
+instance InputValue LocalTime where
+    inputValue time = cs (iso8601Show time)
+
 instance InputValue Day where
     inputValue date = cs (iso8601Show date)
 

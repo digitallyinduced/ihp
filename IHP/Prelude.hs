@@ -21,6 +21,7 @@ module IHP.Prelude
 , module Data.String.Conversions
 , module Data.Time.Clock
 , module Data.Time.Calendar
+, module Data.Time.LocalTime
 , module Data.Text
 , module GHC.OverloadedLabels
 , plain
@@ -55,6 +56,7 @@ import qualified Data.List as List
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.Time.Clock
 import Data.Time.Calendar
+import Data.Time.LocalTime
 import Data.Text (words, unwords, lines, unlines, intersperse, intercalate, toLower, toUpper, isInfixOf, isSuffixOf, isPrefixOf, splitAt)
 import qualified Data.String.Interpolate
 import GHC.OverloadedLabels
