@@ -153,7 +153,7 @@ Questions, or need help with haskell type errors? [Join our Slack Community](htt
 
 [Also check out the IHP Forum!](https://forum.ihpapp.com/)
 
-## Contributing
+## Contributing by you
 
 We are happy to merge your pull requests!😄
 
