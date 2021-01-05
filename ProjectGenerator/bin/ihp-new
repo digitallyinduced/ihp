@@ -45,14 +45,19 @@ if ! [ -x "$(command -v direnv)" ]; then
 	  * ) echo -e "\e[31mPlease install direnv manually and then re-run this program.\e[0m"; exit 1;;
 	esac
 	echo -e "\e[1mDirenv needs to be hooked into your shell. Please follow the steps below:\e[0m"
-	echo "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
-	echo "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
+	echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
+	echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
 	echo "Other shells: See https://direnv.net/#README"
-	read -r -p "Have you done this step?" -n1 choice
-	case "$choice" in
-	  y|Y ) echo "Great!";;
-	  * ) echo -e "\e[31mPlease make sure direnv is set up correctly and then re-run this program. See https://direnv.net/#README for help.\e[0m"; exit 1;;
-	esac
+	echo -e "\e[1mHave you hooked direnv into your shell? [y/n] \e[0m"
+	while true; do
+		read -r -n1 choice
+		echo ""
+		case "$choice" in
+		  y|Y ) echo "Great!"; break;;
+		  n|N ) echo -e "\e[1m\e[33mHook direnv into your shell after this script has finished.\e[0m"; break;;
+		  * ) echo -e "\e[1mHave you hooked direnv into your shell? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m";;
+		esac
+	done
 fi
 
 if ! [ -x "$(command -v cachix)" ]; then

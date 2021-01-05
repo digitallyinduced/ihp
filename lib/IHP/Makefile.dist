@@ -180,7 +180,7 @@ build/Script/Main/%.hs: Application/Script/%.hs
 
 build/bin/RunJobs: build/RunJobs.hs
 	mkdir -p build/bin
-	ghc -O2 -main-is 'RunJobs.main' ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build -hidir build
+	ghc -O1 -main-is 'RunJobs.main' ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build -hidir build
 
 build/RunJobs.hs: build/Generated/Types.hs
 	echo "module RunJobs (main) where" > $@
