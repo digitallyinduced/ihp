@@ -129,7 +129,7 @@ So using `{haskellVariables}` inside your JavaScript like this will not work:
 Instead use a `data-` attribute to solve this:
 
 ```html
-<script data-api-key="{apiKey}">
+<script data-api-key={apiKey}>
     var apiKey = document.currentScript.dataset.apiKey;
 </script>
 ```
