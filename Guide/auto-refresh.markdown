@@ -48,7 +48,7 @@ instance InitControllerContext WebApplication where
 Next we need to add a new meta tag to our layout in `Web/View/Layout.hs`:
 
 ```haskell
-metaTags :: Html <---- ADD THIS TYPE SIGNATURE
+metaTags :: Html
 metaTags = [hsx|
     <meta charset="utf-8"/>
 
@@ -58,13 +58,10 @@ metaTags = [hsx|
 |]
 ```
 
-When you get a type error, make sure the type signature `metaTags :: Html` is there.
-
 Additionally you need to include the `/ihp-auto-refresh.js` in your `Web/View/Layout.hs`:
 
 ```haskell
-scripts = do
-    when isDevelopment [hsx|
+scripts = [hsx|
         ...
         <script src="/ihp-auto-refresh.js"></script> <------ ADD THIS
     |]
