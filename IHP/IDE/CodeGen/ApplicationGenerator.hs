@@ -118,6 +118,7 @@ generateGenericApplication applicationName =
                 <> "        <script src=\"/vendor/flatpickr.js\"></script>\n"
                 <> "        <script src=\"/helpers.js\"></script>\n"
                 <> "        <script src=\"/vendor/morphdom-umd.min.js\"></script>\n"
+                <> "        <script src=\"/ihp-auto-refresh.js\"></script>\n"
                 <> "    |]\n"
                 <> "\n"
                 <> "metaTags :: Html\n"
@@ -128,6 +129,7 @@ generateGenericApplication applicationName =
                 <> "    <meta property=\"og:type\" content=\"website\"/>\n"
                 <> "    <meta property=\"og:url\" content=\"TODO\"/>\n"
                 <> "    <meta property=\"og:description\" content=\"TODO\"/>\n"
+                <> "    {autoRefreshMeta}\n"
                 <> "|]\n"
 
             viewPreludeHs =
