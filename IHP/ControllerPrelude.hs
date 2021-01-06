@@ -47,7 +47,6 @@ import Network.Wai.Parse (FileInfo, fileContent)
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import Control.Newtype.Generics
-import IHP.AutoRefresh (autoRefresh)
 import IHP.Mail (sendMail)
 import Database.PostgreSQL.Simple.Types (Only (..))
 import IHP.FlashMessages.Types
@@ -59,3 +58,4 @@ import IHP.Modal.Types
 import IHP.Modal.ControllerFunctions
 
 import IHP.Job.Types
+import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
