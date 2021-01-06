@@ -57,6 +57,7 @@ generateGenericApplication applicationName =
                 <> "instance InitControllerContext " <> applicationName <> "Application where\n"
                 <> "    initContext = do\n"
                 <> "        setLayout defaultLayout\n"
+                <> "        initAutoRefresh\n"
             controllerPreludeHs =
                 "module " <> applicationName <> ".Controller.Prelude\n"
                 <> "( module " <> applicationName <> ".Types\n"
