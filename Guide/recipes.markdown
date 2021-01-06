@@ -299,3 +299,11 @@ do
     token <- generateAuthenticationToken
     -- token = "11D3OAbUfL0P9KNJ09VcUfCO0S9RwI"
 ```
+
+## Working with Dates in IHP and Haskell
+
+https://zacwood.me/posts/2020-12-29-dates-ihp/
+
+## Basic Data Scraping, HTTP and JSON
+
+https://zacwood.me/posts/haskell-scraping-1/
