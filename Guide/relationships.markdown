@@ -106,6 +106,20 @@ SELECT posts.* FROM posts
 SELECT comments.* FROM comments WHERE post_id IN (?)
 ```
 
+### Sorting With Multiple Records
+
+If you want to sort the results after fetching multiple records with `collectionFetchRelated`
+
+```haskell
+posts <-
+    query @Post |> fetch
+        >>= collectionFetchRelated #comments
+        >>= \posts ->
+            posts
+                |> sortOn (\post -> post |> get #comment |> get #title)
+                |> pure
+```
+
 ## Belongs To Relationships
 
 Given a specific comment, we can fetch the post this comment belongs to. Like other relationships this is also using `fetchRelated`:
