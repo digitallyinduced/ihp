@@ -20,7 +20,7 @@ Clone the IHP repository into the project directory. The `IHP` directory is adde
 ```
 git clone git@github.com:digitallyinduced/ihp.git IHP
 # only needs to be run once (do not run inside the IHP directory)
-make -B build/ihp-lib  
+make -B build/ihp-lib
 ```
 
 The best workflow is to use `ghci` to load your application together with the framework located in `IHP`. In a `nix-shell`:
@@ -41,6 +41,26 @@ main
 ```
 
 After you have made modifications to files inside `IHP`, you need to press `CTRL + C` to stop the process running in `ghci` and then type `:r` to refresh the haskell modules. Now type `main` to start the server again.
+
+### Changes required until next beta IHP release (error message with link to solution)
+
+```haskell
+IHP/IHP/Mail.hs:22:1: error:
+    Could not find module ‘Network.Mail.SMTP’
+    Perhaps you meant Network.Mail.Mime (from mime-mail-0.5.0)
+    Use -v (or `:set -v` in ghci) to see a list of the files searched for.
+   |
+22 | import qualified Network.Mail.SMTP                    as SMTP
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+https://github.com/digitallyinduced/ihp/pull/625#issuecomment-751463479
+
+```bash
+error: attribute 'ghc8103' missing, at /nix/store/2n71mgwmmvp10h332f53dfln3q1nxmsb-IHP/NixSupport/default.nix:5:11
+```
+
+https://github.com/digitallyinduced/ihp/pull/626#issue-545239802
 
 ### Running the development server
 
@@ -107,16 +127,16 @@ nix-shell
 ghci
 :l Test/Main.hs
 main
- ```
- 
- When doing changes to the test files, use this to reload and rerun the tests:
- 
- ```
- :r
- main
- ```
- 
- After creating a new test you need to still call it from the `Main` module by adding it to `IHP/Test/Main.hs`.
+```
+
+When doing changes to the test files, use this to reload and rerun the tests:
+
+```
+:r
+main
+```
+
+After creating a new test you need to still call it from the `Main` module by adding it to `IHP/Test/Main.hs`.
 
 ## Troubleshooting
 
