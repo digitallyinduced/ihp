@@ -16,3 +16,21 @@ tests = do
 
             it "should strip html tags and return the plain text" do 
                 stripTags "This is <b>Bold</b>" `shouldBe` "This is Bold"
+
+        describe "copyFields" do
+            it "should copy fields" do
+                let a = RecordA { fieldA = 1, fieldB = "test" }
+                let b = RecordB { fieldA = 0, fieldB = "" }
+
+                let b' = b |> copyFields @["fieldA", "fieldB"] a
+
+                b' `shouldBe` RecordB { fieldA = 1, fieldB = "test" }
+
+data RecordA = RecordA { fieldA :: Int, fieldB :: Text } deriving (Eq, Show)
+data RecordB = RecordB { fieldA :: Int, fieldB :: Text} deriving (Eq, Show)
+
+instance SetField "fieldA" RecordB Int where
+    setField value record = record { fieldA = value }
+
+instance SetField "fieldB" RecordB Text where
+    setField value record = record { fieldB = value }
