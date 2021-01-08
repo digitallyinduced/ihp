@@ -31,6 +31,7 @@ module IHP.HaskellSupport (
 , symbolToText
 , symbolToByteString
 , IsEmpty (..)
+, copyFields
 ) where
 
 import ClassyPrelude
@@ -296,3 +297,36 @@ instance IsString UUID.UUID where
     fromString string = case UUID.fromString string of
             Just uuid -> uuid
             Nothing -> error ("Invalid UUID: " <> string)
+
+
+-- | Provides the 'copyFields' function
+--
+-- Useful to rewrite getter-setter code like this:
+--
+-- > let newProject = newRecord @Project
+-- >     |> set #name (get #name otherProject)
+-- >     |> set #isPublic (get #isPublic otherProject)
+-- >     |> set #userId (get #userId otherProject)
+--
+-- With 'copyFields' this can be written like this:
+--
+-- > let newProject = newRecord @Project
+-- >     |> copyFields @["name", "isPublic", "userId"] otherProject
+--
+class CopyFields (fields :: [Symbol]) destinationRecord sourceRecord where
+    copyFields :: sourceRecord -> destinationRecord -> destinationRecord
+
+instance CopyFields ('[]) destinationRecord sourceRecord where
+    copyFields sourceRecord destinationRecord = destinationRecord
+    {-# INLINE copyFields #-}
+
+instance (CopyFields rest destinationRecord sourceRecord
+    , KnownSymbol fieldName
+    , SetField fieldName destinationRecord fieldType
+    , Record.HasField fieldName sourceRecord fieldType
+    ) => CopyFields (fieldName:rest) destinationRecord sourceRecord where
+    copyFields sourceRecord destinationRecord =
+            destinationRecord
+            |> set (Proxy @fieldName) (Record.getField @fieldName sourceRecord)
+            |> copyFields @rest sourceRecord
+    {-# INLINE copyFields #-}
