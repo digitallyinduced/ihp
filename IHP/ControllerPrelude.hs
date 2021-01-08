@@ -26,6 +26,7 @@ module IHP.ControllerPrelude
     , module IHP.Modal.ControllerFunctions
     , module IHP.Controller.Layout
     , module IHP.Job.Types
+    , module IHP.LoginSupport.Helper.Controller
     , Only (..)
     ) where
 import IHP.Prelude
@@ -59,3 +60,5 @@ import IHP.Modal.ControllerFunctions
 
 import IHP.Job.Types
 import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
+
+import IHP.LoginSupport.Helper.Controller
