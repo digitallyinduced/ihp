@@ -2,7 +2,39 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# Upgrade to Beta 13.12.2020 (v20201213) from Beta Beta 27.11.2020 (v20201127)
+# Upgrade to Beta 0.8.0 from Beta 13.12.2020 (v20201213)
+
+## Update `Config/nix/nixpkgs-config.nix`
+
+Replace the content of that file with this:
+```nix
+# See https://ihp.digitallyinduced.com/Guide/package-management.html
+{ ihp }:
+import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+    ihp = ihp;
+    haskellPackagesDir = ./haskell-packages/.;
+}
+```
+
+## Switch IHP version
+
+Open `default.nix` and change the git commit in line 4 to the following:
+
+```bash
+rev = "v0.8.0";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+# Upgrade to Beta 13.12.2020 (v20201213) from Beta 27.11.2020 (v20201127)
 
 ## Update `Main.hs`
 
