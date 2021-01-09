@@ -15,11 +15,12 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 You need to install the following extensions:
 
 -   [`nix-env-selector`](https://marketplace.visualstudio.com/items?itemName=arrterian.nix-env-selector), this loads the project `default.nix` file, so all the right Haskell packages are available to VSCode
+
 -   [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
 
 ### VSCode on Windows with Windows Subsystem for Linux
 
-It is important to not access the files within the WSL from Windows itself (however, the other way around is ok). You can seamlessly (including auto-save) work on your projects within WSL from VS Code in Windows by adding the `Remote WSL` extension from Microsoft.
+It is important to not access the files within the WSL from Windows itself (however, the other way around is ok). You can seamlessly (including auto-save) work on your projects within WSL from VS Code in Windows by adding the [`Remote WSL`](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) extension from Microsoft.
 
 ## Using IHP with Sublime Text
 
@@ -74,19 +75,6 @@ Provided you already have CoC setup, just run `:CocConfig` and add the following
 
 ## Notes on `haskell-language-server`
 
-IHP currently uses v0.4 of haskell-language-server.
-
 Because haskell-language-server is tightly coupled to the GHC version it comes pre-bundled with IHP. In case you also have a local install of haskell-language-server you need to make sure that the one provided by IHP is used. Usually, this is done automatically when your editor is picking up the `.envrc` file.
 
-When something goes wrong you can also run `haskell-language-server` inside the project directory. This might output some helpful error messages.
-
-If you get an error like `error: attribute 'haskell-language-server' missing`: Make sure your `Config/nix/nixpkgs-config.nix` is using the latest nixpkgs version used by IHP.
-
-In line 21 and 22 it should be configured like this:
-
-```
-  nixPkgsRev = "c985bf793e6ab7d54a9182381b4b610fe0ae6936";
-  nixPkgsSha256 = "0zsj9imjbnhkb65r169xxqmjgqd5593insrvncvabg1iqdsrcxz1";
-```
-
-In case you have a different `nixPkgsRev` or `nixPkgsSha256` replace it with the above code. After that run `make -B .envrc` and `make hie.yaml`.
+When something goes wrong you can also run `haskell-language-server` inside the project directory (within a `nix-shell`). This might output some helpful error messages.
