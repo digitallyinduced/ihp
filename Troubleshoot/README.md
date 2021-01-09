@@ -13,7 +13,6 @@ The script checks:
 - that the old deprecated cachix key is not used
 - nix is correctly installed
 
-
 ## Design Goals
 
 The script should be runnable by just downloading a single file. The script should also test that nix is working correctly, so we cannot offer a simple nix package. So this script needs to be a standalone shell script that can be distributed by just downloading the file.
