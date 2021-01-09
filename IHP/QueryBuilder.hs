@@ -39,6 +39,7 @@ module IHP.QueryBuilder
 , filterWhereSql
 , fetchExists
 , FilterPrimaryKey (..)
+, distinctOn
 )
 where
 
@@ -57,10 +58,10 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Control.DeepSeq as DeepSeq
 
 -- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.
--- Used togehter with the other functions to compose a sql query.
--- 
+-- Used together with the other functions to compose a sql query.
+--
 -- Example:
--- 
+--
 -- > toSQL (query @User)
 -- > -- Returns: ("SELECT id, firstname, lastname FROM users", [])
 --
@@ -102,6 +103,7 @@ compileOperator _ SqlOp = ""
 
 data QueryBuilder (table :: Symbol) where
     NewQueryBuilder :: QueryBuilder table
+    DistinctOnQueryBuilder :: KnownSymbol field => !(Proxy field) -> !(QueryBuilder table) -> QueryBuilder table
     FilterByQueryBuilder :: (KnownSymbol field) => !(Proxy field, FilterOperator, Action) -> !(QueryBuilder table) -> QueryBuilder table
     OrderByQueryBuilder :: KnownSymbol field => !(Proxy field, OrderByDirection) -> !(QueryBuilder table) -> QueryBuilder table
     LimitQueryBuilder :: Int -> !(QueryBuilder table) -> QueryBuilder table
@@ -122,6 +124,7 @@ instance Eq (IHP.QueryBuilder.QueryBuilder table) where a == b = True
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
         selectFrom :: !ByteString,
+        distinctOnClause :: !(Maybe ByteString),
         whereCondition :: !(Maybe Condition),
         orderByClause :: !([(ByteString, OrderByDirection)]),
         limitClause :: !(Maybe ByteString),
@@ -134,7 +137,8 @@ buildQuery !queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolToByteString @table
-            in SQLQuery { selectFrom = cs tableName, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, distinctOnClause = Nothing, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
+        DistinctOnQueryBuilder fieldProxy queryBuilder -> (buildQuery queryBuilder) { distinctOnClause = Just ("DISTINCT ON (" <> (cs $ symbolVal fieldProxy) <> ")") }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = buildQuery queryBuilder
@@ -203,7 +207,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
 --
 -- > allUsersCount <- query @User |> fetchCount -- SELECT COUNT(*) FROM users
 --
--- 
+--
 -- __Example:__ Counting all active projects
 --
 -- >     activeProjectsCount <- query @Project
@@ -222,7 +226,7 @@ fetchCount !queryBuilder = do
 
 -- | Checks whether the query has any results.
 --
--- Returns @True@ when there is atleast one row matching the conditions of the query. Returns @False@ otherwise.
+-- Returns @True@ when there is at least one row matching the conditions of the query. Returns @False@ otherwise.
 --
 -- __Example:__ Checking whether there are unread messages
 --
@@ -268,11 +272,13 @@ toSQL :: forall table. (KnownSymbol table) => QueryBuilder table -> (ByteString,
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
 {-# INLINE toSQL #-}
 
-toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause } =
+toSQL' sqlQuery@SQLQuery { selectFrom, distinctOnClause, orderByClause, limitClause, offsetClause } =
         (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
-            "SELECT " <> selectors <> " FROM "
+            "SELECT "
+            <> distinctOnClause' <> " "
+            <> selectors <> " FROM "
             <> fromClause
             <> whereConditions' <> " "
             <> orderByClause' <> " "
@@ -296,6 +302,8 @@ toSQL' sqlQuery@SQLQuery { selectFrom, orderByClause, limitClause, offsetClause 
             case orderByClause of
                 [] -> mempty
                 xs -> " ORDER BY " <> ByteString.intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
+        distinctOnClause' =
+            fromMaybe mempty distinctOnClause
         limitClause' = fromMaybe "" limitClause
         offsetClause' = fromMaybe "" offsetClause
 {-# INLINE toSQL' #-}
@@ -339,7 +347,7 @@ class FilterPrimaryKey table where
 --
 --
 -- __Example:__ Find active projects owned by the current user.
--- 
+--
 -- > projects <- query @User
 -- >     |> filterWhere (#active, True)
 -- >     |> filterWhere (#currentUserId, currentUserId)
@@ -348,7 +356,7 @@ class FilterPrimaryKey table where
 --
 --
 -- For dynamic conditions (e.g. involving @NOW()@), see 'filterWhereSql'.
--- 
+--
 -- For @WHERE x IN (a, b, c)@ conditions, take a look at 'filterWhereIn' and 'filterWhereNotIn'.
 --
 -- When your condition is too complex, use a raw sql query with 'IHP.ModelSupport.sqlQuery'.
@@ -368,7 +376,7 @@ filterWhereNotIn (name, value) = FilterByQueryBuilder (name, NotInOp, toField (I
 -- | Allows to add a custom raw sql where condition
 --
 -- If your query cannot be represented with 'filterWhereSql', take a look at 'IHP.ModelSupport.sqlQuery'.
--- 
+--
 -- __Example:__ Fetching all projects created in the last 24 hours.
 -- > latestProjects <- query @Project
 -- >     |> filterWhereSql (#startedAt, "< current_timestamp - interval '1 day'")
@@ -383,7 +391,7 @@ data FilterWhereTag
 data OrderByTag
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
--- 
+--
 -- Use 'orderByDesc' for descending order.
 --
 -- __Example:__ Fetch the 10 oldest books.
@@ -398,7 +406,7 @@ orderByAsc !name = OrderByQueryBuilder (name, Asc)
 {-# INLINE orderByAsc #-}
 
 -- | Adds an @ORDER BY .. DESC@ to your query.
--- 
+--
 -- Use 'orderBy' for ascending order.
 --
 -- __Example:__ Fetch the 10 newest projects (ordered by creation time).
@@ -456,11 +464,11 @@ findManyBy !field !value !queryBuilder = queryBuilder |> filterWhere (field, val
 -- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #templateId id
 
 -- | Merges the results of two query builders.
--- 
+--
 -- Take a look at ‘queryOr'  as well, as this might be a bit shorter.
--- 
+--
 -- __Example:__ Return all pages owned by the user or owned by the users team.
--- 
+--
 -- > let userPages = query @Page |> filterWhere (#ownerId, currentUserId)
 -- > let teamPages = query @Page |> filterWhere (#teamId, currentTeamId)
 -- > pages <- queryUnion userPages teamPages |> fetch
@@ -471,9 +479,9 @@ queryUnion = UnionQueryBuilder
 
 
 -- | Adds an @a OR b@ condition
--- 
+--
 -- __Example:__ Return all pages owned by the user or public.
--- 
+--
 -- > query @Page
 -- >     |> queryOr
 -- >         (filterWhere (#createdBy, currentUserId))
@@ -513,3 +521,17 @@ instance (model ~ GetModelById (Id' table), value ~ Id' table, HasField "id" mod
     fetchOneOrNothing = genericfetchIdsOneOrNothing
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne
+
+-- | Adds an @DISTINCT ON .. to your query.
+--
+-- Use 'distinctOn' to return a single row for each distinct value provided.
+--
+-- __Example:__ Fetch one book for each categoryId field
+--
+-- > query @Book
+-- >     |> distinctOn #categoryId
+-- >     |> fetch
+-- > -- SELECT DISTINCT ON (category_id) * FROM articles
+distinctOn :: (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => Proxy name -> QueryBuilder table -> QueryBuilder table
+distinctOn !name = DistinctOnQueryBuilder name
+{-# INLINE distinctOn #-}
