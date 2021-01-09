@@ -64,6 +64,8 @@ To download a Linux Distribution, open the Microsoft Store and search for Ubuntu
 
 Note: You **do not** need a Microsoft account to download. You can simply cancel or close the login forms and the download will continue.
 
+If this is your first time installing WSL and you are encountering problems, rest assured most issues are well-known and solutions can be found online by searching the web for the error messages.
+
 With the Distro downloaded, run it and update it using your package manager. In Ubuntu you would use:
 
 ```bash
@@ -119,8 +121,6 @@ You can now install IHP by running:
 ```bash
 nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
-
-If you don't already use cachix, you will be prompted to install it. You don't need it, but it is highly recommended, as it reduces build time dramatically. Learn more about cachix [here](https://cachix.org/).
 
 #### NixOS specific
 
