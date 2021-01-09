@@ -20,9 +20,12 @@ import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
 
 Open `default.nix` and change the git commit in line 4 to the following:
 
-```bash
-rev = "v0.8.0";
+```diff
+-rev = "67e99ec469d5a215a0b92d8759d5b7a4c7b0e0e1";
++ref = "refs/tags/v0.8.0";
 ```
+
+**IMPORTANT: `rev` changes to `ref` here. Make sure that you don't miss that. Otherwise nix will complain.**
 
 After that run the following command to update your project:
 
