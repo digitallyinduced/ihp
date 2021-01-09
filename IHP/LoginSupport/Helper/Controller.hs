@@ -19,7 +19,10 @@ module IHP.LoginSupport.Helper.Controller
 , module IHP.AuthSupport.Authentication
 ) where
 
-import IHP.ControllerPrelude
+import IHP.Prelude
+import IHP.Controller.Context
+import IHP.Controller.Redirect
+import IHP.Controller.Session
 import IHP.LoginSupport.Types
 import IHP.Controller.RequestContext
 import qualified IHP.Controller.Session as Session
@@ -32,9 +35,6 @@ import Control.Monad.Fail
 import IHP.AuthSupport.Authorization
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
-
-type family CurrentUserRecord
-type family CurrentAdminRecord
 
 {-# INLINABLE currentUser #-}
 currentUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user

@@ -33,127 +33,30 @@ CREATE TABLE users (
 
 The password authentication saves the passwords as a salted hash using the [pwstore-fast library](https://hackage.haskell.org/package/pwstore-fast-2.4.4/docs/Crypto-PasswordStore.html). By default, a user will be locked for an hour after 10 failed login attempts.
 
-### Aside: Admin authentication
-
-If you are creating an admin sub-application, first use the code generator to create an application called `Admin`, then follow this guide replacing `Web` with `Admin` and `User` with `Admin` everywhere (except for the lower-case `user` in the file `Admin/View/Sessions/New.hs`, which comes from an imported module).
-
 ## Setup
 
 Currently, the authentication toolkit has to be enabled manually. We plan to do this setup using a code generator in the future.
 
-#### Controller Helpers
+#### Adding a Session Controller
 
-First, we need to enable the controller helpers. Open `Application/Helper/Controller.hs`. It will look like this:
+We need to add a new controller that will deal with the login and logout. We call this the `SessionsController`.
 
-```haskell
-module Application.Helper.Controller (
-    -- To use the built in login:
-    -- module IHP.LoginSupport.Helper.Controller
-) where
-
--- Here you can add functions which are available in all your controllers
-import IHP.ControllerPrelude
-
--- To use the built in login:
--- import IHP.LoginSupport.Helper.Controller
-```
-
-Enable the import and re-export for `IHP.LoginSupport.Helper.Controller` and add a type instance `type instance CurrentUserRecord = User`:
+First, we have to update `Web/Types.hs`:
 
 ```haskell
-module Application.Helper.Controller (
-    module IHP.LoginSupport.Helper.Controller
-) where
+import IHP.LoginSupport.Types -- <---- ADD THIS IMPORT
 
--- Here you can add functions which are available in all your controllers
-import IHP.ControllerPrelude
-import IHP.LoginSupport.Helper.Controller
-import Generated.Types
+-- ADD THIS TO THE END OF THE FILE
+
+instance HasNewSessionUrl User where
+    newSessionUrl _ = "/NewSession"
 
 type instance CurrentUserRecord = User
 ```
 
-#### View Helpers
+The `instance HasNewSessionUrl User` tells the auth module where to redirect a user in case the user tries to access a action that requires login. The definition of `CurrentUserRecord` tells the auth system to use our `User` type within the login system.
 
-Additionally, we also need to enable the view helpers. Open `Application/Helper/View.hs`. It will look like this:
-
-```haskell
-module Application.Helper.View (
-    -- To use the built in login:
-    -- module IHP.LoginSupport.Helper.View
-) where
-
--- Here you can add functions which are available in all your views
-import IHP.ViewPrelude
--- To use the built in login:
--- import IHP.LoginSupport.Helper.View
-```
-
-Enable the import and re-export for `IHP.LoginSupport.Helper.View`:
-
-```haskell
-module Application.Helper.View (
-    module IHP.LoginSupport.Helper.View
-) where
-
--- Here you can add functions which are available in all your views
-import IHP.ViewPrelude
-import IHP.LoginSupport.Helper.View
-```
-
-#### Activating the Session
-
-Open `Web/FrontController.hs`. Add an import for `IHP.LoginSupport.Middleware` and `Web.Controller.Sessions`:
-
-```haskell
-import IHP.LoginSupport.Middleware
-import Web.Controller.Sessions
-```
-
-We then need to mount our session controller by adding `parseRoute @SessionController`:
-
-```haskell
-instance FrontController WebApplication where
-    controllers =
-        [ startPage WelcomeAction
-        , parseRoute @SessionsController -- <--------------- add this
-        -- Generator Marker
-        ]
-```
-
-At the end of the file, there is a line like:
-
-```haskell
-instance InitControllerContext WebApplication where
-    initContext = do
-        setLayout defaultLayout
-```
-
-We need to extend this function with the following code:
-
-```haskell
-instance InitControllerContext WebApplication where
-    initContext = do
-        setLayout defaultLayout
-        initAuthentication @User
-```
-
-This will fetch the user from the database when a `userId` is given in the session. The fetched user record is saved to the special `?controllerContext` variable and is used by all the helper functions we have imported before.
-
-#### Adding a Session Controller
-
-In the last step, we need to add a new controller that will deal with the login and logout. We call this the `SessionsController`.
-
-First, we have to update `Web/Types.hs`. The auth module directs users to the login page automatically if required by a view, to set this up we add the following to `Web/Types.hs`:
-
-```haskell
-import IHP.LoginSupport.Types
-
-instance HasNewSessionUrl User where
-    newSessionUrl _ = "/NewSession"
-```
-
-You also need to add the type definitions for the `SessionsController`:
+We also need to add the type definitions for the `SessionsController`:
 
 ```haskell
 data SessionsController
@@ -221,6 +124,47 @@ renderForm user = [hsx|
     </form>
 |]
 ```
+
+
+#### Activating the Session
+
+Open `Web/FrontController.hs`. Add an import for `IHP.LoginSupport.Middleware` and `Web.Controller.Sessions`:
+
+```haskell
+import IHP.LoginSupport.Middleware
+import Web.Controller.Sessions
+```
+
+We then need to mount our session controller by adding `parseRoute @SessionController`:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ startPage WelcomeAction
+        , parseRoute @SessionsController -- <--------------- add this
+        -- Generator Marker
+        ]
+```
+
+At the end of the file, there is a line like:
+
+```haskell
+instance InitControllerContext WebApplication where
+    initContext = do
+        setLayout defaultLayout
+```
+
+We need to extend this function with a `initAuthentication @User` like this:
+
+```haskell
+instance InitControllerContext WebApplication where
+    initContext = do
+        setLayout defaultLayout
+        initAuthentication @User
+```
+
+This will fetch the user from the database when a `userId` is given in the session. The fetched user record is saved to the special `?context` variable and is used by all the helper functions like `currentUser`.
+
 
 ## Trying out the login
 
@@ -331,3 +275,9 @@ sha256|17|Y32Ga1uke5CisJvVp6p2sg==|TSDuEs1+Xdaels6TYCkyCgIBHxWA/US7bvBlK0vHzvc=
 Use [`hashPassword`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Authentication.html#v:hashPassword) to hash a password from inside your application.
 
 [Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)
+
+
+
+## Aside: Admin authentication
+
+If you are creating an admin sub-application, first use the code generator to create an application called `Admin`, then follow this guide replacing `Web` with `Admin` and `User` with `Admin` everywhere (except for the lower-case `user` in the file `Admin/View/Sessions/New.hs`, which comes from an imported module).
