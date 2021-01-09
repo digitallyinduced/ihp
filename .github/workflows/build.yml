@@ -28,7 +28,6 @@ jobs:
         key: ${{ runner.os }}-ghc
     - run: |
           cd ihp-boilerplate
-          git checkout nixpkgs-update
           echo "<?php" >> replace.php
           echo "\$file_contents = file_get_contents('./default.nix');" >> replace.php
           echo '$new_content = preg_replace("/\".{40}\"/", "\"$argv[1]\"", $file_contents);' >> replace.php
