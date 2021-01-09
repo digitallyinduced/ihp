@@ -40,6 +40,7 @@ module IHP.QueryBuilder
 , fetchExists
 , FilterPrimaryKey (..)
 , distinctOn
+, distinct
 )
 where
 
@@ -103,6 +104,7 @@ compileOperator _ SqlOp = ""
 
 data QueryBuilder (table :: Symbol) where
     NewQueryBuilder :: QueryBuilder table
+    DistinctQueryBuilder :: QueryBuilder table -> QueryBuilder table
     DistinctOnQueryBuilder :: KnownSymbol field => !(Proxy field) -> !(QueryBuilder table) -> QueryBuilder table
     FilterByQueryBuilder :: (KnownSymbol field) => !(Proxy field, FilterOperator, Action) -> !(QueryBuilder table) -> QueryBuilder table
     OrderByQueryBuilder :: KnownSymbol field => !(Proxy field, OrderByDirection) -> !(QueryBuilder table) -> QueryBuilder table
@@ -124,6 +126,7 @@ instance Eq (IHP.QueryBuilder.QueryBuilder table) where a == b = True
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery {
         selectFrom :: !ByteString,
+        distinctClause :: !(Maybe ByteString),
         distinctOnClause :: !(Maybe ByteString),
         whereCondition :: !(Maybe Condition),
         orderByClause :: !([(ByteString, OrderByDirection)]),
@@ -137,7 +140,8 @@ buildQuery !queryBuilder =
     case queryBuilder of
         NewQueryBuilder ->
             let tableName = symbolToByteString @table
-            in SQLQuery { selectFrom = cs tableName, distinctOnClause = Nothing, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
+            in SQLQuery { selectFrom = cs tableName, distinctClause = Nothing, distinctOnClause = Nothing, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
+        DistinctQueryBuilder queryBuilder -> (buildQuery queryBuilder) { distinctClause = Just "DISTINCT" }
         DistinctOnQueryBuilder fieldProxy queryBuilder -> (buildQuery queryBuilder) { distinctOnClause = Just ("DISTINCT ON (" <> (cs $ symbolVal fieldProxy) <> ")") }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
@@ -272,12 +276,12 @@ toSQL :: forall table. (KnownSymbol table) => QueryBuilder table -> (ByteString,
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
 {-# INLINE toSQL #-}
 
-toSQL' sqlQuery@SQLQuery { selectFrom, distinctOnClause, orderByClause, limitClause, offsetClause } =
+toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
         (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
             "SELECT "
-            <> distinctOnClause' <> " "
+            <> distinctClause' <> distinctOnClause' <> " "
             <> selectors <> " FROM "
             <> fromClause
             <> whereConditions' <> " "
@@ -302,8 +306,8 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctOnClause, orderByClause, limitCla
             case orderByClause of
                 [] -> mempty
                 xs -> " ORDER BY " <> ByteString.intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
-        distinctOnClause' =
-            fromMaybe mempty distinctOnClause
+        distinctClause' = fromMaybe "" distinctClause
+        distinctOnClause' = fromMaybe "" distinctOnClause
         limitClause' = fromMaybe "" limitClause
         offsetClause' = fromMaybe "" offsetClause
 {-# INLINE toSQL' #-}
@@ -522,6 +526,19 @@ instance (model ~ GetModelById (Id' table), value ~ Id' table, HasField "id" mod
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne
 
+-- | Adds an @DISTINCT to your query.
+--
+-- Use 'distinct' to remove all duplicate rows from the result
+--
+-- __Example:__ Fetch distinct books
+--
+-- > query @Book
+-- >     |> distinct
+-- >     |> fetch
+-- > -- SELECT DISTINCT * FROM books
+distinct :: QueryBuilder table -> QueryBuilder table
+distinct = DistinctQueryBuilder
+
 -- | Adds an @DISTINCT ON .. to your query.
 --
 -- Use 'distinctOn' to return a single row for each distinct value provided.
@@ -531,7 +548,7 @@ instance (model ~ GetModelById (Id' table), value ~ Id' table, HasField "id" mod
 -- > query @Book
 -- >     |> distinctOn #categoryId
 -- >     |> fetch
--- > -- SELECT DISTINCT ON (category_id) * FROM articles
+-- > -- SELECT DISTINCT ON (category_id) * FROM books
 distinctOn :: (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => Proxy name -> QueryBuilder table -> QueryBuilder table
 distinctOn !name = DistinctOnQueryBuilder name
 {-# INLINE distinctOn #-}
