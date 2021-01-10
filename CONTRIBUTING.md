@@ -4,7 +4,8 @@ We are happy to merge your pull requests!
 
 ## Running an application against a local copy of the framework
 
-To work on the framework in your application, you need to clone this repository inside your application directory. If you don't have a project, use `ihp-new` to create one. Make sure to run `./start` in your project once. Also make sure that [`direnv`](https://direnv.net/docs/hook.html) is set up in your shell.
+To work on the framework in your application, you need to clone this repository inside your application directory.
+If you don't have a project, first make sure you have the latest version of `ihp-new`, update it by running: `nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new`. Use `ihp-new` to create one. Make sure to run `./start` in your project once. Also make sure that [`direnv`](https://direnv.net/docs/hook.html) is set up in your shell.
 
 ```
 # Set up a local IHP project
@@ -42,25 +43,7 @@ main
 
 After you have made modifications to files inside `IHP`, you need to press `CTRL + C` to stop the process running in `ghci` and then type `:r` to refresh the haskell modules. Now type `main` to start the server again.
 
-### Changes required until next beta IHP release (error message with link to solution)
-
-```haskell
-IHP/IHP/Mail.hs:22:1: error:
-    Could not find module ‘Network.Mail.SMTP’
-    Perhaps you meant Network.Mail.Mime (from mime-mail-0.5.0)
-    Use -v (or `:set -v` in ghci) to see a list of the files searched for.
-   |
-22 | import qualified Network.Mail.SMTP                    as SMTP
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-```
-
-https://github.com/digitallyinduced/ihp/pull/625#issuecomment-751463479
-
-```bash
-error: attribute 'ghc8103' missing, at /nix/store/2n71mgwmmvp10h332f53dfln3q1nxmsb-IHP/NixSupport/default.nix:5:11
-```
-
-https://github.com/digitallyinduced/ihp/pull/626#issue-545239802
+<!-- ### Changes required until next beta IHP release (error message with link to solution) -->
 
 ### Running the development server
 
