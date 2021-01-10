@@ -112,6 +112,8 @@ ghci
 main
 ```
 
+Note that it is necessary to start the nix-shell from within the IHP directory to pick up an extra package used in testing.
+
 When doing changes to the test files, use this to reload and rerun the tests:
 
 ```
