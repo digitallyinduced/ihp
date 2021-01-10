@@ -51,9 +51,9 @@ instance View EditColumnView where
                 then preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2" checked/>|]
                 else preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2"/>|]
 
-            isArrayTypeCheckbox = if (isArrayType (get #columnType column))
-                then preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2" checked/>|]
-                else preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2"/>|]
+            isArrayTypeCheckbox = if isArrayType (get #columnType column)
+                then preEscapedToHtml [plain|<input id="isArray" type="checkbox" name="isArray" class="mr-2" checked/>|]
+                else preEscapedToHtml [plain|<input id="isArray" type="checkbox" name="isArray" class="mr-2"/>|]
 
             isArrayType (PArray _) = True
             isArrayType _ = False
