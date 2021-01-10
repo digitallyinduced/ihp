@@ -114,7 +114,9 @@ typeSelector :: Maybe PostgresType -> [Text] -> Html
 typeSelector postgresType enumNames = [hsx|
         <select id="typeSelector" name="columnType" class="form-control select2-simple">
             {option selected "TEXT" "Text"}
-            {option selected "INT" "Int"}
+            {option selected "SMALLINT" "Int (16bit)"}
+            {option selected "INT" "Int (32bit)"}
+            {option selected "BIGINT" "Int (64bit)"}
             {option selected "UUID" "UUID"}
             {option selected "BOOLEAN" "Bool"}
             {option selected "TIMESTAMP WITH TIME ZONE" "Timestamp (UTCTime)"}

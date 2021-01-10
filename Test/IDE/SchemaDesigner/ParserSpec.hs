@@ -195,8 +195,8 @@ tests = do
         it "should parse CREATE TYPE .. AS ENUM without values" do
             parseSql "CREATE TYPE colors AS ENUM ();" `shouldBe` CreateEnumType { name = "colors", values = [] }
 
-        it "should parse a CREATE TABLE with INTEGER / INT / INT4 / BIGINT / INT 8 columns" do
-            parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, bigint_a BIGINT, bigint_b int8);" `shouldBe` StatementCreateTable CreateTable
+        it "should parse a CREATE TABLE with INTEGER / INT / INT4 / SMALLINT / INT2 / BIGINT / INT 8 columns" do
+            parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, bigint_a BIGINT, bigint_b int8, smallint_a SMALLINT, smallint_b INT2);" `shouldBe` StatementCreateTable CreateTable
                     { name = "ints"
                     , columns =
                         [ col { name = "int_a", columnType = PInt }
@@ -204,6 +204,8 @@ tests = do
                         , col { name = "int_c", columnType = PInt }
                         , col { name = "bigint_a", columnType = PBigInt }
                         , col { name = "bigint_b", columnType = PBigInt }
+                        , col { name = "smallint_a", columnType = PSmallInt }
+                        , col { name = "smallint_b", columnType = PSmallInt }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []

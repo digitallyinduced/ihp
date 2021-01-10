@@ -187,8 +187,9 @@ sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
         [ uuid
         , text
-        , bigint
+        , smallint
         , int
+        , bigint
         , bool
         , timestamp
         , timestampZ
@@ -233,6 +234,10 @@ sqlType = choice $ map optionalArray
                 text = do
                     try (symbol' "TEXT")
                     pure PText
+
+                smallint = do
+                    try (symbol' "SMALLINT") <|> try (symbol' "INT2")
+                    pure PSmallInt
 
                 int = do
                     try (symbol' "INTEGER") <|> try (symbol' "INT4") <|> try (symbol' "INT")
