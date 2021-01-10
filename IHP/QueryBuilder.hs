@@ -538,6 +538,7 @@ instance (model ~ GetModelById (Id' table), value ~ Id' table, HasField "id" mod
 -- > -- SELECT DISTINCT * FROM books
 distinct :: QueryBuilder table -> QueryBuilder table
 distinct = DistinctQueryBuilder
+{-# INLINE distinct #-}
 
 -- | Adds an @DISTINCT ON .. to your query.
 --
