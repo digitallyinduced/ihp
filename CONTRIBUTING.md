@@ -45,7 +45,9 @@ After you have made modifications to files inside `IHP`, you need to press `CTRL
 
 ### Running the development server
 
-When making changes to the development tooling, follow the setup above. Instead of starting your application, start the development server:
+When making changes to the development tooling, follow the setup above, except don't start postgres (the IDE starts it automatically).
+
+Instead of starting your application, start the development server:
 
 ```
 ghci
