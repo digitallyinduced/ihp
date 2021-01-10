@@ -86,7 +86,7 @@ instance Controller SessionsController where
     action CreateSessionAction = Sessions.createSessionAction @User
     action DeleteSessionAction = Sessions.deleteSessionAction @User
 
-instance Sessions.SessionsControllerConfig User where
+instance Sessions.SessionsControllerConfig User
 ```
 
 Additionally, we need to implement a login view at `Web/View/Sessions/New.hs` like this:
@@ -102,8 +102,7 @@ instance View (NewView User) where
             <div class="d-flex align-items-center">
                 <div class="w-100">
                     <div style="max-width: 400px" class="mx-auto mb-5">
-                        {renderFlashMessages}
-                        <h5>Please login:</h5>
+                        <h5>Please login</h5>
                         {renderForm user}
                     </div>
                 </div>
@@ -152,6 +151,7 @@ At the end of the file, there is a line like:
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
+        initAutoRefresh
 ```
 
 We need to extend this function with a `initAuthentication @User` like this:
@@ -160,6 +160,7 @@ We need to extend this function with a `initAuthentication @User` like this:
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
+        initAutoRefresh
         initAuthentication @User
 ```
 

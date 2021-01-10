@@ -11,3 +11,4 @@ build
 haddock-build
 ProjectGenerator/result
 dist-newstyle
+.vscode

@@ -9,16 +9,26 @@
 This guide will lead you through creating a small blog application. To set up the project, open a terminal and type:
 
 ```bash
-$ ihp-new blog
+ihp-new blog
 ```
 
-The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer. While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding of how Nix works.
+*Note for Windows:* Make sure that you are located in the Linux part of the filesystem and not on the Linux-mounted Windows filesystem, i.e. not on a path starting with `/mnt/`. Otherwise PostgreSQL will complain about the accessibility of the project's PostgreSQL database.
+
+
+### The Very First Time
+
+The first time you set up IHP, this command might take 10 - 15 minutes to install. Any further projects after that will be a lot faster because all the packages are already cached on your computer.
+
+If you don't already use cachix, you will be prompted to install it. You don't need it, but it is highly recommended, as it reduces build time dramatically. Learn more about cachix [here](https://cachix.org/).
+
+While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding of how Nix works.
 
 In case some errors appear now or in later steps, [check out the troubleshooting section](https://github.com/digitallyinduced/ihp/wiki/Troubleshooting) to get a quick solution. You can also [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
 
-The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
-*Note for Windows:* Make sure that you are located in the Linux part of the filesystem and not on the Linux-mounted Windows filesystem, i.e. not on a path starting with `/mnt/`. Otherwise PostgreSQL will complain about the accessibility of the project's PostgreSQL database.
+### Directory Structure
+
+The new `blog` directory now contains a couple of auto-generated files and directories that make up your app.
 
 Here is a short overview of the whole structure:
 
@@ -47,13 +57,13 @@ You now already have a working Haskell app ready to be started.
 Switch to the `blog` directory before doing the next steps:
 
 ```bash
-$ cd blog
+cd blog
 ```
 
 Start the development server by running the following in the `blog` directory:
 
 ```bash
-$ ./start
+./start
 ```
 
 Your application is starting now. The development server will automatically launch the built-in IDE.
@@ -539,7 +549,7 @@ To install this package, open the `default.nix` file and append `mmark` to the `
 let
     ihp = builtins.fetchGit {
         url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "0d2924bcd4cde09e9f219f5e7eca888ad473094a";
+        ref = "refs/tags/v0.8.0";
     };
     haskellEnv = import "${ihp}/NixSupport/default.nix" {
         ihp = ihp;
