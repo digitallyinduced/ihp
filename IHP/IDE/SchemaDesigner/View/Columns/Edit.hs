@@ -115,7 +115,7 @@ typeSelector postgresType enumNames = [hsx|
         <select id="typeSelector" name="columnType" class="form-control select2-simple">
             {option selected "TEXT" "Text"}
             {option selected "SMALLINT" "Int (16bit)"}
-            {option selected "INT" "Int (32bit)"}
+            {option selected "INT" "Int"}
             {option selected "BIGINT" "Int (64bit)"}
             {option selected "UUID" "UUID"}
             {option selected "BOOLEAN" "Bool"}
