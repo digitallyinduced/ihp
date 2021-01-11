@@ -79,6 +79,7 @@ data PostgresType
     = PUUID
     | PText
     | PInt
+    | PSmallInt
     | PBigInt
     | PBoolean
     | PTimestampWithTimezone
