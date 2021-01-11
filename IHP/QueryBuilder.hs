@@ -142,7 +142,7 @@ buildQuery !queryBuilder =
             let tableName = symbolToByteString @table
             in SQLQuery { selectFrom = cs tableName, distinctClause = Nothing, distinctOnClause = Nothing, whereCondition = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing }
         DistinctQueryBuilder queryBuilder -> (buildQuery queryBuilder) { distinctClause = Just "DISTINCT" }
-        DistinctOnQueryBuilder fieldProxy queryBuilder -> (buildQuery queryBuilder) { distinctOnClause = Just ("DISTINCT ON (" <> (cs $ symbolVal fieldProxy) <> ")") }
+        DistinctOnQueryBuilder fieldProxy queryBuilder -> (buildQuery queryBuilder) { distinctOnClause = Just ("DISTINCT ON (" <> (cs $ fieldNameToColumnName . cs $ symbolVal fieldProxy) <> ")") }
         FilterByQueryBuilder (fieldProxy, operator, value) queryBuilder ->
             let
                 query = buildQuery queryBuilder
