@@ -119,12 +119,12 @@ typeSelector postgresType enumNames = [hsx|
                 {option isSelected "UUID" "UUID"}
                 {option isSelected "BOOLEAN" "Bool"}
                 {option isSelected "DATE" "Date / Day"}
-                {option isSelected "TIMESTAMP WITHOUT TIME ZONE" "Timestamp (LocalTime)"}
+                {option isSelected "TIMESTAMP WITH TIME ZONE" "Timestamp (UTCTime)"}
                 {option isSelected "SERIAL" "Serial"}
             </optgroup>
             {customenums enumNames}
             <optgroup label="Other Types">
-                {option isSelected "TIMESTAMP WITH TIME ZONE" "Timestamp (UTCTime)"}
+                {option isSelected "TIMESTAMP WITHOUT TIME ZONE" "Timestamp (LocalTime)"}
                 {option isSelected "REAL" "Float"}
                 {option isSelected "DOUBLE PRECISION" "Double"}
                 {option isSelected "POINT" "Point"}
