@@ -254,6 +254,26 @@ do
     -- SELECT COUNT(*) FROM users WHERE is_active = 1
 ```
 
+### Fetching distinct records
+
+Use `distinct` to fetch distinct records.
+
+```haskell
+do
+    posts <- query @Post
+        |> distinct
+        |> fetch
+```
+
+Or `distinctOn #tableField` to fetch distinct records based on the `#tableField` value.
+
+```haskell
+do
+    users <- query @User
+        |> distinctBy #fullName
+        |> fetch
+```
+
 ## Raw SQL Queries
 
 Use the function `sqlQuery` to run a raw SQL query.
