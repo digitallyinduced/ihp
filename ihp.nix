@@ -52,6 +52,7 @@
 , wreq
 , deepseq
 , parser-combinators
+, ip
 }:
 mkDerivation {
   pname = "ihp";
@@ -110,6 +111,7 @@ mkDerivation {
     deepseq
     uri-encode
     parser-combinators
+    ip
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

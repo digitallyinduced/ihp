@@ -207,6 +207,7 @@ sqlType = choice $ map optionalArray
         , serial
         , bigserial
         , jsonb
+        , inet
         , customType
         ]
             where
@@ -324,6 +325,10 @@ sqlType = choice $ map optionalArray
                 jsonb = do
                     try (symbol' "JSONB")
                     pure PJSONB
+
+                inet = do
+                    try (symbol' "INET")
+                    pure PInet
 
                 optionalArray typeParser= do
                     arrayType <- typeParser;
