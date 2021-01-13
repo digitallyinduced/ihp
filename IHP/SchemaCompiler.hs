@@ -53,6 +53,7 @@ previewCompilerOptions = CompilerOptions { compileGetAndSetFieldInstances = Fals
 
 atomicType :: PostgresType -> Text
 atomicType = \case
+    PSmallInt -> "Int"
     PInt -> "Int"
     PBigInt -> "Integer"
     PJSONB -> "Data.Aeson.Value"

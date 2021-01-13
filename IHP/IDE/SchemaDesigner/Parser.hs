@@ -188,7 +188,8 @@ sqlType = choice $ map optionalArray
         [ uuid
         , text
         , bigint
-        , int
+        , smallint
+        , int   -- order int after smallint/bigint because symbol INT is prefix og INT2, INT8
         , bool
         , timestamp
         , timestampZ
@@ -234,13 +235,17 @@ sqlType = choice $ map optionalArray
                     try (symbol' "TEXT")
                     pure PText
 
-                int = do
-                    try (symbol' "INTEGER") <|> try (symbol' "INT4") <|> try (symbol' "INT")
-                    pure PInt
-
                 bigint = do
                     try (symbol' "BIGINT") <|> try (symbol' "INT8")
                     pure PBigInt
+
+                smallint = do
+                    try (symbol' "SMALLINT") <|> try (symbol' "INT2")
+                    pure PSmallInt
+
+                int = do
+                    try (symbol' "INTEGER") <|> try (symbol' "INT4") <|> try (symbol' "INT")
+                    pure PInt
 
                 bool = do
                     try (symbol' "BOOLEAN") <|> try (symbol' "BOOL")

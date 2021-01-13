@@ -51,9 +51,9 @@ instance View EditColumnView where
                 then preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2" checked/>|]
                 else preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2"/>|]
 
-            isArrayTypeCheckbox = if (isArrayType (get #columnType column))
-                then preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2" checked/>|]
-                else preEscapedToHtml [plain|<input type="checkbox" name="isArray" class="mr-2"/>|]
+            isArrayTypeCheckbox = if isArrayType (get #columnType column)
+                then preEscapedToHtml [plain|<input id="isArray" type="checkbox" name="isArray" class="mr-2" checked/>|]
+                else preEscapedToHtml [plain|<input id="isArray" type="checkbox" name="isArray" class="mr-2"/>|]
 
             isArrayType (PArray _) = True
             isArrayType _ = False
@@ -113,29 +113,35 @@ instance View EditColumnView where
 typeSelector :: Maybe PostgresType -> [Text] -> Html
 typeSelector postgresType enumNames = [hsx|
         <select id="typeSelector" name="columnType" class="form-control select2-simple">
-            {option selected "TEXT" "Text"}
-            {option selected "INT" "Int"}
-            {option selected "UUID" "UUID"}
-            {option selected "BOOLEAN" "Bool"}
-            {option selected "TIMESTAMP WITH TIME ZONE" "Timestamp (UTCTime)"}
-            {option selected "TIMESTAMP WITHOUT TIME ZONE" "Timestamp (LocalTime)"}
-            {option selected "REAL" "Float"}
-            {option selected "DOUBLE PRECISION" "Double"}
-            {option selected "POINT" "Point"}
-            {option selected "DATE" "Date"}
-            {option selected "BYTEA" "Binary"}
-            {option selected "Time" "Time"}
-            {option selected "SERIAL" "Serial"}
-            {option selected "BIGSERIAL" "Bigserial"}
-            {option selected "JSONB" "JSON"}
-            {forEach enumNames renderEnumType}
+            <optgroup label="Common Types">
+                {option isSelected "TEXT" "Text"}
+                {option isSelected "INT" "Int"}
+                {option isSelected "UUID" "UUID"}
+                {option isSelected "BOOLEAN" "Bool"}
+                {option isSelected "DATE" "Date / Day"}
+                {option isSelected "TIMESTAMP WITH TIME ZONE" "Timestamp (UTCTime)"}
+                {option isSelected "SERIAL" "Serial"}
+            </optgroup>
+            {customenums enumNames}
+            <optgroup label="Other Types">
+                {option isSelected "TIMESTAMP WITHOUT TIME ZONE" "Timestamp (LocalTime)"}
+                {option isSelected "REAL" "Float"}
+                {option isSelected "DOUBLE PRECISION" "Double"}
+                {option isSelected "POINT" "Point"}
+                {option isSelected "BYTEA" "Binary"}
+                {option isSelected "Time" "Time"}
+                {option isSelected "BIGSERIAL" "Bigserial"}
+                {option isSelected "SMALLINT" "Int (16bit)"}
+                {option isSelected "BIGINT" "Int (64bit)"}
+                {option isSelected "JSONB" "JSON"}
+            </optgroup>
         </select>
 |]
     where
-        selected :: Maybe Text
-        selected = fmap Compiler.compilePostgresType postgresType
+        isSelected :: Maybe Text
+        isSelected = fmap Compiler.compilePostgresType postgresType
 
-        renderEnumType enum = option selected enum enum
+        renderEnumType enum = option isSelected enum enum
         option :: Maybe Text -> Text -> Text -> Html
         option selected value text = case selected of
             Nothing -> [hsx|<option value={value}>{text}</option>|]
@@ -143,6 +149,11 @@ typeSelector postgresType enumNames = [hsx|
                 if selection == value || selection == value <> "[]"
                     then [hsx|<option value={value} selected="selected">{text}</option>|]
                     else [hsx|<option value={value}>{text}</option>|]      
+        customenums [] = [hsx| |]
+        customenums xs = [hsx| <optgroup label="Custom Enums">
+                                {forEach xs renderEnumType}
+                               </optgroup>
+                         |]
 
 defaultSelector :: Maybe Expression -> Html
 defaultSelector defValue = [hsx|

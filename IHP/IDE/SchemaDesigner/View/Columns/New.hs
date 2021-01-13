@@ -39,7 +39,7 @@ instance View NewColumnView where
                             type="text"
                             class="form-control"
                             autofocus="autofocus"
-                            placeholder="Name:"
+                            placeholder="Name"
                             data-table-name-singular={singularize tableName}
                             />
                     </div>
@@ -59,7 +59,7 @@ instance View NewColumnView where
                                 <input type="checkbox" name="primaryKey" class="mr-1"/>Primary Key
                             </label>
                             <label class="ml-1" style="font-size: 12px">
-                                <input type="checkbox" name="isArray" class="mr-1"/>Array Type
+                                <input id="isArray" type="checkbox" name="isArray" class="mr-1"/>Array Type
                             </label>
                         </div>
                     </div>

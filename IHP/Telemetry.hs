@@ -52,7 +52,7 @@ getTelemetryInfo = do
 isWindows :: IO Bool
 isWindows = do
     p <- TIO.readFile "/proc/version"
-    pure $ T.isInfixOf "Microsoft" p
+    pure $ T.isInfixOf "microsoft" (T.toLower p)    -- WSL1 is Microsoft, WSL2 is microsoft
 
 -- | The project id is a an anonymous identifier to keep track of distinct projects.
 --
