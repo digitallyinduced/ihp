@@ -55,6 +55,7 @@ let
         deepseq
         uri-encode
         parser-combinators
+        ip
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli
