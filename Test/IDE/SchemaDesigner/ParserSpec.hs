@@ -326,6 +326,13 @@ tests = do
                     , constraints = []
                     }
 
+        it "should parse a CREATE INDEX statement" do
+            parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , tableName = "users"
+                    , columnName = "user_name"
+                    }
+
 col :: Column
 col = Column
     { name = ""
