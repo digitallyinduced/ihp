@@ -27,6 +27,10 @@ module IHP.QueryBuilder
 , DefaultScope (..)
 , filterWhereIn
 , filterWhereNotIn
+, filterWhereLike
+, filterWhereILike
+, filterWhereMatches
+, filterWhereIMatches
 , genericFetchId
 , genericfetchIdOneOrNothing
 , genericFetchIdOne
@@ -90,14 +94,19 @@ instance Default (QueryBuilder table) where
     {-# INLINE def #-}
     def = NewQueryBuilder
 
-data FilterOperator = EqOp | InOp | NotInOp | IsOp | SqlOp deriving (Show, Eq)
+data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
 
+data FilterOperator = EqOp | InOp | NotInOp | IsOp | LikeOp MatchSensitivity | MatchesOp MatchSensitivity | SqlOp deriving (Show, Eq)
 
 {-# INLINE compileOperator #-}
 compileOperator _ EqOp = "="
 compileOperator _ InOp = "IN"
 compileOperator _ NotInOp = "NOT IN"
 compileOperator _ IsOp = "IS"
+compileOperator _ (LikeOp CaseSensitive) = "LIKE"
+compileOperator _ (LikeOp CaseInsensitive) = "ILIKE"
+compileOperator _ (MatchesOp CaseSensitive) = "~"
+compileOperator _ (MatchesOp CaseInsensitive) = "~*"
 compileOperator _ SqlOp = ""
 
 data QueryBuilder (table :: Symbol) where
@@ -351,6 +360,9 @@ class FilterPrimaryKey table where
 -- 
 -- For @WHERE x IN (a, b, c)@ conditions, take a look at 'filterWhereIn' and 'filterWhereNotIn'.
 --
+-- For @WHERE x LIKE a@ or @WHERE x ~ a@  conditions, see 'filterWhereLike' and 'filterWhereMatches' respectively.
+-- For case-insensitive versions of these operators, see 'filterWhereILike' and 'filterWhereIMatches'.
+--
 -- When your condition is too complex, use a raw sql query with 'IHP.ModelSupport.sqlQuery'.
 filterWhere :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhere (name, value) = FilterByQueryBuilder (name, toEqOrIsOperator value, toField value)
@@ -364,6 +376,22 @@ filterWhereNotIn :: forall name table model value. (KnownSymbol name, ToField va
 filterWhereNotIn (_, []) = id -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn (name, value) = FilterByQueryBuilder (name, NotInOp, toField (In value))
 {-# INLINE filterWhereNotIn #-}
+
+filterWhereLike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereLike (name, value) = FilterByQueryBuilder (name, LikeOp CaseSensitive, toField value)
+{-# INLINE filterWhereLike #-}
+
+filterWhereILike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereILike (name, value) = FilterByQueryBuilder (name, LikeOp CaseInsensitive, toField value)
+{-# INLINE filterWhereILike #-}
+
+filterWhereMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereMatches (name, value) = FilterByQueryBuilder (name, MatchesOp CaseSensitive, toField value)
+{-# INLINE filterWhereMatches #-}
+
+filterWhereIMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereIMatches (name, value) = FilterByQueryBuilder (name, MatchesOp CaseInsensitive, toField value)
+{-# INLINE filterWhereIMatches #-}
 
 -- | Allows to add a custom raw sql where condition
 --
