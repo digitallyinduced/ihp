@@ -134,6 +134,7 @@ typeSelector postgresType enumNames = [hsx|
                 {option isSelected "SMALLINT" "Int (16bit)"}
                 {option isSelected "BIGINT" "Int (64bit)"}
                 {option isSelected "JSONB" "JSON"}
+                {option isSelected "INET" "IP Address"}
             </optgroup>
         </select>
 |]
