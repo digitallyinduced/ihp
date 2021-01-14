@@ -45,7 +45,9 @@ After you have made modifications to files inside `IHP`, you need to press `CTRL
 
 ### Running the development server
 
-When making changes to the development tooling, follow the setup above. Instead of starting your application, start the development server:
+When making changes to the development tooling, follow the setup above, except don't start postgres (the IDE starts it automatically).
+
+Instead of starting your application, start the development server:
 
 ```
 ghci
@@ -109,6 +111,8 @@ ghci
 :l Test/Main.hs
 main
 ```
+
+Note that it is necessary to start the nix-shell from within the IHP directory to pick up an extra package used in testing.
 
 When doing changes to the test files, use this to reload and rerun the tests:
 

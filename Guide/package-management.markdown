@@ -258,31 +258,11 @@ To jailbreak the package open `Config/nix/nixpkgs-config.nix` and append `"googl
 
 ```nix
 { ihp }:
-
-let
-  dontCheckPackages = [
-    "ghc-mod"
-    "cabal-helper"
-    "generic-lens"
-    "filesystem-conduit"
-    "tz"
-    "typerep-map"
-  ];
-
-  doJailbreakPackages = [
-    "ghc-mod"
-    "filesystem-conduit"
-    "http-media"
-
-    "google-oauth" # <------- ADD THE NEW PACKAGE HERE
-  ];
-
-  dontHaddockPackages = [];
-
-  nixPkgsRev = "da7ddd822e32aeebea00e97ab5aeca9758250a40";
-  nixPkgsSha256 = "0zbxbk4m72psbvd5p4qprcpiadndq1j2v517synijwp2vxc7cnv6";
-
-...
+import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+    ihp = ihp;
+    haskellPackagesDir = ./haskell-packages/.;
+    doJailbreakPackages = [ "google-oauth2" ];
+}
 ```
 
 After that try to run `nix-shell` again. This will most likely work now.
@@ -301,47 +281,33 @@ Open `Config/nix/nixpkgs-config.nix` and append the package name to the `dontChe
 
 ```nix
 { ihp }:
-
-let
-  dontCheckPackages = [
-    "ghc-mod"
-    "cabal-helper"
-    "generic-lens"
-    "filesystem-conduit"
-    "tz"
-    "typerep-map"
-
-    "my-failing-package" # <------- ADD YOUR PACKAGE HERE
-  ];
-
-  doJailbreakPackages = [
-    "ghc-mod"
-    "filesystem-conduit"
-    "http-media"
-  ];
-
-  dontHaddockPackages = [];
-
-  nixPkgsRev = "da7ddd822e32aeebea00e97ab5aeca9758250a40";
-  nixPkgsSha256 = "0zbxbk4m72psbvd5p4qprcpiadndq1j2v517synijwp2vxc7cnv6";
-
-...
+import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+    ihp = ihp;
+    haskellPackagesDir = ./haskell-packages/.;
+    dontCheckPackages = [ "my-failing-package" ]; # <------- ADD YOUR PACKAGE HERE
+}
 ```
 
 After that, you can do `nix-shell` without running the failing tests.
 
 ### Nixpkgs Pinning
 
-All projects using IHP are using a specific pinned version of nixpkgs. You can find the version used in your project used in `Config/nix/nixpkgs-config.nix`. The definition looks like this:
+All projects using IHP are using a specific pinned version of nixpkgs. [The specific version used is defined by IHP in `NixSupport/make-nixpkgs-from-options.nix`](https://github.com/digitallyinduced/ihp/blob/master/NixSupport/make-nixpkgs-from-options.nix#L9).
+
+You can override the nixpkgs version by setting the `nixPkgsRev` and `nixPkgsSha256` to your custom values:
 
 ```nix
-  nixPkgsRev = "da7ddd822e32aeebea00e97ab5aeca9758250a40";
-  nixPkgsSha256 = "0zbxbk4m72psbvd5p4qprcpiadndq1j2v517synijwp2vxc7cnv6";
+{ ihp }:
+import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+    ihp = ihp;
+    haskellPackagesDir = ./haskell-packages/.;
+    
+    nixPkgsRev = "c7f75838c360473805afcf5fb2fa65e678efd94b"; # <---- SET THIS OPTION
+    nixPkgsSha256 = "04vx1j2gybm1693a8wxw6bpcsd4h1jdw541vwic8nfm3n80r4ckm"; # <---- ALSO SET THIS
+}
 ```
 
-All nix packages installed for your project are using this specific version of nixpkgs.
-
-You can change the nixpkgs version by updating the `nixPkgsRev` and `nixPkgsSha256` to your custom values and then running `make -B .envrc` to rebuild the development environment.
+Run `make -B .envrc` to rebuild the development environment.
 
 We highly recommend only using nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally, you will need to build a lot of packages from source code as they will not be available in the digitally induced binary cache.
 

@@ -87,6 +87,7 @@ compilePostgresType :: PostgresType -> Text
 compilePostgresType PUUID = "UUID"
 compilePostgresType PText = "TEXT"
 compilePostgresType PInt = "INT"
+compilePostgresType PSmallInt = "SMALLINT"
 compilePostgresType PBigInt = "BIGINT"
 compilePostgresType PBoolean = "BOOLEAN"
 compilePostgresType PTimestamp = "TIMESTAMP WITHOUT TIME ZONE"
