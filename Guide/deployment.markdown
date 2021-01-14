@@ -95,6 +95,8 @@ Set the env var `PORT` to the port the app will listen on.
 
 The database needs the UUID-extension which is enabled by running `create extension if not exists "uuid-ossp";`
 
+If the app is running behind a load balancer, set the environment variable `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader` to tell IHP to use the `X-Real-IP` or `X-Forwarded-For` header for detecting the client IP.
+
 ### Building
 
 Inside your project directory start a `nix-shell` for the following steps.
