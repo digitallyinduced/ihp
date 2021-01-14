@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-|
 Module: IHP.Postgres.Inet
-Description: Adds support for storing INET/Ip addresses values
+Description: Adds support for storing IP addresses in INET fields. CIDR Notation is not suppported at the moment.
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Postgres.Inet where
