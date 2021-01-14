@@ -86,6 +86,7 @@ common shared-properties
             , base16-bytestring
             , deepseq
             , parser-combinators
+            , ip
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -260,7 +261,8 @@ library IHPFramework
         , IHP.Telemetry
         , IHP.Test.Mocking
         , IHP.Version
-        , IHP.Point
+        , IHP.Postgres.Point
+        , IHP.Postgres.Inet
         , Paths_ihp
         , IHP.IDE.CodeGen.JobGenerator
         , IHP.IDE.CodeGen.View.NewJob

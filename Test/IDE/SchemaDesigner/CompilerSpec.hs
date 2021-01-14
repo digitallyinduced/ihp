@@ -323,3 +323,12 @@ tests = do
                     , constraints = []
                     }
             compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE INDEX statement" do
+            let sql = cs [plain|CREATE INDEX users_index ON users (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , tableName = "users"
+                    , columnName = "user_name"
+                    }
+            compileSql [statement] `shouldBe` sql

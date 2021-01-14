@@ -2,7 +2,8 @@
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
-, module IHP.Point
+, module IHP.Postgres.Point
+, module IHP.Postgres.Inet
 ) where
 
 import IHP.HaskellSupport
@@ -41,7 +42,8 @@ import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Data.Pool as Pool
 import qualified GHC.Conc
-import IHP.Point
+import IHP.Postgres.Point
+import IHP.Postgres.Inet
 import qualified Data.ByteString.Char8 as ByteString
 
 -- | Provides the db connection and some IHP-specific db configuration

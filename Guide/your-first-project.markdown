@@ -1007,4 +1007,4 @@ You should have a rough understanding of IHP now. The best way to continue is to
 
 Questions, or need help with Haskell type errors? Join our Slack:
 
-[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-js1xo46t-4MdSvMQVoLYvxRz8rvGYig)
+[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-kswhw782-NEzDDVJsAEkQK7UXCFfp4w)

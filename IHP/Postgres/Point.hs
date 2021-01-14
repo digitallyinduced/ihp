@@ -1,10 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-|
-Module: IHP.Point
+Module: IHP.Postgres.Point
 Description: Adds support for the Postgres Point type
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.Point where
+module IHP.Postgres.Point where
 
 import GHC.Float
 import BasicPrelude

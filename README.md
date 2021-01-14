@@ -148,7 +148,7 @@ There's more on the IHP website.
 
 ## Community
 
-Questions, or need help with haskell type errors? [Join our Slack Community](https://join.slack.com/t/ihpframework/shared_invite/zt-js1xo46t-4MdSvMQVoLYvxRz8rvGYig)
+Questions, or need help with haskell type errors? [Join our Slack Community](https://join.slack.com/t/ihpframework/shared_invite/zt-kswhw782-NEzDDVJsAEkQK7UXCFfp4w)
 
 [Also check out the IHP Forum!](https://forum.ihpapp.com/)
 

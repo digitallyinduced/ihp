@@ -27,6 +27,7 @@ compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIden
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
+compileStatement CreateIndex { indexName, tableName, columnName } = "CREATE INDEX " <> indexName <> " ON " <> tableName <> " (" <> columnName <> ");"
 compileStatement UnknownStatement { raw } = raw
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
@@ -87,6 +88,7 @@ compilePostgresType :: PostgresType -> Text
 compilePostgresType PUUID = "UUID"
 compilePostgresType PText = "TEXT"
 compilePostgresType PInt = "INT"
+compilePostgresType PSmallInt = "SMALLINT"
 compilePostgresType PBigInt = "BIGINT"
 compilePostgresType PBoolean = "BOOLEAN"
 compilePostgresType PTimestamp = "TIMESTAMP WITHOUT TIME ZONE"
@@ -105,6 +107,7 @@ compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType PJSONB = "JSONB"
+compilePostgresType PInet = "INET"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PCustomType theType) = theType
 

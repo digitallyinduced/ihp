@@ -153,3 +153,14 @@ rm -rf ~/.cache/nix
 
 After removing your nix cache, running `ihp-new <project-name>` will remain silent for a while since it will
 re-cache a substantial number of nix dependencies.
+
+
+### Ubuntu on Windows Subsystem for Linux (WSL): `ghc-pkg: Couldn't open database /nix/store/gsbpadkxlbswrfva70i8g8lpp2yw967z-ghc-8.10.3-with-packages/lib/ghc-8.10.3/package.conf.d for modification: {handle: /nix/store/gsbpadkxlbswrfva70i8g8lpp2yw967z-ghc-8.10.3-with-packages/lib/ghc-8.10.3/package.conf.d/package.cache.lock}: hLock: invalid argument (Invalid argument)`
+
+**Problem:**
+
+When you run `ihp-new blog` to create a new project on a system using Ubuntu running on Windows Subsystem for Linux 1, you get the above error.
+
+**Solution:**
+
+Switch to WSL 2.

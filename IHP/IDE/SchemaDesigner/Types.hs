@@ -19,6 +19,8 @@ data Statement
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
+    -- | CREATE INDEX indexName ON tableName (columnName);
+    | CreateIndex { indexName :: Text, tableName :: Text, columnName :: Text }
     deriving (Eq, Show)
 
 data CreateTable
@@ -79,6 +81,7 @@ data PostgresType
     = PUUID
     | PText
     | PInt
+    | PSmallInt
     | PBigInt
     | PBoolean
     | PTimestampWithTimezone
@@ -95,6 +98,7 @@ data PostgresType
     | PSerial
     | PBigserial
     | PJSONB
+    | PInet
     | PArray PostgresType
     | PCustomType Text
     deriving (Eq, Show)

@@ -58,7 +58,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> createEnumType <|> addConstraint <|> comment
     space
     pure s
 
@@ -188,7 +188,8 @@ sqlType = choice $ map optionalArray
         [ uuid
         , text
         , bigint
-        , int
+        , smallint
+        , int   -- order int after smallint/bigint because symbol INT is prefix og INT2, INT8
         , bool
         , timestamp
         , timestampZ
@@ -207,6 +208,7 @@ sqlType = choice $ map optionalArray
         , serial
         , bigserial
         , jsonb
+        , inet
         , customType
         ]
             where
@@ -234,13 +236,17 @@ sqlType = choice $ map optionalArray
                     try (symbol' "TEXT")
                     pure PText
 
-                int = do
-                    try (symbol' "INTEGER") <|> try (symbol' "INT4") <|> try (symbol' "INT")
-                    pure PInt
-
                 bigint = do
                     try (symbol' "BIGINT") <|> try (symbol' "INT8")
                     pure PBigInt
+
+                smallint = do
+                    try (symbol' "SMALLINT") <|> try (symbol' "INT2")
+                    pure PSmallInt
+
+                int = do
+                    try (symbol' "INTEGER") <|> try (symbol' "INT4") <|> try (symbol' "INT")
+                    pure PInt
 
                 bool = do
                     try (symbol' "BOOLEAN") <|> try (symbol' "BOOL")
@@ -325,6 +331,10 @@ sqlType = choice $ map optionalArray
                     try (symbol' "JSONB")
                     pure PJSONB
 
+                inet = do
+                    try (symbol' "INET")
+                    pure PInet
+
                 optionalArray typeParser= do
                     arrayType <- typeParser;
                     (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
@@ -377,3 +387,13 @@ comment = do
     lexeme "--" <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
+
+createIndex = do
+    lexeme "CREATE"
+    lexeme "INDEX"
+    indexName <- identifier
+    lexeme "ON"
+    tableName <- identifier
+    columnName <- between (char '(') (char ')') identifier
+    char ';'
+    pure CreateIndex { indexName, tableName, columnName }
