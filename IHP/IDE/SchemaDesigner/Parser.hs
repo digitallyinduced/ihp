@@ -58,7 +58,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> createEnumType <|> addConstraint <|> comment
     space
     pure s
 
@@ -387,3 +387,13 @@ comment = do
     lexeme "--" <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
+
+createIndex = do
+    lexeme "CREATE"
+    lexeme "INDEX"
+    indexName <- identifier
+    lexeme "ON"
+    tableName <- identifier
+    columnName <- between (char '(') (char ')') identifier
+    char ';'
+    pure CreateIndex { indexName, tableName, columnName }

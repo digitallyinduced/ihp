@@ -27,6 +27,7 @@ compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIden
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
+compileStatement CreateIndex { indexName, tableName, columnName } = "CREATE INDEX " <> indexName <> " ON " <> tableName <> " (" <> columnName <> ");"
 compileStatement UnknownStatement { raw } = raw
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
