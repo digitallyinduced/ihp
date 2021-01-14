@@ -75,6 +75,7 @@ atomicType = \case
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
     PPoint -> "Point"
+    PInet -> "Net.IP.IP"
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
 haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull }
@@ -126,6 +127,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Data.Time.Calendar\n"
                   <> "import qualified Data.List as List\n"
                   <> "import qualified Data.ByteString as ByteString \n"
+                  <> "import qualified Net.IP \n"
                   <> "import Database.PostgreSQL.Simple\n"
                   <> "import Database.PostgreSQL.Simple.FromRow\n"
                   <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"

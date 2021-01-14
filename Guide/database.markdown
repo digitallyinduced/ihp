@@ -561,3 +561,32 @@ There's always more than one way. This is another.
 ### Migrations In Production
 
 IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then, the recommended approach used by digitally induced is to manually migrate your database using DDL statements as shown above.
+
+
+## Supported Database Types
+
+IHP currently has support for the following postgres column types:
+
+- UUID
+- Text
+- VARCHAR(..), CHARACTER VARYING(..)
+- TIMESTAMP WITHOUT TIMEZONE, TIMESTAMP
+- TIMESTAMP WITH TIMEZONE, TIMESTAMPZ
+- BIGINT, INT8
+- SMALLINT, INT2
+- INTEGER, INT4, INT
+- BOOLEAN, BOOL
+- REAL, FLOAT4
+- DOUBLE PRECISION, FLOAT8
+- POINT
+- DATE
+- BYTEA
+- TIME
+- NUMERIC, NUMERIC(..)
+- CHAR(..), CHARACTER(..)
+- SERIAL
+- BIGSERIAL
+- JSONB
+- INET (Only IP addresses, CIDR not supported yet)
+- Arrays of all the above types
+- Custom types, usually enums
