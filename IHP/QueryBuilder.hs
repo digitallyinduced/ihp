@@ -389,17 +389,39 @@ filterWhereNotIn (_, []) = id -- Handle empty case by ignoring query part: `WHER
 filterWhereNotIn (name, value) = FilterByQueryBuilder (name, NotInOp, toField (In value))
 {-# INLINE filterWhereNotIn #-}
 
+-- | Adds a @WHERE x LIKE y@ condition to the query.
+--
+-- __Example:__ Find titles matching search term.
+--
+-- > articles <- query @Article
+-- >     |> filterWhereLike (#title, "%" <> searchTerm <> "%")
+-- >     |> fetch
+-- > -- SELECT * FROM articles WHERE title LIKE '%..%'
+
 filterWhereLike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereLike (name, value) = FilterByQueryBuilder (name, LikeOp CaseSensitive, toField value)
 {-# INLINE filterWhereLike #-}
+
+-- | Adds a @WHERE x ILIKE y@ condition to the query. Case-insensitive version of 'filterWhereLike'.
 
 filterWhereILike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereILike (name, value) = FilterByQueryBuilder (name, LikeOp CaseInsensitive, toField value)
 {-# INLINE filterWhereILike #-}
 
+-- | Adds a @WHERE x ~ y@ condition to the query.
+--
+-- __Example:__ Find names with titles in front.
+--
+-- > articles <- query @User
+-- >     |> filterWhereMatches (#name, "^(M(rs|r|iss)|Dr|Sir). ")
+-- >     |> fetch
+-- > -- SELECT * FROM articles WHERE title ~ '^(M(rs|r|iss)|Dr|Sir). '
+
 filterWhereMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereMatches (name, value) = FilterByQueryBuilder (name, MatchesOp CaseSensitive, toField value)
 {-# INLINE filterWhereMatches #-}
+
+-- | Adds a @WHERE x ~* y@ condition to the query. Case-insensitive version of 'filterWhereMatches'.
 
 filterWhereIMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereIMatches (name, value) = FilterByQueryBuilder (name, MatchesOp CaseInsensitive, toField value)
