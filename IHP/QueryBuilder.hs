@@ -41,6 +41,7 @@ module IHP.QueryBuilder
 , FilterPrimaryKey (..)
 , distinctOn
 , distinct
+, toSQL
 )
 where
 
@@ -53,7 +54,7 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.OverloadedLabels
 import IHP.ModelSupport
-import qualified Data.ByteString.Builder as ByteStringBuilder
+import qualified Data.ByteString.Builder as Builder
 import IHP.HtmlSupport.ToHtml
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Control.DeepSeq as DeepSeq
@@ -276,40 +277,47 @@ toSQL :: forall table. (KnownSymbol table) => QueryBuilder table -> (ByteString,
 toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
 {-# INLINE toSQL #-}
 
+toSQL' :: SQLQuery -> (ByteString, [Action])
 toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
         (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
-            "SELECT "
-            <> distinctClause' <> distinctOnClause' <> " "
-            <> selectors <> " FROM "
-            <> fromClause
-            <> whereConditions' <> " "
-            <> orderByClause' <> " "
-            <> limitClause'
-            <> offsetClause'
+            ByteString.intercalate " " $
+                catMaybes
+                    [ Just "SELECT"
+                    , distinctClause
+                    , distinctOnClause
+                    , Just selectors
+                    , Just "FROM"
+                    , Just fromClause
+                    , whereConditions'
+                    , orderByClause'
+                    , limitClause
+                    , offsetClause
+                    ]
 
         selectors :: ByteString
         selectors = selectFrom <> ".*"
+
         fromClause :: ByteString
         fromClause = selectFrom
+
         !theParams =
             case whereCondition sqlQuery of
                 Just condition -> compileConditionArgs condition
                 Nothing -> mempty
+
         toQualifiedName unqualifiedName = selectFrom <> "." <> unqualifiedName
-        whereConditions' =
-            case whereCondition sqlQuery of
-                Just condition -> " WHERE " <> compileConditionQuery condition
-                Nothing -> mempty
-        orderByClause' =
-            case orderByClause of
-                [] -> mempty
-                xs -> " ORDER BY " <> ByteString.intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs))
-        distinctClause' = fromMaybe "" distinctClause
-        distinctOnClause' = fromMaybe "" distinctOnClause
-        limitClause' = fromMaybe "" limitClause
-        offsetClause' = fromMaybe "" offsetClause
+
+        whereConditions' = case whereCondition sqlQuery of
+                Just condition -> Just $ "WHERE " <> compileConditionQuery condition
+                Nothing -> Nothing
+
+        orderByClause' :: Maybe ByteString
+        orderByClause' = case orderByClause of
+                [] -> Nothing
+                xs -> Just ("ORDER BY " <> ByteString.intercalate "," ((map (\(column,direction) -> column <> (if direction == Desc then " DESC" else mempty)) xs)))
+
 {-# INLINE toSQL' #-}
 
 {-# INLINE compileConditionQuery #-}
@@ -388,7 +396,7 @@ filterWhereNotIn (name, value) = FilterByQueryBuilder (name, NotInOp, toField (I
 -- > -- SELECT * FROM projects WHERE started_at < current_timestamp - interval '1 day'
 {-# INLINE filterWhereSql #-}
 filterWhereSql :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, ByteString) -> QueryBuilder table -> QueryBuilder table
-filterWhereSql (name, sqlCondition) = FilterByQueryBuilder (name, SqlOp, Plain (ByteStringBuilder.byteString sqlCondition))
+filterWhereSql (name, sqlCondition) = FilterByQueryBuilder (name, SqlOp, Plain (Builder.byteString sqlCondition))
 
 data FilterWhereTag
 

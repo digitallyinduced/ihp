@@ -33,6 +33,7 @@ import qualified Test.Controller.ParamSpec
 import qualified Test.SchemaMigrationSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
+import qualified Test.QueryBuilderSpec
 
 main :: IO ()
 main = hspec do
@@ -53,3 +54,4 @@ main = hspec do
     Test.SchemaMigrationSpec.tests
     Test.ModelSupportSpec.tests
     Test.SchemaCompilerSpec.tests
+    Test.QueryBuilderSpec.tests
