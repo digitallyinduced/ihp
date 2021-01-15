@@ -95,11 +95,11 @@ The documentation reads a bit like a tutorial, but should still be kept somewhat
 
 ## Code Guidelines
 
-- Please use `pure`. `return` might confuse people coming from other programming languages.
+-   Please use `pure`. `return` might confuse people coming from other programming languages.
 
-- Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
+-   Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
 
-- Please consider carefully before adding new packages as requirements to IHP itself. Make sure the packages are actively maintained.
+-   Please consider carefully before adding new packages as requirements to IHP itself. Make sure the packages are actively maintained.
 
 ## Running Tests
 
@@ -152,3 +152,15 @@ rm -rf IHP
 rm build/ihp-lib
 ./start
 ```
+
+## Resources
+
+Practical resources to get you up to speed with tools IHP uses.
+
+### Haskell
+
+-   [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/)
+
+### Nix
+
+-   [Scrive Nix Workshop](https://scrive.github.io/nix-workshop/)
