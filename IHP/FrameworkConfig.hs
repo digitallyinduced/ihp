@@ -22,6 +22,7 @@ import qualified Data.Typeable as Typeable
 import IHP.HaskellSupport hiding (set)
 import IHP.View.Types
 import IHP.View.CSSFramework
+import System.IO.Unsafe (unsafePerformIO)
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -83,10 +84,17 @@ ihpDefaultConfig = do
     option $ AppPort port
 
     environment <- findOption @Environment
+    requestLoggerIpAddrSource <-
+        liftIO (Environment.lookupEnv "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE")
+        >>= \case
+            Just "FromHeader" -> pure RequestLogger.FromHeader
+            Just "FromSocket" -> pure RequestLogger.FromSocket
+            Nothing           -> pure RequestLogger.FromSocket
+            _                 -> error "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE set to invalid value. Expected FromHeader or FromSocket"
     option $ RequestLoggerMiddleware $
             case environment of
                 Development -> RequestLogger.logStdoutDev
-                Production -> RequestLogger.logStdout
+                Production -> unsafePerformIO $ RequestLogger.mkRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource }
 
     option $ Sendmail
 
