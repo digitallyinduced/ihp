@@ -24,6 +24,10 @@ module IHP.QueryBuilder
 , DefaultScope (..)
 , filterWhereIn
 , filterWhereNotIn
+, filterWhereLike
+, filterWhereILike
+, filterWhereMatches
+, filterWhereIMatches
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -85,14 +89,19 @@ instance Default (QueryBuilder table) where
     {-# INLINE def #-}
     def = NewQueryBuilder
 
-data FilterOperator = EqOp | InOp | NotInOp | IsOp | SqlOp deriving (Show, Eq)
+data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
 
+data FilterOperator = EqOp | InOp | NotInOp | IsOp | LikeOp !MatchSensitivity | MatchesOp !MatchSensitivity | SqlOp deriving (Show, Eq)
 
 {-# INLINE compileOperator #-}
 compileOperator EqOp = "="
 compileOperator InOp = "IN"
 compileOperator NotInOp = "NOT IN"
 compileOperator IsOp = "IS"
+compileOperator (LikeOp CaseSensitive) = "LIKE"
+compileOperator (LikeOp CaseInsensitive) = "ILIKE"
+compileOperator (MatchesOp CaseSensitive) = "~"
+compileOperator (MatchesOp CaseInsensitive) = "~*"
 compileOperator SqlOp = ""
 
 data OrderByClause =
@@ -325,6 +334,9 @@ class FilterPrimaryKey table where
 --
 -- For @WHERE x IN (a, b, c)@ conditions, take a look at 'filterWhereIn' and 'filterWhereNotIn'.
 --
+-- For @WHERE x LIKE a@ or @WHERE x ~ a@  conditions, see 'filterWhereLike' and 'filterWhereMatches' respectively.
+-- For case-insensitive versions of these operators, see 'filterWhereILike' and 'filterWhereIMatches'.
+--
 -- When your condition is too complex, use a raw sql query with 'IHP.ModelSupport.sqlQuery'.
 filterWhere :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhere (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value) }
@@ -344,6 +356,52 @@ filterWhereNotIn (name, value) queryBuilder = FilterByQueryBuilder { queryBuilde
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereNotIn #-}
+
+-- | Adds a @WHERE x LIKE y@ condition to the query.
+--
+-- __Example:__ Find titles matching search term.
+--
+-- > articles <- query @Article
+-- >     |> filterWhereLike (#title, "%" <> searchTerm <> "%")
+-- >     |> fetch
+-- > -- SELECT * FROM articles WHERE title LIKE '%..%'
+
+filterWhereLike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereLike (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+{-# INLINE filterWhereLike #-}
+
+-- | Adds a @WHERE x ILIKE y@ condition to the query. Case-insensitive version of 'filterWhereLike'.
+
+filterWhereILike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereILike (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+{-# INLINE filterWhereILike #-}
+
+-- | Adds a @WHERE x ~ y@ condition to the query.
+--
+-- __Example:__ Find names with titles in front.
+--
+-- > articles <- query @User
+-- >     |> filterWhereMatches (#name, "^(M(rs|r|iss)|Dr|Sir). ")
+-- >     |> fetch
+-- > -- SELECT * FROM articles WHERE title ~ '^(M(rs|r|iss)|Dr|Sir). '
+
+filterWhereMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereMatches (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+{-# INLINE filterWhereMatches #-}
+
+-- | Adds a @WHERE x ~* y@ condition to the query. Case-insensitive version of 'filterWhereMatches'.
+
+filterWhereIMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereIMatches (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+{-# INLINE filterWhereIMatches #-}
 
 -- | Allows to add a custom raw sql where condition
 --
