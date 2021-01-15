@@ -23,10 +23,6 @@ data Post = Post
 type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
 
-deriving instance Eq ToField.Action
-instance Eq ByteString.Builder where
-    a == b = (ByteString.toLazyByteString a) == (ByteString.toLazyByteString b)
-
 tests = do
     describe "QueryBuilder" do
         describe "query" do
