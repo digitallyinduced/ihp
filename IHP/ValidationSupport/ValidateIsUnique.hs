@@ -6,6 +6,7 @@ import IHP.ModelSupport
 import IHP.ValidationSupport.Types
 import IHP.HaskellSupport
 import IHP.QueryBuilder
+import IHP.Fetch
 
 -- | Validates that e.g. an email (or another field) is unique across all users before inserting.
 --

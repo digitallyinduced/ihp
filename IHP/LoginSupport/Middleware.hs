@@ -13,6 +13,7 @@ import qualified Control.Newtype.Generics as Newtype
 import IHP.LoginSupport.Helper.Controller
 import IHP.Controller.Session
 import IHP.QueryBuilder
+import IHP.Fetch
 import IHP.ControllerSupport
 import IHP.ModelSupport
 import IHP.Controller.Context

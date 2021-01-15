@@ -4,7 +4,7 @@ import IHP.Prelude
 import qualified Database.PostgreSQL.Simple           as PG
 import IHP.AuthSupport.Authorization
 import IHP.ModelSupport
-import IHP.QueryBuilder              (Fetchable, fetchOneOrNothing)
+import IHP.Fetch (Fetchable, fetchOneOrNothing)
 import IHP.ValidationSupport.Types
 
 validateCanView :: forall field user model validationState fieldValue validationStateValue fetchedModel. (

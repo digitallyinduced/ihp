@@ -16,6 +16,7 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName)
 import IHP.QueryBuilder
+import IHP.Fetch
 
 -- | This class provides the collectionFetchRelated function
 --
