@@ -24,6 +24,16 @@ After this restart your terminal.
 
 If you get an error like `error: refusing to create Nix store volume because the boot volume is FileVault encrypted, but encryption-at-rest is not available.`, follow the steps described [in this GitHub Issue](https://github.com/digitallyinduced/ihp/issues/93#issuecomment-639611313). We're working on improving this step.
 
+If `ihp-new` is not in your path using the zsh shell ([see this GitHub Issue](https://github.com/NixOS/nix/issues/1577), you may need to add the following to your dotfiles:
+
+```
+# Nix
+if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+fi
+# End Nix
+```
+
 ### Linux
 
 Before installing nix and IHP, you need `curl` and `git` if you don't have them already. If you are unsure, run this:
