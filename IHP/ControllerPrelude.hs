@@ -11,6 +11,7 @@ module IHP.ControllerPrelude
     , module IHP.ModelSupport
     , module IHP.FrameworkConfig
     , module IHP.QueryBuilder
+    , module IHP.Fetch
     , module IHP.FetchRelated
     , module Data.Aeson
     , module Network.Wai.Parse
@@ -42,6 +43,7 @@ import IHP.HaskellSupport
 import IHP.ModelSupport
 import IHP.FrameworkConfig
 import IHP.QueryBuilder
+import IHP.Fetch
 import IHP.FetchRelated
 import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo, fileContent)

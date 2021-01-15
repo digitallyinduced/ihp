@@ -15,6 +15,7 @@ import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Control.Concurrent.Async as Async
 import IHP.ModelSupport
 import IHP.QueryBuilder
+import IHP.Fetch
 import IHP.Controller.Param
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
