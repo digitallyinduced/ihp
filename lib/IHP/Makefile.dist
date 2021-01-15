@@ -2,7 +2,7 @@
 
 # Use bash as we sometimes use bash specific syntax, like pipefail below
 #SHELL=/bin/bash
-#.SHELLFLAGS := -eu -o pipefail -c  
+#.SHELLFLAGS := -eu -o pipefail -c
 .ONESHELL:
 
 MAKEFLAGS += --warn-undefined-variables
@@ -62,6 +62,7 @@ GHC_RTS_FLAGS := -A256m -n2m -N
 GHC_OPTIONS=-threaded -i. -ibuild -iConfig -iIHP
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j2
+GHC_OPTIONS+= -package-env - # https://github.com/digitallyinduced/ihp/issues/130
 
 ifneq ($(GHC_RTS_FLAGS),)
 GHC_OPTIONS+= +RTS ${GHC_RTS_FLAGS} --RTS
