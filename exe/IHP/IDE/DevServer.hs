@@ -38,7 +38,7 @@ main = do
 
     -- Print IHP Version when in debug mode
     when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpVersion))
-    
+
     let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
 
     threadId <- myThreadId
@@ -67,7 +67,7 @@ handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (Up
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = pure state { liveReloadNotificationServerState }
-handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerStarted {} }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = 
+handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerStarted {} }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) =
     case liveReloadNotificationServerState of
         LiveReloadNotificationServerNotStarted -> pure state { liveReloadNotificationServerState }
         otherwise -> error "Cannot start live reload notification server twice"
@@ -86,7 +86,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
             let statusServerState' = case statusServerState of
                     StatusServerStarted { .. } -> StatusServerPaused { .. }
                     _ -> statusServerState
-            
+
             pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
@@ -107,7 +107,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState, l
                 AppGHCIModulesLoaded { .. } -> AppGHCIModulesLoaded { .. }
                 RunningAppGHCI { .. } -> AppGHCIModulesLoaded { .. }
                 AppGHCINotStarted {} -> error "Modules cannot be loaded when ghci not in started state"
-    
+
     notifyHaskellChange liveReloadNotificationServerState
 
     pure state { statusServerState = statusServerState', appGHCIState = newAppGHCIState }
@@ -118,7 +118,7 @@ handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotifi
         AppGHCIModulesLoaded { .. } -> pure state { appGHCIState = RunningAppGHCI { .. } }
         RunningAppGHCI { } -> pure state
         otherwise -> pure state
-    
+
 handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged = do
     notifyAssetChange liveReloadNotificationServerState
     pure state
@@ -133,7 +133,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
 
     clearStatusServer statusServerState
 
-    let appGHCIState' = 
+    let appGHCIState' =
             case appGHCIState of
                 AppGHCILoading { .. } -> AppGHCILoading { .. }
                 AppGHCIModulesLoaded { .. } -> AppGHCILoading { .. }
@@ -218,6 +218,7 @@ startGHCI = do
             , "-fomit-interface-pragmas"
             , "-j"
             , "-O0"
+            , "-package-env -" -- Do not load `~/.ghc/arch-os-version/environments/name file`, global packages interfere with our packages
             , "-ignore-dot-ghci" -- Ignore the global ~/.ghc/ghci.conf That file sometimes causes trouble (specifically `:set +c +s`)
             , "-ghci-script", ".ghci" -- Because the previous line ignored default ghci config file locations, we have to manual load our .ghci
             , "+RTS", "-A512m", "-n4m", "-H512m", "-G3", "-qg", "-N"
@@ -244,7 +245,7 @@ startAppGHCI = do
 
     libDirectory <- LibDir.findLibDirectory
 
-    let loadAppCommands = 
+    let loadAppCommands =
             [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
             , ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
             , "import qualified ClassyPrelude"
