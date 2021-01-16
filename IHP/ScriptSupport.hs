@@ -24,3 +24,4 @@ runScript configBuilder taskMain = do
     let ?modelContext = modelContext
     let ?context = frameworkConfig
     taskMain
+{-# INLINE runScript #-}
