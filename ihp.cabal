@@ -11,6 +11,8 @@ maintainer:          hello@digitallyinduced.com
 -- category:
 build-type:          Simple
 
+Flag FastBuild
+    Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
     default-language: Haskell2010
@@ -119,7 +121,29 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
-    ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 -threaded -haddock
+    if flag(FastBuild)
+        ghc-options:
+            -O0
+            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
+            -j
+            -threaded
+    else
+        ghc-options:
+            -funfolding-use-threshold=16
+            -funbox-strict-fields
+            -fconstraint-solver-iterations=100
+            -fexpose-all-unfoldings
+            -flate-dmd-anal
+            -fspec-constr-keen
+            -fspecialise-aggressively
+            -fstatic-argument-transformation
+            -fmax-worker-args=200
+            -threaded
+            -haddock
+            -j
+            -O2
+            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
+
 
 library IHPFramework
     import: shared-properties
@@ -179,43 +203,43 @@ library IHPFramework
         , IHP.ScriptSupport
         , IHP.AuthSupport.View.Sessions.New
         , IHP.AuthSupport.Controller.Sessions
-        , IHP.SchemaCompiler
-        , IHP.IDE.CodeGen.ActionGenerator
-        , IHP.IDE.CodeGen.ApplicationGenerator
-        , IHP.IDE.CodeGen.Controller
-        , IHP.IDE.CodeGen.ControllerGenerator
-        , IHP.IDE.CodeGen.ScriptGenerator
-        , IHP.IDE.CodeGen.Types
-        , IHP.IDE.CodeGen.View.Generators
-        , IHP.IDE.CodeGen.View.NewAction
-        , IHP.IDE.CodeGen.View.NewApplication
-        , IHP.IDE.CodeGen.View.NewController
-        , IHP.IDE.CodeGen.View.NewScript
-        , IHP.IDE.CodeGen.View.NewView
-        , IHP.IDE.CodeGen.View.NewMigration
-        , IHP.IDE.CodeGen.ViewGenerator
-        , IHP.IDE.Data.Controller
-        , IHP.IDE.Data.View.EditRow
-        , IHP.IDE.Data.View.EditValue
-        , IHP.IDE.Data.View.Layout
-        , IHP.IDE.Data.View.NewRow
-        , IHP.IDE.Data.View.ShowDatabase
-        , IHP.IDE.Data.View.ShowQuery
-        , IHP.IDE.Data.View.ShowTableRows
-        , IHP.IDE.LiveReloadNotificationServer
-        , IHP.IDE.Logs.Controller
-        , IHP.IDE.Logs.View.Logs
-        , IHP.IDE.PortConfig
-        , IHP.IDE.Postgres
-        , IHP.IDE.SchemaDesigner.Compiler
-        , IHP.IDE.SchemaDesigner.Controller.Columns
+        , IHP.AutoRefresh
+        , IHP.AutoRefresh.Types
+        , IHP.AutoRefresh.View
+        , IHP.WebSocket
+        , IHP.PGNotify
+        , IHP.Mail
+        , IHP.Mail.Types
+        , IHP.MailPrelude
+        , IHP.View.Classes
+        , IHP.View.CSSFramework
+        , IHP.View.Types
+        , IHP.FlashMessages.Types
+        , IHP.FlashMessages.ControllerFunctions
+        , IHP.FlashMessages.ViewFunctions
+        , IHP.SchemaMigration
+        , IHP.LibDir
+        , IHP.Telemetry
+        , IHP.Test.Mocking
+        , IHP.Version
+        , IHP.Postgres.Point
+        , IHP.Postgres.Inet
+        , Paths_ihp
+        , IHP.Job.Queue
+        , IHP.Job.Runner
+        , IHP.Job.Types
+
+library IHPIDE
+    import: shared-properties
+    build-depends: IHPFramework
+    hs-source-dirs: IDE
+    exposed-modules:
+        IHP.IDE.SchemaDesigner.Controller.Columns
         , IHP.IDE.SchemaDesigner.Controller.EnumValues
         , IHP.IDE.SchemaDesigner.Controller.Enums
         , IHP.IDE.SchemaDesigner.Controller.Helper
         , IHP.IDE.SchemaDesigner.Controller.Schema
         , IHP.IDE.SchemaDesigner.Controller.Tables
-        , IHP.IDE.SchemaDesigner.Parser
-        , IHP.IDE.SchemaDesigner.Types
         , IHP.IDE.SchemaDesigner.View.Columns.Edit
         , IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
         , IHP.IDE.SchemaDesigner.View.Columns.New
@@ -234,94 +258,124 @@ library IHPFramework
         , IHP.IDE.SchemaDesigner.View.Tables.Index
         , IHP.IDE.SchemaDesigner.View.Tables.New
         , IHP.IDE.SchemaDesigner.View.Tables.Show
-        , IHP.IDE.StatusServer
+        , IHP.IDE.Data.Controller
+        , IHP.IDE.Data.View.EditRow
+        , IHP.IDE.Data.View.EditValue
+        , IHP.IDE.Data.View.Layout
+        , IHP.IDE.Data.View.NewRow
+        , IHP.IDE.Data.View.ShowDatabase
+        , IHP.IDE.Data.View.ShowQuery
+        , IHP.IDE.Data.View.ShowTableRows
+        , IHP.IDE.CodeGen.View.Generators
+        , IHP.IDE.CodeGen.View.NewAction
+        , IHP.IDE.CodeGen.View.NewApplication
+        , IHP.IDE.CodeGen.View.NewController
+        , IHP.IDE.CodeGen.View.NewScript
+        , IHP.IDE.CodeGen.View.NewView
+        , IHP.IDE.CodeGen.View.NewMigration
+        , IHP.IDE.Logs.View.Logs
+        , IHP.IDE.Logs.Controller
+        , IHP.IDE.CodeGen.View.NewMail
         , IHP.IDE.ToolServer
         , IHP.IDE.ToolServer.Helper.Controller
         , IHP.IDE.ToolServer.Layout
         , IHP.IDE.ToolServer.Routes
         , IHP.IDE.ToolServer.Types
         , IHP.IDE.Types
-        , IHP.AutoRefresh
-        , IHP.AutoRefresh.Types
-        , IHP.AutoRefresh.View
-        , IHP.WebSocket
-        , IHP.PGNotify
-        , IHP.Mail
-        , IHP.Mail.Types
-        , IHP.MailPrelude
-        , IHP.IDE.CodeGen.MailGenerator
-        , IHP.IDE.CodeGen.View.NewMail
-        , IHP.View.Classes
-        , IHP.View.CSSFramework
-        , IHP.View.Types
-        , IHP.FlashMessages.Types
-        , IHP.FlashMessages.ControllerFunctions
-        , IHP.FlashMessages.ViewFunctions
-        , IHP.SchemaMigration
-        , IHP.LibDir
-        , IHP.Telemetry
-        , IHP.Test.Mocking
-        , IHP.Version
-        , IHP.Postgres.Point
-        , IHP.Postgres.Inet
-        , Paths_ihp
+        , IHP.IDE.CodeGen.ActionGenerator
+        , IHP.IDE.CodeGen.ApplicationGenerator
+        , IHP.IDE.CodeGen.Controller
+        , IHP.IDE.CodeGen.ControllerGenerator
+        , IHP.IDE.CodeGen.ScriptGenerator
+        , IHP.IDE.CodeGen.Types
+        , IHP.IDE.CodeGen.ViewGenerator
         , IHP.IDE.CodeGen.JobGenerator
         , IHP.IDE.CodeGen.View.NewJob
-        , IHP.Job.Queue
-        , IHP.Job.Runner
-        , IHP.Job.Types
+        , IHP.IDE.CodeGen.MailGenerator
+        , IHP.IDE.LiveReloadNotificationServer
+        , IHP.IDE.PortConfig
+        , IHP.IDE.Postgres
+        , IHP.IDE.StatusServer
+        , IHP.SchemaCompiler
+        , IHP.IDE.SchemaDesigner.Compiler
+        , IHP.IDE.SchemaDesigner.Parser
+        , IHP.IDE.SchemaDesigner.Types
 
 executable RunDevServer
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
-    ghc-options: -funfolding-use-threshold=16 -optc-O3 -funbox-strict-fields -fconstraint-solver-iterations=100 -fexpose-all-unfoldings -flate-dmd-anal -fspec-constr-keen -fspecialise-aggressively -fstatic-argument-transformation -fmax-worker-args=200 -threaded -haddock  -fmax-worker-args=200 -fstatic-argument-transformation -with-rtsopts=-A512m -with-rtsopts=-n4m -with-rtsopts=-N
+    if flag(FastBuild)
+        ghc-options:
+            -O0
+            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
+            -j
+            -threaded
+    else
+        ghc-options:
+            -funfolding-use-threshold=16
+            -funbox-strict-fields
+            -fconstraint-solver-iterations=100
+            -fexpose-all-unfoldings
+            -flate-dmd-anal
+            -fspec-constr-keen 
+            -fspecialise-aggressively
+            -fstatic-argument-transformation
+            -threaded
+            -fmax-worker-args=200
+            -fstatic-argument-transformation
+            -with-rtsopts=-A512m
+            -with-rtsopts=-n4m
+            -with-rtsopts=-N
+            -j
+            -O2
+            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
 
 executable new-application
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/NewApplication.hs
 
 executable build-generated-code
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/BuildGeneratedCode.hs
 
 executable new-controller
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/NewController.hs
 
 executable delete-controller
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/DeleteController.hs
 
 executable new-script
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
 
 executable new-migration
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/NewMigration.hs
 
 executable migrate
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/Migrate.hs
 
 executable hash-password
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/CLI/HashPassword.hs

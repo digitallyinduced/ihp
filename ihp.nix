@@ -122,4 +122,9 @@ mkDerivation {
   '';
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";
+
+  # Enable these flags locally for faster builds when hacking on IHP:
+  #
+  # configureFlags = ["--flag FastBuild"];
+  # doHaddock = false;
 }
