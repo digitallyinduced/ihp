@@ -188,7 +188,7 @@ with request.urlopen("https://api.github.com/repos/digitallyinduced/ihp-boilerpl
                         f"Make sure the `{file_path}` file is same as {file_details['html_url']}"
                     )
 
-show_step("Validating and repairing /nix/store/ (could take a minute)")
+show_step("Checking and repairing /nix/store/ (could take a minute)")
 
 _, nix_store_troubleshooting_output = run_command(
     ["nix-store", "--verify",
