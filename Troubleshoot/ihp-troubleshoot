@@ -46,9 +46,17 @@ def path_exists(file_path, success_message, error_message):
 
 
 def run_command(commands, maybe_input=None):
-    input = maybe_input.encode('utf-8') if maybe_input is not None else None
-    output = run(commands, capture_output=True, input=input)
-    return (output.stdout.decode('utf-8'), output.stderr.decode('utf-8'))
+    command_input = maybe_input.encode(
+        'utf-8') if maybe_input is not None else None
+    command_output = run(
+        commands,
+        input=command_input,
+        capture_output=True,
+    )
+    return (
+        command_output.stdout.decode('utf-8'),
+        command_output.stderr.decode('utf-8')
+    )
 
 
 show_step("Checking that the current directory is an IHP project")
@@ -86,7 +94,8 @@ if f"Found RC path {envrc_path}" in direnv_output:
     show_success("direnv loads .envrc")
 else:
     show_failure(
-        "direnv didn't load the project .envrc. Did you set up direnv in your shell?"
+        ("direnv didn't load the project .envrc. "
+         "Did you set up direnv in your shell?")
     )
 
 if "Found RC allowed true" in direnv_output:
@@ -100,7 +109,8 @@ if "/nix/store" in ghci_path:
     show_success("ghci is loaded from nix store")
 else:
     show_failure(
-        "ghci is not loaded from /nix/store/... Is direnv hooked into your shell?"
+        ("ghci is not loaded from /nix/store/... "
+         "Is direnv hooked into your shell?")
     )
 
 show_step("Checking .ghci")
@@ -128,7 +138,8 @@ if ihp_lib_is_link:
     show_success("Symlink build/ihp-lib exists")
 else:
     show_failure(
-        "Symlink build/ihp-lib is missing. Try 'make build/ihp-lib' to fix this"
+        ("Symlink build/ihp-lib is missing. "
+         "Try 'make build/ihp-lib' to fix this")
     )
 
 ihp_lib_link = readlink("build/ihp-lib") if ihp_lib_is_link else None
@@ -136,7 +147,8 @@ ihp_lib_link = readlink("build/ihp-lib") if ihp_lib_is_link else None
 path_exists(
     ihp_lib_link,
     "Symlink build/ihp-lib target exists",
-    "Symlink build/ihp-lib target directory does not exist. Try `nix-shell --run \"make -B build/ihp-lib\"` to fix this"
+    ("Symlink build/ihp-lib target directory does not exist. "
+     "Try `nix-shell --run \"make -B build/ihp-lib\"` to fix this")
 )
 
 if path.exists("IHP"):
@@ -151,7 +163,7 @@ cachix_output, _ = run_command(["cachix", "--help"])
 if "https://cachix.org command line interface" in cachix_output:
     show_success("Cachix exists")
 else:
-    "Cachix is missing. Is cachix installed?"
+    show_failure("Cachix is missing. Is cachix installed?")
 
 with open(path.join(Path.home(), ".config/nix/nix.conf")) as file:
     nix_conf = file.read()
@@ -160,12 +172,14 @@ with open(path.join(Path.home(), ".config/nix/nix.conf")) as file:
         show_success("digitallyinduced.cachix.org configured")
     else:
         show_failure(
-            "digitallyinduced.cachix.org binary cache missing. Try 'cachix use digitallyinduced'"
+            ("digitallyinduced.cachix.org binary cache missing. "
+             "Try 'cachix use digitallyinduced'")
         )
 
     if "digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI=" in nix_conf:
         show_failure(
-            "Found legacy cachix public key for digitallyinduced.cachix.org. Try to remove digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI= from ~/.config/nix/nix.conf"
+            ("Found legacy cachix public key for digitallyinduced.cachix.org. "
+             "Try to remove digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI= from ~/.config/nix/nix.conf")
         )
     else:
         show_success("No legacy cachix key found")
@@ -173,8 +187,11 @@ with open(path.join(Path.home(), ".config/nix/nix.conf")) as file:
 show_step("Checking IHP files")
 
 SENSITIVE_FILES = [".ghci", "start", "hie.yaml", "default.nix"]
-with request.urlopen("https://api.github.com/repos/digitallyinduced/ihp-boilerplate/contents/") as response:
-    if response.status is not 200:
+api_request = request.Request(
+    "https://api.github.com/repos/digitallyinduced/ihp-boilerplate/contents/"
+)
+with request.urlopen(api_request) as response:
+    if response.status != 200:
         show_failure("Failed to send GET request to GitHub API")
     else:
         deserialized = load(response)
@@ -198,7 +215,8 @@ _, nix_store_troubleshooting_output = run_command(
 
 if "warning: not all errors were fixed" in nix_store_troubleshooting_output:
     show_failure(
-        "Errors where found in /nix/store/, run `rm -rf build; nix-shell --run 'make build/ihp-lib'`"
+        ("Errors where found in /nix/store/, "
+         "run `rm -rf build; nix-shell --run 'make build/ihp-lib'`")
     )
 else:
     show_success("Nix store looks good")
