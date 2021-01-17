@@ -323,7 +323,6 @@ executable RunDevServer
             -fspec-constr-keen
             -fspecialise-aggressively
             -fstatic-argument-transformation
-            -fstatic-argument-transformation
             -funbox-strict-fields
             -funfolding-use-threshold=16
             -j
