@@ -12,6 +12,7 @@ maintainer:          hello@digitallyinduced.com
 build-type:          Simple
 
 Flag FastBuild
+    Default: False
     Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
