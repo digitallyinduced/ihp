@@ -11,8 +11,8 @@ maintainer:          hello@digitallyinduced.com
 -- category:
 build-type:          Simple
 
-Flag FastBuild
-    Description: Disables all optimisations, leads to faster build time
+Flag OptimizedBuild
+    Description: Enables all optimisations, at a cost of longer build time
 
 common shared-properties
     default-language: Haskell2010
@@ -121,13 +121,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
-    if flag(FastBuild)
-        ghc-options:
-            -j
-            -O0
-            -threaded
-            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
-    else
+    if flag(OptimizedBuild)
         ghc-options:
             -fconstraint-solver-iterations=100
             -fexpose-all-unfoldings
@@ -144,6 +138,12 @@ common shared-properties
             -O2
             -threaded
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
+    else
+        ghc-options:
+            -j
+            -O0
+            -threaded
+            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
 
 library IHPFramework
     import: shared-properties
@@ -306,13 +306,7 @@ executable RunDevServer
     build-depends: IHPIDE, IHPFramework
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
-    if flag(FastBuild)
-        ghc-options:
-            -j
-            -O0
-            -threaded
-            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
-    else
+    if flag(OptimizedBuild)
         ghc-options:
             -fconstraint-solver-iterations=100
             -fexpose-all-unfoldings
@@ -332,6 +326,12 @@ executable RunDevServer
             -with-rtsopts=-N
             -with-rtsopts=-n4m
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
+    else
+        ghc-options:
+            -j
+            -O0
+            -threaded
+            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
 
 executable new-application
     import: shared-properties

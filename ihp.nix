@@ -124,8 +124,8 @@ mkDerivation {
   homepage = "https://ihp.digitallyinduced.com";
 
   # For faster builds when hacking on IHP:
-  # Commenting this out will build without optimizations
-  configureFlags = [ "--flag -FastBuild" ];
+  # Uncommenting will build without optimizations
+  # configureFlags = [ "--flag -OptimizedBuild" ];
   # Uncommenting will not generate documentation
   # doHaddock = false;
 }
