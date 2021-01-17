@@ -319,7 +319,7 @@ executable RunDevServer
             -fconstraint-solver-iterations=100
             -fexpose-all-unfoldings
             -flate-dmd-anal
-            -fspec-constr-keen 
+            -fspec-constr-keen
             -fspecialise-aggressively
             -fstatic-argument-transformation
             -threaded
