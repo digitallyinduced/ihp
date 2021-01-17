@@ -202,7 +202,8 @@ with request.urlopen(api_request) as response:
                     ["git", "hash-object", file_path])
                 if local_file_sha.rstrip() != file_details["sha"]:
                     show_warning(
-                        f"Make sure the `{file_path}` file is same as {file_details['html_url']}"
+                        (f"The file `{file_path}` was edited manually. "
+                         f"Try reverting your changes to {file_details['html_url']} to see whether that affects the issue")
                     )
 
 show_step("Debugging Details")
@@ -221,7 +222,7 @@ print(ghci_path)
 
 show_step("default.nix")
 with open("default.nix") as file:
-    head = [next(file) for x in range(5)]
+    head = [next(file) for _ in range(5)]
     print("".join(head))
 
 show_step("OS")
