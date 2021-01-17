@@ -40,7 +40,8 @@ def path_exists(file_path, success_message, error_message):
 
 def run_command(commands, maybe_input=None):
     input = maybe_input.encode('utf-8') if maybe_input is not None else None
-    return run(commands, capture_output=True, input=input).stdout.decode('utf-8')
+    output = run(commands, capture_output=True, input=input)
+    return (output.stdout.decode('utf-8'), output.stderr.decode('utf-8'))
 
 
 show_step("Checking that the current directory is an IHP project")
@@ -71,7 +72,7 @@ path_exists(
     ".envrc missing. Try 'make .envrc'"
 )
 
-direnv_output = run_command(["direnv", "status"])
+direnv_output, _ = run_command(["direnv", "status"])
 envrc_path = path.join(getcwd(), ".envrc")
 
 if f"Found RC path {envrc_path}" in direnv_output:
@@ -86,7 +87,7 @@ if "Found RC allowed true" in direnv_output:
 else:
     show_failure("direnv denied .envrc, run `direnv allow` to allow .envrc")
 
-ghci_path = run_command(["which", "ghci"])
+ghci_path, _ = run_command(["which", "ghci"])
 
 if "/nix/store" in ghci_path:
     show_success("ghci is loaded from nix store")
@@ -103,7 +104,7 @@ path_exists(
     ".ghci missing"
 )
 
-ghci_output = run_command(["ghci", "2>&1"], "putStrLn \"ok\"")
+ghci_output, _ = run_command(["ghci", "2>&1"], "putStrLn \"ok\"")
 
 if ".ghci is writable by someone else" in ghci_output:
     show_failure(
@@ -138,7 +139,7 @@ else:
 
 show_step("Checking Cachix")
 
-cachix_output = run_command(["cachix", "--help"])
+cachix_output, _ = run_command(["cachix", "--help"])
 
 if "https://cachix.org command line interface" in cachix_output:
     show_success("Cachix exists")
@@ -162,6 +163,21 @@ with open(path.join(Path.home(), ".config/nix/nix.conf")) as file:
     else:
         show_success("No legacy cachix key found")
 
+show_step("Validating and repairing /nix/store/ (could take a minute)")
+
+_, nix_store_troubleshooting_output = run_command(
+    ["nix-store", "--verify",
+     "--check-contents", "--repair",
+     "--quiet", "--no-build-output"]
+)
+
+if "warning: not all errors were fixed" in nix_store_troubleshooting_output:
+    show_failure(
+        "Errors where found in /nix/store/, run `rm -rf build; nix-shell --run 'make build/ihp-lib'`"
+    )
+else:
+    show_success("Nix store looks good")
+
 show_step("Debugging Details")
 
 show_step("GHCI Output")
@@ -183,3 +199,6 @@ with open("default.nix") as file:
 
 show_step("OS")
 print(platform())
+
+show_step("/nix/store/ checksums verification")
+print(nix_store_troubleshooting_output)
