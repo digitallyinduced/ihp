@@ -175,17 +175,18 @@ show_step("Checking IHP files")
 SENSITIVE_FILES = [".ghci", "start", "hie.yaml", "default.nix"]
 with request.urlopen("https://api.github.com/repos/digitallyinduced/ihp-boilerplate/contents/") as response:
     if response.status is not 200:
-        exit("Failed to send GET request to GitHub API")
-
-    deserialized = load(response)
-    for file_details in deserialized:
-        file_path = file_details["path"]
-        if file_path in SENSITIVE_FILES:
-            local_file_sha, _ = run_command(["git", "hash-object", file_path])
-            if local_file_sha.rstrip() != file_details["sha"]:
-                show_warning(
-                    f"Make sure the `{file_path}` file is same as {file_details['html_url']}"
-                )
+        show_failure("Failed to send GET request to GitHub API")
+    else:
+        deserialized = load(response)
+        for file_details in deserialized:
+            file_path = file_details["path"]
+            if file_path in SENSITIVE_FILES:
+                local_file_sha, _ = run_command(
+                    ["git", "hash-object", file_path])
+                if local_file_sha.rstrip() != file_details["sha"]:
+                    show_warning(
+                        f"Make sure the `{file_path}` file is same as {file_details['html_url']}"
+                    )
 
 show_step("Validating and repairing /nix/store/ (could take a minute)")
 
