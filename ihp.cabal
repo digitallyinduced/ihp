@@ -132,6 +132,7 @@ common shared-properties
             -fconstraint-solver-iterations=100
             -fexpose-all-unfoldings
             -flate-dmd-anal
+            -flate-specialise
             -fmax-worker-args=200
             -fspec-constr-keen
             -fspecialise-aggressively
@@ -316,6 +317,7 @@ executable RunDevServer
             -fconstraint-solver-iterations=100
             -fexpose-all-unfoldings
             -flate-dmd-anal
+            -flate-specialise
             -fmax-worker-args=200
             -fspec-constr-keen
             -fspecialise-aggressively
