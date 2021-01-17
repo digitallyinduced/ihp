@@ -32,7 +32,7 @@ def show_failure(message):
 
 
 def path_exists(file_path, success_message, error_message):
-    if path.exists(file_path):
+    if file_path is not None and path.exists(file_path):
         show_success(success_message)
     else:
         show_failure(error_message)
@@ -114,14 +114,16 @@ else:
 
 show_step("Checking IHP")
 
-if path.islink("build/ihp-lib"):
+ihp_lib_is_link = path.islink("build/ihp-lib")
+
+if ihp_lib_is_link:
     show_success("Symlink build/ihp-lib exists")
 else:
     show_failure(
         "Symlink build/ihp-lib is missing. Try 'make build/ihp-lib' to fix this"
     )
 
-ihp_lib_link = readlink("build/ihp-lib")
+ihp_lib_link = readlink("build/ihp-lib") if ihp_lib_is_link else None
 
 path_exists(
     ihp_lib_link,
