@@ -205,22 +205,6 @@ with request.urlopen(api_request) as response:
                         f"Make sure the `{file_path}` file is same as {file_details['html_url']}"
                     )
 
-show_step("Checking and repairing /nix/store/ (could take a minute)")
-
-_, nix_store_troubleshooting_output = run_command(
-    ["nix-store", "--verify",
-     "--check-contents", "--repair",
-     "--quiet", "--no-build-output"]
-)
-
-if "warning: not all errors were fixed" in nix_store_troubleshooting_output:
-    show_failure(
-        ("Errors where found in /nix/store/, "
-         "run `rm -rf build; nix-shell --run 'make build/ihp-lib'`")
-    )
-else:
-    show_success("Nix store looks good")
-
 show_step("Debugging Details")
 
 show_step("GHCI Output")
@@ -242,6 +226,3 @@ with open("default.nix") as file:
 
 show_step("OS")
 print(platform())
-
-show_step("/nix/store/ checksums verification")
-print(nix_store_troubleshooting_output)
