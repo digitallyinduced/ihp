@@ -3,6 +3,7 @@
 from os import path, getcwd, readlink
 from enum import Enum, unique
 from json import load
+from typing import List, Optional
 from urllib import request
 from pathlib import Path
 from platform import platform
@@ -19,27 +20,31 @@ class Color(Enum):
     GREEN = "\033[32m"
 
 
-def show(color, message):
+def show(color: Color, message: str) -> str:
     return f"{color.value}{message}{Color.END.value}"
 
 
-def show_step(message):
+def show_step(message: str) -> None:
     print(show(Color.BOLD, f"{message}:"))
 
 
-def show_success(message):
+def show_success(message: str) -> None:
     print(show(Color.GREEN, f"+ {message}"))
 
 
-def show_warning(message):
+def show_warning(message: str) -> None:
     print(show(Color.BLUE, f"- {message}"))
 
 
-def show_failure(message):
+def show_failure(message: str) -> None:
     print(show(Color.RED, f"- {message}"))
 
 
-def path_exists(file_path, success_message, error_message):
+def path_exists(
+    file_path: Optional[str],
+    success_message: str,
+    error_message: str
+) -> None:
     if file_path is not None and path.exists(file_path):
         show_success(success_message)
     else:
@@ -53,7 +58,10 @@ class CommandOutput:
     returncode: int
 
 
-def run_command(commands, maybe_input=None) -> CommandOutput:
+def run_command(
+    commands: List[str],
+    maybe_input: Optional[str] = None
+) -> CommandOutput:
     command_input = maybe_input.encode('utf-8') if maybe_input else None
     command_output = run(
         commands,
@@ -68,8 +76,8 @@ def run_command(commands, maybe_input=None) -> CommandOutput:
     )
 
 
-def boilerplate_contents():
-    response_data = []
+def boilerplate_contents() -> List[dict]:
+    response_data: List[dict] = []
     base_url = "https://api.github.com/repos/digitallyinduced/ihp-boilerplate"
     directories = [
         base_url + "/contents",
