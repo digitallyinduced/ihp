@@ -46,8 +46,7 @@ def path_exists(file_path, success_message, error_message):
 
 
 def run_command(commands, maybe_input=None):
-    command_input = maybe_input.encode(
-        'utf-8') if maybe_input is not None else None
+    command_input = maybe_input.encode('utf-8') if maybe_input else None
     command_output = run(
         commands,
         input=command_input,
@@ -212,11 +211,12 @@ for file_details in boilerplate_contents():
     file_path = file_details["path"]
     if file_path in SENSITIVE_FILES:
         local_file_sha, _ = run_command(
-            ["git", "hash-object", file_path])
+            ["git", "hash-object", file_path]
+        )
         if local_file_sha.rstrip() != file_details["sha"]:
             show_warning(
                 (f"The file `{file_path}` was edited manually.\n  "
-                    f"Try reverting your changes to {file_details['html_url']} to see whether that affects the issue")
+                 f"Try reverting your changes to {file_details['html_url']} to see whether that affects the issue")
             )
 
 show_step("Debugging Details")
