@@ -57,6 +57,7 @@ def run_command(commands, maybe_input=None) -> CommandOutput:
     command_input = maybe_input.encode('utf-8') if maybe_input else None
     command_output = run(
         commands,
+        check=False,
         input=command_input,
         capture_output=True,
     )
