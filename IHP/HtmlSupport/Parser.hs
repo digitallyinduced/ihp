@@ -361,7 +361,18 @@ parents = Set.fromList
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
         , "thead", "time", "title", "tr", "u", "ul", "var", "video"
         , "svg", "path", "text", "circle", "marquee", "blink"
-        , "loading"
+        , "loading", "animate", "animateMotion", "animateTransform"
+        , "clipPath", "defs", "desc", "discard", "ellipse", "feBlend"
+        , "feColorMatrix", "feComponentTransfer", "feComposite"
+        , "feConvolveMatrix", "feDiffuseLighting", "feDisplacementMap"
+        , "feDistantLight", "feDropShadow", "feFlood", "feFuncA", "feFuncB"
+        , "feFuncG", "feFuncR", "feGaussianBlur", "feImage", "feMerge"
+        , "feMergeNode", "feMorphology", "feOffset", "fePointLight"
+        , "feSpecularLighting", "feSpotLight", "feTile", "feTurbulence"
+        , "filter", "foreignObject", "g", "line", "linearGradient", "marker"
+        , "mask", "metadata", "mpath", "path", "pattern", "polygon", "polyline"
+        , "radialGradient", "rect", "set", "stop", "switch", "symbol"
+        , "textPath", "tspan", "unknown", "use", "view"
         ]
 
 leafs :: Set Text
