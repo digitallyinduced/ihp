@@ -1,17 +1,17 @@
 # Provides the `ihp-troubleshoot` command
 
-This script detects common error in the dev environment where IHP is running.
+This script detects common errors in the dev environment where IHP is running.
 
 The script checks:
 
-- that the current directory looks like an ihp project
-- that the `.ghci` file exists and has the right permissions to be loaded
-- that `build/ihp-lib` symlink exists and references a valid IHP build
-- that `direnv` is loaded correctly into the shell
-- that `direnv` can correctly load the .envrc
-- that the digitallyinduced cachix cache is installed
-- that the old deprecated cachix key is not used
-- nix is correctly installed
+-   that the current directory looks like an IHP project
+-   that the `.ghci` file exists and has the right permissions to be loaded
+-   that `build/ihp-lib` symlink exists and references a valid IHP build
+-   that `direnv` is loaded correctly into the shell
+-   that `direnv` can correctly load the .envrc
+-   that the digitallyinduced cachix cache is installed
+-   that the old deprecated cachix key is not used
+-   nix is correctly installed
 
 ## Design Goals
 
