@@ -195,7 +195,7 @@ hsxSplicedValue = do
 
 hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
     where
-        friendlyErrorMessage = Text.unpack ("\"</" <> name <> ">\"")
+        friendlyErrorMessage = show (Text.unpack ("</" <> name <> ">"))
         hsxClosingElement' name = do
             _ <- string ("</" <> name)
             space
