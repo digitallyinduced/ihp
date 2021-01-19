@@ -27,3 +27,7 @@ tests = do
             let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^\nunexpected '/'\nexpecting \"</div>\" or identifier\n"
             let (Left error) = parseHsx position "<div></span>"
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
+
+        it "should parse a closing tag with spaces" do
+            let p = parseHsx position "<div></div >"
+            p `shouldBe` (Right (Children [Node "div" [] [] False]))
