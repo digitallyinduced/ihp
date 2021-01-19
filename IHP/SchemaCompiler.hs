@@ -331,6 +331,7 @@ findForeignKeyConstraint CreateTable { name } column =
         (Schema statements) = ?schema
 
 compileEnumDataDefinitions :: Statement -> Text
+compileEnumDataDefinitions CreateEnumType { name = ""} = "" -- Ignore enums without any values
 compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum)\n"
         <> "instance FromField " <> modelName <> " where\n"
