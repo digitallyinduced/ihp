@@ -193,9 +193,15 @@ hsxSplicedValue = do
             Left error -> fail (show error)
     pure (ExpressionValue haskellExpression)
 
-hsxClosingElement name = do
-    _ <- string ("</" <> name <> ">")
-    pure ()
+hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
+    where
+        friendlyErrorMessage = Text.unpack ("\"</" <> name <> ">\"")
+        hsxClosingElement' name = do
+            _ <- string ("</" <> name)
+            space
+            char ('>')
+            pure ()
+
 
 hsxChild = hsxElement <|> hsxSplicedNode <|> hsxText
 
