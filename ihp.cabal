@@ -12,6 +12,7 @@ maintainer:          hello@digitallyinduced.com
 build-type:          Simple
 
 Flag FastBuild
+    Default: False
     Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
@@ -123,27 +124,27 @@ common shared-properties
         , StandaloneDeriving
     if flag(FastBuild)
         ghc-options:
-            -O0
-            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
             -j
+            -O0
             -threaded
+            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
     else
         ghc-options:
-            -funfolding-use-threshold=16
-            -funbox-strict-fields
             -fconstraint-solver-iterations=100
             -fexpose-all-unfoldings
             -flate-dmd-anal
+            -flate-specialise
+            -fmax-worker-args=200
             -fspec-constr-keen
             -fspecialise-aggressively
             -fstatic-argument-transformation
-            -fmax-worker-args=200
-            -threaded
+            -funbox-strict-fields
+            -funfolding-use-threshold=16
             -haddock
             -j
             -O2
+            -threaded
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
-
 
 library IHPFramework
     import: shared-properties
@@ -308,28 +309,28 @@ executable RunDevServer
     main-is: IHP/IDE/DevServer.hs
     if flag(FastBuild)
         ghc-options:
-            -O0
-            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
             -j
+            -O0
             -threaded
+            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
     else
         ghc-options:
-            -funfolding-use-threshold=16
-            -funbox-strict-fields
             -fconstraint-solver-iterations=100
             -fexpose-all-unfoldings
             -flate-dmd-anal
-            -fspec-constr-keen 
+            -flate-specialise
+            -fmax-worker-args=200
+            -fspec-constr-keen
             -fspecialise-aggressively
             -fstatic-argument-transformation
-            -threaded
-            -fmax-worker-args=200
-            -fstatic-argument-transformation
-            -with-rtsopts=-A512m
-            -with-rtsopts=-n4m
-            -with-rtsopts=-N
+            -funbox-strict-fields
+            -funfolding-use-threshold=16
             -j
             -O2
+            -threaded
+            -with-rtsopts=-A512m
+            -with-rtsopts=-N
+            -with-rtsopts=-n4m
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
 
 executable new-application
