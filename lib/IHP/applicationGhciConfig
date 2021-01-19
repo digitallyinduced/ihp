@@ -3,6 +3,7 @@
 :set -iConfig
 :set -ibuild
 :set -iIHP
+:set -iIHP/IDE
 :set -threaded
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
