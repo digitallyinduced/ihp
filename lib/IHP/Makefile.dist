@@ -106,6 +106,9 @@ build/bin:
 run-production: build/bin/RunProdServer build/Generated/Types.hs ## Run Production Server
 	build/bin/RunProdServer
 
+postgres: ## Starts the postgresql server
+	postgres -D build/db/state -k $PWD/build/db -c "listen_addresses="
+
 psql: ## Connects to the running postgresql server
 	@psql -h $$PWD/build/db -d app
 
