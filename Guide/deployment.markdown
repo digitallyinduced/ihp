@@ -10,7 +10,7 @@ The fastest way to share your app with the internet is by using IHP Cloud. We re
 
 ### Account Setup
 
-IHP Cloud is currently still in beta. To register a new account you need an invite from an existing user or you can join the waiting list at [ihpcloud.com](https://ihpcloud.com/).
+Register a new IHP Cloud account for free at [ihpcloud.com](https://ihpcloud.com/NewUser) or [sign in](https://ihpcloud.com/NewSession).
 
 ### Creating the Project
 
