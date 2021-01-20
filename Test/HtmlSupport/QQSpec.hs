@@ -59,6 +59,24 @@ tests = do
             [hsx|<i> a</i>|] `shouldBeHtml` "<i>a</i>"
             [hsx|<i> a b</i>|] `shouldBeHtml` "<i>a b</i>"
             [hsx|<i> a b c </i>|] `shouldBeHtml` "<i>a b c</i>"
+        
+        it "should collapse spaces" do
+            [hsx|
+                Hello
+                World
+                !
+            |] `shouldBeHtml` "Hello World !"
+        
+        it "should not strip whitespace around variables near to text nodes" do
+            let name :: Text = "Tester"
+            [hsx| <strong> Hello {name} ! </strong> |] `shouldBeHtml` "<strong>Hello Tester !</strong>"
+            [hsx| <strong> Hello {name}{name} ! </strong> |] `shouldBeHtml` "<strong>Hello TesterTester !</strong>"
+            [hsx| <strong> Hello {name} {name} ! </strong> |] `shouldBeHtml` "<strong>Hello Tester Tester !</strong>"
+            [hsx|{name}|] `shouldBeHtml` "Tester"
+
+            let question :: Text = "Q"
+            let answer :: Text = "A"
+            [hsx|<td>{question} → {answer}</td>|] `shouldBeHtml` "<td>Q → A</td>"
 
         it "should work with html comments" do
             [hsx|<div><!--my comment--></div>|] `shouldBeHtml` "<div><!-- my comment --></div>"
@@ -71,6 +89,64 @@ tests = do
             [hsx|<confetti-effect></confetti-effect>|] `shouldBeHtml` "<confetti-effect></confetti-effect>"
             [hsx|<confetti-effect/>|] `shouldBeHtml` "<confetti-effect></confetti-effect>" -- Currently we cannot deal with self closing tags as expected
             [hsx|<div is="confetti-effect"></div>|] `shouldBeHtml` "<div is=\"confetti-effect\"></div>"
+
+        it "should parse a small hsx document" do
+            let metaTags = [hsx|
+                <meta charset="utf-8">
+            |]
+            let stylesheets = [hsx|
+                <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
+                <link rel="stylesheet" href="/vendor/flatpickr.min.css"/>
+                <link rel="stylesheet" href="/app.css"/>
+            |]
+            let scripts = [hsx|
+                <script src="/prod.js"></script>
+            |]
+            [hsx|
+                <html>
+                    <head>
+                        {metaTags}
+
+                        {stylesheets}
+                        {scripts}
+
+                        <title>IHP Forum</title>
+                    </head>
+                </html>
+            |] `shouldBeHtml` "<html><head><meta charset=\"utf-8\"> <link rel=\"stylesheet\" href=\"/vendor/bootstrap.min.css\"><link rel=\"stylesheet\" href=\"/vendor/flatpickr.min.css\"><link rel=\"stylesheet\" href=\"/app.css\"> <script src=\"/prod.js\"></script><title>IHP Forum</title></head></html>"
+
+        it "should parse an example hsx document" do
+            let metaTags = [hsx|
+                <meta charset="utf-8">
+            |]
+            metaTags `shouldBeHtml` "<meta charset=\"utf-8\">"
+            let stylesheets = [hsx|
+                <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
+                <link rel="stylesheet" href="/vendor/flatpickr.min.css"/>
+                <link rel="stylesheet" href="/app.css"/>
+            |]
+            let scripts = [hsx|
+                <script src="/prod.js"></script>
+            |]
+            [hsx|
+                <html>
+                    <head>
+                        {metaTags}
+
+                        {stylesheets}
+                        {scripts}
+
+                        <title>IHP Forum</title>
+                    </head>
+                    <body>
+                        <div class="container mt-4">
+                            <nav class="navbar navbar-expand-lg navbar-light mb-4">
+                                <a class="navbar-brand" href="/">λ IHP Forum</a>
+                            </nav>
+                        </div>
+                    </body>
+                </html>
+            |] `shouldBeHtml` "<html><head><meta charset=\"utf-8\"> <link rel=\"stylesheet\" href=\"/vendor/bootstrap.min.css\"><link rel=\"stylesheet\" href=\"/vendor/flatpickr.min.css\"><link rel=\"stylesheet\" href=\"/app.css\"> <script src=\"/prod.js\"></script><title>IHP Forum</title></head><body><div class=\"container mt-4\"><nav class=\"navbar navbar-expand-lg navbar-light mb-4\"><a class=\"navbar-brand\" href=\"/\">\955 IHP Forum</a></nav></div></body></html>"
 
 data Project = Project { name :: Text }
 

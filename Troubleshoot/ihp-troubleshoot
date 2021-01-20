@@ -1,120 +1,260 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-function step {
-    echo -e "\e[1m$1:\e[0m"    
-}
-
-function ok {
-    echo -e "\e[32m+ $1\e[0m"
-}
-
-function fail {
-    echo -e "\e[31m- $1\e[0m"
-}
-
-step "Checking that the current directory is an IHP project"
-if test -f Main.hs; then
-    ok "Found Main.hs"
-else
-    fail "Main.hs missing. Is this an IHP project?"
-fi
-
-if test -f start; then
-    ok "Found start"
-else
-    fail "start missing. Is this an IHP project?"
-fi
-
-step "Checking nix"
-if [ -d "/nix" ]; then
-    ok "Nix installed"
-else
-    fail "Nix store not found. Is nix installed?"
-fi
-
-step "Checking direnv"
-if test -f .envrc; then
-    ok "Found .envrc"
-else
-    fail ".envrc missing. Try 'make .envrc'"
-fi
-direnv_output=$(direnv status 2>&1)
-if [[ "$direnv_output" =~ "Found RC path $PWD/.envrc" ]]; then
-    ok "direnv loads .envrc"
-else
-    fail "direnv didn't load the project .envrc. Did you set up direnv in your shell?"
-fi
-which_direnv_output=$(which ghci)
-if [[ "$which_direnv_output" =~ "/nix/store" ]]; then
-    ok "ghci is loaded from nix store"
-else
-    fail "ghci is not loaded from /nix/store/... Is direnv hooked into your shell?"
-fi
-
-step "Checking .ghci"
-if test -f .ghci; then
-    ok "Found .ghci"
-else
-    fail ".ghci missing"
-fi
-
-ghci_output=$(echo 'putStrLn "ok"'|ghci 2>&1)
-if [[ "$ghci_output" =~ ".ghci is writable by someone else" ]]; then
-    fail ".ghci permissions are wrong. Try 'chmod go-w .ghci' to fix this"
-else
-    ok ".ghci permissions are ok"
-fi
-
-step "Checking IHP"
-if [[ -L "build/ihp-lib" ]]; then
-    ok "Symlink build/ihp-lib exists"
-else
-    fail "Symlink build/ihp-lib is missing. Try 'make build/ihp-lib' to fix this"
-fi
-
-ihplib_link=$(readlink -f build/ihp-lib)
-if [ -d "$ihplib_link" ]; then
-    ok "Symlink build/ihp-lib target exists"
-else
-    fail "Symlink build/ihp-lib target directory does not exist. Try 'nix-shell --run \"make -B build/ihp-lib\"' to fix this"
-fi
-
-if [ -d "IHP" ]; then
-    ok "Local IHP directory exists"
-else
-    ok "IHP used from nix"
-fi
+from os import path, getcwd, readlink
+from enum import Enum, unique
+from json import load
+from typing import List, Optional
+from urllib import request
+from pathlib import Path
+from platform import platform
+from subprocess import run
+from dataclasses import dataclass
 
 
-step "Checking Cachix"
-if [ -d "$HOME/.config/cachix" ]; then
-    ok "Cachix config exists"
-else
-    fail "Cachix config is missing. Is cachix installed?"
-fi
+@unique
+class Color(Enum):
+    END = "\033[0m"
+    RED = "\033[31m"
+    BOLD = "\033[1m"
+    BLUE = "\033[34m"
+    GREEN = "\033[32m"
 
-if [[ "$(cat ~/.config/nix/nix.conf)" =~ "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ]]; then
-    ok "digitallyinduced.cachix.org configured"
-else
-    fail "digitallyinduced.cachix.org binary cache missing. Try 'cachix use digitallyinduced'"
-fi
 
-if [[ "$(cat ~/.config/nix/nix.conf)" =~ "digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI=" ]]; then
-    fail "Found legacy cachix public key for digitallyinduced.cachix.org. Try to remove digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI= from ~/.config/nix/nix.conf"
-else
-    ok "No legacy cachix key found"
-fi
+def show(color: Color, message: str) -> str:
+    return f"{color.value}{message}{Color.END.value}"
 
-step "Debugging Details"
-step "GHCI Output"
-echo "$ghci_output"
-step "build/ihp-lib Target"
-echo "$ihplib_link"
-step "Direnv Output"
-echo "$direnv_output"
-step "which direnv Output"
-echo "$which_direnv_output"
-step "default.nix"
-head -n5 default.nix
-step "OS"
-uname
+
+def show_step(message: str) -> None:
+    print(show(Color.BOLD, f"{message}:"))
+
+
+def show_success(message: str) -> None:
+    print(show(Color.GREEN, f"+ {message}"))
+
+
+def show_warning(message: str) -> None:
+    print(show(Color.BLUE, f"- {message}"))
+
+
+def show_failure(message: str) -> None:
+    print(show(Color.RED, f"- {message}"))
+
+
+def path_exists(
+    file_path: Optional[str],
+    success_message: str,
+    error_message: str
+) -> None:
+    if file_path is not None and path.exists(file_path):
+        show_success(success_message)
+    else:
+        show_failure(error_message)
+
+
+@dataclass
+class CommandOutput:
+    stdout: str
+    stderr: str
+    returncode: int
+
+
+def run_command(
+    commands: List[str],
+    maybe_input: Optional[str] = None
+) -> CommandOutput:
+    command_input = maybe_input.encode('utf-8') if maybe_input else None
+    command_output = run(
+        commands,
+        check=False,
+        input=command_input,
+        capture_output=True,
+    )
+    return CommandOutput(
+        command_output.stdout.decode('utf-8'),
+        command_output.stderr.decode('utf-8'),
+        command_output.returncode
+    )
+
+
+def boilerplate_contents() -> List[dict]:
+    response_data: List[dict] = []
+    base_url = "https://api.github.com/repos/digitallyinduced/ihp-boilerplate"
+    directories = [
+        base_url + "/contents",
+        base_url + "/contents/Config/nix"
+    ]
+    requests = map(request.urlopen, directories)
+    for response in requests:
+        if response.status != 200:
+            show_failure("Failed to send GET request to GitHub API")
+        else:
+            deserialized = load(response)
+            response_data = [*response_data, *deserialized]  # Merge Results
+
+    return response_data
+
+
+show_step("Checking that the current directory is an IHP project")
+
+path_exists(
+    "Main.hs",
+    "Found Main.hs",
+    "Main.hs missing. Is this an IHP project?"
+)
+
+path_exists(
+    "start",
+    "Found start script",
+    "start script missing. Is this an IHP project?"
+)
+
+path_exists(
+    "/nix",
+    "Nix installed",
+    "Nix store not found. Is nix installed?"
+)
+
+show_step("Checking direnv")
+
+path_exists(
+    ".envrc",
+    "Found .envrc",
+    ".envrc missing. Try 'make .envrc'"
+)
+
+direnv_output = run_command(["direnv", "status"]).stdout
+envrc_path = path.join(getcwd(), ".envrc")
+
+if f"Found RC path {envrc_path}" in direnv_output:
+    show_success("direnv loads .envrc")
+else:
+    show_failure(
+        ("direnv didn't load the project .envrc. "
+         "Did you set up direnv in your shell?")
+    )
+
+if "Found RC allowed true" in direnv_output:
+    show_success("direnv allows .envrc")
+else:
+    show_failure("direnv denied .envrc, run `direnv allow` to allow .envrc")
+
+ghci_path = run_command(["which", "ghci"]).stdout
+
+if "/nix/store" in ghci_path:
+    show_success("ghci is loaded from nix store")
+else:
+    show_failure(
+        ("ghci is not loaded from /nix/store/... "
+         "Is direnv hooked into your shell?")
+    )
+
+show_step("Checking .ghci")
+
+path_exists(
+    ".ghci",
+    "Found .ghci",
+    ".ghci missing"
+)
+
+ghci_output = run_command(["ghci", "2>&1"], "putStrLn \"ok\"").stdout
+
+if ".ghci is writable by someone else" in ghci_output:
+    show_failure(
+        ".ghci permissions are wrong. Try 'chmod go-w .ghci' to fix this"
+    )
+else:
+    show_success(".ghci permissions are ok")
+
+show_step("Checking IHP")
+
+ihp_lib_is_link = path.islink("build/ihp-lib")
+
+if ihp_lib_is_link:
+    show_success("Symlink build/ihp-lib exists")
+else:
+    show_failure(
+        ("Symlink build/ihp-lib is missing. "
+         "Try 'make build/ihp-lib' to fix this")
+    )
+
+ihp_lib_link = readlink("build/ihp-lib") if ihp_lib_is_link else None
+
+path_exists(
+    ihp_lib_link,
+    "Symlink build/ihp-lib target exists",
+    ("Symlink build/ihp-lib target directory does not exist. "
+     "Try `nix-shell --run \"make -B build/ihp-lib\"` to fix this")
+)
+
+if path.exists("IHP"):
+    show_success("Local IHP directory exists")
+else:
+    show_success("IHP used from nix")
+
+show_step("Checking Cachix")
+
+cachix_returncode = run_command(["cachix", "--help"]).returncode
+
+if cachix_returncode == 0:
+    show_success("Cachix exists")
+else:
+    show_failure("Cachix is missing. Is cachix installed?")
+
+with open(path.join(Path.home(), ".config/nix/nix.conf")) as file:
+    nix_conf = file.read()
+
+    if "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" in nix_conf:
+        show_success("digitallyinduced.cachix.org configured")
+    else:
+        show_failure(
+            ("digitallyinduced.cachix.org binary cache missing. "
+             "Try 'cachix use digitallyinduced'")
+        )
+
+    if "digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI=" in nix_conf:
+        show_failure(
+            ("Found legacy cachix public key for digitallyinduced.cachix.org. "
+             "Try to remove digitallyinduced.cachix.org-1:3mGU1b6u5obFp2VUfI55Xe8/+mawl7y9Eztu3rb94PI= from ~/.config/nix/nix.conf")
+        )
+    else:
+        show_success("No legacy cachix key found")
+
+show_step("Checking IHP files")
+
+SENSITIVE_FILES = [
+    ".ghci", "start", "hie.yaml", "default.nix",
+    "Makefile", "Config/nix/nixpkgs-config.nix"
+]
+for file_details in boilerplate_contents():
+    file_path = file_details["path"]
+    if file_path in SENSITIVE_FILES:
+        local_file_sha = run_command(
+            ["git", "hash-object", file_path]
+        ).stdout
+        if local_file_sha.rstrip() != file_details["sha"]:
+            show_warning(
+                (f"The file `{file_path}` was edited manually.\n  "
+                 f"Try reverting your changes to {file_details['html_url']} to see whether that affects the issue")
+            )
+
+show_step("Debugging Details")
+
+show_step("GHCI Output")
+print(ghci_output)
+
+show_step("build/ihp-lib Target")
+print(ihp_lib_link)
+
+show_step("Direnv Output")
+print(direnv_output)
+
+show_step("which direnv Output")
+print(ghci_path)
+
+show_step("default.nix")
+with open("default.nix") as file:
+    head = [next(file) for _ in range(5)]
+    print("".join(head))
+
+show_step("OS")
+print(platform())

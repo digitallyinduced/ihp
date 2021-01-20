@@ -3,6 +3,7 @@ module IHP.HtmlSupport.Parser
 , Node (..)
 , Attribute (..)
 , AttributeValue (..)
+, collapseSpace
 ) where
 
 import CorePrelude
@@ -86,7 +87,7 @@ hsxNormalElement = do
                     let closingElement = "</" <> name <> ">"
                     text <- cs <$> manyTill anySingle (string closingElement)
                     pure [PreEscapedTextNode (transformText text)]
-    let parseNormalHSXChildren = stripTextNodeWhitespaces <$> manyTill (try hsxChild) (hsxClosingElement name)
+    let parseNormalHSXChildren = stripTextNodeWhitespaces <$> (space >> (manyTill (try hsxChild) (try (space >> hsxClosingElement name))))
 
     -- script and style tags have special handling for their children. Inside those tags
     -- we allow any kind of content. Using a haskell expression like @<script>{myHaskellExpr}</script>@
@@ -193,11 +194,16 @@ hsxSplicedValue = do
             Left error -> fail (show error)
     pure (ExpressionValue haskellExpression)
 
-hsxClosingElement name = do
-    _ <- string ("</" <> name <> ">")
-    pure ()
+hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
+    where
+        friendlyErrorMessage = show (Text.unpack ("</" <> name <> ">"))
+        hsxClosingElement' name = do
+            _ <- string ("</" <> name)
+            space
+            char ('>')
+            pure ()
 
-hsxChild = hsxElement <|> hsxSplicedNode <|> hsxText
+hsxChild = hsxElement <|> hsxSplicedNode <|> try (space >> hsxElement) <|> hsxText
 
 -- | Parses a hsx text node
 --
@@ -207,16 +213,13 @@ hsxText = buildTextNode <$> takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}
 
 -- | Builds a TextNode and strips all surround whitespace from the input string
 buildTextNode :: Text -> Node
-buildTextNode value 
-    | Text.null (Text.strip value) = TextNode ""
-    | otherwise = TextNode (collapseSpace value)
+buildTextNode value = TextNode (collapseSpace value)
 
 data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
 
 hsxSplicedNode :: Parser Node
 hsxSplicedNode = do
         expression <- doParse
-        space
         haskellExpression <- case Haskell.parseExp (cs expression) of
                 Right expression -> pure (patchExpr expression)
                 Left error -> fail (show error)
@@ -361,7 +364,18 @@ parents = Set.fromList
         , "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th"
         , "thead", "time", "title", "tr", "u", "ul", "var", "video"
         , "svg", "path", "text", "circle", "marquee", "blink"
-        , "loading"
+        , "loading", "animate", "animateMotion", "animateTransform"
+        , "clipPath", "defs", "desc", "discard", "ellipse", "feBlend"
+        , "feColorMatrix", "feComponentTransfer", "feComposite"
+        , "feConvolveMatrix", "feDiffuseLighting", "feDisplacementMap"
+        , "feDistantLight", "feDropShadow", "feFlood", "feFuncA", "feFuncB"
+        , "feFuncG", "feFuncR", "feGaussianBlur", "feImage", "feMerge"
+        , "feMergeNode", "feMorphology", "feOffset", "fePointLight"
+        , "feSpecularLighting", "feSpotLight", "feTile", "feTurbulence"
+        , "filter", "foreignObject", "g", "line", "linearGradient", "marker"
+        , "mask", "metadata", "mpath", "path", "pattern", "polygon", "polyline"
+        , "radialGradient", "rect", "set", "stop", "switch", "symbol"
+        , "textPath", "tspan", "unknown", "use", "view"
         ]
 
 leafs :: Set Text
@@ -393,11 +407,16 @@ stripFirstTextNodeWhitespaces nodes =
 
 -- | Replaces multiple space characters with a single one
 collapseSpace :: Text -> Text
-collapseSpace text = Text.intercalate " " (filterDuplicateSpaces $ Text.split Char.isSpace text)
+collapseSpace text = cs $ filterDuplicateSpaces (cs text)
     where
-        filterDuplicateSpaces ("":"":rest) = (filterDuplicateSpaces ("":rest))
-        filterDuplicateSpaces (a:rest) = a:(filterDuplicateSpaces rest)
-        filterDuplicateSpaces [] = []
+        filterDuplicateSpaces :: String -> String 
+        filterDuplicateSpaces string = filterDuplicateSpaces' string False
+
+        filterDuplicateSpaces' :: String -> Bool -> String
+        filterDuplicateSpaces' (char:rest) True | Char.isSpace char = filterDuplicateSpaces' rest True
+        filterDuplicateSpaces' (char:rest) False | Char.isSpace char = ' ':(filterDuplicateSpaces' rest True)
+        filterDuplicateSpaces' (char:rest) isRemovingSpaces = char:(filterDuplicateSpaces' rest False)
+        filterDuplicateSpaces' [] isRemovingSpaces = []
 
 
 patchExpr :: TH.Exp -> TH.Exp

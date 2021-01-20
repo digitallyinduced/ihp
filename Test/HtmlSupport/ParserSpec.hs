@@ -9,6 +9,8 @@ import IHP.Prelude
 import IHP.HtmlSupport.Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Megaparsec.Error as Megaparsec
+import qualified "template-haskell" Language.Haskell.TH as TH
+import qualified "template-haskell" Language.Haskell.TH.Syntax as TH
 
 tests = do
     let position = Megaparsec.SourcePos "" (Megaparsec.mkPos 0) (Megaparsec.mkPos 0)
@@ -24,6 +26,34 @@ tests = do
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
 
         it "should fail on unmatched tags" do
-            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^\nunexpected '/'\nexpecting \"</div>\" or identifier\n"
+            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^\nunexpected '/'\nexpecting \"</div>\", identifier, or white space\n"
             let (Left error) = parseHsx position "<div></span>"
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
+
+        it "should parse a closing tag with spaces" do
+            let p = parseHsx position "<div></div >"
+            p `shouldBe` (Right (Children [Node "div" [] [] False]))
+
+        it "should strip spaces around nodes" do
+            let p = parseHsx position "<div> <span> </span> </div>"
+            p `shouldBe` (Right (Children [Node "div" [] [Node "span" [] [] False] False]))
+        
+        it "should strip spaces after self closing tags" do
+            let p = parseHsx position "<head>{\"meta\"}\n\n                        <link rel=\"stylesheet\" href=\"/vendor/bootstrap.min.css\"></head>"
+            p `shouldBe` (Right (Children [Node "head" [] [SplicedNode (TH.LitE (TH.StringL "meta")),Node "link" [StaticAttribute "rel" (TextValue "stylesheet"),StaticAttribute "href" (TextValue "/vendor/bootstrap.min.css")] [] True] False]))
+
+        it "should not strip spaces in a text node" do
+            let p = parseHsx position " Hello World "
+            p `shouldBe` (Right (Children [TextNode "Hello World"]))
+        
+        it "should deal with variables in text nodes" do
+            let p = parseHsx position "<div>\n    Hello {\"name\"}! \n</div>"
+            p `shouldBe`  (Right (Children [Node "div" [] [TextNode "Hello ",SplicedNode (TH.LitE (TH.StringL "name")),TextNode "!"] False]))
+        
+        it "should parse self closing tags with spaces around it" do
+            let p = parseHsx position " <div/> "
+            p `shouldBe`  (Right (Children [Node "div" [] [] False]))
+        
+        it "should collapse spaces" do
+            let p = parseHsx position "\n    Hello\n    World\n    !    "
+            p `shouldBe`  (Right (Children [TextNode "Hello World !"]))
