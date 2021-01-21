@@ -1,4 +1,7 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
+
 readlink "$(command -v "$0")" || echo
 NIXPKGS_ATTR="nixpkgs"
 
@@ -6,26 +9,51 @@ if [ -f /etc/os-release ]; then
 	grep '^ID=nixos$' /etc/os-release >/dev/null 2>&1 && NIXPKGS_ATTR="nixos"
 fi
 
-
 BOILERPLATE_GIT_URL="https://github.com/digitallyinduced/ihp-boilerplate.git"
 
-if [ "$#" -ne "1" ]; then
-	echo "Usage: ihp-new PROJECT_NAME"
-	exit 1
-fi
+for _ in once; do
+	# requires at least one argument
+	# two could be wrong, more definitely are
+	# if it's one but it starts with a minus, that's invalid
+	if  [ $# -lt 1 ] || [ $# -ge 2 ] || [[ "$#" == "1" && "$1" =~ ^-.* ]]; then
+		# two arguments where the first one is a valid option and the second doesn't start with minus are valid
+		if [[ "$#" == "2" ]] && [[ "$1" == "--default" || "$1" == "--elm" ]] && [[ "$2" =~ ^[^-].* ]]; then
+			break;
+		fi
 
-if [[ "$1" == "--help" ]]; then
-	echo "Usage: ihp-new PROJECT_NAME";
-	echo "Generates an empty IHP project";
-	echo "";
-	echo "Full documentation: https://ihp.digitallyinduced.com/Guide/installation.html"
-	echo "Project template: $BOILERPLATE_GIT_URL"
-	echo ""
-	echo "In case there already exists a directory named like the given project name, this script will stop execution.";
-	exit 0
-fi
+		echo "Usage: ihp-new PROJECT_NAME";
+		echo "";
+		echo "or:    ihp-new --OPTION PROJECT_NAME";
+		echo "";
+		echo "Generates an empty IHP project";
+		echo "";
+		echo "Full documentation: https://ihp.digitallyinduced.com/Guide/installation.html";
+		echo "Project template: $BOILERPLATE_GIT_URL"
+		echo "";
+		echo "In case there already exists a directory named like the given project name, this script will stop execution.";
+		echo "";
+		echo "Available options:";
+		echo "";
+		echo "        --default";
+		echo "            (recommended, default, code on branch master)";
+		echo "            Generates a pure IHP project.";
+		echo "";
+		echo "        --elm";
+		echo "            (code on branch elm)"
+		echo "            Generates an IHP project with elm ready to go.";
+
+		if [[ "$#" == "1" && "$1" == "--help" ]]; then
+			exit 0
+		fi
+		exit 1
+	fi
+done
 
 PROJECT_NAME=$1
+if [[ "$#" == "2" ]]; then
+	PROJECT_NAME=$2
+fi
+
 if [ -d "$PROJECT_NAME" ]; then
 	echo "Directory \"$PROJECT_NAME\" already exists. Please remove the directory and re-run the generator";
 	exit 1
@@ -103,17 +131,32 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
-echo "We will now create your project. This may take up to 30 seconds."
+BOILERPLATE_GIT_BRANCH="master"
+
+if [[ "$1" == "--elm" ]]; then
+	echo "We will now create your new IHP project with elm. This may take up to 30 seconds.";
+	BOILERPLATE_GIT_BRANCH="elm";
+else
+	echo "We will now create your new IHP. This may take up to 30 seconds.";
+fi
+
 grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf || {
 	cachix use digitallyinduced
 }
 
-git clone --quiet --depth=1 "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"
+git clone --quiet --depth=1 --branch "$BOILERPLATE_GIT_BRANCH" "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 rm -rf ".git"
 chmod go-w .ghci || true
 
 nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
+
+if [[ "$BOILERPLATE_GIT_BRANCH" == "elm" ]]; then
+	nix-shell -j auto --cores 0 --quiet --run 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install';
+	rm Layout.hs.patch Welcome.hs.patch;
+fi
+
+echo ""
 echo "🚀 Project created, happy coding :)"
 echo "You can start the server by running:"
 echo "  cd $PROJECT_NAME"
