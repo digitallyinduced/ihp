@@ -38,6 +38,7 @@ main = do
 
     -- Print IHP Version when in debug mode
     when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpVersion))
+    setProcessLimits
 
     let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
 
@@ -228,6 +229,23 @@ startGHCI = do
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe
             }
+
+-- | On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
+--
+-- The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
+-- and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
+-- and will close the remaining lazy bytestring handles.
+--
+setProcessLimits :: IO ()
+setProcessLimits = do
+    proc <- createManagedProcess (Process.proc "ulimit" ["-n", "1024"])
+            { Process.std_in = Process.CreatePipe
+            , Process.std_out = Process.CreatePipe
+            , Process.std_err = Process.CreatePipe
+            }
+
+    Process.waitForProcess (get #processHandle proc)
+    cleanupManagedProcess proc
 
 startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
