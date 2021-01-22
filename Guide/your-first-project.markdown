@@ -23,7 +23,9 @@ If you don't already use cachix, you will be prompted to install it. You don't n
 
 While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding of how Nix works.
 
-In case some errors appear now or in later steps, [check out the troubleshooting section](https://github.com/digitallyinduced/ihp/wiki/Troubleshooting) to get a quick solution. You can also [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
+In case some errors appear now or in later steps:
+- [Check out the troubleshooting section](https://ihp.digitallyinduced.com/Guide/troubleshooting.html) to get a quick solution
+- You can also [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
 
 
 ### Directory Structure
@@ -52,6 +54,8 @@ Here is a short overview of the whole structure:
 
 ## 2. Hello, World!
 
+### Starting Your App
+
 You now already have a working Haskell app ready to be started.
 
 Switch to the `blog` directory before doing the next steps:
@@ -69,11 +73,37 @@ Start the development server by running the following in the `blog` directory:
 Your application is starting now. The development server will automatically launch the built-in IDE.
 The server can be stopped by pressing CTRL+C.
 
-By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`. The development server automatically picks other ports when they are already in use by some other server. For example, it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
+By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`.
+
+The development server automatically picks other ports when they are already in use by some other server. For example, it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
 
 In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a WebSocket server to power live reloads on file saves inside your app.
 
-The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
+The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again). 
+
+
+### Hello Haskell World
+
+Open http://localhost:8000 and you will see this:
+
+![It's working screen](images/first-project/its-working.png)
+
+Let's change this to a friendly hello world:
+
+Open `Web/View/Static/Welcome.hs` in your text editor. Place your text editor and your web browser next to each other, to see the magic of live reloading:
+
+![IHP Hello World](images/first-project/hello-world-1.png)
+
+Inside the HTML code replace `It's working!` with `Hello World from Haskell!`, like this:
+
+![IHP Hello World](images/first-project/hello-world-2.png)
+
+You'll see that the web browser magically refreshes once you save the file changes.
+
+**Did it work?** Congratulations 🎉 You've officially build your first haskell web application :) That makes you a haskell programmer. Welcome to the Haskell community! :)
+
+
+If you liked the live reloading, have some fun and play a around with the welcome view before you continue with the next steps.
 
 ## 3. Data Structures & PostgreSQL
 
@@ -997,14 +1027,125 @@ That's it already. Taking a look at our post, we can see that the newest comment
 
 ![Post with ordered comments](images/first-project/post_with_ordered_comments.png)
 
+## 7. Shipping it to the internet
+
+The IHP community is full of digital builders and makers. So this guide would be incomplete without you shipping it to production :)
+
+You might feel the blog is still incomplete or not ready for production, but we need to train your release muscles, so it's good to go from our side.
+
+### Git
+
+Before we can put it live, we need to create a git repository.
+
+Run these commands to initialize a git repository and commit your current progress:
+
+```bash
+git init
+git add .
+git commit -am "Initial project setup"
+```
+
+### Pushing to GitHub
+
+Next we need to push it to GitHub. Open GitHub and [click on New Repository](https://github.com/new).
+
+![New Repo](images/first-project/github-new-repo.png)
+
+Enter a repository name. We're going to use `ihp-blog`. To keep it simple we're chosing to create a public repository.
+
+![New Repo](images/first-project/github-new-repo-2.png)
+
+All right? Click `Create repository`.
+
+Our repository is ready. Copy the GitHub push commands and run them in your terminal:
+
+![Git Push](images/first-project/github-push.png)
+
+```bash
+git remote add origin git@github.com:mpscholten/ihp-blog.git
+git branch -M main
+git push -u origin main
+```
+
+After this you'll see your files in GitHub:
+
+![Git Push](images/first-project/github-pushed.png)
+
+### Login to IHP Cloud
+
+For deployment we're going to use IHP Cloud. Open [ihpcloud.com](https://ihpcloud.com) and click on `Start now`:
+
+![IHP Cloud Sign Up](images/first-project/ihp-cloud-signup.png)
+
+Click on `Continue with GitHub` to connect your GitHub account with IHP Cloud.
+
+After completing the sign up you will be greeted by this screen:
+
+![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-1.png)
+
+Click on `New Project` and enter your project name:
+
+![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-2.png)
+
+We're also going to need our GitHub Clone Url. Open the GitHub repo and copy it from there:
+
+![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-3.png)
+
+Paste it into the `Git Repo Url` field:
+
+![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-4.png)
+
+Click `Create Project`
+
+### Checking the Project
+
+IHP Cloud will now try to connect to our repo. This takes a few seconds:
+
+![IHP Cloud Check](images/first-project/ihp-cloud-check-1.png)
+
+When everything works, you'll see this:
+
+![IHP Cloud Check Success](images/first-project/ihp-cloud-check-2.png)
+
+Now click on the `Deploy Project` button to start the first deployment.
+
+### Deploying
+
+After clicking the `Deploy Project` button, you'll see this:
+
+![IHP Cloud New Deployment](images/first-project/ihp-cloud-new-deployment.png)
+
+Here we can specify e.g. a specific branch or commit we want to deploy. As we only want to deploy our default main branch, we can leave this empty.
+
+Click `Deploy now` to continue:
+
+![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-1.png)
+
+The deployment is running now.
+
+![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-2.png)
+
+After a few seconds you'll be greeted with confetti - and your app is live 🎉
+![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-3.png)
+
+Click the link at the top to visit your app:
+
+![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-4.png)
+
+You can take that link and share it with the world now (you can change the domain in the project settings 😉 )! :)
+
+**Congratulations!** You just shipped your first haskell application to production 🚀
+
+We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com/digitallyinduce) or [celebrate your first haskell app in our slack community](https://join.slack.com/t/ihpframework/shared_invite/zt-kswhw782-NEzDDVJsAEkQK7UXCFfp4w)! :)
+
+
 ## Have Fun!
 
-You should have a rough understanding of IHP now. The best way to continue is to start building things. When you want to delete a project just delete the project directory. Take a look at the `The Basics` Section to learn more about all the provided modules.
+You now understand enough of IHP and Haskell to be dangerous. The best way to continue your journey is to start building things. Take a look at the `The Basics` Section to learn more about all the provided modules.
 
-[Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
+- [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
+- [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
+- Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-kswhw782-NEzDDVJsAEkQK7UXCFfp4w)
+- Want to put your IHP app online? [Check out IHP Cloud](https://ihpcloud.com/). It will take a few clicks and your app is online in two minutes :)
 
-[To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
-
-Questions, or need help with Haskell type errors? Join our Slack:
-
-[Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-kswhw782-NEzDDVJsAEkQK7UXCFfp4w)
+*Good to know for playing with IHP: When you want to delete a project just delete the project directory and it's gone.*
