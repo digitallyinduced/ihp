@@ -57,7 +57,7 @@
 mkDerivation {
   pname = "ihp";
   version = "v0.8.0";
-  src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] ./.;
+  src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
   allowInconsistentDependencies = true;
@@ -122,4 +122,10 @@ mkDerivation {
   '';
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";
+
+  # For faster builds when hacking on IHP:
+  # Uncommenting will build without optimizations
+  # configureFlags = [ "--flag FastBuild" ];
+  # Uncommenting will not generate documentation
+  # doHaddock = false;
 }

@@ -18,4 +18,4 @@ jobs:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: nix-shell --run "runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) Test/Main.hs"
+    - run: nix-shell --run "runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iIDE Test/Main.hs"
