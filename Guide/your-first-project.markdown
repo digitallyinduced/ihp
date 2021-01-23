@@ -25,8 +25,7 @@ While the build is running, take a look at ["What Is Nix"](https://engineering.s
 
 In case some errors appear now or in later steps:
 - [Check out the troubleshooting section](https://ihp.digitallyinduced.com/Guide/troubleshooting.html) to get a quick solution
-- You can also [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
-
+- You can also [join our very active Slack community](https://ihp.digitallyinduced.com/Slack) or [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
 
 ### Directory Structure
 
@@ -1136,7 +1135,7 @@ You can take that link and share it with the world now (you can change the domai
 
 **Congratulations!** You just shipped your first haskell application to production 🚀
 
-We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com/digitallyinduce) or [celebrate your first haskell app in our slack community](https://join.slack.com/t/ihpframework/shared_invite/zt-kswhw782-NEzDDVJsAEkQK7UXCFfp4w)! :)
+We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com/digitallyinduce) or [celebrate your first haskell app in our slack community](https://ihp.digitallyinduced.com/Slack)! :)
 
 
 ## Have Fun!
@@ -1145,7 +1144,7 @@ You now understand enough of IHP and Haskell to be dangerous. The best way to co
 
 - [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
 - [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
-- Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://join.slack.com/t/ihpframework/shared_invite/zt-kswhw782-NEzDDVJsAEkQK7UXCFfp4w)
+- Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://ihp.digitallyinduced.com/Slack)
 - Want to put your IHP app online? [Check out IHP Cloud](https://ihpcloud.com/). It will take a few clicks and your app is online in two minutes :)
 
 *Good to know for playing with IHP: When you want to delete a project just delete the project directory and it's gone.*
