@@ -503,66 +503,6 @@ In your views, use `inputValue` to get a textual representation for your enum wh
 |]
 ```
 
-## Database Updates
-
-The _Update DB_ operation is three steps:
-
-1. Data is read from the database and stored in `Fixtures.sql`
-2. The database is deleted and the schema in `Schema.sql` created
-3. The data in `Fixtures.sql` is (re-)inserted.
-
-The small arrow on the Update DB button shows a menu where it is possible to just run _Save DB to Fixtures_ (step 1) or _Push to DB_ (steps 2 + 3).
-
-## Making Changes to the Database
-
-The main purpose of the below steps are for keeping the data rows from `Application/Fixtures.sql` between updates. If you are not concerned with keeping these rows when refactoring, feel free to skip this section.
-
-The main reason for the steps outlined below is that changes to the database schema are written to `Application/Schema.sql` only. The actual database is not altered. This means the actual schema and `Schema.sql` will be out of sync.
-
-When the schemas are out of sync, the INSERT statements in `Fixtures.sql` will fail. If this happens, and you attempt to update, the target table will be empty after the update. Try again, and the empty table is read from the database and the data in `Fixtures.sql` is gone.
-
-If you feel this is all a bit less streamlined compared to the rest of the development experience, you are correct. We will work on improving handling changes to the database.
-
-### Adding a Column
-
-#### Nullable or with Default
-
-This is always OK. The existing rows can be re-inserted from your `Fixtures.sql` without errors. After another update cycle, `Fixtures.sql` will also contain the new column.
-
-#### Non-Nullable or Without Default
-
-It's best to do this in two steps. First, follow the above. After updating the DB, fill the column with data and remove the nullable or default properties.
-
-Data can be updated by manually editing the table in the data view or by running UPDATE statements in the custom query field below the data view.
-
-### Renaming a Column
-
-When you are renaming a column, the development process of using `Update DB` will not work. This is because `Update DB` will save the old database state into the `Fixtures.sql`. There it still references the old column names. It will then fail on the next update.
-
-1. Rename your column `col_a` to `col_b` in the Schema Designer
-2. Rename the column in the database by executing `ALTER TABLE tablename RENAME COLUMN col_a TO col_b` in the custom query field below the data view.
-
-### Deleting a Column
-
-Similarly as for renaming, deleting a column currently won't work automatically either.
-
-1. Delete your column in the Schema Designer
-2. Delete the column from the database by executing `ALTER TABLE tablename DROP COLUMN colname`
-
-### Alternate Method
-
-There's always more than one way. This is another.
-
-1. Make changes in the Schema Designer
-2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
-3. Edit `Fixtures.sql` to your heart's content.
-4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
-
-### Migrations In Production
-
-IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then, the recommended approach used by digitally induced is to manually migrate your database using DDL statements as shown above.
-
-
 ## Supported Database Types
 
 IHP currently has support for the following postgres column types:
