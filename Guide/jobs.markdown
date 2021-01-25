@@ -37,7 +37,9 @@ import Web.Controller.Prelude
 instance Job EmailCustomersJob where
     perform EmailCustomersJob { .. } = do
       customers <- query @Customer |> fetch
-      mapM_ (\customer -> sendMail (MarketingMail customer)) customers
+      forEach customers sendToCustomer
+      where 
+        sendToCustomer customer = sendMail (MarketingMail customer)
 ```
 
 ### Running the job
