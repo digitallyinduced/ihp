@@ -64,9 +64,7 @@ instance View ShowTableRowsView where
 
             totalPages = [1..ceiling (fromIntegral(totalRows) / fromIntegral(pageSize))]
 
-            pageMenu = if length totalPages <= 1 
-                then mempty
-                else [hsx|
+            pageMenu = whenNonEmpty totalPages [hsx|
                     <div style="position: absolute; bottom: 0; height: 30px" class="d-flex justify-content-center w-100 bg-white" oncontextmenu="showContextMenu('context-menu-pagination'); event.stopPropagation();">
                         {backButton}
                         {forEach (totalPages) renderPageButton}
