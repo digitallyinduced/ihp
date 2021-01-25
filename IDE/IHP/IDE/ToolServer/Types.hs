@@ -109,8 +109,6 @@ data DynamicField = DynamicField
     , fieldName :: ByteString
     } deriving (Show)
 
-data TableLength = TableLength { tableSize :: Int }
-
 data ColumnDefinition = ColumnDefinition
     { columnName :: Text
     , columnType :: Text

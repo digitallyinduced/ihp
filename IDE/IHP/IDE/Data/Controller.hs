@@ -36,7 +36,6 @@ instance Controller DataController where
         rows :: [[DynamicField]] <- fetchRowsPage connection tableName page pageSize
         tableCols <- fetchTableCols connection tableName
         totalRows <- tableLength connection tableName
-        putStrLn (show totalRows)
         PG.close connection
         render ShowTableRowsView { .. }
 
@@ -190,7 +189,6 @@ fetchRowsPage connection tableName page rows = do
     pkFields <- tablePrimaryKeyFields connection tableName
     let slice = " OFFSET " <> show (page * rows - rows) <> " ROWS FETCH FIRST " <> show rows <> " ROWS ONLY"
     let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice 
-    putStrLn query
 
     PG.query_ connection (PG.Query . cs $! query)
 
