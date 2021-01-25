@@ -35,6 +35,7 @@ HTML_FILES+= database-migrations.html
 HTML_FILES+= tailwindcss.html
 HTML_FILES+= npm.html
 HTML_FILES+= elm.html
+HTML_FILES+= jobs.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 
@@ -43,7 +44,7 @@ all: $(HTML_FILES) bootstrap.css instantclick.js
 
 watch: all
 	@echo "Server is starting at: http://localhost:3000/index.html"
-	@nix-shell -p haskellPackages.wai-app-static --command "warp" & 
+	@nix-shell -p haskellPackages.wai-app-static --command "warp" &
 	@ls *.markdown layout.html | entr make
 
 clean:
