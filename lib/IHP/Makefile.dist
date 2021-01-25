@@ -107,12 +107,12 @@ run-production: build/bin/RunProdServer build/Generated/Types.hs ## Run Producti
 	build/bin/RunProdServer
 
 postgres: ## Starts the postgresql server
-    @if [ -s build/db/state/postmaster.pid ]; then
-        echo "Postgres is already running."
-    else
-        echo "Starting postgres"
-        postgres -D build/db/state -k $$PWD/build/db -c "listen_addresses="
-    fi
+	@if [ -s build/db/state/postmaster.pid ]; then
+		echo "Postgres is already running."
+	else
+		echo "Starting postgres"
+		postgres -D build/db/state -k $$PWD/build/db -c "listen_addresses="
+	fi
 
 psql: ## Connects to the running postgresql server
 	@psql -h $$PWD/build/db -d app
