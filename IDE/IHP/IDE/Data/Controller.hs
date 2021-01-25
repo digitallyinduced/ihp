@@ -18,6 +18,8 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
 import qualified Data.ByteString.Builder
 
+import qualified Data.ByteString.Char8 as BS
+
 instance Controller DataController where
     action ShowDatabaseAction = do
         connection <- connectToAppDb
@@ -26,11 +28,15 @@ instance Controller DataController where
         render ShowDatabaseView { .. }
 
     action ShowTableRowsAction { tableName } = do
+        let page :: Int = paramOrDefault @Int 1 "page"
+        let pageSize :: Int = paramOrDefault @Int 20 "rows"
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
-        rows :: [[DynamicField]] <- fetchRows connection tableName
+        rows :: [[DynamicField]] <- fetchRowsPage connection tableName page pageSize
         tableCols <- fetchTableCols connection tableName
+        totalRows <- tableLength connection tableName
+        putStrLn (show totalRows)
         PG.close connection
         render ShowTableRowsView { .. }
 
@@ -178,6 +184,25 @@ fetchRows connection tableName = do
     let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields
 
     PG.query_ connection (PG.Query . cs $! query)
+
+fetchRowsPage :: FromRow r => PG.Connection -> Text -> Int -> Int -> IO [r]
+fetchRowsPage connection tableName page rows = do
+    pkFields <- tablePrimaryKeyFields connection tableName
+    let slice = " OFFSET " <> show (page * rows - rows) <> " ROWS FETCH FIRST " <> show rows <> " ROWS ONLY"
+    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice 
+    putStrLn query
+
+    PG.query_ connection (PG.Query . cs $! query)
+
+tableLength :: _ => PG.Connection -> Text -> IO (Int)
+tableLength connection tableName = do
+    let query = "SELECT count(*) FROM " <> tableName
+
+    a :: [[DynamicField]] <- PG.query_ connection (PG.Query . cs $! query)
+    let (Just value) = get #fieldValue (a!!0!!0)
+    let (Just length) = (BS.readInt value)
+    pure (fst length)
+
 
 -- parseValues sqlMode isBoolField input
 parseValues :: Bool -> Bool -> Text -> PG.Action
