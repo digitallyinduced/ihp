@@ -196,10 +196,8 @@ tableLength :: _ => PG.Connection -> Text -> IO Int
 tableLength connection tableName = do
     let query = "SELECT count(*) FROM " <> tableName
 
-    a :: [[DynamicField]] <- PG.query_ connection (PG.Query . cs $! query)
-    let (Just value) = get #fieldValue (a!!0!!0)
-    let (Just length) = (BS.readInt value)
-    pure (fst length)
+    (Only count) <- PG.query_ connection (PG.Query . cs $! query)
+    pure count
 
 
 -- parseValues sqlMode isBoolField input
