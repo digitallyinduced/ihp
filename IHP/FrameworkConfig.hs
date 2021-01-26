@@ -23,6 +23,7 @@ import IHP.HaskellSupport hiding (set)
 import IHP.View.Types
 import IHP.View.CSSFramework
 import System.IO.Unsafe (unsafePerformIO)
+import IHP.Log.Types
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -34,7 +35,7 @@ newtype BaseUrl = BaseUrl Text
 -- documentation when you want to customize the request logging.
 --
 -- See https://hackage.haskell.org/package/wai-extra-3.0.29.2/docs/Network-Wai-Middleware-RequestLogger.html
--- 
+--
 --
 -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
 newtype RequestLoggerMiddleware = RequestLoggerMiddleware Middleware
@@ -65,7 +66,7 @@ type ConfigBuilder = State.StateT TMap.TMap IO ()
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
--- 
+--
 -- > option Production
 -- > option Development
 -- > findOption @Environment
@@ -112,6 +113,9 @@ ihpDefaultConfig = do
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
 
     option bootstrap
+
+    logger <- liftIO defaultLogger
+    option logger
 {-# INLINE ihpDefaultConfig #-}
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
@@ -137,7 +141,8 @@ buildFrameworkConfig appConfig = do
             (DBPoolMaxConnections dbPoolMaxConnections) <- findOption @DBPoolMaxConnections
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
             cssFramework <- findOption @CSSFramework
-            
+            logger <- findOption @Logger
+
             pure FrameworkConfig { .. }
 
     (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
@@ -145,7 +150,7 @@ buildFrameworkConfig appConfig = do
     pure frameworkConfig
 {-# INLINE buildFrameworkConfig #-}
 
-data FrameworkConfig = FrameworkConfig 
+data FrameworkConfig = FrameworkConfig
     { appHostname :: !Text
     , environment :: !Environment
     , appPort :: !Int
@@ -157,7 +162,7 @@ data FrameworkConfig = FrameworkConfig
     -- documentation when you want to customize the request logging.
     --
     -- See https://hackage.haskell.org/package/wai-extra-3.0.29.2/docs/Network-Wai-Middleware-RequestLogger.html
-    -- 
+    --
     --
     -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
     , requestLoggerMiddleware :: !Middleware
@@ -177,7 +182,7 @@ data FrameworkConfig = FrameworkConfig
 
     , mailServer :: !MailServer
 
-    , databaseUrl :: !ByteString 
+    , databaseUrl :: !ByteString
     -- | How long db connection are kept alive inside the connecton pool when they're idle
     , dbPoolIdleTime :: !NominalDiffTime
 
@@ -188,6 +193,7 @@ data FrameworkConfig = FrameworkConfig
     --
     -- Override this if you use a CSS framework that is not bootstrap
     , cssFramework :: !CSSFramework
+    , logger :: !Logger
 }
 
 class ConfigProvider a where

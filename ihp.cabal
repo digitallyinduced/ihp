@@ -90,6 +90,7 @@ common shared-properties
             , deepseq
             , parser-combinators
             , ip
+            , fast-logger
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -187,6 +188,8 @@ library IHPFramework
         , IHP.FetchRelated
         , IHP.FrameworkConfig
         , IHP.HaskellSupport
+        , IHP.Log.Types
+        , IHP.Log.Logging
         , IHP.ModelSupport
         , IHP.NameSupport
         , IHP.QueryBuilder

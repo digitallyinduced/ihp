@@ -16,6 +16,8 @@ import Database.PostgreSQL.Simple
 import qualified IHP.LoginSupport.Middleware
 import qualified IHP.Environment as Env
 import System.Info
+import IHP.Log.Types
+import qualified IHP.Log.Logging as Log
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
@@ -25,6 +27,7 @@ import qualified IHP.Controller.RequestContext as RequestContext
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
+import Control.Exception (finally)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.WebSocket as WS
@@ -38,7 +41,7 @@ import qualified Data.ByteString.Char8 as ByteString
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
     frameworkConfig <- buildFrameworkConfig configBuilder
-    
+
     sessionVault <- Vault.newKey
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
     modelContext <- initModelContext frameworkConfig
@@ -46,18 +49,23 @@ run configBuilder = do
     let ?modelContext = modelContext
     let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig }
 
-    sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig            
+    sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
     staticMiddleware <- initStaticMiddleware frameworkConfig
     let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
 
-    withBackgroundWorkers frameworkConfig do
-        runServer frameworkConfig $
+    -- let run = withBackgroundWorkers frameworkConfig do
+    let run = runServer frameworkConfig $
             staticMiddleware $
                     sessionMiddleware $
                         ihpWebsocketMiddleware $
                             requestLoggerMiddleware $
                                     methodOverridePost $
                                         application
+
+    run `finally` do
+        putStrLn "exiting server..."
+        frameworkConfig |> get #logger |> get #cleanup
+
 {-# INLINABLE run #-}
 
 withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => FrameworkConfig -> IO a -> IO a
@@ -71,7 +79,7 @@ withBackgroundWorkers frameworkConfig app = do
 -- | Returns a middleware that returns files stored in the app's @static/@ directory and IHP's own @static/@  directory
 --
 -- HTTP Cache headers are set automatically. This includes Cache-Control, Last-Mofified and ETag
--- 
+--
 -- The cache strategy works like this:
 -- - In dev mode we disable the browser cache for the app's @static/@ directory to make sure that always the latest CSS and JS is used
 -- - In production mode: If the files are stored in @static/vendor@/ we cache up to 30 days. For all other files we cache up to one day. It's best for vendor files to have e.g. the version as part of the file name. So @static/vendor/jquery.js@ should become @static/vendor/jquery-3.6.1.js@. That way when updating jquery you will have no issues with the cache.
@@ -139,10 +147,10 @@ application request respond = do
         let ?context = requestContext
         frontControllerToWAIApp RootApplication ErrorController.handleNotFound
 
-runServer :: FrameworkConfig -> Application -> IO ()
-runServer FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
+runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
+runServer config@FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
                 Warp.defaultSettings
-                    |> Warp.setBeforeMainLoop (ByteString.putStrLn "Server started")
+                    |> Warp.setBeforeMainLoop (let ?context = config in Log.info "Server started")
                     |> Warp.setPort appPort
 runServer FrameworkConfig { environment = Env.Production, appPort } = Warp.runEnv appPort
 
