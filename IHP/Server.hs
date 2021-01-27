@@ -53,14 +53,14 @@ run configBuilder = do
     staticMiddleware <- initStaticMiddleware frameworkConfig
     let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
 
-    -- let run = withBackgroundWorkers frameworkConfig do
-    let run = runServer frameworkConfig $
+    let run = withBackgroundWorkers frameworkConfig do
+        runServer frameworkConfig $
             staticMiddleware $
-                    sessionMiddleware $
-                        ihpWebsocketMiddleware $
-                            requestLoggerMiddleware $
-                                    methodOverridePost $
-                                        application
+                sessionMiddleware $
+                    ihpWebsocketMiddleware $
+                        requestLoggerMiddleware $
+                                methodOverridePost $
+                                    application
 
     run `finally` do
         putStrLn "exiting server..."
