@@ -1,3 +1,7 @@
+{-|
+Module: IHP.Log.Types
+Description:  Types for the IHP logging system
+-}
 module IHP.Log.Types (
   module System.Log.FastLogger,
   Logger(..),
@@ -12,6 +16,9 @@ import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show)
 import Data.Text as Text
 import System.Log.FastLogger
+
+-- some functions brought over from IHP.Prelude
+-- can't import due to circular dependency with IHP.ModelSupport which relies on this module
 
 tshow :: Show a => a -> Text
 tshow value = Text.pack (Prelude.show value)
@@ -43,18 +50,19 @@ class LoggingProvider a where
 instance LoggingProvider Logger where
   getLogger = id
 
-newLogger :: LogLevel -> IO Logger
-newLogger level = do
+newLogger :: LogLevel -> LogFormatter -> IO Logger
+newLogger level formatter = do
   (write', cleanup) <- newFastLogger (LogStdout defaultBufSize)
   let write = \text -> write' $ toLogStr text
-  let formatter = withLevelFormatter
   pure Logger { .. }
 
 defaultLogger :: IO Logger
-defaultLogger = newLogger Debug
+defaultLogger = newLogger Debug defaultFormatter
 
+-- | Formats the log as-is with a newline added.
 defaultFormatter :: LogFormatter
 defaultFormatter _ msg = msg <> "\n"
 
+-- | Prepends the log level to the log message and adds a new line.
 withLevelFormatter :: LogFormatter
-withLevelFormatter level msg = "[" <> show level <> "] " <> msg <> "\n"
+withLevelFormatter level msg = "[" <> toUpper (show level) <> "] " <> msg <> "\n"

@@ -1,6 +1,17 @@
+{-|
+Module: IHP.Log.Logging
+Description:  Functions to write logs at all log levels.
+
+Import this module qualified!
+
+-}
 module IHP.Log.Logging (
   debug,
-  info
+  info,
+  warn,
+  error,
+  fatal,
+  unknown
 ) where
 
 import IHP.HaskellSupport hiding (debug)
@@ -23,6 +34,18 @@ debug = log Debug
 
 info :: (?context :: context, LoggingProvider context) => Text -> IO ()
 info = log Info
+
+warn :: (?context :: context, LoggingProvider context) => Text -> IO ()
+warn = log Warn
+
+error :: (?context :: context, LoggingProvider context) => Text -> IO ()
+error = log Error
+
+fatal :: (?context :: context, LoggingProvider context) => Text -> IO ()
+fatal = log Fatal
+
+unknown :: (?context :: context, LoggingProvider context) => Text -> IO ()
+unknown = log Unknown
 
 writeLog :: LogLevel -> Logger -> Text -> IO ()
 writeLog level logger text = do
