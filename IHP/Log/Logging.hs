@@ -3,9 +3,13 @@ module IHP.Log.Logging (
   info
 ) where
 
-import IHP.Prelude hiding (log, debug)
+import IHP.HaskellSupport hiding (debug)
+
+import qualified Prelude
+import CorePrelude hiding (putStr, putStrLn, print, error, show, log, debug)
+import Control.Monad (when)
+import Data.Text as Text
 import IHP.Log.Types
-import IHP.FrameworkConfig
 
 log :: (?context :: context, LoggingProvider context) => LogLevel -> Text -> IO ()
 log level text = do

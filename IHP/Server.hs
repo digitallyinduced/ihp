@@ -136,9 +136,9 @@ initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
     pure sessionMiddleware
 
 initModelContext :: FrameworkConfig -> IO ModelContext
-initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl } = do
+initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } = do
     let isDevelopment = environment == Env.Development
-    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = isDevelopment }) <$> createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl
+    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
     pure modelContext
 
 application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application

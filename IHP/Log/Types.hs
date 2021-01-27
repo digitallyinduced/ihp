@@ -8,8 +8,16 @@ module IHP.Log.Types (
   defaultLogger
 ) where
 
-import IHP.Prelude hiding (log)
+import qualified Prelude
+import CorePrelude hiding (putStr, putStrLn, print, error, show)
+import Data.Text as Text
 import System.Log.FastLogger
+
+tshow :: Show a => a -> Text
+tshow value = Text.pack (Prelude.show value)
+
+show :: Show a => a -> Text
+show = tshow
 
 data Logger = Logger {
   write :: Text -> IO (),
