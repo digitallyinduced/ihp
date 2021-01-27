@@ -6,12 +6,15 @@ Import this module qualified!
 
 -}
 module IHP.Log.Logging (
+  LogLevelProvider(..),
   debug,
   info,
   warn,
   error,
   fatal,
-  unknown
+  unknown,
+  makeRequestLogger,
+  requestLoggerStdout
 ) where
 
 import IHP.HaskellSupport hiding (debug)
@@ -21,6 +24,11 @@ import CorePrelude hiding (putStr, putStrLn, print, error, show, log, debug)
 import Control.Monad (when)
 import Data.Text as Text
 import IHP.Log.Types
+import Network.Wai (Middleware)
+import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
+import Data.Default.Class (Default (def))
+import Data.String.Conversions (cs)
+import System.IO.Unsafe (unsafePerformIO)
 
 log :: (?context :: context, LoggingProvider context) => LogLevel -> Text -> IO ()
 log level text = do
@@ -50,3 +58,14 @@ unknown = log Unknown
 writeLog :: LogLevel -> Logger -> Text -> IO ()
 writeLog level logger text = do
   when (level >= get #level logger) (text |> get #write logger)
+
+makeRequestLogger :: RequestLogger.RequestLoggerSettings -> Logger -> Middleware
+makeRequestLogger settings logger = unsafePerformIO $
+  RequestLogger.mkRequestLogger settings {
+    RequestLogger.destination = RequestLogger.Callback (\logStr ->
+      let ?context = logger
+        in logStr |> fromLogStr |> cs |> info)
+  }
+
+requestLoggerStdout :: Logger -> Middleware
+requestLoggerStdout = makeRequestLogger def

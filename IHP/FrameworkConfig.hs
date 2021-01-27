@@ -24,6 +24,7 @@ import IHP.View.Types
 import IHP.View.CSSFramework
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.Log.Types
+import IHP.Log.Logging (makeRequestLogger, requestLoggerStdout)
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -84,7 +85,17 @@ ihpDefaultConfig = do
     port <- liftIO defaultAppPort
     option $ AppPort port
 
+
     environment <- findOption @Environment
+
+    maybeLogger <- findOptionMaybe @Logger
+    logger <- liftIO $ case maybeLogger of
+        Just logger -> pure logger
+        Nothing -> case environment of
+            Development -> defaultLogger
+            Production -> newLogger Warn defaultFormatter defaultDestination
+    option logger
+
     requestLoggerIpAddrSource <-
         liftIO (Environment.lookupEnv "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE")
         >>= \case
@@ -92,10 +103,11 @@ ihpDefaultConfig = do
             Just "FromSocket" -> pure RequestLogger.FromSocket
             Nothing           -> pure RequestLogger.FromSocket
             _                 -> error "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE set to invalid value. Expected FromHeader or FromSocket"
+
     option $ RequestLoggerMiddleware $
             case environment of
-                Development -> RequestLogger.logStdoutDev
-                Production -> unsafePerformIO $ RequestLogger.mkRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource }
+                Development -> logger |> makeRequestLogger def
+                Production  -> logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource }
 
     option $ Sendmail
 
@@ -114,10 +126,7 @@ ihpDefaultConfig = do
 
     option bootstrap
 
-    logger <- liftIO $ case environment of
-        Development -> defaultLogger
-        Production -> newLogger Warn
-    option logger
+
 {-# INLINE ihpDefaultConfig #-}
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
@@ -128,6 +137,14 @@ findOption = do
         |> fromMaybe (error $ "Could not find " <> show (Typeable.typeOf (undefined :: option)))
         |> pure
 {-# INLINE findOption #-}
+
+findOptionMaybe :: forall option. Typeable option => State.StateT TMap.TMap IO (Maybe option)
+findOptionMaybe = do
+    options <- State.get
+    options
+        |> TMap.lookup @option
+        |> pure
+{-# INLINE findOptionMaybe #-}
 
 buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
 buildFrameworkConfig appConfig = do

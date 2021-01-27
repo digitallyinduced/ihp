@@ -362,7 +362,7 @@ logQuery query parameters = do
         let logMessage = (query, parameters)
                 |> tshow
         let ?context = ?modelContext
-        Log.info logMessage
+        Log.debug logMessage
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.

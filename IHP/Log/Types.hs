@@ -2,20 +2,28 @@
 Module: IHP.Log.Types
 Description:  Types for the IHP logging system
 -}
+{-# LANGUAGE GADTs #-}
+
 module IHP.Log.Types (
   module System.Log.FastLogger,
   Logger(..),
   LogLevel(..),
+  LogDestination(..),
   LoggingProvider(..),
   LogFormatter,
   newLogger,
-  defaultLogger
+  defaultLogger,
+  defaultDestination,
+  defaultFormatter,
+  withLevelFormatter,
 ) where
 
+import IHP.HaskellSupport
 import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show)
 import Data.Text as Text
 import System.Log.FastLogger
+
 
 -- some functions brought over from IHP.Prelude
 -- can't import due to circular dependency with IHP.ModelSupport which relies on this module
@@ -33,6 +41,7 @@ data Logger = Logger {
   cleanup :: IO ()
 }
 
+
 data LogLevel =
   Debug
   | Info
@@ -44,20 +53,45 @@ data LogLevel =
 
 type LogFormatter = LogLevel -> Text -> Text
 
+data LogDestination where
+  None            :: LogDestination
+  Stdout          :: BufSize -> LogDestination
+  Stderr          :: BufSize -> LogDestination
+  FileNoRotate    :: FilePath -> BufSize -> LogDestination
+  -- File            :: FilePath -> BufSize -> LogDestination
+  -- FileTimedRotate :: FilePath -> BufSize -> LogDestination
+  -- Callback        :: (Text -> IO ()) -> IO () -> LogDestination
+
+  deriving (Show)
+
+defaultDestination :: LogDestination
+defaultDestination = Stdout defaultBufSize
+
 class LoggingProvider a where
   getLogger :: a -> Logger
 
 instance LoggingProvider Logger where
   getLogger = id
 
-newLogger :: LogLevel -> LogFormatter -> IO Logger
-newLogger level formatter = do
-  (write', cleanup) <- newFastLogger (LogStdout defaultBufSize)
-  let write = \text -> write' $ toLogStr text
+newLogger :: LogLevel -> LogFormatter -> LogDestination -> IO Logger
+newLogger level formatter destination = do
+  (write', cleanup) <- makeFastLogger destination
+  let write = write' . toLogStr
   pure Logger { .. }
+  where
+    makeFastLogger destination = newFastLogger $
+      case destination of
+        None -> LogNone
+        (Stdout buf) -> LogStdout buf
+        Stderr buf -> LogStderr buf
+        FileNoRotate path buf -> LogFileNoRotate path buf
+
+-- makeCallback :: (Text -> IO ()) -> (LogStr -> IO ())
+-- makeCallback t result =
+--   toLogStr t
 
 defaultLogger :: IO Logger
-defaultLogger = newLogger Debug defaultFormatter
+defaultLogger = newLogger Debug defaultFormatter defaultDestination
 
 -- | Formats the log as-is with a newline added.
 defaultFormatter :: LogFormatter
