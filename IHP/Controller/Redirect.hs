@@ -56,7 +56,7 @@ redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
 -- 
 -- use 'forceRedirectToPath (pathTo action)' if you want to redirect to a controller action
 forceRedirectToPath :: (?context :: ControllerContext) => Text -> IO ()
-forceRedirectToPath path = respondAndExit $ Wai.responseLBS (Status 280 "IHP ForceRedirect") [(hLocation,TE.encodeUtf8 (fromConfig baseUrl <> path))] ""
+forceRedirectToPath path = respondAndExit $ Wai.responseLBS (Status 280 "IHP ForceRedirect") [(hLocation,  cs (fromConfig baseUrl <> path))] ""
 {-# INLINABLE forceRedirectToPath #-}
 
 -- | Redirects to a url (given as a string)
