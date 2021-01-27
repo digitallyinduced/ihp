@@ -386,7 +386,6 @@ deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, Kn
 deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
-    logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecordById #-}
@@ -400,9 +399,6 @@ deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Know
 deleteRecords records = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = PG.Only (PG.In (ids records))
-    if length records > 10
-        then logQuery theQuery "More than 10 records"
-        else logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecords #-}
@@ -414,7 +410,6 @@ deleteRecords records = do
 deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
 deleteAll = do
     let theQuery = "DELETE FROM " <> tableName @record
-    logQuery theQuery ()
     sqlExec (PG.Query . cs $! theQuery) ()
     pure ()
 {-# INLINABLE deleteAll #-}
