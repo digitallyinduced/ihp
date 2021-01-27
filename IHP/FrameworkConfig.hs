@@ -202,6 +202,9 @@ class ConfigProvider a where
 instance ConfigProvider FrameworkConfig where
     getFrameworkConfig = id
 
+instance (ConfigProvider a) => LoggingProvider a where
+    getLogger = get #logger . getFrameworkConfig
+
 -- | Proxies FrameworkConfig fields contained in some context that can provider a FrameworkConfig
 fromConfig :: (?context :: context, ConfigProvider context) => (FrameworkConfig -> a) -> a
 fromConfig selector = (selector . getFrameworkConfig) ?context

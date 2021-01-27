@@ -7,18 +7,17 @@ import IHP.Prelude hiding (log, debug)
 import IHP.Log.Types
 import IHP.FrameworkConfig
 
-log :: (?context :: context, ConfigProvider context) => LogLevel -> Text -> IO ()
+log :: (?context :: context, LoggingProvider context) => LogLevel -> Text -> IO ()
 log level text = do
-  let config = getFrameworkConfig ?context
-  let logger = get #logger config
+  let logger = getLogger ?context
   let formatter = get #formatter logger
   formatter level text
     |> writeLog level logger
 
-debug :: (?context :: context, ConfigProvider context) => Text -> IO ()
+debug :: (?context :: context, LoggingProvider context) => Text -> IO ()
 debug = log Debug
 
-info :: (?context :: context, ConfigProvider context) => Text -> IO ()
+info :: (?context :: context, LoggingProvider context) => Text -> IO ()
 info = log Info
 
 writeLog :: LogLevel -> Logger -> Text -> IO ()

@@ -2,6 +2,7 @@ module IHP.Log.Types (
   module System.Log.FastLogger,
   Logger(..),
   LogLevel(..),
+  LoggingProvider(..),
   LogFormatter,
   newLogger,
   defaultLogger
@@ -27,6 +28,12 @@ data LogLevel =
   deriving (Enum, Eq, Ord, Show)
 
 type LogFormatter = LogLevel -> Text -> Text
+
+class LoggingProvider a where
+  getLogger :: a -> Logger
+
+instance LoggingProvider Logger where
+  getLogger = id
 
 newLogger :: LogLevel -> IO Logger
 newLogger level = do
