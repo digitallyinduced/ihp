@@ -114,7 +114,9 @@ ihpDefaultConfig = do
 
     option bootstrap
 
-    logger <- liftIO defaultLogger
+    logger <- liftIO $ case environment of
+        Development -> defaultLogger
+        Production -> newLogger Warn
     option logger
 {-# INLINE ihpDefaultConfig #-}
 
