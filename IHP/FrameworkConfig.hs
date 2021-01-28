@@ -24,7 +24,7 @@ import IHP.View.Types
 import IHP.View.CSSFramework
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.Log.Types
-import IHP.Log.Logging (makeRequestLogger, defaultRequestLogger)
+import IHP.Log (makeRequestLogger, defaultRequestLogger)
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int

@@ -17,7 +17,7 @@ import qualified IHP.LoginSupport.Middleware
 import qualified IHP.Environment as Env
 import System.Info
 import IHP.Log.Types
-import qualified IHP.Log.Logging as Log
+import qualified IHP.Log as Log
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)

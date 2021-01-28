@@ -189,7 +189,7 @@ library IHPFramework
         , IHP.FrameworkConfig
         , IHP.HaskellSupport
         , IHP.Log.Types
-        , IHP.Log.Logging
+        , IHP.Log.Log
         , IHP.ModelSupport
         , IHP.NameSupport
         , IHP.QueryBuilder

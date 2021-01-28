@@ -37,7 +37,7 @@ import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import qualified System.Directory as Directory
-import qualified IHP.Log.Logging as Log
+import qualified IHP.Log as Log
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do

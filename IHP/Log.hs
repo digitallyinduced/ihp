@@ -5,7 +5,7 @@ Description:  Functions to write logs at all log levels.
 Import this module qualified!
 
 -}
-module IHP.Log.Logging (
+module IHP.Log (
   debug,
   info,
   warn,

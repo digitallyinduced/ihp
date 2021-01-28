@@ -46,7 +46,7 @@ import IHP.Postgres.Point
 import IHP.Postgres.Inet
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
-import qualified IHP.Log.Logging as Log
+import qualified IHP.Log as Log
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
