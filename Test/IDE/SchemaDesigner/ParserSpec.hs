@@ -144,7 +144,7 @@ tests = do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE RESTRICT;" `shouldBe` AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -156,7 +156,7 @@ tests = do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE NO ACTION;" `shouldBe` AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -168,7 +168,7 @@ tests = do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id);" `shouldBe` AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -187,7 +187,10 @@ tests = do
 
         it "should parse CREATE TYPE .. AS ENUM" do
             parseSql "CREATE TYPE colors AS ENUM ('yellow', 'red', 'green');" `shouldBe` CreateEnumType { name = "colors", values = ["yellow", "red", "green"] }
-        
+
+        it "should parse CREATE TYPE .. AS ENUM with extra whitespace" do
+            parseSql "CREATE TYPE Numbers AS ENUM (\n\t'One',\t'Two',\t'Three',\t'Four',\t'Five',\t'Six',\t'Seven',\t'Eight',\t'Nine',\t'Ten'\n);" `shouldBe` CreateEnumType { name = "Numbers", values = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"] }
+
         -- When creating a new Enum Type, it is empty at first.
         -- Throwing an error for empty Enums renders the visual editor inaccessible.
         -- Catching empty Enums results in the "Create Enum" UI button being useless.
