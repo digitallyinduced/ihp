@@ -111,7 +111,8 @@ createEnumType = do
     name <- identifier
     lexeme "AS"
     lexeme "ENUM"
-    values <- between (char '(' >> space) (char ')' >> space) (textExpr' `sepBy` (char ',' >> space))
+    values <- between (char '(' >> space) (space >> char ')' >> space) (textExpr' `sepBy` (char ',' >> space))
+    space
     char ';'
     pure CreateEnumType { name, values }
 
@@ -354,12 +355,12 @@ table = [ [ binary  "<>"  NotEqExpression ] ]
         postfix name f = Postfix (f <$ symbol name)
 
 -- | Parses a SQL expression
--- 
+--
 -- This parser makes use of makeExprParser as described in https://hackage.haskell.org/package/parser-combinators-1.2.0/docs/Control-Monad-Combinators-Expr.html
 expression :: Parser Expression
 expression = do
     e <- makeExprParser term table <?> "expression"
-    space 
+    space
     pure e
 
 varExpr :: Parser Expression
