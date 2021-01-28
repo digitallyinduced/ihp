@@ -194,9 +194,7 @@ fetchRowsPage connection tableName page rows = do
 
 tableLength :: _ => PG.Connection -> Text -> IO Int
 tableLength connection tableName = do
-    let query = "SELECT count(*) FROM " <> tableName
-
-    (Only count) <- PG.query_ connection (PG.Query . cs $! query)
+    [Only count] <- PG.query connection "SELECT COUNT(*) FROM ?" [PG.Identifier tableName]
     pure count
 
 
