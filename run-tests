@@ -1,0 +1,4 @@
+#! /usr/bin/env nix-shell
+#! nix-shell -i bash
+
+runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iIDE Test/Main.hs
