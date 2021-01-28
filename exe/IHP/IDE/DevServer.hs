@@ -237,7 +237,7 @@ startGHCI = do
 -- and will close the remaining lazy bytestring handles.
 --
 setProcessLimits :: IO ()
-setProcessLimits = do
+setProcessLimits = when (os == "darwin") do
     proc <- createManagedProcess (Process.proc "ulimit" ["-n", "1024"])
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
