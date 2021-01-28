@@ -131,7 +131,6 @@ common shared-properties
     else
         ghc-options:
             -fconstraint-solver-iterations=100
-            -fexpose-all-unfoldings
             -flate-dmd-anal
             -flate-specialise
             -fspec-constr-keen
