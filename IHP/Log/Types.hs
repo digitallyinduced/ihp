@@ -12,6 +12,7 @@ module IHP.Log.Types (
   LoggingProvider(..),
   LoggerSettings(..),
   LogFormatter,
+  FormattedTime,
   newLogger,
   defaultLogger,
   defaultDestination,
@@ -25,7 +26,6 @@ import IHP.HaskellSupport
 import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show)
 import Data.Text as Text
-import Data.String.Conversions (cs)
 import Data.Default.Class (Default (def))
 import System.Log.FastLogger (
   LogStr,
@@ -34,7 +34,6 @@ import System.Log.FastLogger (
   FileLogSpec(..),
   TimedFileLogSpec(..),
   TimeFormat,
-  FormattedTime,
   newFastLogger,
   toLogStr,
   fromLogStr,
@@ -42,6 +41,8 @@ import System.Log.FastLogger (
   newTimeCache,
   simpleTimeFormat'
   )
+
+import qualified System.Log.FastLogger as FastLogger (FormattedTime)
 
 
 -- some functions brought over from IHP.Prelude
@@ -57,7 +58,7 @@ data Logger = Logger {
   write     :: Text -> IO (),
   level     :: LogLevel,
   formatter :: LogFormatter,
-  timeCache :: IO FormattedTime,
+  timeCache :: IO FastLogger.FormattedTime,
   cleanup   :: IO ()
 }
 
@@ -70,6 +71,7 @@ data LogLevel =
   | Unknown
   deriving (Enum, Eq, Ord, Show)
 
+type FormattedTime = Text
 type LogFormatter = FormattedTime -> LogLevel -> Text -> Text
 
 -- | Where logged messages will be delivered to. Types correspond with those in fast-logger.
@@ -141,7 +143,7 @@ defaultFormatter _ _ msg = msg <> "\n"
 
 -- | Prepends the timestamp to the log message and adds a new line.
 withTimeFormatter :: LogFormatter
-withTimeFormatter  time _ msg = "[" <> cs time <> "] " <> msg <> "\n"
+withTimeFormatter  time _ msg = "[" <> time <> "] " <> msg <> "\n"
 
 -- | Prepends the log level to the log message and adds a new line.
 withLevelFormatter :: LogFormatter
@@ -149,4 +151,4 @@ withLevelFormatter time level msg = "[" <> toUpper (show level) <> "] " <> msg <
 
 -- | Prepends the log level and timestamp to the log message and adds a new line.
 withTimeAndLevelFormatter :: LogFormatter
-withTimeAndLevelFormatter time level msg = "[" <> toUpper (show level) <> "] [" <> cs time <> "] " <> msg <> "\n"
+withTimeAndLevelFormatter time level msg = "[" <> toUpper (show level) <> "] [" <> time <> "] " <> msg <> "\n"

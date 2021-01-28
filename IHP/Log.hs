@@ -36,7 +36,7 @@ log :: (?context :: context, LoggingProvider context) => LogLevel -> Text -> IO 
 log level text = do
   let logger = getLogger ?context
   let formatter = get #formatter logger
-  timestamp <- get #timeCache logger
+  timestamp <- cs <$> get #timeCache logger
   formatter timestamp level text
     |> writeLog level logger
 
