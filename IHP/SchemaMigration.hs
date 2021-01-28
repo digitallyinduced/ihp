@@ -14,6 +14,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
+import IHP.Log.Types
 
 data Migration = Migration
     { revision :: Int
@@ -27,7 +28,8 @@ migrate = do
 
     -- Print out all sql queries during the migration. This might be set to false in it's called inside a production env
     let modelContext = ?modelContext
-    let ?modelContext = modelContext { queryDebuggingEnabled = True }
+    logger <- defaultLogger
+    let ?modelContext = modelContext { logger }
 
     openMigrations <- findOpenMigrations
     forEach openMigrations runMigration
@@ -38,7 +40,7 @@ migrate = do
 runMigration :: (?modelContext :: ModelContext) => Migration -> IO ()
 runMigration migration@Migration { revision, migrationFile } = do
     migrationSql <- Text.readFile (cs $ migrationPath migration)
-    
+
     withTransaction do
         sqlExec (fromString . cs $ migrationSql) ()
         sqlExec "INSERT INTO schema_migrations (revision) VALUES (?)" [revision]
@@ -117,7 +119,7 @@ migrationPath Migration { migrationFile } = "Application/Migration/" <> migratio
 -- | Generates a new migration @.sql@ file in @Application/Migration@
 createMigration :: Text -> IO Migration
 createMigration description = do
-    revision <- round <$> POSIX.getPOSIXTime 
+    revision <- round <$> POSIX.getPOSIXTime
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
     Directory.createDirectoryIfMissing False "Application/Migration"
