@@ -146,7 +146,7 @@ common shared-properties
             -threaded
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
 
-library IHPFramework
+library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules:
@@ -232,7 +232,7 @@ library IHPFramework
 
 library IHPIDE
     import: shared-properties
-    build-depends: IHPFramework
+    build-depends: ihp
     hs-source-dirs: IDE
     exposed-modules:
         IHP.IDE.SchemaDesigner.Controller.Columns
@@ -304,7 +304,7 @@ library IHPIDE
 
 executable RunDevServer
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
     if flag(FastBuild)
@@ -335,48 +335,48 @@ executable RunDevServer
 
 executable new-application
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewApplication.hs
 
 executable build-generated-code
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/BuildGeneratedCode.hs
 
 executable new-controller
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewController.hs
 
 executable delete-controller
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/DeleteController.hs
 
 executable new-script
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
 
 executable new-migration
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewMigration.hs
 
 executable migrate
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/Migrate.hs
 
 executable hash-password
     import: shared-properties
-    build-depends: IHPIDE, IHPFramework
+    build-depends: IHPIDE, ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/HashPassword.hs
