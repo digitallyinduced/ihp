@@ -24,6 +24,8 @@ git clone git@github.com:digitallyinduced/ihp.git IHP
 make -B build/ihp-lib
 ```
 
+Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;` lines in the `IHP/ihp.nix` for fast rebuilds, otherwise you could up waiting up to half an hour while IHP builds itself.
+
 The best workflow is to use `ghci` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
@@ -95,11 +97,11 @@ The documentation reads a bit like a tutorial, but should still be kept somewhat
 
 ## Code Guidelines
 
--   Please use `pure`. `return` might confuse people coming from other programming languages.
+- Please use `pure`. `return` might confuse people coming from other programming languages.
 
--   Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
+- Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
 
--   Please consider carefully before adding new packages as requirements to IHP itself. Make sure the packages are actively maintained.
+- Please consider carefully before adding new packages as requirements to IHP itself. Make sure the packages are actively maintained.
 
 ## Running Tests
 
@@ -159,9 +161,9 @@ Practical resources to get you up to speed with tools IHP uses.
 
 ### Haskell
 
--   [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/)
--   [Implicit Parameters](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html#implicit-parameters)
+- [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/)
+- [Implicit Parameters](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html#implicit-parameters)
 
 ### Nix
 
--   [Scrive Nix Workshop](https://scrive.github.io/nix-workshop/)
+- [Scrive Nix Workshop](https://scrive.github.io/nix-workshop/)
