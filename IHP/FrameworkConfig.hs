@@ -93,7 +93,7 @@ ihpDefaultConfig = do
         Just logger -> pure logger
         Nothing -> case environment of
             Development -> defaultLogger
-            Production -> newLogger Warn defaultFormatter defaultDestination
+            Production -> newLogger (def { level = Warn } :: LoggerSettings)
     option logger
 
     requestLoggerIpAddrSource <-

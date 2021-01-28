@@ -10,28 +10,37 @@ module IHP.Log.Types (
   LogLevel(..),
   LogDestination(..),
   LoggingProvider(..),
+  LoggerSettings(..),
   LogFormatter,
   newLogger,
   defaultLogger,
   defaultDestination,
   defaultFormatter,
   withLevelFormatter,
+  withTimeFormatter,
+  withTimeAndLevelFormatter,
 ) where
 
 import IHP.HaskellSupport
 import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show)
 import Data.Text as Text
+import Data.String.Conversions (cs)
+import Data.Default.Class (Default (def))
 import System.Log.FastLogger (
   LogStr,
   LogType'(..),
   BufSize,
   FileLogSpec(..),
   TimedFileLogSpec(..),
+  TimeFormat,
+  FormattedTime,
   newFastLogger,
   toLogStr,
   fromLogStr,
   defaultBufSize,
+  newTimeCache,
+  simpleTimeFormat'
   )
 
 
@@ -45,12 +54,12 @@ show :: Show a => a -> Text
 show = tshow
 
 data Logger = Logger {
-  write :: Text -> IO (),
-  level :: LogLevel,
+  write     :: Text -> IO (),
+  level     :: LogLevel,
   formatter :: LogFormatter,
-  cleanup :: IO ()
+  timeCache :: IO FormattedTime,
+  cleanup   :: IO ()
 }
-
 
 data LogLevel =
   Debug
@@ -61,17 +70,40 @@ data LogLevel =
   | Unknown
   deriving (Enum, Eq, Ord, Show)
 
-type LogFormatter = LogLevel -> Text -> Text
+type LogFormatter = FormattedTime -> LogLevel -> Text -> Text
 
+-- | Where logged messages will be delivered to. Types correspond with those in fast-logger.
 data LogDestination where
   None            :: LogDestination
+  -- | Log messages to standard output.
   Stdout          :: BufSize -> LogDestination
+  -- | Log messages to standard error.
   Stderr          :: BufSize -> LogDestination
+  -- | Log messages to a file which is never rotated.
   FileNoRotate    :: FilePath -> BufSize -> LogDestination
+  -- | Log messages to a file rotated automatically based on the critera in 'FileLogSpec'.
   File            :: FileLogSpec -> BufSize -> LogDestination
+  -- | Log messages to a file rotated on a timed basis as defined in 'TimedFileLogSpec'.
   FileTimedRotate :: TimedFileLogSpec -> BufSize -> LogDestination
+  -- | Send logged messages to a callback. Flush action called after every log.
   Callback        :: (LogStr -> IO ()) -> IO () -> LogDestination
 
+data LoggerSettings = LoggerSettings {
+  level       :: LogLevel,
+  formatter   :: LogFormatter,
+  destination :: LogDestination,
+  timeFormat  :: TimeFormat
+}
+
+instance Default LoggerSettings where
+  def = LoggerSettings {
+    level = Debug,
+    formatter = defaultFormatter,
+    destination = defaultDestination,
+    timeFormat = simpleTimeFormat'
+  }
+
+-- Logger default destination is to standard out.
 defaultDestination :: LogDestination
 defaultDestination = Stdout defaultBufSize
 
@@ -81,8 +113,10 @@ class LoggingProvider a where
 instance LoggingProvider Logger where
   getLogger = id
 
-newLogger :: LogLevel -> LogFormatter -> LogDestination -> IO Logger
-newLogger level formatter destination = do
+-- | Create a new 'FastLogger' and wrap it in an IHP 'Logger'.
+newLogger :: LoggerSettings -> IO Logger
+newLogger LoggerSettings { .. } = do
+  timeCache <- newTimeCache timeFormat
   (write', cleanup) <- makeFastLogger destination
   let write = write' . toLogStr
   pure Logger { .. }
@@ -97,13 +131,22 @@ newLogger level formatter destination = do
         FileTimedRotate spec buf -> LogFileTimedRotate spec buf
         Callback callback flush  -> LogCallback callback flush
 
+-- Formats logs as-is to stdout.
 defaultLogger :: IO Logger
-defaultLogger = newLogger Debug defaultFormatter defaultDestination
+defaultLogger = newLogger def
 
 -- | Formats the log as-is with a newline added.
 defaultFormatter :: LogFormatter
-defaultFormatter _ msg = msg <> "\n"
+defaultFormatter _ _ msg = msg <> "\n"
+
+-- | Prepends the timestamp to the log message and adds a new line.
+withTimeFormatter :: LogFormatter
+withTimeFormatter  time _ msg = "[" <> cs time <> "] " <> msg <> "\n"
 
 -- | Prepends the log level to the log message and adds a new line.
 withLevelFormatter :: LogFormatter
-withLevelFormatter level msg = "[" <> toUpper (show level) <> "] " <> msg <> "\n"
+withLevelFormatter time level msg = "[" <> toUpper (show level) <> "] " <> msg <> "\n"
+
+-- | Prepends the log level and timestamp to the log message and adds a new line.
+withTimeAndLevelFormatter :: LogFormatter
+withTimeAndLevelFormatter time level msg = "[" <> toUpper (show level) <> "] [" <> cs time <> "] " <> msg <> "\n"
