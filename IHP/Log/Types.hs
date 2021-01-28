@@ -112,7 +112,7 @@ defaultDestination = Stdout defaultBufSize
 class LoggingProvider a where
   getLogger :: a -> Logger
 
-instance LoggingProvider Logger where
+instance {-# OVERLAPS #-} LoggingProvider Logger where
   getLogger = id
 
 -- | Create a new 'FastLogger' and wrap it in an IHP 'Logger'.

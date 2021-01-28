@@ -188,8 +188,8 @@ library
         , IHP.FetchRelated
         , IHP.FrameworkConfig
         , IHP.HaskellSupport
+        , IHP.Log
         , IHP.Log.Types
-        , IHP.Log.Log
         , IHP.ModelSupport
         , IHP.NameSupport
         , IHP.QueryBuilder

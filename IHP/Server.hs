@@ -1,3 +1,5 @@
+{-# LANGUAGE IncoherentInstances #-}
+
 module IHP.Server (run) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
@@ -53,8 +55,8 @@ run configBuilder = do
     staticMiddleware <- initStaticMiddleware frameworkConfig
     let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
 
-    -- let run = withBackgroundWorkers frameworkConfig do
-    let run =    runServer frameworkConfig $
+    let run = withBackgroundWorkers frameworkConfig do
+        runServer frameworkConfig $
             staticMiddleware $
                 sessionMiddleware $
                     ihpWebsocketMiddleware $
@@ -63,8 +65,9 @@ run configBuilder = do
                                     application
 
     run `finally` do
-        putStrLn "exiting server..."
-        frameworkConfig |> get #logger |> get #cleanup
+        let ?context = frameworkConfig |> get #logger
+        Log.info "exiting server..."
+        ?context |> get #cleanup
 
 {-# INLINABLE run #-}
 

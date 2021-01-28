@@ -61,7 +61,7 @@ logger <- liftIO $ newLogger def {
 option logger
 ```
 
-The available configuration options can be found in the `LoggerOptions` record.
+The available configuration options can be found in the `LoggerSettings` record.
 
 ```haskell
 data LoggerSettings = LoggerSettings {
