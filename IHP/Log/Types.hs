@@ -22,7 +22,17 @@ import IHP.HaskellSupport
 import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show)
 import Data.Text as Text
-import System.Log.FastLogger
+import System.Log.FastLogger (
+  LogStr,
+  LogType'(..),
+  BufSize,
+  FileLogSpec(..),
+  TimedFileLogSpec(..),
+  newFastLogger,
+  toLogStr,
+  fromLogStr,
+  defaultBufSize,
+  )
 
 
 -- some functions brought over from IHP.Prelude
@@ -58,8 +68,8 @@ data LogDestination where
   Stdout          :: BufSize -> LogDestination
   Stderr          :: BufSize -> LogDestination
   FileNoRotate    :: FilePath -> BufSize -> LogDestination
-  -- File            :: FilePath -> BufSize -> LogDestination
-  -- FileTimedRotate :: FilePath -> BufSize -> LogDestination
+  File            :: FileLogSpec -> BufSize -> LogDestination
+  FileTimedRotate :: TimedFileLogSpec -> BufSize -> LogDestination
   Callback        :: (LogStr -> IO ()) -> IO () -> LogDestination
 
 defaultDestination :: LogDestination
@@ -79,11 +89,13 @@ newLogger level formatter destination = do
   where
     makeFastLogger destination = newFastLogger $
       case destination of
-        None -> LogNone
-        (Stdout buf) -> LogStdout buf
-        Stderr buf -> LogStderr buf
-        FileNoRotate path buf -> LogFileNoRotate path buf
-        Callback callback flush -> LogCallback callback flush
+        None                     -> LogNone
+        (Stdout buf)             -> LogStdout buf
+        Stderr buf               -> LogStderr buf
+        FileNoRotate path buf    -> LogFileNoRotate path buf
+        File spec buf            -> LogFile spec buf
+        FileTimedRotate spec buf -> LogFileTimedRotate spec buf
+        Callback callback flush  -> LogCallback callback flush
 
 defaultLogger :: IO Logger
 defaultLogger = newLogger Debug defaultFormatter defaultDestination
