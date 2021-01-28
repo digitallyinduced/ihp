@@ -6,6 +6,7 @@ Import this module qualified!
 
 -}
 module IHP.Log (
+  module IHP.Log.Types,
   debug,
   info,
   warn,
