@@ -150,7 +150,7 @@ instance Controller CodeGenController where
     action NewMigrationAction = do
         let description = paramOrDefault "" "description"
         render NewMigrationView { .. }
-    
+
     action CreateMigrationAction = do
         let description = param "description"
         migration <- SchemaMigration.createMigration description
@@ -169,7 +169,7 @@ instance Controller CodeGenController where
 
     action CreateJobAction = do
         let jobName = paramOrDefault "" "name"
-        let applicationName = "Web"
+        let applicationName = paramOrDefault "Web" "applicationName"
         (Right plan) <- JobGenerator.buildPlan jobName applicationName
         executePlan plan
         setSuccessMessage "Job generated"
@@ -309,7 +309,7 @@ addToDataConstructor fileContent dataConstructor content = do
         |> filter (\(n, line) -> "deriving" `isInfixOf` line)
         |> headMay
         |> fmap fst
-    Just $ unlines $ ((take lineOfDerivingStatement $ lines fileContent) <> [content] <> (drop lineOfDerivingStatement $ lines fileContent)) 
+    Just $ unlines $ ((take lineOfDerivingStatement $ lines fileContent) <> [content] <> (drop lineOfDerivingStatement $ lines fileContent))
 
 appendLineAfter :: Text -> (Text -> Bool) -> [Text] -> Maybe Text
 appendLineAfter file isRelevantLine newLines =

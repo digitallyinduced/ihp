@@ -16,6 +16,9 @@ data ShowTableRowsView = ShowTableRowsView
     , rows :: [[DynamicField]]
     , tableCols :: [ColumnDefinition]
     , primaryKeyFields :: [Text]
+    , pageSize :: Int
+    , page :: Int
+    , totalRows :: Int
     }
 
 instance View ShowTableRowsView where
@@ -23,8 +26,12 @@ instance View ShowTableRowsView where
         <div class="mx-2 pt-5">
             <div class="row no-gutters bg-white">
                 {renderTableSelector tableNames tableName}
-                <div class="col" style="overflow: scroll; max-height: 80vh" oncontextmenu="showContextMenu('context-menu-data-root')">
-                    {renderRows rows tableBody tableName}
+                <div class="col" oncontextmenu="showContextMenu('context-menu-data-root')">
+                    <div style="overflow: scroll; max-height: 80vh">
+                        {renderRows rows tableBody tableName}
+                    </div>
+                    {pageMenu}
+                    
                 </div>
             </div>
             {customQuery ""}
@@ -54,3 +61,31 @@ instance View ShowTableRowsView where
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))
 
             onClick tableName fieldName primaryKey = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) primaryKey)) <> ")"
+
+            totalPages = [1..ceiling (fromIntegral(totalRows) / fromIntegral(pageSize))]
+
+            pageMenu = when (length totalPages > 1)
+                [hsx|
+                    <div style="position: absolute; bottom: 0; height: 30px" class="d-flex justify-content-center w-100 bg-white" oncontextmenu="showContextMenu('context-menu-pagination'); event.stopPropagation();">
+                        {backButton}
+                        {forEach (totalPages) renderPageButton}
+                        {nextButton}  
+                    </div>
+                    <div class="custom-menu menu-for-column shadow backdrop-blur" id="context-menu-pagination">
+                        <span class="text-muted mx-3">Display Rows</span>
+                        <a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show page <> "&rows=20"}>20</a>
+                        <a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show page <> "&rows=50"}>50</a>
+                        <a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show page <> "&rows=100"}>100</a>
+                    </div>
+                |]
+                    where 
+                        backButton = if page > 1
+                            then [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show (page-1) <> "&rows=" <> show pageSize} class="mx-3 text-muted">{"< Back" :: Text}</a>|]
+                            else [hsx|<a class="mx-3 text-muted" style="cursor: not-allowed">{"< Back" :: Text}</a>|]
+                        nextButton = if page < length totalPages
+                            then [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show (page+1) <> "&rows=" <> show pageSize} class="mx-3 text-muted">{"Next >" :: Text}</a>|]
+                            else [hsx|<a class="mx-3 text-muted" style="cursor: not-allowed">{"Next >" :: Text}</a>|]
+                        
+
+            renderPageButton :: Int -> Html
+            renderPageButton nr = [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show nr <> "&rows=" <> show pageSize} class={classes ["mx-2", (if page==nr then "text-dark font-weight-bold" else "text-muted")]}>{nr}</a>|]
