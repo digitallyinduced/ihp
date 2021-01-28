@@ -60,9 +60,7 @@ data LogDestination where
   FileNoRotate    :: FilePath -> BufSize -> LogDestination
   -- File            :: FilePath -> BufSize -> LogDestination
   -- FileTimedRotate :: FilePath -> BufSize -> LogDestination
-  -- Callback        :: (Text -> IO ()) -> IO () -> LogDestination
-
-  deriving (Show)
+  Callback        :: (LogStr -> IO ()) -> IO () -> LogDestination
 
 defaultDestination :: LogDestination
 defaultDestination = Stdout defaultBufSize
@@ -85,10 +83,7 @@ newLogger level formatter destination = do
         (Stdout buf) -> LogStdout buf
         Stderr buf -> LogStderr buf
         FileNoRotate path buf -> LogFileNoRotate path buf
-
--- makeCallback :: (Text -> IO ()) -> (LogStr -> IO ())
--- makeCallback t result =
---   toLogStr t
+        Callback callback flush -> LogCallback callback flush
 
 defaultLogger :: IO Logger
 defaultLogger = newLogger Debug defaultFormatter defaultDestination

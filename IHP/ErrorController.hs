@@ -37,6 +37,7 @@ import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import qualified System.Directory as Directory
+import qualified IHP.Log.Logging as Log
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -47,7 +48,7 @@ handleNoResponseReturned controller = do
 
             <h2>Details</h2>
             <p style="font-size: 16px">No response was returned while running the action {tshow controller}</p>
-            
+
         |]
     let title = [hsx|No response returned in {tshow controller}|]
     let RequestContext { respond } = get #requestContext ?context
@@ -98,9 +99,9 @@ displayException exception action additionalInfo = do
 
     let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
 
-    -- Additionally to rendering the error message to the browser we also print out 
-    -- the error message to the console because sometimes you cannot easily access the http response
-    Text.hPutStrLn stderr (tshow exception)
+    -- Additionally to rendering the error message to the browser we also log
+    -- the error message because sometimes you cannot easily access the http response
+    Log.error $ tshow exception
 
     let displayGenericError = genericHandler exception action additionalInfo
 
@@ -124,7 +125,7 @@ genericHandler exception controller additionalInfo = do
             then (devErrorMessage, devTitle)
             else (prodErrorMessage, prodTitle)
     let RequestContext { respond } = get #requestContext ?context
-    
+
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError errorTitle errorMessage))
 
 postgresHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
@@ -310,7 +311,7 @@ handleRouterException :: (?context :: RequestContext) => SomeException -> IO Res
 handleRouterException exception = do
     let errorMessage = [hsx|
             Routing failed with: {tshow exception}
-            
+
             <h2>Possible Solutions</h2>
             <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
             <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
@@ -326,7 +327,7 @@ handleInvalidActionArgumentExceptionDev exception controller additionalInfo = do
         Just Router.InvalidActionArgumentException { expectedType, value, field } -> do
             let errorMessage = [hsx|
                     Routing failed with: {tshow exception}
-                    
+
                     <h2>Possible Solutions</h2>
                     <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
                     <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>

@@ -6,7 +6,6 @@ Import this module qualified!
 
 -}
 module IHP.Log.Logging (
-  LogLevelProvider(..),
   debug,
   info,
   warn,
@@ -14,7 +13,7 @@ module IHP.Log.Logging (
   fatal,
   unknown,
   makeRequestLogger,
-  requestLoggerStdout
+  defaultRequestLogger
 ) where
 
 import IHP.HaskellSupport hiding (debug)
@@ -25,6 +24,7 @@ import Control.Monad (when)
 import Data.Text as Text
 import IHP.Log.Types
 import Network.Wai (Middleware)
+import Network.Wai.Middleware.RequestLogger (mkRequestLogger, RequestLoggerSettings, destination)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import Data.Default.Class (Default (def))
 import Data.String.Conversions (cs)
@@ -59,13 +59,13 @@ writeLog :: LogLevel -> Logger -> Text -> IO ()
 writeLog level logger text = do
   when (level >= get #level logger) (text |> get #write logger)
 
-makeRequestLogger :: RequestLogger.RequestLoggerSettings -> Logger -> Middleware
+makeRequestLogger :: RequestLoggerSettings -> Logger -> Middleware
 makeRequestLogger settings logger = unsafePerformIO $
-  RequestLogger.mkRequestLogger settings {
-    RequestLogger.destination = RequestLogger.Callback (\logStr ->
+  mkRequestLogger settings {
+    destination = RequestLogger.Callback (\logStr ->
       let ?context = logger
         in logStr |> fromLogStr |> cs |> info)
   }
 
-requestLoggerStdout :: Logger -> Middleware
-requestLoggerStdout = makeRequestLogger def
+defaultRequestLogger :: Logger -> Middleware
+defaultRequestLogger = makeRequestLogger def

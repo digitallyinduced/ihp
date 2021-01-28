@@ -24,7 +24,7 @@ import IHP.View.Types
 import IHP.View.CSSFramework
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.Log.Types
-import IHP.Log.Logging (makeRequestLogger, requestLoggerStdout)
+import IHP.Log.Logging (makeRequestLogger, defaultRequestLogger)
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -106,7 +106,7 @@ ihpDefaultConfig = do
 
     option $ RequestLoggerMiddleware $
             case environment of
-                Development -> logger |> makeRequestLogger def
+                Development -> logger |> defaultRequestLogger
                 Production  -> logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource }
 
     option $ Sendmail
