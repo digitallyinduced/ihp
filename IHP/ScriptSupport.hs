@@ -26,4 +26,4 @@ runScript configBuilder taskMain = do
     let ?modelContext = modelContext
     let ?context = frameworkConfig
     taskMain `finally` cleanup logger
-{-# INLINE runScript #-}
+{-# INLINABLE runScript #-}
