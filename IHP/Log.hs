@@ -27,7 +27,7 @@ import IHP.Log.Types
 import Network.Wai (Middleware)
 import Network.Wai.Middleware.RequestLogger (mkRequestLogger, RequestLoggerSettings, destination)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
-import Data.Default.Class (Default (def))
+import Data.Default (Default (def))
 import Data.String.Conversions (cs)
 import System.IO.Unsafe (unsafePerformIO)
 

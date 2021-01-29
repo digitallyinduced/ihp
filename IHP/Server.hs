@@ -55,8 +55,8 @@ run configBuilder = do
     staticMiddleware <- initStaticMiddleware frameworkConfig
     let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
 
-    let run = withBackgroundWorkers frameworkConfig do
-        runServer frameworkConfig $
+    -- let run = withBackgroundWorkers frameworkConfig do
+    let run = runServer frameworkConfig $
             staticMiddleware $
                 sessionMiddleware $
                     ihpWebsocketMiddleware $

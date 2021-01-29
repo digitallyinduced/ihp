@@ -113,20 +113,20 @@ see the [`fast-logger` docs](https://hackage.haskell.org/package/fast-logger-3.0
 
 ```haskell
 -- | Where logged messages will be delivered to. Types correspond with those in fast-logger.
-data LogDestination where
-  None            :: LogDestination
+data LogDestination =
+  None LogDestination
   -- | Log messages to standard output.
-  Stdout          :: BufSize -> LogDestination
+  Stdout BufSize
   -- | Log messages to standard error.
-  Stderr          :: BufSize -> LogDestination
+  Stderr BufSize
   -- | Log messages to a file which is never rotated.
-  FileNoRotate    :: FilePath -> BufSize -> LogDestination
-  -- | Log messages to a file rotated automatically based on the critera in 'FileLogSpec'.
-  File            :: FileLogSpec -> BufSize -> LogDestination
+  FileNoRotate FilePath BufSize
+  -- | Log messages to a file rotated automatically based on the criteria in 'FileLogSpec'.
+  File FileLogSpec BufSize
   -- | Log messages to a file rotated on a timed basis as defined in 'TimedFileLogSpec'.
-  FileTimedRotate :: TimedFileLogSpec -> BufSize -> LogDestination
+  FileTimedRotate TimedFileLogSpec BufSize
   -- | Send logged messages to a callback. Flush action called after every log.
-  Callback        :: (LogStr -> IO ()) -> IO () -> LogDestination
+  Callback (LogStr -> IO ()) IO ()
 ```
 
 #### Configuring timestamp format

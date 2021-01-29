@@ -26,7 +26,7 @@ import IHP.HaskellSupport
 import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show)
 import Data.Text as Text
-import Data.Default.Class (Default (def))
+import Data.Default (Default (def))
 import System.Log.FastLogger (
   LogStr,
   LogType'(..),
@@ -75,20 +75,20 @@ type FormattedTime = Text
 type LogFormatter = FormattedTime -> LogLevel -> Text -> Text
 
 -- | Where logged messages will be delivered to. Types correspond with those in fast-logger.
-data LogDestination where
-  None            :: LogDestination
+data LogDestination
+  = None
   -- | Log messages to standard output.
-  Stdout          :: BufSize -> LogDestination
+  | Stdout BufSize
   -- | Log messages to standard error.
-  Stderr          :: BufSize -> LogDestination
+  | Stderr BufSize
   -- | Log messages to a file which is never rotated.
-  FileNoRotate    :: FilePath -> BufSize -> LogDestination
-  -- | Log messages to a file rotated automatically based on the critera in 'FileLogSpec'.
-  File            :: FileLogSpec -> BufSize -> LogDestination
+  | FileNoRotate FilePath BufSize
+  -- | Log messages to a file rotated automatically based on the criteria in 'FileLogSpec'.
+  | File FileLogSpec BufSize
   -- | Log messages to a file rotated on a timed basis as defined in 'TimedFileLogSpec'.
-  FileTimedRotate :: TimedFileLogSpec -> BufSize -> LogDestination
+  | FileTimedRotate TimedFileLogSpec BufSize
   -- | Send logged messages to a callback. Flush action called after every log.
-  Callback        :: (LogStr -> IO ()) -> IO () -> LogDestination
+  | Callback (LogStr -> IO ()) (IO ())
 
 data LoggerSettings = LoggerSettings {
   level       :: LogLevel,

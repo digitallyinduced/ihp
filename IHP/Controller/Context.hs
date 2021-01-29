@@ -9,6 +9,7 @@ import qualified Data.TMap as TypeMap
 import qualified Data.Typeable as Typeable
 import IHP.Controller.RequestContext
 import IHP.FrameworkConfig
+import IHP.Log.Types
 
 -- | A container storing useful data along the request lifecycle, such as the request, the current user, set current view layout, flash messages, ...
 --
@@ -34,7 +35,7 @@ import IHP.FrameworkConfig
 -- ('freeze' is automatically called by IHP before rendering a view, so usually you don't need to call it manually)
 --
 -- Then use the frozen context from your pure code like this:
--- 
+--
 -- >>> let (CurrentLayout layout) = fromFrozenContext in ...
 --
 -- The context is initially created before a action is going to be executed. It's life cycle looks like this:
@@ -88,7 +89,7 @@ fromContext = maybeFromContext @value >>= \case
             let ControllerContext { customFieldsRef } = ?context
             customFields <- readIORef customFieldsRef
             let notFoundMessage = ("Unable to find " <> (show (Typeable.typeRep (Typeable.Proxy @value))) <> " in controller context: " <> show customFields)
-            
+
             error notFoundMessage
 {-# INLINABLE fromContext #-}
 
@@ -103,7 +104,7 @@ fromFrozenContext = case maybeFromFrozenContext @value of
         Nothing -> do
             let FrozenControllerContext { customFields } = ?context
             let notFoundMessage = ("Unable to find " <> (show (Typeable.typeRep (Typeable.Proxy @value))) <> " in controller context: " <> show customFields)
-            
+
             error notFoundMessage
 {-# INLINABLE fromFrozenContext #-}
 
@@ -135,3 +136,6 @@ newtype ActionType = ActionType Typeable.TypeRep
 instance ConfigProvider ControllerContext where
     getFrameworkConfig context = getFrameworkConfig (get #requestContext context)
     {-# INLINABLE getFrameworkConfig #-}
+
+instance LoggingProvider ControllerContext where
+    getLogger = getLogger . getFrameworkConfig
