@@ -11,6 +11,8 @@ import qualified IHP.Environment as Env
 import IHP.ModelSupport
 import IHP.ApplicationContext
 import qualified Database.PostgreSQL.Simple as PG
+import Control.Exception (finally)
+import IHP.Log (Logger(cleanup))
 
 -- | A script is just an IO action which requires a database connection and framework config
 type Script = (?modelContext :: ModelContext, ?context :: FrameworkConfig) => IO ()
@@ -23,5 +25,5 @@ runScript configBuilder taskMain = do
 
     let ?modelContext = modelContext
     let ?context = frameworkConfig
-    taskMain
+    taskMain `finally` cleanup logger
 {-# INLINE runScript #-}
