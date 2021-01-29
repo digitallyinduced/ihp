@@ -134,7 +134,6 @@ common shared-properties
             -flate-dmd-anal
             -flate-specialise
             -fspec-constr-keen
-            -fspecialise-aggressively
             -fstatic-argument-transformation
             -funbox-strict-fields
             -funfolding-use-threshold=16
