@@ -16,6 +16,7 @@ IHP logging uses log levels to determine which messages should be printed.
 This way, you can log messages to help in development without flooding production logs.
 
 The available log levels are `debug`, `info`, `warn`, `error`, `fatal`, and `unknown`.
+In development, the default log level is debug. In production, the default log level is warn.
 Log messages will only be output if their log level is greater than or equal to the logger's configured log level.
 
 ### Sending messages
@@ -77,8 +78,8 @@ data LoggerSettings = LoggerSettings {
 Set `level` to one of the available constructors for the `LogLevel` type:
 
 ```haskell
-data LogLevel =
-  Debug
+data LogLevel
+  = Debug
   | Info
   | Warn
   | Error
@@ -99,11 +100,26 @@ IHP ships with four available log formats.
 - `withTimeAndLevelFormatter` prepends both a timestamp and log level.
   - `[INFO] [28-Jan-2021 10:07:58] Server started`
 
-You can also define you own formatter:
+You can also define your own formatter. Since a LogFormatter is just a type alias:
 
 ```haskell
 type LogFormatter = FormattedTime -> LogLevel -> Text -> Text
 ```
+
+you can define a formatter as a simple function:
+
+```haskell
+-- | For when debugging is getting you down
+withTimeAndLevelFormatterUpcaseAndHappy :: LogFormatter
+withTimeAndLevelFormatterUpcaseAndHappy time level msg =
+    "[" <> toUpper (show level) <> "]"
+    <> "[" <> time <> "] "
+    <> toUpper msg <> " :) \n"
+```
+
+Which logs a message like:
+
+    [INFO] [28-Jan-2021 10:07:58] SERVER STARTED :)
 
 #### Configuring log destination
 
@@ -114,24 +130,77 @@ see the [`fast-logger` docs](https://hackage.haskell.org/package/fast-logger-3.0
 ```haskell
 -- | Where logged messages will be delivered to. Types correspond with those in fast-logger.
 data LogDestination =
-  None LogDestination
+  None
   -- | Log messages to standard output.
-  Stdout BufSize
+  | Stdout BufSize
   -- | Log messages to standard error.
-  Stderr BufSize
+  | Stderr BufSize
   -- | Log messages to a file which is never rotated.
-  FileNoRotate FilePath BufSize
+  | FileNoRotate FilePath BufSize
   -- | Log messages to a file rotated automatically based on the criteria in 'FileLogSpec'.
-  File FileLogSpec BufSize
+  | File FileLogSpec BufSize
   -- | Log messages to a file rotated on a timed basis as defined in 'TimedFileLogSpec'.
-  FileTimedRotate TimedFileLogSpec BufSize
+  | FileTimedRotate TimedFileLogSpec BufSize
   -- | Send logged messages to a callback. Flush action called after every log.
-  Callback (LogStr -> IO ()) IO ()
+  | Callback (LogStr -> IO ()) IO ()
+```
+
+##### Logging to a file
+
+There are three log destinations for logging to a file. Their behavior differs in how they deal with file rotation.
+
+- `FileNoRotate` never rotates the file, meaning the log file can become arbitrarily large.
+  Use with caution. The following example will log all messages to a file at `Log/production.log`.
+
+```haskell
+newLogger def {
+  destination = FileNoRotate "Log/production.log" defaultBufSize
+}
+```
+
+- `File` rotates the file after reaching a specified size (in bytes).
+  The following example will log all messages to a file at `Log/production.log`,
+  and rotate the file once it reaches 4 megabytes in size.
+
+```haskell
+newLogger def {
+  destination = File (FileLogSpec "Log/production.log" (4 * 1024 * 1024)) defaultBufSize
+}
+```
+
+- `FileTimedRotate` rotates the file based on a time format string and a function which compares two times formatted by said format string. It also passes the rotated log's file path to a function, which can be used to compress old logs as in this example which rotates once per day:
+
+```haskell
+let
+  filePath = "Log/production.log"
+  formatString = "%FT%H%M%S"
+  timeCompare = (==) on C8.takeWhile (/=T))
+  compressFile fp = void . forkIO $
+           callProcess "tar" [ "--remove-files", "-caf", fp <> ".gz", fp ]
+  in
+newLogger def {
+  destination = FileTimedRotate
+    (TimedFileLogSpec filePath formatString timeCompare compressFile)
+    defaultBufSize
+}
+
 ```
 
 #### Configuring timestamp format
 
 `timeFormat` expects a time format string as defined [here](https://man7.org/linux/man-pages/man3/strptime.3.html).
+
+Example:
+
+```haskell
+newLogger def {
+    timeFormat = "%A, %Y-%m-%d %H:%M:%S"
+}
+```
+
+Would log a timestamp as:
+
+> Sunday, 2020-1-31 22:10:21
 
 
 

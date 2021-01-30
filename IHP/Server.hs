@@ -64,10 +64,7 @@ run configBuilder = do
                                 methodOverridePost $
                                     application
 
-    run `finally` do
-        let ?context = frameworkConfig |> get #logger
-        Log.info "exiting server..."
-        ?context |> get #cleanup
+    run `finally` (frameworkConfig |> get #logger |> get #cleanup)
 
 {-# INLINABLE run #-}
 
@@ -153,7 +150,7 @@ application request respond = do
 runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
                 Warp.defaultSettings
-                    |> Warp.setBeforeMainLoop (let ?context = config in Log.info "Server started")
+                    |> Warp.setBeforeMainLoop (ByteString.putStrLn "Server started")
                     |> Warp.setPort appPort
 runServer FrameworkConfig { environment = Env.Production, appPort } = Warp.runEnv appPort
 

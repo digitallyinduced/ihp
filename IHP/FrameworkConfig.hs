@@ -84,17 +84,13 @@ ihpDefaultConfig = do
 
     port <- liftIO defaultAppPort
     option $ AppPort port
-
-
     environment <- findOption @Environment
 
-    maybeLogger <- findOptionMaybe @Logger
-    logger <- liftIO $ case maybeLogger of
-        Just logger -> pure logger
-        Nothing -> case environment of
+    option $
+        case environment of
             Development -> defaultLogger
-            Production -> newLogger (def { level = Warn } :: LoggerSettings)
-    option logger
+            Production -> newLogger def { level = Warn }
+    logger <- findOption @Logger
 
     requestLoggerIpAddrSource <-
         liftIO (Environment.lookupEnv "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE")
