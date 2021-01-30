@@ -136,7 +136,6 @@ common shared-properties
             -j
             -O2
             -threaded
-            +RTS -A512m -n4m -H512m -qg -N -RTS
 
 library
     import: shared-properties
