@@ -130,8 +130,6 @@ common shared-properties
             +RTS -A256m -n4m -H512m -qg -N -RTS
     else
         ghc-options:
-            -funbox-strict-fields
-            -funfolding-use-threshold=16
             -haddock
             -j
             -O2
