@@ -134,14 +134,6 @@ findOption = do
         |> pure
 {-# INLINE findOption #-}
 
-findOptionMaybe :: forall option. Typeable option => State.StateT TMap.TMap IO (Maybe option)
-findOptionMaybe = do
-    options <- State.get
-    options
-        |> TMap.lookup @option
-        |> pure
-{-# INLINE findOptionMaybe #-}
-
 buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
 buildFrameworkConfig appConfig = do
     let resolve = do

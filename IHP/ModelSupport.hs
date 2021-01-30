@@ -51,7 +51,7 @@ import qualified IHP.Log as Log
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
     { connectionPool :: Pool.Pool Connection
-    -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
+    -- | Logs all queries to this logger at log level info
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
     , trackTableReadCallback :: Maybe (ByteString -> IO ())
