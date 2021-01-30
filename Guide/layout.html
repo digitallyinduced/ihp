@@ -28,6 +28,15 @@
                 <div class="nav-logo-lambda">λ</div>
                 <div class="nav-logo-name">IHP</div>
             </div>
+            <form action="https://duckduckgo.com" method="GET" class="search-docs-form">
+                <div class="search-docs input-group input-group-sm">
+                    <input type="hidden" name="sites" value="https://ihp.digitallyinduced.com"/>
+                    <input type="text" id="search-docs-input" class="form-control" name="q" placeholder="Search IHP">
+                    <div class="input-group-prepend">
+                        <button id="search-btn" class="btn btn-outline-secondary btn-sm" type="submit">🔎</button>
+                    </div>
+                </div>
+            </form>
 
             <nav class="nav flex-column primary-nav">
                 <a class="nav-link headline" href="index.html">Getting Started</a>
@@ -288,6 +297,25 @@
 
         .next-button:hover {
             background-color: hsla(192, 81%, 26%, 0.8)
+        }
+
+        .search-docs-form {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        #search-btn {
+            font-size: 10px;
+        }
+
+        .search-docs {
+            max-width: 130px;
+        }
+
+        #search-docs-input {
+            font-size: 12px;
+            text-align: right;
+        
         }
 
     </style>
