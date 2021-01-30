@@ -8,8 +8,13 @@ mkDerivation {
     base ihp zip-archive
   ];
   testHaskellDepends = [ ];
-  homepage = "https://github.com/tippenein/countable-inflections";
+  homepage = "https://github.com/digitallyinduced/ihp-zip";
   description = "Support for making ZIP Archives with IHP";
   license = stdenv.lib.licenses.mit;
-  src = /Users/marc/digitallyinduced/ihp-zip;
+  src = fetchFromGitHub {
+    owner = "digitallyinduced";
+    repo = "ihp-zip";
+    rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485";
+    sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald";
+  };
 }
