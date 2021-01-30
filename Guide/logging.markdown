@@ -124,66 +124,62 @@ Which logs a message like:
 #### Configuring log destination
 
 By default, messages are logged to standard out.
-IHP includes all the destinations included in `fast-logger`,
-see the [`fast-logger` docs](https://hackage.haskell.org/package/fast-logger-3.0.2/docs/System-Log-FastLogger.html#t:LogType-39-) for instructions on configuring the options for each:
+IHP includes all the destinations included in `fast-logger` wrapped in a custom API.
 
 ```haskell
--- | Where logged messages will be delivered to. Types correspond with those in fast-logger.
-data LogDestination =
-  None
-  -- | Log messages to standard output.
-  | Stdout BufSize
-  -- | Log messages to standard error.
-  | Stderr BufSize
-  -- | Log messages to a file which is never rotated.
-  | FileNoRotate FilePath BufSize
-  -- | Log messages to a file rotated automatically based on the criteria in 'FileLogSpec'.
-  | File FileLogSpec BufSize
-  -- | Log messages to a file rotated on a timed basis as defined in 'TimedFileLogSpec'.
-  | FileTimedRotate TimedFileLogSpec BufSize
-  -- | Send logged messages to a callback. Flush action called after every log.
-  | Callback (LogStr -> IO ()) IO ()
+data LogDestination
+    = None
+    -- | Log messages to standard output.
+    | Stdout BufSize
+    -- | Log messages to standard error.
+    | Stderr BufSize
+    -- | Log message to a file. Rotate the log file with the behavior given by 'RotateSettings'.
+    | File FilePath RotateSettings BufSize
+    -- | Send logged messages to a callback. Flush action called after every log.
+    | Callback (LogStr -> IO ()) (IO ())
 ```
 
 ##### Logging to a file
 
-There are three log destinations for logging to a file. Their behavior differs in how they deal with file rotation.
+When logging to a file, it is common to rotate the file logged to in order to prevent
+the log file from getting too big. IHP allows for this in three ways, through the `RotateSettings` record.
 
-- `FileNoRotate` never rotates the file, meaning the log file can become arbitrarily large.
+- `NoRotate` never rotates the file, meaning the log file can become arbitrarily large.
   Use with caution. The following example will log all messages to a file at `Log/production.log`.
 
 ```haskell
 newLogger def {
-  destination = FileNoRotate "Log/production.log" defaultBufSize
+    destination = File "Log/production.log" NoRotate defaultBufSize
 }
 ```
 
-- `File` rotates the file after reaching a specified size (in bytes).
+- `SizeRotate` rotates the file after reaching a specified size (in bytes).
   The following example will log all messages to a file at `Log/production.log`,
-  and rotate the file once it reaches 4 megabytes in size.
+  and rotate the file once it reaches 4 megabytes in size. It will
+  keep 7 log files before overwriting the first file.
 
 ```haskell
 newLogger def {
-  destination = File (FileLogSpec "Log/production.log" (4 * 1024 * 1024)) defaultBufSize
+    destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize
 }
 ```
 
-- `FileTimedRotate` rotates the file based on a time format string and a function which compares two times formatted by said format string. It also passes the rotated log's file path to a function, which can be used to compress old logs as in this example which rotates once per day:
+- `TimedRotate` rotates the file based on a time format string and a function which compares two times formatted by said format string. It also passes the rotated log's file path to a function, which can be used to compress old logs as in this example which rotates once per day:
 
 ```haskell
 let
-  filePath = "Log/production.log"
-  formatString = "%FT%H%M%S"
-  timeCompare = (==) on C8.takeWhile (/=T))
-  compressFile fp = void . forkIO $
-           callProcess "tar" [ "--remove-files", "-caf", fp <> ".gz", fp ]
-  in
-newLogger def {
-  destination = FileTimedRotate
-    (TimedFileLogSpec filePath formatString timeCompare compressFile)
-    defaultBufSize
-}
-
+    filePath = "Log/production.log"
+    formatString = "%FT%H%M%S"
+    timeCompare = (==) on C8.takeWhile (/=T))
+    compressFile fp = void . forkIO $
+        callProcess "tar" [ "--remove-files", "-caf", fp <> ".gz", fp ]
+in
+  newLogger def {
+     destination = File
+       filePath
+       (TimedRotate formatString timeCompare compressFile)
+       defaultBufSize
+     }
 ```
 
 #### Configuring timestamp format

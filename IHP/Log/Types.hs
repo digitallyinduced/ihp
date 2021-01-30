@@ -8,6 +8,7 @@ module IHP.Log.Types
 , LogStr
 , BufSize
 , TimeFormat
+, RotateSettings(..)
 , toLogStr
 , fromLogStr
 , defaultBufSize
@@ -130,6 +131,7 @@ data RotateSettings
     -- Third argument is the max number of rotated log files to keep around before overwriting the oldest one.
     --
     -- Example: log to a file rotated once it is 4MB, and keep 7 files before overwriting the first file.
+    --
     -- @
     --    newLogger def {
     --      destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize
@@ -142,6 +144,7 @@ data RotateSettings
     -- Last argument is a function which is called on a log file once its rotated.
     --
     -- Example: rotate a file daily and compress the log file once rotated.
+    --
     -- @
     --   let
     --       filePath = "Log/production.log"
