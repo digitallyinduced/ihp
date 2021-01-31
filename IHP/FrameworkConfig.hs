@@ -25,6 +25,8 @@ import IHP.View.CSSFramework
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.Log.Types
 import IHP.Log (makeRequestLogger, defaultRequestLogger)
+import Network.Wai
+import qualified Network.Wai.Handler.Warp as Warp
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -64,6 +66,9 @@ newtype DatabaseUrl = DatabaseUrl ByteString
 
 type ConfigBuilder = State.StateT TMap.TMap IO ()
 
+-- | Interface for exception tracking services such as sentry
+newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> SomeException -> IO () }
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -84,6 +89,9 @@ ihpDefaultConfig = do
 
     port <- liftIO defaultAppPort
     option $ AppPort port
+
+    option $ ExceptionTracker Warp.defaultOnException
+
     environment <- findOption @Environment
 
     option $
@@ -149,7 +157,8 @@ buildFrameworkConfig appConfig = do
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
             cssFramework <- findOption @CSSFramework
             logger <- findOption @Logger
-
+            exceptionTracker <- findOption @ExceptionTracker
+            
             pure FrameworkConfig { .. }
 
     (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
@@ -201,6 +210,7 @@ data FrameworkConfig = FrameworkConfig
     -- Override this if you use a CSS framework that is not bootstrap
     , cssFramework :: !CSSFramework
     , logger :: !Logger
+    , exceptionTracker :: !ExceptionTracker
 }
 
 class ConfigProvider a where

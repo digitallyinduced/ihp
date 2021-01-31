@@ -152,7 +152,10 @@ runServer config@FrameworkConfig { environment = Env.Development, appPort } = Wa
                 Warp.defaultSettings
                     |> Warp.setBeforeMainLoop (ByteString.putStrLn "Server started")
                     |> Warp.setPort appPort
-runServer FrameworkConfig { environment = Env.Production, appPort } = Warp.runEnv appPort
+runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } = Warp.runSettings $
+                Warp.defaultSettings
+                    |> Warp.setPort appPort
+                    |> Warp.setOnException (get #onException exceptionTracker)
 
 ihpWebsocketMiddleware :: (?applicationContext :: ApplicationContext) => Middleware
 ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
