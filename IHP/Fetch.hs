@@ -55,7 +55,6 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
     fetch !queryBuilder = do
         let !(theQuery, theParameters) = queryBuilder
                 |> toSQL
-        logQuery theQuery theParameters
         trackTableRead (tableNameByteString @model)
         sqlQuery (Query $ cs theQuery) theParameters
 
@@ -66,7 +65,6 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
                 |> buildQuery
                 |> setJust #limitClause "LIMIT 1"
                 |> toSQL'
-        logQuery theQuery theParameters
         trackTableRead (tableNameByteString @model)
         results <- sqlQuery (Query $ cs theQuery) theParameters
         pure $ listToMaybe results
@@ -96,7 +94,6 @@ fetchCount :: forall table. (?modelContext :: ModelContext, KnownSymbol table) =
 fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
-    logQuery theQuery theParameters
     trackTableRead (symbolToByteString @table)
     [PG.Only count] <- sqlQuery (Query $! cs theQuery) theParameters
     pure count
@@ -116,7 +113,6 @@ fetchExists :: forall table. (?modelContext :: ModelContext, KnownSymbol table) 
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
-    logQuery theQuery theParameters
     trackTableRead (symbolToByteString @table)
     [PG.Only exists] <- sqlQuery (Query $! cs theQuery) theParameters
     pure exists

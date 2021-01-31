@@ -11,6 +11,8 @@ import qualified IHP.Environment as Env
 import IHP.ModelSupport
 import IHP.ApplicationContext
 import qualified Database.PostgreSQL.Simple as PG
+import Control.Exception (finally)
+import IHP.Log (Logger(cleanup))
 
 -- | A script is just an IO action which requires a database connection and framework config
 type Script = (?modelContext :: ModelContext, ?context :: FrameworkConfig) => IO ()
@@ -18,10 +20,10 @@ type Script = (?modelContext :: ModelContext, ?context :: FrameworkConfig) => IO
 -- | Initializes IHP and then runs the script inside the framework context
 runScript :: ConfigBuilder -> Script -> IO ()
 runScript configBuilder taskMain = do
-    frameworkConfig@FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl } <- buildFrameworkConfig configBuilder
-    modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = environment == Env.Development }) <$> createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl
+    frameworkConfig@FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } <- buildFrameworkConfig configBuilder
+    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
     let ?modelContext = modelContext
     let ?context = frameworkConfig
-    taskMain
-{-# INLINE runScript #-}
+    taskMain `finally` cleanup logger
+{-# INLINABLE runScript #-}

@@ -45,26 +45,28 @@ import qualified GHC.Conc
 import IHP.Postgres.Point
 import IHP.Postgres.Inet
 import qualified Data.ByteString.Char8 as ByteString
+import IHP.Log.Types
+import qualified IHP.Log as Log
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
     { connectionPool :: Pool.Pool Connection
-    -- | If True, prints out all SQL queries that are executed. Will be set to True by default in development mode (as configured in Config.hs) and False in production.
-    , queryDebuggingEnabled :: Bool
+    -- | Logs all queries to this logger at log level info
+    , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
     , trackTableReadCallback :: Maybe (ByteString -> IO ())
     }
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
-notConnectedModelContext :: ModelContext
-notConnectedModelContext = ModelContext
+notConnectedModelContext :: Logger -> ModelContext
+notConnectedModelContext logger = ModelContext
     { connectionPool = error "Not connected"
-    , queryDebuggingEnabled = False
+    , logger = logger
     , trackTableReadCallback = Nothing
     }
 
-createModelContext :: NominalDiffTime -> Int -> ByteString -> IO ModelContext
-createModelContext idleTime maxConnections databaseUrl = do
+createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
+createModelContext idleTime maxConnections databaseUrl logger = do
     numStripes <- GHC.Conc.getNumCapabilities
     let create = PG.connectPostgreSQL databaseUrl
     let destroy = PG.close
@@ -73,6 +75,9 @@ createModelContext idleTime maxConnections databaseUrl = do
     let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
     let trackTableReadCallback = Nothing
     pure ModelContext { .. }
+
+instance LoggingProvider ModelContext where
+    getLogger ModelContext { .. } = logger
 
 type family GetModelById id :: Type where
     GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)
@@ -353,14 +358,11 @@ tableNameByteString = symbolToByteString @(GetTableName model)
 {-# INLINE tableNameByteString #-}
 
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()
-logQuery query parameters = when queryDebuggingEnabled do
+logQuery query parameters = do
         let logMessage = (query, parameters)
                 |> tshow
-                |> cs
-        ByteString.putStrLn logMessage
-    where
-        ModelContext { queryDebuggingEnabled } = ?modelContext
-            -- Env.isProduction FrameworkConfig.environment
+        let ?context = ?modelContext
+        Log.debug logMessage
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
@@ -384,7 +386,6 @@ deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, Kn
 deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
-    logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecordById #-}
@@ -398,9 +399,6 @@ deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Know
 deleteRecords records = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = PG.Only (PG.In (ids records))
-    if length records > 10
-        then logQuery theQuery "More than 10 records"
-        else logQuery theQuery theParameters
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecords #-}
@@ -412,7 +410,6 @@ deleteRecords records = do
 deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
 deleteAll = do
     let theQuery = "DELETE FROM " <> tableName @record
-    logQuery theQuery ()
     sqlExec (PG.Query . cs $! theQuery) ()
     pure ()
 {-# INLINABLE deleteAll #-}

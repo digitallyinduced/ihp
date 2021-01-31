@@ -8,6 +8,11 @@ import IHP.FrameworkConfig
 main :: IO ()
 main = do
     frameworkConfig <- buildFrameworkConfig (pure ())
-    modelContext <- createModelContext (get #dbPoolIdleTime frameworkConfig) (get #dbPoolMaxConnections frameworkConfig) (get #databaseUrl frameworkConfig)
+    modelContext <- createModelContext
+        (get #dbPoolIdleTime frameworkConfig)
+        (get #dbPoolMaxConnections frameworkConfig)
+        (get #databaseUrl frameworkConfig)
+        (get #logger frameworkConfig)
+
     let ?modelContext = modelContext
     migrate

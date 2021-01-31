@@ -56,6 +56,7 @@ let
         uri-encode
         parser-combinators
         ip
+        fast-logger
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

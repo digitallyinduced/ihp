@@ -27,6 +27,7 @@ import           IHP.FrameworkConfig                       (ConfigBuilder (..), 
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
 import           IHP.ModelSupport                          (createModelContext)
 import           IHP.Prelude
+import           IHP.Log.Types
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -42,7 +43,8 @@ mockContext :: (InitControllerContext application) => application -> ConfigBuild
 mockContext application configBuilder = do
    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
    databaseConnection <- connectPostgreSQL databaseUrl
-   modelContext <- (\modelContext -> modelContext { queryDebuggingEnabled = False }) <$> createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl
+   logger <- newLogger def { level = Warn } -- don't log queries
+   modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
    session <- Vault.newKey

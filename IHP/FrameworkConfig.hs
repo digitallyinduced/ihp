@@ -23,6 +23,8 @@ import IHP.HaskellSupport hiding (set)
 import IHP.View.Types
 import IHP.View.CSSFramework
 import System.IO.Unsafe (unsafePerformIO)
+import IHP.Log.Types
+import IHP.Log (makeRequestLogger, defaultRequestLogger)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 
@@ -36,7 +38,7 @@ newtype BaseUrl = BaseUrl Text
 -- documentation when you want to customize the request logging.
 --
 -- See https://hackage.haskell.org/package/wai-extra-3.0.29.2/docs/Network-Wai-Middleware-RequestLogger.html
--- 
+--
 --
 -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
 newtype RequestLoggerMiddleware = RequestLoggerMiddleware Middleware
@@ -70,7 +72,7 @@ newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> So
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
--- 
+--
 -- > option Production
 -- > option Development
 -- > findOption @Environment
@@ -91,6 +93,13 @@ ihpDefaultConfig = do
     option $ ExceptionTracker Warp.defaultOnException
 
     environment <- findOption @Environment
+
+    option $
+        case environment of
+            Development -> defaultLogger
+            Production -> newLogger def { level = Warn }
+    logger <- findOption @Logger
+
     requestLoggerIpAddrSource <-
         liftIO (Environment.lookupEnv "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE")
         >>= \case
@@ -98,10 +107,11 @@ ihpDefaultConfig = do
             Just "FromSocket" -> pure RequestLogger.FromSocket
             Nothing           -> pure RequestLogger.FromSocket
             _                 -> error "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE set to invalid value. Expected FromHeader or FromSocket"
+
     option $ RequestLoggerMiddleware $
             case environment of
-                Development -> RequestLogger.logStdoutDev
-                Production -> unsafePerformIO $ RequestLogger.mkRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource }
+                Development -> logger |> defaultRequestLogger
+                Production  -> logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource }
 
     option $ Sendmail
 
@@ -119,6 +129,8 @@ ihpDefaultConfig = do
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
 
     option bootstrap
+
+
 {-# INLINE ihpDefaultConfig #-}
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
@@ -144,6 +156,7 @@ buildFrameworkConfig appConfig = do
             (DBPoolMaxConnections dbPoolMaxConnections) <- findOption @DBPoolMaxConnections
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
             cssFramework <- findOption @CSSFramework
+            logger <- findOption @Logger
             exceptionTracker <- findOption @ExceptionTracker
             
             pure FrameworkConfig { .. }
@@ -153,7 +166,7 @@ buildFrameworkConfig appConfig = do
     pure frameworkConfig
 {-# INLINE buildFrameworkConfig #-}
 
-data FrameworkConfig = FrameworkConfig 
+data FrameworkConfig = FrameworkConfig
     { appHostname :: !Text
     , environment :: !Environment
     , appPort :: !Int
@@ -165,7 +178,7 @@ data FrameworkConfig = FrameworkConfig
     -- documentation when you want to customize the request logging.
     --
     -- See https://hackage.haskell.org/package/wai-extra-3.0.29.2/docs/Network-Wai-Middleware-RequestLogger.html
-    -- 
+    --
     --
     -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
     , requestLoggerMiddleware :: !Middleware
@@ -185,7 +198,7 @@ data FrameworkConfig = FrameworkConfig
 
     , mailServer :: !MailServer
 
-    , databaseUrl :: !ByteString 
+    , databaseUrl :: !ByteString
     -- | How long db connection are kept alive inside the connecton pool when they're idle
     , dbPoolIdleTime :: !NominalDiffTime
 
@@ -196,7 +209,7 @@ data FrameworkConfig = FrameworkConfig
     --
     -- Override this if you use a CSS framework that is not bootstrap
     , cssFramework :: !CSSFramework
-
+    , logger :: !Logger
     , exceptionTracker :: !ExceptionTracker
 }
 
@@ -205,6 +218,10 @@ class ConfigProvider a where
 
 instance ConfigProvider FrameworkConfig where
     getFrameworkConfig = id
+
+instance LoggingProvider FrameworkConfig where
+    getLogger = get #logger
+
 
 -- | Proxies FrameworkConfig fields contained in some context that can provider a FrameworkConfig
 fromConfig :: (?context :: context, ConfigProvider context) => (FrameworkConfig -> a) -> a

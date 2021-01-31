@@ -53,6 +53,7 @@
 , deepseq
 , parser-combinators
 , ip
+, fast-logger
 }:
 mkDerivation {
   pname = "ihp";
@@ -112,6 +113,7 @@ mkDerivation {
     uri-encode
     parser-combinators
     ip
+    fast-logger
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

@@ -76,7 +76,7 @@ startToolServer' port isDebugMode = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (get #sessionCookie frameworkConfig) session
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
-    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext, session, autoRefreshServer, frameworkConfig }
+    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext undefined, session, autoRefreshServer, frameworkConfig }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
