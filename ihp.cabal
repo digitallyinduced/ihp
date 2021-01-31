@@ -131,7 +131,7 @@ common shared-properties
     else
         ghc-options:
             -haddock
-            -O2
+            -O1
             -threaded
 
 library
