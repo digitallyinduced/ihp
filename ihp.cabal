@@ -131,9 +131,21 @@ common shared-properties
             +RTS -A256m -n4m -H512m -qg -N -RTS
     else
         ghc-options:
-            -O1
+            -fconstraint-solver-iterations=100
+            -fexpose-all-unfoldings
+            -flate-dmd-anal
+            -flate-specialise
+            -fmax-worker-args=200
+            -fspec-constr-keen
+            -fspecialise-aggressively
+            -fstatic-argument-transformation
+            -funbox-strict-fields
+            -funfolding-use-threshold=16
             -haddock
+            -j
+            -O2
             -threaded
+            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
 
 library
     import: shared-properties
