@@ -131,8 +131,8 @@ common shared-properties
             +RTS -A256m -n4m -H512m -qg -N -RTS
     else
         ghc-options:
-            -haddock
             -O1
+            -haddock
             -threaded
 
 library
@@ -220,13 +220,9 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
-
-library IHPIDE
-    import: shared-properties
-    build-depends: ihp
-    hs-source-dirs: IDE
-    exposed-modules:
-        IHP.IDE.SchemaDesigner.Controller.Columns
+        -- IDE MODULES
+        -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
+        , IHP.IDE.SchemaDesigner.Controller.Columns
         , IHP.IDE.SchemaDesigner.Controller.EnumValues
         , IHP.IDE.SchemaDesigner.Controller.Enums
         , IHP.IDE.SchemaDesigner.Controller.Helper
@@ -295,7 +291,7 @@ library IHPIDE
 
 executable RunDevServer
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
     if flag(FastBuild)
@@ -326,48 +322,48 @@ executable RunDevServer
 
 executable new-application
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewApplication.hs
 
 executable build-generated-code
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/BuildGeneratedCode.hs
 
 executable new-controller
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewController.hs
 
 executable delete-controller
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/DeleteController.hs
 
 executable new-script
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
 
 executable new-migration
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/NewMigration.hs
 
 executable migrate
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/Migrate.hs
 
 executable hash-password
     import: shared-properties
-    build-depends: IHPIDE, ihp
+    build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/HashPassword.hs
