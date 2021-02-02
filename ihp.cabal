@@ -134,10 +134,8 @@ common shared-properties
             -fstatic-argument-transformation
             -funbox-strict-fields
             -haddock
-            -j
             -O1
             -threaded
-            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
 
 library
     import: shared-properties
