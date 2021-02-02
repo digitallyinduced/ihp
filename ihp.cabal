@@ -134,7 +134,7 @@ common shared-properties
             -fstatic-argument-transformation
             -funbox-strict-fields
             -haddock
-            -O2
+            -O1
             -threaded
 
 library
