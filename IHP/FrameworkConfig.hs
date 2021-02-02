@@ -80,7 +80,7 @@ newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> So
 -- This code will return 'Production' as the second call to 'option' is ignored to not override the existing option.
 option :: forall option. Typeable option => option -> State.StateT TMap.TMap IO ()
 option value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
-{-# INLINE option #-}
+{-# INLINABLE option #-}
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
@@ -129,7 +129,7 @@ ihpDefaultConfig = do
     option bootstrap
 
 
-{-# INLINE ihpDefaultConfig #-}
+{-# INLINABLE ihpDefaultConfig #-}
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
 findOption = do
@@ -138,7 +138,7 @@ findOption = do
         |> TMap.lookup @option
         |> fromMaybe (error $ "Could not find " <> show (Typeable.typeOf (undefined :: option)))
         |> pure
-{-# INLINE findOption #-}
+{-# INLINABLE findOption #-}
 
 buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
 buildFrameworkConfig appConfig = do
@@ -162,7 +162,7 @@ buildFrameworkConfig appConfig = do
     (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
 
     pure frameworkConfig
-{-# INLINE buildFrameworkConfig #-}
+{-# INLINABLE buildFrameworkConfig #-}
 
 data FrameworkConfig = FrameworkConfig
     { appHostname :: !Text
@@ -268,18 +268,18 @@ defaultLoggerForEnv = \case
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
 isEnvironment environment = (getFrameworkConfig ?context |> get #environment) == environment
-{-# INLINE isEnvironment #-}
+{-# INLINABLE isEnvironment #-}
 
 -- | Returns 'True'  when the application is running in Development mode
 --
 -- Development mode means that the Development option is configured in Config/Config.hs
 isDevelopment :: (?context :: context, ConfigProvider context) => Bool
 isDevelopment = isEnvironment Development
-{-# INLINE isDevelopment #-}
+{-# INLINABLE isDevelopment #-}
 
 -- | Returns 'True' when the application is running in Production mode
 --
 -- Production mode means that the Production option is configured in Config/Config.hs
 isProduction :: (?context :: context, ConfigProvider context) => Bool
 isProduction = isEnvironment Production
-{-# INLINE isProduction #-}
+{-# INLINABLE isProduction #-}
