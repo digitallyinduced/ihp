@@ -131,8 +131,10 @@ common shared-properties
             +RTS -A256m -n4m -H512m -qg -N -RTS
     else
         ghc-options:
+            -fstatic-argument-transformation
+            -funbox-strict-fields
             -haddock
-            -O1
+            -O2
             -threaded
 
 library
