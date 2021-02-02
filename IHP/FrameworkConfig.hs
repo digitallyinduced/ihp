@@ -94,10 +94,8 @@ ihpDefaultConfig = do
 
     environment <- findOption @Environment
 
-    option $
-        case environment of
-            Development -> defaultLogger
-            Production -> newLogger def { level = Warn }
+    defaultLogger <- liftIO (defaultLoggerForEnv environment)
+    option defaultLogger
     logger <- findOption @Logger
 
     requestLoggerIpAddrSource <-
@@ -158,7 +156,7 @@ buildFrameworkConfig appConfig = do
             cssFramework <- findOption @CSSFramework
             logger <- findOption @Logger
             exceptionTracker <- findOption @ExceptionTracker
-            
+
             pure FrameworkConfig { .. }
 
     (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
@@ -260,6 +258,12 @@ defaultDatabaseUrl = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     (Environment.lookupEnv "DATABASE_URL") >>= (pure . maybe defaultDatabaseUrl cs )
+
+defaultLoggerForEnv :: Environment -> IO Logger
+defaultLoggerForEnv = \case
+    Development -> defaultLogger
+    Production -> newLogger def { level = Warn }
+
 
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
