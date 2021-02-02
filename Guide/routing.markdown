@@ -1,4 +1,4 @@
-# Controller & Actions
+# Routing
 
 ```toc
 
