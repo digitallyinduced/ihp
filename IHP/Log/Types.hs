@@ -78,15 +78,14 @@ data Logger = Logger {
 data LogLevel
     -- | For general messages to help with debugging during development.
     -- Default log level in development.
+    -- Also the log level used for SQL queries.
     -- See 'IHP.Log.debug' for example usage.
     = Debug
     -- | For info messages that help montior application usage.
-    -- Also the log level used for SQL queries.
-    -- Disabled by default in production.
+    -- Default log level for production.
     -- See 'IHP.Log.info' for example usage.
     | Info
     -- | For warning messages when something might be wrong.
-    -- Default log level for production.
     -- See 'IHP.Log.warn' for example usage.
     | Warn
     -- | For application errors that can be recovered from.

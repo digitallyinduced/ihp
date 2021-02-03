@@ -16,7 +16,7 @@ IHP logging uses log levels to determine which messages should be printed.
 This way, you can log messages to help in development without flooding production logs.
 
 The available log levels are `debug`, `info`, `warn`, `error`, `fatal`, and `unknown`.
-In development, the default log level is debug. In production, the default log level is warn.
+In development, the default log level is debug. In production, the default log level is info.
 Log messages will only be output if their log level is greater than or equal to the logger's configured log level.
 
 ### Sending messages
