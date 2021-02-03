@@ -395,6 +395,6 @@ createIndex = do
     indexName <- identifier
     lexeme "ON"
     tableName <- identifier
-    columnName <- between (char '(') (char ')') identifier
+    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
     char ';'
-    pure CreateIndex { indexName, tableName, columnName }
+    pure CreateIndex { indexName, tableName, columnNames }
