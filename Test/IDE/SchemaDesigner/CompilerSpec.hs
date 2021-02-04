@@ -115,7 +115,7 @@ tests = do
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;\n"
-        
+
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
             let statement = AddConstraint
                     { tableName = "users"
@@ -133,7 +133,7 @@ tests = do
             let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -146,7 +146,7 @@ tests = do
             let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -159,7 +159,7 @@ tests = do
             let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -172,7 +172,7 @@ tests = do
             let statement = AddConstraint
                     { tableName = "users"
                     , constraintName = "users_ref_company_id"
-                    , constraint = ForeignKeyConstraint 
+                    , constraint = ForeignKeyConstraint
                         { columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
@@ -180,7 +180,7 @@ tests = do
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ;\n"
-        
+
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint
                     { tableName = "posts"
@@ -329,6 +329,14 @@ tests = do
             let statement = CreateIndex
                     { indexName = "users_index"
                     , tableName = "users"
-                    , columnName = "user_name"
+                    , columnNames = ["user_name"]
+                    }
+            compileSql [statement] `shouldBe` sql
+        it "should compile a CREATE INDEX statement with multiple columns" do
+            let sql = cs [plain|CREATE INDEX users_index ON users (user_name, project_id);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , tableName = "users"
+                    , columnNames = ["user_name", "project_id"]
                     }
             compileSql [statement] `shouldBe` sql

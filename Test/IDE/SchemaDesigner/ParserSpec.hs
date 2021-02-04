@@ -333,7 +333,13 @@ tests = do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
                     , tableName = "users"
-                    , columnName = "user_name"
+                    , columnNames = ["user_name"]
+                    }
+        it "should parse a CREATE INDEX statement with multiple columns" do
+            parseSql "CREATE INDEX users_index ON users (user_name, project_id);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , tableName = "users"
+                    , columnNames = ["user_name", "project_id"]
                     }
 
 col :: Column

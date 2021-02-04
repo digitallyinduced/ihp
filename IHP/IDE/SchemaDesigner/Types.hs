@@ -20,7 +20,7 @@ data Statement
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName);
-    | CreateIndex { indexName :: Text, tableName :: Text, columnName :: Text }
+    | CreateIndex { indexName :: Text, tableName :: Text, columnNames :: [Text] }
     deriving (Eq, Show)
 
 data CreateTable
