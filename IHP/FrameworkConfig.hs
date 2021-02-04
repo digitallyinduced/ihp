@@ -262,7 +262,7 @@ defaultDatabaseUrl = do
 defaultLoggerForEnv :: Environment -> IO Logger
 defaultLoggerForEnv = \case
     Development -> defaultLogger
-    Production -> newLogger def { level = Warn }
+    Production -> newLogger def { level = Info }
 
 
 -- Returns 'True' when the application is running in a given environment
