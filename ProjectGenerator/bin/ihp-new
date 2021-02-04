@@ -15,32 +15,37 @@ for _ in once; do
 	# requires at least one argument
 	# two could be wrong, more definitely are
 	# if it's one but it starts with a minus, that's invalid
-	if  [ $# -lt 1 ] || [ $# -ge 2 ] || [[ "$#" == "1" && "$1" =~ ^-.* ]]; then
+	if [ $# -lt 1 ] || [ $# -ge 2 ] || [[ "$#" == "1" && "$1" =~ ^-.* ]]; then
 		# two arguments where the first one is a valid option and the second doesn't start with minus are valid
-		if [[ "$#" == "2" ]] && [[ "$1" == "--default" || "$1" == "--elm" ]] && [[ "$2" =~ ^[^-].* ]]; then
-			break;
+		if [[ "$#" == "2" ]] && [[ "$1" == "--default" || "$1" == "--elm" || "$1" == "--purescript-halogen" ]] && [[ "$2" =~ ^[^-].* ]]; then
+			break
 		fi
 
-		echo "Usage: ihp-new PROJECT_NAME";
-		echo "";
-		echo "or:    ihp-new --OPTION PROJECT_NAME";
-		echo "";
-		echo "Generates an empty IHP project";
-		echo "";
-		echo "Full documentation: https://ihp.digitallyinduced.com/Guide/installation.html";
+		echo "Usage: ihp-new PROJECT_NAME"
+		echo ""
+		echo "or:    ihp-new --OPTION PROJECT_NAME"
+		echo ""
+		echo "Generates an empty IHP project"
+		echo ""
+		echo "Full documentation: https://ihp.digitallyinduced.com/Guide/installation.html"
 		echo "Project template: $BOILERPLATE_GIT_URL"
-		echo "";
-		echo "In case there already exists a directory named like the given project name, this script will stop execution.";
-		echo "";
-		echo "Available options:";
-		echo "";
-		echo "        --default";
-		echo "            (recommended, default, code on branch master)";
-		echo "            Generates a pure IHP project.";
-		echo "";
-		echo "        --elm";
+		echo ""
+		echo "In case there already exists a directory named like the given project name, this script will stop execution."
+		echo ""
+		echo "Available options:"
+		echo ""
+		echo "        --default"
+		echo "            (recommended, default, code on branch master)"
+		echo "            Generates a pure IHP project."
+		echo ""
+		echo "        --elm"
 		echo "            (code on branch elm)"
-		echo "            Generates an IHP project with elm ready to go.";
+		echo "            Generates an IHP project with Elm ready to go."
+		echo ""
+		echo "        --purescript-halogen"
+		echo "            (code on branch purescript-halogen)"
+		echo "            Generates an IHP project with PureScript + Halogen ready to go."
+		echo ""
 
 		if [[ "$#" == "1" && "$1" == "--help" ]]; then
 			exit 0
@@ -55,13 +60,13 @@ if [[ "$#" == "2" ]]; then
 fi
 
 if [ -d "$PROJECT_NAME" ]; then
-	echo "Directory \"$PROJECT_NAME\" already exists. Please remove the directory and re-run the generator";
+	echo "Directory \"$PROJECT_NAME\" already exists. Please remove the directory and re-run the generator"
 	exit 1
 fi
 
 if ! [ -x "$(command -v direnv)" ]; then
 	echo -e "\e[1m\e[35mDIRENV MISSING\e[0m"
-	echo -e "IHP uses direnv to manage env variables.";
+	echo -e "IHP uses direnv to manage env variables."
 	echo -e "Learn more about direnv here: \e[4mhttps://direnv.net/\e[0m"
 	echo ""
 	echo ""
@@ -69,8 +74,11 @@ if ! [ -x "$(command -v direnv)" ]; then
 	read -r -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.direnv;;
-	  * ) echo -e "\e[31mPlease install direnv manually and then re-run this program.\e[0m"; exit 1;;
+	y | Y) nix-env -iA ${NIXPKGS_ATTR}.direnv ;;
+	*)
+		echo -e "\e[31mPlease install direnv manually and then re-run this program.\e[0m"
+		exit 1
+		;;
 	esac
 	echo -e "\e[1mDirenv needs to be hooked into your shell. Please follow the steps below:\e[0m"
 	echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
@@ -81,16 +89,22 @@ if ! [ -x "$(command -v direnv)" ]; then
 		read -r -n1 choice
 		echo ""
 		case "$choice" in
-		  y|Y ) echo "Great!"; break;;
-		  n|N ) echo -e "\e[1m\e[33mHook direnv into your shell after this script has finished.\e[0m"; break;;
-		  * ) echo -e "\e[1mHave you hooked direnv into your shell? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m";;
+		y | Y)
+			echo "Great!"
+			break
+			;;
+		n | N)
+			echo -e "\e[1m\e[33mHook direnv into your shell after this script has finished.\e[0m"
+			break
+			;;
+		*) echo -e "\e[1mHave you hooked direnv into your shell? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m" ;;
 		esac
 	done
 fi
 
 if ! [ -x "$(command -v cachix)" ]; then
 	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
-	echo -e "IHP uses cachix as a binary cache.";
+	echo -e "IHP uses cachix as a binary cache."
 	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
 	echo ""
 	echo ""
@@ -98,46 +112,58 @@ if ! [ -x "$(command -v cachix)" ]; then
 	read -r -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.cachix;;
-	  * ) echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"; exit 1;;
+	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
+	*)
+		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
+		exit 1
+		;;
 	esac
 fi
 
 if ! [ -x "$(command -v git)" ]; then
 	echo -e "\e[1m\e[35mGIT MISSING\e[0m"
-	echo -e "IHP uses git for pulling the project boilerplate.";
+	echo -e "IHP uses git for pulling the project boilerplate."
 	echo ""
 	echo ""
 	echo -e "\e[1mWe will install git for you now using 'nix-env -i git'. Continue? (Type y to proceed) \e[0m"
 	read -r -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.git;;
-	  * ) echo -e "\e[31mPlease install git manually and then re-run this program.\e[0m"; exit 1;;
+	y | Y) nix-env -iA ${NIXPKGS_ATTR}.git ;;
+	*)
+		echo -e "\e[31mPlease install git manually and then re-run this program.\e[0m"
+		exit 1
+		;;
 	esac
 fi
 
 if ! [ -x "$(command -v make)" ]; then
 	echo -e "\e[1m\e[35mMAKE MISSING\e[0m"
-	echo -e "IHP uses make for the building process.";
+	echo -e "IHP uses make for the building process."
 	echo ""
 	echo ""
 	echo -e "\e[1mWe will install make for you now using 'nix-env -i gnumake'. Continue? (Type y to proceed) \e[0m"
 	read -r -n1 choice
 	echo ""
 	case "$choice" in
-	  y|Y ) nix-env -iA ${NIXPKGS_ATTR}.gnumake;;
-	  * ) echo -e "\e[31mPlease install make manually and then re-run this program.\e[0m"; exit 1;;
+	y | Y) nix-env -iA ${NIXPKGS_ATTR}.gnumake ;;
+	*)
+		echo -e "\e[31mPlease install make manually and then re-run this program.\e[0m"
+		exit 1
+		;;
 	esac
 fi
 
 BOILERPLATE_GIT_BRANCH="master"
 
 if [[ "$1" == "--elm" ]]; then
-	echo "We will now create your new IHP project with elm. This may take up to 30 seconds.";
-	BOILERPLATE_GIT_BRANCH="elm";
+	echo "We will now create your new IHP project with Elm. This may take up to 30 seconds."
+	BOILERPLATE_GIT_BRANCH="elm"
+elif [[ "$1" == "--purescript-halogen" ]]; then
+	echo "We will now create your new IHP project with PureScript + Halogen. This may take up to 30 seconds."
+	BOILERPLATE_GIT_BRANCH="purescript-halogen"
 else
-	echo "We will now create your new IHP. This may take up to 30 seconds.";
+	echo "We will now create your new IHP. This may take up to 30 seconds."
 fi
 
 grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf || {
@@ -152,8 +178,11 @@ chmod go-w .ghci || true
 nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
 
 if [[ "$BOILERPLATE_GIT_BRANCH" == "elm" ]]; then
-	nix-shell -j auto --cores 0 --quiet --run 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install';
-	rm Layout.hs.patch Welcome.hs.patch;
+	nix-shell -j auto --cores 0 --quiet --run 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
+	rm Layout.hs.patch Welcome.hs.patch
+elif [[ "$BOILERPLATE_GIT_BRANCH" == "purescript-halogen" ]]; then
+	nix-shell -j auto --cores 0 --quiet --run 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
+	rm Layout.hs.patch Welcome.hs.patch
 fi
 
 echo ""
