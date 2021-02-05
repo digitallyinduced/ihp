@@ -37,6 +37,7 @@ HTML_FILES+= npm.html
 HTML_FILES+= elm.html
 HTML_FILES+= jobs.html
 HTML_FILES+= logging.html
+HTML_FILES+= purescript.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 
