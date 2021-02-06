@@ -222,6 +222,9 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
+        , IHP.PageTitle.ControllerFunctions
+        , IHP.PageTitle.Types
+        , IHP.PageTitle.ViewFunctions
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
