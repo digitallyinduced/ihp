@@ -307,3 +307,21 @@ https://zacwood.me/posts/2020-12-29-dates-ihp/
 ## Basic Data Scraping, HTTP and JSON
 
 https://zacwood.me/posts/haskell-scraping-1/
+
+## Custom Configuration / Dealing with Secrets
+
+Sometimes you want to have a custom configuration flag inside your application. The simplest way is to just declare a custom variable in `Config/Config.hs` like this:
+
+```haskell
+stripePublicKey :: Text
+stripePublicKey = "..."
+```
+
+Then you can use it by importing the Config module at the call sites:
+
+```haskell
+import qualified Config
+
+action MyAction = do
+    let stripePublicKey = Config.stripePublicKey
+```
