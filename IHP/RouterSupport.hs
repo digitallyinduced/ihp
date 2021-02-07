@@ -23,6 +23,8 @@ CanRoute (..)
 , parseId
 , remainingText
 , parseText
+, webSocketApp
+, webSocketAppWithCustomPath
 ) where
 
 import qualified Prelude
@@ -64,6 +66,7 @@ import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text as Text
 import IHP.Router.Types
+import IHP.WebSocket (WSApp)
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
@@ -406,6 +409,60 @@ post path action = do
         _   -> fail "Invalid method, expected POST"
 {-# INLINABLE post #-}
 
+-- | Routes to a given WebSocket app if the path matches the WebSocket app name
+--
+-- __Example:__
+--
+-- > instance FrontController WebApplication where
+-- >     controllers = [
+-- >             webSocketApp @AutoRefreshWSApp
+-- >         ]
+--
+-- The request @\/AutoRefreshWSApp@ will call the AutoRefreshWSApp
+--
+webSocketApp :: forall webSocketApp application.
+    ( WSApp webSocketApp
+    , InitControllerContext application
+    , ?application :: application
+    , ?applicationContext :: ApplicationContext
+    , ?context :: RequestContext
+    , Typeable application
+    , Typeable webSocketApp
+    ) => Parser (IO ResponseReceived)
+webSocketApp = webSocketAppWithCustomPath @webSocketApp typeName
+    where
+        typeName :: ByteString
+        typeName = Typeable.typeOf (error "unreachable" :: webSocketApp)
+                |> show
+                |> ByteString.pack
+{-# INLINABLE webSocketApp #-}
+
+-- | Routes to a given WebSocket app if the path matches
+--
+-- __Example:__
+--
+-- > instance FrontController WebApplication where
+-- >     controllers = [
+-- >             webSocketAppWithCustomPath @AutoRefreshWSApp "my-ws-app"
+-- >         ]
+--
+-- The request @\/my-ws-app@ will call the AutoRefreshWSApp
+--
+webSocketAppWithCustomPath :: forall webSocketApp application.
+    ( WSApp webSocketApp
+    , InitControllerContext application
+    , ?application :: application
+    , ?applicationContext :: ApplicationContext
+    , ?context :: RequestContext
+    , Typeable application
+    , Typeable webSocketApp
+    ) => ByteString -> Parser (IO ResponseReceived)
+webSocketAppWithCustomPath path = do
+        Attoparsec.char '/'
+        string path
+        pure (startWebSocketApp @webSocketApp)
+{-# INLINABLE webSocketAppWithCustomPath #-}
+
 -- | Defines the start page for a router (when @\/@ is requested).
 startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser (IO ResponseReceived)
 startPage action = get (ByteString.pack (actionPrefix @action)) action
@@ -427,8 +484,10 @@ runApp routes notFoundAction = do
         Right action -> action
 {-# INLINABLE runApp #-}
 
-frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> IO ResponseReceived -> IO ResponseReceived
-frontControllerToWAIApp application notFoundAction = runApp (choice (map (\r -> r <* endOfInput) (let ?application = application in controllers))) notFoundAction
+frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> [Parser (IO ResponseReceived)] -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp application additionalControllers notFoundAction = runApp (choice (map (\r -> r <* endOfInput) allControllers)) notFoundAction
+    where
+        allControllers = (let ?application = application in controllers) <> additionalControllers
 {-# INLINABLE frontControllerToWAIApp #-}
 
 mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)

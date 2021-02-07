@@ -21,6 +21,7 @@ module IHP.ControllerSupport
 , ResponseException (..)
 , jumpToAction
 , requestBodyJSON
+, startWebSocketApp
 ) where
 
 import ClassyPrelude
@@ -47,6 +48,9 @@ import IHP.Controller.Context (ControllerContext)
 import IHP.FlashMessages.ControllerFunctions
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
+import qualified Network.Wai.Handler.WebSockets as WebSockets
+import qualified Network.WebSockets as WebSockets
+import qualified IHP.WebSocket as WebSockets
 
 type Action' = IO ResponseReceived
 
@@ -93,6 +97,36 @@ runActionWithNewContext controller = do
             ErrorController.displayException exception controller " while calling initContext"
         Right context -> do
             runAction controller
+
+{-# INLINE startWebSocketApp #-}
+startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
+startWebSocketApp = do
+    let ?modelContext = ApplicationContext.modelContext ?applicationContext
+    let ?requestContext = ?context
+    let respond = ?context |> get #respond
+    let request = ?context |> get #request
+
+    let handleConnection pendingConnection = do
+            connection <- WebSockets.acceptRequest pendingConnection
+
+            controllerContext <- Context.newControllerContext
+            let ?context = controllerContext
+            
+            Context.putContext ?application
+
+            try (initContext @application) >>= \case
+                Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> tshow exception
+                Right context -> do
+                    
+
+                    WebSockets.startWSApp @webSocketApp connection
+
+    request
+        |> WebSockets.websocketsApp WebSockets.defaultConnectionOptions handleConnection
+        |> \case
+            Just response -> respond response
+            Nothing -> fail "Expected websocket request"
+
 
 jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ()
 jumpToAction theAction = do

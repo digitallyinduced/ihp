@@ -19,7 +19,7 @@ import IHP.Prelude
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import IHP.ApplicationContext
-import IHP.ControllerSupport
+import IHP.Controller.RequestContext
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
@@ -38,13 +38,11 @@ class WSApp state where
     onClose :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?connection :: Websocket.Connection) => IO ()
     onClose = pure ()
 
-startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => Websocket.Connection -> IO ()
+startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext) => Websocket.Connection -> IO ()
 startWSApp connection = do
     state <- newIORef (initialState @state)
     let ?state = state
     let ?connection = connection
-    controllerContext <- newControllerContext
-    let ?context = controllerContext
     let
         handleException Websocket.ConnectionClosed = onClose @state
         handleException (Websocket.CloseRequest {}) = onClose @state

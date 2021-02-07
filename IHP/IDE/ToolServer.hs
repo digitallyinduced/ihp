@@ -82,7 +82,7 @@ startToolServer' port isDebugMode = do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?context = requestContext
-            frontControllerToWAIApp toolServerApplication ErrorController.handleNotFound
+            frontControllerToWAIApp toolServerApplication [] ErrorController.handleNotFound
             
     libDirectory <- cs <$> LibDir.findLibDirectory
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
