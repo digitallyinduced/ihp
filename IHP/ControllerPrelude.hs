@@ -30,6 +30,7 @@ module IHP.ControllerPrelude
     , module IHP.LoginSupport.Helper.Controller
     , Only (..)
     , module IHP.PageTitle.ControllerFunctions
+    , module IHP.WebSocket
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -66,3 +67,5 @@ import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
 
 import IHP.LoginSupport.Helper.Controller
 import IHP.PageTitle.ControllerFunctions
+
+import IHP.WebSocket

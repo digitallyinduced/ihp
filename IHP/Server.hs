@@ -22,9 +22,8 @@ import IHP.Log.Types
 import qualified IHP.Log as Log
 
 import IHP.FrameworkConfig
-import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController)
+import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController, webSocketApp, webSocketAppWithCustomPath)
 import qualified IHP.ErrorController as ErrorController
-
 import qualified IHP.Controller.RequestContext as RequestContext
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
@@ -32,13 +31,13 @@ import qualified Control.Concurrent as Concurrent
 import Control.Exception (finally)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
-import qualified IHP.WebSocket as WS
 import IHP.LibDir
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.ByteString.Char8 as ByteString
+
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -59,7 +58,6 @@ run configBuilder = do
     let run = runServer frameworkConfig $
             staticMiddleware $
                 sessionMiddleware $
-                    ihpWebsocketMiddleware $
                         requestLoggerMiddleware $
                                 methodOverridePost $
                                     application
@@ -145,7 +143,11 @@ application :: (FrontController RootApplication, ?applicationContext :: Applicat
 application request respond = do
         requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
         let ?context = requestContext
-        frontControllerToWAIApp RootApplication ErrorController.handleNotFound
+        let builtinControllers = let ?application = () in
+                [ webSocketApp @AutoRefresh.AutoRefreshWSApp
+                , webSocketAppWithCustomPath @AutoRefresh.AutoRefreshWSApp "" -- For b.c. with older versions of ihp-auto-refresh.js
+                ]
+        frontControllerToWAIApp RootApplication builtinControllers ErrorController.handleNotFound
 
 runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
@@ -157,18 +159,5 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
                     |> Warp.setPort appPort
                     |> Warp.setOnException (get #onException exceptionTracker)
 
-ihpWebsocketMiddleware :: (?applicationContext :: ApplicationContext) => Middleware
-ihpWebsocketMiddleware (next :: Application) (request :: Request) respond = do
-        (Websocket.websocketsOr
-            Websocket.defaultConnectionOptions
-            (websocketServer request respond)
-            next) request respond
-
-websocketServer :: (?applicationContext :: ApplicationContext) => Request -> RequestContext.Respond -> Websocket.ServerApp
-websocketServer request respond pendingConnection = do
-    requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
-    let ?requestContext = requestContext
-
-    connection <- Websocket.acceptRequest pendingConnection
-
-    WS.startWSApp @AutoRefresh.AutoRefreshWSApp connection
+instance ControllerSupport.InitControllerContext () where
+    initContext = pure ()
