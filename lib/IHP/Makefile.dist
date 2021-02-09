@@ -207,3 +207,6 @@ hie.yaml: # Configuration for haskell-language-server
 	echo "cradle:" > hie.yaml
 	echo "  bios:" >> hie.yaml
 	echo "    program: build/ihp-lib/.hie-bios" >> hie.yaml
+
+ghci: # Start ghci with custom configuration (https://github.com/digitallyinduced/ihp/issues/130)
+	ghci -package-env -
