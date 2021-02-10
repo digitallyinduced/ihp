@@ -178,6 +178,14 @@ Preloading with InstantClick on hover will only happen with links that
 
 (So putting an anchor on a link, or explicitly setting the `data-turbolinks-preload` attribute to `false`, will let you selectively turn off preloading for that link.)
 
+We provide an `ihp:load` event that will trigger when `DOMContentLoaded` or `turbolinks:load`
+
+```javascript
+document.addEventListener("ihp:load", () => {
+    console.log("Page Loaded");
+});
+```
+
 ## JSON
 
 Views that are rendered by calling the `render` function can also respond with JSON.
