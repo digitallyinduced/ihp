@@ -22,6 +22,7 @@ import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Time.Calendar
+import Data.Time.Format
 import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
@@ -300,8 +301,12 @@ instance Default (PrimaryKey model) => Default (Id' model) where
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
-    logQuery theQuery theParameters
-    withDatabaseConnection \connection -> PG.query connection theQuery theParameters
+    start <- getCurrentTime
+    result <- withDatabaseConnection \connection -> PG.query connection theQuery theParameters
+    end <- getCurrentTime
+    let theTime = end `diffUTCTime` start
+    logQuery theQuery theParameters theTime
+    pure result
 {-# INLINABLE sqlQuery #-}
 
 
@@ -312,7 +317,7 @@ sqlQuery theQuery theParameters = do
 -- > sqlExec "CREATE TABLE users ()" ()
 sqlExec :: (?modelContext :: ModelContext, PG.ToRow q, Show q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
-    logQuery theQuery theParameters
+    -- logQuery theQuery theParameters
     withDatabaseConnection \connection -> PG.execute connection theQuery theParameters
 {-# INLINABLE sqlExec #-}
 
@@ -357,12 +362,13 @@ tableNameByteString :: forall model. (KnownSymbol (GetTableName model)) => ByteS
 tableNameByteString = symbolToByteString @(GetTableName model)
 {-# INLINE tableNameByteString #-}
 
-logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()
-logQuery query parameters = do
-        let logMessage = (query, parameters)
-                |> tshow
+logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> NominalDiffTime -> IO ()
+logQuery query parameters time = do
         let ?context = ?modelContext
-        Log.debug logMessage
+        -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
+        -- To get around that we convert to and from a rational so we can format as desired.
+        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double
+        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " " <> tshow parameters)
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
