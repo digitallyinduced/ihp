@@ -41,3 +41,49 @@ tests = do
 
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader
                 |]
+        describe "compileCreate" do
+            let statement = StatementCreateTable $ CreateTable {
+                    name = "users",
+                    columns = [ Column "id" PUUID Nothing False False ],
+                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
+                    constraints = []
+                }
+            let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+            it "should compile CanCreate instance with sqlQuery" $ \statement -> do
+                getInstanceDecl "CanCreate" compileOutput `shouldBe` [text|
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING *" (Only (get #id model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING *") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
+                    |]
+            it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [text|
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, get #id model))
+                    |]
+
+
+
+getInstanceDecl :: Text -> Text -> Text
+getInstanceDecl instanceName full =
+    Text.splitOn "\n" full
+        |> findInstanceDecl
+        |> takeInstanceDecl
+        |> Text.unlines
+        |> Text.strip
+    where
+        findInstanceDecl (line:rest)
+            | ("instance " <> instanceName) `isPrefixOf` line = line : rest
+            | otherwise = findInstanceDecl rest
+        findInstnaceDecl [] = error "didn't find instance declaration of " <> instanceName
+
+        takeInstanceDecl (line:rest)
+            | isEmpty line = []
+            | otherwise = line : takeInstanceDecl rest
+        takeInstanceDecl [] = error "never encountered newline?"
+

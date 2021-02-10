@@ -382,23 +382,17 @@ compileCreate table@(CreateTable { name, columns }) =
 
         createManyFieldValues :: Text
         createManyFieldValues = if null bindings
-                then ""
+                then "()"
                 else "(List.concat $ List.map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)"
-
-        createManyQueryFn :: Text
-        createManyQueryFn = "Database.PostgreSQL.Simple." <> if null bindings
-                then "query_"
-                else "query"
     in
         "instance CanCreate " <> modelName <> " where\n"
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("List.head <$> withDatabaseConnection \\databaseConnection -> Database.PostgreSQL.Simple.query databaseConnection \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n")
+                <> indent ("List.head <$> sqlQuery \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n")
                 <> "createMany [] = pure []\n"
                 <> "createMany models = do\n"
-                <> indent ("withDatabaseConnection \\databaseConnection -> "
-                    <> createManyQueryFn <> " databaseConnection (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
+                <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
                     )
             )
 
@@ -428,7 +422,7 @@ compileUpdate table@(CreateTable { name, columns }) =
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
                 <> indent (
-                    "List.head <$> withDatabaseConnection \\databaseConnection -> Database.PostgreSQL.Simple.query databaseConnection \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
+                    "List.head <$> sqlQuery \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
                 )
             )
 

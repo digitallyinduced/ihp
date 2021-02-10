@@ -22,6 +22,7 @@ import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Time.Calendar
+import Data.Time.Format
 import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
@@ -291,6 +292,22 @@ instance Default (PrimaryKey model) => Default (Id' model) where
     {-# INLINE def #-}
     def = Newtype.pack def
 
+
+-- | Measure and log the query time for a given query action if the log level is Debug.
+-- If the log level is greater than debug, just perform the query action without measuring time.
+measureTimeIfLogging :: (?modelContext :: ModelContext, Show q) => IO a -> Query -> q -> IO a
+measureTimeIfLogging queryAction theQuery theParameters = do
+    let currentLogLevel = get #logger ?modelContext |> get #level
+    if currentLogLevel == Debug
+        then do
+            start <- getCurrentTime
+            result <- queryAction
+            end <- getCurrentTime
+            let theTime = end `diffUTCTime` start
+            logQuery theQuery theParameters theTime
+            pure result
+        else queryAction
+
 -- | Runs a raw sql query
 --
 -- __Example:__
@@ -300,10 +317,11 @@ instance Default (PrimaryKey model) => Default (Id' model) where
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
-    logQuery theQuery theParameters
-    withDatabaseConnection \connection -> PG.query connection theQuery theParameters
+    measureTimeIfLogging
+        (withDatabaseConnection \connection -> PG.query connection theQuery theParameters)
+        theQuery
+        theParameters
 {-# INLINABLE sqlQuery #-}
-
 
 -- | Runs a sql statement (like a CREATE statement)
 --
@@ -312,8 +330,10 @@ sqlQuery theQuery theParameters = do
 -- > sqlExec "CREATE TABLE users ()" ()
 sqlExec :: (?modelContext :: ModelContext, PG.ToRow q, Show q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
-    logQuery theQuery theParameters
-    withDatabaseConnection \connection -> PG.execute connection theQuery theParameters
+    measureTimeIfLogging
+        (withDatabaseConnection \connection -> PG.execute connection theQuery theParameters)
+        theQuery
+        theParameters
 {-# INLINABLE sqlExec #-}
 
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
@@ -327,12 +347,16 @@ withDatabaseConnection block = let ModelContext { connectionPool } = ?modelConte
 -- > usersCount <- sqlQuery "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
-sqlQueryScalar query parameters = do
-    result <- withDatabaseConnection \connection -> PG.query connection query parameters
+sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO value
+sqlQueryScalar theQuery theParameters = do
+    result <- measureTimeIfLogging
+        (withDatabaseConnection \connection -> PG.query connection theQuery theParameters)
+        theQuery
+        theParameters
     pure case result of
         [PG.Only result] -> result
         _ -> error "sqlQueryScalar: Expected a scalar result value"
+
 {-# INLINABLE sqlQueryScalar #-}
 
 -- | Returns the table name of a given model.
@@ -357,12 +381,13 @@ tableNameByteString :: forall model. (KnownSymbol (GetTableName model)) => ByteS
 tableNameByteString = symbolToByteString @(GetTableName model)
 {-# INLINE tableNameByteString #-}
 
-logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> IO ()
-logQuery query parameters = do
-        let logMessage = (query, parameters)
-                |> tshow
+logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> NominalDiffTime -> IO ()
+logQuery query parameters time = do
         let ?context = ?modelContext
-        Log.debug logMessage
+        -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
+        -- To get around that we convert to and from a rational so we can format as desired.
+        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double
+        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " " <> tshow parameters)
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
