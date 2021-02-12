@@ -147,6 +147,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Database.PostgreSQL.Simple.Types\n"
                   <> "import IHP.Job.Types\n"
                   <> "import IHP.Job.Queue ()\n"
+                  <> "import qualified Data.Dynamic\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
@@ -431,7 +432,8 @@ compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
 instance FromRow #{modelName} where
     fromRow = do
 #{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
-        pure $ #{modelName} #{intercalate " " (map compileField (dataFields table))}
+        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
+        pure theRecord
 
 |]
     where
@@ -444,6 +446,7 @@ instance FromRow #{modelName} where
         compileField (fieldName, _)
             | isColumn fieldName = fieldName
             | isManyToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
+            | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
         isPrimaryKey name = name `elem` primaryKeyColumnNames (primaryKeyConstraint table)
