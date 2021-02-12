@@ -119,7 +119,7 @@ currentViewId =
 isActivePath :: (?context :: ControllerContext, PathString controller) => controller -> Bool
 isActivePath route =
     let 
-        currentPath = Wai.rawPathInfo theRequest
+        currentPath = Wai.rawPathInfo theRequest <> Wai.rawQueryString theRequest
     in
         currentPath == cs (pathToString route)
 
