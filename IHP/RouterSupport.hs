@@ -15,9 +15,6 @@ CanRoute (..)
 , mountFrontController
 , createAction
 , updateAction
-, parseTextArgument
-, parseIntArgument
-, parseUUIDArgument
 , urlTo
 , parseUUID
 , parseId
@@ -124,13 +121,13 @@ parseFuncs = [
 
             -- | Try and parse @Int@ or @Maybe Int@
             \case
-                Just a -> case eqT :: Maybe (d :~: Int) of
-                    Just Refl -> readMay (cs a :: String)
+                Just queryValue -> case eqT :: Maybe (d :~: Int) of
+                    Just Refl -> readMay (cs queryValue :: String)
                         |> \case
                             Just int -> Right int
                             Nothing -> Left BadType
                     Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
-                        Just Refl -> Right $ readMay (cs a :: String)
+                        Just Refl -> Right $ readMay (cs queryValue :: String)
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
                     Just Refl -> Right Nothing
@@ -138,32 +135,31 @@ parseFuncs = [
 
             -- | Try and parse @Text@ or @Maybe Text@
             \case
-                Just a -> case eqT :: Maybe (d :~: Text) of
-                    Just Refl -> Right $ cs a
+                Just queryValue -> case eqT :: Maybe (d :~: Text) of
+                    Just Refl -> Right $ cs queryValue
                     Nothing -> case eqT :: Maybe (d :~: Maybe Text) of
-                        Just Refl -> Right $ Just $ cs a
+                        Just Refl -> Right $ Just $ cs queryValue
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Text) of
                     Just Refl -> Right Nothing
                     Nothing -> Left NotMatched,
 
             -- | Try and parse @[Text]@. If value is not present then default to empty list.
-            \a -> case eqT :: Maybe (d :~: [Text]) of
-                Just Refl -> case a of
-                    Just a -> Right $ Text.splitOn "," (cs a)
+            \queryValue -> case eqT :: Maybe (d :~: [Text]) of
+                Just Refl -> case queryValue of
+                    Just queryValue -> Right $ Text.splitOn "," (cs queryValue)
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
 
             -- Try and parse @[Int]@. If value is not present then default to empty list.
-            \a -> case eqT :: Maybe (d :~: [Int]) of
-                Just Refl -> case a of
-                    Just a -> Text.splitOn "," (cs a)
+            \queryValue -> case eqT :: Maybe (d :~: [Int]) of
+                Just Refl -> case queryValue of
+                    Just queryValue -> Text.splitOn "," (cs queryValue)
                         |> map readMay
                         |> catMaybes
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched
-
             ]
 
 -- | As we fold over a constructor, we want the values parsed from the query string
@@ -179,10 +175,7 @@ parseFuncs = [
 querySortedByFields :: Query -> Constr -> Query
 querySortedByFields query constructor = constrFields constructor
         |> map cs
-        |> map (\field -> (field, findInQuery field query))
-    where
-        findInQuery _ [] = Nothing
-        findInQuery field ( (k,v) : rest ) = if field == k then v else findInQuery field rest
+        |> map (\field -> (field, join $ List.lookup field query))
 
 data TypedAutoRouteError
     = BadType
@@ -204,7 +197,7 @@ data TypedAutoRouteError
 applyConstr :: Data controller => Constr -> Query -> Either TypedAutoRouteError controller
 applyConstr constructor query = let
 
-    -- |Given some query item (key, optional value), try to parse into the current expected type
+    -- | Given some query item (key, optional value), try to parse into the current expected type
     -- by iterating through the available parse functions.
     attemptToParseArg :: forall d. (Data d) => (ByteString, Maybe ByteString) -> [Maybe ByteString -> Either TypedAutoRouteError d] -> State.StateT Query (Either TypedAutoRouteError) d
     attemptToParseArg _ [] = State.lift (Left NoConstructorMatched)
@@ -237,54 +230,8 @@ applyConstr constructor query = let
 
 
 class Data controller => AutoRoute controller where
-    -- | DEPRECATED.
     autoRoute :: (?context :: RequestContext) => Parser controller
-    autoRoute  =
-        let
-            allConstructors :: [Constr]
-            allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
-
-            parseCustomAction :: Constr -> Parser controller
-            parseCustomAction constructor = string prefix >> (string actionPath <* endOfInput >> checkRequestMethod action)
-                where
-                    prefix :: ByteString
-                    prefix = ByteString.pack (actionPrefix @controller)
-
-                    action :: controller
-                    action = actionInstance constructor
-
-                    fields :: [ByteString]
-                    fields = map ByteString.pack (constrFields constructor)
-
-                    query :: Query
-                    query = queryString (getField @"request" ?context)
-
-                    actionInstance :: Constr -> controller
-                    actionInstance constructor = State.evalState ((fromConstrM (do
-                            i <- State.get
-                            let field :: ByteString = fields !! i
-                            let value :: ByteString = fromMaybe (error "AutoRoute: Param empty") $ fromMaybe (error "AutoRoute: Param missing") (lookup field query)
-                            let id = parseArgument @controller field value
-
-                            State.modify (+1)
-                            pure id
-                        )) constructor) 0
-
-                    actionName = ByteString.pack (showConstr constructor)
-
-                    actionPath :: ByteString
-                    actionPath = stripActionSuffix actionName
-
-                    allowedMethods = allowedMethodsForAction @controller actionName
-
-                    checkRequestMethod action = do
-                            method <- getMethod
-                            unless (allowedMethods |> includes method) (error ("Invalid method, expected one of: " <> show allowedMethods))
-                            pure action
-        in choice (map parseCustomAction allConstructors)
-
-    typedAutoRoute :: (?context :: RequestContext) => Parser controller
-    typedAutoRoute =
+    autoRoute =
         let
             allConstructors :: [Constr]
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
@@ -320,14 +267,10 @@ class Data controller => AutoRoute controller where
                 in do
                     parsedAction <- string prefix >> (string actionPath <* endOfInput) *> (case action of
                         Just a -> pure a
-                        Nothing -> fail "failure")
+                        Nothing -> fail "Failed to parse action")
                     checkRequestMethod parsedAction
 
         in choice (map parseAction allConstructors)
-
-    parseArgument :: forall d. Data d => ByteString -> ByteString -> d
-    parseArgument = parseUUIDArgument
-    {-# INLINE parseArgument #-}
 
     -- | Specifies the allowed HTTP methods for a given action
     --
@@ -360,52 +303,6 @@ class Data controller => AutoRoute controller where
                 a | "Show"   `ByteString.isPrefixOf` a -> [GET, HEAD]
                 _ -> [GET, POST, HEAD]
     {-# INLINE allowedMethodsForAction #-}
-
--- | When the arguments for your AutoRoute based actions are not UUIDs or IDs
--- you can override the 'parseArgument' function of your 'AutoRoute' instance
--- with 'parseTextArgument' to receive them as a @Text@
---
--- __Example:__
---
--- >
--- > data HelloWorldController = HelloAction { name :: Text }
--- >     deriving (Eq, Show, Data)
--- >
--- > instance AutoRoute HelloWorldController where
--- >     parseArgument = parseTextArgument
-parseTextArgument :: forall d. Data d => ByteString -> ByteString -> d
-parseTextArgument field value = unsafeCoerce ((Text.decodeUtf8 value) :: Text)
-{-# INLINE parseTextArgument #-}
-
--- | When the arguments for your AutoRoute based actions are Integers instead
--- of UUIDs, you can override the 'parseArgument' function of your 'AutoRoute' instance
--- with 'parseIntArgument' to receive them as a @Int@
---
--- __Example:__
---
--- >
--- > data HelloWorldController = HelloAction { page :: Int }
--- >     deriving (Eq, Show, Data)
--- >
--- > instance AutoRoute HelloWorldController where
--- >     parseArgument = parseIntArgument
-parseIntArgument :: forall d. Data d => ByteString -> ByteString -> d
-parseIntArgument field value =
-    value
-    |> Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput)
-    |> \case
-        Right value -> unsafeCoerce value
-        Left _ -> Exception.throw InvalidActionArgumentException { expectedType = "Int", value, field }
-{-# INLINE parseIntArgument #-}
-
--- | The default implementation for 'parseArgument' in 'AutoRoute'.
-parseUUIDArgument :: forall d. Data d => ByteString -> ByteString -> d
-parseUUIDArgument field value =
-    value
-    |> fromASCIIBytes
-    |> fromMaybe (Exception.throw InvalidActionArgumentException { expectedType = "UUID", value, field })
-    |> unsafeCoerce
-{-# INLINE parseUUIDArgument #-}
 
 -- | Returns the url prefix for a controller. The prefix is based on the
 -- module where the controller is defined.
@@ -482,7 +379,7 @@ updateAction =
 {-# INLINE updateAction #-}
 
 instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => CanRoute controller where
-    parseRoute' = typedAutoRoute
+    parseRoute' = autoRoute
     {-# INLINABLE parseRoute' #-}
 
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
@@ -689,7 +586,6 @@ catchAll action = do
 instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
     convertString action = Html5.textValue (pathTo action)
     {-# INLINE convertString #-}
-
 
 -- | Parses and returns an UUID
 parseUUID :: Parser UUID

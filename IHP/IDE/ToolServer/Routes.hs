@@ -2,24 +2,11 @@ module IHP.IDE.ToolServer.Routes where
 import IHP.RouterPrelude
 import IHP.IDE.ToolServer.Types
 
-instance AutoRoute SchemaController where
-    parseArgument = parseTextArgument
-
-instance AutoRoute TablesController where
-    parseArgument = parseTextArgument
-
-instance AutoRoute ColumnsController where
-    parseArgument = parseTextArgument
-
-instance AutoRoute EnumsController where
-    parseArgument = parseTextArgument
-
-instance AutoRoute EnumValuesController where
-    parseArgument = parseTextArgument
-
+instance AutoRoute SchemaController
+instance AutoRoute TablesController
+instance AutoRoute ColumnsController
+instance AutoRoute EnumsController
+instance AutoRoute EnumValuesController
 instance AutoRoute LogsController
-instance AutoRoute DataController where
-    parseArgument = parseTextArgument
-
-instance AutoRoute CodeGenController where
-    parseArgument = parseTextArgument
+instance AutoRoute DataController
+instance AutoRoute CodeGenController
