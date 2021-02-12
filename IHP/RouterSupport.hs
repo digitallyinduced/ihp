@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase, GADTs #-}
+{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase #-}
 module IHP.RouterSupport (
 CanRoute (..)
 , HasPath (..)
@@ -66,8 +66,6 @@ import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
 import IHP.Router.Types
 import IHP.WebSocket (WSApp)
-import Text.Read (Read(..))
-import Data.Dynamic
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
