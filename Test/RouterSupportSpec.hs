@@ -5,12 +5,12 @@ Tests for typed auto routing.
 -}
 module Test.RouterSupportSpec where
 import ClassyPrelude
-import           Test.Hspec
-import           IHP.Test.Mocking
-import           IHP.Prelude
-import           IHP.QueryBuilder
-import           IHP.Environment
-import           IHP.FrameworkConfig
+import Test.Hspec
+import IHP.Test.Mocking
+import IHP.Prelude
+import IHP.QueryBuilder
+import IHP.Environment
+import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
 import IHP.FrameworkConfig
@@ -152,9 +152,3 @@ tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) d
             pathTo (TestTextListAction ["hello", "there"]) `shouldBe` "/test/TestTextList?textList=hello%2Cthere"
         it "generates correct path for [Int] param" $ withContext do
             pathTo (TestIntListAction [1,2,3]) `shouldBe` "/test/TestIntList?intList=1%2C2%2C3"
-
-
-
-
-
-
