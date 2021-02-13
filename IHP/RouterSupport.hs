@@ -382,6 +382,26 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
     parseRoute' = autoRoute
     {-# INLINABLE parseRoute' #-}
 
+-- | Instances of the @QueryParam@ type class can be represented in URLs as query parameters.
+-- Currently this is only Int, Text, and both wrapped in List and Maybe.
+-- IDs also are representable in a URL, but we are unable to match on polymorphic types using reflection,
+-- so we fall back to the default "show" for these.
+class Data a => QueryParam a where
+    showQueryParam :: a -> String
+
+instance QueryParam Text where
+    showQueryParam text = Text.unpack text
+
+instance QueryParam Int where
+    showQueryParam = show
+
+instance QueryParam a => QueryParam (Maybe a) where
+    showQueryParam (Just val) = showQueryParam val
+    showQueryParam Nothing = ""
+
+instance QueryParam a => QueryParam [a] where
+    showQueryParam = List.intercalate "," . map showQueryParam
+
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
     {-# INLINABLE pathTo #-}
     pathTo !action = Text.pack (appPrefix <> actionName <> arguments)
@@ -397,6 +417,40 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
             stripQuotes ('"':rest) = List.init rest
             stripQuotes otherwise = otherwise
 
+            -- | The @gmapQ@ function allows us to iterate over each term in a constructor function and
+            -- build a list of results from performing some function on each term.
+            -- Here we send each term through @constrShow@, giving us our preferred representation for
+            -- use in URLs.
+            showTerms :: controller -> [Maybe String]
+            showTerms = gmapQ (constrShow typeShows)
+
+            -- | @constrShow@ tries to convert each value @d@ into a String representation.
+            -- If one passes, return it immediately, otherwise try all the defined @typeShow@ functions.
+            constrShow :: Data d => [(d -> Maybe String)] -> d -> Maybe String
+            constrShow [] _ = Nothing
+            constrShow (f:fs) d = case f d of
+                Just str -> Just str
+                Nothing -> constrShow fs d
+
+            -- | Try and match some value to all of the types we can represent in a URL.
+            -- Only type not contained in here is the "Id" type, since we cannot match
+            -- on polymorphic types.
+            typeShows :: forall d. Data d => [(d -> Maybe String)]
+            typeShows = [
+                \val -> (eqT :: Maybe (d :~: Text))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: [Text]))
+                    >>= \Refl -> Just (showQueryParam (val :: [Text])),
+                \val -> (eqT :: Maybe (d :~: Maybe Text))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: Int))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: [Int]))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: Maybe Int))
+                    >>= \Refl -> Just (showQueryParam val)
+                ]
+
             arguments :: String
             !arguments  = show action -- `SomeRecord { a = b, c = d }`
                     |> List.filter (/= ' ')
@@ -409,10 +463,20 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     |> map (\s -> let (key, value) = List.break (== '=') s in (key, List.drop 1 value))
                     |> map (\(k ,v) -> (k, stripQuotes v)) -- "value" -> value
                     |> filter (\(k, v) -> (not . List.null) k && (not . List.null) v)
-                    |> map (\(k, v) -> k <> "=" <> URI.encode v)
+                    -- At this point we have a list of keys and values as represented by @show@.
+                    -- For Lists and Maybe types, we want to represent these in a different way,
+                    -- so we construct another list of values using type reflection and the QueryParam type class.
+                    |> \(kvs :: [(String, String)]) -> zip (showTerms action) kvs
+                    -- If an Id type was present in the action, it will be returned as Nothing by @showTerms@
+                    -- as we are not able to match on the type using reflection.
+                    -- In this case we default back to the @show@ representation.
+                    |> map (\(v1, (k, v2)) -> (k, fromMaybe v2 v1))
+                    |> map (\(k, v) -> if isEmpty v
+                        then ""
+                        else  k <> "=" <> URI.encode v)
+                    |> List.filter (not . isEmpty)
                     |> List.intercalate "&"
                     |> (\q -> if List.null q then q else '?':q)
-
 
 -- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?context :: RequestContext) => Parser StdMethod

@@ -135,6 +135,24 @@ tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) d
             runSession (testGet "test/TestIntList?intList=5,BOO,3") Server.application >>= assertSuccess "[5,3]"
         it "parses mixed params" $ withContext do
             runSession (testGet "test/TestMixed?text=hello&textOther=sailor&intList=5,BOO,3&textOtherOther=asdf&intParam=123") Server.application >>= assertSuccess "hello sailor [5,3] Nothing asdf 123"
+    describe "pathTo" $ do
+        it "generates correct path for empty route" $ withContext do
+            pathTo TestAction `shouldBe` "/test/Test"
+        it "generates correct path for Text param" $ withContext do
+            pathTo (TestTextAction "hello") `shouldBe` "/test/TestText?firstParam=hello"
+        it "generates correct path for Maybe Text param: Nothing" $ withContext do
+            pathTo (TestMaybeTextAction Nothing) `shouldBe` "/test/TestMaybeText"
+        it "generates correct path for Maybe Text param: Just" $ withContext do
+            pathTo (TestMaybeTextAction (Just "hello")) `shouldBe` "/test/TestMaybeText?maybeFirstParam=hello"
+        it "generates correct path for Int param" $ withContext do
+            pathTo (TestIntAction 5) `shouldBe` "/test/TestInt?intParam=5"
+        it "generates correct path for [Text] param: Empty" $ withContext do
+            pathTo (TestTextListAction []) `shouldBe` "/test/TestTextList"
+        it "generates correct path for [Text] param: Full" $ withContext do
+            pathTo (TestTextListAction ["hello", "there"]) `shouldBe` "/test/TestTextList?textList=hello%2Cthere"
+        it "generates correct path for [Int] param" $ withContext do
+            pathTo (TestIntListAction [1,2,3]) `shouldBe` "/test/TestIntList?intList=1%2C2%2C3"
+
 
 
 
