@@ -224,7 +224,7 @@ paramOrError !name =
                     Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
                     Right value -> Right value
                 Nothing -> Left ParamNotFoundException { name }
-        JSONBody json -> case json of
+        JSONBody { jsonPayload } -> case jsonPayload of
                 (Just (Aeson.Object hashMap)) -> case HashMap.lookup (cs name) hashMap of
                     Just value -> case readParameterJSON @paramType value of
                         Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
@@ -241,7 +241,7 @@ queryOrBodyParam !name = join (lookup name allParams)
 allParams :: (?context :: ControllerContext) => [(ByteString, Maybe ByteString)]
 allParams = case requestBody of
             FormBody { params, files } -> concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
-            JSONBody value -> error "allParams: Not supported for JSON requests"
+            JSONBody { jsonPayload } -> error "allParams: Not supported for JSON requests"
     where
         RequestContext { request, requestBody } = ?context |> get #requestContext
 
