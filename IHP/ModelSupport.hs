@@ -48,6 +48,7 @@ import IHP.Postgres.Inet
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
 import qualified IHP.Log as Log
+import Data.Dynamic
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -486,13 +487,18 @@ ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (getField @"id") records
 {-# INLINE ids #-}
 
+-- | Every IHP database record has a magic @meta@ field which keeps a @MetaBag@ inside. This data structure is used e.g. to keep track of the validation errors that happend.
 data MetaBag = MetaBag
-  { annotations :: [(Text, Text)]
-  , touchedFields :: [Text]
-  } deriving (Eq, Show)
+    { annotations            :: ![(Text, Text)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", "cannot be empty") ]@
+    , touchedFields          :: ![Text] -- ^ Whenever a 'set' is callled on a field, it will be marked as touched. Only touched fields are saved to the database when you call 'updateRecord'
+    , originalDatabaseRecord :: Maybe Dynamic -- ^ When the record has been fetched from the database, we save the initial database record here. This is used by 'didChange' to check if a field value is different from the initial database value.
+    } deriving (Show)
+
+instance Eq MetaBag where
+    MetaBag { annotations, touchedFields } == MetaBag { annotations = annotations', touchedFields = touchedFields' } = annotations == annotations' && touchedFields == touchedFields'
 
 instance Default MetaBag where
-    def = MetaBag { annotations = [], touchedFields = [] }
+    def = MetaBag { annotations = [], touchedFields = [], originalDatabaseRecord = Nothing }
     {-# INLINE def #-}
 
 instance SetField "annotations" MetaBag [(Text, Text)] where
@@ -544,12 +550,31 @@ didChangeRecord record =
 -- __Example:__ Setting a flash message after updating the profile picture
 --
 -- > when (user |> didChange #profilePictureUrl) (setSuccessMessage "Your Profile Picture has been updated. It might take a few minutes until it shows up everywhere")
-didChange :: (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag) => Proxy fieldName -> record -> Bool
-didChange field record =
-    record
-    |> get #meta
-    |> get #touchedFields
-    |> includes (cs $! symbolVal field)
+didChange :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
+didChange field record = didTouchField && didChangeField
+    where
+        didTouchField :: Bool
+        didTouchField =
+            record
+            |> get #meta
+            |> get #touchedFields
+            |> includes (cs $! symbolVal field)
+        
+        didChangeField :: Bool
+        didChangeField = originalFieldValue /= fieldValue
+
+        fieldValue :: fieldValue
+        fieldValue = record |> getField @fieldName
+        
+        originalFieldValue :: fieldValue
+        originalFieldValue =
+            record
+            |> get #meta
+            |> get #originalDatabaseRecord
+            |> fromMaybe (error "didChange called on a record without originalDatabaseRecord")
+            |> fromDynamic @record
+            |> fromMaybe (error "didChange failed to retrieve originalDatabaseRecord")
+            |> getField @fieldName
 
 -- | Represents fields that have a default value in an SQL schema
 --

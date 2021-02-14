@@ -8,6 +8,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.ModelSupport
 import qualified Data.Aeson as Aeson
+import qualified Data.Dynamic as Dynamic
 
 tests = do
     describe "ModelSupport" do
@@ -77,3 +78,23 @@ tests = do
                     let (Just value) :: Maybe Aeson.Value = Aeson.decode "{\"hello\":true}"
                     (inputValue value) `shouldBe` "{\"hello\":true}"
 
+        describe "didChange" do
+            let project = Project { id = 1337, name = "Test", meta = def { originalDatabaseRecord = Just (Dynamic.toDyn project) } }
+            
+            it "should return False for a new record" do
+                (project |> didChange #name) `shouldBe` False
+                (project |> didChange #id) `shouldBe` False
+
+            it "should return True for a changed field" do
+                (project |> set #name "Changed" |> didChange #name) `shouldBe` True
+                (project |> didChange #id) `shouldBe` False
+            
+            it "should return false for a changed field when set with the same value again" do
+                (project |> set #name "Test" |> didChange #name) `shouldBe` False
+                (project |> didChange #id) `shouldBe` False
+
+data Project = Project { id :: Int, name :: Text, meta :: MetaBag }
+instance SetField "id" Project Int where
+    setField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = "id":(touchedFields meta) } }
+instance SetField "name" Project Text where
+    setField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = "name":(touchedFields meta) } }
