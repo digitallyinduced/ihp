@@ -108,7 +108,7 @@ class HasPath controller => CanRoute controller where
 -- Please consult your doctor before engaging in Haskell type programming.
 parseFuncs :: forall d. (Data d) => [Maybe ByteString -> Either TypedAutoRouteError d]
 parseFuncs = [
-            -- | Try and parse a UUID. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
+            -- Try and parse a UUID. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
             -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
             -- Therefore, we're able to safely cast it to its @Id@ type with @unsafeCoerce@.
             \case
@@ -119,7 +119,7 @@ parseFuncs = [
                         Nothing -> Left NotMatched
                 Nothing -> Left NotMatched,
 
-            -- | Try and parse @Int@ or @Maybe Int@
+            -- Try and parse @Int@ or @Maybe Int@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Int) of
                     Just Refl -> readMay (cs queryValue :: String)
@@ -133,7 +133,7 @@ parseFuncs = [
                     Just Refl -> Right Nothing
                     Nothing -> Left NotMatched,
 
-            -- | Try and parse @Text@ or @Maybe Text@
+            -- Try and parse @Text@ or @Maybe Text@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Text) of
                     Just Refl -> Right $ cs queryValue
@@ -144,7 +144,7 @@ parseFuncs = [
                     Just Refl -> Right Nothing
                     Nothing -> Left NotMatched,
 
-            -- | Try and parse @[Text]@. If value is not present then default to empty list.
+            -- Try and parse @[Text]@. If value is not present then default to empty list.
             \queryValue -> case eqT :: Maybe (d :~: [Text]) of
                 Just Refl -> case queryValue of
                     Just queryValue -> Right $ Text.splitOn "," (cs queryValue)
