@@ -34,6 +34,7 @@ import qualified Test.SchemaMigrationSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
 import qualified Test.QueryBuilderSpec
+import qualified Test.RouterSupportSpec
 
 main :: IO ()
 main = hspec do
@@ -55,3 +56,4 @@ main = hspec do
     Test.ModelSupportSpec.tests
     Test.SchemaCompilerSpec.tests
     Test.QueryBuilderSpec.tests
+    Test.RouterSupportSpec.tests

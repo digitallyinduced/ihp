@@ -70,14 +70,14 @@ runAction :: forall controller. (Controller controller, ?context :: ControllerCo
 runAction controller = do
     let ?theAction = controller
     let respond = ?context |> get #requestContext |> get #respond
-    
+
     let doRunAction = do
             beforeAction
             (action controller)
             ErrorController.handleNoResponseReturned controller
 
     let handleResponseException  (ResponseException response) = respond response
-        
+
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
 {-# INLINE runActionWithNewContext #-}
@@ -111,14 +111,12 @@ startWebSocketApp = do
 
             controllerContext <- Context.newControllerContext
             let ?context = controllerContext
-            
+
             Context.putContext ?application
 
             try (initContext @application) >>= \case
                 Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> tshow exception
                 Right context -> do
-                    
-
                     WebSockets.startWSApp @webSocketApp connection
 
     request

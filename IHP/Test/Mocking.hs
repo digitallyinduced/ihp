@@ -60,6 +60,27 @@ mockContext application configBuilder = do
 
    pure MockContext{..}
 
+mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
+mockContextNoDatabase application configBuilder = do
+   frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
+   let databaseConnection = undefined
+   logger <- newLogger def { level = Warn } -- don't log queries
+   modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
+
+   autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
+   session <- Vault.newKey
+   let sessionVault = Vault.insert session mempty Vault.empty
+   let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig }
+
+   let requestContext = RequestContext
+         { request = defaultRequest {vault = sessionVault}
+         , requestBody = FormBody [] []
+         , respond = \resp -> pure ResponseReceived
+         , vault = session
+         , frameworkConfig = frameworkConfig }
+
+   pure MockContext{..}
+
 -- | Run a IO action, setting implicit params based on supplied mock context
 withContext :: (ContextParameters application => IO a) -> MockContext application -> IO a
 withContext action mocking@MockContext{..} = let

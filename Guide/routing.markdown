@@ -107,32 +107,31 @@ GET /EditPost?postId={postId}&userId={userId} => EditPostAction { postId, userId
 
 ### Parameter Types
 
-AutoRoute by default only works with UUID arguments (and Id types like `Id Post`). If you have a controller like `data HelloWorldController = HelloAction { name :: Text }` where you have a text parameter, you have to configure AutoRoute like this:
+AutoRoute works with the following parameter types:
 
-```haskell
-instance AutoRoute HelloWorldController where
-    parseArgument = parseTextArgument
+- Text
+- [Text]
+- Maybe Text
+- Int
+- [Int]
+- Maybe Int
+- Id (for all model types)
+
+If a Maybe value is `Nothing`, the value will be left out of the query parameter. Otherwise it will be included with the value.
+```
+data MyController = DefaultAction { maybeParam :: Maybe Text }
+
+pathTo (MyController Nothing) ==> "/Default"
+pathTo (MyController "hello") ==> "/Default?maybeParam=hello"
 ```
 
-This way the `name` argument is passed as `Text` instead of `UUID`.
-
-**This also works with integer types:**
-
-```haskell
-instance AutoRoute HelloWorldController where
-    parseArgument = parseIntArgument
+List values are represented as comma separated lists. If the parameter is not present the list will default to the empty list.
 ```
+data MyController = DefaultAction { listParam :: Maybe [Int] }
 
-This will support a controller like `data HelloWorldController = HelloAction { page :: Int }`.
-
-Right now AutoRoute supports only a single type for all given parameters. E.g. an action which takes a UUID and a Text is not supported with AutoRoute right now:
-
-```haskell
-data HelloController = HelloAction { userId :: !(Id User), name :: Text }
-instance AutoRoute HelloController -- This will fail at runtime
+pathTo (MyController []) ==> "/Default"
+pathTo (MyController [1,2,3]) ==> "/Default?listParam=1,2,3"
 ```
-
-This is a technical problem we hope to fix in the future. Until then consider using `param` for the `Text` parameter.
 
 ### Request Methods
 
@@ -158,41 +157,6 @@ instance AutoRoute HelloWorldController where
 When using multiple applications in your IHP project, e.g. having an admin back-end, AutoRoute will prefix the action URLs with the application name. E.g. a controller `HelloWorldController` defined in `Admin/Types.hs` will be automatically prefixed with `/admin` and generate URLs such as `/admin/HelloAction`.
 
 This prefixing has special handling for the `Web` module so that all controllers in the default `Web` module don't have a prefix.
-
-### Advanced: Custom `parseArgument`
-
-It's possible to use a custom data type as a routing parameter with AutoRoute. Now might be a good point to switch to a custom routing implementation (described later in this Guide) instead of hacking this into AutoRouting. If this warning can't stop you, go ahead.
-
-A `parseArgument` function has the signature:
-
-```haskell
-parseArgument :: forall d. Data d => ByteString -> ByteString -> d
-```
-
-The first bytestring argument is the field name of the action argument we are dealing with. The second argument is the value of the query string:
-
-```html
-MyAction?{firstArgument}={secondArgument}
-```
-
-The last argument `d` cannot be implemented in a type safe way. This is implemented by calling `unsafeCoerce` on our result value before returning it. The result of this is later used with [`fromConstrM`](http://hackage.haskell.org/package/base-4.14.0.0/docs/Data-Data.html#fromConstrM). Therefore misusing `parseArgument` can result in a runtime crash. Again, consider not using this API.
-
-Given we have a custom argument type in the format `ID-{numeric}` like `ID-0`, `ID-1`, etc, we can define a custom `parseCustomIdArgument` like this:
-
-```haskell
-import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
-import qualified Data.ByteString.Char8 as ByteString
-
-parseCustomIdArgument :: forall d. Data d => ByteString -> ByteString -> d
-parseCustomIdArgument field value =
-    value
-    |> ByteString.stripPrefix "ID-"
-    |> fromMaybe (error "Failed to parse custom id, ID- missing")
-    |> Attoparsec.parseOnly (Attoparsec.decimal <* Attoparsec.endOfInput)
-    |> \case
-        Right value -> unsafeCoerce value
-        Left _ -> error "AutoRoute: Failed to parse custom id, numeric part invalid"
-```
 
 ## Custom Routing
 

@@ -16,20 +16,24 @@ import qualified Data.Vault.Lazy as Vault
 
 
 setSession :: (?context :: ControllerContext) => Text -> Text -> IO ()
-setSession name value = sessionInsert (cs name) (cs value)
+setSession name value = case vaultLookup of
+    Just (_, sessionInsert) -> sessionInsert (cs name) (cs value)
+    Nothing -> pure ()
     where
         RequestContext { request, vault } = get #requestContext ?context
-        Just (_, sessionInsert) = Vault.lookup vault (Wai.vault request)
+        vaultLookup = Vault.lookup vault (Wai.vault request)
 
 
 getSession :: (?context :: ControllerContext) => Text -> IO (Maybe Text)
-getSession name = do
+getSession name = case vaultLookup of
+    Just (sessionLookup, _) -> do
         value <- (sessionLookup (cs name))
         let textValue = fmap cs value
         pure $! if textValue == Just "" then Nothing else textValue
+    Nothing -> pure Nothing
     where
         RequestContext { request, vault } = get #requestContext ?context
-        Just (sessionLookup, _) = Vault.lookup vault (Wai.vault request)
+        vaultLookup = Vault.lookup vault (Wai.vault request)
 
 
 getSessionAndClear :: (?context :: ControllerContext) => Text -> IO (Maybe Text)

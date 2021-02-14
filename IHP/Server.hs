@@ -1,6 +1,6 @@
 {-# LANGUAGE IncoherentInstances #-}
 
-module IHP.Server (run) where
+module IHP.Server (run, application) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
