@@ -134,7 +134,13 @@ jumpToAction theAction = do
 
 {-# INLINE getRequestBody #-}
 getRequestBody :: (?context :: ControllerContext) => IO ByteString
-getRequestBody = Network.Wai.getRequestBodyChunk request
+getRequestBody = 
+    ?context
+    |> get #requestContext
+    |> get #requestBody
+    |> \case
+        RequestContext.JSONBody { rawPayload } -> pure (cs rawPayload)
+        _ -> Network.Wai.getRequestBodyChunk request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
 getRequestPath :: (?context :: ControllerContext) => ByteString
@@ -185,7 +191,7 @@ requestBodyJSON =
     |> get #requestContext
     |> get #requestBody
     |> \case
-        RequestContext.JSONBody (Just value) -> value
+        RequestContext.JSONBody { jsonPayload = Just value } -> value
         _ -> error "Expected JSON body"
 
 {-# INLINE createRequestContext #-}
@@ -194,9 +200,9 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
     let contentType = lookup hContentType (requestHeaders request)
     requestBody <- case contentType of
         "application/json" -> do
-            payload <- Network.Wai.getRequestBodyChunk request
-            let value :: Maybe Aeson.Value = (Aeson.decode ((cs payload) :: LByteString))
-            pure (RequestContext.JSONBody value)
+            rawPayload <- Network.Wai.lazyRequestBody request
+            let jsonPayload = Aeson.decode rawPayload
+            pure RequestContext.JSONBody { jsonPayload, rawPayload }
         _ -> do
             (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
             pure RequestContext.FormBody { .. }
