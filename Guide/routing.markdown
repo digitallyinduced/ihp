@@ -109,16 +109,17 @@ GET /EditPost?postId={postId}&userId={userId} => EditPostAction { postId, userId
 
 AutoRoute works with the following parameter types:
 
-- Text
-- [Text]
-- Maybe Text
-- Int
-- [Int]
-- Maybe Int
-- Id (for all model types)
+- `Text`
+- `[Text]`
+- `Maybe Text`
+- `Int`
+- `[Int]`
+- `Maybe Int`
+- `Id` (for all model types)
 
 If a Maybe value is `Nothing`, the value will be left out of the query parameter. Otherwise it will be included with the value.
-```
+
+```haskell
 data MyController = DefaultAction { maybeParam :: Maybe Text }
 
 pathTo (MyController Nothing) ==> "/Default"
@@ -126,7 +127,9 @@ pathTo (MyController "hello") ==> "/Default?maybeParam=hello"
 ```
 
 List values are represented as comma separated lists. If the parameter is not present the list will default to the empty list.
-```
+
+
+```haskell
 data MyController = DefaultAction { listParam :: Maybe [Int] }
 
 pathTo (MyController []) ==> "/Default"
