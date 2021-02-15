@@ -9,6 +9,7 @@ if [ -f /etc/os-release ]; then
 	grep '^ID=nixos$' /etc/os-release >/dev/null 2>&1 && NIXPKGS_ATTR="nixos"
 fi
 
+IHP_NEW_VERSION="1.3.0"
 BOILERPLATE_GIT_URL="https://github.com/digitallyinduced/ihp-boilerplate.git"
 
 for _ in once; do
@@ -19,6 +20,11 @@ for _ in once; do
 		# two arguments where the first one is a valid option and the second doesn't start with minus are valid
 		if [[ "$#" == "2" ]] && [[ "$1" == "--default" || "$1" == "--elm" || "$1" == "--purescript-halogen" ]] && [[ "$2" =~ ^[^-].* ]]; then
 			break
+		fi
+
+		if [[ "$#" == "1" && "$1" == "--version" ]]; then
+			echo "ihp-new version: $IHP_NEW_VERSION"
+			exit 0
 		fi
 
 		echo "Usage: ihp-new PROJECT_NAME"
@@ -33,6 +39,9 @@ for _ in once; do
 		echo "In case there already exists a directory named like the given project name, this script will stop execution."
 		echo ""
 		echo "Available options:"
+		echo ""
+		echo "        --version"
+		echo "            Print version of ihp-new"
 		echo ""
 		echo "        --default"
 		echo "            (recommended, default, code on branch master)"
