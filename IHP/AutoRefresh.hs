@@ -152,15 +152,14 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
     modifyIORef autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
-    subscriptions <- mapM (\table -> PGNotify.watchInsertOrUpdateTable table do
+    subscriptions <-  subscriptionRequired |> mapM (\table -> PGNotify.watchInsertOrUpdateTable table do
                 sessions <- (get #sessions) <$> readIORef autoRefreshServer
                 sessions
                     |> filter (\session -> table `Set.member` (get #tables session))
                     |> map (\session -> get #event session)
                     |> mapM (\event -> MVar.tryPutMVar event ())
                 pure ())
-            subscriptionRequired
-    modifyIORef autoRefreshServer (\s -> s { processes = subscriptions })
+    modifyIORef autoRefreshServer (\s -> s { subscriptions = subscriptions })
     pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie

@@ -26,7 +26,7 @@ data AutoRefreshSession = AutoRefreshSession
         , lastPing :: !UTCTime
         }
 
-data AutoRefreshServer = AutoRefreshServer { processes :: [Async ()], sessions :: ![AutoRefreshSession], subscribedTables :: !(Set ByteString) }
+data AutoRefreshServer = AutoRefreshServer { subscriptions :: [Async ()], sessions :: ![AutoRefreshSession], subscribedTables :: !(Set ByteString) }
 
 newAutoRefreshServer :: AutoRefreshServer
-newAutoRefreshServer = AutoRefreshServer { processes = [], sessions = [], subscribedTables = mempty }
+newAutoRefreshServer = AutoRefreshServer { subscriptions = [], sessions = [], subscribedTables = mempty }

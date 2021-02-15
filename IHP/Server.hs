@@ -64,7 +64,7 @@ run configBuilder = do
 
     run `finally` do
         frameworkConfig |> get #logger |> get #cleanup
-        readIORef autoRefreshServer >>= (\autoRefreshServer -> autoRefreshServer |> get #processes |> mapM_ (\process -> Async.uninterruptibleCancel process))
+        readIORef autoRefreshServer >>= (\autoRefreshServer -> autoRefreshServer |> get #subscriptions |> mapM_ Async.uninterruptibleCancel)
 
 {-# INLINABLE run #-}
 
