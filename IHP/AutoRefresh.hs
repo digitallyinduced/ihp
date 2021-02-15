@@ -159,7 +159,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
                     |> map (\session -> get #event session)
                     |> mapM (\event -> MVar.tryPutMVar event ())
                 pure ())
-    modifyIORef autoRefreshServer (\s -> s { subscriptions = subscriptions })
+    modifyIORef autoRefreshServer (\s -> s { subscriptions = get #subscriptions s <> subscriptions })
     pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
@@ -208,3 +208,8 @@ gcSessions autoRefreshServer = do
 -- | A session is expired if it was not pinged in the last 60 seconds
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
 isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
+
+-- | Stops all async Auto Refresh subscriptions
+stopAutoRefreshServer :: IORef AutoRefreshServer -> IO ()
+stopAutoRefreshServer autoRefreshServer =
+    readIORef autoRefreshServer >>= (\autoRefreshServer -> autoRefreshServer |> get #subscriptions |> mapM_ uninterruptibleCancel)
