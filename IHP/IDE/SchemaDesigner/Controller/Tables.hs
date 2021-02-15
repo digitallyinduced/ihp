@@ -46,7 +46,7 @@ instance Controller TablesController where
             redirectTo TablesAction
         updateSchema (addTable tableName)
         redirectTo ShowTableAction { .. }
-    
+
     action EditTableAction { .. } = do
         statements <- readSchema
         let tableId = param "tableId"
