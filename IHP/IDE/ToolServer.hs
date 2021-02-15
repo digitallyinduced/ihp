@@ -64,7 +64,7 @@ startToolServer = do
     thread <- async (startToolServer' port isDebugMode)
 
     dispatch (UpdateToolServerState (ToolServerStarted { thread }))
-    
+
 startToolServer' :: (?context :: Context) => Int -> Bool -> IO ()
 startToolServer' port isDebugMode = do
 
@@ -83,7 +83,7 @@ startToolServer' port isDebugMode = do
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?context = requestContext
             frontControllerToWAIApp toolServerApplication [] ErrorController.handleNotFound
-            
+
     libDirectory <- cs <$> LibDir.findLibDirectory
     let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
 
@@ -93,8 +93,8 @@ startToolServer' port isDebugMode = do
             |> Warp.setBeforeMainLoop openAppUrl
 
     let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
-    
-    Warp.runSettings warpSettings $ 
+
+    Warp.runSettings warpSettings $
             staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware $ application
 
 stopToolServer ToolServerStarted { thread } = uninterruptibleCancel thread

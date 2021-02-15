@@ -45,7 +45,7 @@ watchInsertOrUpdateTable tableName onInsertOrUpdate = do
 
             -- Trigger callback in async to avoid losing events when the callback takes a bit of time to execute
             async onInsertOrUpdate
-    
+
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 createNotificationTrigger :: ByteString -> ByteString
 createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
@@ -63,6 +63,6 @@ createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionN
         updateTriggerName = "did_update_" <> tableName
         deleteTriggerName = "did_delete_" <> tableName
 
--- | Retuns the event name of the event that the pg notify trigger dispatches
+-- | Returns the event name of the event that the pg notify trigger dispatches
 eventName :: ByteString -> ByteString
 eventName tableName = "did_change_" <> tableName

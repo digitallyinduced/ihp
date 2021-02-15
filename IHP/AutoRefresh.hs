@@ -59,7 +59,7 @@ autoRefresh runAction = do
             -- flash messages, the current user, ...
             --
             -- This frozen context is used as a "template" inside renderView to make a new controller context
-            -- with the exact same content we had when rendering the initial page, whenever we do a serverside rerendering
+            -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
             frozenControllerContext <- freeze ?context
 
             let renderView = \requestContext -> do
@@ -86,8 +86,7 @@ autoRefresh runAction = do
                             modifyIORef autoRefreshServer (\s -> s { sessions = session:(get #sessions s) } )
                             async (gcSessions autoRefreshServer)
 
-                            notifications <- registerNotificationTrigger ?touchedTables autoRefreshServer
-                            modifyIORef autoRefreshServer (\s -> s { processes = notifications })
+                            registerNotificationTrigger ?touchedTables autoRefreshServer
 
                             throw exception
                         _   -> error "Unimplemented WAI response type."
@@ -146,22 +145,23 @@ instance WSApp AutoRefreshWSApp where
             AwaitingSessionID -> pure ()
 
 
-registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO [Async ()]
+registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (get #subscribedTables) <$> (autoRefreshServer |> readIORef)
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
     modifyIORef autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
-    mapM (\table -> do
-        PGNotify.watchInsertOrUpdateTable table do
-            sessions <- (get #sessions) <$> readIORef autoRefreshServer
-            sessions
+    subscriptions <- mapM (\table -> PGNotify.watchInsertOrUpdateTable table do
+                sessions <- (get #sessions) <$> readIORef autoRefreshServer
+                sessions
                     |> filter (\session -> table `Set.member` (get #tables session))
                     |> map (\session -> get #event session)
                     |> mapM (\event -> MVar.tryPutMVar event ())
-            pure ())
-        subscriptionRequired
+                pure ())
+            subscriptionRequired
+    modifyIORef autoRefreshServer (\s -> s { processes = subscriptions })
+    pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
 getAvailableSessions :: (?context :: ControllerContext) => IORef AutoRefreshServer -> IO [UUID]
