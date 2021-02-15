@@ -178,6 +178,21 @@ Preloading with InstantClick on hover will only happen with links that
 
 (So putting an anchor on a link, or explicitly setting the `data-turbolinks-preload` attribute to `false`, will let you selectively turn off preloading for that link.)
 
+We provide two custom events
+
+-   `ihp:load` that will trigger when `DOMContentLoaded` or `turbolinks:load`
+-   `ihp:load` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
+
+```javascript
+document.addEventListener('ihp:load', () => {
+    console.log('Page Loaded');
+});
+
+document.addEventListener('ihp:unload', () => {
+    console.log('Page Unloaded');
+});
+```
+
 ## JSON
 
 Views that are rendered by calling the `render` function can also respond with JSON.
@@ -295,8 +310,8 @@ When you open the `PostsAction` at `/Posts` in your browser you will still get t
 From JavaScript you can get the JSON using `fetch`:
 
 ```javascript
-const response = await fetch("http://localhost:8000/Posts", {
-    headers: { Accept: "application/json" },
+const response = await fetch('http://localhost:8000/Posts', {
+    headers: { Accept: 'application/json' },
 }).then((response) => response.json());
 ```
 
