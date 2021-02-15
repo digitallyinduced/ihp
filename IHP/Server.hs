@@ -62,7 +62,9 @@ run configBuilder = do
                                 methodOverridePost $
                                     application
 
-    run `finally` (frameworkConfig |> get #logger |> get #cleanup)
+    run `finally` do
+        frameworkConfig |> get #logger |> get #cleanup
+        AutoRefresh.stopAutoRefreshServer autoRefreshServer
 
 {-# INLINABLE run #-}
 

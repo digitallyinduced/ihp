@@ -116,7 +116,10 @@ ihpDefaultConfig = do
     databaseUrl <- liftIO defaultDatabaseUrl
 
     option $ DatabaseUrl databaseUrl
-    option $ DBPoolIdleTime 60
+    option $ DBPoolIdleTime $
+            case environment of
+            Development -> 2
+            Production -> 60
     option $ DBPoolMaxConnections 20
 
     (AppPort port) <- findOption @AppPort

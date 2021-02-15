@@ -1,6 +1,6 @@
 {-|
 Module: IHP.AutoRefresh
-Description: Provides automatical diff-based refreshing views after page load
+Description: Provides automatically diff-based refreshing views after page load
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.AutoRefresh where
@@ -59,7 +59,7 @@ autoRefresh runAction = do
             -- flash messages, the current user, ...
             --
             -- This frozen context is used as a "template" inside renderView to make a new controller context
-            -- with the exact same content we had when rendering the initial page, whenever we do a serverside rerendering
+            -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
             frozenControllerContext <- freeze ?context
 
             let renderView = \requestContext -> do
@@ -96,7 +96,6 @@ autoRefresh runAction = do
             -- When this function calls the 'action ?theAction' in the other case
             -- we will evaluate this branch
             runAction
-
 
 data AutoRefreshWSApp = AwaitingSessionID | AutoRefreshActive { sessionId :: UUID }
 instance WSApp AutoRefreshWSApp where
@@ -153,16 +152,15 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
     modifyIORef autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
-    forEach subscriptionRequired \table -> do
-        void $ PGNotify.watchInsertOrUpdateTable table do
-            sessions <- (get #sessions) <$> readIORef autoRefreshServer
-            sessions
+    subscriptions <-  subscriptionRequired |> mapM (\table -> PGNotify.watchInsertOrUpdateTable table do
+                sessions <- (get #sessions) <$> readIORef autoRefreshServer
+                sessions
                     |> filter (\session -> table `Set.member` (get #tables session))
                     |> map (\session -> get #event session)
                     |> mapM (\event -> MVar.tryPutMVar event ())
-            pure ()
-
-
+                pure ())
+    modifyIORef autoRefreshServer (\s -> s { subscriptions = get #subscriptions s <> subscriptions })
+    pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
 getAvailableSessions :: (?context :: ControllerContext) => IORef AutoRefreshServer -> IO [UUID]
@@ -200,13 +198,18 @@ updateSession sessionId updateFunction = do
 -- | Removes all expired sessions
 --
 -- This is useful to avoid dead sessions hanging around. This can happen when a websocket connection was never established
--- after the inital request. Then the onClose of the websocket app is never called and thus the session will not be
+-- after the initial request. Then the onClose of the websocket app is never called and thus the session will not be
 -- removed automatically.
 gcSessions :: IORef AutoRefreshServer -> IO ()
 gcSessions autoRefreshServer = do
     now <- getCurrentTime
     modifyIORef autoRefreshServer (\autoRefreshServer -> autoRefreshServer { sessions = filter (not . isSessionExpired now) (get #sessions autoRefreshServer) })
 
--- | A session is expired if it wasn't pinged in the last 60 seconds
+-- | A session is expired if it was not pinged in the last 60 seconds
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
 isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
+
+-- | Stops all async Auto Refresh subscriptions
+stopAutoRefreshServer :: IORef AutoRefreshServer -> IO ()
+stopAutoRefreshServer autoRefreshServer =
+    readIORef autoRefreshServer >>= (\autoRefreshServer -> autoRefreshServer |> get #subscriptions |> mapM_ uninterruptibleCancel)
