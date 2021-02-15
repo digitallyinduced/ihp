@@ -62,7 +62,9 @@ run configBuilder = do
                                 methodOverridePost $
                                     application
 
-    run `finally` (frameworkConfig |> get #logger |> get #cleanup)
+    run `finally` do
+        frameworkConfig |> get #logger |> get #cleanup
+        readIORef autoRefreshServer >>= (\autoRefreshServer -> autoRefreshServer |> get #processes |> mapM_ (\process -> Async.uninterruptibleCancel process))
 
 {-# INLINABLE run #-}
 
