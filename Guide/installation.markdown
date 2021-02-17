@@ -140,6 +140,13 @@ nix.trustedUsers = [ "root" "USERNAME_HERE" ];
 
 ## 3. Next
 
+Setting up your editor
+
+-   [VS Code](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-visual-studio-code-vscode)
+-   [Sublime Text](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-sublime-text)
+-   [Emacs](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-emacs)
+-   [Vim / NeoVim](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-vim-neovim)
+
 It's time to start your first "hello world" project now :)
 
 [Next: Your First Project](https://ihp.digitallyinduced.com/Guide/your-first-project.html)
