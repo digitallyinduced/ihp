@@ -245,6 +245,31 @@ This will render like:
 </div>
 ```
 
+### Autofocus
+
+You can mark an input with autofocus, to ensure it will be given the input focus on page load, like this:
+
+```haskell
+{(textField #title) { autofocus = True } }
+```
+
+This will render like:
+
+```html
+<div class="form-group" id="form-group-post_title">
+    <label for="post_title">Title</label>
+
+    <input
+        type="text"
+        name="title"
+        id="post_title"
+        autofocus="autofocus"
+        class="form-control"
+    />
+</div>
+```
+
+
 ### Custom Submit Button Text
 
 Customize it like this:

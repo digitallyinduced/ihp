@@ -53,6 +53,7 @@ tests = do
                         , helpText = ""
                         , placeholder = "Your firstname"
                         , required = False
+                        , autofocus = False
                         }
                 it "should render" do
                     let textField = baseTextField
@@ -93,6 +94,7 @@ tests = do
                         , helpText = ""
                         , placeholder = ""
                         , required = False
+                        , autofocus = False
                         }
                 it "should render" do
                     let checkbox = baseCheckbox
@@ -132,6 +134,7 @@ tests = do
                         , helpText = ""
                         , placeholder = "Please select"
                         , required = False
+                        , autofocus = False
                     }
 
                 it "should render" do

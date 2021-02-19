@@ -54,6 +54,7 @@ data FormField = FormField
     , helpText :: !Text
     , placeholder :: !Text
     , required :: Bool
+    , autofocus :: Bool
     }
 
 data SubmitButton = SubmitButton

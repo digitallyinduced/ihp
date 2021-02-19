@@ -176,6 +176,7 @@ textField field = FormField
         , helpText = ""
         , placeholder = ""
         , required = False
+        , autofocus = False
         }
     where
         fieldName = symbolVal field
@@ -295,6 +296,7 @@ checkboxField field = FormField
         , helpText = ""
         , placeholder = ""
         , required = False
+        , autofocus = False
         }
     where
         fieldName = symbolVal field
@@ -333,6 +335,7 @@ selectField field items = FormField
         , helpText = ""
         , placeholder = "Please select"
         , required = False
+        , autofocus = False
     }
     where
         fieldName = symbolVal field
