@@ -52,7 +52,8 @@ import Data.Dynamic
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
-    { connectionPool :: Pool.Pool Connection
+    { connectionPool :: Pool.Pool Connection -- ^ Used to get database connections when no 'transactionConnection' is set
+    , transactionConnection :: Maybe Connection -- ^ Set to a specific database connection when executing a database transaction
     -- | Logs all queries to this logger at log level info
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
@@ -63,6 +64,7 @@ data ModelContext = ModelContext
 notConnectedModelContext :: Logger -> ModelContext
 notConnectedModelContext logger = ModelContext
     { connectionPool = error "Not connected"
+    , transactionConnection = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
     }
@@ -76,6 +78,7 @@ createModelContext idleTime maxConnections databaseUrl logger = do
 
     let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
     let trackTableReadCallback = Nothing
+    let transactionConnection = Nothing
     pure ModelContext { .. }
 
 instance LoggingProvider ModelContext where
@@ -338,7 +341,12 @@ sqlExec theQuery theParameters = do
 {-# INLINABLE sqlExec #-}
 
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
-withDatabaseConnection block = let ModelContext { connectionPool } = ?modelContext in Pool.withResource connectionPool block
+withDatabaseConnection block =
+    let
+        ModelContext { connectionPool, transactionConnection } = ?modelContext
+    in case transactionConnection of
+        Just transactionConnection -> block transactionConnection
+        Nothing -> Pool.withResource connectionPool block
 {-# INLINABLE withDatabaseConnection #-}
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
@@ -357,8 +365,57 @@ sqlQueryScalar theQuery theParameters = do
     pure case result of
         [PG.Only result] -> result
         _ -> error "sqlQueryScalar: Expected a scalar result value"
-
 {-# INLINABLE sqlQueryScalar #-}
+
+-- | Executes the given block with a database transaction
+--
+-- __Example:__
+--
+-- > withTransaction do
+-- >    company <- newRecord @Company |> createRecord
+-- >
+-- >    -- When creating the user fails, there will be no company left over
+-- >    user <- newRecord @User
+-- >        |> set #companyId (get #id company)
+-- >        |> createRecord
+-- >
+-- >    company <- company
+-- >        |> set #ownerId (get #id user)
+-- >        |> updateRecord
+withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
+withTransaction block = withTransactionConnection do
+    let connection = ?modelContext
+            |> get #transactionConnection
+            |> \case
+                Just connection -> connection
+                Nothing -> error "withTransaction: transactionConnection not set as expected"
+    PG.withTransaction connection block
+{-# INLINABLE withTransaction #-}
+
+-- | Returns the postgres connection when called within a 'withTransaction' block
+--
+-- Throws an error if called from outside a 'withTransaction'
+transactionConnectionOrError :: (?modelContext :: ModelContext) => Connection
+transactionConnectionOrError = ?modelContext
+            |> get #transactionConnection
+            |> \case
+                Just connection -> connection
+                Nothing -> error "getTransactionConnectionOrError: Not in a transaction state"
+
+commitTransaction :: (?modelContext :: ModelContext) => IO ()
+commitTransaction = PG.commit transactionConnectionOrError
+{-# INLINABLE commitTransaction #-}
+
+rollbackTransaction :: (?modelContext :: ModelContext) => IO ()
+rollbackTransaction = PG.rollback transactionConnectionOrError
+{-# INLINABLE rollbackTransaction #-}
+
+withTransactionConnection :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
+withTransactionConnection block = do
+    withDatabaseConnection \connection -> do
+        let modelContext = ?modelContext { transactionConnection = Just connection }
+        let ?modelContext = modelContext in block
+{-# INLINABLE withTransactionConnection #-}
 
 -- | Returns the table name of a given model.
 --
