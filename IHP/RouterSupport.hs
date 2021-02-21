@@ -409,7 +409,7 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
 -- Currently this is only Int, Text, and both wrapped in List and Maybe.
 -- IDs also are representable in a URL, but we are unable to match on polymorphic types using reflection,
 -- so we fall back to the default "show" for these.
-class (Typeable a, Data a) => QueryParam a where
+class Data a => QueryParam a where
     showQueryParam :: a -> String
 
 instance QueryParam Text where
