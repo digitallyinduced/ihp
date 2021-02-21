@@ -479,7 +479,7 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     >>= \Refl -> Just (showQueryParam val),
                 \val -> (eqT :: Maybe (d :~: [Integer]))
                     >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: Maybe Int))
+                \val -> (eqT :: Maybe (d :~: Maybe Integer))
                     >>= \Refl -> Just (showQueryParam val)
 
                 ]

@@ -144,7 +144,7 @@ tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) d
         it "parses Integer params: empty" $ withContext do
             runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124") Server.application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Nothing []"
         it "parses Integer params: full" $ withContext do
-            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124&p2=123123&p3=1,2,3,4") Server.application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Just 123123 [1,2,3,4]"
+            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124&p2=123123197269176247612461769284769812481278487124&p3=1,2,3,4") Server.application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Just 123123197269176247612461769284769812481278487124 [1,2,3,4]"
     describe "pathTo" $ do
         it "generates correct path for empty route" $ withContext do
             pathTo TestAction `shouldBe` "/test/Test"
