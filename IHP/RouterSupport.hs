@@ -133,6 +133,19 @@ parseFuncs = [
                     Just Refl -> Right Nothing
                     Nothing -> Left NotMatched,
 
+            \case
+                Just queryValue -> case eqT :: Maybe (d :~: Integer) of
+                    Just Refl -> readMay (cs queryValue :: String)
+                        |> \case
+                            Just int -> Right int
+                            Nothing -> Left BadType
+                    Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
+                        Just Refl -> Right $ readMay (cs queryValue :: String)
+                        Nothing -> Left NotMatched
+                Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
+                    Just Refl -> Right Nothing
+                    Nothing -> Left NotMatched,
+
             -- Try and parse @Text@ or @Maybe Text@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Text) of
@@ -159,7 +172,17 @@ parseFuncs = [
                         |> catMaybes
                         |> Right
                     Nothing -> Right []
+                Nothing -> Left NotMatched,
+
+            \queryValue -> case eqT :: Maybe (d :~: [Integer]) of
+                Just Refl -> case queryValue of
+                    Just queryValue -> Text.splitOn "," (cs queryValue)
+                        |> map readMay
+                        |> catMaybes
+                        |> Right
+                    Nothing -> Right []
                 Nothing -> Left NotMatched
+
             ]
 
 -- | As we fold over a constructor, we want the values parsed from the query string
@@ -395,6 +418,9 @@ instance QueryParam Text where
 instance QueryParam Int where
     showQueryParam = show
 
+instance QueryParam Integer where
+    showQueryParam = show
+
 instance QueryParam a => QueryParam (Maybe a) where
     showQueryParam (Just val) = showQueryParam val
     showQueryParam Nothing = ""
@@ -448,7 +474,14 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                 \val -> (eqT :: Maybe (d :~: [Int]))
                     >>= \Refl -> Just (showQueryParam val),
                 \val -> (eqT :: Maybe (d :~: Maybe Int))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: Integer))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: [Integer]))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: Maybe Integer))
                     >>= \Refl -> Just (showQueryParam val)
+
                 ]
 
             arguments :: String
