@@ -12,7 +12,7 @@ For more complex sql queries, use 'IHP.ModelSupport.sqlQuery'.
 module IHP.QueryBuilder
 ( query
 , filterWhere
-, QueryBuilder
+, QueryBuilder (..)
 , In (In)
 , orderBy
 , orderByAsc
@@ -54,29 +54,6 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
-
--- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.
--- Used together with the other functions to compose a sql query.
---
--- Example:
---
--- > toSQL (query @User)
--- > -- Returns: ("SELECT id, firstname, lastname FROM users", [])
---
--- Example: Fetching all users
---
--- > allUsers <- query @User |> fetch
--- > -- Runs a 'SELECT * FROM users' query
---
--- You can use it together with 'filterWhere':
---
--- > activeUsers :: [User] <-
--- >    query @User
--- >     |> filterWhere (#active, True)
--- >     |> fetch
-query :: forall model table. (table ~ GetTableName model) => DefaultScope table => QueryBuilder table
-query = (defaultScope @table) NewQueryBuilder
-{-# INLINE query #-}
 
 class DefaultScope table where
     defaultScope :: QueryBuilder table -> QueryBuilder table
@@ -165,6 +142,31 @@ instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField val
 instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
 instance SetField "limitClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { limitClause = value }
 instance SetField "offsetClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { offsetClause = value }
+
+
+
+-- | Represent's a @SELECT * FROM ..@ query. It's the starting point to build a query.
+-- Used together with the other functions to compose a sql query.
+--
+-- Example:
+--
+-- > toSQL (query @User)
+-- > -- Returns: ("SELECT id, firstname, lastname FROM users", [])
+--
+-- Example: Fetching all users
+--
+-- > allUsers <- query @User |> fetch
+-- > -- Runs a 'SELECT * FROM users' query
+--
+-- You can use it together with 'filterWhere':
+--
+-- > activeUsers :: [User] <-
+-- >    query @User
+-- >     |> filterWhere (#active, True)
+-- >     |> fetch
+query :: forall model table. (table ~ GetTableName model) => DefaultScope table => QueryBuilder table
+query = (defaultScope @table) NewQueryBuilder
+{-# INLINE query #-}
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table. (KnownSymbol table) => QueryBuilder table -> SQLQuery
@@ -295,12 +297,6 @@ compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
 
--- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
-class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
-instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
-instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
-
-
 class FilterPrimaryKey table where
     filterWhereId :: Id' table -> QueryBuilder table -> QueryBuilder table
 
@@ -344,12 +340,34 @@ filterWhere (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, qu
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhere #-}
 
+-- | Adds a @WHERE x IN (y)@ condition to the query.
+--
+-- __Example:__ Only show projects where @status@ is @Draft@ or @Active@.
+--
+-- > visibleProjects <- query @Project
+-- >     |> filterWhereIn (#status, [Draft, Active])
+-- >     |> fetch
+-- > -- SELECT * FROM projects WHERE status IN ('draft', 'active')
+--
+-- For negation use 'filterWhereNotIn'
+--
 filterWhereIn :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, [value]) -> QueryBuilder table -> QueryBuilder table
 filterWhereIn (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereIn #-}
 
+-- | Adds a @WHERE x NOT IN (y)@ condition to the query.
+--
+-- __Example:__ Only show projects where @status@ is not @Archived@
+--
+-- > visibleProjects <- query @Project
+-- >     |> filterWhereNotIn (#status, [Archived])
+-- >     |> fetch
+-- > -- SELECT * FROM projects WHERE status NOT IN ('archived')
+--
+-- The inclusive version of this function is called 'filterWhereIn'.
+--
 filterWhereNotIn :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, [value]) -> QueryBuilder table -> QueryBuilder table
 filterWhereNotIn (_, []) queryBuilder = queryBuilder -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)) }
@@ -365,7 +383,6 @@ filterWhereNotIn (name, value) queryBuilder = FilterByQueryBuilder { queryBuilde
 -- >     |> filterWhereLike (#title, "%" <> searchTerm <> "%")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title LIKE '%..%'
-
 filterWhereLike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereLike (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
     where
@@ -373,7 +390,13 @@ filterWhereLike (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder
 {-# INLINE filterWhereLike #-}
 
 -- | Adds a @WHERE x ILIKE y@ condition to the query. Case-insensitive version of 'filterWhereLike'.
-
+--
+-- __Example:__ Find titles matching search term.
+--
+-- > articles <- query @Article
+-- >     |> filterWhereILike (#title, "%" <> searchTerm <> "%")
+-- >     |> fetch
+-- > -- SELECT * FROM articles WHERE title ILIKE '%..%'
 filterWhereILike :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereILike (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
     where
@@ -388,7 +411,6 @@ filterWhereILike (name, value) queryBuilder = FilterByQueryBuilder { queryBuilde
 -- >     |> filterWhereMatches (#name, "^(M(rs|r|iss)|Dr|Sir). ")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title ~ '^(M(rs|r|iss)|Dr|Sir). '
-
 filterWhereMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereMatches (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value) }
     where
@@ -396,7 +418,6 @@ filterWhereMatches (name, value) queryBuilder = FilterByQueryBuilder { queryBuil
 {-# INLINE filterWhereMatches #-}
 
 -- | Adds a @WHERE x ~* y@ condition to the query. Case-insensitive version of 'filterWhereMatches'.
-
 filterWhereIMatches :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereIMatches (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value) }
     where
@@ -513,7 +534,7 @@ queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
 queryOr firstQuery secondQuery queryBuilder = UnionQueryBuilder { firstQueryBuilder = firstQuery queryBuilder, secondQueryBuilder = secondQuery queryBuilder }
 {-# INLINE queryOr #-}
 
--- | Adds an @DISTINCT to your query.
+-- | Adds a @DISTINCT@ to your query.
 --
 -- Use 'distinct' to remove all duplicate rows from the result
 --
@@ -542,3 +563,10 @@ distinctOn !name queryBuilder = DistinctOnQueryBuilder { distinctOnColumn = colu
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE distinctOn #-}
+
+
+
+-- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
+class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
+instance {-# OVERLAPS #-} EqOrIsOperator (Maybe something) where toEqOrIsOperator Nothing = IsOp; toEqOrIsOperator (Just _) = EqOp
+instance {-# OVERLAPPABLE #-} EqOrIsOperator otherwise where toEqOrIsOperator _ = EqOp
