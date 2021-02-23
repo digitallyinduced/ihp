@@ -133,14 +133,14 @@ jumpToAction theAction = do
     action theAction
 
 {-# INLINE getRequestBody #-}
-getRequestBody :: (?context :: ControllerContext) => IO ByteString
+getRequestBody :: (?context :: ControllerContext) => IO LByteString
 getRequestBody = 
     ?context
     |> get #requestContext
     |> get #requestBody
     |> \case
-        RequestContext.JSONBody { rawPayload } -> pure (cs rawPayload)
-        _ -> Network.Wai.getRequestBodyChunk request
+        RequestContext.JSONBody { rawPayload } -> pure rawPayload
+        _ -> Network.Wai.lazyRequestBody request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
 getRequestPath :: (?context :: ControllerContext) => ByteString
