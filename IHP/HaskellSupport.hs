@@ -315,21 +315,21 @@ instance IsString UUID.UUID where
             Nothing -> error ("Invalid UUID: " <> string)
 
 
--- | Provides the 'copyFields' function
---
--- Useful to rewrite getter-setter code like this:
---
--- > let newProject = newRecord @Project
--- >     |> set #name (get #name otherProject)
--- >     |> set #isPublic (get #isPublic otherProject)
--- >     |> set #userId (get #userId otherProject)
---
--- With 'copyFields' this can be written like this:
---
--- > let newProject = newRecord @Project
--- >     |> copyFields @["name", "isPublic", "userId"] otherProject
---
 class CopyFields (fields :: [Symbol]) destinationRecord sourceRecord where
+    -- | Provides the 'copyFields' function
+    --
+    -- Useful to rewrite getter-setter code like this:
+    --
+    -- > let newProject = newRecord @Project
+    -- >     |> set #name (get #name otherProject)
+    -- >     |> set #isPublic (get #isPublic otherProject)
+    -- >     |> set #userId (get #userId otherProject)
+    --
+    -- With 'copyFields' this can be written like this:
+    --
+    -- > let newProject = newRecord @Project
+    -- >     |> copyFields @["name", "isPublic", "userId"] otherProject
+    --
     copyFields :: sourceRecord -> destinationRecord -> destinationRecord
 
 instance CopyFields ('[]) destinationRecord sourceRecord where
