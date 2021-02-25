@@ -111,8 +111,6 @@ tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) d
             runSession (testGet "test/Test") Server.application >>= assertSuccess "TestAction"
         it "parses Text param" $ withContext do
             runSession (testGet "test/TestText?firstParam=hello") Server.application >>= assertSuccess "hello"
-        it "parses Text param with UUID value" $ withContext do
-                runSession (testGet "test/TestText?firstParam=ea9cd792-107f-49ff-92a1-f610f7a31f31") Server.application >>= assertSuccess "ea9cd792-107f-49ff-92a1-f610f7a31f31"
         it "parses Maybe Text param: Nothing" $ withContext do
             runSession (testGet "test/TestMaybeText") Server.application >>= assertSuccess "Nothing"
         it "parses Maybe Text param: Just" $ withContext do
