@@ -108,17 +108,6 @@ class HasPath controller => CanRoute controller where
 -- Please consult your doctor before engaging in Haskell type programming.
 parseFuncs :: forall d. (Data d) => [Maybe ByteString -> Either TypedAutoRouteError d]
 parseFuncs = [
-            -- Try and parse a UUID. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
-            -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
-            -- Therefore, we're able to safely cast it to its @Id@ type with @unsafeCoerce@.
-            \case
-                Just queryValue -> queryValue
-                    |> fromASCIIBytes
-                    |> \case
-                        Just uuid -> uuid |> unsafeCoerce |> Right
-                        Nothing -> Left NotMatched
-                Nothing -> Left NotMatched,
-
             -- Try and parse @Int@ or @Maybe Int@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Int) of
@@ -156,6 +145,17 @@ parseFuncs = [
                 Nothing -> case eqT :: Maybe (d :~: Maybe Text) of
                     Just Refl -> Right Nothing
                     Nothing -> Left NotMatched,
+
+            -- Try and parse a UUID. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
+            -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
+            -- Therefore, we're able to safely cast it to its @Id@ type with @unsafeCoerce@.
+            \case
+                Just queryValue -> queryValue
+                    |> fromASCIIBytes
+                    |> \case
+                        Just uuid -> uuid |> unsafeCoerce |> Right
+                        Nothing -> Left NotMatched
+                Nothing -> Left NotMatched,
 
             -- Try and parse @[Text]@. If value is not present then default to empty list.
             \queryValue -> case eqT :: Maybe (d :~: [Text]) of
