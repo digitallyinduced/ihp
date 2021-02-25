@@ -11,6 +11,7 @@ import IHP.IDE.Data.View.Layout
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.ByteString as BS
+import qualified Data.UUID as UUID
 
 data EditRowView = EditRowView
     { tableNames :: [Text]
@@ -19,7 +20,7 @@ data EditRowView = EditRowView
     , tableCols :: [ColumnDefinition]
     , rowValues :: [DynamicField]
     , primaryKeyFields :: [Text]
-    , targetPrimaryKey :: Text
+    , targetPrimaryKey :: UUID
     }
 
 instance View EditRowView where
@@ -41,15 +42,14 @@ instance View EditRowView where
                 where
                     id = (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields)))))
             renderField id DynamicField { .. } | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="no-link border rounded p-1" href={EditRowValueAction tableName (cs fieldName) id}>{renderId (sqlValueToText fieldValue)}</a></span></td>|]
-            renderField id DynamicField { .. } | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName id} checked={sqlValueToText fieldValue == "t"} /></span></td>|]
+            renderField id DynamicField { .. } | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName (unsafeTextToUUID id)} checked={sqlValueToText fieldValue == "t"} /></span></td>|]
             renderField id DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{sqlValueToText fieldValue}</a></span></td>|]
-
 
             modalContent = [hsx|
                 <form method="POST" action={UpdateRowAction}>
                     <input type="hidden" name="tableName" value={tableName}/>
                     {forEach (zip tableCols rowValues) renderFormField}
-                    {forEach (zip primaryKeyFields (T.splitOn "---" targetPrimaryKey)) renderPrimaryKeyInput}
+                    {forEach (zip primaryKeyFields (T.splitOn "---" $ UUID.toText targetPrimaryKey)) renderPrimaryKeyInput}
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Edit Row</button>
                     </div>
@@ -61,7 +61,7 @@ instance View EditRowView where
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
             renderPrimaryKeyInput (primaryKeyField, primaryKeyValue) = [hsx|<input type="hidden" name={primaryKeyField <> "-pk"} value={primaryKeyValue}>|]
-            
+
             renderFormField :: (ColumnDefinition, DynamicField) -> Html
             renderFormField (def, val) = [hsx|
                     <div class="form-group">

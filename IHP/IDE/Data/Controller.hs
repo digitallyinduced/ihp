@@ -19,6 +19,7 @@ import qualified Data.Text as T
 import qualified Data.ByteString.Builder
 
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.UUID as UUID
 
 instance Controller DataController where
     action ShowDatabaseAction = do
@@ -51,7 +52,7 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
-        let primaryKeyValues = T.splitOn "---" primaryKey
+        let primaryKeyValues = T.splitOn "---" $ UUID.toText primaryKey
         let query = "DELETE FROM " <> tableName <> " WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
         PG.execute connection (PG.Query . cs $! query) primaryKeyValues
         PG.close connection
@@ -87,7 +88,7 @@ instance Controller DataController where
         rows :: [[DynamicField]] <- fetchRows connection tableName
 
         tableCols <- fetchTableCols connection tableName
-        let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
+        let targetPrimaryKeyValues = T.splitOn "---" $ UUID.toText targetPrimaryKey
         values <- fetchRow connection (cs tableName) targetPrimaryKeyValues
         let (Just rowValues) = head values
         PG.close connection
@@ -112,7 +113,7 @@ instance Controller DataController where
     action EditRowValueAction { tableName, targetName, id } = do
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
-        
+
         rows :: [[DynamicField]] <- fetchRows connection tableName
 
         let targetId = cs id
@@ -126,7 +127,7 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         tableCols <- fetchTableCols connection tableName
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
-        let targetPrimaryKeyValues = PG.Escape . cs <$> T.splitOn "---" targetPrimaryKey
+        let targetPrimaryKeyValues = PG.Escape . cs <$> T.splitOn "---" (UUID.toText targetPrimaryKey)
         let query = PG.Query . cs $! "UPDATE ? SET ? = NOT ? WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
         let params = [PG.toField $ PG.Identifier tableName, PG.toField $ PG.Identifier targetName, PG.toField $ PG.Identifier targetName] <> targetPrimaryKeyValues
         PG.execute connection query params
@@ -188,7 +189,7 @@ fetchRowsPage :: FromRow r => PG.Connection -> Text -> Int -> Int -> IO [r]
 fetchRowsPage connection tableName page rows = do
     pkFields <- tablePrimaryKeyFields connection tableName
     let slice = " OFFSET " <> show (page * rows - rows) <> " ROWS FETCH FIRST " <> show rows <> " ROWS ONLY"
-    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice 
+    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice
 
     PG.query_ connection (PG.Query . cs $! query)
 

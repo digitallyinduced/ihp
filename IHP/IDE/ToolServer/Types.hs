@@ -61,18 +61,17 @@ data EnumValuesController
     | DeleteEnumValueAction { enumName :: Text, valueId :: Int }
     deriving (Eq, Show, Data)
 
-
 data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
     | ShowQueryAction
-    | DeleteEntryAction { primaryKey :: Text, tableName :: Text }
+    | DeleteEntryAction { primaryKey :: UUID, tableName :: Text }
     | CreateRowAction
     | NewRowAction { tableName :: Text }
-    | EditRowAction { tableName :: Text, targetPrimaryKey :: Text }
+    | EditRowAction { tableName :: Text, targetPrimaryKey :: UUID }
     | UpdateRowAction
     | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
-    | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
+    | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: UUID }
     | UpdateValueAction
     deriving (Eq, Show, Data)
 
@@ -117,7 +116,7 @@ data ColumnDefinition = ColumnDefinition
     } deriving (Show)
 
 
--- | Keeps track of all all available apps in the projects. Used to display 
+-- | Keeps track of all all available apps in the projects. Used to display
 -- the apps inside the sidebar navigation
 --
 -- Usually this list is like: @["Web"]@ or @["Web", "Admin"]@
@@ -130,4 +129,3 @@ newtype AppUrl = AppUrl Text
 -- | List of all controllers. Used inside e.g. the Schema Designer to decide whether to display
 -- the 'Generate Controller' option
 newtype WebControllers = WebControllers [Text]
-
