@@ -516,6 +516,36 @@ instance CanSelect ContentType where
     -- You can also use the following shortcut: selectLabel = tshow
 ```
 
+## Custom Form Action / Form URLs
+
+The URL where the form is going to be submitted to is specified in HTML using the form's `action` attribute. When using `formFor` the `action` attribute is automatically set to the expected path.
+
+E.g. given the below `formFor` code, the `action` is set to `/CreatePost` or `/UpdatePost`:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formFor post [hsx|
+    {textField #title}
+    {textareaField #body}
+    {submitButton}
+|]
+```
+
+To override the auto-generated `action` attribute use the `formFor'` function:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formFor' post "/my-custom-endpoint" [hsx||]
+```
+
+If you pass an action to that, you need to wrap it with `pathTo`:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formFor' post (pathTo CreateDraftAction) [hsx||]
+```
+
+
 ## Advanced Forms
 
 You can get very far with the built-in form helpers. But sometimes you might need a very custom functionality which is not easily doable with the form helpers. In this case, we highly recommend not to use the form helpers for that specific case. Don't fight the tools.
