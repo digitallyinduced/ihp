@@ -38,8 +38,8 @@ instance View EditValueView where
             renderRow fields = [hsx|<tr oncontextmenu={"showContextMenu('" <> contextMenuId <> "');"}>{forEach fields (renderField id)}
             </tr>
             <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
-                <a href={EditRowAction tableName (unsafeTextToUUID id)}>Edit Row</a>
-                <a href={DeleteEntryAction (unsafeTextToUUID id) tableName} class="js-delete">Delete Row</a>
+                <a href={EditRowAction tableName id}>Edit Row</a>
+                <a href={DeleteEntryAction id tableName} class="js-delete">Delete Row</a>
                 <div></div>
                 <a href={NewRowAction tableName}>Add Row</a>
             </div>|]

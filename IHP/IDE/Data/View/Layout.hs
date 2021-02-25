@@ -13,7 +13,6 @@ module IHP.IDE.Data.View.Layout
     , renderRowValue
     , renderDefaultWithoutType
     , isBooleanParam
-    , unsafeTextToUUID
     ) where
 
 import IHP.ViewPrelude
@@ -21,7 +20,6 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import qualified Data.Text as Text
-import qualified Data.UUID as UUID
 
 customQuery :: Text -> Html
 customQuery input = [hsx|<div class="p-2 rounded mt-2" style="background-color: #002B36;"><div id="queryInput" style="height:16px">{input}</div></div>|]
@@ -90,6 +88,3 @@ isBooleanParam isBool def = [hsx|
     value={inputValue isBool}
     />
 |]
-
-unsafeTextToUUID :: Text -> UUID
-unsafeTextToUUID text = let Just uuid = UUID.fromText text in uuid
