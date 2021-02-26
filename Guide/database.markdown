@@ -590,3 +590,46 @@ IHP currently has support for the following postgres column types:
 - INET (Only IP addresses, CIDR not supported yet)
 - Arrays of all the above types
 - Custom types, usually enums
+
+## Transactions
+
+You can use the `withTransaction` function to wrap your database operations in a postgres database transaction:
+
+```haskell
+withTransaction do
+   company <- newRecord @Company |> createRecord
+
+   user <- newRecord @User
+       |> set #companyId (get #id company)
+       |> createRecord
+
+   company <- company
+       |> setJust #ownerId (get #id user)
+       |> updateRecord
+```
+
+In this example, when the creation of the User fails, the creation of the company will be rolled back. So that no
+incomplete data is left in the database when there's an error.
+
+The `withTransaction` function will automatically commit after it succesfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
+
+### Common Pitfalls
+
+Keep in mind that some IHP functions like `redirectTo` or `render` throw a `ResponseException`. So code like below will not work as expected:
+
+```haskell
+action CreateUserAction = do
+    withTransaction do
+        user <- newRecord @User |> createRecord
+        redirectTo NewSessionAction
+```
+
+The `redirectTo` throws a `ResponseException` and will cause a rollback. This code should be structured like this:
+
+```haskell
+action CreateUserAction = do
+    user <- withTransaction do
+        newRecord @User |> createRecord
+    
+    redirectTo NewSessionAction
+```

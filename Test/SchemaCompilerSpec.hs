@@ -41,6 +41,52 @@ tests = do
 
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader
                 |]
+            it "should not pluralize values" do
+                -- See https://github.com/digitallyinduced/ihp/issues/767
+                let statement = CreateEnumType { name = "Province", values = ["Alberta", "BritishColumbia", "Saskatchewan", "Manitoba", "Ontario", "Quebec", "NovaScotia", "NewBrunswick", "PrinceEdwardIsland", "NewfoundlandAndLabrador"] }
+                let output = compileStatementPreview [statement] statement |> Text.strip
+
+                output `shouldBe` [text|
+                    data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum)
+                    instance FromField Province where
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Alberta") = pure Alberta
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "BritishColumbia") = pure Britishcolumbia
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Saskatchewan") = pure Saskatchewan
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Manitoba") = pure Manitoba
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Ontario") = pure Ontario
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Quebec") = pure Quebec
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "NovaScotia") = pure Novascotia
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "NewBrunswick") = pure Newbrunswick
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "PrinceEdwardIsland") = pure Princeedwardisland
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "NewfoundlandAndLabrador") = pure Newfoundlandandlabrador
+                        fromField field (Just value) = returnError ConversionFailed field ("Unexpected value for enum value. Got: " <> Data.String.Conversions.cs value)
+                        fromField field Nothing = returnError UnexpectedNull field "Unexpected null for enum value"
+                    instance Default Province where def = Alberta
+                    instance ToField Province where
+                        toField Alberta = toField ("Alberta" :: Text)
+                        toField Britishcolumbia = toField ("BritishColumbia" :: Text)
+                        toField Saskatchewan = toField ("Saskatchewan" :: Text)
+                        toField Manitoba = toField ("Manitoba" :: Text)
+                        toField Ontario = toField ("Ontario" :: Text)
+                        toField Quebec = toField ("Quebec" :: Text)
+                        toField Novascotia = toField ("NovaScotia" :: Text)
+                        toField Newbrunswick = toField ("NewBrunswick" :: Text)
+                        toField Princeedwardisland = toField ("PrinceEdwardIsland" :: Text)
+                        toField Newfoundlandandlabrador = toField ("NewfoundlandAndLabrador" :: Text)
+                    instance InputValue Province where
+                        inputValue Alberta = "Alberta" :: Text
+                        inputValue Britishcolumbia = "BritishColumbia" :: Text
+                        inputValue Saskatchewan = "Saskatchewan" :: Text
+                        inputValue Manitoba = "Manitoba" :: Text
+                        inputValue Ontario = "Ontario" :: Text
+                        inputValue Quebec = "Quebec" :: Text
+                        inputValue Novascotia = "NovaScotia" :: Text
+                        inputValue Newbrunswick = "NewBrunswick" :: Text
+                        inputValue Princeedwardisland = "PrinceEdwardIsland" :: Text
+                        inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
+
+                    instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader
+                |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable {
                     name = "users",

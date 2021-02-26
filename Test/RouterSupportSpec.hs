@@ -37,6 +37,7 @@ data TestController
   | TestTextListAction { textList :: [Text] }
   | TestIntListAction { intList :: [Int] }
   | TestMixedAction { text :: Text, textOther :: Text, intList :: [Int], maybeText :: Maybe Text, textOtherOther :: Text, intParam :: Int }
+  | TestInteger { p1 :: Integer, p2 :: Maybe Integer, p3 :: [Integer] }
   deriving (Eq, Show, Data)
 
 instance Controller TestController where
@@ -66,6 +67,11 @@ instance Controller TestController where
             <> " Nothing"
             <> " " <> textOtherOther
             <> " " <> cs (ClassyPrelude.show intParam))
+    action TestInteger { .. } = do
+        renderPlain (cs $
+            cs (ClassyPrelude.show p1)
+            <> (" " :: Text) <> cs (ClassyPrelude.show p2)
+            <> " " <> cs (ClassyPrelude.show p3))
 
 
 instance AutoRoute TestController
@@ -105,6 +111,8 @@ tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) d
             runSession (testGet "test/Test") Server.application >>= assertSuccess "TestAction"
         it "parses Text param" $ withContext do
             runSession (testGet "test/TestText?firstParam=hello") Server.application >>= assertSuccess "hello"
+        it "parses Text param with UUID value" $ withContext do
+                runSession (testGet "test/TestText?firstParam=ea9cd792-107f-49ff-92a1-f610f7a31f31") Server.application >>= assertSuccess "ea9cd792-107f-49ff-92a1-f610f7a31f31"
         it "parses Maybe Text param: Nothing" $ withContext do
             runSession (testGet "test/TestMaybeText") Server.application >>= assertSuccess "Nothing"
         it "parses Maybe Text param: Just" $ withContext do
@@ -135,6 +143,10 @@ tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) d
             runSession (testGet "test/TestIntList?intList=5,BOO,3") Server.application >>= assertSuccess "[5,3]"
         it "parses mixed params" $ withContext do
             runSession (testGet "test/TestMixed?text=hello&textOther=sailor&intList=5,BOO,3&textOtherOther=asdf&intParam=123") Server.application >>= assertSuccess "hello sailor [5,3] Nothing asdf 123"
+        it "parses Integer params: empty" $ withContext do
+            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124") Server.application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Nothing []"
+        it "parses Integer params: full" $ withContext do
+            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124&p2=123123197269176247612461769284769812481278487124&p3=1,2,3,4") Server.application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Just 123123197269176247612461769284769812481278487124 [1,2,3,4]"
     describe "pathTo" $ do
         it "generates correct path for empty route" $ withContext do
             pathTo TestAction `shouldBe` "/test/Test"

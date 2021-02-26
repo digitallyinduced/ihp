@@ -199,9 +199,7 @@ build/RunJobs.hs: build/Generated/Types.hs
 	echo "import qualified Config" >> $@
 	echo "import Main ()" >> $@
 	echo "main :: IO ()" >> $@
-	echo "main = runScript Config.config run" >> $@
-	echo "run :: Script" >> $@
-	echo "run = runJobWorkers (workers RootApplication)" >> $@
+	echo "main = runScript Config.config (runJobWorkers (workers RootApplication))" >> $@
 
 hie.yaml: # Configuration for haskell-language-server
 	echo "cradle:" > hie.yaml
