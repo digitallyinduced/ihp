@@ -96,9 +96,9 @@ visualNav =
 
 renderColumnSelector :: Text -> [(Int, Column)] -> [Statement] -> Html
 renderColumnSelector tableName columns statements = [hsx|
-<div class="col-8 column-selector">
-    <section oncontextmenu="showContextMenu('context-menu-column-root')">
-        <div class="d-flex">
+<div class="col-8 column-selector d-flex">
+    <section class="flex-grow-1" oncontextmenu="showContextMenu('context-menu-column-root')">
+        <div>
             <h5>Columns</h5>
         </div>
         <table class="table table-hover table-sm">
@@ -120,7 +120,7 @@ renderColumnSelector tableName columns statements = [hsx|
         columnIndexes =
             case findTableIndex statements tableName of
                 Just _ -> [hsx|
-                    <div class="d-flex">
+                    <div>
                         <h5>Indexes</h5>
                     </div>
                     <table class="table table-hover table-sm">
