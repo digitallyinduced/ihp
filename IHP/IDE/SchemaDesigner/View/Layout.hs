@@ -96,27 +96,38 @@ visualNav =
 
 renderColumnSelector :: Text -> [(Int, Column)] -> [Statement] -> Html
 renderColumnSelector tableName columns statements = [hsx|
-<div class="col-8 column-selector" oncontextmenu="showContextMenu('context-menu-column-root')">
-    <div class="d-flex">
-        <h5>Columns</h5>
-    </div>
-    <table class="table table-hover table-sm">
-        <tbody>
-            {forEach columns (\column -> renderColumn (snd column) (fst column) tableName statements)}
-        </tbody>
-    </table>
+<div class="col-8 column-selector">
+    <section oncontextmenu="showContextMenu('context-menu-column-root')">
+        <div class="d-flex">
+            <h5>Columns</h5>
+        </div>
+        <table class="table table-hover table-sm">
+            <tbody>
+                {forEach columns (\column -> renderColumn (snd column) (fst column) tableName statements)}
+            </tbody>
+        </table>
+    </section>
 
-    <div class="d-flex">
-        <h5>Indexes</h5>
-    </div>
-    <table class="table table-hover table-sm">
-        {renderColumnIndexes tableName statements}
-    </table>
+    <section>
+        {columnIndexes}
+    </section>
 </div>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id="context-menu-column-root">
     <a href={NewColumnAction tableName}>Add Column</a>
 </div>
 |]
+    where
+        columnIndexes =
+            case findTableIndex statements tableName of
+                Just _ -> [hsx|
+                    <div class="d-flex">
+                        <h5>Indexes</h5>
+                    </div>
+                    <table class="table table-hover table-sm">
+                        {renderColumnIndexes tableName statements}
+                    </table>
+                |]
+                Nothing -> [hsx||]
 
 -- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
 
@@ -161,7 +172,7 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
             _ -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
 
 renderColumnIndexes tableName statements = [hsx|
-<tr class="">
+<tr>
     {index}
 </tr>
 |]
@@ -170,7 +181,7 @@ renderColumnIndexes tableName statements = [hsx|
             Just statement -> [hsx|
                     <td>{get #indexName statement}</td>
                     <td>{columns}</td>
-                |] where columns = get #columnNames statement |> map (\name -> [hsx|{name}|])
+                |] where columns = get #columnNames statement |> intercalate ", "
             Nothing -> [hsx||]
 
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
