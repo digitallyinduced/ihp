@@ -2,6 +2,34 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.9.0 from Beta 0.8.0
+
+## Switch IHP version
+
+Open `default.nix` and change the git commit in line 4 to the following:
+
+```diff
+-ref = "refs/tags/v0.8.0";
++ref = "refs/tags/v0.9.0";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+
+## Upgrade AutoRoute
+
+If you got an type error related to AutoRoute's `parseArgument` function, you need to also follow this step.
+
+The `parseArgument` interface has been removed as this works out of the box now. To upgrade remove your definitions of `parseArgument`.
+
 # Upgrade to Beta 0.8.0 from Beta 13.12.2020 (v20201213)
 
 ## Update `Config/nix/nixpkgs-config.nix`
