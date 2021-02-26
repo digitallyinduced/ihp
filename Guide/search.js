@@ -70,22 +70,16 @@ const App = () => {
                 align-items: center;
                 justify-content: flex-end;
             }
-
-            #guide-search-container {
-                max-width: 200px;
-            }
         </style>
 
-        <div id="guide-search-container">
-            <input
-                type="text"
-                id="guide-search-input"
-                name="guide-search-input"
-                placeholder="Search Guide"
-                autocomplete="off"
-                oninput=${(event) => setSearchQuery(event.target.value)}
-            />
-        </div>
+        <input
+            type="text"
+            id="guide-search-input"
+            name="guide-search-input"
+            placeholder="Search Guide"
+            autocomplete="off"
+            oninput=${(event) => setSearchQuery(event.target.value)}
+        />
     `;
 };
 
