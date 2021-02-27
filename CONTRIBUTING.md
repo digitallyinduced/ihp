@@ -97,11 +97,11 @@ The documentation reads a bit like a tutorial, but should still be kept somewhat
 
 ## Code Guidelines
 
-- Please use `pure`. `return` might confuse people coming from other programming languages.
+-   Please use `pure`. `return` might confuse people coming from other programming languages.
 
-- Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
+-   Please add Haddock-comments to new methods intended to be used by directly when developing using IHP.
 
-- Please consider carefully before adding new packages as requirements to IHP itself. Make sure the packages are actively maintained.
+-   Please consider carefully before adding new packages as requirements to IHP itself. Make sure the packages are actively maintained.
 
 ## Running Tests
 
@@ -127,9 +127,9 @@ After creating a new test you need to still call it from the `Main` module by ad
 
 ## Troubleshooting
 
-### `can't satisify package ihp`
+### `can't satisfy package ihp`
 
-If you get an error like `can't satisify package ihp` or all other IHP packages when running `ghci` most likely the symlink in `build/ihp-lib` is not set up as expected. IHP uses the symlink `build/ihp-lib` in your application's `.ghci` file to access [`IHP/lib/IHP/applicationGhciConfig`](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/applicationGhciConfig#L39). This `applicationGhciConfig` sets up all the required options for `ghci`.
+If you get an error like `can't satisfy package ihp` or all other IHP packages when running `ghci` most likely the symlink in `build/ihp-lib` is not set up as expected. IHP uses the symlink `build/ihp-lib` in your application's `.ghci` file to access [`IHP/lib/IHP/applicationGhciConfig`](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/applicationGhciConfig#L39). This `applicationGhciConfig` sets up all the required options for `ghci`.
 
 Try to run `make -B build/ihp-lib` to create the symlink.
 
@@ -161,9 +161,9 @@ Practical resources to get you up to speed with tools IHP uses.
 
 ### Haskell
 
-- [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/)
-- [Implicit Parameters](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html#implicit-parameters)
+-   [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/)
+-   [Implicit Parameters](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html#implicit-parameters)
 
 ### Nix
 
-- [Scrive Nix Workshop](https://scrive.github.io/nix-workshop/)
+-   [Scrive Nix Workshop](https://scrive.github.io/nix-workshop/)
