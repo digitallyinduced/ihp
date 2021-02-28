@@ -11,7 +11,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 import IHP.IDE.SchemaDesigner.Parser
 import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, getDefaultValue, isIllegalKeyword, findForeignKey)
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, getDefaultValue, isIllegalKeyword, findForeignKey, findTableIndex)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
@@ -106,7 +106,10 @@ instance Controller ColumnsController where
         let columnName = param "columnName"
         case findForeignKey statements tableName columnName of
             Just AddConstraint { constraintName, .. } -> updateSchema (deleteForeignKeyConstraint constraintName)
-            _ -> pure ()
+            otherwise -> pure ()
+        case findTableIndex statements tableName of
+            Just CreateIndex { indexName, .. } -> updateSchema (deleteTableIndex indexName)
+            otherwise -> pure ()
         updateSchema (map (deleteColumnInTable tableName columnId))
         redirectTo ShowTableAction { .. }
 
@@ -227,6 +230,9 @@ deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == Add
 
 addTableIndex :: Text -> Text -> [Text] -> [Statement] -> [Statement]
 addTableIndex indexName tableName columnNames list = list <> [CreateIndex { indexName, tableName,  columnNames }]
+
+deleteTableIndex :: Text -> [Statement] -> [Statement]
+deleteTableIndex indexName list = filter (\index -> not (index == CreateIndex { indexName = indexName, tableName = get #tableName index, columnNames = get #columnNames index })) list
 
 getCreateTable :: [Statement] -> [CreateTable]
 getCreateTable statements = foldr step [] statements
