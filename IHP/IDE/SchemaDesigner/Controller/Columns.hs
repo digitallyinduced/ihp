@@ -54,6 +54,11 @@ instance Controller ColumnsController where
             let referenceTable = param "referenceTable"
             let onDelete = NoAction
             updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
+
+            let indexName = tableName <> "_index"
+            let columnNames = [columnName]
+            updateSchema (addTableIndex indexName tableName columnNames)
+
         redirectTo ShowTableAction { .. }
 
     action EditColumnAction { .. } = do
@@ -219,6 +224,9 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable on
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
+
+addTableIndex :: Text -> Text -> [Text] -> [Statement] -> [Statement]
+addTableIndex indexName tableName columnNames list = list <> [CreateIndex { indexName, tableName,  columnNames }]
 
 getCreateTable :: [Statement] -> [CreateTable]
 getCreateTable statements = foldr step [] statements
