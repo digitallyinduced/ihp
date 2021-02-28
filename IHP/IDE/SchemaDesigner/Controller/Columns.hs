@@ -72,8 +72,8 @@ instance Controller ColumnsController where
         let tableName = param "tableName"
         let columnName = param "name"
         when (columnName == "") do
-            (setErrorMessage ("Name can not be empty"))
-            redirectTo ShowTableAction { .. }
+            setErrorMessage ("Column Name can not be empty")
+            redirectTo ShowTableAction { tableName }
         when (isIllegalKeyword columnName) do
             (setErrorMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
             redirectTo ShowTableAction { .. }
@@ -88,10 +88,28 @@ instance Controller ColumnsController where
                 , notNull = (not (param "allowNull"))
                 , isUnique = param "isUnique"
                 }
-        when ((get #name column) == "") do
-            setErrorMessage ("Column Name can not be empty")
-            redirectTo ShowTableAction { tableName }
         updateSchema (map (updateColumnInTable tableName column (param "primaryKey") columnId))
+
+        -- Update Foreign Key Reference
+        let oldColumn = columns !! columnId
+        let maybeConstraint = find (\statement -> statement == AddConstraint { tableName = tableName
+            , constraintName = (get #constraintName statement)
+            , constraint = ForeignKeyConstraint { columnName = (get #name oldColumn)
+                , referenceTable = (get #referenceTable (get #constraint statement))
+                , referenceColumn = (get #referenceColumn (get #constraint statement))
+                , onDelete=(get #onDelete (get #constraint statement)) } }) statements
+        case maybeConstraint of
+            Just constraint -> do
+                let constraintId = elemIndex constraint statements
+                case constraintId of
+                    Just constraintId -> do
+                        let constraintName = tableName <> "_ref_" <> columnName
+                        let referenceTable = get #referenceTable (get #constraint constraint)
+                        let Just onDelete = get #onDelete (get #constraint constraint)
+                        updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId)
+                    Nothing -> putStrLn ("Error")
+            Nothing -> pure ()
+
         redirectTo ShowTableAction { .. }
 
     action DeleteColumnAction { .. } = do
