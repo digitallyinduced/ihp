@@ -6,6 +6,7 @@ import qualified System.Process as Process
 import qualified GHC.IO.Handle as Handle
 import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
+import System.FSNotify (WatchConfig)
 import IHP.IDE.PortConfig
 import Data.String.Conversions (cs)
 
@@ -145,6 +146,7 @@ data Context = Context
     , portConfig :: PortConfig
     , appStateRef :: IORef AppState
     , isDebugMode :: Bool
+    , fileWatcherConfig :: WatchConfig
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()
