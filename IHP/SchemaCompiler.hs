@@ -116,7 +116,7 @@ compileTypes options schema@(Schema statements) =
     where
         prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
                   <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}\n"
-                  <> "{-# GHC_OPTIONS -Wno-unused-imports, -Wno-dodgy-imports, -Wno-unused-matches #-}"
+                  <> "{-# OPTIONS_GHC -Wno-unused-imports, -Wno-dodgy-imports, -Wno-unused-matches #-}\n"
                   <> "module Generated.Types where\n\n"
                   <> "import IHP.HaskellSupport\n"
                   <> "import IHP.ModelSupport\n"
