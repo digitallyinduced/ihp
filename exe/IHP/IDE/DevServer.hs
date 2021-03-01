@@ -41,10 +41,7 @@ main = do
     when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpVersion))
     setProcessLimits
 
-    let fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
-    let fileWatcherConfig = FS.defaultConfig { FS.confDebounce = FS.Debounce fileWatcherDebounceTime }
-
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, fileWatcherConfig }
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
 
     threadId <- myThreadId
     let catchHandler = do
@@ -181,8 +178,9 @@ stop AppState { .. } = do
 
 startFileWatcher :: (?context :: Context) => IO ()
 startFileWatcher = do
-        let watchConfig = ?context |> get #fileWatcherConfig
-        thread <- async $ FS.withManagerConf watchConfig $ \manager -> do
+        let fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
+        let fileWatcherConfig = FS.defaultConfig { FS.confDebounce = FS.Debounce fileWatcherDebounceTime }
+        thread <- async $ FS.withManagerConf fileWatcherConfig $ \manager -> do
             FS.watchTree manager "." shouldActOnFileChange handleFileChange
             forever (threadDelay maxBound) `finally` FS.stopManager manager
         dispatch (UpdateFileWatcherState (FileWatcherStarted { thread }))
