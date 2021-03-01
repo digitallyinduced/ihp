@@ -172,7 +172,7 @@ This will fetch the user from the database when a `userId` is given in the sessi
 After you have completed the above steps, you can open the login at `/NewSession`. You can generate a link to your login page like this:
 
 ```html
-<a href="{NewSessionAction}">Login</a>
+<a href={NewSessionAction}>Login</a>
 ```
 
 ## Accessing the current user
