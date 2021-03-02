@@ -24,6 +24,7 @@ import IHP.Environment
 import qualified IHP.LibDir as LibDir
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
+import qualified Data.Time.Clock as Clock
 
 main :: IO ()
 main = do
@@ -162,7 +163,7 @@ start = do
     async startLiveReloadNotificationServer
     async startAppGHCI
     async startPostgres
-    async startFilewatcher
+    async startFileWatcher
     pure ()
 
 stop :: (?context :: Context) => AppState -> IO ()
@@ -175,9 +176,11 @@ stop AppState { .. } = do
     stopFileWatcher fileWatcherState
     stopToolServer toolServerState
 
-startFilewatcher :: (?context :: Context) => IO ()
-startFilewatcher = do
-        thread <- async $ FS.withManager $ \manager -> do
+startFileWatcher :: (?context :: Context) => IO ()
+startFileWatcher = do
+        let fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
+        let fileWatcherConfig = FS.defaultConfig { FS.confDebounce = FS.Debounce fileWatcherDebounceTime }
+        thread <- async $ FS.withManagerConf fileWatcherConfig $ \manager -> do
             FS.watchTree manager "." shouldActOnFileChange handleFileChange
             forever (threadDelay maxBound) `finally` FS.stopManager manager
         dispatch (UpdateFileWatcherState (FileWatcherStarted { thread }))
