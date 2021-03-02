@@ -434,7 +434,7 @@ filterWhereIMatches (name, value) queryBuilder = FilterByQueryBuilder { queryBui
 -- >     |> filterWhereSql (#startedAt, "< current_timestamp - interval '1 day'")
 -- >     |> fetch
 -- > -- SELECT * FROM projects WHERE started_at < current_timestamp - interval '1 day'
-...
+--
 filterWhereSql :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, ByteString) -> QueryBuilder table -> QueryBuilder table
 filterWhereSql (name, sqlCondition) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, SqlOp, Plain (Builder.byteString sqlCondition)) }
     where
