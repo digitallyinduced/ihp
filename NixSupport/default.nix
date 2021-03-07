@@ -1,9 +1,13 @@
-{ compiler ? "ghc8103", ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./. }:
+{ compiler ? "ghc8103", ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./., withHoogle ? false }:
 
 let
     pkgs = import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; };
     ghc = pkgs.haskell.packages.${compiler};
-    allHaskellPackages = ghc.ghcWithPackages (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
+    allHaskellPackages =
+      (if withHoogle
+      then ghc.ghcWithHoogle
+      else ghc.ghcWithPackages)
+        (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
     allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql] (if pkgs.stdenv.isDarwin then [] else []) ];
 in
     pkgs.stdenv.mkDerivation {
