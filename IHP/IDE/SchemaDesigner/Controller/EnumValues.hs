@@ -6,16 +6,8 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.SchemaDesigner.View.EnumValues.New
 import IHP.IDE.SchemaDesigner.View.EnumValues.Edit
 
-import IHP.IDE.SchemaDesigner.Parser
-import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace)
-import qualified IHP.SchemaCompiler as SchemaCompiler
-import qualified System.Process as Process
-import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
-import qualified Data.Text.IO as Text
-import IHP.IDE.SchemaDesigner.Controller.Schema
-import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, replace, schemaDesignerLayout)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 
 instance Controller EnumValuesController where
