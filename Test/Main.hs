@@ -18,6 +18,7 @@ import IHP.Prelude
 
 import qualified Test.IDE.SchemaDesigner.CompilerSpec
 import qualified Test.IDE.SchemaDesigner.ParserSpec
+import qualified Test.IDE.SchemaDesigner.Controller.EnumValuesSpec
 import qualified Test.ValidationSupport.ValidateFieldSpec
 import qualified Test.IDE.CodeGeneration.ControllerGenerator
 import qualified Test.IDE.CodeGeneration.ViewGenerator
@@ -40,6 +41,7 @@ main :: IO ()
 main = hspec do
     Test.IDE.SchemaDesigner.CompilerSpec.tests
     Test.IDE.SchemaDesigner.ParserSpec.tests
+    Test.IDE.SchemaDesigner.Controller.EnumValuesSpec.tests
     Test.ValidationSupport.ValidateFieldSpec.tests
     Test.IDE.CodeGeneration.ControllerGenerator.tests
     Test.IDE.CodeGeneration.ViewGenerator.tests

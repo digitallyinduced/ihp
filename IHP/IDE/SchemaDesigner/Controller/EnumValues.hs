@@ -26,9 +26,16 @@ instance Controller EnumValuesController where
         render NewEnumValueView { .. }
 
     action CreateEnumValueAction = do
+        statements <- readSchema
         let enumName = param "enumName"
         let enumValueName = param "enumValueName"
-        updateSchema (map (addValueToEnum enumName enumValueName))
+        let enumValuesInUse = getAllEnumValues statements
+        let validationResult = enumValueName |> validateAll [nonEmptyEnumValue, isUniqueEnumValue enumValuesInUse Nothing]
+        case validationResult of 
+            Failure message -> 
+                setErrorMessage message
+            Success ->  
+                updateSchema (map (addValueToEnum enumName enumValueName))
         redirectTo ShowEnumAction { .. }
 
     action EditEnumValueAction { .. } = do
@@ -48,10 +55,13 @@ instance Controller EnumValuesController where
         let enum = findStatementByName enumName statements
         let values = maybe [] (get #values) enum
         let value = values !! valueId
-        when (newValue == "") do
-            setErrorMessage ("Column Name can not be empty")
-            redirectTo ShowEnumAction { enumName }
-        updateSchema (map (updateValueInEnum enumName newValue valueId))
+        let enumValuesInUse = getAllEnumValues statements
+        let validationResult = newValue |> validateAll [nonEmptyEnumValue, isUniqueEnumValue enumValuesInUse (Just value)]
+        case validationResult of
+            Failure message ->
+                setErrorMessage message
+            Success ->
+                updateSchema (map (updateValueInEnum enumName newValue valueId))
         redirectTo ShowEnumAction { .. }
 
     action DeleteEnumValueAction { .. } = do
@@ -75,3 +85,18 @@ deleteValueInEnum :: Text -> Int -> Statement -> Statement
 deleteValueInEnum enumName valueId (table@CreateEnumType { name, values }) | name == enumName =
     table { values = delete (values !! valueId) values}
 deleteValueInEnum enumName valueId statement = statement
+
+nonEmptyEnumValue :: Validator Text
+nonEmptyEnumValue "" = Failure "Enum Value cannot be empty" 
+nonEmptyEnumValue _  = Success
+
+isUniqueEnumValue :: [Text] -> Maybe Text -> Validator Text
+isUniqueEnumValue enumValuesInUse oldEnumValue enumValue 
+    | enumValue `elem` enumValuesInUse && Just enumValue /= oldEnumValue  = Failure "Enum Value must be globally unique"
+    | otherwise                                                           = Success
+
+getAllEnumValues :: [Statement] -> [Text]
+getAllEnumValues statements = concat $ mapMaybe extractEnumValues statements 
+    where 
+        extractEnumValues CreateEnumType { values } = Just values
+        extractEnumValues _                         = Nothing 
