@@ -8,7 +8,7 @@ where
 
 import IHP.Prelude
 import IHP.Controller.Context
-import IHP.LoginSupport.Helper.Controller (CurrentUserRecord)
+import IHP.LoginSupport.Helper.Controller (CurrentUserRecord, CurrentAdminRecord)
 
 currentUser :: (?context :: ControllerContext, user ~ CurrentUserRecord, Typeable user) => user
 currentUser = fromMaybe (error "Application.Helper.View.currentUser: Not logged in") currentUserOrNothing
