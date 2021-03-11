@@ -17,6 +17,7 @@ import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.Controller.Validation
 
 instance Controller TablesController where
     beforeAction = setLayout schemaDesignerLayout
@@ -37,15 +38,16 @@ instance Controller TablesController where
         render NewTableView { .. }
 
     action CreateTableAction = do
+        statements <- readSchema
         let tableName = param "tableName"
-        when (tableName == "") do
-            (setErrorMessage ("Name can not be empty"))
-            redirectTo TablesAction
-        when (isIllegalKeyword tableName) do
-            (setErrorMessage (tshow tableName <> " is a reserved keyword and can not be used as a name"))
-            redirectTo TablesAction
-        updateSchema (addTable tableName)
-        redirectTo ShowTableAction { .. }
+        let validationResult = tableName |> validateTable statements Nothing
+        case validationResult of
+            Failure message -> do
+                setErrorMessage message
+                redirectTo TablesAction
+            Success -> do
+                updateSchema (addTable tableName)
+                redirectTo ShowTableAction { .. }
 
     action EditTableAction { .. } = do
         statements <- readSchema
@@ -53,16 +55,18 @@ instance Controller TablesController where
         render EditTableView { .. }
 
     action UpdateTableAction = do
+        statements <- readSchema
         let tableName = param "tableName"
         let tableId = param "tableId"
-        when (tableName == "") do
-            (setErrorMessage ("Name can not be empty"))
-            redirectTo ShowTableAction { .. }
-        when (isIllegalKeyword tableName) do
-            (setErrorMessage (tshow tableName <> " is a reserved keyword and can not be used as a name"))
-            redirectTo ShowTableAction { .. }
-        updateSchema (updateTable tableId tableName)
-        redirectTo ShowTableAction { .. }
+        let oldTableName = (get #name . unsafeGetCreateTable) (statements !! tableId)
+        let validationResult = tableName |> validateTable statements (Just oldTableName)
+        case validationResult of
+            Failure message -> do
+                setErrorMessage message
+                redirectTo ShowTableAction { tableName = oldTableName }
+            Success -> do
+                updateSchema (updateTable tableId tableName)
+                redirectTo ShowTableAction { .. }
 
     action DeleteTableAction { .. } = do
         let tableId = param "tableId"
@@ -96,3 +100,6 @@ deleteTable tableId list = delete (list !! tableId) list
 
 deleteForeignKeyConstraints :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraints tableName list = filter (\con -> not (con == AddConstraint { tableName = tableName, constraintName = get #constraintName con, constraint = get #constraint con })) list
+
+validateTable :: [Statement] -> Maybe Text -> Validator Text
+validateTable statements = validateNameInSchema "table name" (getAllObjectNames statements)

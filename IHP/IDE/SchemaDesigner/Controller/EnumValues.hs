@@ -9,10 +9,11 @@ import IHP.IDE.SchemaDesigner.View.EnumValues.Edit
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, replace, schemaDesignerLayout)
 import IHP.IDE.SchemaDesigner.Controller.Helper
+import IHP.IDE.SchemaDesigner.Controller.Validation
 
 instance Controller EnumValuesController where
     beforeAction = setLayout schemaDesignerLayout
-    
+
     action NewEnumValueAction { enumName } = do
         statements <- readSchema
         render NewEnumValueView { .. }
@@ -21,12 +22,11 @@ instance Controller EnumValuesController where
         statements <- readSchema
         let enumName = param "enumName"
         let enumValueName = param "enumValueName"
-        let enumValuesInUse = getAllEnumValues statements
-        let validationResult = enumValueName |> validateAll [nonEmptyEnumValue, isUniqueEnumValue enumValuesInUse Nothing]
-        case validationResult of 
-            Failure message -> 
+        let validationResult = enumValueName |> validateEnumValue statements Nothing
+        case validationResult of
+            Failure message ->
                 setErrorMessage message
-            Success ->  
+            Success ->
                 updateSchema (map (addValueToEnum enumName enumValueName))
         redirectTo ShowEnumAction { .. }
 
@@ -47,8 +47,7 @@ instance Controller EnumValuesController where
         let enum = findStatementByName enumName statements
         let values = maybe [] (get #values) enum
         let value = values !! valueId
-        let enumValuesInUse = getAllEnumValues statements
-        let validationResult = newValue |> validateAll [nonEmptyEnumValue, isUniqueEnumValue enumValuesInUse (Just value)]
+        let validationResult = newValue |> validateEnumValue statements (Just value)
         case validationResult of
             Failure message ->
                 setErrorMessage message
@@ -78,17 +77,11 @@ deleteValueInEnum enumName valueId (table@CreateEnumType { name, values }) | nam
     table { values = delete (values !! valueId) values}
 deleteValueInEnum enumName valueId statement = statement
 
-nonEmptyEnumValue :: Validator Text
-nonEmptyEnumValue "" = Failure "Enum Value cannot be empty" 
-nonEmptyEnumValue _  = Success
-
-isUniqueEnumValue :: [Text] -> Maybe Text -> Validator Text
-isUniqueEnumValue enumValuesInUse oldEnumValue enumValue 
-    | enumValue `elem` enumValuesInUse && Just enumValue /= oldEnumValue  = Failure "Enum Value must be globally unique"
-    | otherwise                                                           = Success
+validateEnumValue :: [Statement] -> Maybe Text -> Validator Text
+validateEnumValue statements = validateNameInSchema "enum value" (getAllObjectNames statements)
 
 getAllEnumValues :: [Statement] -> [Text]
-getAllEnumValues statements = concat $ mapMaybe extractEnumValues statements 
-    where 
+getAllEnumValues statements = concat $ mapMaybe extractEnumValues statements
+    where
         extractEnumValues CreateEnumType { values } = Just values
-        extractEnumValues _                         = Nothing 
+        extractEnumValues _ = Nothing
