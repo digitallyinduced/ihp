@@ -1,6 +1,8 @@
 module IHP.LoginSupport.Helper.View
 ( currentUser
 , currentUserOrNothing
+, currentAdmin
+, currentAdminOrNothing
 )
 where
 
@@ -13,3 +15,9 @@ currentUser = fromMaybe (error "Application.Helper.View.currentUser: Not logged 
 
 currentUserOrNothing :: forall user. (?context :: ControllerContext, user ~ CurrentUserRecord, Typeable user) => Maybe user
 currentUserOrNothing = fromFrozenContext @(Maybe user)
+
+currentAdmin :: (?context :: ControllerContext, admin ~ CurrentAdminRecord, Typeable admin) => admin
+currentAdmin = fromMaybe (error "Application.Helper.View.currentAdmin: Not logged in") currentAdminOrNothing
+
+currentAdminOrNothing :: forall admin. (?context :: ControllerContext, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
+currentAdminOrNothing = fromFrozenContext @(Maybe admin)
