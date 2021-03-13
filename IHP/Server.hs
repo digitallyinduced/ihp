@@ -54,13 +54,13 @@ run configBuilder = do
     staticMiddleware <- initStaticMiddleware frameworkConfig
     let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
 
-    let run = withBackgroundWorkers frameworkConfig do
-        runServer frameworkConfig $
-            staticMiddleware $
-                sessionMiddleware $
-                        requestLoggerMiddleware $
-                                methodOverridePost $
-                                    application
+    let run = withBackgroundWorkers frameworkConfig $
+            runServer frameworkConfig $
+                staticMiddleware $
+                    sessionMiddleware $
+                            requestLoggerMiddleware $
+                                    methodOverridePost $
+                                        application
 
     run `finally` do
         frameworkConfig |> get #logger |> get #cleanup
