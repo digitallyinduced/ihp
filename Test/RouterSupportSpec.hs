@@ -3,7 +3,10 @@ Module: Test.RouterSupportSpec
 
 Tests for typed auto routing.
 -}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Test.RouterSupportSpec where
+import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
 import IHP.Test.Mocking
@@ -25,6 +28,28 @@ import Network.Wai.Test
 import Network.HTTP.Types
 import qualified IHP.ErrorController as ErrorController
 import Data.String.Conversions
+import Unsafe.Coerce
+
+data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
+type Band = Band'
+type instance GetTableName (Band') = "bands"
+type instance GetModelByTableName "bands" = Band
+type instance GetModelName (Band') = "Band"
+type instance PrimaryKey "bands" = Integer
+
+data Performance' = Performance {id :: (Id' "performances"), meta :: MetaBag} deriving (Eq, Show)
+type Performance = Performance'
+type instance GetTableName (Performance') = "performances"
+type instance GetModelByTableName "performances" = Performance
+type instance GetModelName (Performance') = "Performance"
+type instance PrimaryKey "performances" = UUID
+
+data TextModel' = TextModel {id :: (Id' "textModel"), meta :: MetaBag} deriving (Eq, Show)
+type TextModel = TextModel'
+type instance GetTableName (TextModel') = "textModel"
+type instance GetModelByTableName "textModel" = TextModel
+type instance GetModelName (TextModel') = "textModel"
+type instance PrimaryKey "textModel" = Text
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -38,6 +63,8 @@ data TestController
   | TestIntListAction { intList :: [Int] }
   | TestMixedAction { text :: Text, textOther :: Text, intList :: [Int], maybeText :: Maybe Text, textOtherOther :: Text, intParam :: Int }
   | TestInteger { p1 :: Integer, p2 :: Maybe Integer, p3 :: [Integer] }
+  | TestIntegerId { integerId :: Id Band }
+  | TestUUIDId { uuidId :: Id Performance }
   deriving (Eq, Show, Data)
 
 instance Controller TestController where
@@ -72,9 +99,13 @@ instance Controller TestController where
             cs (ClassyPrelude.show p1)
             <> (" " :: Text) <> cs (ClassyPrelude.show p2)
             <> " " <> cs (ClassyPrelude.show p3))
+    action TestIntegerId { .. } = do
+        renderPlain (cs $ ClassyPrelude.show integerId)
+    action TestUUIDId { .. } = do
+        renderPlain (cs $ ClassyPrelude.show uuidId)
 
-
-instance AutoRoute TestController
+instance AutoRoute TestController where
+    autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
 
 instance FrontController WebApplication where
   controllers = [ startPage TestAction, parseRoute @TestController ]
@@ -147,6 +178,10 @@ tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) d
             runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124") Server.application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Nothing []"
         it "parses Integer params: full" $ withContext do
             runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124&p2=123123197269176247612461769284769812481278487124&p3=1,2,3,4") Server.application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Just 123123197269176247612461769284769812481278487124 [1,2,3,4]"
+        it "parses Id with Integer param" $ withContext do
+            runSession (testGet "test/TestIntegerId?integerId=123") Server.application >>= assertSuccess "123"
+        it "parses Id with UUID param" $ withContext do
+            runSession (testGet "test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") Server.application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
     describe "pathTo" $ do
         it "generates correct path for empty route" $ withContext do
             pathTo TestAction `shouldBe` "/test/Test"

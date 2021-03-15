@@ -18,6 +18,7 @@ CanRoute (..)
 , urlTo
 , parseUUID
 , parseId
+, parseIntegerId
 , remainingText
 , parseText
 , webSocketApp
@@ -61,6 +62,7 @@ import qualified Control.Exception as Exception
 import qualified Data.List.Split as List
 import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
+import Data.Dynamic
 import IHP.Router.Types
 import IHP.WebSocket (WSApp)
 
@@ -106,8 +108,8 @@ class HasPath controller => CanRoute controller where
 -- by matching on Just Refl, we are able to use @d@ as the type we matched it to.
 --
 -- Please consult your doctor before engaging in Haskell type programming.
-parseFuncs :: forall d. (Data d) => [Maybe ByteString -> Either TypedAutoRouteError d]
-parseFuncs = [
+parseFuncs :: forall d idType. (Data d, Data idType) => (ByteString -> Maybe idType) -> [Maybe ByteString -> Either TypedAutoRouteError d]
+parseFuncs parseIdType = [
             -- Try and parse @Int@ or @Maybe Int@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Int) of
@@ -145,6 +147,13 @@ parseFuncs = [
                 Nothing -> case eqT :: Maybe (d :~: Maybe Text) of
                     Just Refl -> Right Nothing
                     Nothing -> Left NotMatched,
+            \case
+                Just queryValue -> case parseIdType queryValue of
+                    Just idValue -> case eqT :: Maybe (d :~: idType) of
+                        Just Refl -> Right idValue
+                        Nothing -> Left NotMatched
+                    Nothing -> Left NotMatched
+                Nothing -> Left NotMatched,
 
             -- Try and parse a UUID. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
             -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
@@ -217,8 +226,8 @@ data TypedAutoRouteError
 --
 -- By iterating through the query and attempting to match the type of each constructor argument
 -- with some transformation of the query string, we attempt to call @MyAction@.
-applyConstr :: Data controller => Constr -> Query -> Either TypedAutoRouteError controller
-applyConstr constructor query = let
+applyConstr :: (Data controller, Data idType) => (ByteString -> Maybe idType) -> Constr -> Query -> Either TypedAutoRouteError controller
+applyConstr parseIdType constructor query = let
 
     -- | Given some query item (key, optional value), try to parse into the current expected type
     -- by iterating through the available parse functions.
@@ -243,7 +252,7 @@ applyConstr constructor query = let
                 [] -> State.lift (Left TooFewArguments)
                 (p@(key, value):rest) -> do
                     State.put rest
-                    attemptToParseArg p parseFuncs
+                    attemptToParseArg p (parseFuncs parseIdType)
 
 
    in case State.runStateT (fromConstrM nextField constructor) (querySortedByFields query constructor) of
@@ -253,8 +262,8 @@ applyConstr constructor query = let
 
 
 class Data controller => AutoRoute controller where
-    autoRoute :: (?context :: RequestContext) => Parser controller
-    autoRoute =
+    autoRouteWithIdType :: (?context :: RequestContext, Data idType) => (ByteString -> Maybe idType) -> Parser controller
+    autoRouteWithIdType parseIdFunc =
         let
             allConstructors :: [Constr]
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
@@ -283,7 +292,7 @@ class Data controller => AutoRoute controller where
                             pure action
 
                     action :: Maybe controller
-                    action = case applyConstr constr query of
+                    action = case applyConstr parseIdFunc constr query of
                         Right parsedAction -> pure parsedAction
                         Left e -> Nothing
 
@@ -294,6 +303,9 @@ class Data controller => AutoRoute controller where
                     checkRequestMethod parsedAction
 
         in choice (map parseAction allConstructors)
+
+    autoRoute :: (?context :: RequestContext) => Parser controller
+    autoRoute = autoRouteWithIdType (\_ -> Nothing :: Maybe Integer)
 
     -- | Specifies the allowed HTTP methods for a given action
     --
@@ -672,6 +684,28 @@ parseRoute = do
     pure (runActionWithNewContext @application action)
 {-# INLINABLE parseRoute #-}
 
+parseUUIDOrTextId ::  ByteString -> Maybe Dynamic
+parseUUIDOrTextId queryVal = queryVal
+    |> fromASCIIBytes
+    |> \case
+        Just uuid -> uuid |> toDyn |> Just
+        Nothing -> Nothing
+
+parseRouteWithId
+    :: forall controller application.
+        (?applicationContext :: ApplicationContext,
+            ?context :: RequestContext,
+            Controller controller,
+            CanRoute controller,
+            InitControllerContext application,
+            ?application :: application,
+            Typeable application,
+            Data controller)
+        => Parser (IO ResponseReceived)
+parseRouteWithId = do
+    action <- parseRoute' @controller
+    pure (runActionWithNewContext @application action)
+
 catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser (IO ResponseReceived)
 catchAll action = do
     string (ByteString.pack (actionPrefix @action))
@@ -707,3 +741,9 @@ remainingText = Text.decodeUtf8 <$> takeByteString
 parseText :: Parser Text
 parseText = Text.decodeUtf8 <$> takeTill ('/' ==)
 {-# INLINABLE parseText #-}
+
+parseIntegerId :: (Data idType) => ByteString -> Maybe idType
+parseIntegerId queryVal = let
+    rawValue :: Maybe Integer = readMay (cs queryVal :: String)
+    in
+       rawValue >>= Just . unsafeCoerce
