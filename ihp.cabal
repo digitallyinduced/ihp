@@ -233,6 +233,7 @@ library
         , IHP.IDE.SchemaDesigner.Controller.Helper
         , IHP.IDE.SchemaDesigner.Controller.Schema
         , IHP.IDE.SchemaDesigner.Controller.Tables
+        , IHP.IDE.SchemaDesigner.Controller.Validation
         , IHP.IDE.SchemaDesigner.View.Columns.Edit
         , IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
         , IHP.IDE.SchemaDesigner.View.Columns.New
