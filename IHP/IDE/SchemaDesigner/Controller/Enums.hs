@@ -7,16 +7,8 @@ import IHP.IDE.SchemaDesigner.View.Enums.New
 import IHP.IDE.SchemaDesigner.View.Enums.Show
 import IHP.IDE.SchemaDesigner.View.Enums.Edit
 
-import IHP.IDE.SchemaDesigner.Parser
-import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, isIllegalKeyword)
-import qualified IHP.SchemaCompiler as SchemaCompiler
-import qualified System.Process as Process
-import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
-import qualified Data.Text.IO as Text
-import IHP.IDE.SchemaDesigner.Controller.Schema
-import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.View.Layout (replace, schemaDesignerLayout)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
