@@ -8,17 +8,9 @@ import IHP.IDE.SchemaDesigner.View.Columns.Edit
 import IHP.IDE.SchemaDesigner.View.Columns.NewForeignKey
 import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 
-import IHP.IDE.SchemaDesigner.Parser
-import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, getDefaultValue, findForeignKey)
-import qualified IHP.SchemaCompiler as SchemaCompiler
-import qualified System.Process as Process
-import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
-import qualified Data.Text.IO as Text
-import IHP.IDE.SchemaDesigner.Controller.Schema
+import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, getDefaultValue, findForeignKey)
 import IHP.IDE.SchemaDesigner.Controller.Helper
-import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
 instance Controller ColumnsController where
