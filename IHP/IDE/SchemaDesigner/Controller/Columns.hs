@@ -27,26 +27,25 @@ instance Controller ColumnsController where
         let tableName = param "tableName"
         let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let columnName = param "name"
-        when (columnName == "") do
-            (setErrorMessage ("Name can not be empty"))
-            redirectTo ShowTableAction { .. }
-        when (isIllegalKeyword columnName) do
-            (setErrorMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
-            redirectTo ShowTableAction { .. }
-        let column = Column
-                { name = columnName
-                , columnType = arrayifytype (param "isArray") (param "columnType")
-                , defaultValue = defaultValue
-                , notNull = (not (param "allowNull"))
-                , isUnique = param "isUnique"
-                }
-        updateSchema (map (addColumnToTable tableName column (param "primaryKey")))
-        when (param "isReference") do
-            let columnName = param "name"
-            let constraintName = tableName <> "_ref_" <> columnName
-            let referenceTable = param "referenceTable"
-            let onDelete = NoAction
-            updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
+        let validationResult = columnName |> validateColumn
+        case validationResult of
+            Failure message ->
+                setErrorMessage message
+            Success -> do
+                let column = Column
+                        { name = columnName
+                        , columnType = arrayifytype (param "isArray") (param "columnType")
+                        , defaultValue = defaultValue
+                        , notNull = (not (param "allowNull"))
+                        , isUnique = param "isUnique"
+                        }
+                updateSchema (map (addColumnToTable tableName column (param "primaryKey")))
+                when (param "isReference") do
+                    let columnName = param "name"
+                    let constraintName = tableName <> "_ref_" <> columnName
+                    let referenceTable = param "referenceTable"
+                    let onDelete = NoAction
+                    updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
         redirectTo ShowTableAction { .. }
 
     action EditColumnAction { .. } = do
@@ -64,27 +63,26 @@ instance Controller ColumnsController where
         statements <- readSchema
         let tableName = param "tableName"
         let columnName = param "name"
-        when (columnName == "") do
-            (setErrorMessage ("Name can not be empty"))
-            redirectTo ShowTableAction { .. }
-        when (isIllegalKeyword columnName) do
-            (setErrorMessage (tshow columnName <> " is a reserved keyword and can not be used as a name"))
-            redirectTo ShowTableAction { .. }
-        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
-        let table = findStatementByName tableName statements
-        let columns = maybe [] (get #columns . unsafeGetCreateTable) table
-        let columnId = param "columnId"
-        let column = Column
-                { name = columnName
-                , columnType = arrayifytype (param "isArray") (param "columnType")
-                , defaultValue = defaultValue
-                , notNull = (not (param "allowNull"))
-                , isUnique = param "isUnique"
-                }
-        when ((get #name column) == "") do
-            setErrorMessage ("Column Name can not be empty")
-            redirectTo ShowTableAction { tableName }
-        updateSchema (map (updateColumnInTable tableName column (param "primaryKey") columnId))
+        let validationResult = columnName |> validateColumn
+        case validationResult of
+            Failure message ->
+                setErrorMessage message
+            Success -> do
+                let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
+                let table = findStatementByName tableName statements
+                let columns = maybe [] (get #columns . unsafeGetCreateTable) table
+                let columnId = param "columnId"
+                let column = Column
+                        { name = columnName
+                        , columnType = arrayifytype (param "isArray") (param "columnType")
+                        , defaultValue = defaultValue
+                        , notNull = (not (param "allowNull"))
+                        , isUnique = param "isUnique"
+                        }
+                when ((get #name column) == "") do
+                    setErrorMessage ("Column Name can not be empty")
+                    redirectTo ShowTableAction { tableName }
+                updateSchema (map (updateColumnInTable tableName column (param "primaryKey") columnId))
         redirectTo ShowTableAction { .. }
 
     action DeleteColumnAction { .. } = do
@@ -230,3 +228,6 @@ arrayifytype False   (PArray coltype) = coltype
 arrayifytype True  a@(PArray coltype) = a
 arrayifytype False coltype = coltype
 arrayifytype True  coltype = PArray coltype
+
+validateColumn :: Validator Text
+validateColumn = validateNameInSchema "column name" [] Nothing
