@@ -28,6 +28,7 @@ import ClassyPrelude
 import IHP.HaskellSupport
 import Data.String.Conversions (cs)
 import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, requestHeaders)
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
 import IHP.ApplicationContext (ApplicationContext (..))
@@ -123,7 +124,7 @@ startWebSocketApp = do
         |> WebSockets.websocketsApp WebSockets.defaultConnectionOptions handleConnection
         |> \case
             Just response -> respond response
-            Nothing -> fail "Expected websocket request"
+            Nothing -> respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket"
 
 
 jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ()
