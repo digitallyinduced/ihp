@@ -25,7 +25,7 @@ After that open the `default.nix` in your project folder. This will look like th
 ```nix
 let
     ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/haskellframework.git";
+        url = "https://github.com/digitallyinduced/ihp.git";
         rev = "720a10ddfd500d5930c926c293aea5a9016acb29";
     };
 
@@ -53,7 +53,7 @@ Open the `default.nix` in your project folder. This will look like this:
 ```nix
 let
     ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/haskellframework.git";
+        url = "https://github.com/digitallyinduced/ihp.git";
         rev = "720a10ddfd500d5930c926c293aea5a9016acb29";
     };
 
@@ -65,7 +65,7 @@ Now change the git commit hash in line 4 next to `rev = ` to your chosen git com
 ```nix
 let
     ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/haskellframework.git";
+        url = "https://github.com/digitallyinduced/ihp.git";
         rev = "... my new commit hash ...";
         ref = "*";
     };
