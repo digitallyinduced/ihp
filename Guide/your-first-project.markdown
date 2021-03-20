@@ -578,7 +578,7 @@ To install this package, open the `default.nix` file and append `mmark` to the `
 let
     ihp = builtins.fetchGit {
         url = "https://github.com/digitallyinduced/ihp.git";
-        ref = "refs/tags/v0.8.0";
+        ref = "refs/tags/v0.9.0";
     };
     haskellEnv = import "${ihp}/NixSupport/default.nix" {
         ihp = ihp;
@@ -779,7 +779,7 @@ Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment
 After that, another type error can be found in `Web/View/Comments/Index.hs`. In this auto-generated view we have a `New Comment` button at the top:
 
 ```haskell
-<h1>Comments <a href={pathTo NewCommentAction} class="btn btn-primary ml-4">+ New</a></h1>
+<h1>Index <a href={pathTo NewCommentAction} class="btn btn-primary ml-4">+ New</a></h1>
 ```
 
 Let's just remove this button by changing this line to:
