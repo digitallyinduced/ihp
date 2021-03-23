@@ -12,6 +12,7 @@ module IHP.Job.Dashboard (
     TableView(..),
     getTableName,
     statusToBadge,
+    newJobFormForTableHeader,
 ) where
 
 import IHP.Prelude
@@ -24,6 +25,9 @@ import IHP.RouterPrelude hiding (get, tshow, error, map)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
+import qualified IHP.Log as Log
+import Network.Wai (requestMethod)
+import Network.HTTP.Types.Method (methodGet, methodPost)
 
 data JobsDashboardController (jobs :: [*])
     = AllJobsAction
@@ -84,8 +88,13 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         let table = param "tableName"
         if tableName @job == table
             then do
-                createNewJob @job
-                redirectToPath "/jobs/ListJobs"
+                if requestMethod request == methodPost
+                    then do
+                        createNewJob @job
+                        redirectToPath "/jobs/ListJobs"
+                    else do
+                        view <- makeNewJobView @job
+                        render view
             else do
                 newJob @rest
 
@@ -105,14 +114,16 @@ class ( job ~ GetModelByTableName (GetTableName job)
     , Record job
     , Show job
     , Eq job
-    , Typeable job
-    ) => DisplayableJob job where
+    , Typeable job) => DisplayableJob job where
 
     makeSection :: (?modelContext :: ModelContext) => IO SomeView
 
     makeDetailView :: (?modelContext :: ModelContext) => job -> IO SomeView
     makeDetailView job = do
         pure $ SomeView $ GenericShowView job
+
+    makeNewJobView :: (?modelContext :: ModelContext) => IO SomeView
+    makeNewJobView = pure (SomeView $ GenericNewJobView @job)
 
     createNewJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
     createNewJob = do
@@ -125,10 +136,24 @@ data TableView = forall a. (TableViewable a) => TableView [a]
 instance View TableView where
     html (TableView rows) = renderTable rows
 
+newJobFormForTableHeader :: forall job. (DisplayableJob job) => Html
+newJobFormForTableHeader =
+        let
+            t = tableName @job
+            link :: Text = "/jobs/CreateJob?tableName=" <> t
+        in [hsx|
+            <form action={link}>
+                <button type="submit" class="btn btn-primary btn-sm">+ New Job</button>
+            </form>
+        |]
 
 class TableViewable a where
     tableTitle :: Text
     tableHeaders :: [Text]
+
+    createNewForm :: Html
+    createNewForm = [hsx||]
+
     renderTableRow :: a -> Html
 
     renderTable :: [a] -> Html
@@ -137,9 +162,13 @@ class TableViewable a where
             title = tableTitle @a
             headers = tableHeaders @a
             renderRow = renderTableRow @a
+            newForm = createNewForm @a
         in [hsx|
         <div>
-            <h3>Job type: {title}</h3>
+            <div class="d-flex justify-content-between align-items-center">
+                <h3>Job type: {title}</h3>
+                {newForm}
+            </div>
             <table class="table table-sm">
                 <thead>
                     <tr>
@@ -176,6 +205,15 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
 
     tableTitle = tableName @job
     tableHeaders = ["ID", "Updated at", "Status", ""]
+    createNewForm =
+        let
+            t = tableName @job
+            link :: Text = "/jobs/CreateJob?tableName=" <> t
+        in [hsx|
+            <form action={link}>
+                <button type="submit" class="btn btn-primary btn-sm">+ New Job</button>
+            </form>
+        |]
     renderTableRow job =
         let
             table = tableName @job
@@ -234,13 +272,11 @@ instance (JobsDashboard jobs) => Controller (JobsDashboardController jobs) where
     action CreateJobAction = autoRefresh $ do
         newJob @jobs
 
-data GenericShowView = forall job. (DisplayableJob job) => GenericShowView job
-
--- VIEW
 getTableName :: forall job. (DisplayableJob job) => job -> Text
 getTableName _ = tableName @job
 
-instance View GenericShowView where
+data GenericShowView job = GenericShowView job
+instance (DisplayableJob job) => View (GenericShowView job) where
     html (GenericShowView job) =
         let
             table = getTableName job
@@ -271,6 +307,21 @@ instance View GenericShowView where
             </form>
         |]
 
+
+data GenericNewJobView job = GenericNewJobView
+instance (DisplayableJob job) => View (GenericNewJobView job) where
+    html _ =
+        let
+            table = tableName @job
+        in [hsx|
+            <br>
+            <h5>New Job: {table}</h5>
+            <br>
+            <form action="/jobs/CreateJob" method="POST">
+                <input type="hidden" id="tableName" name="tableName" value={table}>
+                <button type="submit" class="btn btn-primary">New Job</button>
+            </form>
+        |]
 
 instance HasPath (JobsDashboardController jobs) where
     pathTo _ = error "HasPath not supported for JobsDashboardController."

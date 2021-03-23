@@ -222,6 +222,7 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
+        , IHP.Job.Dashboard
         , IHP.PageTitle.ControllerFunctions
         , IHP.PageTitle.Types
         , IHP.PageTitle.ViewFunctions
