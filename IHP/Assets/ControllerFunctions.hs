@@ -31,3 +31,4 @@ initAssetVersion = do
             |> head
             |> fromMaybe "dev"
     putContext (AssetVersion assetVersion)
+{-# INLINABLE initAssetVersion #-}

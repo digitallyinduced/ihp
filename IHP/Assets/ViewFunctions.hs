@@ -20,3 +20,4 @@ assetPath :: (?context :: ControllerContext) => Text -> Text
 assetPath assetPath = assetPath <> "?v=" <> assetVersion
     where
         (AssetVersion assetVersion) = fromFrozenContext @AssetVersion
+{-# INLINABLE assetPath #-}
