@@ -225,6 +225,9 @@ library
         , IHP.PageTitle.ControllerFunctions
         , IHP.PageTitle.Types
         , IHP.PageTitle.ViewFunctions
+        , IHP.Assets.Types
+        , IHP.Assets.ControllerFunctions
+        , IHP.Assets.ViewFunctions
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns

@@ -31,6 +31,7 @@ module IHP.ControllerPrelude
     , Only (..)
     , module IHP.PageTitle.ControllerFunctions
     , module IHP.WebSocket
+    , module IHP.Assets.ControllerFunctions
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -69,3 +70,4 @@ import IHP.LoginSupport.Helper.Controller
 import IHP.PageTitle.ControllerFunctions
 
 import IHP.WebSocket
+import IHP.Assets.ControllerFunctions
