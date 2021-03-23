@@ -13,7 +13,6 @@ import IHP.IDE.CodeGen.Types
 import IHP.IDE.SchemaDesigner.Types
 import IHP.NameSupport
 
-
 tests = do
     describe "Controller Generator Tests:" do
         let schema = [
@@ -58,7 +57,7 @@ tests = do
                 , CreateFile {filePath = "Web/View/Pages/Edit.hs", fileContent = "module Web.View.Pages.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { page :: Page }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item\"><a href={PagesAction}>Pages</a></li>\n                <li class=\"breadcrumb-item active\">Edit Page</li>\n            </ol>\n        </nav>\n        <h1>Edit Page</h1>\n        {renderForm page}\n    |]\n\nrenderForm :: Page -> Html\nrenderForm page = formFor page [hsx|\n\n    {submitButton}\n|]\n"}
                 , AddImport {filePath = "Web/Controller/Pages.hs", fileContent = "import Web.View.Pages.Edit"}
                 ]
-        
+
         it "should build a controller with name \"page\"" do
             let rawControllerName = "page"
             let controllerName = tableNameToControllerName rawControllerName
@@ -85,7 +84,7 @@ tests = do
                 , CreateFile {filePath = "Web/View/Page/Edit.hs", fileContent = "module Web.View.Page.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { page :: Page }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item\"><a href={PagesAction}>Pages</a></li>\n                <li class=\"breadcrumb-item active\">Edit Page</li>\n            </ol>\n        </nav>\n        <h1>Edit Page</h1>\n        {renderForm page}\n    |]\n\nrenderForm :: Page -> Html\nrenderForm page = formFor page [hsx|\n\n    {submitButton}\n|]\n"}
                 , AddImport {filePath = "Web/Controller/Page.hs", fileContent = "import Web.View.Page.Edit"}
                 ]
-        
+
         it "should build a controller with name \"page_comment\"" do
             let rawControllerName = "page_comment"
             let controllerName = tableNameToControllerName rawControllerName
@@ -111,7 +110,7 @@ tests = do
                 , EnsureDirectory {directory = "Web/View/PageComment"}
                 , CreateFile {filePath = "Web/View/PageComment/Edit.hs", fileContent = "module Web.View.PageComment.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { pageComment :: PageComment }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item\"><a href={PageCommentsAction}>PageComments</a></li>\n                <li class=\"breadcrumb-item active\">Edit PageComment</li>\n            </ol>\n        </nav>\n        <h1>Edit PageComment</h1>\n        {renderForm pageComment}\n    |]\n\nrenderForm :: PageComment -> Html\nrenderForm pageComment = formFor pageComment [hsx|\n\n    {submitButton}\n|]\n"}
                 , AddImport {filePath = "Web/Controller/PageComment.hs", fileContent = "import Web.View.PageComment.Edit"}]
-        
+
         it "should build a controller with name \"pageComment\"" do
             let rawControllerName = "pageComment"
             let controllerName = tableNameToControllerName rawControllerName
@@ -137,3 +136,33 @@ tests = do
                 , EnsureDirectory {directory = "Web/View/PageComment"}
                 , CreateFile {filePath = "Web/View/PageComment/Edit.hs", fileContent = "module Web.View.PageComment.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { pageComment :: PageComment }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item\"><a href={PageCommentsAction}>PageComments</a></li>\n                <li class=\"breadcrumb-item active\">Edit PageComment</li>\n            </ol>\n        </nav>\n        <h1>Edit PageComment</h1>\n        {renderForm pageComment}\n    |]\n\nrenderForm :: PageComment -> Html\nrenderForm pageComment = formFor pageComment [hsx|\n\n    {submitButton}\n|]\n"}
                 , AddImport {filePath = "Web/Controller/PageComment.hs", fileContent = "import Web.View.PageComment.Edit"}]
+
+        it "should build a controller with name \"people\"" do
+            let rawControllerName = "people"
+            let controllerName = tableNameToControllerName rawControllerName
+            let modelName = tableNameToModelName rawControllerName
+            let applicationName = "Web"
+            let builtPlan = ControllerGenerator.buildPlan' schema applicationName controllerName modelName
+
+            builtPlan `shouldBe` [
+                  CreateFile {filePath = "Web/Controller/People.hs", fileContent = "module Web.Controller.People where\n\nimport Web.Controller.Prelude\nimport Web.View.People.Index\nimport Web.View.People.New\nimport Web.View.People.Edit\nimport Web.View.People.Show\n\ninstance Controller PeopleController where\n    action PeopleAction = do\n        people <- query @Person |> fetch\n        render IndexView { .. }\n\n    action NewPersonAction = do\n        let person = newRecord\n        render NewView { .. }\n\n    action ShowPersonAction { personId } = do\n        person <- fetch personId\n        render ShowView { .. }\n\n    action EditPersonAction { personId } = do\n        person <- fetch personId\n        render EditView { .. }\n\n    action UpdatePersonAction { personId } = do\n        person <- fetch personId\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render EditView { .. }\n                Right person -> do\n                    person <- person |> updateRecord\n                    setSuccessMessage \"Person updated\"\n                    redirectTo EditPersonAction { .. }\n\n    action CreatePersonAction = do\n        let person = newRecord @Person\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render NewView { .. }\n                Right person -> do\n                    person <- person |> createRecord\n                    setSuccessMessage "Person created"\n                    redirectTo PeopleAction\n\n    action DeletePersonAction { personId } = do\n        person <- fetch personId\n        deleteRecord person\n        setSuccessMessage \"Person deleted\"\n        redirectTo PeopleAction\n\nbuildPerson person = person\n    |> fill @'[]\n"}
+                , AppendToFile {filePath = "Web/Routes.hs", fileContent = "\ninstance AutoRoute PeopleController\n\n"}
+                , AppendToFile {filePath = "Web/Types.hs", fileContent = "\ndata PeopleController\n    = PeopleAction\n    | NewPersonAction\n    | ShowPersonAction { personId :: !(Id Person) }\n    | CreatePersonAction\n    | EditPersonAction { personId :: !(Id Person) }\n    | UpdatePersonAction { personId :: !(Id Person) }\n    | DeletePersonAction { personId :: !(Id Person) }\n    deriving (Eq, Show, Data)\n"}
+                , AppendToMarker {marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = "import Web.Controller.People"}
+                , AppendToMarker {marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = "        , parseRoute @PeopleController"}
+
+                , EnsureDirectory {directory = "Web/View/People"}
+                , CreateFile {filePath = "Web/View/People/Index.hs", fileContent = "module Web.View.People.Index where\nimport Web.View.Prelude\n\ndata IndexView = IndexView { people :: [Person] }\n\ninstance View IndexView where\n    html IndexView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item active\"><a href={PeopleAction}>People</a></li>\n            </ol>\n        </nav>\n        <h1>Index <a href={pathTo NewPersonAction} class=\"btn btn-primary ml-4\">+ New</a></h1>\n        <div class=\"table-responsive\">\n            <table class=\"table\">\n                <thead>\n                    <tr>\n                        <th>People</th>\n                        <th></th>\n                        <th></th>\n                        <th></th>\n                    </tr>\n                </thead>\n                <tbody>{forEach people renderPerson}</tbody>\n            </table>\n        </div>\n    |]\n\n\nrenderPerson person = [hsx|\n    <tr>\n        <td>{person}</td>\n        <td><a href={ShowPersonAction (get #id person)}>Show</a></td>\n        <td><a href={EditPersonAction (get #id person)} class=\"text-muted\">Edit</a></td>\n        <td><a href={DeletePersonAction (get #id person)} class=\"js-delete text-muted\">Delete</a></td>\n    </tr>\n|]\n"}
+                , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.Index"}
+
+                , EnsureDirectory {directory = "Web/View/People"}
+                , CreateFile {filePath = "Web/View/People/New.hs", fileContent = "module Web.View.People.New where\nimport Web.View.Prelude\n\ndata NewView = NewView { person :: Person }\n\ninstance View NewView where\n    html NewView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item\"><a href={PeopleAction}>People</a></li>\n                <li class=\"breadcrumb-item active\">New Person</li>\n            </ol>\n        </nav>\n        <h1>New Person</h1>\n        {renderForm person}\n    |]\n\nrenderForm :: Person -> Html\nrenderForm person = formFor person [hsx|\n\n    {submitButton}\n|]\n"}
+                , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.New"}
+
+                , EnsureDirectory {directory = "Web/View/People"}
+                , CreateFile {filePath = "Web/View/People/Show.hs", fileContent = "module Web.View.People.Show where\nimport Web.View.Prelude\n\ndata ShowView = ShowView { person :: Person }\n\ninstance View ShowView where\n    html ShowView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item\"><a href={PeopleAction}>People</a></li>\n                <li class=\"breadcrumb-item active\">Show Person</li>\n            </ol>\n        </nav>\n        <h1>Show Person</h1>\n        <p>{person}</p>\n    |]\n"}
+                , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.Show"}
+
+                , EnsureDirectory {directory = "Web/View/People"}
+                , CreateFile {filePath = "Web/View/People/Edit.hs", fileContent = "module Web.View.People.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { person :: Person }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        <nav>\n            <ol class=\"breadcrumb\">\n                <li class=\"breadcrumb-item\"><a href={PeopleAction}>People</a></li>\n                <li class=\"breadcrumb-item active\">Edit Person</li>\n            </ol>\n        </nav>\n        <h1>Edit Person</h1>\n        {renderForm person}\n    |]\n\nrenderForm :: Person -> Html\nrenderForm person = formFor person [hsx|\n\n    {submitButton}\n|]\n"}
+                , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.Edit"}]
