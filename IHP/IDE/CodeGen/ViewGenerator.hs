@@ -9,7 +9,6 @@ import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import qualified Text.Countable as Countable
 
 data ViewConfig = ViewConfig
     { controllerName :: Text
@@ -41,7 +40,8 @@ buildPlan' schema config =
         let
             controllerName = get #controllerName config
             name = get #viewName config
-            singularName = config |> get #modelName
+            singularName = config |> get #modelName |> lcfirst |> singularize |> ucfirst -- TODO: `singularize` Should Support Lower-Cased Words
+            pluralName = singularName |> lcfirst |> pluralize |> ucfirst -- TODO: `pluralize` Should Support Lower-Cased Words
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
             nameWithSuffix = if "View" `isSuffixOf` name
@@ -51,7 +51,7 @@ buildPlan' schema config =
                 then Text.replace "View" "" name
                 else name --e.g. "TestView" -> "Test"
 
-            indexAction = Countable.pluralize singularName <> "Action"
+            indexAction = pluralName <> "Action"
             specialCases = [
                   ("IndexView", indexView)
                 , ("ShowView", showView)
@@ -77,7 +77,7 @@ buildPlan' schema config =
                 <> "    html " <> nameWithSuffix <> " { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize name <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralize name <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">" <> nameWithSuffix <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -92,7 +92,7 @@ buildPlan' schema config =
                 <> "    html ShowView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -108,7 +108,7 @@ buildPlan' schema config =
                 <> "    html NewView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">New " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -130,7 +130,7 @@ buildPlan' schema config =
                 <> "    html EditView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
                 <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
@@ -152,7 +152,7 @@ buildPlan' schema config =
                 <> "    html IndexView { .. } = [hsx|\n"
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> Countable.pluralize singularName <> "</a></li>\n"
+                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
                 <> "        <h1>" <> nameWithoutSuffix <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"

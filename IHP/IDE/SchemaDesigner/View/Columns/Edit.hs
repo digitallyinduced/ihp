@@ -6,7 +6,6 @@ import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
-import Text.Countable (singularize)
 
 data EditColumnView = EditColumnView
     { statements :: [Statement]
@@ -105,7 +104,7 @@ instance View EditColumnView where
                     <input type="hidden" name="isArray" value={inputValue False}/>
                 </form>
             |]
-            modalFooter = mempty 
+            modalFooter = mempty
             modalCloseUrl = pathTo ShowTableAction { tableName }
             modalTitle = "Edit Column"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
@@ -149,7 +148,7 @@ typeSelector postgresType enumNames = [hsx|
             Just selection ->
                 if selection == value || selection == value <> "[]"
                     then [hsx|<option value={value} selected="selected">{text}</option>|]
-                    else [hsx|<option value={value}>{text}</option>|]      
+                    else [hsx|<option value={value}>{text}</option>|]
         customenums [] = [hsx| |]
         customenums xs = [hsx| <optgroup label="Custom Enums">
                                 {forEach xs renderEnumType}
