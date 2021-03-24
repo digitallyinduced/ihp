@@ -123,7 +123,7 @@ To work with posts in our application, we now have to define this data schema.
 
 **For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly build the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the PostgreSQL syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consists of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree, and then writes it back into the `Application/Schema.sql`. If you love your VIM, you can always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
 
-Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text columns. To do this click on the `New` button in the table view.
+Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text columns. To do this right-click > `Add Table` to open the New Table dialog.
 
 ![Schema Designer New Table](images/first-project/new_table_view.png)
 
