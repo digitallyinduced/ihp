@@ -712,7 +712,7 @@ Use `Comments` as the controller name:
 
 ![](images/first-project/code_gen_2.png)
 
-Click `Generate`:
+Click `Preview` > `Generate`:
 
 ![](images/first-project/code_gen_3.png)
 
