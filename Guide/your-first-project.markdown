@@ -804,7 +804,7 @@ Web/Controller/Comments.hs:14:12: error:
    |            ^^^^^^^^^^^^^^^^
 ```
 
-Open `Web/Controller/Comments` and add the missing `{ postId }` in the pattern match at line 14:
+Open `Web/Controller/Comments.hs` and add the missing `{ postId }` in the pattern match at line 14:
 
 ```haskell
     action NewCommentAction { postId } = do
