@@ -21,7 +21,6 @@ module IHP.Job.Dashboard (
 ) where
 
 import IHP.Prelude
-import Generated.Types
 import IHP.ViewPrelude (Html, View, hsx, html)
 import IHP.ModelSupport
 import IHP.ControllerPrelude
