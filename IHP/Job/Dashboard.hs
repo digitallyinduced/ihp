@@ -27,6 +27,14 @@ module IHP.Job.Dashboard (
     EmptyView(..),
     TableViewable(..),
     TableView(..),
+
+    -- Auth
+    AuthenticationMethod(..),
+    NoAuth(..),
+    BasicAuth(..),
+    BasicAuthStatic(..),
+
+    -- Utility functions
     getTableName,
     statusToBadge,
     newJobFormForTableHeader,
@@ -44,11 +52,47 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified IHP.Log as Log
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodGet, methodPost)
+import System.Environment (lookupEnv)
+
+-- | Defines one method, 'authenticate', called before every action. Use to authenticate user.
+--
+-- Three implementations are provided:
+-- - 'NoAuth' : No authentication
+-- - 'BasicAuth' : HTTP Basic Auth using environment variables
+-- - 'BasicAuthStatic' : HTTP Basic Auth using static values
+--
+-- Define your own implementation to use custom authentication for production.
+class AuthenticationMethod a where
+    authenticate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+
+-- | Don't use any authentication for jobs.
+data NoAuth
+
+-- | Authenticate using HTTP Basic Authentication by looking up username/password values
+-- in environment variables given as type-level strings.
+data BasicAuth (userEnv :: Symbol) (passEnv :: Symbol)
+
+-- | Authenticate using HTTP Basic Authentication using username/password given as type level strings.
+-- Meant for development only!
+data BasicAuthStatic (user :: Symbol) (pass :: Symbol)
+
+instance AuthenticationMethod NoAuth where
+    authenticate = pure ()
+
+instance (KnownSymbol userEnv, KnownSymbol passEnv) => AuthenticationMethod (BasicAuth userEnv passEnv) where
+    authenticate = do
+        creds <- (,) <$> lookupEnv (symbolVal $ Proxy @userEnv) <*> lookupEnv (symbolVal $ Proxy @passEnv)
+        case creds of
+            (Just user, Just pass) -> basicAuth (cs user) (cs pass) "jobs"
+            _ -> error "Did not find HTTP Basic Auth credentials for Jobs Dashboard."
+
+instance (KnownSymbol user, KnownSymbol pass) => AuthenticationMethod (BasicAuthStatic user pass) where
+    authenticate = basicAuth (cs $ symbolVal $ Proxy @user) (cs $ symbolVal $ Proxy @pass) "jobs"
 
 -- | Defines controller actions for acting on a dashboard made of some list of types.
 -- Later functions and typeclasses introduce constraints on the types in this list,
 -- so you'll get a compile error if you try and include a type that is not a job.
-data JobsDashboardController (jobs :: [*])
+data JobsDashboardController authType (jobs :: [*])
     = AllJobsAction
     | ViewJobAction
     | CreateJobAction
@@ -362,6 +406,7 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
 -- >    >>= pure . map (IncludeWrapper @"userId" @UpdateUserJob)
 newtype IncludeWrapper (id :: Symbol) job = IncludeWrapper (Include id job)
 
+-- CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
 statusToBadge :: JobStatus -> Html
 statusToBadge JobStatusNotStarted= [hsx|<span class="badge badge-info">Not Started</span>|]
 statusToBadge JobStatusRunning = [hsx|<span class="badge badge-info">Running</span>|]
@@ -369,7 +414,11 @@ statusToBadge JobStatusSucceeded = [hsx|<span class="badge badge-success">Succee
 statusToBadge JobStatusFailed = [hsx|<span class="badge badge-danger">Failed</span>|]
 statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</span>|]
 
-instance (JobsDashboard jobs) => Controller (JobsDashboardController jobs) where
+instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
+    beforeAction = do
+        Log.info "Attempting to authenticate."
+        authenticate @authType
+
     action AllJobsAction = autoRefresh $ do
         indexPage @(jobs)
 
@@ -432,10 +481,10 @@ instance (DisplayableJob job) => View (GenericNewJobView job) where
             </form>
         |]
 
-instance HasPath (JobsDashboardController jobs) where
+instance HasPath (JobsDashboardController authType jobs) where
     pathTo _ = error "HasPath not supported for JobsDashboardController."
 
-instance CanRoute (JobsDashboardController jobs) where
+instance CanRoute (JobsDashboardController authType jobs) where
     parseRoute' = do
         (string "/jobs/ListJobs" <* endOfInput >> pure AllJobsAction)
         <|> (string "/jobs/ViewJob" <* endOfInput >> pure ViewJobAction)
