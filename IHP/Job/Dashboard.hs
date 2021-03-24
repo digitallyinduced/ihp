@@ -25,6 +25,7 @@ module IHP.Job.Dashboard (
     IncludeWrapper(..),
     SomeView(..),
     EmptyView(..),
+    HtmlView(..),
     TableViewable(..),
     TableView(..),
 
@@ -163,6 +164,11 @@ instance (View a) => View [a] where
 data EmptyView = EmptyView
 instance View EmptyView where
     html _ = [hsx||]
+
+-- | A view constructed from some HTML.
+newtype HtmlView = HtmlView Html
+instance View HtmlView where
+    html (HtmlView html) = [hsx|{html}|]
 
 -- | Defines the default implementation for a dashboard of a list of job types.
 -- We know the current job is a 'DisplayableJob', and we can recurse on the rest of the list to build the rest of the dashboard.
@@ -515,7 +521,9 @@ instance HasPath (JobsDashboardController authType jobs) where
 
 instance CanRoute (JobsDashboardController authType jobs) where
     parseRoute' = do
-        (string "/jobs/ListJobs" <* endOfInput >> pure AllJobsAction)
+        (string "/jobs" <* endOfInput >> pure AllJobsAction)
+        <|> (string "/jobs/" <* endOfInput >> pure AllJobsAction)
+        <|> (string "/jobs/ListJobs" <* endOfInput >> pure AllJobsAction)
         <|> (string "/jobs/ViewJob" <* endOfInput >> pure ViewJobAction)
         <|> (string "/jobs/CreateJob" <* endOfInput >> pure CreateJobAction)
         <|> (string "/jobs/DeleteJob" <* endOfInput >> pure DeleteJobAction)
