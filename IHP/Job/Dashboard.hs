@@ -10,7 +10,7 @@ Maintainer: zac.wood@hey.com
 This module allows IHP applications to generate a dashboard for interacting with job types.
 To generate a dashboard, first define a type for the dashboard containing the jobs you wish to display:
 
-> type MyDashboard = JobsDashboardController [EmailUserJob, UpdateRecordJob, RandomJob]
+> type MyDashboard = JobsDashboardController NoAuth [EmailUserJob, UpdateRecordJob, RandomJob]
 
 And include the following in the 'controllers' list of a FrontController:
 
@@ -49,6 +49,7 @@ import IHP.RouterPrelude hiding (get, tshow, error, map)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
+import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified IHP.Log as Log
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodGet, methodPost)
@@ -96,6 +97,7 @@ data JobsDashboardController authType (jobs :: [*])
     = AllJobsAction
     | ViewJobAction
     | CreateJobAction
+    | DeleteJobAction
     deriving (Show, Eq, Data)
 
 -- | Defines implementations for actions for acting on a dashboard made of some list of types.
@@ -119,6 +121,9 @@ class JobsDashboard (jobs :: [*]) where
     -- If performed in a GET request, renders the new job from depending on said parameter.
     newJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
 
+    -- | Deletes a job from the database.
+    deleteJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
+
 -- | The only function that should ever be invoked for this class is 'makeDashboard'
 -- which ends the recursion the build the index view. If other cases are reached,
 -- that means the type passed in "tableName" was not found and thus an error is thrown.
@@ -127,6 +132,7 @@ instance JobsDashboard '[] where
     indexPage = error "No Index implemented for empty jobs list"
     viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
     newJob = error "newJob: Requested job type not in JobsDashboard Type"
+    deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
 -- to know exactly what type the view will be, which in turn allows for custom implmentations of
@@ -205,12 +211,28 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
                 if requestMethod request == methodPost
                     then do
                         createNewJob @job
+                        setSuccessMessage (table <> " job started.")
                         redirectToPath "/jobs/ListJobs"
                     else do
                         view <- makeNewJobView @job
                         render view
             else do
                 newJob @rest
+
+    -- | For a given "tableName" parameter, try and recurse over the list of types
+    -- in order to find a type with the some table name as the parameter.
+    -- If one is found, delete the record with the given id.
+    deleteJob = do
+        let table = param "tableName"
+        if tableName @job == table
+            then do
+                let id :: Id job = unsafeCoerce (param "id" :: UUID) -- TODO: safe cast?
+                j <- fetch id
+                deleteRecord j
+                setSuccessMessage (table <> " record deleted.")
+                redirectToPath "/jobs/ListJobs"
+            else do
+                deleteJob @rest
 
 -- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
 -- All jobs created through the IHP dev IDE will automatically satisfy these constraints and thus be able to
@@ -222,6 +244,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
+    , PG.ToField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id job)
     , HasField "status" job JobStatus
@@ -329,6 +352,7 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
+    , PG.ToField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id job)
     , HasField "status" job JobStatus
@@ -366,6 +390,7 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
+    , PG.ToField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id job)
     , HasField "status" job JobStatus
@@ -415,18 +440,11 @@ statusToBadge JobStatusFailed = [hsx|<span class="badge badge-danger">Failed</sp
 statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</span>|]
 
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
-    beforeAction = do
-        Log.info "Attempting to authenticate."
-        authenticate @authType
-
-    action AllJobsAction = autoRefresh $ do
-        indexPage @(jobs)
-
-    action ViewJobAction = autoRefresh $ do
-        viewJob @(jobs)
-
-    action CreateJobAction = autoRefresh $ do
-        newJob @jobs
+    beforeAction = authenticate @authType
+    action AllJobsAction = autoRefresh $ indexPage @(jobs)
+    action ViewJobAction = autoRefresh $ viewJob @(jobs)
+    action CreateJobAction = newJob @jobs
+    action DeleteJobAction = deleteJob @jobs
 
 -- | We can't always access the type of our job in order to use type application syntax for 'tableName'.
 -- This is just a convinence function for those cases.
@@ -453,16 +471,27 @@ instance (DisplayableJob job) => View (GenericShowView job) where
                         <td>{get #createdAt job}</td>
                     </tr>
                     <tr>
+                        <th>Status</th>
+                        <td>{statusToBadge (get #status job)}</td>
+                    </tr>
+                    <tr>
                         <th>Last Error</th>
                         <td>{fromMaybe "No error" (get #lastError job)}</td>
                     </tr>
                 </tbody>
             </table>
 
-            <form action="/jobs/CreateJob" method="POST">
-                <input type="hidden" id="tableName" name="tableName" value={table}>
-                <button type="submit" class="btn btn-primary">Run again</button>
-            </form>
+            <div class="d-flex flex-row">
+                <form class="mr-2" action="/jobs/DeleteJob" method="POST">
+                    <input type="hidden" id="tableName" name="tableName" value={table}>
+                    <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+                <form action="/jobs/CreateJob" method="POST">
+                    <input type="hidden" id="tableName" name="tableName" value={table}>
+                    <button type="submit" class="btn btn-primary">Run again</button>
+                </form>
+            </div>
         |]
 
 
@@ -489,4 +518,5 @@ instance CanRoute (JobsDashboardController authType jobs) where
         (string "/jobs/ListJobs" <* endOfInput >> pure AllJobsAction)
         <|> (string "/jobs/ViewJob" <* endOfInput >> pure ViewJobAction)
         <|> (string "/jobs/CreateJob" <* endOfInput >> pure CreateJobAction)
+        <|> (string "/jobs/DeleteJob" <* endOfInput >> pure DeleteJobAction)
 
