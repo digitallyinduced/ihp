@@ -814,7 +814,7 @@ Open `Web/Controller/Comments.hs` and add the missing `{ postId }` in the patter
 
 Now all type errors should be fixed.
 
-Open http://localhost:8000/Posts and open the Show View of a post by clicking its title. Now Click `Add Comment`. Take a look at the URL, it will something like:
+Open http://localhost:8000/Posts and open the Show View of a post by clicking its title. Now Click `Add Comment`. Take a look at the URL, it will look something like:
 
 ```html
 http://localhost:8000/NewComment?postId=7f37115f-c850-4fcb-838f-1971cea0544e
