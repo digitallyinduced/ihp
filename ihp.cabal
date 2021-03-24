@@ -91,6 +91,8 @@ common shared-properties
             , parser-combinators
             , ip
             , fast-logger
+            , regex-pcre-builtin
+            , pcre-utils
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
