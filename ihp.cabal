@@ -184,6 +184,8 @@ library
         , IHP.Log.Types
         , IHP.ModelSupport
         , IHP.NameSupport
+        , IHP.NameSupport.Inflections
+        , IHP.NameSupport.Inflections.Data
         , IHP.QueryBuilder
         , IHP.Fetch
         , IHP.RouterPrelude
