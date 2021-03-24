@@ -776,7 +776,7 @@ Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment
 <a href={NewCommentAction (get #id post)}>Add Comment</a>
 ```
 
-After that, another type error can be found in `Web/View/Comments/Index.hs`. In this auto-generated view we have a `New Comment` button at the top:
+After that, another type error can be found in `Web/View/Comments/Index.hs`. In this auto-generated view we have an `Index` button at the top:
 
 ```haskell
 <h1>Index <a href={pathTo NewCommentAction} class="btn btn-primary ml-4">+ New</a></h1>
