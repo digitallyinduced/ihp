@@ -5,7 +5,18 @@
 {-|
 Module: IHP.Job.Dashboard
 Description:  Auto-generate a dashboard for job types
-Author: Zac Wood (GitHub @zacwood9)
+Maintainer: zac.wood@hey.com
+
+This module allows IHP applications to generate a dashboard for interacting with job types.
+To generate a dashboard, first define a type for the dashboard containing the jobs you wish to display:
+
+> type MyDashboard = JobsDashboardController [EmailUserJob, UpdateRecordJob, RandomJob]
+
+And include the following in the 'controllers' list of a FrontController:
+
+> parseRoute @MyDashboard
+
+All views are fully customizable. For more info, see the documentation for 'DisplayableJob'.
 -}
 module IHP.Job.Dashboard (
     JobsDashboard(..),
@@ -51,7 +62,7 @@ data JobsDashboardController (jobs :: [*])
 -- so you'll get a compile error if you try and include a type that is not a job.
 class JobsDashboard (jobs :: [*]) where
     -- | Creates the entire dashboard by recursing on the type list and calling 'makeSection' on each type.
-    makeDashboard :: (?modelContext :: ModelContext) => IO SomeView
+    makeDashboard :: (?context::ControllerContext, ?modelContext :: ModelContext) => IO SomeView
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
     indexPage :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
@@ -196,7 +207,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
     -- See 'GenericNewJobView' for a guide on how it can look.look
     -- Can be defined as any arbitrary view, but it should be a form.
     makeNewJobView :: (?modelContext :: ModelContext) => IO SomeView
-    makeNewJobView = pure (SomeView $ GenericNewJobView @job)
+    makeNewJobView = pure $ SomeView $ GenericNewJobView @job
 
     -- | The action run to create and insert a new value of this job into the database.
     -- By default, create an empty record and insert it.
@@ -352,10 +363,11 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
 newtype IncludeWrapper (id :: Symbol) job = IncludeWrapper (Include id job)
 
 statusToBadge :: JobStatus -> Html
+statusToBadge JobStatusNotStarted= [hsx|<span class="badge badge-info">Not Started</span>|]
+statusToBadge JobStatusRunning = [hsx|<span class="badge badge-info">Running</span>|]
 statusToBadge JobStatusSucceeded = [hsx|<span class="badge badge-success">Succeeded</span>|]
 statusToBadge JobStatusFailed = [hsx|<span class="badge badge-danger">Failed</span>|]
-statusToBadge JobStatusRunning = [hsx|<span class="badge badge-info">Running</span>|]
-statusToBadge _ = [hsx|<span class="badge badge-secondary">Other</span>|]
+statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</span>|]
 
 instance (JobsDashboard jobs) => Controller (JobsDashboardController jobs) where
     action AllJobsAction = autoRefresh $ do
