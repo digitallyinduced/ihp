@@ -32,7 +32,7 @@ pluralize = pluralizeWith defaultPluralizeMapping
 
 -- | default mappings for pluralization
 defaultPluralizeMapping :: [Inflection]
-defaultPluralizeMapping = defaultPlurals ++ defaultUncountables ++ defaultIrregulars
+defaultPluralizeMapping = defaultPlurals ++ defaultUncountables ++ defaultIrregulars ++ irregularsPlural
 
 -- | singularize a given word
 -- >>> singularize "people"
@@ -87,10 +87,7 @@ makeMatchMapping = fmap (\(pattern, replacement) -> Match (regexPattern pattern,
 -- | Makes a simple list of mappings from singular to plural, e.g [("person", "people")]
 -- the output of [Inflection] should be consumed by `singularizeWith` or `pluralizeWith`
 makeIrregularMapping :: [(Singular, Plural)] -> [Inflection]
-makeIrregularMapping list = fmap Simple list ++ plurals
-        where
-            -- Ensure That Words Such As 'people' Do Not Get Transformed Into 'peoples', As They Are Already Plural
-            plurals = makeUncountableMapping $ fmap snd list
+makeIrregularMapping = fmap Simple
 
 -- | Makes a simple list of uncountables which don't have
 -- singular plural versions, e.g ["fish", "money"]
@@ -109,6 +106,10 @@ defaultIrregulars = makeIrregularMapping defaultIrregulars'
 
 defaultUncountables :: [Inflection]
 defaultUncountables = makeUncountableMapping defaultUncountables'
+
+-- Ensure That Words Such As 'people' Do Not Get Transformed Into 'peoples', As They Are Already Plural
+irregularsPlural :: [Inflection]
+irregularsPlural = makeUncountableMapping $ fmap snd defaultIrregulars'
 
 pluralLookup :: Text -> Inflection -> Maybe Text
 pluralLookup word (Match (pattern, replacement)) = runSubstitution (pattern, replacement) word
