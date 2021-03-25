@@ -89,6 +89,4 @@ defaultUncountables' =
     , "sheep"
     , "jeans"
     , "police"
-    -- TODO: Fix lookup algorithm, it should return "people" when using `pluralize "people"`, however, currently it returns "peoples"
-    , "people"
     ]

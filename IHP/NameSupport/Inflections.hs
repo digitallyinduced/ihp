@@ -6,7 +6,7 @@ module IHP.NameSupport.Inflections
 
 import Prelude
 import Data.Maybe (mapMaybe, fromMaybe, isJust, listToMaybe)
-import Data.Text (Text)
+import Data.Text (Text, toLower)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.NameSupport.Inflections.Data
@@ -87,7 +87,10 @@ makeMatchMapping = fmap (\(pattern, replacement) -> Match (regexPattern pattern,
 -- | Makes a simple list of mappings from singular to plural, e.g [("person", "people")]
 -- the output of [Inflection] should be consumed by `singularizeWith` or `pluralizeWith`
 makeIrregularMapping :: [(Singular, Plural)] -> [Inflection]
-makeIrregularMapping = fmap Simple
+makeIrregularMapping list = fmap Simple list ++ plurals
+        where
+            -- Ensure That Words Such As 'people' Do Not Get Transformed Into 'peoples', As They Are Already Plural
+            plurals = makeUncountableMapping $ fmap snd list
 
 -- | Makes a simple list of uncountables which don't have
 -- singular plural versions, e.g ["fish", "money"]
