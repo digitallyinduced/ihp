@@ -1,9 +1,9 @@
 module IHP.NameSupport.Inflections
 ( pluralize
 , singularize
+, inflect
 ) where
 
--- import IHP.Prelude
 import Prelude
 import Data.Maybe (mapMaybe, fromMaybe, isJust, listToMaybe)
 import Data.Text (Text)
@@ -59,16 +59,20 @@ singularizeWith :: [Inflection] -> Text -> Text
 singularizeWith = lookupWith singularLookup
 
 -- | inflect a word given any number
+-- >>> inflect "person" 1
+-- "person"
+-- >>> inflect "person" 2
+-- "people"
 inflect :: Text -> Int -> Text
-inflect t i = case i of
-    1 -> singularize t
-    _ -> pluralize t
+inflect word count = case count of
+    1 -> singularize word
+    _ -> pluralize word
 
 -- | inflect a word given any number and inflection mapping
 inflectWith :: [Inflection] -> Text -> Int -> Text
-inflectWith l t i = case i of
-    1 -> singularizeWith l t
-    _ -> pluralizeWith l t
+inflectWith inflections text count = case count of
+    1 -> singularizeWith inflections text
+    _ -> pluralizeWith inflections text
 
 lookupWith :: (Text -> Inflection -> Maybe Text) -> [Inflection] -> Text -> Text
 lookupWith f mapping target = fromMaybe target $ listToMaybe matches
@@ -78,7 +82,7 @@ lookupWith f mapping target = fromMaybe target $ listToMaybe matches
 -- | Makes a simple list of mappings from singular to plural, e.g [("person", "people")]
 -- the output of [Inflection] should be consumed by `singularizeWith` or `pluralizeWith`
 makeMatchMapping :: [(RegexPattern, RegexReplace)] -> [Inflection]
-makeMatchMapping = fmap (\(pat, rep) -> Match (regexPattern pat, rep))
+makeMatchMapping = fmap (\(pattern, replacement) -> Match (regexPattern pattern, replacement))
 
 -- | Makes a simple list of mappings from singular to plural, e.g [("person", "people")]
 -- the output of [Inflection] should be consumed by `singularizeWith` or `pluralizeWith`
@@ -89,7 +93,7 @@ makeIrregularMapping = fmap Simple
 -- singular plural versions, e.g ["fish", "money"]
 -- the output of [Inflection] should be consumed by `singularizeWith` or `pluralizeWith`
 makeUncountableMapping :: [Text] -> [Inflection]
-makeUncountableMapping = fmap (\a -> Simple (a, a))
+makeUncountableMapping = fmap (\text -> Simple (text, text))
 
 defaultPlurals :: [Inflection]
 defaultPlurals = makeMatchMapping defaultPlurals'
@@ -104,34 +108,34 @@ defaultUncountables :: [Inflection]
 defaultUncountables = makeUncountableMapping defaultUncountables'
 
 pluralLookup :: Text -> Inflection -> Maybe Text
-pluralLookup t (Match (r1, r2)) = runSub (r1, r2) t
-pluralLookup t (Simple (a, b)) = if t == a then Just b else Nothing
+pluralLookup word (Match (pattern, replacement)) = runSubstitution (pattern, replacement) word
+pluralLookup word (Simple (singular, plural)) = if word == singular then Just plural else Nothing
 
 singularLookup :: Text -> Inflection -> Maybe Text
-singularLookup t (Match (r1, r2)) = runSub (r1, r2) t
-singularLookup t (Simple (a, b)) = if t == b then Just a else Nothing
+singularLookup word (Match (regex, replacement)) = runSubstitution (regex, replacement) word
+singularLookup word (Simple (singular, plural)) = if word == plural then Just singular else Nothing
 
-runSub :: (Maybe Regex, RegexReplace) -> Text -> Maybe Text
-runSub (Nothing, _) _ = Nothing
-runSub (Just reg, rep) t = matchWithReplace (reg, rep) t
+runSubstitution :: (Maybe Regex, RegexReplace) -> Text -> Maybe Text
+runSubstitution (Nothing, _) _ = Nothing
+runSubstitution (Just regex, replacement) text = matchWithReplace (regex, replacement) text
 
 matchWithReplace :: (Regex, RegexReplace) -> Text -> Maybe Text
-matchWithReplace (reg, rep) t =
-    if regexMatch t reg
-        then toMaybe $ substitute' reg (encodeUtf8 t) (encodeUtf8 rep)
+matchWithReplace (regex, replacement) text =
+    if regexMatch text regex
+        then toMaybe $ substitute' regex (encodeUtf8 text) (encodeUtf8 replacement)
         else Nothing
     where
         toMaybe = either (const Nothing) (Just . decodeUtf8)
 
 regexMatch :: Text -> Regex -> Bool
-regexMatch t r = case match of
+regexMatch text regex = case match of
     Left _ -> False
     Right m -> isJust m
     where
-        match = unsafePerformIO $ execute r (encodeUtf8 t)
+        match = unsafePerformIO $ execute regex (encodeUtf8 text)
 
 regexPattern :: Text -> Maybe Regex
-regexPattern pat = toMaybe reg
+regexPattern pattern = toMaybe regex
     where
         toMaybe = either (const Nothing) Just
-        reg = unsafePerformIO $ compile compCaseless execBlank (encodeUtf8 pat)
+        regex = unsafePerformIO $ compile compCaseless execBlank $ encodeUtf8 pattern
