@@ -109,21 +109,21 @@ data JobsDashboardController authType (jobs :: [*])
 -- so you'll get a compile error if you try and include a type that is not a job.
 class JobsDashboard (jobs :: [*]) where
     -- | Creates the entire dashboard by recursing on the type list and calling 'makeSection' on each type.
-    makeDashboard :: (?context::ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+    makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
-    indexPage :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
+    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
-    viewJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
+    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
     -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
     -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
+    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
     -- | Deletes a job from the database.
-    deleteJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
+    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
 -- | The only function that should ever be invoked for this class is 'makeDashboard'
 -- which ends the recursion the build the index view. If other cases are reached,
@@ -266,12 +266,12 @@ class ( job ~ GetModelByTableName (GetTableName job)
 
     -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
     -- but this can be any arbitrary view! Make some cool graphs :)
-    makeSection :: (?modelContext :: ModelContext) => IO SomeView
+    makeSection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
 
     -- | The content of the page that will be displayed for a detail view of this job.
     -- By default, the ID, Status, Created/Updated at times, and last error are displayed.
     -- Can be defined as any arbitrary view.
-    makeDetailView :: (?modelContext :: ModelContext) => job -> IO SomeView
+    makeDetailView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => job -> IO SomeView
     makeDetailView job = do
         pure $ SomeView $ GenericShowView job
 
@@ -279,13 +279,13 @@ class ( job ~ GetModelByTableName (GetTableName job)
     -- By default, only the submit button is rendered. For additonal form data, define your own implementation.
     -- See 'GenericNewJobView' for a guide on how it can look.look
     -- Can be defined as any arbitrary view, but it should be a form.
-    makeNewJobView :: (?modelContext :: ModelContext) => IO SomeView
+    makeNewJobView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
     makeNewJobView = pure $ SomeView $ GenericNewJobView @job
 
     -- | The action run to create and insert a new value of this job into the database.
     -- By default, create an empty record and insert it.
     -- To add more data, define your own implementation.
-    createNewJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO ()
+    createNewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
     createNewJob = do
         newRecord @job |> create
         pure ()

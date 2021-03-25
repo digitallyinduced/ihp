@@ -162,21 +162,21 @@ Most views in the dashboard can be customized by providing a custom implementati
 These methods can be overriden to allow for custom behavior:
 
 ```haskell
-makeSection :: (?modelContext :: ModelContext) => IO SomeView
+makeSection :: (?context::ControllerContext, ?modelContext::ModelContext) => IO SomeView
 ```
 
 How this job's section should be displayed in the dashboard. By default it's displayed as a table,
 but this can be any arbitrary view! Make some cool graphs :)
 
 ```haskell
-makeDetailView :: (?modelContext :: ModelContext) => job -> IO SomeView
+makeDetailView :: (?context::ControllerContext, ?modelContext::ModelContext) => job -> IO SomeView
 ```
 The content of the page that will be displayed for a detail view of this job.
 By default, the ID, Status, Created/Updated at times, and last error are displayed.
 Can be defined as any arbitrary view.
 
 ```haskell
-makeNewJobView :: (?modelContext :: ModelContext) => IO SomeView
+makeNewJobView :: (?context::ControllerContext, ?modelContext::ModelContext) => IO SomeView
 ```
 The content of the page that will be displayed for the "new job" form of this job.
 By default, only the submit button is rendered. For additonal form data, define your own implementation.
@@ -188,7 +188,7 @@ createNewJob :: (?context::ControllerContext, ?modelContext::ModelContext) => IO
 ```
 The action run to create and insert a new value of this job into the database.
 By default, create an empty record and insert it.
-To add more data, define your own implementation.
+To add more data, define your own implementation. See the case study below for a real world example.
 
 ### TableViewable
 
@@ -263,3 +263,6 @@ instance {-# OVERLAPS #-} DisplayableJob InitialScrapeJob where
         newRecord @InitialScrapeJob |> set #bandId bandId |> create
         pure ()
 ```
+
+Since `InitialScrapeJob` also matches the constraints for a DisplayableJob, we need to add the `{-# OVERLAPS #-}` tag
+to tell GHC it's okay that this instance overlaps with the original.
