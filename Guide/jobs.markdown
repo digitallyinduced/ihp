@@ -98,6 +98,8 @@ you want displayed in the dashboard, you construct a custom JobDashboard type th
 
 ### Quick Start
 
+In one of the `FrontController.hs` files for your project (for example, `Web/FrontController.hs` by default), define a type for your dashboard.
+
 ```haskell
 import IHP.Job.Dashboard
 
@@ -106,8 +108,7 @@ type MyJobDashboard = JobsDashboardController
     [UpdateUserJob, CleanDatabaseJob, OtherRandomJob]
 ```
 
-To add the dashboard to your application, you need to add a `parseRoute` call in one of your FrontControllers.
-For example, in `Web/FrontController.hs`, use this type as follows:
+To add the dashboard to your application, you need to add a `parseRoute` call to this type.
 
 ```haskell
 type MyJobDashboard = JobsDashboardController

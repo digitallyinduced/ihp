@@ -42,7 +42,7 @@ module IHP.Job.Dashboard (
 ) where
 
 import IHP.Prelude
-import IHP.ViewPrelude (Html, View, hsx, html)
+import IHP.ViewPrelude (Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
 import IHP.ModelSupport
 import IHP.ControllerPrelude
 import Unsafe.Coerce
@@ -95,10 +95,17 @@ instance (KnownSymbol user, KnownSymbol pass) => AuthenticationMethod (BasicAuth
 -- Later functions and typeclasses introduce constraints on the types in this list,
 -- so you'll get a compile error if you try and include a type that is not a job.
 data JobsDashboardController authType (jobs :: [*])
-    = AllJobsAction
-    | ViewJobAction
-    | CreateJobAction
-    | DeleteJobAction
+    = ListJobsAction
+
+    -- These actions are used for 'pathTo'. Need  to pass the parameters explicity to know how to build the path
+    | ViewJobAction { jobTableName :: Text, jobId :: UUID }
+    | CreateJobAction { jobTableName :: Text }
+    | DeleteJobAction { jobTableName :: Text, jobId :: UUID }
+
+    -- These actions are used for interal routing. Parameters are extracted dynamically in the action based on types
+    | ViewJobAction'
+    | CreateJobAction'
+    | DeleteJobAction'
     deriving (Show, Eq, Data)
 
 -- | Defines implementations for actions for acting on a dashboard made of some list of types.
@@ -114,16 +121,21 @@ class JobsDashboard (jobs :: [*]) where
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
     indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
+
+    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
+
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
-    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
+    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
     -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
     -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
+    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
     -- | Deletes a job from the database.
-    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
 -- | The only function that should ever be invoked for this class is 'makeDashboard'
 -- which ends the recursion the build the index view. If other cases are reached,
@@ -132,8 +144,11 @@ instance JobsDashboard '[] where
     makeDashboard = pure (SomeView EmptyView)
     indexPage = error "No Index implemented for empty jobs list"
     viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
+    viewJob' = error "viewJob: Requested job type not in JobsDashboard Type"
     newJob = error "newJob: Requested job type not in JobsDashboard Type"
+    newJob' = error "newJob: Requested job type not in JobsDashboard Type"
     deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
+    deleteJob' = error "deleteJob: Requested job type not in JobsDashboard Type"
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
 -- to know exactly what type the view will be, which in turn allows for custom implmentations of
@@ -188,57 +203,64 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         dashboard <- makeDashboard @(job:rest)
         render dashboard
 
+    -- | View the detail page for the job with a given uuid.
+    viewJob _ uuid = do
+        let id :: Id job = unsafeCoerce uuid
+        j <- fetch id
+        view <- makeDetailView @job j
+        render view
+
     -- | For a given "tableName" parameter, try and recurse over the list of types
     -- in order to find a type with the some table name as the parameter.
     -- If one is found, attempt to construct an ID from the "id" parameter,
     -- and render a page using the type's implementation of 'makeDetailView'.
     -- If you want to customize the page, override that function instead.
-    viewJob = do
+    viewJob' = do
         let table = param "tableName"
         if tableName @job == table
-            then do
-                let id :: Id job = unsafeCoerce (param "id" :: UUID) -- TODO: safe cast?
-                j <- fetch id
-                view <- makeDetailView @job j
-                render view
-            else do
-                viewJob @rest
+            then viewJob @(job:rest) table (param "id")
+            else viewJob' @rest
 
-    -- | For a given "tableName" parameter, try and recurse over the list of types
-    -- in order to find a type with the some table name as the parameter.
-    -- If one is found, and the request is POST, create a new job using the job's implementation of 'createNewJob'.
+
+    -- For POST, create a new job using the job's implementation of 'createNewJob'.
     -- To include other request data and parameters, override that function, not this one.
     -- If it's a GET request, render a new job form with the job's implementation of 'makeNewJobView'.
     -- For customizing this form, override 'makeNewJobView'.
-    newJob = do
+    newJob tableName = do
+        if requestMethod request == methodPost
+            then do
+                createNewJob @job
+                setSuccessMessage (tableName <> " job started.")
+                redirectTo ListJobsAction
+            else do
+                view <- makeNewJobView @job
+                render view
+
+    -- | For a given "tableName" parameter, try and recurse over the list of types
+    -- in order to find a type with the some table name as the parameter.
+    -- If such a type is found, call newJob.
+    newJob' = do
         let table = param "tableName"
         if tableName @job == table
-            then do
-                if requestMethod request == methodPost
-                    then do
-                        createNewJob @job
-                        setSuccessMessage (table <> " job started.")
-                        redirectToPath "/jobs/ListJobs"
-                    else do
-                        view <- makeNewJobView @job
-                        render view
-            else do
-                newJob @rest
+            then newJob @(job:rest) table
+            else newJob' @rest
+
+    -- | Delete job in 'table' with ID 'uuid'.
+    deleteJob table uuid = do
+        let id :: Id job = unsafeCoerce uuid
+        j <- fetch id
+        deleteRecord j
+        setSuccessMessage (table <> " record deleted.")
+        redirectTo ListJobsAction
 
     -- | For a given "tableName" parameter, try and recurse over the list of types
     -- in order to find a type with the some table name as the parameter.
     -- If one is found, delete the record with the given id.
-    deleteJob = do
+    deleteJob' = do
         let table = param "tableName"
         if tableName @job == table
-            then do
-                let id :: Id job = unsafeCoerce (param "id" :: UUID) -- TODO: safe cast?
-                j <- fetch id
-                deleteRecord j
-                setSuccessMessage (table <> " record deleted.")
-                redirectToPath "/jobs/ListJobs"
-            else do
-                deleteJob @rest
+            then deleteJob @(job:rest) table (param "id")
+            else deleteJob' @rest
 
 -- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
 -- All jobs created through the IHP dev IDE will automatically satisfy these constraints and thus be able to
@@ -333,10 +355,10 @@ class TableViewable a where
         in [hsx|
         <div>
             <div class="d-flex justify-content-between align-items-center">
-                <h3>Job type: {title}</h3>
+                <h3>{title}</h3>
                 {newForm}
             </div>
-            <table class="table table-sm">
+            <table class="table table-sm table-hover">
                 <thead>
                     <tr>
                         {forEach headers renderHeader}
@@ -373,19 +395,25 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
     , Typeable job
     ) => TableViewable job where
 
-    tableTitle = tableName @job
-    tableHeaders = ["ID", "Updated at", "Status", ""]
+    tableTitle = tableName @job |> columnNameToFieldLabel
+    tableHeaders = ["ID", "Updated at", "Status", "", ""]
     createNewForm = newJobFormForTableHeader @job
     renderTableRow job =
         let
             table = tableName @job
-            linkToView :: Text = "/jobs/ViewJob?tableName=" <> table <> "&id=" <> tshow (get #id job)
+            uuid = get #id job |> unsafeCoerce
+            btnStyle :: Text = "outline: none !important; padding: 0; border: 0; vertical-align: baseline;"
         in [hsx|
             <tr>
                 <td>{get #id job}</td>
                 <td>{get #updatedAt job}</td>
                 <td>{statusToBadge $ get #status job}</td>
-                <td><a href={linkToView} class="text-primary">Show</a></td>
+                <td><a href={ViewJobAction table uuid} class="text-primary">Show</a></td>
+                <td>
+                    <form action={CreateJobAction table} method="POST">
+                        <button type="submit" style={btnStyle} class="btn btn-link text-secondary">Retry</button>
+                    </form>
+                </td>
             </tr>
         |]
 
@@ -447,10 +475,11 @@ statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</spa
 
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
     beforeAction = authenticate @authType
-    action AllJobsAction = autoRefresh $ indexPage @(jobs)
-    action ViewJobAction = autoRefresh $ viewJob @(jobs)
-    action CreateJobAction = newJob @jobs
-    action DeleteJobAction = deleteJob @jobs
+    action ListJobsAction = autoRefresh $ indexPage @jobs
+    action ViewJobAction' = autoRefresh $ viewJob' @jobs
+    action CreateJobAction' = newJob' @jobs
+    action DeleteJobAction' = deleteJob' @jobs
+    action _ = error "Cannot call this action directly. Call the backtick function with no parameters instead."
 
 -- | We can't always access the type of our job in order to use type application syntax for 'tableName'.
 -- This is just a convinence function for those cases.
@@ -474,7 +503,7 @@ instance (DisplayableJob job) => View (GenericShowView job) where
                     </tr>
                     <tr>
                         <th>Created At</th>
-                        <td>{get #createdAt job}</td>
+                        <td>{get #createdAt job |> timeAgo}</td>
                     </tr>
                     <tr>
                         <th>Status</th>
@@ -517,14 +546,18 @@ instance (DisplayableJob job) => View (GenericNewJobView job) where
         |]
 
 instance HasPath (JobsDashboardController authType jobs) where
-    pathTo _ = error "HasPath not supported for JobsDashboardController."
+    pathTo ListJobsAction = "/jobs/ListJobs"
+    pathTo ViewJobAction { .. } = "/jobs/ViewJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
+    pathTo CreateJobAction { .. } = "/jobs/CreateJob?tableName=" <> jobTableName
+    pathTo DeleteJobAction { .. } = "/jobs/DeleteJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
+    pathTo _ = error "pathTo for internal JobsDashboard functions not supported. Use non-backtick action and pass necessary parameters to use pathTo."
 
 instance CanRoute (JobsDashboardController authType jobs) where
     parseRoute' = do
-        (string "/jobs" <* endOfInput >> pure AllJobsAction)
-        <|> (string "/jobs/" <* endOfInput >> pure AllJobsAction)
-        <|> (string "/jobs/ListJobs" <* endOfInput >> pure AllJobsAction)
-        <|> (string "/jobs/ViewJob" <* endOfInput >> pure ViewJobAction)
-        <|> (string "/jobs/CreateJob" <* endOfInput >> pure CreateJobAction)
-        <|> (string "/jobs/DeleteJob" <* endOfInput >> pure DeleteJobAction)
+        (string "/jobs" <* endOfInput >> pure ListJobsAction)
+        <|> (string "/jobs/" <* endOfInput >> pure ListJobsAction)
+        <|> (string "/jobs/ListJobs" <* endOfInput >> pure ListJobsAction)
+        <|> (string "/jobs/ViewJob" <* endOfInput >> pure ViewJobAction')
+        <|> (string "/jobs/CreateJob" <* endOfInput >> pure CreateJobAction')
+        <|> (string "/jobs/DeleteJob" <* endOfInput >> pure DeleteJobAction')
 
