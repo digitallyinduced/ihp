@@ -15,6 +15,7 @@ module IHP.NameSupport
 , tableNameToControllerName
 , enumValueToControllerName
 , toSlug
+, module IHP.NameSupport.Inflections
 ) where
 
 import Prelude hiding (splitAt, words, map)
@@ -23,10 +24,10 @@ import Data.Text
 import Data.String.Conversions (cs)
 import qualified Data.Char as Char
 import qualified Text.Inflections as Inflector
-import qualified Text.Countable as Countable
 import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 import Control.Monad (join)
+import IHP.NameSupport.Inflections
 
 -- | Transforms a underscore table name to a camel case model name.
 --
@@ -38,8 +39,8 @@ import Control.Monad (join)
 tableNameToModelName :: Text -> Text
 tableNameToModelName "brain_waves" = "BrainWave"
 tableNameToModelName tableName = do
-    let singularizedTableName = cs (Countable.singularize tableName)
-    if "_" `isInfixOf` singularizedTableName 
+    let singularizedTableName = cs (singularize tableName)
+    if "_" `isInfixOf` singularizedTableName
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else ucfirst singularizedTableName
 {-# INLINABLE tableNameToModelName #-}
@@ -56,7 +57,7 @@ tableNameToModelName tableName = do
 -- "UserProjects"
 tableNameToControllerName :: Text -> Text
 tableNameToControllerName tableName = do
-    if "_" `isInfixOf` tableName 
+    if "_" `isInfixOf` tableName
         then unwrapEither tableName $ Inflector.toCamelCased True tableName
         else ucfirst tableName
 {-# INLINABLE tableNameToControllerName #-}
@@ -75,7 +76,7 @@ enumValueToControllerName :: Text -> Text
 enumValueToControllerName enumValue =
     let
         words :: [Inflector.SomeWord]
-        words = 
+        words =
                 enumValue
                 |> splitOn " "
                 |> List.map (Inflector.parseSnakeCase [])
@@ -97,7 +98,7 @@ modelNameToTableName :: Text -> Text
 modelNameToTableName modelName =
         Inflector.toUnderscore modelName
         |> unwrapEither modelName
-        |> Countable.pluralize
+        |> pluralize
 {-# INLINABLE modelNameToTableName #-}
 
 -- | Transforms a underscore table column name to a camel case attribute name for use in haskell.

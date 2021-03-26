@@ -9,7 +9,6 @@ import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import qualified Text.Countable as Countable
 import qualified System.Directory as Directory
 import qualified Data.Maybe as Maybe
 

@@ -62,7 +62,6 @@ common shared-properties
             , cookie
             , process
             , newtype-generics
-            , countable-inflections
             , typerep-map
             , basic-prelude
             , megaparsec
@@ -91,6 +90,8 @@ common shared-properties
             , parser-combinators
             , ip
             , fast-logger
+            , regex-pcre-builtin
+            , pcre-utils
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -182,6 +183,8 @@ library
         , IHP.Log.Types
         , IHP.ModelSupport
         , IHP.NameSupport
+        , IHP.NameSupport.Inflections
+        , IHP.NameSupport.Inflections.Data
         , IHP.QueryBuilder
         , IHP.Fetch
         , IHP.RouterPrelude

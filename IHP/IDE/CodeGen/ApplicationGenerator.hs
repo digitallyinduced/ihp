@@ -9,7 +9,6 @@ import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import qualified Text.Countable as Countable
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 
@@ -151,28 +150,28 @@ generateGenericApplication applicationName =
                 <> "import " <> applicationName <> ".Routes ()\n"
                 <> "import Application.Helper.View\n"
 
-            welcomeControllerStaticHs =   
+            welcomeControllerStaticHs =
                 "module " <> applicationName <> ".Controller.Static where\n"
                 <> "import " <> applicationName  <>".Controller.Prelude\n"
                 <> "import " <> applicationName  <>".View.Static.Welcome\n"
                 <> "\n"
-                <> "instance Controller StaticController where\n"    
+                <> "instance Controller StaticController where\n"
                 <> "    action WelcomeAction = render WelcomeView\n"
 
-            welcomeViewStaticHs = 
+            welcomeViewStaticHs =
               "module " <> applicationName <> ".View.Static.Welcome where\n"
              <>"import " <> applicationName <> ".View.Prelude\n"
              <>"\n"
              <>"data WelcomeView = WelcomeView\n"
              <>"\n"
              <>"instance View WelcomeView where\n"
-             <>"    html WelcomeView = [hsx|\n" 
+             <>"    html WelcomeView = [hsx|\n"
              <>"         <div style=\"background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1); border-radius: 4px\">\n"
              <>"              <div style=\"max-width: 800px; margin-left: auto; margin-right: auto\">\n"
-             <>"                  <h1 style=\"margin-bottom: 2rem; font-size: 2rem; font-weight: 300; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)\">\n" 
+             <>"                  <h1 style=\"margin-bottom: 2rem; font-size: 2rem; font-weight: 300; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)\">\n"
              <>"                      IHP\n"
              <>"                  </h1>\n"
-             <>"\n"         
+             <>"\n"
              <>"                  <h2 style=\"margin-top: 0; margin-bottom: 0rem; font-weight: 900; font-size: 3rem\">\n"
              <>"                      It's working!\n"
              <>"                  </h2>\n"
@@ -182,7 +181,7 @@ generateGenericApplication applicationName =
              <>"                  </p>\n"
              <>"\n"
              <>"                  <a href=\"https://ihp.digitallyinduced.com/Guide/your-first-project.html\" style=\"margin-top: 2rem; background-color: #268bd2; padding: 1rem; border-radius: 3px; color: hsla(205, 69%, 98%, 1); text-decoration: none; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px hsla(205, 69%, 0%, 0.08);  transition: box-shadow 0.2s; transition: transform 0.2s;\" target=\"_blank\">\n"
-             <>"                     Learn the Next Steps in the Documentation\n" 
+             <>"                     Learn the Next Steps in the Documentation\n"
              <>"                  </a>\n"
              <>"              </div>\n"
              <>"         </div>\n"
@@ -193,8 +192,8 @@ generateGenericApplication applicationName =
              <>"                 You can modify this start page by making changes to \"./Web/View/Static/Welcome.hs\".\n"
              <>"              </p>\n"
              <>"         </div> \n"
-             <>"|]" 
-                
+             <>"|]"
+
         in
             [ EnsureDirectory { directory = applicationName }
             , EnsureDirectory { directory = applicationName <> "/Controller" }

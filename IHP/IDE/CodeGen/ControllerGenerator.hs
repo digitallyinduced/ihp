@@ -7,7 +7,6 @@ import Data.Text.IO (appendFile)
 import qualified System.Exit as Exit
 import IHP.HaskellSupport
 import qualified Data.Text as Text
-import qualified Text.Countable as Countable
 import qualified Data.Char as Char
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
@@ -54,9 +53,9 @@ data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
-        pluralName = Countable.pluralize $ get #controllerName config
         name = get #controllerName config
-        singularName = get #modelName config
+        pluralName = get #controllerName config |> lcfirst |> pluralize |> ucfirst
+        singularName = get #modelName config |> lcfirst |> singularize |> ucfirst
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
     in
@@ -76,8 +75,8 @@ generateController schema config =
     let
         applicationName = get #applicationName config
         name = config |> get #controllerName
-        pluralName = Countable.pluralize $ get #controllerName config
-        singularName = config |> get #modelName
+        pluralName = get #controllerName config |> lcfirst |> pluralize |> ucfirst
+        singularName = get #modelName config |> lcfirst |> singularize |> ucfirst
         moduleName =  applicationName <> ".Controller." <> name
         controllerName = name <> "Controller"
 

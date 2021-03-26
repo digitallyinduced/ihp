@@ -8,7 +8,7 @@ mkDerivation {
     base ihp raven-haskell wai warp
   ];
   testHaskellDepends = [ ];
-  homepage = "https://github.com/tippenein/countable-inflections";
+  homepage = "https://github.com/digitallyinduced/ihp-sentry";
   description = "Track exceptions in your IHP apps with sentry";
   license = stdenv.lib.licenses.mit;
   src = fetchFromGitHub {

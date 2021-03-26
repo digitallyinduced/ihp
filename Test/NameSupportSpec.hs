@@ -15,7 +15,7 @@ tests = do
             it "should deal with empty input" do
                 tableNameToModelName "" `shouldBe` ""
 
-            it "should transform table names to model names" do 
+            it "should transform table names to model names" do
                 tableNameToModelName "users" `shouldBe` "User"
                 tableNameToModelName "projects" `shouldBe` "Project"
                 tableNameToModelName "user_projects" `shouldBe` "UserProject"
@@ -26,7 +26,7 @@ tests = do
             it "should deal with empty input" do
                 tableNameToControllerName "" `shouldBe` ""
 
-            it "should transform table names to controller names" do 
+            it "should transform table names to controller names" do
                 tableNameToControllerName "users" `shouldBe` "Users"
                 tableNameToControllerName "projects" `shouldBe` "Projects"
                 tableNameToControllerName "user_projects" `shouldBe` "UserProjects"
@@ -45,50 +45,50 @@ tests = do
                 enumValueToControllerName "job_status_failed" `shouldBe` "JobStatusFailed"
                 enumValueToControllerName "job_status_succeeded" `shouldBe` "JobStatusSucceeded"
                 enumValueToControllerName "job_status_retry" `shouldBe` "JobStatusRetry"
-        
+
         describe "modelNameToTableName" do
             it "should deal with empty input" do
                 modelNameToTableName "" `shouldBe` ""
 
-            it "should transform model names to table names" do 
+            it "should transform model names to table names" do
                 modelNameToTableName "User" `shouldBe` "users"
                 modelNameToTableName "Project" `shouldBe` "projects"
                 modelNameToTableName "UserProject" `shouldBe` "user_projects"
                 modelNameToTableName "UsersProjects" `shouldBe` "users_projects"
-                modelNameToTableName "Person" `shouldBe` "persons"
-        
+                modelNameToTableName "Person" `shouldBe` "people"
+
         describe "columnNameToFieldName" do
             it "should deal with empty input" do
                 columnNameToFieldName "" `shouldBe` ""
 
-            it "should transform column names to field names" do 
+            it "should transform column names to field names" do
                 columnNameToFieldName "email" `shouldBe` "email"
                 columnNameToFieldName "project_id" `shouldBe` "projectId"
                 columnNameToFieldName "user_project_name" `shouldBe` "userProjectName"
-        
+
         describe "fieldNameToColumnName" do
             it "should deal with empty input" do
                 fieldNameToColumnName "" `shouldBe` ""
 
-            it "should transform field names to column names" do 
+            it "should transform field names to column names" do
                 fieldNameToColumnName "email" `shouldBe` "email"
                 fieldNameToColumnName "projectId" `shouldBe` "project_id"
                 fieldNameToColumnName "userProjectName" `shouldBe` "user_project_name"
-        
+
         describe "lcfirst" do
             it "should deal with empty input" do
                 lcfirst "" `shouldBe` ""
 
-            it "should lowercase the first letter" do 
+            it "should lowercase the first letter" do
                 lcfirst "Hello" `shouldBe` "hello"
                 lcfirst "Hello World" `shouldBe` "hello World"
                 lcfirst "1337" `shouldBe` "1337"
-        
+
         describe "ucfirst" do
             it "should deal with empty input" do
                 ucfirst "" `shouldBe` ""
 
-            it "should uppercase the first letter" do 
+            it "should uppercase the first letter" do
                 ucfirst "hello" `shouldBe` "Hello"
                 ucfirst "hello world" `shouldBe` "Hello world"
                 ucfirst "1337" `shouldBe` "1337"
