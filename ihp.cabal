@@ -62,7 +62,6 @@ common shared-properties
             , cookie
             , process
             , newtype-generics
-            , countable-inflections
             , typerep-map
             , basic-prelude
             , megaparsec
