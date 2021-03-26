@@ -32,6 +32,7 @@ main = do
     appStateRef <- newIORef emptyAppState
     portConfig <- findAvailablePortConfig
     LibDir.ensureSymlink
+    ensureUserIsNotRoot
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
     -- Like: $ DEBUG=1 ./start
@@ -249,6 +250,21 @@ setProcessLimits = when (os == "darwin") do
 
     Process.waitForProcess (get #processHandle proc)
     cleanupManagedProcess proc
+
+-- | Exit with an error if running as the root user
+--
+-- When the dev server starts the postgres server, it will fail if run as root:
+--
+-- > initdb: cannot be run as root
+--
+-- This is a bit hard to debug, therefore we proactively fail early when run as root
+--
+ensureUserIsNotRoot :: IO ()
+ensureUserIsNotRoot = do
+    username <- fromMaybe "" <$> Env.lookupEnv "USERNAME"
+    when (username == "root") do
+        ByteString.hPutStrLn stderr "Cannot be run as root: The IHP dev server cannot be run with the root user because we cannot start the postgres server with a root user.\n\nPlease run this with a normal user.\nIf you need help, join the IHP Slack: https://ihp.digitallyinduced.com/Slack"
+        exitFailure
 
 startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
