@@ -171,6 +171,7 @@ buildPlan' schema config =
                 <> "        </div>\n"
                 <> "    |]\n"
                 <> "\n\n"
+                <> "render" <> singularName <> " :: " <> singularName <> " -> Html\n"
                 <> "render" <> singularName <> " " <> singularVariableName <> " = [hsx|\n"
                 <> "    <tr>\n"
                 <> "        <td>{" <> singularVariableName <> "}</td>\n"
