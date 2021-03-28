@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 {-|
 Module: IHP.Job.Dashboard
@@ -46,15 +47,20 @@ import IHP.ViewPrelude (Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
 import IHP.ModelSupport
 import IHP.ControllerPrelude
 import Unsafe.Coerce
-import IHP.RouterPrelude hiding (get, tshow, error, map)
+import IHP.Job.Queue ()
+import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
+import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
 import qualified IHP.Log as Log
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodGet, methodPost)
 import System.Environment (lookupEnv)
+import GHC.TypeLits
+
+-- Authentication ------------------------------------------------------------
 
 -- | Defines one method, 'authenticate', called before every action. Use to authenticate user.
 --
@@ -91,64 +97,9 @@ instance (KnownSymbol userEnv, KnownSymbol passEnv) => AuthenticationMethod (Bas
 instance (KnownSymbol user, KnownSymbol pass) => AuthenticationMethod (BasicAuthStatic user pass) where
     authenticate = basicAuth (cs $ symbolVal $ Proxy @user) (cs $ symbolVal $ Proxy @pass) "jobs"
 
--- | Defines controller actions for acting on a dashboard made of some list of types.
--- Later functions and typeclasses introduce constraints on the types in this list,
--- so you'll get a compile error if you try and include a type that is not a job.
-data JobsDashboardController authType (jobs :: [*])
-    = ListJobsAction
+-- End authentication ------------------------------------------------------------
 
-    -- These actions are used for 'pathTo'. Need  to pass the parameters explicity to know how to build the path
-    | ViewJobAction { jobTableName :: Text, jobId :: UUID }
-    | CreateJobAction { jobTableName :: Text }
-    | DeleteJobAction { jobTableName :: Text, jobId :: UUID }
-
-    -- These actions are used for interal routing. Parameters are extracted dynamically in the action based on types
-    | ViewJobAction'
-    | CreateJobAction'
-    | DeleteJobAction'
-    deriving (Show, Eq, Data)
-
--- | Defines implementations for actions for acting on a dashboard made of some list of types.
--- This is included to allow these actions to recurse on the types, isn't possible in an IHP Controller
--- action implementation.
---
--- Later functions and typeclasses introduce constraints on the types in this list,
--- so you'll get a compile error if you try and include a type that is not a job.
-class JobsDashboard (jobs :: [*]) where
-    -- | Creates the entire dashboard by recursing on the type list and calling 'makeSection' on each type.
-    makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
-
-    -- | Renders the index page, which is the view returned from 'makeDashboard'.
-    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-
-
-    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-
-    -- | Renders the detail view page. Rescurses on the type list to find a type with the
-    -- same table name as the "tableName" query parameter.
-    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-
-    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
-    -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
-    -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-
-    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-    -- | Deletes a job from the database.
-    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-
--- | The only function that should ever be invoked for this class is 'makeDashboard'
--- which ends the recursion the build the index view. If other cases are reached,
--- that means the type passed in "tableName" was not found and thus an error is thrown.
-instance JobsDashboard '[] where
-    makeDashboard = pure (SomeView EmptyView)
-    indexPage = error "No Index implemented for empty jobs list"
-    viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
-    viewJob' = error "viewJob: Requested job type not in JobsDashboard Type"
-    newJob = error "newJob: Requested job type not in JobsDashboard Type"
-    newJob' = error "newJob: Requested job type not in JobsDashboard Type"
-    deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
-    deleteJob' = error "deleteJob: Requested job type not in JobsDashboard Type"
+-- View utilities --------------------------------------------------------------------------------
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
 -- to know exactly what type the view will be, which in turn allows for custom implmentations of
@@ -184,153 +135,6 @@ instance View EmptyView where
 newtype HtmlView = HtmlView Html
 instance View HtmlView where
     html (HtmlView html) = [hsx|{html}|]
-
--- | Defines the default implementation for a dashboard of a list of job types.
--- We know the current job is a 'DisplayableJob', and we can recurse on the rest of the list to build the rest of the dashboard.
--- You probably don't want to provide custom implementations for these. Read the documentation for each of the functions if
--- you'd like to know how to customize the behavior. They mostly rely on the functions from 'DisplayableJob'.
-instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDashboard (job:rest) where
-
-    -- | Recusively create a list of views that are concatenated together as 'SomeView's to build the dashboard.
-    -- To customize, override 'makeSection' for each job.
-    makeDashboard = do
-        section <- makeSection @job
-        restSections <- SomeView <$> makeDashboard @rest
-        pure $ SomeView (section : [restSections])
-
-    -- | Build the dashboard and render it.
-    indexPage = do
-        dashboard <- makeDashboard @(job:rest)
-        render dashboard
-
-    -- | View the detail page for the job with a given uuid.
-    viewJob _ uuid = do
-        let id :: Id job = unsafeCoerce uuid
-        j <- fetch id
-        view <- makeDetailView @job j
-        render view
-
-    -- | For a given "tableName" parameter, try and recurse over the list of types
-    -- in order to find a type with the some table name as the parameter.
-    -- If one is found, attempt to construct an ID from the "id" parameter,
-    -- and render a page using the type's implementation of 'makeDetailView'.
-    -- If you want to customize the page, override that function instead.
-    viewJob' = do
-        let table = param "tableName"
-        if tableName @job == table
-            then viewJob @(job:rest) table (param "id")
-            else viewJob' @rest
-
-
-    -- For POST, create a new job using the job's implementation of 'createNewJob'.
-    -- To include other request data and parameters, override that function, not this one.
-    -- If it's a GET request, render a new job form with the job's implementation of 'makeNewJobView'.
-    -- For customizing this form, override 'makeNewJobView'.
-    newJob tableName = do
-        if requestMethod request == methodPost
-            then do
-                createNewJob @job
-                setSuccessMessage (tableName <> " job started.")
-                redirectTo ListJobsAction
-            else do
-                view <- makeNewJobView @job
-                render view
-
-    -- | For a given "tableName" parameter, try and recurse over the list of types
-    -- in order to find a type with the some table name as the parameter.
-    -- If such a type is found, call newJob.
-    newJob' = do
-        let table = param "tableName"
-        if tableName @job == table
-            then newJob @(job:rest) table
-            else newJob' @rest
-
-    -- | Delete job in 'table' with ID 'uuid'.
-    deleteJob table uuid = do
-        let id :: Id job = unsafeCoerce uuid
-        j <- fetch id
-        deleteRecord j
-        setSuccessMessage (table <> " record deleted.")
-        redirectTo ListJobsAction
-
-    -- | For a given "tableName" parameter, try and recurse over the list of types
-    -- in order to find a type with the some table name as the parameter.
-    -- If one is found, delete the record with the given id.
-    deleteJob' = do
-        let table = param "tableName"
-        if tableName @job == table
-            then deleteJob @(job:rest) table (param "id")
-            else deleteJob' @rest
-
--- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
--- All jobs created through the IHP dev IDE will automatically satisfy these constraints and thus be able to
--- be used as a 'DisplayableJob'.
--- To customize the dashboard behavior for each job, you should provide a custom implementation of 'DisplayableJob'
--- for your job type. Your custom implementations will then be used instead of the defaults.
-class ( job ~ GetModelByTableName (GetTableName job)
-    , FilterPrimaryKey (GetTableName job)
-    , FromRow job
-    , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
-    , PG.ToField (PrimaryKey (GetTableName job))
-    , KnownSymbol (GetTableName job)
-    , HasField "id" job (Id job)
-    , HasField "status" job JobStatus
-    , HasField "updatedAt" job UTCTime
-    , HasField "createdAt" job UTCTime
-    , HasField "lastError" job (Maybe Text)
-    , CanUpdate job
-    , CanCreate job
-    , Record job
-    , Show job
-    , Eq job
-    , Typeable job) => DisplayableJob job where
-
-    -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
-    -- but this can be any arbitrary view! Make some cool graphs :)
-    makeSection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
-
-    -- | The content of the page that will be displayed for a detail view of this job.
-    -- By default, the ID, Status, Created/Updated at times, and last error are displayed.
-    -- Can be defined as any arbitrary view.
-    makeDetailView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => job -> IO SomeView
-    makeDetailView job = do
-        pure $ SomeView $ GenericShowView job
-
-    -- | The content of the page that will be displayed for the "new job" form of this job.
-    -- By default, only the submit button is rendered. For additonal form data, define your own implementation.
-    -- See 'GenericNewJobView' for a guide on how it can look.look
-    -- Can be defined as any arbitrary view, but it should be a form.
-    makeNewJobView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
-    makeNewJobView = pure $ SomeView $ GenericNewJobView @job
-
-    -- | The action run to create and insert a new value of this job into the database.
-    -- By default, create an empty record and insert it.
-    -- To add more data, define your own implementation.
-    createNewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-    createNewJob = do
-        newRecord @job |> create
-        pure ()
-
-
-
-data TableView a = TableView [a]
-
--- A TableView is only a View if it's contents are TableViewable.
-instance forall a. (TableViewable a) => View (TableView a) where
-    html (TableView rows) = renderTable rows
-
--- | Creates a form with a single small button that links to the Create Job form for some 'DisplayableJob;.
-newJobFormForTableHeader :: forall job. (DisplayableJob job) => Html
-newJobFormForTableHeader =
-        let
-            t = tableName @job
-            link :: Text = "/jobs/CreateJob?tableName=" <> t
-        in [hsx|
-            <form action={link}>
-                <button type="submit" class="btn btn-primary btn-sm">+ New Job</button>
-            </form>
-        |]
 
 -- | Defines a set of necessary functions to display some data 'a' in a table format given a list of '[a]'.
 class TableViewable a where
@@ -373,6 +177,422 @@ class TableViewable a where
     |]
         where renderHeader field = [hsx|<th>{field}</th>|]
 
+data TableView a = TableView [a]
+
+-- A TableView is only a View if it's contents are TableViewable.
+instance forall a. (TableViewable a) => View (TableView a) where
+    html (TableView rows) = renderTable rows
+
+statusToBadge :: JobStatus -> Html
+statusToBadge JobStatusNotStarted= [hsx|<span class="badge badge-info">Not Started</span>|]
+statusToBadge JobStatusRunning = [hsx|<span class="badge badge-info">Running</span>|]
+statusToBadge JobStatusSucceeded = [hsx|<span class="badge badge-success">Succeeded</span>|]
+statusToBadge JobStatusFailed = [hsx|<span class="badge badge-danger">Failed</span>|]
+statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</span>|]
+
+data BaseJob = BaseJob {
+    table :: Text
+  , id :: UUID
+  , status :: JobStatus
+  , updatedAt :: UTCTime
+  , createdAt :: UTCTime
+  , lastError :: Maybe Text
+} deriving (Show)
+
+instance FromRow BaseJob where
+    fromRow = BaseJob <$> field <*> field <*> field <*> field <*> field <*> field
+
+renderBaseJobTableRow :: BaseJob -> Html
+renderBaseJobTableRow job = let
+        btnStyle :: Text = "outline: none !important; padding: 0; border: 0; vertical-align: baseline;"
+    in [hsx|
+        <tr>
+            <td>{get #id job}</td>
+            <td>{get #updatedAt job}</td>
+            <td>{statusToBadge $ get #status job}</td>
+            <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
+            <td>
+                <form action={CreateJobAction (get #table job)} method="POST">
+                    <button type="submit" style={btnStyle} class="btn btn-link text-secondary">Retry</button>
+                </form>
+            </td>
+        </tr>
+    |]
+
+renderBaseJobTable :: Text -> [BaseJob] -> Html
+renderBaseJobTable table rows =
+    let
+        headers :: [Text] = ["ID", "Updated At", "Status", "", ""]
+    in [hsx|
+    <div>
+        <div class="d-flex justify-content-between align-items-center">
+            <h3>{table |> columnNameToFieldLabel}</h3>
+            {renderNewBaseJobLink table}
+        </div>
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    {forEach headers renderHeader}
+                </tr>
+            </thead>
+
+            <tbody>
+                {forEach rows renderBaseJobTableRow}
+            </tbody>
+        </table>
+    </div>
+|]
+    where renderHeader field = [hsx|<th>{field}</th>|]
+
+renderNewBaseJobLink :: Text -> Html
+renderNewBaseJobLink table =
+    let
+        link = "/jobs/CreateJob?tableName=" <> table
+    in [hsx|
+        <form action={link}>
+            <button type="submit" class="btn btn-primary btn-sm">+ New Job</button>
+        </form>
+    |]
+
+renderNewBaseJobForm :: Text -> Html
+renderNewBaseJobForm table = [hsx|
+    <br>
+        <h5>New Job: {table}</h5>
+    <br>
+    <form action="/jobs/CreateJob" method="POST">
+        <input type="hidden" id="tableName" name="tableName" value={table}>
+        <button type="submit" class="btn btn-primary">New Job</button>
+    </form>
+|]
+
+renderBaseJobDetailView :: BaseJob -> Html
+renderBaseJobDetailView job = let table = get #table job in [hsx|
+    <br>
+        <h5>Viewing Job {get #id job} in {table}</h5>
+    <br>
+    <table class="table">
+        <tbody>
+            <tr>
+                <th>Updated At</th>
+                <td>{get #updatedAt job}</td>
+            </tr>
+            <tr>
+                <th>Created At</th>
+                <td>{get #createdAt job |> timeAgo}</td>
+            </tr>
+            <tr>
+                <th>Status</th>
+                <td>{statusToBadge (get #status job)}</td>
+            </tr>
+            <tr>
+                <th>Last Error</th>
+                <td>{fromMaybe "No error" (get #lastError job)}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="d-flex flex-row">
+        <form class="mr-2" action="/jobs/DeleteJob" method="POST">
+            <input type="hidden" id="tableName" name="tableName" value={table}>
+            <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
+            <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+        <form action="/jobs/CreateJob" method="POST">
+            <input type="hidden" id="tableName" name="tableName" value={table}>
+            <button type="submit" class="btn btn-primary">Run again</button>
+        </form>
+    </div>
+|]
+
+-- End view utilities --------------------------------------------------------------------------------
+
+
+-- | Defines controller actions for acting on a dashboard made of some list of types.
+-- Later functions and typeclasses introduce constraints on the types in this list,
+-- so you'll get a compile error if you try and include a type that is not a job.
+data JobsDashboardController authType (jobs :: [*])
+    = ListJobsAction
+
+    -- These actions are used for 'pathTo'. Need  to pass the parameters explicity to know how to build the path
+    | ViewJobAction { jobTableName :: Text, jobId :: UUID }
+    | CreateJobAction { jobTableName :: Text }
+    | DeleteJobAction { jobTableName :: Text, jobId :: UUID }
+
+    -- These actions are used for interal routing. Parameters are extracted dynamically in the action based on types
+    | ViewJobAction'
+    | CreateJobAction'
+    | DeleteJobAction'
+    deriving (Show, Eq, Data)
+
+-- | Defines implementations for actions for acting on a dashboard made of some list of types.
+-- This is included to allow these actions to recurse on the types, isn't possible in an IHP Controller
+-- action implementation.
+--
+-- Later functions and typeclasses introduce constraints on the types in this list,
+-- so you'll get a compile error if you try and include a type that is not a job.
+class JobsDashboard (jobs :: [*]) where
+    -- | Creates the entire dashboard by recursing on the type list and calling 'makeSection' on each type.
+    makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+
+    getIncludedJobTableNames :: [Text]
+
+    -- | Renders the index page, which is the view returned from 'makeDashboard'.
+    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+
+
+    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
+
+    -- | Renders the detail view page. Rescurses on the type list to find a type with the
+    -- same table name as the "tableName" query parameter.
+    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+
+    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
+    -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
+    -- If performed in a GET request, renders the new job from depending on said parameter.
+    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+
+    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
+    -- | Deletes a job from the database.
+    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+
+-- If no types are passed, try to get all tables dynamically and render them as BaseJobs
+instance JobsDashboard '[] where
+
+    -- | Invoked at the end of recursion
+    makeDashboard = pure (SomeView EmptyView)
+
+    getIncludedJobTableNames = []
+
+    indexPage = do
+        tableNames <- map extractText <$> getAllTableNames
+        tables <- mapM buildBaseJobTable tableNames
+        render $ SomeView tables
+        where
+            extractText = \(Only t) -> t
+            getAllTableNames :: IO [Only Text] = sqlQuery
+                "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'" ()
+            buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> IO SomeView
+            buildBaseJobTable tableName = do
+                baseJobs <- sqlQuery (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> tableName) (Only tableName)
+                baseJobs
+                    |> renderBaseJobTable tableName
+                    |> HtmlView
+                    |> SomeView
+                    |> pure
+
+    viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
+    viewJob' _ = do
+        baseJob <- queryBaseJob (param "tableName") (param "id")
+        render $ HtmlView $ renderBaseJobDetailView baseJob
+
+    newJob = error "newJob: Requested job type not in JobsDashboard Type"
+    newJob' _ = do
+        if requestMethod request == methodPost
+            then do
+                sqlExec (PG.Query $ "INSERT into " <> param "tableName" <> " DEFAULT VALUES") ()
+                setSuccessMessage (param "tableName" <> " job started.")
+                redirectTo ListJobsAction
+            else render $ HtmlView $ renderNewBaseJobForm (param "tableName")
+
+    deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
+    deleteJob' _ = do
+        let id    :: UUID = param "id"
+            table :: Text = param "tableName"
+        sqlExec (PG.Query $ cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id)
+        setSuccessMessage (table <> " record deleted.")
+        redirectTo ListJobsAction
+
+
+-- | Defines the default implementation for a dashboard of a list of job types.
+-- We know the current job is a 'DisplayableJob', and we can recurse on the rest of the list to build the rest of the dashboard.
+-- You probably don't want to provide custom implementations for these. Read the documentation for each of the functions if
+-- you'd like to know how to customize the behavior. They mostly rely on the functions from 'DisplayableJob'.
+instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDashboard (job:rest) where
+
+    -- | Recusively create a list of views that are concatenated together as 'SomeView's to build the dashboard.
+    -- To customize, override 'makeSection' for each job.
+    makeDashboard = do
+        section <- makeSection @job
+        restSections <- SomeView <$> makeDashboard @rest
+        pure $ SomeView (section : [restSections])
+
+    -- | Recursively build list of included table names
+    getIncludedJobTableNames = tableName @job : getIncludedJobTableNames @rest
+
+    -- | Build the dashboard and render it.
+    indexPage = do
+        dashboardIncluded <- makeDashboard @(job:rest)
+        notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames
+        baseJobTables <- mapM buildBaseJobTable notIncluded
+        render $ dashboardIncluded : baseJobTables
+        where
+            extractText = \(Only t) -> t
+            getNotIncludedTableNames = sqlQuery
+                "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ?"
+                (Only $ In $ getIncludedJobTableNames @(job:rest))
+            buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> IO SomeView
+            buildBaseJobTable tableName = do
+                baseJobs <- sqlQuery (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> tableName) (Only tableName)
+                baseJobs
+                    |> renderBaseJobTable tableName
+                    |> HtmlView
+                    |> SomeView
+                    |> pure
+
+    -- | View the detail page for the job with a given uuid.
+    viewJob _ uuid = do
+        let id :: Id job = unsafeCoerce uuid
+        j <- fetch id
+        view <- makeDetailView @job j
+        render view
+
+    -- | For a given "tableName" parameter, try and recurse over the list of types
+    -- in order to find a type with the some table name as the parameter.
+    -- If one is found, attempt to construct an ID from the "id" parameter,
+    -- and render a page using the type's implementation of 'makeDetailView'.
+    -- If you want to customize the page, override that function instead.
+    viewJob' isFirstTime = do
+        let table = param "tableName"
+
+        when isFirstTime $ do
+            notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames
+            when (table `elem` notIncluded) (viewJob' @'[] False)
+
+        if tableName @job == table
+            then viewJob @(job:rest) table (param "id")
+            else viewJob' @rest False
+        where
+            extractText = \(Only t) -> t
+            getNotIncludedTableNames = sqlQuery
+                "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ?"
+                (Only $ In $ getIncludedJobTableNames @(job:rest))
+
+    -- For POST, create a new job using the job's implementation of 'createNewJob'.
+    -- To include other request data and parameters, override that function, not this one.
+    -- If it's a GET request, render a new job form with the job's implementation of 'makeNewJobView'.
+    -- For customizing this form, override 'makeNewJobView'.
+    newJob tableName = do
+        if requestMethod request == methodPost
+            then do
+                createNewJob @job
+                setSuccessMessage (tableName <> " job started.")
+                redirectTo ListJobsAction
+            else do
+                view <- makeNewJobView @job
+                render view
+
+    -- | For a given "tableName" parameter, try and recurse over the list of types
+    -- in order to find a type with the some table name as the parameter.
+    -- If such a type is found, call newJob.
+    newJob' isFirstTime = do
+        let table = param "tableName"
+
+        when isFirstTime $ do
+            notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames
+            when (table `elem` notIncluded) (newJob' @'[] False)
+
+        if tableName @job == table
+            then newJob @(job:rest) table
+            else newJob' @rest False
+
+        where
+            extractText = \(Only t) -> t
+            getNotIncludedTableNames = sqlQuery
+                "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ?"
+                (Only $ In $ getIncludedJobTableNames @(job:rest))
+
+    -- | Delete job in 'table' with ID 'uuid'.
+    deleteJob table uuid = do
+        let id :: Id job = unsafeCoerce uuid
+        j <- fetch id
+        deleteRecord j
+        setSuccessMessage (table <> " record deleted.")
+        redirectTo ListJobsAction
+
+    -- | For a given "tableName" parameter, try and recurse over the list of types
+    -- in order to find a type with the some table name as the parameter.
+    -- If one is found, delete the record with the given id.
+    deleteJob' isFirstTime = do
+        let table = param "tableName"
+
+        when isFirstTime $ do
+            notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames
+            when (table `elem` notIncluded) (deleteJob' @'[] False)
+
+        if tableName @job == table
+            then deleteJob @(job:rest) table (param "id")
+            else deleteJob' @rest False
+
+        where
+            extractText = \(Only t) -> t
+            getNotIncludedTableNames = sqlQuery
+                "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ?"
+                (Only $ In $ getIncludedJobTableNames @(job:rest))
+
+-- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
+-- All jobs created through the IHP dev IDE will automatically satisfy these constraints and thus be able to
+-- be used as a 'DisplayableJob'.
+-- To customize the dashboard behavior for each job, you should provide a custom implementation of 'DisplayableJob'
+-- for your job type. Your custom implementations will then be used instead of the defaults.
+class ( job ~ GetModelByTableName (GetTableName job)
+    , FilterPrimaryKey (GetTableName job)
+    , FromRow job
+    , Show (PrimaryKey (GetTableName job))
+    , PG.FromField (PrimaryKey (GetTableName job))
+    , PG.ToField (PrimaryKey (GetTableName job))
+    , KnownSymbol (GetTableName job)
+    , HasField "id" job (Id job)
+    , HasField "status" job JobStatus
+    , HasField "updatedAt" job UTCTime
+    , HasField "createdAt" job UTCTime
+    , HasField "lastError" job (Maybe Text)
+    , CanUpdate job
+    , CanCreate job
+    , Record job
+    , Show job
+    , Eq job
+    , Typeable job) => DisplayableJob job where
+
+    -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
+    -- but this can be any arbitrary view! Make some cool graphs :)
+    makeSection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+
+    -- | The content of the page that will be displayed for a detail view of this job.
+    -- By default, the ID, Status, Created/Updated at times, and last error are displayed.
+    -- Can be defined as any arbitrary view.
+    makeDetailView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => job -> IO SomeView
+    makeDetailView job = do
+        pure $ SomeView $ HtmlView $ renderBaseJobDetailView (buildBaseJob job)
+
+    -- | The content of the page that will be displayed for the "new job" form of this job.
+    -- By default, only the submit button is rendered. For additonal form data, define your own implementation.
+    -- Can be defined as any arbitrary view, but it should be a form.
+    makeNewJobView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+    makeNewJobView = pure $ SomeView $ HtmlView $ renderNewBaseJobForm $ tableName @job
+
+    -- | The action run to create and insert a new value of this job into the database.
+    -- By default, create an empty record and insert it.
+    -- To add more data, define your own implementation.
+    createNewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    createNewJob = do
+        newRecord @job |> create
+        pure ()
+
+
+
+
+-- | Creates a form with a single small button that links to the Create Job form for some 'DisplayableJob;.
+newJobFormForTableHeader :: forall job. (DisplayableJob job) => Html
+newJobFormForTableHeader =
+        let
+            t = tableName @job
+            link :: Text = "/jobs/CreateJob?tableName=" <> t
+        in [hsx|
+            <form action={link}>
+                <button type="submit" class="btn btn-primary btn-sm">+ New Job</button>
+            </form>
+        |]
+
 -- | The crazy list of type constraints for this instance defines everything needed for a generic "Job".
 -- Given all the constraints are satisfied, we can define how this job type can be used to display in a table format.
 instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
@@ -398,24 +618,7 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
     tableTitle = tableName @job |> columnNameToFieldLabel
     tableHeaders = ["ID", "Updated at", "Status", "", ""]
     createNewForm = newJobFormForTableHeader @job
-    renderTableRow job =
-        let
-            table = tableName @job
-            uuid = get #id job |> unsafeCoerce
-            btnStyle :: Text = "outline: none !important; padding: 0; border: 0; vertical-align: baseline;"
-        in [hsx|
-            <tr>
-                <td>{get #id job}</td>
-                <td>{get #updatedAt job}</td>
-                <td>{statusToBadge $ get #status job}</td>
-                <td><a href={ViewJobAction table uuid} class="text-primary">Show</a></td>
-                <td>
-                    <form action={CreateJobAction table} method="POST">
-                        <button type="submit" style={btnStyle} class="btn btn-link text-secondary">Retry</button>
-                    </form>
-                </td>
-            </tr>
-        |]
+    renderTableRow job = renderBaseJobTableRow (buildBaseJob job)
 
 -- | Given a generic job that is able to be displayed in a table through the 'TableViewable' constraint,
 -- define the functions needed for a 'DisplayableJob'.
@@ -465,89 +668,40 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
 -- >    >>= pure . map (IncludeWrapper @"userId" @UpdateUserJob)
 newtype IncludeWrapper (id :: Symbol) job = IncludeWrapper (Include id job)
 
--- CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
-statusToBadge :: JobStatus -> Html
-statusToBadge JobStatusNotStarted= [hsx|<span class="badge badge-info">Not Started</span>|]
-statusToBadge JobStatusRunning = [hsx|<span class="badge badge-info">Running</span>|]
-statusToBadge JobStatusSucceeded = [hsx|<span class="badge badge-success">Succeeded</span>|]
-statusToBadge JobStatusFailed = [hsx|<span class="badge badge-danger">Failed</span>|]
-statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</span>|]
 
-instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
-    beforeAction = authenticate @authType
-    action ListJobsAction = autoRefresh $ indexPage @jobs
-    action ViewJobAction' = autoRefresh $ viewJob' @jobs
-    action CreateJobAction' = newJob' @jobs
-    action DeleteJobAction' = deleteJob' @jobs
-    action _ = error "Cannot call this action directly. Call the backtick function with no parameters instead."
 
 -- | We can't always access the type of our job in order to use type application syntax for 'tableName'.
 -- This is just a convinence function for those cases.
 getTableName :: forall job. (DisplayableJob job) => job -> Text
 getTableName _ = tableName @job
 
-data GenericShowView job = GenericShowView job
-instance (DisplayableJob job) => View (GenericShowView job) where
-    html (GenericShowView job) =
-        let
-            table = getTableName job
-        in [hsx|
-            <br>
-                <h5>Viewing Job {get #id job} in {table}</h5>
-            <br>
-            <table class="table">
-                <tbody>
-                    <tr>
-                        <th>Updated At</th>
-                        <td>{get #updatedAt job}</td>
-                    </tr>
-                    <tr>
-                        <th>Created At</th>
-                        <td>{get #createdAt job |> timeAgo}</td>
-                    </tr>
-                    <tr>
-                        <th>Status</th>
-                        <td>{statusToBadge (get #status job)}</td>
-                    </tr>
-                    <tr>
-                        <th>Last Error</th>
-                        <td>{fromMaybe "No error" (get #lastError job)}</td>
-                    </tr>
-                </tbody>
-            </table>
+buildBaseJob :: forall job. (DisplayableJob job) => job -> BaseJob
+buildBaseJob job = BaseJob
+    (tableName @job)
+    (unsafeCoerce $ get #id job)
+    (get #status job)
+    (get #updatedAt job)
+    (get #createdAt job)
+    (get #lastError job)
 
-            <div class="d-flex flex-row">
-                <form class="mr-2" action="/jobs/DeleteJob" method="POST">
-                    <input type="hidden" id="tableName" name="tableName" value={table}>
-                    <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-                <form action="/jobs/CreateJob" method="POST">
-                    <input type="hidden" id="tableName" name="tableName" value={table}>
-                    <button type="submit" class="btn btn-primary">Run again</button>
-                </form>
-            </div>
-        |]
+queryBaseJob :: _ => Text -> UUID -> IO BaseJob
+queryBaseJob table id = do
+    (job : _) <- sqlQuery (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " where id = ?") [table, tshow id]
+    pure job
 
+-- Controller implementation ----------------------------------------------------------
 
-data GenericNewJobView job = GenericNewJobView
-instance (DisplayableJob job) => View (GenericNewJobView job) where
-    html _ =
-        let
-            table = tableName @job
-        in [hsx|
-            <br>
-                <h5>New Job: {table}</h5>
-            <br>
-            <form action="/jobs/CreateJob" method="POST">
-                <input type="hidden" id="tableName" name="tableName" value={table}>
-                <button type="submit" class="btn btn-primary">New Job</button>
-            </form>
-        |]
+instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
+    beforeAction = authenticate @authType
+    action ListJobsAction   = autoRefresh $ indexPage @jobs
+    action ViewJobAction'   = autoRefresh $ viewJob' @jobs True
+    action CreateJobAction' = newJob' @jobs True
+    action DeleteJobAction' = deleteJob' @jobs True
+    action _ = error "Cannot call this action directly. Call the backtick function with no parameters instead."
 
 instance HasPath (JobsDashboardController authType jobs) where
-    pathTo ListJobsAction = "/jobs/ListJobs"
-    pathTo ViewJobAction { .. } = "/jobs/ViewJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
+    pathTo ListJobsAction         = "/jobs/ListJobs"
+    pathTo ViewJobAction   { .. } = "/jobs/ViewJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
     pathTo CreateJobAction { .. } = "/jobs/CreateJob?tableName=" <> jobTableName
     pathTo DeleteJobAction { .. } = "/jobs/DeleteJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
     pathTo _ = error "pathTo for internal JobsDashboard functions not supported. Use non-backtick action and pass necessary parameters to use pathTo."

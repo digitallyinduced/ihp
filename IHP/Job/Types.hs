@@ -23,7 +23,7 @@ class Worker application where
 data JobWorkerArgs = JobWorkerArgs
     { allJobs :: IORef [Async.Async ()]
     , workerId :: UUID
-    , modelContext :: ModelContext 
+    , modelContext :: ModelContext
     , frameworkConfig :: FrameworkConfig }
 
 newtype JobWorker = JobWorker (JobWorkerArgs -> IO (Async.Async ()))
