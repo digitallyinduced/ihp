@@ -26,6 +26,7 @@ If you implement custom behavior for a job type, add it to the list in the Dashb
 module IHP.Job.Dashboard (
     module IHP.Job.Dashboard.View,
     module IHP.Job.Dashboard.Auth,
+    module IHP.Job.Dashboard.Types,
 
     JobsDashboard(..),
     DisplayableJob(..),
@@ -98,17 +99,8 @@ instance JobsDashboard '[] where
         tables <- mapM buildBaseJobTable tableNames
         render $ SomeView tables
         where
-            extractText = \(Only t) -> t
-            getAllTableNames :: IO [Only Text] = sqlQuery
+            getAllTableNames = sqlQuery
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'" ()
-            buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> IO SomeView
-            buildBaseJobTable tableName = do
-                baseJobs <- sqlQuery (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> tableName) (Only tableName)
-                baseJobs
-                    |> renderBaseJobTable tableName
-                    |> HtmlView
-                    |> SomeView
-                    |> pure
 
     viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
     viewJob' _ = do
@@ -119,18 +111,21 @@ instance JobsDashboard '[] where
     newJob' _ = do
         if requestMethod request == methodPost
             then do
-                sqlExec (PG.Query $ "INSERT into " <> param "tableName" <> " DEFAULT VALUES") ()
+                insertJob
                 setSuccessMessage (param "tableName" <> " job started.")
                 redirectTo ListJobsAction
             else render $ HtmlView $ renderNewBaseJobForm (param "tableName")
+        where insertJob = sqlExec (PG.Query $ "INSERT into " <> param "tableName" <> " DEFAULT VALUES") ()
 
     deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
     deleteJob' _ = do
         let id    :: UUID = param "id"
             table :: Text = param "tableName"
-        sqlExec (PG.Query $ cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id)
+        delete id table
         setSuccessMessage (table <> " record deleted.")
         redirectTo ListJobsAction
+
+        where delete id table = sqlExec (PG.Query $ cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id)
 
 
 -- | Defines the default implementation for a dashboard of a list of job types.
@@ -152,7 +147,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
     -- | Build the dashboard and render it.
     indexPage = do
         dashboardIncluded <- makeDashboard @(job:rest)
-        notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+        notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
         baseJobTables <- mapM buildBaseJobTable notIncluded
         render $ dashboardIncluded : baseJobTables
 
@@ -172,7 +167,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         let table = param "tableName"
 
         when isFirstTime $ do
-            notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+            notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
             when (table `elem` notIncluded) (viewJob' @'[] False)
 
         if tableName @job == table
@@ -200,7 +195,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         let table = param "tableName"
 
         when isFirstTime $ do
-            notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+            notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
             when (table `elem` notIncluded) (newJob' @'[] False)
 
         if tableName @job == table
@@ -222,7 +217,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         let table = param "tableName"
 
         when isFirstTime $ do
-            notIncluded :: [Text] <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+            notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
             when (table `elem` notIncluded) (deleteJob' @'[] False)
 
         if tableName @job == table

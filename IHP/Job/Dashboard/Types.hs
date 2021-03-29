@@ -1,7 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GADTs #-}
-
 {-|
 Module: IHP.Job.Dashboard.Types
 Description:  Types for Job dashboard
