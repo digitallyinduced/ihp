@@ -38,6 +38,7 @@ import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import qualified System.Directory as Directory
 import qualified IHP.Log as Log
+import IHP.ApplicationContext
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -76,7 +77,7 @@ defaultNotFoundResponse = do
 customNotFoundResponse :: Response
 customNotFoundResponse = responseFile status404 [(hContentType, "text/html")] "static/404.html" Nothing
 
-displayException :: (Show action, ?context :: ControllerContext) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
@@ -99,11 +100,21 @@ displayException exception action additionalInfo = do
 
     let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
 
-    -- Additionally to rendering the error message to the browser we also log
-    -- the error message because sometimes you cannot easily access the http response
-    Log.error $ tshow exception
-
     let displayGenericError = genericHandler exception action additionalInfo
+
+
+    -- Additionally to rendering the error message to the browser we also send it
+    -- to the error tracking service (e.g. sentry). Usually this service also writes
+    -- the error message to the stderr output
+    --
+    let exceptionTracker = ?applicationContext
+            |> get #frameworkConfig
+            |> get #exceptionTracker
+            |> get #onException
+    let request = get #request ?requestContext
+
+
+    exceptionTracker (Just request) exception
 
     supportingHandlers
         |> head

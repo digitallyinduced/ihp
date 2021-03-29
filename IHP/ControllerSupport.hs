@@ -68,7 +68,7 @@ class InitControllerContext application where
     {-# INLINABLE initContext #-}
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let respond = ?context |> get #requestContext |> get #respond
