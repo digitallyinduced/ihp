@@ -9,6 +9,7 @@ module IHP.Job.Dashboard.View where
 
 import IHP.Prelude
 import IHP.ViewPrelude (Html, View, hsx, html, timeAgo, columnNameToFieldLabel, JobStatus(..))
+import qualified Data.List as List
 import IHP.Job.Dashboard.Types
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
@@ -83,6 +84,8 @@ class TableViewable a where
                     {forEach rows renderRow}
                 </tbody>
             </table>
+            <a href={ListJobsAction} class="link-primary">See all {title}</a>
+            <hr />
         </div>
     |]
         where renderHeader field = [hsx|<th>{field}</th>|]
@@ -138,9 +141,68 @@ renderBaseJobTable table rows =
                 {forEach rows renderBaseJobTableRow}
             </tbody>
         </table>
+        <a href={ListJobAction table 1} class="link-primary">See all {table}</a>
+        <hr />
     </div>
 |]
     where renderHeader field = [hsx|<th>{field}</th>|]
+
+renderBaseJobTablePaginated :: Text -> [BaseJob] -> Int -> Int -> Html
+renderBaseJobTablePaginated table jobs page totalPages =
+    let
+        headers :: [Text] = ["ID", "Updated At", "Status", "", ""]
+        lastJobIndex = (List.length jobs) - 1
+    in
+        [hsx|
+            <div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3>{table |> columnNameToFieldLabel}</h3>
+                    {renderNewBaseJobLink table}
+                </div>
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            {forEach headers renderHeader}
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {forEach jobs renderBaseJobTableRow}
+                    </tbody>
+                </table>
+            </div>
+            <nav aria-label="Page navigation example">
+                <ul class="pagination justify-content-end">
+                    {renderPrev}
+                    {when (totalPages /= 1) renderDest}
+                    {renderNext}
+                </ul>
+            </nav>
+        |]
+    where
+        renderHeader field = [hsx|<th>{field}</th>|]
+        renderDest = [hsx|<li class="page-item active"><a class="page-link" href={ListJobAction table page}>{page}</a></li>|]
+        renderPrev
+            | page == 1 = [hsx||]
+            | otherwise = [hsx|
+                <li class="page-item">
+                    <a class="page-link" href={ListJobAction table (page - 1)} aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                        <span class="sr-only">Previous</span>
+                    </a>
+                </li>
+        |]
+        renderNext
+            | page == totalPages || totalPages == 0 = [hsx||]
+            | otherwise = [hsx|
+                <li class="page-item">
+                    <a class="page-link" href={ListJobAction table (page + 1)} aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                        <span class="sr-only">Next</span>
+                    </a>
+                </li>
+            |]
+
 
 renderNewBaseJobLink :: Text -> Html
 renderNewBaseJobLink table =

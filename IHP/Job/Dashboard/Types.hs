@@ -37,13 +37,14 @@ instance FromRow BaseJob where
 -- so you'll get a compile error if you try and include a type that is not a job.
 data JobsDashboardController authType (jobs :: [*])
     = ListJobsAction
-
+    | ListJobAction { jobTableName :: Text, page :: Int }
     -- These actions are used for 'pathTo'. Need  to pass the parameters explicity to know how to build the path
     | ViewJobAction { jobTableName :: Text, jobId :: UUID }
     | CreateJobAction { jobTableName :: Text }
     | DeleteJobAction { jobTableName :: Text, jobId :: UUID }
 
     -- These actions are used for interal routing. Parameters are extracted dynamically in the action based on types
+    | ListJobAction'
     | ViewJobAction'
     | CreateJobAction'
     | DeleteJobAction'
@@ -51,7 +52,8 @@ data JobsDashboardController authType (jobs :: [*])
 
 
 instance HasPath (JobsDashboardController authType jobs) where
-    pathTo ListJobsAction         = "/jobs/ListJobs"
+    pathTo ListJobsAction = "/jobs/ListJobs"
+    pathTo ListJobAction   { .. } = "/jobs/ListJob?tableName=" <> jobTableName <> "&page=" <> tshow page
     pathTo ViewJobAction   { .. } = "/jobs/ViewJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
     pathTo CreateJobAction { .. } = "/jobs/CreateJob?tableName=" <> jobTableName
     pathTo DeleteJobAction { .. } = "/jobs/DeleteJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
@@ -62,6 +64,7 @@ instance CanRoute (JobsDashboardController authType jobs) where
         (string "/jobs" <* endOfInput >> pure ListJobsAction)
         <|> (string "/jobs/" <* endOfInput >> pure ListJobsAction)
         <|> (string "/jobs/ListJobs" <* endOfInput >> pure ListJobsAction)
+        <|> (string "/jobs/ListJob" <* endOfInput >> pure ListJobAction')
         <|> (string "/jobs/ViewJob" <* endOfInput >> pure ViewJobAction')
         <|> (string "/jobs/CreateJob" <* endOfInput >> pure CreateJobAction')
         <|> (string "/jobs/DeleteJob" <* endOfInput >> pure DeleteJobAction')

@@ -67,10 +67,13 @@ class JobsDashboard (jobs :: [*]) where
     -- | Creates the entire dashboard by recursing on the type list and calling 'makeSection' on each type.
     makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
 
-    getIncludedJobTableNames :: [Text]
+    includedJobTables :: [Text]
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
     indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+
+    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
+    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
 
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
@@ -92,7 +95,7 @@ instance JobsDashboard '[] where
     -- | Invoked at the end of recursion
     makeDashboard = pure (SomeView EmptyView)
 
-    getIncludedJobTableNames = []
+    includedJobTables = []
 
     indexPage = do
         tableNames <- map extractText <$> getAllTableNames
@@ -101,6 +104,15 @@ instance JobsDashboard '[] where
         where
             getAllTableNames = sqlQuery
                 "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'" ()
+
+    listJob = error "listJob: Requested job type not in JobsDashboard Type"
+    listJob' _ = do
+        let page = fromMaybe 1 $ param "page"
+            table = param "tableName"
+        numberOfPages <- numberOfPagesForTable table 25
+        jobs <- queryBaseJobsFromTablePaginated table (page - 1) 25
+        render $ HtmlView $ renderBaseJobTablePaginated table jobs page numberOfPages
+        render $ EmptyView
 
     viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
     viewJob' _ = do
@@ -142,14 +154,31 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         pure $ SomeView (section : [restSections])
 
     -- | Recursively build list of included table names
-    getIncludedJobTableNames = tableName @job : getIncludedJobTableNames @rest
+    includedJobTables = tableName @job : includedJobTables @rest
 
     -- | Build the dashboard and render it.
     indexPage = do
         dashboardIncluded <- makeDashboard @(job:rest)
-        notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+        notIncluded <- map extractText <$> getNotIncludedTableNames (includedJobTables @(job:rest))
         baseJobTables <- mapM buildBaseJobTable notIncluded
         render $ dashboardIncluded : baseJobTables
+
+    listJob table = do
+        let page = fromMaybe 1 $ param "page"
+        numberOfPages <- numberOfPagesForTable table 25
+        jobs <- queryBaseJobsFromTablePaginated table (page - 1) 25
+        render $ HtmlView $ renderBaseJobTablePaginated table jobs page numberOfPages
+
+    listJob' isFirstTime = do
+        let table = param "tableName"
+
+        when isFirstTime $ do
+            notIncluded <- map extractText <$> getNotIncludedTableNames (includedJobTables @(job:rest))
+            when (table `elem` notIncluded) (listJob' @'[] False)
+
+        if tableName @job == table
+            then listJob @(job:rest) table
+            else listJob' @rest False
 
     -- | View the detail page for the job with a given uuid.
     viewJob _ uuid = do
@@ -167,7 +196,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         let table = param "tableName"
 
         when isFirstTime $ do
-            notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+            notIncluded <- map extractText <$> getNotIncludedTableNames (includedJobTables @(job:rest))
             when (table `elem` notIncluded) (viewJob' @'[] False)
 
         if tableName @job == table
@@ -195,7 +224,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         let table = param "tableName"
 
         when isFirstTime $ do
-            notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+            notIncluded <- map extractText <$> getNotIncludedTableNames (includedJobTables @(job:rest))
             when (table `elem` notIncluded) (newJob' @'[] False)
 
         if tableName @job == table
@@ -217,7 +246,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         let table = param "tableName"
 
         when isFirstTime $ do
-            notIncluded <- map extractText <$> getNotIncludedTableNames (getIncludedJobTableNames @(job:rest))
+            notIncluded <- map extractText <$> getNotIncludedTableNames (includedJobTables @(job:rest))
             when (table `elem` notIncluded) (deleteJob' @'[] False)
 
         if tableName @job == table
@@ -231,12 +260,17 @@ getNotIncludedTableNames includedNames = sqlQuery
     (Only $ In $ includedNames)
 buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> IO SomeView
 buildBaseJobTable tableName = do
-    baseJobs <- sqlQuery (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> tableName) (Only tableName)
+    baseJobs <- sqlQuery (PG.Query $ cs $ queryString) (Only tableName)
     baseJobs
         |> renderBaseJobTable tableName
         |> HtmlView
         |> SomeView
         |> pure
+
+    where
+        queryString = "SELECT ?, id, status, updated_at, created_at, last_error FROM "
+            <> tableName
+            <> " ORDER BY created_at DESC LIMIT 10"
 
 
 -- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
@@ -308,39 +342,13 @@ instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
     , Show job
     , Eq job
     , Typeable job
+    , DisplayableJob job
     ) => TableViewable job where
 
     tableTitle = tableName @job |> columnNameToFieldLabel
     tableHeaders = ["ID", "Updated at", "Status", "", ""]
     createNewForm = renderNewBaseJobForm (tableName @job)
     renderTableRow job = renderBaseJobTableRow (buildBaseJob job)
-
--- | Given a generic job that is able to be displayed in a table through the 'TableViewable' constraint,
--- define the functions needed for a 'DisplayableJob'.
-instance {-# OVERLAPPABLE #-} (job ~ GetModelByTableName (GetTableName job)
-    , FilterPrimaryKey (GetTableName job)
-    , FromRow job
-    , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
-    , PG.ToField (PrimaryKey (GetTableName job))
-    , KnownSymbol (GetTableName job)
-    , HasField "id" job (Id job)
-    , HasField "status" job JobStatus
-    , HasField "updatedAt" job UTCTime
-    , HasField "createdAt" job UTCTime
-    , HasField "lastError" job (Maybe Text)
-    , CanUpdate job
-    , CanCreate job
-    , Record job
-    , Show job
-    , Eq job
-    , Typeable job
-    , TableViewable job
-    ) => DisplayableJob job where
-    makeSection :: (?modelContext :: ModelContext) => IO SomeView
-    makeSection = do
-        jobs <- query @job |> fetch
-        pure $ SomeView (TableView jobs)
 
 buildBaseJob :: forall job. (DisplayableJob job) => job -> BaseJob
 buildBaseJob job = BaseJob
@@ -384,9 +392,25 @@ queryBaseJob table id = do
         [table, tshow id]
     pure job
 
+queryBaseJobsFromTablePaginated :: _ => Text -> Int -> Int -> IO [BaseJob]
+queryBaseJobsFromTablePaginated table page pageSize =
+    sqlQuery
+        (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)
+        (Only table)
+
+numberOfPagesForTable :: _ => Text -> Int -> IO Int
+numberOfPagesForTable table pageSize = do
+    (Only totalRecords : _) <- sqlQuery
+        (PG.Query $ cs $ "SELECT COUNT(*) FROM " <> table)
+        ()
+    pure $ case totalRecords `quotRem` pageSize of
+        (pages, 0) -> pages
+        (pages, _) -> pages + 1
+
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
     beforeAction = authenticate @authType
     action ListJobsAction   = autoRefresh $ indexPage @jobs
+    action ListJobAction'   = autoRefresh $ listJob' @jobs True
     action ViewJobAction'   = autoRefresh $ viewJob' @jobs True
     action CreateJobAction' = newJob' @jobs True
     action DeleteJobAction' = deleteJob' @jobs True
