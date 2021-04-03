@@ -113,3 +113,20 @@ After that our `/NewProject` view looks like this:
 ![](images/modal/modal.png)
 
 The call to `renderModal Modal { .. }` returns the HTML code for the bootstrap modal. You can think of it as a template function where `modalTitle`, `modalCloseUrl`, etc. just fill in the placeholder variables for the modal.
+
+
+## Common Issues
+
+### `Could not deduce (Controller ProjectsController) arising from a use of ‘jumpToAction’`
+
+This error comes up when you try to render a modal on top of another controllers action.
+
+To fix this error you need to add an import statement to the file where `jumpToAction` is called:
+
+```haskell
+import Web.Controller.Projects () -- <----- ADD THIS LINE
+
+instance Controller DeploymentsController where
+    action MyAction = do
+        jumpToAction ShowProjectAction { projectId }
+```
