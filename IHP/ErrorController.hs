@@ -29,6 +29,7 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Lazy as LBS
 
 import IHP.HtmlSupport.QQ (hsx)
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
@@ -59,9 +60,9 @@ handleNoResponseReturned controller = do
 handleNotFound :: (?context :: RequestContext) => IO ResponseReceived
 handleNotFound = do
     hasCustomNotFound <- Directory.doesFileExist "static/404.html"
-    let response = if hasCustomNotFound
+    response <- if hasCustomNotFound
             then customNotFoundResponse
-            else defaultNotFoundResponse
+            else pure defaultNotFoundResponse
 
     let RequestContext { respond } = ?context
     respond response
@@ -74,8 +75,13 @@ defaultNotFoundResponse = do
     responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 -- | Renders the static/404.html file
-customNotFoundResponse :: Response
-customNotFoundResponse = responseFile status404 [(hContentType, "text/html")] "static/404.html" Nothing
+customNotFoundResponse :: IO Response
+customNotFoundResponse = do
+    -- We cannot use responseFile here as responseFile ignore the status code by default
+    --
+    -- See https://github.com/yesodweb/wai/issues/644
+    page <- LBS.readFile "static/404.html"
+    pure $ responseLBS status404 [(hContentType, "text/html")] page
 
 displayException :: (Show action, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
