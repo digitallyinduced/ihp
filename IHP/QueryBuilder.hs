@@ -36,6 +36,10 @@ module IHP.QueryBuilder
 , toSQL
 , toSQL'
 , buildQuery
+, SQLQuery (..)
+, OrderByClause (..)
+, OrderByDirection (..)
+, Condition (..)
 )
 where
 
