@@ -45,11 +45,13 @@ instance Controller ColumnsController where
                     let constraintName = tableName <> "_ref_" <> columnName
                     let referenceTable = param "referenceTable"
                     let onDelete = NoAction
-                    updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
+                    let addForeignKeyConstraintToSchema = addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete
 
-                    let indexName = tableName <> "_index"
+                    let indexName = tableName <> "_" <> columnName <> "_index"
                     let columnNames = [columnName]
-                    updateSchema (addTableIndex indexName tableName columnNames)
+                    let addTableIndexToSchema = addTableIndex indexName tableName columnNames
+
+                    updateSchema (addForeignKeyConstraintToSchema . addTableIndexToSchema)
 
         redirectTo ShowTableAction { .. }
 
