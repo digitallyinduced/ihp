@@ -9,7 +9,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.NewForeignKey
 import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, getDefaultValue, findForeignKey)
+import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, getDefaultValue, findForeignKey, findTableIndex)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
@@ -46,6 +46,11 @@ instance Controller ColumnsController where
                     let referenceTable = param "referenceTable"
                     let onDelete = NoAction
                     updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
+
+                    let indexName = tableName <> "_index"
+                    let columnNames = [columnName]
+                    updateSchema (addTableIndex indexName tableName columnNames)
+
         redirectTo ShowTableAction { .. }
 
     action EditColumnAction { .. } = do
