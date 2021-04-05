@@ -5,7 +5,7 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.ServerSideComponent.ControllerFunctions where
 
 import IHP.Prelude
-import Web.Controller.Prelude hiding (render, setState, getState)
+import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 
 import qualified Network.WebSockets as WebSocket

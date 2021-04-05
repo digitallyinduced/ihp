@@ -1,9 +1,10 @@
+{-# LANGUAGE  UndecidableInstances #-}
 module IHP.ServerSideComponent.Controller.ComponentsController where
 
-import Web.Controller.Prelude
+import Prelude
+import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 import IHP.ServerSideComponent.ControllerFunctions as SSC
-import Prelude (read)
 
 instance (Component component controller, Read controller) => WSApp (ComponentsController component) where
     initialState = ComponentsController
