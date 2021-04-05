@@ -347,6 +347,7 @@ attributes = Set.fromList
         , "stroke", "text-anchor", "text-decoration", "text-rendering", "unicode-bidi"
         , "visibility", "word-spacing", "writing-mode", "is"
         , "cellspacing", "cellpadding", "bgcolor", "classes"
+        , "loading"
         ]
 
 parents :: Set Text

@@ -5,9 +5,7 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
-import qualified Text.Countable as Countable
 import IHP.IDE.SchemaDesigner.View.Columns.Edit (typeSelector)
-import Text.Countable (singularize)
 
 data NewColumnView = NewColumnView
     { statements :: [Statement]
@@ -83,7 +81,7 @@ instance View NewColumnView where
                 where
                     generateReferenceCheckboxes = [hsx|<span id="checkboxes">{forEach tableNames checkbox}</span>|]
                         where checkbox tableName = [hsx|
-                                    <label class="mx-2 ref" style="font-size: 12px; display: none;" data-attribute={(Countable.singularize tableName) <> "_id"} data-table={tableName}>
+                                    <label class="mx-2 ref" style="font-size: 12px; display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName}>
                                         <input id="reference" type="checkbox" name="isReference" class="mr-1"/>
                                         <a id="refText">References {tableName}</a>
                                     </label>|]

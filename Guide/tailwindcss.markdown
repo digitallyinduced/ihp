@@ -145,18 +145,22 @@ git add .gitignore
 
 ### Removing bootstrap
 
-Open `Web/View/Layout.hs` and remove the `<link>` element that loads the bootstrap CSS:
+Open `Web/View/Layout.hs` and remove the following `<link>` and `<script>` elements that load bootstrap:
 
 ```html
 <link rel="stylesheet" href="/vendor/bootstrap.min.css" />
+<script src="/vendor/popper.min.js"></script>
+<script src="/vendor/bootstrap.min.js"></script>
 ```
 
 We don't need to make any additions for tailwind here. Just get rid of bootstrap.
 
-Bootstrap is also part of the production CSS build, we need to remove that as well. Open `Makefile` and remove this line:
+Bootstrap is also part of the production CSS build, we need to remove that as well. Open `Makefile` and remove these lines:
 
 ```makefile
 CSS_FILES += ${IHP}/static/vendor/bootstrap.min.css
+JS_FILES += ${IHP}/static/vendor/popper.min.js
+JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 ```
 
 ### Switching IHP Styling

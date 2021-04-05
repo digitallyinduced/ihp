@@ -9,11 +9,10 @@ import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import qualified Text.Countable as Countable
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 
 data ActionConfig = ActionConfig
-    { controllerName :: Text 
+    { controllerName :: Text
     , applicationName :: Text
     , modelName :: Text
     , actionName :: Text
@@ -23,7 +22,7 @@ buildPlan :: Text -> Text -> Text -> Bool -> IO (Either Text [GeneratorAction])
 buildPlan actionName applicationName controllerName doGenerateView=
     if (null actionName || null controllerName)
         then pure $ Left "Neither action name nor controller name can be empty"
-        else do 
+        else do
             schema <- SchemaDesigner.parseSchemaSql >>= \case
                 Left parserError -> pure []
                 Right statements -> pure statements
@@ -48,8 +47,8 @@ buildPlan actionName applicationName controllerName doGenerateView=
 --    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
 
 generateGenericAction :: [Statement] -> ActionConfig -> Bool -> [GeneratorAction]
-generateGenericAction schema config doGenerateView = 
-        let 
+generateGenericAction schema config doGenerateView =
+        let
             controllerName = get #controllerName config
             name = ucfirst $ get #actionName config
             singularName = config |> get #modelName
@@ -59,7 +58,7 @@ generateGenericAction schema config doGenerateView =
             viewName = if "Action" `isSuffixOf` name
                 then Text.dropEnd 6 name
                 else name
-            indexAction = Countable.pluralize singularName <> "Action"
+            indexAction = pluralize singularName <> "Action"
             specialCases = [
                   (indexAction, indexContent)
                 , ("Show" <> singularName <> "Action", showContent)
@@ -68,16 +67,16 @@ generateGenericAction schema config doGenerateView =
                 , ("Create" <> singularName <> "Action", createContent)
                 , ("Delete" <> singularName <> "Action", deleteContent)
                 ]
-            
-            actionContent = if doGenerateView 
+
+            actionContent = if doGenerateView
                 then
                         "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
                     <>  "        render " <> viewName <> "View { .. }\n"
-                else 
+                else
                     ""
                     <> "    action " <> nameWithSuffix <> " = " <> "do" <> "\n"
                     <> "        redirectTo "<> controllerName <> "Action\n"
-            
+
             modelVariablePlural = lcfirst name
             modelVariableSingular = lcfirst singularName
             idFieldName = lcfirst singularName <> "Id"
@@ -111,7 +110,7 @@ generateGenericAction schema config doGenerateView =
                 ""
                 <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
                 <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-                <> "        " <> modelVariableSingular <> "\n" 
+                <> "        " <> modelVariableSingular <> "\n"
                 <> "            |> build" <> singularName <> "\n"
                 <> "            |> ifValid \\case\n"
                 <> "                Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
@@ -124,7 +123,7 @@ generateGenericAction schema config doGenerateView =
                 ""
                 <> "    action Create" <> singularName <> "Action = do\n"
                 <> "        let " <> modelVariableSingular <> " = newRecord @"  <> model <> "\n"
-                <> "        " <> modelVariableSingular <> "\n" 
+                <> "        " <> modelVariableSingular <> "\n"
                 <> "            |> build" <> singularName <> "\n"
                 <> "            |> ifValid \\case\n"
                 <> "                Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
@@ -141,19 +140,19 @@ generateGenericAction schema config doGenerateView =
                 <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
                 <> "        redirectTo " <> name <> "Action\n"
 
-            typesContentGeneric = 
+            typesContentGeneric =
                    "    | " <> nameWithSuffix
 
-            typesContentWithParameter = 
+            typesContentWithParameter =
                    "    | " <> nameWithSuffix <> " { " <> idFieldName <> " :: !(" <> idType <> ") }\n"
-            
+
 
             chosenContent = fromMaybe actionContent (lookup nameWithSuffix specialCases)
             chosenType = if chosenContent `elem` [actionContent, newContent, createContent, indexContent]
                 then typesContentGeneric
                 else typesContentWithParameter
 
-        in 
+        in
             [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent}
             , AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = chosenType }
-            ] 
+            ]

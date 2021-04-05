@@ -6,14 +6,13 @@ module IHP.SchemaCompiler
 import ClassyPrelude
 import Data.String.Conversions (cs)
 import Data.String.Interpolate (i)
-import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
+import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName, pluralize)
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import Data.List ((!!), (\\))
 import Data.List.Split
 import IHP.HaskellSupport
-import qualified Text.Countable as Countable
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import Control.Monad.Fail
@@ -32,8 +31,6 @@ compile = do
 
 typesFilePath :: FilePath
 typesFilePath = "build/Generated/Types.hs"
-
-singularize word = Countable.singularize word
 
 newtype Schema = Schema [Statement]
 
@@ -116,7 +113,7 @@ compileTypes options schema@(Schema statements) =
     where
         prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
                   <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}\n"
-                  <> "{-# GHC_OPTIONS -Wno-unused-imports, -Wno-dodgy-imports, -Wno-unused-matches #-}"
+                  <> "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}\n"
                   <> "module Generated.Types where\n\n"
                   <> "import IHP.HaskellSupport\n"
                   <> "import IHP.ModelSupport\n"
@@ -278,7 +275,7 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
                     then
                         (refTableName <> "_" <> (refColumnName |> stripIdSuffix))
                         |> columnNameToFieldName
-                        |> Countable.pluralize
+                        |> pluralize
                     else columnNameToFieldName refTableName
             in
                 (fieldName, fieldName)

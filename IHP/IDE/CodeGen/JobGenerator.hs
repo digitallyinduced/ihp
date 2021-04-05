@@ -9,7 +9,6 @@ import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import qualified Text.Countable as Countable
 import qualified System.Directory as Directory
 import qualified Data.Maybe as Maybe
 
@@ -17,7 +16,7 @@ data JobConfig = JobConfig
     { applicationName :: Text
     , tableName :: Text -- E.g. create_container_jobs
     , modelName :: Text -- E.g. CreateContainerJob
-    , isFirstJobInApplication :: Bool -- If true, creates Web/Worker.hs
+    , isFirstJobInApplication :: Bool -- If true, creates Worker.hs in application directory
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
@@ -84,7 +83,7 @@ buildPlan' config =
                         in cs [plain|module #{applicationName}.Worker where
 
 import IHP.Prelude
-import Web.Types
+import #{applicationName}.Types
 import Generated.Types
 import IHP.Job.Runner
 import IHP.Job.Types

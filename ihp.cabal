@@ -62,7 +62,6 @@ common shared-properties
             , cookie
             , process
             , newtype-generics
-            , countable-inflections
             , typerep-map
             , basic-prelude
             , megaparsec
@@ -91,6 +90,8 @@ common shared-properties
             , parser-combinators
             , ip
             , fast-logger
+            , regex-pcre-builtin
+            , pcre-utils
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -182,6 +183,8 @@ library
         , IHP.Log.Types
         , IHP.ModelSupport
         , IHP.NameSupport
+        , IHP.NameSupport.Inflections
+        , IHP.NameSupport.Inflections.Data
         , IHP.QueryBuilder
         , IHP.Fetch
         , IHP.RouterPrelude
@@ -225,6 +228,9 @@ library
         , IHP.PageTitle.ControllerFunctions
         , IHP.PageTitle.Types
         , IHP.PageTitle.ViewFunctions
+        , IHP.Assets.Types
+        , IHP.Assets.ControllerFunctions
+        , IHP.Assets.ViewFunctions
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
@@ -233,6 +239,7 @@ library
         , IHP.IDE.SchemaDesigner.Controller.Helper
         , IHP.IDE.SchemaDesigner.Controller.Schema
         , IHP.IDE.SchemaDesigner.Controller.Tables
+        , IHP.IDE.SchemaDesigner.Controller.Validation
         , IHP.IDE.SchemaDesigner.View.Columns.Edit
         , IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
         , IHP.IDE.SchemaDesigner.View.Columns.New

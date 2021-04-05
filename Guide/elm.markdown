@@ -33,3 +33,7 @@ You can find all Elm related code in `./elm`. Use `index.js` to instantiate your
 ## Where to go from here
 
 We recommend reading Lars' [series of blog articles](https://driftercode.com/blog/ihp-with-elm/) to see how to take this setup further and when to use it. The setup you currently get is mostly equivalent to part 1 of his series.
+
+## Elm Code Is Not Compiling (Reloading)
+
+Some text editors use safe-write when saving a file to disk, check the [parcel docs](https://parceljs.org/hmr.html#safe-write) on how to disable it.

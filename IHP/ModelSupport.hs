@@ -616,13 +616,13 @@ didChange field record = didTouchField && didChangeField
             |> get #meta
             |> get #touchedFields
             |> includes (cs $! symbolVal field)
-        
+
         didChangeField :: Bool
         didChangeField = originalFieldValue /= fieldValue
 
         fieldValue :: fieldValue
         fieldValue = record |> getField @fieldName
-        
+
         originalFieldValue :: fieldValue
         originalFieldValue =
             record

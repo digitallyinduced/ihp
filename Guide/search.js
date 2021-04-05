@@ -45,14 +45,21 @@ const App = () => {
             searchResult.name.replace('.markdown', '.html')
         );
 
-        // Hide links that don't include search result
         navLinkElements.forEach((element) => {
-            const path = element.pathname.replace('/', '');
+            try {
+                const { path } = String(element.pathname).match(
+                    /(?<path>[\w|\-]+\.html$)/
+                ).groups;
 
-            if (!fileNames.includes(path)) {
-                element.style.display = 'none';
-            } else {
-                element.style.display = 'block';
+                // Hide/Show links that don't include search result
+                if (!fileNames.includes(path)) {
+                    element.style.display = 'none';
+                } else {
+                    element.style.display = 'block';
+                }
+            } catch (error) {
+                // The `element.pathname` is some other link that we don't care about.
+                return;
             }
         });
     });

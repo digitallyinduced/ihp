@@ -7,21 +7,14 @@ import IHP.IDE.SchemaDesigner.View.Enums.New
 import IHP.IDE.SchemaDesigner.View.Enums.Show
 import IHP.IDE.SchemaDesigner.View.Enums.Edit
 
-import IHP.IDE.SchemaDesigner.Parser
-import IHP.IDE.SchemaDesigner.Compiler
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace, isIllegalKeyword)
-import qualified IHP.SchemaCompiler as SchemaCompiler
-import qualified System.Process as Process
-import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
-import qualified Data.Text.IO as Text
-import IHP.IDE.SchemaDesigner.Controller.Schema
-import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.View.Layout (replace, schemaDesignerLayout)
 import IHP.IDE.SchemaDesigner.Controller.Helper
+import IHP.IDE.SchemaDesigner.Controller.Validation
 
 instance Controller EnumsController where
     beforeAction = setLayout schemaDesignerLayout
-    
+
     action ShowEnumAction { .. } = do
         statements <- readSchema
         let name = enumName
@@ -32,15 +25,16 @@ instance Controller EnumsController where
         render NewEnumView { .. }
 
     action CreateEnumAction = do
+        statements <- readSchema
         let enumName = param "enumName"
-        when (enumName == "") do
-            (setErrorMessage ("Name can not be empty"))
-            redirectTo TablesAction
-        when (isIllegalKeyword enumName) do
-            (setErrorMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
-            redirectTo TablesAction
-        updateSchema (addEnum enumName)
-        redirectTo ShowEnumAction { .. }
+        let validationResult = enumName |> validateEnum statements Nothing
+        case validationResult of
+            Failure message -> do
+                setErrorMessage message
+                redirectTo TablesAction
+            Success -> do
+                updateSchema (addEnum enumName)
+                redirectTo ShowEnumAction { .. }
 
     action EditEnumAction { .. } = do
         statements <- readSchema
@@ -48,16 +42,18 @@ instance Controller EnumsController where
         render EditEnumView { .. }
 
     action UpdateEnumAction = do
+        statements <- readSchema
         let enumName = param "enumName"
-        when (enumName == "") do
-            (setErrorMessage ("Name can not be empty"))
-            redirectTo ShowEnumAction { .. }
-        when (isIllegalKeyword enumName) do
-            (setErrorMessage (tshow enumName <> " is a reserved keyword and can not be used as a name"))
-            redirectTo ShowEnumAction { .. }
         let enumId = param "enumId"
-        updateSchema (updateEnum enumId enumName)
-        redirectTo ShowEnumAction { .. }
+        let oldEnumName = get #name (statements !! enumId)
+        let validationResult = enumName |> validateEnum statements (Just oldEnumName)
+        case validationResult of
+            Failure message -> do
+                setErrorMessage message
+                redirectTo ShowEnumAction { enumName = oldEnumName }
+            Success -> do
+                updateSchema (updateEnum enumId enumName)
+                redirectTo ShowEnumAction { .. }
 
     action DeleteEnumAction { .. } = do
         let tableId = param "tableId"
@@ -72,3 +68,6 @@ addEnum enumName list = list <> [CreateEnumType { name = enumName, values = []}]
 
 deleteEnum :: Int -> [Statement] -> [Statement]
 deleteEnum tableId list = delete (list !! tableId) list
+
+validateEnum :: [Statement] -> Maybe Text -> Validator Text
+validateEnum statements = validateNameInSchema "enum name" (getAllObjectNames statements)

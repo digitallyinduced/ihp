@@ -136,6 +136,16 @@ pathTo (MyController []) ==> "/Default"
 pathTo (MyController [1,2,3]) ==> "/Default?listParam=1,2,3"
 ```
 
+## For Integer ID types
+
+AutoRoute needs some help if your model does not use UUID as the id type and uses an integer based type instead. To get this to work, add the following to the
+`AutoRoute` instance declarations for each controller that needs to parse an integer ID type as an argument:
+
+```haskell
+instance AutoRoute TestController where
+    autoRoute = autoRouteWithIdType (parseIntegerId @(Id ModelType))
+```
+
 ### Request Methods
 
 When an action is named a certain way, AutoRoute will pick a certain request method for the route. E.g. for a `DeletePostAction` it will only allow requests with the request method `DELETE` because the action name starts with `Delete`. Here is an overview of all naming patterns and their corresponding request method:

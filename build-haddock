@@ -42,4 +42,6 @@ haddock --html --hyperlinked-source --built-in-themes --quickjump -o haddock-bui
     --optghc="-XFunctionalDependencies" \
     --optghc="-package typerep-map" \
     --optghc="-XDefaultSignatures" \
-    --optghc="-XStandaloneDeriving"
+    --optghc="-XStandaloneDeriving" \
+    --optghc="-package-env -"
+

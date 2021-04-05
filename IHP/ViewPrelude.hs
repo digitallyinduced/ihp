@@ -31,7 +31,8 @@ module IHP.ViewPrelude (
     module IHP.Modal.ViewFunctions,
     module IHP.Job.Types,
     module IHP.LoginSupport.Helper.View,
-    module IHP.PageTitle.ViewFunctions
+    module IHP.PageTitle.ViewFunctions,
+    module IHP.Assets.ViewFunctions,
 ) where
 
 import IHP.Prelude
@@ -63,3 +64,5 @@ import IHP.Job.Types
 
 import IHP.LoginSupport.Helper.View
 import IHP.PageTitle.ViewFunctions
+
+import IHP.Assets.ViewFunctions

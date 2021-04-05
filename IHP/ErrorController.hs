@@ -29,6 +29,7 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Lazy as LBS
 
 import IHP.HtmlSupport.QQ (hsx)
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
@@ -38,6 +39,7 @@ import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import qualified System.Directory as Directory
 import qualified IHP.Log as Log
+import IHP.ApplicationContext
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -58,9 +60,9 @@ handleNoResponseReturned controller = do
 handleNotFound :: (?context :: RequestContext) => IO ResponseReceived
 handleNotFound = do
     hasCustomNotFound <- Directory.doesFileExist "static/404.html"
-    let response = if hasCustomNotFound
+    response <- if hasCustomNotFound
             then customNotFoundResponse
-            else defaultNotFoundResponse
+            else pure defaultNotFoundResponse
 
     let RequestContext { respond } = ?context
     respond response
@@ -73,10 +75,15 @@ defaultNotFoundResponse = do
     responseBuilder status404 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 -- | Renders the static/404.html file
-customNotFoundResponse :: Response
-customNotFoundResponse = responseFile status404 [(hContentType, "text/html")] "static/404.html" Nothing
+customNotFoundResponse :: IO Response
+customNotFoundResponse = do
+    -- We cannot use responseFile here as responseFile ignore the status code by default
+    --
+    -- See https://github.com/yesodweb/wai/issues/644
+    page <- LBS.readFile "static/404.html"
+    pure $ responseLBS status404 [(hContentType, "text/html")] page
 
-displayException :: (Show action, ?context :: ControllerContext) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
@@ -99,11 +106,21 @@ displayException exception action additionalInfo = do
 
     let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception action additionalInfo)
 
-    -- Additionally to rendering the error message to the browser we also log
-    -- the error message because sometimes you cannot easily access the http response
-    Log.error $ tshow exception
-
     let displayGenericError = genericHandler exception action additionalInfo
+
+
+    -- Additionally to rendering the error message to the browser we also send it
+    -- to the error tracking service (e.g. sentry). Usually this service also writes
+    -- the error message to the stderr output
+    --
+    let exceptionTracker = ?applicationContext
+            |> get #frameworkConfig
+            |> get #exceptionTracker
+            |> get #onException
+    let request = get #request ?requestContext
+
+
+    exceptionTracker (Just request) exception
 
     supportingHandlers
         |> head

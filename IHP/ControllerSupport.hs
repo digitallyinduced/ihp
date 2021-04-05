@@ -28,6 +28,7 @@ import ClassyPrelude
 import IHP.HaskellSupport
 import Data.String.Conversions (cs)
 import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, requestHeaders)
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
 import IHP.ApplicationContext (ApplicationContext (..))
@@ -51,6 +52,7 @@ import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
+import qualified IHP.Assets.ControllerFunctions as Assets
 
 type Action' = IO ResponseReceived
 
@@ -66,7 +68,7 @@ class InitControllerContext application where
     {-# INLINABLE initContext #-}
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let respond = ?context |> get #requestContext |> get #respond
@@ -90,6 +92,7 @@ runActionWithNewContext controller = do
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
     initFlashMessages
+    Assets.initAssetVersion
 
     try (initContext @application) >>= \case
         Left exception -> do
@@ -123,7 +126,7 @@ startWebSocketApp = do
         |> WebSockets.websocketsApp WebSockets.defaultConnectionOptions handleConnection
         |> \case
             Just response -> respond response
-            Nothing -> fail "Expected websocket request"
+            Nothing -> respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket"
 
 
 jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ()
