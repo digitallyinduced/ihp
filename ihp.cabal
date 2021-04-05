@@ -231,6 +231,12 @@ library
         , IHP.Assets.Types
         , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
+        -- Server Side Component Modules
+        , IHP.ServerSideComponent.Types
+        , IHP.ServerSideComponent.ViewFunctions
+        , IHP.ServerSideComponent.RouterFunctions
+        , IHP.ServerSideComponent.ControllerFunctions
+        , IHP.ServerSideComponent.Controller.ComponentsController
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
