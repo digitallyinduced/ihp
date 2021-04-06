@@ -12,8 +12,6 @@ instance ParamReader PostgresType where
         Left error -> Left (cs $ tshow error)
         Right result -> Right result
 
-
-
 readSchema ::
     ( ?context::ControllerContext
     , ?modelContext::ModelContext

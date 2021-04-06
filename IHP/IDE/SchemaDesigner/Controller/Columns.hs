@@ -9,7 +9,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.NewForeignKey
 import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, getDefaultValue, findForeignKey)
+import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, getDefaultValue, findForeignKey, findTableIndex)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
@@ -45,7 +45,14 @@ instance Controller ColumnsController where
                     let constraintName = tableName <> "_ref_" <> columnName
                     let referenceTable = param "referenceTable"
                     let onDelete = NoAction
-                    updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
+                    let addForeignKeyConstraintToSchema = addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete
+
+                    let indexName = tableName <> "_" <> columnName <> "_index"
+                    let columnNames = [columnName]
+                    let addTableIndexToSchema = addTableIndex indexName tableName columnNames
+
+                    updateSchema (addForeignKeyConstraintToSchema . addTableIndexToSchema)
+
         redirectTo ShowTableAction { .. }
 
     action EditColumnAction { .. } = do
@@ -92,7 +99,10 @@ instance Controller ColumnsController where
         let columnName = param "columnName"
         case findForeignKey statements tableName columnName of
             Just AddConstraint { constraintName, .. } -> updateSchema (deleteForeignKeyConstraint constraintName)
-            _ -> pure ()
+            otherwise -> pure ()
+        case findTableIndex statements tableName of
+            Just CreateIndex { indexName, .. } -> updateSchema (deleteTableIndex indexName)
+            otherwise -> pure ()
         updateSchema (map (deleteColumnInTable tableName columnId))
         redirectTo ShowTableAction { .. }
 
@@ -210,6 +220,12 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable on
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
+
+addTableIndex :: Text -> Text -> [Text] -> [Statement] -> [Statement]
+addTableIndex indexName tableName columnNames list = list <> [CreateIndex { indexName, tableName,  columnNames }]
+
+deleteTableIndex :: Text -> [Statement] -> [Statement]
+deleteTableIndex indexName list = filter (\index -> not (index == CreateIndex { indexName = indexName, tableName = get #tableName index, columnNames = get #columnNames index })) list
 
 getCreateTable :: [Statement] -> [CreateTable]
 getCreateTable statements = foldr step [] statements
