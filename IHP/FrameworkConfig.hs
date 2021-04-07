@@ -106,10 +106,17 @@ ihpDefaultConfig = do
             Nothing           -> pure RequestLogger.FromSocket
             _                 -> error "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE set to invalid value. Expected FromHeader or FromSocket"
 
-    option $ RequestLoggerMiddleware $
+    reqLoggerMiddleware <- liftIO $
             case environment of
-                Development -> logger |> defaultRequestLogger
-                Production  -> logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource }
+                Development -> do
+                                    reqLogger <- (logger |> defaultRequestLogger)
+                                    pure (RequestLoggerMiddleware reqLogger)
+                Production  ->  do
+                                    reqLogger <- (logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource })
+                                    pure (RequestLoggerMiddleware reqLogger)
+
+
+    option $ reqLoggerMiddleware
 
     option $ Sendmail
 
