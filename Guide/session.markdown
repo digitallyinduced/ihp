@@ -46,11 +46,11 @@ action SessionExampleAction = do
 
 ### Deleting
 
-Set a value to an empty Text to remove it from the session:
+Use `deleteSession@ to remove a value from the session:
 
 ```haskell
 action LogoutAction = do
-    setSession "userId" ""
+    deleteSession "userId"
 ```
 
 ## Flash Messages
