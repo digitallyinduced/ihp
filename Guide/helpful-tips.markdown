@@ -122,6 +122,39 @@ In general the `\case ...` can be expanded to `\value -> case value of ...`.
 
 [Learn more about lambda cases here.](https://typeclasses.com/ghc/lambda-case)
 
+### The Pipe operator `|>`
+
+In IHP code bases you find lot's of usage of the `|>` operator. We usually call it the `pipe operator`.
+
+The operator allows you to write code like this:
+
+```haskell
+user
+    |> fill @["firstname", "lastname"]
+    |> validateField #firstname nonEmpty
+```
+
+Instead of the normal function style:
+
+```haskell
+validateField #firstname nonEmpty (
+        fill @["firstname", "lastname"] user
+    )
+```
+
+In general:
+```haskell
+function arg1 arg2 object 
+=
+object |> function arg1 arg2
+```
+
+[The operator is itself is defined as a haskell function inside `IHP.HaskellSupport`:](https://github.com/digitallyinduced/ihp/blob/master/IHP/HaskellSupport.hs#L56)
+
+```haskell
+infixl 8 |> -- This tells haskell to theat the |> as a infix operator
+a |> f = f a -- This is the actuall implementation
+```
 
 ## Tell GHC(Haskell Compiler) To Infer Constraints And Implicit Parameters
 
