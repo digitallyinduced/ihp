@@ -11,36 +11,21 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.Form where
 
-import IHP.Prelude hiding (div)
-import           Data.String.Conversions            (cs)
+import IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.ConvertibleStrings ()
 import           IHP.ViewErrorMessages
 import           IHP.ViewSupport
-import           Text.Blaze.Html5                   (a, body, button, code, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img,
-                                                     input, label, li, link, meta, nav, ol, p, pre, script, small, span, table, tbody, td, th, thead, title, tr,
-                                                     ul, (!), (!?))
-import qualified Text.Blaze.Html5                   as H
 import qualified Text.Blaze.Html5                   as Html5
-import           Text.Blaze.Html5.Attributes        (autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
-                                                     onclick, placeholder, rel, src, style, type_, value)
-import qualified Text.Blaze.Html5.Attributes        as A
-
 import IHP.HtmlSupport.ToHtml
-import qualified IHP.NameSupport
+import IHP.NameSupport
 import GHC.Types
-import qualified Text.Inflections
-import qualified Data.Text as Text
-import Data.Maybe (fromJust)
-import IHP.Controller.RequestContext
 import IHP.RouterSupport hiding (get)
 import IHP.ModelSupport (getModelName, inputValue, isNew, GetModelName, Id', NormalizeModel, MetaBag, InputValue)
 import IHP.HtmlSupport.QQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes 
-import IHP.FrameworkConfig (ConfigProvider)
 import qualified Network.Wai as Wai
-import IHP.Controller.RequestContext
 import IHP.Controller.Context
 
 -- | Forms usually begin with a 'formFor' expression.
@@ -384,7 +369,7 @@ textField field = FormField
         , fieldName = cs fieldName
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  inputValue ((getField @fieldName model) :: value)
-        , fieldInputId = cs (IHP.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName)
+        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationFailure field model
         , fieldClass = ""
         , labelClass = ""
@@ -580,7 +565,7 @@ checkboxField field = FormField
         , fieldName = cs fieldName
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  if getField @fieldName model then "yes" else "no"
-        , fieldInputId = cs (IHP.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName)
+        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationFailure field model
         , fieldClass = ""
         , labelClass = ""
@@ -653,7 +638,7 @@ selectField field items = FormField
         , fieldName = cs fieldName
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
         , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
-        , fieldInputId = cs (IHP.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName)
+        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationFailure field model
         , fieldClass = ""
         , labelClass = ""
@@ -727,26 +712,3 @@ instance (
             init path
                 |> (\path -> [""] <> (fromMaybe [] path) <> [action])
                 |> intercalate "/"
-
--- | Transform a data-field name like @userName@  to a friendly human-readable name like @User name@
-fieldNameToFieldLabel :: Text -> Text
-fieldNameToFieldLabel fieldName = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts)
-{-# INLINE fieldNameToFieldLabel #-}
-
--- | Transform a column name like @user_name@  to a friendly human-readable name like @User name@
-columnNameToFieldLabel :: Text -> Text
-columnNameToFieldLabel columnName = cs (let (Right parts) = Text.Inflections.parseSnakeCase [] columnName in Text.Inflections.titleize parts)
-{-# INLINE columnNameToFieldLabel #-}
-
--- | Removes @ Id@  from a string
---
--- >>> removeIdSuffix "User Id"
--- "User"
---
--- When the string does not end with @ Id@, it will just return the input string:
---
--- >>> removeIdSuffix "Project"
--- "Project"
-removeIdSuffix :: Text -> Text
-removeIdSuffix text = fromMaybe text (Text.stripSuffix " Id" text)
-{-# INLINE removeIdSuffix #-}
