@@ -38,6 +38,11 @@ tests = do
             [hsx|<input disabled>|] `shouldBeHtml` "<input disabled=\"disabled\">"
             [hsx|<input disabled={True}>|] `shouldBeHtml` "<input disabled=\"disabled\">"
             [hsx|<input disabled={False}>|] `shouldBeHtml` "<input>"
+
+        it "should correctly output True and False values in data attributes" do
+            [hsx|<form data-disabled-javascript-submission></form>|] `shouldBeHtml` "<form data-disabled-javascript-submission=\"true\"></form>"
+            [hsx|<form data-disabled-javascript-submission={True}></form>|] `shouldBeHtml` "<form data-disabled-javascript-submission=\"true\"></form>"
+            [hsx|<form data-disabled-javascript-submission={False}></form>|] `shouldBeHtml` "<form data-disabled-javascript-submission=\"false\"></form>"
         
         it "should work with inline JS" do
             [hsx|<script>var a = { hello: true }; alert('hello world');</script>|] `shouldBeHtml` "<script>var a = { hello: true }; alert('hello world');</script>"

@@ -104,8 +104,13 @@ class ApplyAttribute value where
     applyAttribute :: Text -> Text -> value -> (Html5.Html -> Html5.Html)
 
 instance ApplyAttribute Bool where
-    applyAttribute attr attr' True h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (Html5.textValue attr))
-    applyAttribute attr attr' false h = h
+    applyAttribute attr attr' True h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (Html5.textValue value))
+        where
+            value = if "data-" `Text.isPrefixOf` attr
+                    then "true" -- "true" for data attributes
+                    else attr -- normal html boolean attriubtes, like <input disabled="disabled"/>, see https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#boolean-attributes
+    applyAttribute attr attr' false h | "data-" `Text.isPrefixOf` attr = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') "false") -- data attribute set to "false"
+    applyAttribute attr attr' false h = h -- html boolean attribute, like <input disabled/> will be dropped as there is no other way to specify that it's set to false
     {-# INLINE applyAttribute #-}
 
 instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
