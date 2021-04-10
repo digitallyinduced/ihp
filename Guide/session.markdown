@@ -46,7 +46,7 @@ action SessionExampleAction = do
 
 ### Deleting
 
-Use `deleteSession@ to remove a value from the session:
+Use `deleteSession` to remove a value from the session:
 
 ```haskell
 action LogoutAction = do
