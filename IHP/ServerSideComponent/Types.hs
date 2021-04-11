@@ -30,4 +30,4 @@ class Component state action | state -> action where
 
 data ComponentsController components
     = ComponentsController
-    deriving (Eq, Show, Read, Data)
+    deriving (Eq, Show, Data)

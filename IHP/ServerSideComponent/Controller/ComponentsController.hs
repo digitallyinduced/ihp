@@ -4,8 +4,9 @@ import Web.Controller.Prelude
 import IHP.ServerSideComponent.Types as SSC
 import IHP.ServerSideComponent.ControllerFunctions as SSC
 import Prelude (read)
+import qualified Data.Aeson as Aeson
 
-instance (Component component controller, Read controller) => WSApp (ComponentsController component) where
+instance (Component component controller, FromJSON controller) => WSApp (ComponentsController component) where
     initialState = ComponentsController
 
     run = do
@@ -17,11 +18,14 @@ instance (Component component controller, Read controller) => WSApp (ComponentsC
         SSC.setState nextState
 
         forever do
-            actionPayload :: Text <- receiveData
+            actionPayload :: LByteString <- receiveData
 
-            let theAction :: controller = read (cs actionPayload)
+            let theAction = Aeson.eitherDecode @controller actionPayload
 
-            currentState <- SSC.getState
+            case theAction of
+                Right theAction -> do
+                    currentState <- SSC.getState
 
-            nextState <- SSC.action currentState theAction
-            SSC.setState nextState
+                    nextState <- SSC.action currentState theAction
+                    SSC.setState nextState
+                Left error -> putStrLn (cs error)

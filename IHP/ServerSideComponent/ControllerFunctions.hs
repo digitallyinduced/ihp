@@ -11,6 +11,9 @@ import IHP.ServerSideComponent.Types as SSC
 import qualified Network.WebSockets as WebSocket
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.TH as Aeson
+
 updateState :: (?stateRef :: IORef state, ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext) => (state -> state) -> IO ()
 updateState updateFn = do
     modifyIORef' ?stateRef updateFn
@@ -30,5 +33,4 @@ setState state = do
 getState :: _ => _
 getState = readIORef ?stateRef
 
-callServerAction :: Show action => action -> Text
-callServerAction action = "callServerAction('" <> tshow action <> "')"
+deriveSSC = Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "action", contentsFieldName = "payload" }}
