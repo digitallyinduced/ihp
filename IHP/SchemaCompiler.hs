@@ -338,7 +338,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "instance Default " <> modelName <> " where def = " <> enumValueToControllerName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
-        <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader\n"
+        <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToControllerName values
