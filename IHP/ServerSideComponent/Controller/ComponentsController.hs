@@ -4,15 +4,21 @@ module IHP.ServerSideComponent.Controller.ComponentsController where
 import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 import IHP.ServerSideComponent.ControllerFunctions as SSC
+
 import qualified Data.Aeson as Aeson
+import qualified Text.Blaze.Html.Renderer.Text as Blaze
 
 instance (Component component controller, FromJSON controller) => WSApp (ComponentsController component) where
     initialState = ComponentsController
 
     run = do
         let state :: component = SSC.initialState
-        stateRef <- newIORef state
-        let ?stateRef = stateRef
+        let initialHtml = state
+                |> SSC.render
+                |> Blaze.renderHtml
+                |> cs
+        instanceRef <- newIORef (ComponentInstance { state, renderedHtml = initialHtml })
+        let ?instanceRef = instanceRef
 
         nextState <- componentDidMount state
         SSC.setState nextState

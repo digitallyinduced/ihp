@@ -13,14 +13,14 @@ class Component state action | state -> action where
     initialState :: state
     render :: state -> Html
     action ::
-        ( ?stateRef :: IORef state
+        ( ?instanceRef :: IORef (ComponentInstance state)
         , ?connection :: WebSocket.Connection
         , ?context :: ControllerContext
         , ?modelContext :: ModelContext
         ) => state -> action -> IO state
 
     componentDidMount ::
-        ( ?stateRef :: IORef state
+        ( ?instanceRef :: IORef (ComponentInstance state)
         , ?connection :: WebSocket.Connection
         , ?context :: ControllerContext
         , ?modelContext :: ModelContext
@@ -30,3 +30,9 @@ class Component state action | state -> action where
 data ComponentsController components
     = ComponentsController
     deriving (Eq, Show, Data)
+
+data ComponentInstance state
+    = ComponentInstance { state :: state, renderedHtml :: Text }
+
+instance (SetField "state" (ComponentInstance state) state) where
+    setField state componentInstance = componentInstance { state }

@@ -9,28 +9,36 @@ import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 
 import qualified Network.WebSockets as WebSocket
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import qualified Text.Blaze.Html.Renderer.Text as Blaze
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.TH as Aeson
 
-updateState :: (?stateRef :: IORef state, ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext) => (state -> state) -> IO ()
-updateState updateFn = do
-    modifyIORef' ?stateRef updateFn
-    state <- readIORef ?stateRef
-    let result = SSC.render state |> Blaze.renderHtml
+import IHP.ServerSideComponent.HtmlParser
+import IHP.ServerSideComponent.HtmlDiff
 
-    sendTextData result
-
-setState :: (?stateRef :: IORef state, ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext) => state -> IO ()
+setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext) => state -> IO ()
 setState state = do
-    writeIORef ?stateRef state
-    let result = SSC.render state |> Blaze.renderHtml
+    oldHtml <- get #renderedHtml <$> readIORef ?instanceRef
+    let newHtml = state
+            |> SSC.render
+            |> Blaze.renderHtml
+            |> cs
 
-    sendTextData result
+    modifyIORef' ?instanceRef (\componentInstance -> componentInstance { state, renderedHtml = newHtml })
+    
+    case diffHtml oldHtml newHtml of
+        Left error -> putStrLn (tshow error)
+        Right patches -> sendTextData (Aeson.encode patches)
 
 
 getState :: _ => _
-getState = readIORef ?stateRef
+getState = get #state <$> readIORef ?instanceRef
 
 deriveSSC = Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "action", contentsFieldName = "payload" }}
+
+
+$(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''Node)
+$(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''Attribute)
+$(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''NodeOperation)
+$(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''AttributeOperation)
