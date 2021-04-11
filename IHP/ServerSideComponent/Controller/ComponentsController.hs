@@ -1,9 +1,10 @@
+{-# LANGUAGE  UndecidableInstances #-}
 module IHP.ServerSideComponent.Controller.ComponentsController where
 
-import Web.Controller.Prelude
+import Prelude
+import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 import IHP.ServerSideComponent.ControllerFunctions as SSC
-import Prelude (read)
 import qualified Data.Aeson as Aeson
 
 instance (Component component controller, FromJSON controller) => WSApp (ComponentsController component) where
