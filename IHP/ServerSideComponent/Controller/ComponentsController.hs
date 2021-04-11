@@ -1,7 +1,6 @@
 {-# LANGUAGE  UndecidableInstances #-}
 module IHP.ServerSideComponent.Controller.ComponentsController where
 
-import Prelude
 import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 import IHP.ServerSideComponent.ControllerFunctions as SSC
