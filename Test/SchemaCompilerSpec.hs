@@ -39,7 +39,7 @@ tests = do
                         inputValue Sad = "sad" :: Text
                         inputValue VerySad = "very sad" :: Text
 
-                    instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader
+                    instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
             it "should not pluralize values" do
                 -- See https://github.com/digitallyinduced/ihp/issues/767
@@ -85,7 +85,7 @@ tests = do
                         inputValue Princeedwardisland = "PrinceEdwardIsland" :: Text
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
 
-                    instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader
+                    instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable {

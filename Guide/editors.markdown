@@ -12,13 +12,17 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 
 ## Using IHP with Visual Studio Code / VSCode
 
-You need to install the following extensions:
+**Install the following extensions:**
 
 -   [`nix-env-selector`](https://marketplace.visualstudio.com/items?itemName=arrterian.nix-env-selector), this loads the project `default.nix` file, so all the right Haskell packages are available to VSCode
-
 -   [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
-
 -   [`Haskell HSX`](https://marketplace.visualstudio.com/items?itemName=s0kil.vscode-hsx), provides support for [HSX](https://ihp.digitallyinduced.com/Guide/hsx.html)
+
+To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
+
+```bash 
+export IHP_EDITOR="code --goto"
+```
 
 ### VSCode on Windows with Windows Subsystem for Linux
 
@@ -33,6 +37,13 @@ Recommended packages:
 -   `Nix` for syntax highlighting of nix files
 -   `Direnv` to load the `.envrc` file of the project.
 -   [`LSP`](https://packagecontrol.io/packages/LSP) for smart IDE features. Use `LSP: Enable Language Server in Project -> Haskell Language Server` to activate.
+
+
+To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
+
+```bash 
+export IHP_EDITOR="sublime"
+```
 
 ## Using IHP with Emacs
 
@@ -80,3 +91,17 @@ Provided you already have CoC setup, just run `:CocConfig` and add the following
 Because haskell-language-server is tightly coupled to the GHC version it comes pre-bundled with IHP. In case you also have a local install of haskell-language-server you need to make sure that the one provided by IHP is used. Usually, this is done automatically when your editor is picking up the `.envrc` file.
 
 When something goes wrong you can also run `haskell-language-server` inside the project directory (within a `nix-shell`). This might output some helpful error messages.
+
+## Customizing the Web Browser used by IHP
+
+When running `./start` the application will automatically be opened in your default browser. You can manually specificy a browser by setting the env var `IHP_BROWSER`:
+
+```bash
+export IHP_BROWSER=firefox
+```
+
+You can disable the auto-start of the browser completly using `echo` as your browser:
+
+```bash
+export IHP_BROWSER=echo
+```

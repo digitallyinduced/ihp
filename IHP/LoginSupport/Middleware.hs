@@ -31,7 +31,6 @@ initAuthentication :: forall user.
         , FilterPrimaryKey (GetTableName user)
     ) => IO ()
 initAuthentication = do
-    user <- getSessionUUID (sessionKey @user)
-            >>= pure . fmap (Newtype.pack @(Id user))
+    user <- getSessionRecordId @user (sessionKey @user)
             >>= fetchOneOrNothing
     putContext user
