@@ -70,10 +70,38 @@ Writing `False`:
 <input disabled={False} />
 ```
 
-This will not render the attribute:
+This will not render the attribute, [as specified in the HTML standard](https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#boolean-attributes):
 
 ```haskell
 <input />
+```
+
+#### Boolean data attributes
+
+This behavior of omiting a attribute when it's set to `False` does not apply to `data-` attributes.
+
+You can write
+
+```haskell
+<form data-disable-javascript-submission={True}/>
+```
+
+and it will render like this:
+
+```html
+<form data-disable-javascript-submission="true"/>
+```
+
+When set to `False`, like this:
+
+```haskell
+<form data-disable-javascript-submission={False}/>
+```
+
+the output HTML will keep the attribute and set it to `"false"`:
+
+```html
+<form data-disable-javascript-submission="false"/>
 ```
 
 ### Spread Values
