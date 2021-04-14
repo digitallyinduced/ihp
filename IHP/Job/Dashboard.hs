@@ -1,7 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
 {-|
 Module: IHP.Job.Dashboard
@@ -21,7 +18,7 @@ This generates a dashboard with listings for all tables which have names ending 
 All views are fully customizable. For more info, see the documentation for 'DisplayableJob'.
 If you implement custom behavior for a job type, add it to the list in the Dashboard type:
 
-> type MyDashboard = JobsDashboardController NoAuth '[EmailUserJob, UpdateRecordJob, RandomJob]
+> type MyDashboard = JobsDashboardController NoAuth '[EmailUserJob, UpdateRecordJob]
 -}
 module IHP.Job.Dashboard (
     module IHP.Job.Dashboard.View,
@@ -31,7 +28,6 @@ module IHP.Job.Dashboard (
     JobsDashboard(..),
     DisplayableJob(..),
     JobsDashboardController(..),
-    IncludeWrapper(..),
     getTableName,
 ) where
 
@@ -50,12 +46,12 @@ import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
 import qualified IHP.Log as Log
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodGet, methodPost)
-import System.Environment (lookupEnv)
 import GHC.TypeLits
 
 import IHP.Job.Dashboard.Types
 import IHP.Job.Dashboard.View
 import IHP.Job.Dashboard.Auth
+import IHP.Job.Dashboard.Utils
 
 -- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
 -- All jobs created through the IHP dev IDE will automatically satisfy these constraints and thus be able to
@@ -83,7 +79,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
 
     -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
     -- but this can be any arbitrary view! Make some cool graphs :)
-    makeSection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+    makeDashboardSection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
 
     makePageView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
 
@@ -118,7 +114,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
 -- Later functions and typeclasses introduce constraints on the types in this list,
 -- so you'll get a compile error if you try and include a type that is not a job.
 class JobsDashboard (jobs :: [*]) where
-    -- | Creates the entire dashboard by recursing on the type list and calling 'makeSection' on each type.
+    -- | Creates the entire dashboard by recursing on the type list and calling 'makeDashboardSection' on each type.
     makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
 
     includedJobTables :: [Text]
@@ -201,9 +197,9 @@ instance JobsDashboard '[] where
 instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDashboard (job:rest) where
 
     -- | Recusively create a list of views that are concatenated together as 'SomeView's to build the dashboard.
-    -- To customize, override 'makeSection' for each job.
+    -- To customize, override 'makeDashboardSection' for each job.
     makeDashboard = do
-        section <- makeSection @job
+        section <- makeDashboardSection @job
         restSections <- SomeView <$> makeDashboard @rest
         pure $ SomeView (section : [restSections])
 
@@ -239,6 +235,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         j <- fetch id
         view <- makeDetailView @job j
         render view
+
     -- | For a given "tableName" parameter, try and recurse over the list of types
     -- in order to find a type with the some table name as the parameter.
     -- If one is found, attempt to construct an ID from the "id" parameter,
@@ -333,25 +330,6 @@ buildBaseJob job = BaseJob
     (get #createdAt job)
     (get #lastError job)
 
--- | Often, jobs are related to some model type. These relations are modeled through the type system.
--- For example, the type 'Include "userId" UpdateUserJob' models an 'UpdateUserJob' type that can access
--- the 'User' it belongs to through the 'userId' field.
--- For some reason, GHC doesn't allow us to create implementations of type family applications, so the following doesn't work:
---
--- > instance DisplayableJob (Include "userId" UpdateUserJob) where
---
--- However, if we wrap this in a concrete type, it works fine. That's what this wrapper is for.
--- To get the same behavior as above, just define
---
--- > instance DisplayableJob (IncludeWrapper "userId" UpdateUserJob) where
---
--- and wrap the values as so:
---
--- > jobsWithUsers <- query @UpdateUserJob
--- >    |> fetch
--- >    >>= mapM (fetchRelated #userId)
--- >    >>= pure . map (IncludeWrapper @"userId" @UpdateUserJob)
-newtype IncludeWrapper (id :: Symbol) job = IncludeWrapper (Include id job)
 
 -- | We can't always access the type of our job in order to use type application syntax for 'tableName'.
 -- This is just a convinence function for those cases.
@@ -366,21 +344,11 @@ queryBaseJob table id = do
         [table, tshow id]
     pure job
 
-numberOfPagesForTable :: _ => Text -> Int -> IO Int
-numberOfPagesForTable table pageSize = do
-    (Only totalRecords : _) <- sqlQuery
-        (PG.Query $ cs $ "SELECT COUNT(*) FROM " <> table)
-        ()
-    pure $ case totalRecords `quotRem` pageSize of
-        (pages, 0) -> pages
-        (pages, _) -> pages + 1
-
 queryBaseJobsFromTablePaginated :: _ => Text -> Int -> Int -> IO [BaseJob]
 queryBaseJobsFromTablePaginated table page pageSize =
     sqlQuery
         (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)
         (Only table)
-
 
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
     beforeAction = authenticate @authType

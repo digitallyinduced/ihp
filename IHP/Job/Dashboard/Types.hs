@@ -7,6 +7,7 @@ module IHP.Job.Dashboard.Types (
     BaseJob(..),
     JobsDashboardController(..),
     TableViewable(..),
+    IncludeWrapper(..),
 ) where
 
 import IHP.Prelude
@@ -37,12 +38,32 @@ class TableViewable a where
     modelTableName :: Text
     tableHeaders :: [Text]
     renderTableRow :: a -> Html
-    getPage :: (?modelContext :: ModelContext) => Int -> Int -> IO [a]
-    getIndex :: (?modelContext :: ModelContext) => IO [a]
     newJobLink :: Html
+    getIndex :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [a]
+    getPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO [a]
 
 instance FromRow BaseJob where
     fromRow = BaseJob <$> field <*> field <*> field <*> field <*> field <*> field
+
+-- | Often, jobs are related to some model type. These relations are modeled through the type system.
+-- For example, the type 'Include "userId" UpdateUserJob' models an 'UpdateUserJob' type that can access
+-- the 'User' it belongs to through the 'userId' field.
+-- For some reason, GHC doesn't allow us to create implementations of type family applications, so the following doesn't work:
+--
+-- > instance DisplayableJob (Include "userId" UpdateUserJob) where
+--
+-- However, if we wrap this in a concrete type, it works fine. That's what this wrapper is for.
+-- To get the same behavior as above, just define
+--
+-- > instance DisplayableJob (IncludeWrapper "userId" UpdateUserJob) where
+--
+-- and wrap the values as so:
+--
+-- > jobsWithUsers <- query @UpdateUserJob
+-- >    |> fetch
+-- >    >>= mapM (fetchRelated #userId)
+-- >    >>= pure . map (IncludeWrapper @"userId" @UpdateUserJob)
+newtype IncludeWrapper (id :: Symbol) job = IncludeWrapper (Include id job)
 
 -- | Defines controller actions for acting on a dashboard made of some list of types.
 -- Later functions and typeclasses introduce constraints on the types in this list,

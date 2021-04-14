@@ -8,13 +8,16 @@ Description:  Views for Job dashboard
 module IHP.Job.Dashboard.View where
 
 import IHP.Prelude
-import IHP.ViewPrelude (Html, View, hsx, html, timeAgo, columnNameToFieldLabel, JobStatus(..))
+import IHP.ViewPrelude (JobStatus(..), ControllerContext, Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
 import qualified Data.List as List
 import IHP.Job.Dashboard.Types
+import IHP.ModelSupport
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
+import IHP.Job.Dashboard.Utils
+import qualified IHP.Log as Log
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
 -- to know exactly what type the view will be, which in turn allows for custom implmentations of
@@ -58,20 +61,7 @@ statusToBadge JobStatusSucceeded = [hsx|<span class="badge badge-success">Succee
 statusToBadge JobStatusFailed = [hsx|<span class="badge badge-danger">Failed</span>|]
 statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</span>|]
 
-renderBaseJobTableRow :: BaseJob -> Html
-renderBaseJobTableRow job = [hsx|
-        <tr>
-            <td>{get #id job}</td>
-            <td>{get #updatedAt job |> timeAgo}</td>
-            <td>{statusToBadge $ get #status job}</td>
-            <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
-            <td>
-                <form action={CreateJobAction (get #table job)} method="POST">
-                    <button type="submit" style={retryButtonStyle} class="btn btn-link text-secondary">Retry</button>
-                </form>
-            </td>
-        </tr>
-    |]
+-- BASE JOB VIEW HELPERS --------------------------------
 
 renderBaseJobTable :: Text -> [BaseJob] -> Html
 renderBaseJobTable table rows =
@@ -157,7 +147,22 @@ renderBaseJobTablePaginated table jobs page totalPages =
                 </li>
             |]
 
+renderBaseJobTableRow :: BaseJob -> Html
+renderBaseJobTableRow job = [hsx|
+        <tr>
+            <td>{get #id job}</td>
+            <td>{get #updatedAt job |> timeAgo}</td>
+            <td>{statusToBadge $ get #status job}</td>
+            <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
+            <td>
+                <form action={CreateJobAction (get #table job)} method="POST">
+                    <button type="submit" style={retryButtonStyle} class="btn btn-link text-secondary">Retry</button>
+                </form>
+            </td>
+        </tr>
+    |]
 
+-- | Link included in table to create a new job.
 renderNewBaseJobLink :: Text -> Html
 renderNewBaseJobLink table =
     let
@@ -217,10 +222,13 @@ renderBaseJobDetailView job = let table = get #table job in [hsx|
         </form>
     </div>
 |]
+------------------------------------------------------------------
 
-
-makeTableSection :: forall a. (TableViewable a, ?modelContext :: ModelContext) => IO SomeView
-makeTableSection = do
+-- TABLE VIEWABLE view helpers -----------------------------------
+makeDashboardSectionFromTableViewable :: forall a. (TableViewable a
+    , ?context :: ControllerContext
+    , ?modelContext :: ModelContext) => IO SomeView
+makeDashboardSectionFromTableViewable = do
     indexRows <- getIndex @a
     pure $ SomeView $ HtmlView $ renderTableViewableTable indexRows
 
@@ -256,12 +264,11 @@ renderTableViewableTable rows = let
 
 
 
-makeListPage :: forall a. (TableViewable a, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
-makeListPage page pageSize = do
+makeListPageFromTableViewable :: forall a. (TableViewable a, ?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
+makeListPageFromTableViewable page pageSize = do
     pageData <- getPage @a (page - 1) pageSize
-    -- numPages <- numberOfPagesForTable (modelTableName @a) pageSize
-    pure $ SomeView $ HtmlView $ renderTableViewableTablePaginated pageData page 1
-
+    numPages <- numberOfPagesForTable (modelTableName @a) pageSize
+    pure $ SomeView $ HtmlView $ renderTableViewableTablePaginated pageData page numPages
 
 renderTableViewableTablePaginated :: forall a. TableViewable a => [a] -> Int -> Int -> Html
 renderTableViewableTablePaginated jobs page totalPages =
@@ -321,7 +328,7 @@ renderTableViewableTablePaginated jobs page totalPages =
                     </a>
                 </li>
             |]
-
+------------------------------------------------------------
 
 retryButtonStyle :: Text
 retryButtonStyle = "outline: none !important; padding: 0; border: 0; vertical-align: baseline;"
