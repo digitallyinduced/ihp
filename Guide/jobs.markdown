@@ -105,15 +105,17 @@ import IHP.Job.Dashboard
 
 type MyJobDashboard = JobsDashboardController
     (BasicAuthStatic "jobs" "jobs")
-    [UpdateUserJob, CleanDatabaseJob, OtherRandomJob]
+    '[]
 ```
+
+With the empty list type `'[]`, the job dashboard will render a default dashboard for all the tables in the database ending in `_jobs`. See below for a guide on adding custom dashboards for your job types.
 
 To add the dashboard to your application, you need to add a `parseRoute` call to this type.
 
 ```haskell
 type MyJobDashboard = JobsDashboardController
     (BasicAuthStatic "jobs" "jobs")
-    [UpdateUserJob, CleanDatabaseJob, OtherRandomJob]
+    '[UpdateUserJob, CleanDatabaseJob, OtherRandomJob]
 
 instance FrontController WebApplication where
     controllers =
@@ -147,15 +149,12 @@ Then use it in the dashboard type definition.
 ```haskell
 type MyJobDashboard = JobsDashboardController
     CustomAuth
-    [UpdateUserJob, CleanDatabaseJob, OtherRandomJob]
+    '[UpdateUserJob, CleanDatabaseJob, OtherRandomJob]
 ```
 
 ### Jobs to include
 
-The third type parameter to `JobsDashboardController` is a list of job types that the dashboard will display. If you create a job type through the IHP IDE,
-you can just add the name of the generated type to the list and it will be added to the dashboard with a default implementation.
-
-Any type that conforms to `DisplayableJob` can be added to the dashboard. See the documentation for `IHP.Job.Dashboard` for details.
+The third type parameter to `JobsDashboardController` is a list of job types that the dashboard will display using their custom `DisplayableJob` implementations. See the documentation for `IHP.Job.Dashboard` for details.
 
 ### Customize views
 
@@ -163,11 +162,16 @@ Most views in the dashboard can be customized by providing a custom implementati
 These methods can be overriden to allow for custom behavior:
 
 ```haskell
-makeSection :: (?context::ControllerContext, ?modelContext::ModelContext) => IO SomeView
+makeDashboardSection :: (?context::ControllerContext, ?modelContext::ModelContext) => IO SomeView
 ```
 
 How this job's section should be displayed in the dashboard. By default it's displayed as a table,
 but this can be any arbitrary view! Make some cool graphs :)
+
+```haskell
+makePageView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
+```
+A paginated list view of jobs. First parameter is the page number, second is the page size.
 
 ```haskell
 makeDetailView :: (?context::ControllerContext, ?modelContext::ModelContext) => job -> IO SomeView
@@ -198,11 +202,13 @@ The typeclass defines behavior for how the type should be rendered as a table.
 
 ```haskell
 class TableViewable a where
-    tableTitle :: Text
+    tableTitle :: Text -- human readable title displayed on the table
+    modelTableName :: Text -- database table backing the view
     tableHeaders :: [Text]
-    createNewForm :: Html
     renderTableRow :: a -> Html
-    renderTable :: [a] -> Html
+    newJobLink :: Html -- link used in the table to send user to new job form
+    getIndex :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [a]
+    getPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO [a]
 ```
 
 See the below case study for how to implement your own instance.
@@ -213,39 +219,108 @@ One common use to to show some data from a record the job belongs to. Here's how
 
 ``` haskell
 instance TableViewable (IncludeWrapper "bandId" InitialScrapeJob) where
-    tableTitle = "Initial Scrape Job"
+    modelTableName = tableName @InitialScrapeJob
+    tableTitle = tableName @InitialScrapeJob |> columnNameToFieldLabel
     tableHeaders = ["Band", "Updated at", "Status", ""]
-    createNewForm = newJobFormForTableHeader @InitialScrapeJob
+
+    getIndex =
+        query @InitialScrapeJob
+            |> limit 10
+            |> orderByDesc #createdAt
+            |> fetch
+            >>= mapM (fetchRelated #bandId)
+            >>= pure . map IncludeWrapper
+
+    getPage page pageSize = do
+        query @InitialScrapeJob
+            |> offset (page * pageSize)
+            |> limit pageSize
+            |> orderByDesc #createdAt
+            |> fetch
+            >>= mapM (fetchRelated #bandId)
+            >>= pure . map IncludeWrapper
+
     renderTableRow (IncludeWrapper job) =
         let
             table = tableName @InitialScrapeJob
             linkToView :: Text = "/jobs/ViewJob?tableName=" <> table <> "&id=" <> tshow (get #id job)
+            link = "/jobs/CreateJob?tableName=" <> tableName @InitialScrapeJob  <> "&bandId=" <> get #bandId job |> get #id |> tshow
         in [hsx|
         <tr>
             <td>{job |> get #bandId |> get #name}</td>
-            <td>{get #updatedAt job}</td>
+            <td>{get #updatedAt job |> timeAgo}</td>
             <td>{statusToBadge $ get #status job}</td>
             <td><a href={linkToView} class="text-primary">Show</a></td>
+            <td>
+                <form action={link} method="POST">
+                    <button type="submit" style={retryButtonStyle} class="btn btn-link text-secondary">Retry</button>
+                </form>
+            </td>
         </tr>
     |]
+
+    newJobLink = let
+            table = tableName @InitialScrapeJob
+        in [hsx|
+            <form action={CreateJobAction table}>
+                <button type="submit" class="btn btn-primary btn-sm">+ New Job</button>
+            </form>
+        |]
+
 ```
 
 Note the use of `IncludeWrapper` instead of the normal `Include`. This gets around an unfortunate limitation in Haskell's type system.
-This instance is then used by a custom `DisplayableJob` instance that handles the logic of fetching the parent records.
+This instance is then used by a custom `DisplayableJob` instance that uses some helpers from `IHP.Job.Dashboard.View` that render the dashboard section and list pages using any `TableViewable` instance.
 
 ```haskell
-instance {-# OVERLAPS #-} DisplayableJob InitialScrapeJob where
-    makeSection :: (?modelContext :: ModelContext) => IO SomeView
-    makeSection = do
-        jobsWithBand <- query @InitialScrapeJob
-            |> fetch
-            >>= mapM (fetchRelated #bandId)
-            >>= pure . map (IncludeWrapper @"bandId" @InitialScrapeJob)
-        pure (SomeView (TableView jobsWithBand))
-
-    makeDetailView :: (?modelContext :: ModelContext) => InitialScrapeJob -> IO SomeView
+instance DisplayableJob InitialScrapeJob where
+    makeDashboardSection = makeDashboardSectionFromTableViewable @(IncludeWrapper "bandId" InitialScrapeJob)
+    makePageView = makeListPageFromTableViewable @(IncludeWrapper "bandId" InitialScrapeJob)
     makeDetailView job = do
-        pure $ SomeView $ InitialScrapeJobForm job
+        let table = tableName @InitialScrapeJob
+        withRelated <- fetchRelated #bandId job
+        pure $ SomeView $ HtmlView $ [hsx|
+            <br>
+                <h5>Viewing Job {get #id job} in {table}</h5>
+            <br>
+            <table class="table">
+                <tbody>
+                    <tr>
+                        <th>Band</th>
+                        <td>{get #bandId withRelated |> get #name}</td>
+                    </tr>
+                    <tr>
+                        <th>Updated At</th>
+                        <td>{get #updatedAt job}</td>
+                    </tr>
+                    <tr>
+                        <th>Created At</th>
+                        <td>{get #createdAt job |> timeAgo}</td>
+                    </tr>
+                    <tr>
+                        <th>Status</th>
+                        <td>{statusToBadge (get #status job)}</td>
+                    </tr>
+                    <tr>
+                        <th>Last Error</th>
+                        <td>{fromMaybe "No error" (get #lastError job)}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="d-flex flex-row">
+                <form class="mr-2" action="/jobs/DeleteJob" method="POST">
+                    <input type="hidden" id="tableName" name="tableName" value={table}>
+                    <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+                <form action="/jobs/CreateJob" method="POST">
+                    <input type="hidden" id="tableName" name="tableName" value={table}>
+                    <input type="hidden" id="bandId" name="bandId" value={get #bandId job |> tshow}>
+                    <button type="submit" class="btn btn-primary">Run again</button>
+                </form>
+            </div>
+        |]
 
     makeNewJobView = do
         bands <- query @Band |> fetch
@@ -263,7 +338,20 @@ instance {-# OVERLAPS #-} DisplayableJob InitialScrapeJob where
         let bandId = param "bandId"
         newRecord @InitialScrapeJob |> set #bandId bandId |> create
         pure ()
+
 ```
 
-Since `InitialScrapeJob` also matches the constraints for a DisplayableJob, we need to add the `{-# OVERLAPS #-}` tag
-to tell GHC it's okay that this instance overlaps with the original.
+Then, we can add the `InitialScrapeJob` type to our Dashboard type list. In `Admin/FrontController.hs`,
+
+```haskell
+type AtticsJobDashboard = JobsDashboardController
+    (BasicAuthStatic "<redacted>" "<redacted>")
+    '[InitialScrapeJob]
+
+instance FrontController AdminApplication where
+    controllers =
+        [ startPage BandsAction
+        -- Generator Marker
+        , parseRoute @BandsController
+        , parseRoute @AtticsJobDashboard
+        ]

@@ -34,12 +34,22 @@ data BaseJob = BaseJob {
 } deriving (Show)
 
 class TableViewable a where
+    -- | Human readable title displayed on the table
     tableTitle :: Text
+
+    -- | Database table backing the view
     modelTableName :: Text
+
     tableHeaders :: [Text]
     renderTableRow :: a -> Html
+
+    -- | Link used in the table to send user to new job form
     newJobLink :: Html
+
+    -- | Gets records for displaying in the dashboard index page
     getIndex :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [a]
+
+    -- | Gets paginated records for displaying in the list page
     getPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO [a]
 
 instance FromRow BaseJob where
