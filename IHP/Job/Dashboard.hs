@@ -219,8 +219,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
     listJob table = do
         let page = fromMaybe 1 $ param "page"
-        numberOfPages <- numberOfPagesForTable table 25
-        page <- makePageView @job page numberOfPages
+        page <- makePageView @job page 25
         render page
 
     listJob' isFirstTime = do
@@ -325,7 +324,6 @@ buildBaseJobTable tableName = do
             <> tableName
             <> " ORDER BY created_at DESC LIMIT 10"
 
-
 buildBaseJob :: forall job. (DisplayableJob job) => job -> BaseJob
 buildBaseJob job = BaseJob
     (tableName @job)
@@ -368,12 +366,6 @@ queryBaseJob table id = do
         [table, tshow id]
     pure job
 
-queryBaseJobsFromTablePaginated :: _ => Text -> Int -> Int -> IO [BaseJob]
-queryBaseJobsFromTablePaginated table page pageSize =
-    sqlQuery
-        (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)
-        (Only table)
-
 numberOfPagesForTable :: _ => Text -> Int -> IO Int
 numberOfPagesForTable table pageSize = do
     (Only totalRecords : _) <- sqlQuery
@@ -382,6 +374,13 @@ numberOfPagesForTable table pageSize = do
     pure $ case totalRecords `quotRem` pageSize of
         (pages, 0) -> pages
         (pages, _) -> pages + 1
+
+queryBaseJobsFromTablePaginated :: _ => Text -> Int -> Int -> IO [BaseJob]
+queryBaseJobsFromTablePaginated table page pageSize =
+    sqlQuery
+        (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)
+        (Only table)
+
 
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
     beforeAction = authenticate @authType

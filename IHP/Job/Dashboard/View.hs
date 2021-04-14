@@ -11,6 +11,10 @@ import IHP.Prelude
 import IHP.ViewPrelude (Html, View, hsx, html, timeAgo, columnNameToFieldLabel, JobStatus(..))
 import qualified Data.List as List
 import IHP.Job.Dashboard.Types
+import qualified Database.PostgreSQL.Simple as PG
+import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Database.PostgreSQL.Simple.FromField as PG
+import qualified Database.PostgreSQL.Simple.ToField as PG
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
 -- to know exactly what type the view will be, which in turn allows for custom implmentations of
@@ -251,10 +255,12 @@ renderTableViewableTable rows = let
     where renderHeader field = [hsx|<th>{field}</th>|]
 
 
+
 makeListPage :: forall a. (TableViewable a, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
-makeListPage p1 p2 = do
-    p <- getPage @a p1 p2
-    pure $ SomeView $ HtmlView $ renderTableViewableTablePaginated p p1 p2
+makeListPage page pageSize = do
+    pageData <- getPage @a (page - 1) pageSize
+    -- numPages <- numberOfPagesForTable (modelTableName @a) pageSize
+    pure $ SomeView $ HtmlView $ renderTableViewableTablePaginated pageData page 1
 
 
 renderTableViewableTablePaginated :: forall a. TableViewable a => [a] -> Int -> Int -> Html
