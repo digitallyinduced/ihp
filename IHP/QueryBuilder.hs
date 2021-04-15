@@ -96,7 +96,7 @@ data QueryBuilder (table :: Symbol) =
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
     | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
-    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinOn :: (ByteString, ByteString) }
+    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), join :: Join}
     deriving (Show, Eq)
 
 data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show, Eq)
@@ -105,12 +105,16 @@ data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Cond
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
     toHtml queryBuilder = toHtml (toSQL queryBuilder)
 
+data Join = Join {table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString}
+    deriving (Show, Eq)
+
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery
     { selectFrom :: !ByteString
     , distinctClause :: !(Maybe ByteString)
     , distinctOnClause :: !(Maybe ByteString)
     , whereCondition :: !(Maybe Condition)
+    , joins :: ![Join]
     , orderByClause :: ![OrderByClause]
     , limitClause :: !(Maybe ByteString)
     , offsetClause :: !(Maybe ByteString)
@@ -178,6 +182,7 @@ buildQuery NewQueryBuilder =
             , distinctClause = Nothing
             , distinctOnClause = Nothing
             , whereCondition = Nothing
+            , joins = []
             , orderByClause = []
             , limitClause = Nothing
             , offsetClause = Nothing
@@ -232,6 +237,11 @@ buildQuery UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder } =
                 else
                     error "buildQuery: Union of complex queries not supported yet"
 
+buildQuery JoinQueryBuilder {queryBuilder, join } =
+    let 
+        firstQuery = buildQuery queryBuilder
+     in firstQuery {joins = join:joins firstQuery}
+
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
 -- __Example:__ Get the sql query that is represented by a QueryBuilder
@@ -283,6 +293,12 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
         orderByClause' = case orderByClause of
                 [] -> Nothing
                 xs -> Just ("ORDER BY " <> ByteString.intercalate "," ((map (\OrderByClause { orderByColumn, orderByDirection } -> orderByColumn <> (if orderByDirection == Desc then " DESC" else mempty)) xs)))
+        joinClause :: ByteString
+        joinClause = buildJoinClause $ joins sqlQuery
+        buildJoinClause [] = ""
+        buildJoinClause (j:[]) = "INNER JOIN " <> table j <> " ON " <> table j <> tableJoinColumn j <> " = " <> otherJoinColumn j
+        buildJoinClause (j:js) = "INNER JOIN " <> table j <> " ON " <> table j <> tableJoinColumn j <> " = " <> otherJoinColumn j <> " " <> buildJoinClause js
+
 
 {-# INLINE toSQL' #-}
 
@@ -454,11 +470,11 @@ innerJoin :: forall name name' table table' model model' value value'.
                                 model ~ GetModelByTableName table, 
                                 model' ~ GetModelByTableName table'
                             ) => (Proxy name, Proxy name') -> QueryBuilder table -> QueryBuilder table 
-innerJoin (name, name') queryBuilder = JoinQueryBuilder queryBuilder (leftJoinColumn, rightJoinColumn)
+innerJoin (name, name') queryBuilder = JoinQueryBuilder queryBuilder $ Join joinTableName leftJoinColumn rightJoinColumn 
     where 
         baseTableName = symbolToByteString @table
         joinTableName = symbolToByteString @table'
-        leftJoinColumn = baseTableName <> "." <> symbolToByteString @name 
+        leftJoinColumn = symbolToByteString @name 
         rightJoinColumn = joinTableName <> "." <> symbolToByteString @name'
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
