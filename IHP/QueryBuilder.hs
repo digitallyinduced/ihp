@@ -459,9 +459,9 @@ filterWhereSql (name, sqlCondition) queryBuilder = FilterByQueryBuilder { queryB
 {-# INLINE filterWhereSql #-}
 
 innerJoin :: forall name name' table table' model model' value value'.
-                            (KnownSymbol table) => 
                             (KnownSymbol table') => 
                             (
+                                KnownSymbol table,
                                 KnownSymbol name, 
                                 KnownSymbol name', 
                                 HasField name model value,
