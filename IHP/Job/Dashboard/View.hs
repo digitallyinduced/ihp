@@ -54,7 +54,6 @@ newtype HtmlView = HtmlView Html
 instance View HtmlView where
     html (HtmlView html) = [hsx|{html}|]
 
--- renderStatus :: forall job. (HasField "status" JobStatus job, HasField "lastError" (Maybe Text) job) => job -> Html
 renderStatus job = case get #status job of
     JobStatusNotStarted -> [hsx|<span class="badge badge-secondary">Not Started</span>|]
     JobStatusRunning -> [hsx|<span class="badge badge-primary">Running</span>|]
