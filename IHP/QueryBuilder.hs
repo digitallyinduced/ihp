@@ -96,6 +96,7 @@ data QueryBuilder (table :: Symbol) =
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
     | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
+    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinOn :: (ByteString, ByteString) }
     deriving (Show, Eq)
 
 data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show, Eq)
@@ -440,6 +441,25 @@ filterWhereSql (name, sqlCondition) queryBuilder = FilterByQueryBuilder { queryB
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereSql #-}
+
+innerJoin :: forall name name' table table' model model' value value'.
+                            (KnownSymbol table) => 
+                            (KnownSymbol table') => 
+                            (
+                                KnownSymbol name, 
+                                KnownSymbol name', 
+                                HasField name model value,
+                                HasField name' model' value', 
+                                value ~ value',
+                                model ~ GetModelByTableName table, 
+                                model' ~ GetModelByTableName table'
+                            ) => (Proxy name, Proxy name') -> QueryBuilder table -> QueryBuilder table 
+innerJoin (name, name') queryBuilder = JoinQueryBuilder queryBuilder (leftJoinColumn, rightJoinColumn)
+    where 
+        baseTableName = symbolToByteString @table
+        joinTableName = symbolToByteString @table'
+        leftJoinColumn = baseTableName <> "." <> symbolToByteString @name 
+        rightJoinColumn = joinTableName <> "." <> symbolToByteString @name'
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
 --
