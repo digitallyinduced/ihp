@@ -54,12 +54,13 @@ newtype HtmlView = HtmlView Html
 instance View HtmlView where
     html (HtmlView html) = [hsx|{html}|]
 
-statusToBadge :: JobStatus -> Html
-statusToBadge JobStatusNotStarted= [hsx|<span class="badge badge-info">Not Started</span>|]
-statusToBadge JobStatusRunning = [hsx|<span class="badge badge-info">Running</span>|]
-statusToBadge JobStatusSucceeded = [hsx|<span class="badge badge-success">Succeeded</span>|]
-statusToBadge JobStatusFailed = [hsx|<span class="badge badge-danger">Failed</span>|]
-statusToBadge JobStatusRetry = [hsx|<span class="badge badge-info">Retrying</span>|]
+-- renderStatus :: forall job. (HasField "status" JobStatus job, HasField "lastError" (Maybe Text) job) => job -> Html
+renderStatus job = case get #status job of
+    JobStatusNotStarted -> [hsx|<span class="badge badge-secondary">Not Started</span>|]
+    JobStatusRunning -> [hsx|<span class="badge badge-primary">Running</span>|]
+    JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Failed</span>|]
+    JobStatusSucceeded -> [hsx|<span class="badge badge-success">Succeeded</span>|]
+    JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Retry</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------
 
@@ -152,7 +153,7 @@ renderBaseJobTableRow job = [hsx|
         <tr>
             <td>{get #id job}</td>
             <td>{get #updatedAt job |> timeAgo}</td>
-            <td>{statusToBadge $ get #status job}</td>
+            <td>{renderStatus job}</td>
             <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
             <td>
                 <form action={CreateJobAction (get #table job)} method="POST">
@@ -201,7 +202,7 @@ renderBaseJobDetailView job = let table = get #table job in [hsx|
             </tr>
             <tr>
                 <th>Status</th>
-                <td>{statusToBadge (get #status job)}</td>
+                <td>{renderStatus job}</td>
             </tr>
             <tr>
                 <th>Last Error</th>

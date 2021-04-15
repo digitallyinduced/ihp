@@ -143,7 +143,23 @@ class JobsDashboard (jobs :: [*]) where
 instance JobsDashboard '[] where
 
     -- | Invoked at the end of recursion
-    makeDashboard = pure (SomeView EmptyView)
+    makeDashboard = pure $ SomeView $ HtmlView [hsx|
+        <script>
+            function initPopover() {
+                $('[data-toggle="popover"]').popover({ trigger: 'hover click' })
+            }
+            $(document).on('ready turbolinks:load', initPopover);
+            $(initPopover);
+        </script>
+        <style>
+        .popover-body {
+            background-color: #01313f;
+            color: rgb(147, 161, 161);
+            font-family: Monaco, Menlo, "Ubuntu Mono", Consolas, source-code-pro, monospace;
+            font-size: 11px;
+        }
+        </style>
+    |]
 
     includedJobTables = []
 
