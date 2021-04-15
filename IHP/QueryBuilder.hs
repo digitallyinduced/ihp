@@ -266,6 +266,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
                     , Just selectors
                     , Just "FROM"
                     , Just fromClause
+                    , Just joinClause
                     , whereConditions'
                     , orderByClause'
                     , limitClause
@@ -476,6 +477,7 @@ innerJoin (name, name') queryBuilder = JoinQueryBuilder queryBuilder $ Join join
         joinTableName = symbolToByteString @table'
         leftJoinColumn = symbolToByteString @name 
         rightJoinColumn = joinTableName <> "." <> symbolToByteString @name'
+{-# INLINE innerJoin #-}
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
 --
