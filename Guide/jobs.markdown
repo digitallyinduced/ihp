@@ -215,7 +215,9 @@ See the below case study for how to implement your own instance.
 
 ### Case study: Attics app
 
-One common use to to show some data from a record the job belongs to. Here's how it's done in the Attics app, for example:
+One common use to to show some data from a record the job belongs to. Here's how it's done in the Attics app, for example.
+In this case, each "Initial Scrape Job" is run for a single band. I wanted to display the name of the band in the table for the job to
+make the table more useful. So I defined a TableViewable instance for `InitialScrapeJob` with its band info included.
 
 ``` haskell
 instance TableViewable (IncludeWrapper "bandId" InitialScrapeJob) where
@@ -355,3 +357,6 @@ instance FrontController AdminApplication where
         , parseRoute @BandsController
         , parseRoute @AtticsJobDashboard
         ]
+```
+
+If you use many of these custom jobs, it'll be worth abstracting some of the HTML in these functions to avoid excessive duplication.
