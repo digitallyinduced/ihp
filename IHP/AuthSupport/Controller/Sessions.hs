@@ -71,7 +71,7 @@ createSessionAction :: forall record action passwordField.
     , record ~ GetModelByTableName (GetTableName record)
     ) => IO ()
 createSessionAction = do
-    query @record
+    usersQueryBuilder
     |> findMaybeBy #email (param @Text "email")
     >>= \case
         Just (user :: record) -> do
@@ -172,3 +172,13 @@ class ( Typeable record
     -- >         redirectTo NewSessionAction
     beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogin _ = pure ()
+
+    -- | Return's the @query\ \@User@ used by the controller. Customize this to e.g. exclude guest users from logging in.
+    --
+    -- __Example: Exclude guest users from login__
+    --
+    -- > usersQueryBuilder = query @User |> filterWhere (#isGuest, False)
+    --
+    usersQueryBuilder :: (GetModelByTableName (GetTableName record) ~ record) => QueryBuilder (GetTableName record)
+    usersQueryBuilder = query @record
+    {-# INLINE usersQueryBuilder #-}

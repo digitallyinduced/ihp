@@ -150,9 +150,14 @@ hsxNodeAttribute = do
     -- Boolean attributes like <input disabled/> will be represented as <input disabled="disabled"/>
     -- as there is currently no other way to represent them with blaze-html.
     --
-    -- This is ok, see: https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#boolean-attributes
+    -- There's a special case for data attributes: Data attributes like <form data-disable-javascript-submission/> will be represented as <form data-disable-javascript-submission="true"/>
+    --
+    -- See: https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#boolean-attributes
     let attributeWithoutValue = do
-            pure (StaticAttribute key (TextValue key))
+            let value = if "data-" `Text.isPrefixOf` key
+                    then "true"
+                    else key
+            pure (StaticAttribute key (TextValue value))
 
     -- Parsing normal attributes like <input value="Hello"/>
     let attributeWithValue = do
@@ -347,6 +352,7 @@ attributes = Set.fromList
         , "stroke", "text-anchor", "text-decoration", "text-rendering", "unicode-bidi"
         , "visibility", "word-spacing", "writing-mode", "is"
         , "cellspacing", "cellpadding", "bgcolor", "classes"
+        , "loading"
         ]
 
 parents :: Set Text

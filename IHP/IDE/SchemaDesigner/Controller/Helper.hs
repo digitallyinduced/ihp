@@ -12,8 +12,6 @@ instance ParamReader PostgresType where
         Left error -> Left (cs $ tshow error)
         Right result -> Right result
 
-
-
 readSchema ::
     ( ?context::ControllerContext
     , ?modelContext::ModelContext
@@ -37,4 +35,11 @@ updateSchema updateFn = do
     statements <- readSchema
     let statements' = updateFn statements
     SchemaCompiler.writeSchema statements'
+
+getAllObjectNames :: [Statement] -> [Text]
+getAllObjectNames = mapMaybe extractObjectName
+    where
+        extractObjectName (StatementCreateTable CreateTable { name }) = Just name
+        extractObjectName CreateEnumType { name } = Just name
+        extractObjectName _                       = Nothing
 

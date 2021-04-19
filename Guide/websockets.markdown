@@ -45,7 +45,7 @@ The controller needs to be hooked into the routing.
 Open `Web/FrontController.hs` and add an import for the new controller:
 
 ```haskell
-import Web.Controller.HelloWebSockets
+import Web.Controller.HelloWorld
 ```
 
 After that mount it into the application like this:

@@ -57,6 +57,12 @@ withTransaction block = do
 -- | Creates the @schema_migrations@ table if it doesn't exist yet
 createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
 createSchemaMigrationsTable = do
+    -- Hide the "NOTICE: relation schema_migrations already exists, skipping" message
+    -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
+    -- https://github.com/digitallyinduced/ihp/issues/818
+    let modelContext = ?modelContext
+    let ?modelContext = modelContext { logger = (get #logger modelContext) { write = \_ -> pure ()} }
+
     let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
     _ <- sqlExec ddl ()
     pure ()

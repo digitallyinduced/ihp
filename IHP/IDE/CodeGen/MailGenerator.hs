@@ -9,7 +9,6 @@ import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import qualified Text.Countable as Countable
 
 data MailConfig = MailConfig
     { controllerName :: Text
@@ -51,7 +50,7 @@ buildPlan' schema config =
                 then Text.replace "Mail" "" name
                 else name --e.g. "TestMail" -> "Test"
 
-            indexAction = Countable.pluralize singularName <> "Action"
+            indexAction = pluralize singularName <> "Action"
 
             modelFields :: [Text]
             modelFields = fieldsForTable schema (modelNameToTableName pluralVariableName)

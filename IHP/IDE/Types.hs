@@ -4,17 +4,10 @@ import ClassyPrelude
 import System.Process.Internals
 import qualified System.Process as Process
 import qualified GHC.IO.Handle as Handle
-import qualified System.FSNotify as FS
 import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
-import Network.Wai (Middleware)
-import qualified Web.Cookie as Cookie
-import IHP.Mail.Types (MailServer)
-import IHP.Environment
 import IHP.IDE.PortConfig
-import IHP.FrameworkConfig as FrameworkConfig
 import Data.String.Conversions (cs)
-import qualified Data.Text as Text
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -41,7 +34,7 @@ sendGhciCommand ManagedProcess { inputHandle } command = do
 
 data OutputLine = StandardOutput ByteString | ErrorOutput ByteString deriving (Show, Eq)
 
-data Action = 
+data Action =
     UpdatePostgresState PostgresState
     | UpdateAppGHCIState AppGHCIState
     | AppModulesLoaded { success :: Bool }
@@ -137,7 +130,7 @@ data AppState = AppState
     , toolServerState :: ToolServerState
     } deriving (Show)
 
-emptyAppState :: AppState 
+emptyAppState :: AppState
 emptyAppState = AppState
     { postgresState = PostgresNotStarted
     , appGHCIState = AppGHCINotStarted
@@ -156,5 +149,3 @@ data Context = Context
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
-
-

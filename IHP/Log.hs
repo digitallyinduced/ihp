@@ -111,8 +111,8 @@ writeLog level logger text = do
 
 -- | Wraps 'RequestLogger' from wai-extra to log to an IHP logger.
 -- See 'Network.Wai.Middleware.RequestLogger'.
-makeRequestLogger :: RequestLoggerSettings -> Logger -> Middleware
-makeRequestLogger settings logger = unsafePerformIO $
+makeRequestLogger :: RequestLoggerSettings -> Logger -> IO Middleware
+makeRequestLogger settings logger = 
     mkRequestLogger settings {
         destination = RequestLogger.Callback (\logStr ->
             let ?context = logger in
@@ -122,5 +122,5 @@ makeRequestLogger settings logger = unsafePerformIO $
 
 -- | Create a request logger with default settings wrapped in an IHP logger.
 -- See 'Network.Wai.Middleware.RequestLogger'.
-defaultRequestLogger :: Logger -> Middleware
+defaultRequestLogger :: Logger -> IO Middleware
 defaultRequestLogger = makeRequestLogger def

@@ -123,7 +123,7 @@ To work with posts in our application, we now have to define this data schema.
 
 **For the curious:** IHP has a built-in GUI-based schema designer. The schema designer will be used in the following sections of this tutorial. The schema designer helps to quickly build the [DDL](https://en.wikipedia.org/wiki/Data_definition_language) statements for your database schema without remembering all the PostgreSQL syntax and data types. But keep in mind: The schema designer is just a GUI tool to edit the `Application/Schema.sql` file. This file consists of DDL statements to build your database schema. The schema designer parses the `Application/Schema.sql`, applies changes to the syntax tree, and then writes it back into the `Application/Schema.sql`. If you love your VIM, you can always skip the GUI and go straight to the code at `Application/Schema.sql`. If you need to do something advanced which is not supported by the GUI, just manually do it with your code editor of choice. IHP is built by terminal hackers, so don't worry, all operations can always be done from the terminal :-)
 
-Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text columns. To do this click on the `New` button in the table view.
+Open the [IHP Schema Designer](http://localhost:8001/Tables) and add a new table with `title` and `body` as text columns. To do this right-click > `Add Table` to open the New Table dialog.
 
 ![Schema Designer New Table](images/first-project/new_table_view.png)
 
@@ -578,7 +578,7 @@ To install this package, open the `default.nix` file and append `mmark` to the `
 let
     ihp = builtins.fetchGit {
         url = "https://github.com/digitallyinduced/ihp.git";
-        ref = "refs/tags/v0.8.0";
+        ref = "refs/tags/v0.9.0";
     };
     haskellEnv = import "${ihp}/NixSupport/default.nix" {
         ihp = ihp;
@@ -712,7 +712,7 @@ Use `Comments` as the controller name:
 
 ![](images/first-project/code_gen_2.png)
 
-Click `Generate`:
+Click `Preview` > `Generate`:
 
 ![](images/first-project/code_gen_3.png)
 
@@ -776,10 +776,10 @@ Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment
 <a href={NewCommentAction (get #id post)}>Add Comment</a>
 ```
 
-After that, another type error can be found in `Web/View/Comments/Index.hs`. In this auto-generated view we have a `New Comment` button at the top:
+After that, another type error can be found in `Web/View/Comments/Index.hs`. In this auto-generated view we have an `Index` button at the top:
 
 ```haskell
-<h1>Comments <a href={pathTo NewCommentAction} class="btn btn-primary ml-4">+ New</a></h1>
+<h1>Index <a href={pathTo NewCommentAction} class="btn btn-primary ml-4">+ New</a></h1>
 ```
 
 Let's just remove this button by changing this line to:
@@ -804,7 +804,7 @@ Web/Controller/Comments.hs:14:12: error:
    |            ^^^^^^^^^^^^^^^^
 ```
 
-Open `Web/Controller/Comments` and add the missing `{ postId }` in the pattern match at line 14:
+Open `Web/Controller/Comments.hs` and add the missing `{ postId }` in the pattern match at line 14:
 
 ```haskell
     action NewCommentAction { postId } = do
@@ -814,7 +814,7 @@ Open `Web/Controller/Comments` and add the missing `{ postId }` in the pattern m
 
 Now all type errors should be fixed.
 
-Open http://localhost:8000/Posts and open the Show View of a post by clicking its title. Now Click `Add Comment`. Take a look at the URL, it will something like:
+Open http://localhost:8000/Posts and open the Show View of a post by clicking its title. Now Click `Add Comment`. Take a look at the URL, it will look something like:
 
 ```html
 http://localhost:8000/NewComment?postId=7f37115f-c850-4fcb-838f-1971cea0544e

@@ -15,6 +15,10 @@ module IHP.NameSupport
 , tableNameToControllerName
 , enumValueToControllerName
 , toSlug
+, module IHP.NameSupport.Inflections
+, fieldNameToFieldLabel
+, columnNameToFieldLabel
+, removeIdSuffix
 ) where
 
 import Prelude hiding (splitAt, words, map)
@@ -23,10 +27,12 @@ import Data.Text
 import Data.String.Conversions (cs)
 import qualified Data.Char as Char
 import qualified Text.Inflections as Inflector
-import qualified Text.Countable as Countable
 import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 import Control.Monad (join)
+import IHP.NameSupport.Inflections
+import qualified Text.Inflections
+import qualified Data.Text as Text
 
 -- | Transforms a underscore table name to a camel case model name.
 --
@@ -38,8 +44,8 @@ import Control.Monad (join)
 tableNameToModelName :: Text -> Text
 tableNameToModelName "brain_waves" = "BrainWave"
 tableNameToModelName tableName = do
-    let singularizedTableName = cs (Countable.singularize tableName)
-    if "_" `isInfixOf` singularizedTableName 
+    let singularizedTableName = cs (singularize tableName)
+    if "_" `isInfixOf` singularizedTableName
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else ucfirst singularizedTableName
 {-# INLINABLE tableNameToModelName #-}
@@ -56,7 +62,7 @@ tableNameToModelName tableName = do
 -- "UserProjects"
 tableNameToControllerName :: Text -> Text
 tableNameToControllerName tableName = do
-    if "_" `isInfixOf` tableName 
+    if "_" `isInfixOf` tableName
         then unwrapEither tableName $ Inflector.toCamelCased True tableName
         else ucfirst tableName
 {-# INLINABLE tableNameToControllerName #-}
@@ -75,7 +81,7 @@ enumValueToControllerName :: Text -> Text
 enumValueToControllerName enumValue =
     let
         words :: [Inflector.SomeWord]
-        words = 
+        words =
                 enumValue
                 |> splitOn " "
                 |> List.map (Inflector.parseSnakeCase [])
@@ -97,7 +103,7 @@ modelNameToTableName :: Text -> Text
 modelNameToTableName modelName =
         Inflector.toUnderscore modelName
         |> unwrapEither modelName
-        |> Countable.pluralize
+        |> pluralize
 {-# INLINABLE modelNameToTableName #-}
 
 -- | Transforms a underscore table column name to a camel case attribute name for use in haskell.
@@ -234,3 +240,36 @@ toSlug text =
     |> toLower
     |> words
     |> intercalate "-"
+
+
+-- | Transform a data-field name like @userName@  to a friendly human-readable name like @User name@
+--
+-- >>> fieldNameToFieldLabel "userName"
+-- "User name"
+--
+fieldNameToFieldLabel :: Text -> Text
+fieldNameToFieldLabel fieldName = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts)
+{-# INLINABLE fieldNameToFieldLabel #-}
+
+-- | Transform a column name like @user_name@  to a friendly human-readable name like @User name@
+--
+-- >>> columnNameToFieldLabel "user_name"
+-- "User name"
+--
+columnNameToFieldLabel :: Text -> Text
+columnNameToFieldLabel columnName = cs (let (Right parts) = Text.Inflections.parseSnakeCase [] columnName in Text.Inflections.titleize parts)
+{-# INLINABLE columnNameToFieldLabel #-}
+
+
+-- | Removes @ Id@  from a string
+--
+-- >>> removeIdSuffix "User Id"
+-- "User"
+--
+-- When the string does not end with @ Id@, it will just return the input string:
+--
+-- >>> removeIdSuffix "Project"
+-- "Project"
+removeIdSuffix :: Text -> Text
+removeIdSuffix text = Maybe.fromMaybe text (Text.stripSuffix " Id" text)
+{-# INLINABLE removeIdSuffix #-}

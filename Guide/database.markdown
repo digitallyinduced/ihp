@@ -454,7 +454,7 @@ Next, add the enum values by right-clicking into the `Values` pane and click on 
 
 ### Adding enums via SQL
 
-Instead of using the Schema Designer, you can also just add the required SQL statement manually into `Application/Schema.hs`:
+Instead of using the Schema Designer, you can also just add the required SQL statement manually into `Application/Schema.sql`:
 
 ```sql
 CREATE TYPE colors AS ENUM ('blue', 'red', 'yellow');

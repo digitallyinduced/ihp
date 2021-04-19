@@ -42,7 +42,7 @@
                 <a class="nav-link secondary" href="naming-conventions.html">Naming Conventions</a>
                 <a class="nav-link secondary" href="routing.html">Routing</a>
                 <a class="nav-link secondary" href="controller.html">Controller & Actions</a>
-                <a class="nav-link secondary" href="view.html">Views</a>
+                <a class="nav-link secondary" href="view.html">Views & JSON</a>
                 <a class="nav-link secondary" href="hsx.html">HSX</a>
                 <a class="nav-link secondary" href="form.html">Forms</a>
                 <a class="nav-link secondary" href="validation.html">Validation</a>
@@ -50,13 +50,14 @@
                 <a class="nav-link secondary" href="javascript:alert('This cookie section is not ready yet')">Cookies</a>
                 <a class="nav-link secondary" href="scripts.html">Scripts</a>
                 <a class="nav-link secondary" href="debugging.html">Debugging</a>
-                <a class="nav-link secondary" href="logging.html">Logging</a>
                 <a class="nav-link secondary" href="testing.html">Testing</a>
 
                 <a class="nav-link secondary" href="editors.html">Editors & Tooling</a>
-                <a class="nav-link secondary" href="helpful-tips.html">Helpful Tips</a>
+                <a class="nav-link secondary" href="helpful-tips.html">Helpful Tips <br />& Special Haskell Syntax</a>
 
                 <a class="nav-link headline" href="mail.html">Advanced</a>
+
+                <a class="nav-link secondary" href="logging.html">Logging</a>
                 <a class="nav-link secondary" href="mail.html">Sending Mail</a>
                 <a class="nav-link secondary" href="jobs.html">Jobs</a>
                 <a class="nav-link secondary" href="updating.html">Updating IHP</a>
@@ -197,8 +198,9 @@
 
           border-radius: 3px;
         }
-        .language-haskell, .language-bash, .language-sql, .language-html, .language-nix, .language-css, .language-javascript, .language-makefile {
+        pre > code {
           color: #839496 !important;
+          background-color: #002b36;
           display: block;
           padding: 1rem;
         }
@@ -323,6 +325,6 @@
     <script src="instantclick.js" data-no-instant></script>
     <script src="spoilify.js"></script>
     <script data-no-instant>InstantClick.init(); spoilify(); InstantClick.on('change', spoilify);</script>
-    <script async type="module" src="search.js"></script>
+    <script async defer type="module" src="search.js"></script>
   </body>
 </html>
