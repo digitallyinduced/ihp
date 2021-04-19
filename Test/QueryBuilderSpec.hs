@@ -20,8 +20,26 @@ data Post = Post
         , public :: Bool
         , createdBy :: UUID
         }
+
 type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
+
+data User = User
+    { id :: UUID,
+      name :: Text
+    }
+
+type instance GetTableName User = "users"
+type instance GetModelByTableName "users" = User 
+
+data FavoriteTitle = FavoriteTitle
+    {
+        title :: Text,
+        likes :: Int
+    }
+
+type instance GetTableName FavoriteTitle = "favorite_title"
+type instance GetModelByTableName "favorite_title" = FavoriteTitle 
 
 tests = do
     describe "QueryBuilder" do
@@ -74,6 +92,15 @@ tests = do
                         |> filterWhereSql (#createdAt, "< current_timestamp - interval '1 day'")
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE created_at  ?", [Plain "< current_timestamp - interval '1 day'"])
+
+        describe "innerJoin" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON posts.createdBy = users.id", [])
+
 
         describe "orderBy" do
             describe "orderByAsc" do
