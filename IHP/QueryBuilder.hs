@@ -88,6 +88,29 @@ data OrderByClause =
     , orderByDirection :: !OrderByDirection }
     deriving (Show, Eq)
 
+data Singleton model
+data Cons model models
+
+class IsJoined a b
+
+instance IsJoined a (Singleton a) 
+instance IsJoined a (Cons a b)
+instance {-# OVERLAPPABLE #-} (IsJoined a b) => IsJoined a (Cons c b)
+
+class HasQueryBuilder q where
+    getQueryBuilder :: q table -> QueryBuilder table
+    injectQueryBuilder :: QueryBuilder table -> q table
+
+newtype JoinQueryBuilderWrapper joinRegister queryBuilder = JoinQueryBuilderWrapper queryBuilder
+
+instance HasQueryBuilder QueryBuilder where
+    getQueryBuilder = id
+    injectQueryBuilder = id
+
+instance HasQueryBuilder (JoinQueryBuilderWrapper::(Symbol -> *) j) where
+    getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
+    injectQueryBuilder queryBuilder = JoinQueryBuilderWrapper queryBuilder
+
 data QueryBuilder (table :: Symbol) =
     NewQueryBuilder
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
