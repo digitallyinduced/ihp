@@ -90,6 +90,27 @@ instance Controller ColumnsController where
                     setErrorMessage ("Column Name can not be empty")
                     redirectTo ShowTableAction { tableName }
                 updateSchema (map (updateColumnInTable tableName column (param "primaryKey") columnId))
+
+                -- Update Foreign Key Reference
+                -- let oldColumn = columns !! columnId
+                -- let maybeConstraint = find (\statement -> statement == AddConstraint { tableName = tableName
+                --     , constraintName = (get #constraintName statement)
+                --     , constraint = ForeignKeyConstraint { columnName = (get #name oldColumn)
+                --         , referenceTable = (get #referenceTable (get #constraint statement)) -- TODO: Still References Old Table
+                --         , referenceColumn = (get #referenceColumn (get #constraint statement))
+                --         , onDelete=(get #onDelete (get #constraint statement)) } }) statements
+                -- case maybeConstraint of
+                --     Just constraint -> do
+                --         let constraintId = elemIndex constraint statements
+                --         case constraintId of
+                --             Just constraintId -> do
+                --                 let constraintName = tableName <> "_ref_" <> columnName
+                --                 let referenceTable = get #referenceTable (get #constraint constraint)
+                --                 let Just onDelete = get #onDelete (get #constraint constraint)
+                --                 updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId)
+                --             Nothing -> putStrLn ("Error")
+                --     Nothing -> pure ()
+
         redirectTo ShowTableAction { .. }
 
     action DeleteColumnAction { .. } = do
