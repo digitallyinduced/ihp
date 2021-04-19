@@ -36,6 +36,7 @@ module IHP.QueryBuilder
 , toSQL
 , toSQL'
 , buildQuery
+, innerJoin
 )
 where
 
@@ -266,7 +267,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
                     , Just selectors
                     , Just "FROM"
                     , Just fromClause
-                    , Just joinClause
+                    , joinClause
                     , whereConditions'
                     , orderByClause'
                     , limitClause
@@ -294,11 +295,11 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
         orderByClause' = case orderByClause of
                 [] -> Nothing
                 xs -> Just ("ORDER BY " <> ByteString.intercalate "," ((map (\OrderByClause { orderByColumn, orderByDirection } -> orderByColumn <> (if orderByDirection == Desc then " DESC" else mempty)) xs)))
-        joinClause :: ByteString
+        joinClause :: Maybe ByteString
         joinClause = buildJoinClause $ joins sqlQuery
-        buildJoinClause [] = ""
-        buildJoinClause (j:[]) = "INNER JOIN " <> table j <> " ON " <> table j <> tableJoinColumn j <> " = " <> otherJoinColumn j
-        buildJoinClause (j:js) = "INNER JOIN " <> table j <> " ON " <> table j <> tableJoinColumn j <> " = " <> otherJoinColumn j <> " " <> buildJoinClause js
+        buildJoinClause :: [Join] -> Maybe ByteString
+        buildJoinClause [] = Nothing
+        buildJoinClause (j:js) = Just $ "INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <>table j <> "." <> otherJoinColumn j <> maybe "" (" " <>) (buildJoinClause js)
 
 
 {-# INLINE toSQL' #-}
@@ -459,24 +460,24 @@ filterWhereSql (name, sqlCondition) queryBuilder = FilterByQueryBuilder { queryB
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereSql #-}
 
-innerJoin :: forall name name' table table' model model' value value'.
-                            (KnownSymbol table') => 
+innerJoin :: forall model' table' name' value' model table name value .
                             (
-                                KnownSymbol table,
                                 KnownSymbol name, 
-                                KnownSymbol name', 
+                                KnownSymbol table,
                                 HasField name model value,
+                                KnownSymbol name', 
+                                KnownSymbol table', 
                                 HasField name' model' value', 
                                 value ~ value',
-                                model ~ GetModelByTableName table, 
-                                model' ~ GetModelByTableName table'
+                                model ~ GetModelByTableName table,
+                                table' ~ GetTableName model'
                             ) => (Proxy name, Proxy name') -> QueryBuilder table -> QueryBuilder table 
 innerJoin (name, name') queryBuilder = JoinQueryBuilder queryBuilder $ Join joinTableName leftJoinColumn rightJoinColumn 
     where 
         baseTableName = symbolToByteString @table
         joinTableName = symbolToByteString @table'
-        leftJoinColumn = symbolToByteString @name 
-        rightJoinColumn = joinTableName <> "." <> symbolToByteString @name'
+        leftJoinColumn = baseTableName <> "." <> symbolToByteString @name 
+        rightJoinColumn = symbolToByteString @name'
 {-# INLINE innerJoin #-}
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
