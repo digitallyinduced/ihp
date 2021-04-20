@@ -37,6 +37,7 @@ module IHP.QueryBuilder
 , toSQL'
 , buildQuery
 , innerJoin
+, innerJoinThirdTable
 )
 where
 
@@ -319,7 +320,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
                 [] -> Nothing
                 xs -> Just ("ORDER BY " <> ByteString.intercalate "," ((map (\OrderByClause { orderByColumn, orderByDirection } -> orderByColumn <> (if orderByDirection == Desc then " DESC" else mempty)) xs)))
         joinClause :: Maybe ByteString
-        joinClause = buildJoinClause $ joins sqlQuery
+        joinClause = buildJoinClause $ reverse $ joins sqlQuery
         buildJoinClause :: [Join] -> Maybe ByteString
         buildJoinClause [] = Nothing
         buildJoinClause (j:js) = Just $ "INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <>table j <> "." <> otherJoinColumn j <> maybe "" (" " <>) (buildJoinClause js)
@@ -495,14 +496,38 @@ innerJoin :: forall model' table' name' value' model table name value q joinRegi
                                 value ~ value',
                                 model ~ GetModelByTableName table,
                                 table' ~ GetTableName model'
-                            ) => (Proxy name, Proxy name') -> q table -> JoinQueryBuilderWrapper (ConsModelList table joinRegister) table 
-innerJoin (name, name') queryBuilder = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilder) $ Join joinTableName leftJoinColumn rightJoinColumn 
+                            ) => (Proxy name, Proxy name') -> q table -> JoinQueryBuilderWrapper (ConsModelList model' joinRegister) table 
+innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn 
     where 
         baseTableName = symbolToByteString @table
         joinTableName = symbolToByteString @table'
         leftJoinColumn = baseTableName <> "." <> symbolToByteString @name 
         rightJoinColumn = symbolToByteString @name'
 {-# INLINE innerJoin #-}
+
+innerJoinThirdTable :: forall model model' name name' value value' table table' baseTable baseModel q joinRegister.
+                        ( 
+                            KnownSymbol name,
+                            KnownSymbol table,
+                            HasField name model value,
+                            KnownSymbol name',
+                            KnownSymbol table',
+                            HasQueryBuilder q joinRegister,
+                            HasField name' model' value',
+                            value ~ value',
+                            table ~ GetTableName model,
+                            table' ~ GetTableName model',
+                            baseModel ~ GetModelByTableName baseTable 
+                        ) => (Proxy name, Proxy name') -> q baseTable -> JoinQueryBuilderWrapper (ConsModelList model joinRegister) baseTable
+innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
+     where 
+        baseTableName = symbolToByteString @table'
+        joinTableName = symbolToByteString @table
+        leftJoinColumn = baseTableName <> "." <> symbolToByteString @name' 
+        rightJoinColumn = symbolToByteString @name
+{-# INLINE innerJoinThirdTable #-}
+                       
+
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
 --
