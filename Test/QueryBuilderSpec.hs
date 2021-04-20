@@ -99,7 +99,18 @@ tests = do
                         |> innerJoin @User (#createdBy, #id)
                         |> innerJoin @FavoriteTitle (#title, #title)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON posts.createdBy = users.id", [])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.createdBy = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title", [])
+
+
+        describe "innerJoinThirdTable" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> innerJoinThirdTable @User @FavoriteTitle (#name, #title)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.createdBy = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON favorite_title.title = users.name", [])
+
 
 
         describe "orderBy" do
