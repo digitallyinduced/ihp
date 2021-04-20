@@ -88,26 +88,26 @@ data OrderByClause =
     , orderByDirection :: !OrderByDirection }
     deriving (Show, Eq)
 
-data Singleton model
-data Cons model models
+data EmptyModelList
+data ConsModelList model models
 
 class IsJoined a b
 
-instance IsJoined a (Singleton a) 
-instance IsJoined a (Cons a b)
-instance {-# OVERLAPPABLE #-} (IsJoined a b) => IsJoined a (Cons c b)
+instance IsJoined a EmptyModelList
+instance IsJoined a (ConsModelList a b)
+instance {-# OVERLAPPABLE #-} (IsJoined a b) => IsJoined a (ConsModelList c b)
 
-class HasQueryBuilder q where
+class HasQueryBuilder q joinRegister | q -> joinRegister where
     getQueryBuilder :: q table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> q table
 
 newtype JoinQueryBuilderWrapper joinRegister queryBuilder = JoinQueryBuilderWrapper queryBuilder
 
-instance HasQueryBuilder QueryBuilder where
+instance HasQueryBuilder QueryBuilder EmptyModelList where
     getQueryBuilder = id
     injectQueryBuilder = id
 
-instance HasQueryBuilder (JoinQueryBuilderWrapper::(Symbol -> *) j) where
+instance HasQueryBuilder (JoinQueryBuilderWrapper::(Symbol -> *) joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder queryBuilder = JoinQueryBuilderWrapper queryBuilder
 
