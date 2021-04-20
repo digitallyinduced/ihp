@@ -101,13 +101,13 @@ class HasQueryBuilder q joinRegister | q -> joinRegister where
     getQueryBuilder :: q table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> q table
 
-newtype JoinQueryBuilderWrapper joinRegister queryBuilder = JoinQueryBuilderWrapper queryBuilder
+newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
 
 instance HasQueryBuilder QueryBuilder EmptyModelList where
     getQueryBuilder = id
     injectQueryBuilder = id
 
-instance HasQueryBuilder (JoinQueryBuilderWrapper::(Symbol -> *) joinRegister) joinRegister where
+instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder queryBuilder = JoinQueryBuilderWrapper queryBuilder
 
@@ -273,8 +273,8 @@ buildQuery JoinQueryBuilder {queryBuilder, join } =
 -- >>> let postsQuery = query @Post |> filterWhere (#public, True)
 -- >>> toSQL postsQuery
 -- ("SELECT posts.* FROM posts WHERE public = ?", [Plain "true"])
-toSQL :: (KnownSymbol table) => QueryBuilder table -> (ByteString, [Action])
-toSQL queryBuilder = toSQL' (buildQuery queryBuilder)
+toSQL :: (KnownSymbol table, HasQueryBuilder q r) => q table -> (ByteString, [Action])
+toSQL q = toSQL' (buildQuery $ getQueryBuilder q)
 {-# INLINE toSQL #-}
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
@@ -483,19 +483,20 @@ filterWhereSql (name, sqlCondition) queryBuilder = FilterByQueryBuilder { queryB
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereSql #-}
 
-innerJoin :: forall model' table' name' value' model table name value .
+innerJoin :: forall model' table' name' value' model table name value q joinRegister.
                             (
                                 KnownSymbol name, 
                                 KnownSymbol table,
                                 HasField name model value,
                                 KnownSymbol name', 
-                                KnownSymbol table', 
+                                KnownSymbol table',
+                                HasQueryBuilder q joinRegister,
                                 HasField name' model' value', 
                                 value ~ value',
                                 model ~ GetModelByTableName table,
                                 table' ~ GetTableName model'
-                            ) => (Proxy name, Proxy name') -> QueryBuilder table -> QueryBuilder table 
-innerJoin (name, name') queryBuilder = JoinQueryBuilder queryBuilder $ Join joinTableName leftJoinColumn rightJoinColumn 
+                            ) => (Proxy name, Proxy name') -> q table -> JoinQueryBuilderWrapper (ConsModelList table joinRegister) table 
+innerJoin (name, name') queryBuilder = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilder) $ Join joinTableName leftJoinColumn rightJoinColumn 
     where 
         baseTableName = symbolToByteString @table
         joinTableName = symbolToByteString @table'
