@@ -13,6 +13,9 @@ import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementBy
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
+import qualified Data.Text as Text
+import qualified Data.Maybe as Maybe
+
 instance Controller ColumnsController where
     beforeAction = setLayout schemaDesignerLayout
 
@@ -92,25 +95,17 @@ instance Controller ColumnsController where
                 updateSchema (map (updateColumnInTable tableName column (param "primaryKey") columnId))
 
                 -- Update Foreign Key Reference
-                -- let oldColumn = columns !! columnId
-                -- let maybeConstraint = find (\statement -> statement == AddConstraint { tableName = tableName
-                --     , constraintName = (get #constraintName statement)
-                --     , constraint = ForeignKeyConstraint { columnName = (get #name oldColumn)
-                --         , referenceTable = (get #referenceTable (get #constraint statement)) -- TODO: Still References Old Table
-                --         , referenceColumn = (get #referenceColumn (get #constraint statement))
-                --         , onDelete=(get #onDelete (get #constraint statement)) } }) statements
-                -- case maybeConstraint of
-                --     Just constraint -> do
-                --         let constraintId = elemIndex constraint statements
-                --         case constraintId of
-                --             Just constraintId -> do
-                --                 let constraintName = tableName <> "_ref_" <> columnName
-                --                 let referenceTable = get #referenceTable (get #constraint constraint)
-                --                 let Just onDelete = get #onDelete (get #constraint constraint)
-                --                 updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId)
-                --             Nothing -> putStrLn ("Error")
-                --     Nothing -> pure ()
-
+                let oldColumn = columns !! columnId
+                let oldColumnName = get #name oldColumn
+                let maybeConstraint = referencingColumnForeignKeyConstraints tableName oldColumnName statements
+                case maybeConstraint of
+                    Just constraint -> do
+                        let Just constraintId = elemIndex constraint statements
+                        let constraintName = tableName <> "_ref_" <> columnName
+                        let referenceTable = Text.splitOn "_id" columnName |> head |> Maybe.fromJust |> pluralize
+                        let Just onDelete = get #onDelete (get #constraint constraint)
+                        updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId)
+                    Nothing -> pure ()
         redirectTo ShowTableAction { .. }
 
     action DeleteColumnAction { .. } = do
@@ -268,3 +263,19 @@ arrayifytype True  coltype = PArray coltype
 
 validateColumn :: Validator Text
 validateColumn = validateNameInSchema "column name" [] Nothing
+
+referencingColumnForeignKeyConstraints tableName columnName statements =
+    find (\statement ->
+        statement ==
+            AddConstraint
+                { tableName = tableName
+                , constraintName = (get #constraintName statement)
+                , constraint =
+                    ForeignKeyConstraint
+                        { columnName = columnName
+                        , referenceTable = (get #referenceTable (get #constraint statement))
+                        , referenceColumn = (get #referenceColumn (get #constraint statement))
+                        , onDelete = (get #onDelete (get #constraint statement))
+                        }
+                }
+    ) statements
