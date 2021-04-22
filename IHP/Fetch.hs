@@ -52,59 +52,57 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
     type instance FetchResult (QueryBuilder table) model = [model]
     {-# INLINE fetch #-}
     fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
-    fetch !queryBuilder = do
-        let !(theQuery, theParameters) = queryBuilder
-                |> toSQL
-        trackTableRead (tableNameByteString @model)
-        sqlQuery (Query $ cs theQuery) theParameters
+    fetch = commonFetch 
 
     {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder table -> IO (Maybe model)
-    fetchOneOrNothing !queryBuilder = do
-        let !(theQuery, theParameters) = queryBuilder
-                |> buildQuery
-                |> setJust #limitClause "LIMIT 1"
-                |> toSQL'
-        trackTableRead (tableNameByteString @model)
-        results <- sqlQuery (Query $ cs theQuery) theParameters
-        pure $ listToMaybe results
+    fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder table -> IO model
-    fetchOne !queryBuilder = do
-        maybeModel <- fetchOneOrNothing queryBuilder
-        case maybeModel of
-            Just model -> pure model
-            Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
+    fetchOne = commonFetchOne
 
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (JoinQueryBuilderWrapper r table) model where
     type instance FetchResult (JoinQueryBuilderWrapper r table) model = [model]
     {-# INLINE fetch #-}
     fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => JoinQueryBuilderWrapper r table -> IO [model]
-    fetch !queryBuilder = do
-        let !(theQuery, theParameters) = queryBuilder
-                |> toSQL
-        trackTableRead (tableNameByteString @model)
-        sqlQuery (Query $ cs theQuery) theParameters
+    fetch = commonFetch 
 
     {-# INLINE fetchOneOrNothing #-}
     fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => JoinQueryBuilderWrapper r table -> IO (Maybe model)
-    fetchOneOrNothing !queryBuilder = do
-        let !(theQuery, theParameters) = getQueryBuilder queryBuilder
-                |> buildQuery
-                |> setJust #limitClause "LIMIT 1"
-                |> toSQL'
-        trackTableRead (tableNameByteString @model)
-        results <- sqlQuery (Query $ cs theQuery) theParameters
-        pure $ listToMaybe results
+    fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => JoinQueryBuilderWrapper r table -> IO model
-    fetchOne !queryBuilder = do
-        maybeModel <- fetchOneOrNothing queryBuilder
-        case maybeModel of
-            Just model -> pure model
-            Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
+    fetchOne = commonFetchOne
+
+
+{-# INLINE commonFetch #-}
+commonFetch :: forall model table q r.(HasQueryBuilder q r, model ~ GetModelByTableName table, KnownSymbol table, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => q table -> IO [model]
+commonFetch !queryBuilder = do
+    let !(theQuery, theParameters) = queryBuilder
+            |> toSQL
+    trackTableRead (tableNameByteString @model)
+    sqlQuery (Query $ cs theQuery) theParameters
+
+{-# INLINE commonFetchOneOrNothing #-}
+commonFetchOneOrNothing :: forall model table q r.(?modelContext :: ModelContext) => (KnownSymbol table, HasQueryBuilder q r, PG.FromRow model, KnownSymbol (GetTableName model)) => q table -> IO (Maybe model)
+commonFetchOneOrNothing !queryBuilder = do
+    let !(theQuery, theParameters) = getQueryBuilder queryBuilder
+            |> buildQuery
+            |> setJust #limitClause "LIMIT 1"
+            |> toSQL'
+    trackTableRead (tableNameByteString @model)
+    results <- sqlQuery (Query $ cs theQuery) theParameters
+    pure $ listToMaybe results
+
+{-# INLINE commonFetchOne #-}
+commonFetchOne :: (?modelContext :: ModelContext) => (KnownSymbol table, Fetchable (q table) model, HasQueryBuilder q r, PG.FromRow model, KnownSymbol (GetTableName model)) => q table -> IO model
+commonFetchOne !queryBuilder = do
+    maybeModel <- fetchOneOrNothing queryBuilder
+    case maybeModel of
+        Just model -> pure model
+        Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
 
 
 -- | Returns the count of records selected by the query builder.
