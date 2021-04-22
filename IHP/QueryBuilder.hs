@@ -39,6 +39,9 @@ module IHP.QueryBuilder
 , buildQuery
 , innerJoin
 , innerJoinThirdTable
+, HasQueryBuilder
+, JoinQueryBuilderWrapper
+, getQueryBuilder
 )
 where
 
