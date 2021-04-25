@@ -124,6 +124,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
+        , TemplateHaskell
     if flag(FastBuild)
         ghc-options:
             -j
