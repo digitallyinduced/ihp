@@ -241,7 +241,7 @@ render user = [hsx|
     {renderCountry}
 |]
     where
-        renderCountry = case get #country of
+        renderCountry = case get #country user of
             Just country -> [hsx|<p><small>{country}</small></p>|]
             Nothing -> [hsx||]
 ```
