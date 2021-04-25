@@ -114,7 +114,7 @@ parseClosingElement name = do
     char ('>')
     pure ()
 
-parseChild = parseElement <|> try (space >> parseElement) <|> parseText
+parseChild = parseElement <|> try (parseElement) <|> parseText
 
 parseText :: Parser Node
 parseText = TextNode <$> takeWhile1P (Just "text") (\c -> c /= '<' && c /= '>')

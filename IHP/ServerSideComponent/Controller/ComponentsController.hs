@@ -13,11 +13,7 @@ instance (Component component controller, FromJSON controller) => WSApp (Compone
 
     run = do
         let state :: component = SSC.initialState
-        let initialHtml = state
-                |> SSC.render
-                |> Blaze.renderHtml
-                |> cs
-        instanceRef <- newIORef (ComponentInstance { state, renderedHtml = initialHtml })
+        instanceRef <- newIORef (ComponentInstance { state })
         let ?instanceRef = instanceRef
 
         nextState <- componentDidMount state

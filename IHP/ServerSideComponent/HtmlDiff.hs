@@ -11,7 +11,7 @@ import qualified Data.Text as Text
 
 data NodeOperation
     = UpdateTextContent { textContent :: !Text, path :: ![Int] }
-    | ReplaceNode { oldNode :: !Node, newNode :: !Node, path :: ![Int] }
+    | ReplaceNode { oldNode :: !Node, newNode :: !Node, newNodeHtml :: !Text, path :: ![Int] }
     | UpdateNode { attributeOperations :: ![AttributeOperation], path :: ![Int] }
     | UpdateComment { comment :: !Text, path :: ![Int] }
     | UpdatePreEscapedTextNode { textContent :: !Text, path :: ![Int] }
@@ -66,32 +66,19 @@ diffNodes' path oldNode@(Node { tagName = oldTagName, attributes = oldAttributes
                     , childrenNodeOperations
                     ]
 
-        else [ReplaceNode { oldNode, newNode, path }]
+        else [ReplaceNode { oldNode, newNode, newNodeHtml = nodeOuterHtml newNode ?newHtml, path }]
 diffNodes' path Children { children = oldChildren } Children { children = newChildren } =
         let
-            infiniteNothings :: [Maybe Node]
-            infiniteNothings = (map (const Nothing) ([0..] :: [Int]))
-
-            maybeOldPadded = (map Just oldChildren) <> infiniteNothings
-            updateOrCreateNode (new, Just old, index) = diffNodes' (index:path) old new
-            updateOrCreateNode (new, Nothing, index) = [ CreateNode { html = nodeOuterHtml new ?newHtml, path = (index:path) } ]
-
-            updatedOrNewChildren =
-                    zip3 newChildren maybeOldPadded [0..]
-                    |> map updateOrCreateNode
-                    |> concat
-
-
-            deletedChildren =
-                if length oldChildren > length newChildren
-                    then oldChildren
-                            |> zip [0..]
-                            |> drop (length newChildren)
-                            |> map (\(index, node) -> DeleteNode { node = node, path = (index:path) })
-                    else []
+            patchElements :: [Node] -> [Node] -> Int -> [NodeOperation]
+            patchElements (new:nextNewNode:newRest) (old:oldRest) !index | (not $ new `isNodeEqIgnoringPosition` old) && (old `isNodeEqIgnoringPosition` nextNewNode) = [ CreateNode { html = nodeOuterHtml new ?newHtml, path = (index:path) } ] <> (patchElements (newRest) (oldRest) (index + 2)) -- [A, C <old>] -> [A, B <new>, C <nextNewNode>]
+            patchElements (new:newRest) (old:nextOld:oldRest) !index | (not $ new `isNodeEqIgnoringPosition` old) && (new `isNodeEqIgnoringPosition` nextOld) = [ DeleteNode { node = old, path = (index:path) } ] <> (patchElements (newRest) (oldRest) (index + 1)) -- [A, B <old>, C <nextOldNode> ] -> [A, C <new>]
+            patchElements (new:newRest) (old:oldRest) !index = (diffNodes' (index:path) old new) <> (patchElements newRest oldRest (index + 1))
+            patchElements (new:newRest) oldRest !index = [ CreateNode { html = nodeOuterHtml new ?newHtml, path = (index:path) } ] <> (patchElements newRest oldRest (index + 1))
+            patchElements [] (old:oldRest) !index = [ DeleteNode { node = old, path = (index:path) } ] <> (patchElements [] oldRest (index + 1))
+            patchElements [] [] _ = []
         in
-            updatedOrNewChildren <> deletedChildren
-diffNodes' path oldNode newNode = [ReplaceNode { oldNode, newNode, path }]
+            patchElements newChildren oldChildren 0
+diffNodes' path oldNode newNode = [ReplaceNode { oldNode, newNode, newNodeHtml = nodeOuterHtml newNode ?newHtml, path }]
 
 
 diffAttributes :: [Attribute] -> [Attribute] -> [AttributeOperation]
@@ -125,3 +112,7 @@ nodeOuterHtml :: Node -> Text -> Text
 nodeOuterHtml Node { startOffset, endOffset } html = html
         |> Text.drop startOffset
         |> Text.take (endOffset - startOffset)
+
+isNodeEqIgnoringPosition :: Node -> Node -> Bool
+isNodeEqIgnoringPosition a@(Node {}) b@(Node {}) = (a { startOffset = 0, endOffset = 0 }) == (b { startOffset = 0, endOffset = 0 })
+isNodeEqIgnoringPosition a b = a == b

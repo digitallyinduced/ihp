@@ -23,6 +23,14 @@ tests = do
             it "should parse self closing tags with spaces around it" do
                 let p = parseHtml " <div/> "
                 p `shouldBe`  (Right (Children [Node "div" [] [] 1 7]))
+            
+            it "should not loose whitespace text nodes" do
+                let p = parseHtml "<table></table> <input/>"
+                p `shouldBe`  (Right (Children {children =
+                        [ Node {tagName = "table", attributes = [], children = [], startOffset = 0, endOffset = 15}
+                        , TextNode " "
+                        , Node {tagName = "input", attributes = [], children = [], startOffset = 16, endOffset = 24}
+                        ]}))
 
             it "should parse nested html" do
                 let p = parseHtml "<div class=\"loading\">The app is <i>loading</i></div>"

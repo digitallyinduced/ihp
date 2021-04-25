@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-|
 Module: IHP.ServerSideComponent.ControllerFunctions
 Copyright: (c) digitally induced GmbH, 2021
@@ -19,13 +20,17 @@ import IHP.ServerSideComponent.HtmlDiff
 
 setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext) => state -> IO ()
 setState state = do
-    oldHtml <- get #renderedHtml <$> readIORef ?instanceRef
+    oldState <- get #state <$> readIORef ?instanceRef
+    let oldHtml = oldState
+            |> SSC.render
+            |> Blaze.renderHtml
+            |> cs
     let newHtml = state
             |> SSC.render
             |> Blaze.renderHtml
             |> cs
 
-    modifyIORef' ?instanceRef (\componentInstance -> componentInstance { state, renderedHtml = newHtml })
+    modifyIORef' ?instanceRef (\componentInstance -> componentInstance { state })
     
     case diffHtml oldHtml newHtml of
         Left error -> putStrLn (tshow error)

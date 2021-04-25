@@ -32,7 +32,7 @@ data ComponentsController components
     deriving (Eq, Show, Data)
 
 data ComponentInstance state
-    = ComponentInstance { state :: state, renderedHtml :: Text }
+    = ComponentInstance { state :: state } -- ^ If you wondered why the current rendered HTML doesn't need to be stored here for later diffing it: As our render functions are pure we can just re-render the HTML based on the state when we want to do our diffing
 
 instance (SetField "state" (ComponentInstance state) state) where
     setField state componentInstance = componentInstance { state }

@@ -26,7 +26,7 @@ tests = do
                     let result = diffHtml a b
                     let expected =
                             [ UpdateNode {attributeOperations = [UpdateAttribute {attributeName = "class", attributeValue = "loaded"}], path = [0]}
-                            , ReplaceNode {oldNode = TextNode {textContent = "The app is "}, newNode = Node {tagName = "p", attributes = [], children = [TextNode {textContent = "loaded"}], startOffset = 20, endOffset = 33}, path = [0,0]}
+                            , ReplaceNode {oldNode = TextNode {textContent = "The app is "}, newNode = Node {tagName = "p", attributes = [], children = [TextNode {textContent = "loaded"}], startOffset = 20, endOffset = 33}, newNodeHtml = "<p>loaded</p>", path = [0,0]}
                             , DeleteNode {node = Node {tagName = "i", attributes = [], children = [TextNode {textContent = "loading"}], startOffset = 32, endOffset = 46}, path = [1,0]}
                             ]
                     result `shouldBe` (Right expected)
@@ -59,7 +59,7 @@ tests = do
                     let a = Node { tagName = "a", attributes = [Attribute { attributeName = "href", attributeValue = "#" }], children = [ TextNode { textContent = "hello" } ], startOffset = 0, endOffset = 0 }
                     let b = Node { tagName = "div", attributes = [Attribute { attributeName = "class", attributeValue = "d-block" }], children = [], startOffset = 0, endOffset = 0 }
                     let result = diffNodes a b
-                    let expected = [ReplaceNode { oldNode = a, newNode = b, path = [] }]
+                    let expected = [ReplaceNode { oldNode = a, newNode = b, newNodeHtml = "", path = [] }]
                     result `shouldBe` expected
 
                 it "should patch attributes if the tag name is the same" do
@@ -100,6 +100,49 @@ tests = do
                             ]
                     result `shouldBe` expected
 
+                it "should do efficiently add new nodes if they are added in the middle of the children" do
+                    let ?oldHtml = "<div><a/><c/></div>"
+                    let ?newHtml = "<div><a/><b/><c/></div>"
+
+                    let aChildren =
+                            [ Node "a" [] [] 5 9
+                            , Node "c" [] [] 9 13
+                            ]
+                    let bChildren =
+                            [ Node "a" [] [] 5 9
+                            , Node "b" [] [] 9 13
+                            , Node "c" [] [] 13 17
+                            ]
+                    let a = Node { tagName = "div", attributes = [], children = aChildren, startOffset = 0, endOffset = 0 }
+                    let b = Node { tagName = "div", attributes = [], children = bChildren, startOffset = 0, endOffset = 0 }
+                    let result = diffNodes a b
+
+                    let expected =
+                                [ CreateNode {html = "<b/>", path = [1]}
+                                ]
+                    result `shouldBe` expected
+                
+                it "should do efficiently remove old nodes if they are in the middle of the children" do
+                    let ?oldHtml = "<div><a/><b/><c/></div>"
+                    let ?newHtml = "<div><a/><c/></div>"
+
+                    let aChildren =
+                            [ Node "a" [] [] 5 9
+                            , Node "b" [] [] 9 13
+                            , Node "c" [] [] 13 17
+                            ]
+                    let bChildren =
+                            [ Node "a" [] [] 5 9
+                            , Node "c" [] [] 9 13
+                            ]
+                    let a = Node { tagName = "div", attributes = [], children = aChildren, startOffset = 0, endOffset = 0 }
+                    let b = Node { tagName = "div", attributes = [], children = bChildren, startOffset = 0, endOffset = 0 }
+                    let result = diffNodes a b
+
+                    let expected =
+                                [ DeleteNode {node = Node "b" [] [] 9 13, path = [1]}
+                                ]
+                    result `shouldBe` expected
 
 
             describe "diffAttributes" do
