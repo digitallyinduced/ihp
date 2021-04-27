@@ -218,3 +218,52 @@ The underlying HTML library blaze currently does not support an empty HTML attri
 #### Unescaped Strings
 
 If you use HTML entities, such as `&nbsp;` for a non-breaking space, you will notice they appear exactly like that. To output directly (i.e. unescaped) use the method `preEscapedToMarkup` from `Text.Blaze.Html5`.
+
+
+## Common HSX Patterns
+
+### Dealing with Maybe Values
+
+When dealing with `Maybe` values you sometimes want to conditionally render something. E.g. in react to render a tag with JSX you would do it like this:
+
+```html
+<p>Hi {user.name}</p>
+{user.country && <p><small>from {user.country}</small></p>}
+<p>Welcome!</p>
+```
+
+In HSX you usually write it like this:
+
+
+```haskell
+render user = [hsx|
+    <p>Hi {get #name user}</p>
+    {renderCountry}
+|]
+    where
+        renderCountry = case get #country user of
+            Just country -> [hsx|<p><small>{country}</small></p>|]
+            Nothing -> [hsx||]
+```
+
+What about if the country is a empty string? A simple solution could look like this:
+
+```haskell
+renderCountry = case get #country user of
+    Just "" -> [hsx||]
+    Just country -> [hsx|<p>from {country}!</p>|]
+    Nothing -> [hsx||]
+```
+
+That code doesn't feel right. It's better to deal with the problem at create time of the `User` record already. Use  `
+emptyValueToNothing` to transform an empty `Just ""` to `Nothing` before inserting it into the db:
+
+```haskell
+action CreateUserAction = do
+    newRecord @User
+        |> fill '["name", "country"]
+        |> emptyValueToNothing #country
+        |> createRecord
+```
+
+Now when the country input field is empty when creating the user, the `country` field will be set to `Nothing` instead of `Just ""`.

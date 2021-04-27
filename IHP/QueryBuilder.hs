@@ -159,9 +159,9 @@ deriving instance Eq Action
 --
 -- E.g. given a table users and a table posts. Each Post belongs to a user. The schema compiler will
 -- add a field 'posts :: QueryBuilder "posts"' with the default value @query |> filterWhere (#userId, get #id self)@ to all users by default.
--- 
+--
 -- This is needed to support syntax like this:
--- 
+--
 -- > user
 -- >     |> get #posts
 -- >     |> fetch

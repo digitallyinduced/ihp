@@ -155,7 +155,7 @@ static/prod.js: $(JS_FILES) ## Builds the production js bundle
 	awk -v RS='\0' '{print "(function (window, document, undefined) {"; print; print "\n})(window, document);";}' $(JS_FILES) > $@
 
 static/prod.css: $(CSS_FILES) ## Builds the production css bundle
-	cat $(CSS_FILES) | sed -r ':a; s%(.*)/\*.*\*/%\1%; ta; /\/\*/ !b; N; ba' | tr -d '\t' | tr -d ' ' | tr -d '\n' | tr -s ' ' ' ' > $@
+	cat $(CSS_FILES) > $@
 
 print-ghc-options: ## Prints all used ghc options. Useful for scripting
 	@echo ${GHC_OPTIONS}
