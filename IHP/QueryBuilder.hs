@@ -29,6 +29,7 @@ module IHP.QueryBuilder
 , filterWhereMatches
 , filterWhereIMatches
 , filterWhereJoinedTable
+, filterWhereInJoinedTable
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -411,6 +412,14 @@ filterWhereIn (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, 
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereIn #-}
+
+filterWhereInJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister, IsJoined model joinRegister) => (Proxy name, [value]) -> q table' -> q table'
+filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)) }
+    where
+        columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereInJoinedTable #-}
+
 
 -- | Adds a @WHERE x NOT IN (y)@ condition to the query.
 --
