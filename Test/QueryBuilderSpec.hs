@@ -70,6 +70,16 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
 
+        describe "filterWhereInJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let theValues :: [Text] = ["first", "second"]
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereInJoinedTable @Post (#title, theValues)
+
+                (toSQL theQuery) `shouldBe` ("SELECT users.* FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
+
+
         describe "filterWhereNotIn" do
             it "should produce a SQL with a WHERE condition" do
                 let theValues :: [Text] = ["first", "second"]
