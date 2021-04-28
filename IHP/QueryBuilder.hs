@@ -30,6 +30,7 @@ module IHP.QueryBuilder
 , filterWhereIMatches
 , filterWhereJoinedTable
 , filterWhereInJoinedTable
+, filterWhereNotInJoinedTable
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -438,6 +439,15 @@ filterWhereNotIn (name, value) queryBuilder = FilterByQueryBuilder { queryBuilde
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereNotIn #-}
+
+filterWhereNotInJoinedTable :: forall model name table  value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, [value]) -> q table' -> q table'
+filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
+filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)) }
+    where
+        columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereNotInJoinedTable #-}
+
 
 -- | Adds a @WHERE x LIKE y@ condition to the query.
 --
