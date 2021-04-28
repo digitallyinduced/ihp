@@ -94,6 +94,25 @@ tests = do
                         |> filterWhereNotIn (#title, theValues)
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts", [])
+
+        describe "filterWhereNotInJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let theValues :: [Text] = ["first", "second"]
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
+
+                (toSQL theQuery) `shouldBe` ("SELECT users.* FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title NOT IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
+
+            it "ignore an empty value list as this causes the query to always return nothing" do
+                let theValues :: [Text] = []
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
+
+                (toSQL theQuery) `shouldBe` ("SELECT users.* FROM users INNER JOIN posts ON users.name = posts.title", [])
+
+
         
         describe "filterWhereSql" do
             it "should produce a SQL with a WHERE condition" do
