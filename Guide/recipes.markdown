@@ -360,12 +360,12 @@ import qualified Data.TMap as TMap
 import Config -- For importing the RedisUrl data type
 
 action MyAction = do
-    (RedisUrl connectionString) = redisUrl
+    let (RedisUrl connectionString) = redisUrl
     putStrLn ("REDIS_URL = " <> cs connectionString)
 
-redisUrl :: (?applicationContext :: ApplicationContext) => RedisUrl
-redisUrl = ?applicationCotext
-        |> get #frameworkConfig
+redisUrl :: (?context :: ControllerContext) => RedisUrl
+redisUrl = ?context
+        |> getFrameworkConfig
         |> get #appConfig
         |> TMap.lookup @RedisUrl
         |> fromMaybe (error "Could not find RedisUrl in config")
