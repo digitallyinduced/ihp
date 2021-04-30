@@ -381,7 +381,7 @@ parents = Set.fromList
         , "filter", "foreignObject", "g", "line", "linearGradient", "marker"
         , "mask", "metadata", "mpath", "path", "pattern", "polygon", "polyline"
         , "radialGradient", "rect", "set", "stop", "switch", "symbol"
-        , "textPath", "tspan", "unknown", "use", "view"
+        , "textPath", "tspan", "unknown", "use", "view", "template"
         ]
 
 leafs :: Set Text
