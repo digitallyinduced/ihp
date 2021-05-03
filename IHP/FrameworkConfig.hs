@@ -167,6 +167,8 @@ buildFrameworkConfig appConfig = do
             logger <- findOption @Logger
             exceptionTracker <- findOption @ExceptionTracker
 
+            appConfig <- State.get
+
             pure FrameworkConfig { .. }
 
     (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
@@ -219,6 +221,37 @@ data FrameworkConfig = FrameworkConfig
     , cssFramework :: !CSSFramework
     , logger :: !Logger
     , exceptionTracker :: !ExceptionTracker
+
+    -- | Custom 'option's from @Config.hs@ are stored here
+    --
+    -- To access a custom option here, first set it up inside @Config.hs@. This example
+    -- reads a string from a env variable on app startup and makes it available to the app
+    -- by saving it into the application context:
+    --
+    -- > -- Config.hs:
+    -- > 
+    -- > newtype RedisUrl = RedisUrl String
+    -- > 
+    -- > config :: ConfigBuilder
+    -- > config = do
+    -- >     option Development
+    -- >     option (AppHostname "localhost")
+    -- >     
+    -- >     redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
+    -- >     option (RedisUrl redisUrl)
+    --
+    -- This redis url can be access from all IHP entrypoints using the ?applicationContext that is in scope:
+    -- 
+    -- > import qualified Data.TMap as TMap
+    -- > import Config -- For accessing the RedisUrl data type
+    -- > 
+    -- > action MyAction = do
+    -- >     let appConfig = ?context |> getFrameworkConfig |> get #appConfig
+    -- >     let (RedisUrl redisUrl) = appConfig
+    -- >                |> TMap.lookup @RedisUrl
+    -- >                |> fromMaybe (error "Could not find RedisUrl in config")
+    -- > 
+    , appConfig :: !TMap.TMap
 }
 
 class ConfigProvider a where
