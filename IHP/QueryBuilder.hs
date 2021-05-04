@@ -31,6 +31,7 @@ module IHP.QueryBuilder
 , filterWhereJoinedTable
 , filterWhereInJoinedTable
 , filterWhereNotInJoinedTable
+, filterWhereLikeJoinedTable
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -462,6 +463,14 @@ filterWhereLike (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereLike #-}
+
+filterWhereLikeJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereLikeJoinedTable #-}
+
 
 -- | Adds a @WHERE x ILIKE y@ condition to the query. Case-insensitive version of 'filterWhereLike'.
 --
