@@ -96,12 +96,12 @@ data OrderByClause =
     , orderByDirection :: !OrderByDirection }
     deriving (Show, Eq)
 
+data NoJoins
 data EmptyModelList
 data ConsModelList model models
 
 class IsJoined a b
 
-instance IsJoined a EmptyModelList
 instance IsJoined a (ConsModelList a b)
 instance {-# OVERLAPPABLE #-} (IsJoined a b) => IsJoined a (ConsModelList c b)
 
@@ -111,6 +111,8 @@ class HasQueryBuilder q joinRegister | q -> joinRegister where
 
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
 
+newtype NoJoinQueryBuilderWrapper table = NoJoinQueryBuilderWrapper (QueryBuilder table)
+
 instance HasQueryBuilder QueryBuilder EmptyModelList where
     getQueryBuilder = id
     injectQueryBuilder = id
@@ -118,6 +120,10 @@ instance HasQueryBuilder QueryBuilder EmptyModelList where
 instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder queryBuilder = JoinQueryBuilderWrapper queryBuilder
+
+instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
+    getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
+    injectQueryBuilder queryBuilder = NoJoinQueryBuilderWrapper queryBuilder
 
 data QueryBuilder (table :: Symbol) =
     NewQueryBuilder
@@ -659,8 +665,8 @@ offset !queryOffset queryBuilderProvider = injectQueryBuilder OffsetQueryBuilder
 -- > let teamPages = query @Page |> filterWhere (#teamId, currentTeamId)
 -- > pages <- queryUnion userPages teamPages |> fetch
 -- > -- (SELECT * FROM pages WHERE owner_id = '..') UNION (SELECT * FROM pages WHERE team_id = '..')
-queryUnion :: (HasQueryBuilder q joinRegister, HasQueryBuilder r joinRegister') => q model -> r model -> QueryBuilder model
-queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }
+queryUnion :: (HasQueryBuilder q joinRegister, HasQueryBuilder r joinRegister') => q model -> r model -> NoJoinQueryBuilderWrapper model
+queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBuilderWrapper (UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder })
     where
         firstQueryBuilder = getQueryBuilder firstQueryBuilderProvider
         secondQueryBuilder = getQueryBuilder secondQueryBuilderProvider
