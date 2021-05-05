@@ -1,30 +1,31 @@
 module IHP.Job.Types
-( Job (..)
-, JobWorkerArgs (..)
-, JobWorker (..)
-, JobStatus (..)
-, Worker (..)
-)
+  ( Job (..),
+    JobWorkerArgs (..),
+    JobWorker (..),
+    JobStatus (..),
+    Worker (..),
+  )
 where
 
-import IHP.Prelude
-import IHP.FrameworkConfig
 import qualified Control.Concurrent.Async as Async
+import IHP.FrameworkConfig
+import IHP.Prelude
 
 class Job job where
-    perform :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => job -> IO ()
+  perform :: (?modelContext :: ModelContext, ?frameworkConfig :: FrameworkConfig) => job -> IO ()
 
-    maxAttempts :: (?job :: job) => Int
-    maxAttempts = 10
+  maxAttempts :: (?job :: job) => Int
+  maxAttempts = 10
 
 class Worker application where
-    workers :: application -> [JobWorker]
+  workers :: application -> [JobWorker]
 
 data JobWorkerArgs = JobWorkerArgs
-    { allJobs :: IORef [Async.Async ()]
-    , workerId :: UUID
-    , modelContext :: ModelContext
-    , frameworkConfig :: FrameworkConfig }
+  { allJobs :: IORef [Async.Async ()],
+    workerId :: UUID,
+    modelContext :: ModelContext,
+    frameworkConfig :: FrameworkConfig
+  }
 
 newtype JobWorker = JobWorker (JobWorkerArgs -> IO (Async.Async ()))
 
@@ -32,9 +33,9 @@ newtype JobWorker = JobWorker (JobWorkerArgs -> IO (Async.Async ()))
 --
 -- > CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
 data JobStatus
-    = JobStatusNotStarted
-    | JobStatusRunning
-    | JobStatusFailed
-    | JobStatusSucceeded
-    | JobStatusRetry
-    deriving (Eq, Show, Read, Enum)
+  = JobStatusNotStarted
+  | JobStatusRunning
+  | JobStatusFailed
+  | JobStatusSucceeded
+  | JobStatusRetry
+  deriving (Eq, Show, Read, Enum)
