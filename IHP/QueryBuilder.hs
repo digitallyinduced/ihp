@@ -685,8 +685,12 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >         (filterWhere (#public, True))
 -- >     |> fetch
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
-queryOr :: (qb ~ QueryBuilder model) => (qb -> qb) -> (qb -> qb) -> qb -> qb
-queryOr firstQuery secondQuery queryBuilder = UnionQueryBuilder { firstQueryBuilder = firstQuery queryBuilder, secondQueryBuilder = secondQuery queryBuilder }
+queryOr :: (HasQueryBuilder q jR, HasQueryBuilder r jR'', HasQueryBuilder s jR''') => (s model -> q model) -> (s model -> r model) -> s model -> NoJoinQueryBuilderWrapper model 
+queryOr firstQuery secondQuery queryBuilder = NoJoinQueryBuilderWrapper 
+    (UnionQueryBuilder { 
+        firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder, 
+        secondQueryBuilder = getQueryBuilder $ secondQuery queryBuilder}
+    )
 {-# INLINE queryOr #-}
 
 -- | Adds a @DISTINCT@ to your query.
@@ -699,8 +703,8 @@ queryOr firstQuery secondQuery queryBuilder = UnionQueryBuilder { firstQueryBuil
 -- >     |> distinct
 -- >     |> fetch
 -- > -- SELECT DISTINCT * FROM books
-distinct :: QueryBuilder table -> QueryBuilder table
-distinct = DistinctQueryBuilder
+distinct :: (HasQueryBuilder q jR) => q table -> q table
+distinct = injectQueryBuilder . DistinctQueryBuilder . getQueryBuilder
 {-# INLINE distinct #-}
 
 -- | Adds an @DISTINCT ON .. to your query.
@@ -713,8 +717,8 @@ distinct = DistinctQueryBuilder
 -- >     |> distinctOn #categoryId
 -- >     |> fetch
 -- > -- SELECT DISTINCT ON (category_id) * FROM books
-distinctOn :: forall name model value table. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => Proxy name -> QueryBuilder table -> QueryBuilder table
-distinctOn !name queryBuilder = DistinctOnQueryBuilder { distinctOnColumn = columnName, queryBuilder }
+distinctOn :: forall name model value table q jR. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q jR) => Proxy name -> q table -> q table
+distinctOn !name queryBuilderProvider = injectQueryBuilder DistinctOnQueryBuilder { distinctOnColumn = columnName, queryBuilder = getQueryBuilder queryBuilderProvider}
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE distinctOn #-}
