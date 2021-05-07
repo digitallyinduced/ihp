@@ -212,74 +212,76 @@ query = (defaultScope @table) NewQueryBuilder
 {-# INLINE query #-}
 
 {-# INLINE buildQuery #-}
-buildQuery :: forall table. (KnownSymbol table) => QueryBuilder table -> SQLQuery
-buildQuery NewQueryBuilder =
-    let tableName = symbolToByteString @table
-    in SQLQuery
-            { selectFrom = tableName
-            , distinctClause = Nothing
-            , distinctOnClause = Nothing
-            , whereCondition = Nothing
-            , joins = []
-            , orderByClause = []
-            , limitClause = Nothing
-            , offsetClause = Nothing
-            }
-buildQuery DistinctQueryBuilder { queryBuilder } = queryBuilder
-        |> buildQuery
-        |> setJust #distinctClause "DISTINCT"
-buildQuery DistinctOnQueryBuilder { queryBuilder, distinctOnColumn } = queryBuilder
-        |> buildQuery
-        |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
-buildQuery FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, value) } =
-            let
-                condition = VarCondition (columnName <> " " <> compileOperator operator <> " ?") value
-            in
-                queryBuilder
+buildQuery :: forall table q r. (KnownSymbol table, HasQueryBuilder q r) => q table -> SQLQuery
+buildQuery = buildQueryHelper . getQueryBuilder 
+    where
+    buildQueryHelper NewQueryBuilder =
+        let tableName = symbolToByteString @table
+        in SQLQuery
+                { selectFrom = tableName
+                , distinctClause = Nothing
+                , distinctOnClause = Nothing
+                , whereCondition = Nothing
+                , joins = []
+                , orderByClause = []
+                , limitClause = Nothing
+                , offsetClause = Nothing
+                }
+    buildQueryHelper DistinctQueryBuilder { queryBuilder } = queryBuilder
+            |> buildQuery
+            |> setJust #distinctClause "DISTINCT"
+    buildQueryHelper DistinctOnQueryBuilder { queryBuilder, distinctOnColumn } = queryBuilder
+            |> buildQuery
+            |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
+    buildQueryHelper FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, value) } =
+                let
+                    condition = VarCondition (columnName <> " " <> compileOperator operator <> " ?") value
+                in
+                    queryBuilder
+                        |> buildQuery
+                        |> modify #whereCondition \case
+                                Just c -> Just (AndCondition c condition)
+                                Nothing -> Just condition
+    buildQueryHelper OrderByQueryBuilder { queryBuilder, queryOrderByClause } = queryBuilder
+            |> buildQuery
+            |> modify #orderByClause (\value -> value <> [queryOrderByClause] ) -- although adding to the end of a list is bad form, these lists are very short
+    buildQueryHelper LimitQueryBuilder { queryBuilder, queryLimit } =
+                    queryBuilder
                     |> buildQuery
-                    |> modify #whereCondition \case
-                            Just c -> Just (AndCondition c condition)
-                            Nothing -> Just condition
-buildQuery OrderByQueryBuilder { queryBuilder, queryOrderByClause } = queryBuilder
-        |> buildQuery
-        |> modify #orderByClause (\value -> value <> [queryOrderByClause] ) -- although adding to the end of a list is bad form, these lists are very short
-buildQuery LimitQueryBuilder { queryBuilder, queryLimit } =
-                queryBuilder
-                |> buildQuery
-                |> setJust #limitClause (
-                        (Builder.byteString "LIMIT " <> Builder.intDec queryLimit)
-                        |> Builder.toLazyByteString
-                        |> LByteString.toStrict
-                    )
-buildQuery OffsetQueryBuilder { queryBuilder, queryOffset } = queryBuilder
-        |> buildQuery
-        |> setJust #offsetClause (
-                (Builder.byteString "OFFSET " <> Builder.intDec queryOffset)
-                |> Builder.toLazyByteString
-                |> LByteString.toStrict
-            )
-buildQuery UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder } =
-            let
-                firstQuery = buildQuery firstQueryBuilder
-                secondQuery = buildQuery secondQueryBuilder
-                isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
-                isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
-                unionWhere =
-                    case (whereCondition firstQuery, whereCondition secondQuery) of
-                        (Nothing, whereCondition) -> whereCondition
-                        (whereCondition, Nothing) -> whereCondition
-                        (Just firstWhere, Just secondWhere) -> Just $ OrCondition firstWhere secondWhere
-            in
-                if isSimpleUnion then
-                    firstQuery { whereCondition = unionWhere }
-                else
-                    error "buildQuery: Union of complex queries not supported yet"
-
-buildQuery JoinQueryBuilder {queryBuilder, join } =
-    let 
-        firstQuery = buildQuery queryBuilder
-     in firstQuery {joins = join:joins firstQuery}
-
+                    |> setJust #limitClause (
+                            (Builder.byteString "LIMIT " <> Builder.intDec queryLimit)
+                            |> Builder.toLazyByteString
+                            |> LByteString.toStrict
+                        )
+    buildQueryHelper OffsetQueryBuilder { queryBuilder, queryOffset } = queryBuilder
+            |> buildQuery
+            |> setJust #offsetClause (
+                    (Builder.byteString "OFFSET " <> Builder.intDec queryOffset)
+                    |> Builder.toLazyByteString
+                    |> LByteString.toStrict
+                )
+    buildQueryHelper UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder } =
+                let
+                    firstQuery = buildQuery firstQueryBuilder
+                    secondQuery = buildQuery secondQueryBuilder
+                    isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
+                    isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
+                    unionWhere =
+                        case (whereCondition firstQuery, whereCondition secondQuery) of
+                            (Nothing, whereCondition) -> whereCondition
+                            (whereCondition, Nothing) -> whereCondition
+                            (Just firstWhere, Just secondWhere) -> Just $ OrCondition firstWhere secondWhere
+                in
+                    if isSimpleUnion then
+                        firstQuery { whereCondition = unionWhere }
+                    else
+                        error "buildQuery: Union of complex queries not supported yet"
+    
+    buildQueryHelper JoinQueryBuilder {queryBuilder, join } =
+        let 
+            firstQuery = buildQuery queryBuilder
+         in firstQuery {joins = join:joins firstQuery}
+    
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
 -- __Example:__ Get the sql query that is represented by a QueryBuilder
