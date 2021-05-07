@@ -88,7 +88,7 @@ commonFetch !queryBuilder = do
 {-# INLINE commonFetchOneOrNothing #-}
 commonFetchOneOrNothing :: forall model table q r.(?modelContext :: ModelContext) => (KnownSymbol table, HasQueryBuilder q r, PG.FromRow model, KnownSymbol (GetTableName model)) => q table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
-    let !(theQuery, theParameters) = getQueryBuilder queryBuilder
+    let !(theQuery, theParameters) = queryBuilder
             |> buildQuery
             |> setJust #limitClause "LIMIT 1"
             |> toSQL'
@@ -118,7 +118,7 @@ commonFetchOne !queryBuilder = do
 -- >         |> filterWhere (#isActive, True)
 -- >         |> fetchCount
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
-fetchCount :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Int
+fetchCount :: forall table q r. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder q r) => q table -> IO Int
 fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
@@ -137,7 +137,7 @@ fetchCount !queryBuilder = do
 -- >         |> filterWhere (#isUnread, True)
 -- >         |> fetchExists
 -- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
-fetchExists :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Bool
+fetchExists :: forall table q r. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder q r) => q table -> IO Bool
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
