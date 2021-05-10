@@ -55,7 +55,10 @@ import System.Log.FastLogger (
     )
 
 import qualified System.Log.FastLogger as FastLogger (FormattedTime)
-
+import qualified System.Log.FastLogger.Date as FastLogger
+import Data.UnixTime (formatUnixTime, fromEpochTime)
+import System.PosixCompat.Types (EpochTime)
+import System.PosixCompat.Time (epochTime)
 
 -- some functions brought over from IHP.Prelude
 -- can't import due to circular dependency with IHP.ModelSupport which relies on this module
@@ -73,7 +76,6 @@ data Logger = Logger {
     write     :: (FastLogger.FormattedTime -> LogStr) -> IO (),
     level     :: LogLevel,
     formatter :: LogFormatter,
-    timeCache :: IO FastLogger.FormattedTime,
     cleanup   :: IO ()
 }
 
@@ -217,11 +219,14 @@ instance {-# OVERLAPS #-} LoggingProvider Logger where
 -- > newLogger def { level = Error }
 newLogger :: LoggerSettings -> IO Logger
 newLogger LoggerSettings { .. } = do
-    timeCache <- newTimeCache timeFormat
-    (write, cleanup) <- makeFastLogger timeCache destination
+    (write, cleanup) <- makeFastLogger destination
     pure Logger { .. }
     where
-        makeFastLogger timeCache destination = newTimedFastLogger timeCache $
+        getFormattedTime = epochTime >>= formatDate timeFormat
+
+        formatDate fmt = formatUnixTime fmt . fromEpochTime
+
+        makeFastLogger destination = newTimedFastLogger getFormattedTime $
             case destination of
                 None                    -> LogNone
                 Stdout buf              -> LogStdout buf
