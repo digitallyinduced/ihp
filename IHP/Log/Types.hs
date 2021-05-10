@@ -57,7 +57,6 @@ import System.Log.FastLogger (
 import qualified System.Log.FastLogger as FastLogger (FormattedTime)
 import qualified System.Log.FastLogger.Date as FastLogger
 import Data.UnixTime (formatUnixTime, fromEpochTime)
-import System.PosixCompat.Types (EpochTime)
 import System.PosixCompat.Time (epochTime)
 
 -- some functions brought over from IHP.Prelude

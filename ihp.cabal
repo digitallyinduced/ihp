@@ -92,6 +92,8 @@ common shared-properties
             , fast-logger
             , regex-pcre-builtin
             , pcre-utils
+            , unix-compat
+            , unix-time
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
