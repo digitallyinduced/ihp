@@ -99,7 +99,7 @@ Inside the HTML code replace `It's working!` with `Hello World from Haskell!`, l
 
 You'll see that the web browser magically refreshes once you save the file changes.
 
-**Did it work?** Congratulations 🎉 You've officially build your first haskell web application :) That makes you a haskell programmer. Welcome to the Haskell community! :)
+**Did it work?** Congratulations 🎉 You've officially built your first haskell web application :) That makes you a haskell programmer. Welcome to the Haskell community! :)
 
 
 If you liked the live reloading, have some fun and play a around with the welcome view before you continue with the next steps.

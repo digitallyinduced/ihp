@@ -90,3 +90,32 @@ scripts = [hsx|
         <script src="/ihp-auto-refresh.js"></script> <------ ADD THIS
     |]
 ```
+
+## Advanced Auto Refresh
+
+### Custom SQL Queries with Auto Refresh
+
+Auto Refresh automatically tracks all tables your action is using by hooking itself into the Query Builder and `fetch` functions.
+
+Let's say we're using custom sql query like this:
+
+```haskell
+action StatsAction = autoRefresh do
+    dailyNewCompanies <- sqlQuery "SELECT date, COUNT(distinct id) AS count FROM (SELECT date_trunc('day', companies.created_at) AS date, id FROM companies) AS companies_with_date GROUP BY date" ()
+
+    pure StatsView { ..}
+```
+
+When using this custom query with `sqlQuery`, Auto Refresh is not aware that we're reading from the `companies` table. In this case we need to help out Auto Refresh by calling `trackTableRead`:
+
+
+```haskell
+action StatsAction = autoRefresh do
+    dailyNewCompanies <- sqlQuery "SELECT date, COUNT(distinct id) AS count FROM (SELECT date_trunc('day', companies.created_at) AS date, id FROM companies) AS companies_with_date GROUP BY date" ()
+
+    trackTableRead "companies"
+
+    pure StatsView { ..}
+```
+
+The `trackTableRead` marks the table as accessed for Auto Refresh and leads to the table being watched.

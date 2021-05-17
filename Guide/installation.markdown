@@ -14,15 +14,15 @@ That's why we first need to make sure that you have nix installed.
 
 ### Mac
 
-Run this command in your terminal to install nix on your machine.
+Run this command in your terminal to install nix on your machine:
 
 ```bash
-sh <(curl -L https://nixos.org/nix/install) --darwin-use-unencrypted-nix-store-volume
+sh <(curl https://abathur-nix-install-tests.cachix.org/serve/yihf8zbs0jwph2rs9qfh80dnilijxdi2/install) --tarball-url-prefix https://abathur-nix-install-tests.cachix.org/serve
 ```
 
 After this restart your terminal.
 
-If you get an error like `error: refusing to create Nix store volume because the boot volume is FileVault encrypted, but encryption-at-rest is not available.`, follow the steps described [in this GitHub Issue](https://github.com/digitallyinduced/ihp/issues/93#issuecomment-639611313). We're working on improving this step.
+In case you wonder why we're not using the normal nix install command: We're using [the improved nix installer for mac](https://github.com/NixOS/nix/pull/4289) which already has been merged into nix, but not relased yet.
 
 ### Linux
 
