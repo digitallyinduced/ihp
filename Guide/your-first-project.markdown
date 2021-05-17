@@ -520,7 +520,7 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 All our existing posts are saved here. You should also commit this file to git to share your fixtures with your teammates. We will need these saved fixtures in a moment when we want to update the database schema.
 
-Let's add a new `created_at` column. Open [http://localhost:8001/Tables](http://localhost:8001/Tables), enter `created_at` and select Timestamp for the type. Also set the default value to `NOW()`.
+Let's add a new `created_at` column. Open [http://localhost:8001/Tables](http://localhost:8001/Tables), right-click on `posts`, select `Add Column to Table`, enter `created_at` for the name, select Timestamp for the type, set the default value to `NOW()`, and press `Create Column`.
 
 ![Schema Designer Timestamp column](images/first-project/timestamp_column.png)
 
