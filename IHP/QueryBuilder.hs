@@ -557,8 +557,8 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
     where 
         baseTableName = symbolToByteString @table
         joinTableName = symbolToByteString @table'
-        leftJoinColumn = baseTableName <> "." <> symbolToByteString @name 
-        rightJoinColumn = symbolToByteString @name'
+        leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
+        rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
 innerJoinThirdTable :: forall model model' name name' value value' table table' baseTable baseModel q joinRegister.
@@ -579,8 +579,8 @@ innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ Jo
      where 
         baseTableName = symbolToByteString @table'
         joinTableName = symbolToByteString @table
-        leftJoinColumn = baseTableName <> "." <> symbolToByteString @name' 
-        rightJoinColumn = symbolToByteString @name
+        leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
+        rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
 {-# INLINE innerJoinThirdTable #-}
                        
 
