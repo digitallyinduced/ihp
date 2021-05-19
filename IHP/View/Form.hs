@@ -17,14 +17,14 @@ import           IHP.View.ConvertibleStrings ()
 import           IHP.ViewErrorMessages
 import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5
-import IHP.HtmlSupport.ToHtml
+import IHP.HSX.ToHtml
 import IHP.NameSupport
 import GHC.Types
 import IHP.RouterSupport hiding (get)
 import IHP.ModelSupport (getModelName, inputValue, isNew, GetModelName, Id', NormalizeModel, MetaBag, InputValue)
-import IHP.HtmlSupport.QQ (hsx)
+import IHP.HSX.QQ (hsx)
 import IHP.View.Types
-import IHP.View.Classes 
+import IHP.View.Classes
 import qualified Network.Wai as Wai
 import IHP.Controller.Context
 
@@ -46,12 +46,12 @@ import IHP.Controller.Context
 -- >         <label for="post_title">Title</label>
 -- >         <input type="text" name="title" id="post_title" class="form-control" />
 -- >     </div>
--- > 
+-- >
 -- >     <div class="form-group" id="form-group-post_body">
 -- >         <label for="post_body">Body</label>
 -- >         <textarea name="body" id="post_body" class="form-control"></textarea>
 -- >     </div>
--- > 
+-- >
 -- >     <button class="btn btn-primary">Create Post</button>
 -- > </form>
 --
@@ -115,7 +115,7 @@ formFor record formBody = formForWithOptions @record @id @application record (\c
 -- >     {textareaField #body}
 -- >     {submitButton}
 -- > |]
--- > 
+-- >
 -- > formOptions :: FormContext Post -> FormContext Post
 -- > formOptions formContext = formContext
 -- >     |> set #formId "post-form"
@@ -153,7 +153,7 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 -- >     {textareaField #body}
 -- >     {submitButton}
 -- > |]
--- > 
+-- >
 -- > formOptions :: FormContext Post -> FormContext Post
 -- > formOptions formContext = formContext
 -- >     |> set #disableJavascriptSubmission True
@@ -174,23 +174,23 @@ formForWithoutJavascript record formBody = formForWithOptions @record @id @appli
 -- | Allows a custom form action (form submission url) to be set
 --
 -- The URL where the form is going to be submitted to is specified in HTML using the form's @action@ attribute. When using 'formFor' the @action@ attribute is automatically set to the expected path.
--- 
+--
 -- E.g. given the below 'formFor' code, the @action@ is set to @/CreatePost@ or @/UpdatePost@:
--- 
+--
 -- > renderForm :: Post -> Html
 -- > renderForm post = formFor post [hsx|
 -- >     {textField #title}
 -- >     {textareaField #body}
 -- >     {submitButton}
 -- > |]
--- 
+--
 -- To override the auto-generated @action@ attribute use the 'formFor\'' function:
--- 
+--
 -- > renderForm :: Post -> Html
 -- > renderForm post = formFor' post "/my-custom-endpoint" [hsx||]
--- 
+--
 -- If you pass an action to that, you need to wrap it with 'pathTo':
--- 
+--
 -- > renderForm :: Post -> Html
 -- > renderForm post = formFor' post (pathTo CreateDraftAction) [hsx||]
 --
@@ -328,7 +328,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input type="text" name="title" id="post_title" class="form-control" />
 -- >     <small class="form-text text-muted">Max. 140 characters</small>
 -- > </div>
@@ -376,7 +376,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input
 -- >         type="text"
 -- >         name="title"
@@ -397,7 +397,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input
 -- >         type="text"
 -- >         name="title"
@@ -417,7 +417,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input
 -- >         type="text"
 -- >         name="title"

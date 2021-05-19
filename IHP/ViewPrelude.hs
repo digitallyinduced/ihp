@@ -41,8 +41,8 @@ import           IHP.ViewSupport
 import Text.Blaze (preEscapedText, stringValue, text, (!))
 import Text.Blaze.Html5 (preEscapedToHtml)
 import IHP.View.Form
-import IHP.HtmlSupport.QQ (hsx)
-import IHP.HtmlSupport.ToHtml
+import IHP.HSX.QQ (hsx)
+import IHP.HSX.ToHtml
 import IHP.View.TimeAgo
 import IHP.ValidationSupport
 import IHP.Controller.RequestContext

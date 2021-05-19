@@ -1,7 +1,8 @@
 {-# LANGUAGE  UndecidableInstances #-}
 
-module IHP.HtmlSupport.ToHtml where
-import qualified Text.Blaze.Html5              as Html5
+module IHP.HSX.ToHtml where
+
+import qualified Text.Blaze.Html5 as Html5
 import qualified Text.Blaze.Internal
 import ClassyPrelude
 import Data.String.Conversions (cs)
@@ -35,4 +36,3 @@ instance {-# OVERLAPPABLE #-} Show a => ToHtml (Maybe a) where
 instance {-# OVERLAPPABLE #-} Show a => ToHtml a where
     {-# INLINE toHtml #-}
     toHtml value = cs (show value)
-

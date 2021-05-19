@@ -154,9 +154,9 @@ library
         , IHP.Controller.Context
         , IHP.Controller.Layout
         , IHP.Controller.BasicAuth
-        , IHP.HtmlSupport.Parser
-        , IHP.HtmlSupport.QQ
-        , IHP.HtmlSupport.ToHtml
+        , IHP.HSX.Parser
+        , IHP.HSX.QQ
+        , IHP.HSX.ToHtml
         , IHP.LoginSupport.Helper.Controller
         , IHP.LoginSupport.Helper.View
         , IHP.LoginSupport.Middleware

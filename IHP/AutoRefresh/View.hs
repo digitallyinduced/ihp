@@ -3,7 +3,7 @@ module IHP.AutoRefresh.View where
 import IHP.Prelude
 import IHP.ViewSupport
 import IHP.AutoRefresh.Types
-import IHP.HtmlSupport.QQ (hsx)
+import IHP.HSX.QQ (hsx)
 import qualified Text.Blaze.Html5 as Html5
 import IHP.Controller.Context
 
