@@ -48,6 +48,7 @@ class Fetchable fetchable model | fetchable -> model where
     fetchOneOrNothing :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO (Maybe model)
     fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO model
 
+-- The instance declaration had to be split up because a type variable ranging over HasQueryBuilder instances is not allowed in the declaration of the associated type. The common*-functions reduce the redundancy to the necessary minimum.
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (QueryBuilder table) model where
     type instance FetchResult (QueryBuilder table) model = [model]
     {-# INLINE fetch #-}
@@ -75,6 +76,21 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Jo
     {-# INLINE fetchOne #-}
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => JoinQueryBuilderWrapper r table -> IO model
     fetchOne = commonFetchOne
+
+instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (NoJoinQueryBuilderWrapper table) model where
+    type instance FetchResult (NoJoinQueryBuilderWrapper table) model = [model]
+    {-# INLINE fetch #-}
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => NoJoinQueryBuilderWrapper table -> IO [model]
+    fetch = commonFetch 
+
+    {-# INLINE fetchOneOrNothing #-}
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO (Maybe model)
+    fetchOneOrNothing = commonFetchOneOrNothing
+
+    {-# INLINE fetchOne #-}
+    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO model
+    fetchOne = commonFetchOne
+
 
 
 {-# INLINE commonFetch #-}
