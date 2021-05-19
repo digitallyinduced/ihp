@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell, UndecidableInstances, BangPatterns #-}
 
-module IHP.HtmlSupport.QQ (hsx) where
+module IHP.HSX.QQ (hsx) where
 
 import           ClassyPrelude
-import           IHP.HtmlSupport.Parser
+import           IHP.HSX.Parser
 import qualified "template-haskell" Language.Haskell.TH           as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
@@ -13,7 +13,7 @@ import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
 import Data.String.Conversions
-import IHP.HtmlSupport.ToHtml
+import IHP.HSX.ToHtml
 import Control.Monad.Fail
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Blaze.Html.Renderer.String as BlazeString
@@ -49,7 +49,7 @@ compileToHaskell (Node name attributes children isLeaf) =
         stringAttributes = TH.listE $ map toStringAttribute attributes
         openTag :: Text
         openTag = "<" <> tag
-        tag :: Text 
+        tag :: Text
         tag = cs name
     in
         if isLeaf

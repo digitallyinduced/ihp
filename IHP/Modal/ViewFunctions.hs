@@ -7,7 +7,7 @@ module IHP.Modal.ViewFunctions (modal, renderModal) where
 
 import IHP.Prelude
 import IHP.Controller.Context
-import IHP.HtmlSupport.QQ (hsx)
+import IHP.HSX.QQ (hsx)
 import IHP.Modal.Types
 import Text.Blaze.Html5 (Html, preEscapedText)
 
@@ -52,7 +52,7 @@ renderModalHeader title closeUrl = [hsx|
 |]
 
 modal :: (?context :: ControllerContext) => Html
-modal = 
+modal =
     case maybeFromFrozenContext of
         Just (ModalContainer html) -> html
         Nothing -> mempty

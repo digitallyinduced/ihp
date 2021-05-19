@@ -35,7 +35,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.OverloadedLabels
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
-import IHP.HtmlSupport.ToHtml
+import IHP.HSX.ToHtml
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
