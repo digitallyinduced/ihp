@@ -400,6 +400,15 @@ filterWhere (name, value) queryBuilderProvider = injectQueryBuilder FilterByQuer
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhere #-}
 
+-- | Like filterWhere, but takes a type argument specifying the table which holds the column that is to be compared. The column must have been joined before using innerJoin or innerJoinThirdTable. Example: 
+--
+-- > tomPosts <- query @Post
+-- >                    |> innerJoin @User (#createdBy, #id)
+-- >                    |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
+-- >                    |> fetch
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON post.created_by = users.id WHERE users.name = 'Tom'
+--
+--
 filterWhereJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder q joinRegister, IsJoined model joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value) }
     where
@@ -426,6 +435,7 @@ filterWhereIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQu
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIn #-}
 
+-- | Like filterWhereIn, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
 filterWhereInJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister, IsJoined model joinRegister) => (Proxy name, [value]) -> q table' -> q table'
 filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)) }
     where
@@ -453,6 +463,7 @@ filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterB
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotIn #-}
 
+-- | Like filterWhereNotIn, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
 filterWhereNotInJoinedTable :: forall model name table  value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, [value]) -> q table' -> q table'
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)) }
@@ -477,6 +488,7 @@ filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterBy
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereLike #-}
 
+-- | Like filterWhereLike, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
 filterWhereLikeJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
     where
@@ -541,6 +553,10 @@ filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder Fi
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereSql #-}
 
+-- | Joins a table to an existing QueryBuilder (or something holding a QueryBuilder) on the specified columns. Example:
+-- > query @Posts |>
+-- > innerJoin @Users (#author, #id)
+-- > -- SELECT users.* FROM users INNER JOIN posts ON users.id = posts.author ...
 innerJoin :: forall model' table' name' value' model table name value q joinRegister.
                             (
                                 KnownSymbol name, 
@@ -562,6 +578,12 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
+-- | Joins a table on a column held by a previously joined table. Example:
+-- > query @Posts |>
+-- > innerJoin @Users (#author, #id)
+-- > innerJoinThirdTable @City @Users (#id, #homeTown)
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.author = users.id INNER JOIN cities ON user.home_town = cities.id
+--
 innerJoinThirdTable :: forall model model' name name' value value' table table' baseTable baseModel q joinRegister.
                         ( 
                             KnownSymbol name,
