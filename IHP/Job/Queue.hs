@@ -126,6 +126,36 @@ jobDidFail job exception = do
 
     pure ()
 
+jobDidTimeout :: forall job.
+  ( job ~ GetModelByTableName (GetTableName job)
+  , SetField "lockedBy" job (Maybe UUID)
+  , SetField "status" job JobStatus
+  , SetField "updatedAt" job UTCTime
+  , HasField "attemptsCount" job Int
+  , SetField "lastError" job (Maybe Text)
+  , Job job
+  , CanUpdate job
+  , Show job
+  , ?modelContext :: ModelContext
+  ) => job -> IO ()
+jobDidTimeout job = do
+  updatedAt <- getCurrentTime
+
+  putStrLn "Job timed out"
+
+  let ?job = job
+  let canRetry = get #attemptsCount job < maxAttempts
+  let status = if canRetry then JobStatusRetry else JobStatusTimedOut
+  job
+    |> set #status status
+    |> set #lockedBy Nothing
+    |> set #updatedAt updatedAt
+    |> set #lastError (Just "Timeout reached")
+    |> updateRecord
+
+  pure ()
+  
+
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
 jobDidSucceed :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
@@ -157,6 +187,7 @@ instance PG.FromField JobStatus where
     fromField field (Just "job_status_not_started") = pure JobStatusNotStarted
     fromField field (Just "job_status_running") = pure JobStatusRunning
     fromField field (Just "job_status_failed") = pure JobStatusFailed
+    fromField field (Just "job_status_timed_out") = pure JobStatusTimedOut
     fromField field (Just "job_status_succeeded") = pure JobStatusSucceeded
     fromField field (Just "job_status_retry") = pure JobStatusRetry
     fromField field (Just value) = PG.returnError PG.ConversionFailed field ("Unexpected value for enum value. Got: " <> cs value)
@@ -173,6 +204,7 @@ instance PG.ToField JobStatus where
     toField JobStatusNotStarted = PG.toField ("job_status_not_started" :: Text)
     toField JobStatusRunning = PG.toField ("job_status_running" :: Text)
     toField JobStatusFailed = PG.toField ("job_status_failed" :: Text)
+    toField JobStatusTimedOut = PG.toField ("job_status_timed_out" :: Text)
     toField JobStatusSucceeded = PG.toField ("job_status_succeeded" :: Text)
     toField JobStatusRetry = PG.toField ("job_status_retry" :: Text)
 
@@ -180,6 +212,7 @@ instance InputValue JobStatus where
     inputValue JobStatusNotStarted = "job_status_not_started" :: Text
     inputValue JobStatusRunning = "job_status_running" :: Text
     inputValue JobStatusFailed = "job_status_failed" :: Text
+    inputValue JobStatusTimedOut = "job_status_timed_out" :: Text
     inputValue JobStatusSucceeded = "job_status_succeeded" :: Text
     inputValue JobStatusRetry = "job_status_retry" :: Text
 

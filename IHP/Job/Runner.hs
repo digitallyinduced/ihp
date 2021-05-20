@@ -10,6 +10,7 @@ import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.ScriptSupport
 import IHP.Job.Types
+import Control.Monad (void)
 import qualified IHP.Job.Queue as Queue
 import qualified Control.Exception as Exception
 import qualified Database.PostgreSQL.Simple as PG
@@ -20,6 +21,7 @@ import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
 import qualified System.Posix.Signals as Signals
 import qualified System.Exit as Exit
+import qualified System.Timeout as Timeout
 
 runJobWorkers :: [JobWorker] -> Script
 runJobWorkers jobWorkers = do
@@ -116,10 +118,13 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
                     case maybeJob of
                         Just job -> do
                             putStrLn ("Starting job: " <> tshow job)
-                            resultOrException <- Exception.try (restore (perform job))
+                            let ?job = job
+                            let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
+                            resultOrException <- Exception.try (Timeout.timeout timeout $ restore (perform job))
                             case resultOrException of
                                 Left exception -> Queue.jobDidFail job exception
-                                Right _ -> Queue.jobDidSucceed job
+                                Right Nothing -> Queue.jobDidTimeout job
+                                Right (Just _) -> Queue.jobDidSucceed job
 
                             startLoop
                         Nothing -> pure ()
