@@ -115,11 +115,17 @@ tests = do
         describe "filterWhereILike" do
             it "should produce a SQL with a WHERE condition" do
                 let searchTerm = "good"
-                let theQuery = query @Article
+                let theQuery = query @Post
                      |> filterWhereILike (#title, "%" <> searchTerm <> "%")
-                (toSQL theQuery `shouldBe` ("SELECT * FROM articles WHERE title ILIKE '%good%'", []))
+                (toSQL theQuery `shouldBe` ("SELECT posts.* FROM posts WHERE title ILIKE ?", [Escape "%good%"]))
 
-
+        describe "filterWhereILikeJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let searchTerm = "louis"
+                let theQuery = query @Post
+                     |> innerJoin @User (#createdBy, #id)
+                     |> filterWhereILikeJoinedTable @User (#name, "%" <> searchTerm <> "%")
+                (toSQL theQuery `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE ?", [Escape "%louis%"]))
         
         describe "filterWhereSql" do
             it "should produce a SQL with a WHERE condition" do
@@ -135,7 +141,7 @@ tests = do
                         |> innerJoin @User (#createdBy, #id)
                         |> innerJoin @FavoriteTitle (#title, #title)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.createdBy = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title", [])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title", [])
 
 
         describe "innerJoinThirdTable" do
@@ -145,7 +151,7 @@ tests = do
                         |> innerJoin @FavoriteTitle (#title, #title)
                         |> innerJoinThirdTable @User @FavoriteTitle (#name, #title)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.createdBy = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON favorite_title.title = users.name", [])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON favorite_title.title = users.name", [])
 
         describe "filterWhereJoinedTable" do
             it "should provide an inner join sql query" do
@@ -154,7 +160,7 @@ tests = do
                         |> innerJoin @FavoriteTitle (#title, #title)
                         |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.createdBy = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name = ?", [Escape "Tom"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name = ?", [Escape "Tom"])
 
 
 
