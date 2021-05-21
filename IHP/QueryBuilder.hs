@@ -512,6 +512,15 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterB
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereILike #-}
 
+
+filterWhereILikeJoinedTable :: forall model table name table' model' value q joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereILikeJoinedTable #-}
+
+
 -- | Adds a @WHERE x ~ y@ condition to the query.
 --
 -- __Example:__ Find names with titles in front.
