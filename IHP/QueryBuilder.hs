@@ -32,6 +32,7 @@ module IHP.QueryBuilder
 , filterWhereInJoinedTable
 , filterWhereNotInJoinedTable
 , filterWhereLikeJoinedTable
+, filterWhereILikeJoinedTable
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -513,7 +514,7 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 {-# INLINE filterWhereILike #-}
 
 
-filterWhereILikeJoinedTable :: forall model table name table' model' value q joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhereILikeJoinedTable :: forall model table name table' model' value q joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
