@@ -78,7 +78,19 @@ projectsByUser userId = do
     return projects
 ```
 
-Or the more general `filterWhereSql`:
+Use `filterWhereNot` to negate a condition:
+
+```haskell
+projectsByUser :: UserId -> IO [Project]
+projectsByUser userId = do
+    otherProjects <- query @Project
+            |> filterWhereNot (#userId, userId)
+            |> fetch
+    -- Query: `SELECT * FROM projects WHERE user_id != <userId>`
+    return otherProjects
+```
+
+You can also use the more general `filterWhereSql`:
 
 ```haskell
 retiredEmployees :: IO [Employee]
