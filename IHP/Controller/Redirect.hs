@@ -6,7 +6,6 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Controller.Redirect
 ( redirectTo
 , redirectToPath
-, forceRedirectToPath
 , redirectToUrl
 , redirectBack
 , redirectBackWithFallback
@@ -53,18 +52,6 @@ redirectTo action = redirectToPath (pathTo action)
 redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
 redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
 {-# INLINABLE redirectToPath #-}
-
--- | like 'redirectToPath', but forcing full page reload
---
--- Forces reload by using a custom HTTP OK header mimicking a HTTP redirect
--- which is used as a signal to the AJAX call to perform page reload.
--- currently this is a workaround of last resort when you can't make your Javscript
--- code behave properly together with morphdom and/or turbolinks
---
--- use 'forceRedirectToPath (pathTo action)' if you want to redirect to a controller action
-forceRedirectToPath :: (?context :: ControllerContext) => Text -> IO ()
-forceRedirectToPath path = respondAndExit $ Wai.responseLBS (Status 280 "IHP ForceRedirect") [(hLocation,  cs (fromConfig baseUrl <> path))] ""
-{-# INLINABLE forceRedirectToPath #-}
 
 -- | Redirects to a url (given as a string)
 --
