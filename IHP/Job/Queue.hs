@@ -131,60 +131,60 @@ jobDidFail job exception = do
 
 -- | Called by jobDidFail. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
 jobDidFail' :: forall job.
-  ( job ~ GetModelByTableName (GetTableName job)
-  , SetField "lockedBy" job (Maybe UUID)
-  , SetField "status" job JobStatus
-  , SetField "updatedAt" job UTCTime
-  , HasField "attemptsCount" job Int
-  , SetField "lastError" job (Maybe Text)
-  , Job job
-  , CanUpdate job
-  , Show job
-  , ?modelContext :: ModelContext
-  ) => job -> Text -> IO ()
+    ( job ~ GetModelByTableName (GetTableName job)
+    , SetField "lockedBy" job (Maybe UUID)
+    , SetField "status" job JobStatus
+    , SetField "updatedAt" job UTCTime
+    , HasField "attemptsCount" job Int
+    , SetField "lastError" job (Maybe Text)
+    , Job job
+    , CanUpdate job
+    , Show job
+    , ?modelContext :: ModelContext
+    ) => job -> Text -> IO ()
 jobDidFail' job lastExceptionMessage = do
-  updatedAt <- getCurrentTime
+    updatedAt <- getCurrentTime
 
-  let ?job = job
-  let canRetry = get #attemptsCount job < maxAttempts
-  let status = if canRetry then JobStatusRetry else JobStatusFailed
-  job
-    |> set #status status
-    |> set #lockedBy Nothing
-    |> set #updatedAt updatedAt
-    |> set #lastError (Just lastExceptionMessage)
-    |> updateRecord
+    let ?job = job
+    let canRetry = get #attemptsCount job < maxAttempts
+    let status = if canRetry then JobStatusRetry else JobStatusFailed
+    job
+        |> set #status status
+        |> set #lockedBy Nothing
+        |> set #updatedAt updatedAt
+        |> set #lastError (Just lastExceptionMessage)
+        |> updateRecord
 
-  pure ()
+    pure ()
 
 jobDidTimeout :: forall job.
-  ( job ~ GetModelByTableName (GetTableName job)
-  , SetField "lockedBy" job (Maybe UUID)
-  , SetField "status" job JobStatus
-  , SetField "updatedAt" job UTCTime
-  , HasField "attemptsCount" job Int
-  , SetField "lastError" job (Maybe Text)
-  , Job job
-  , CanUpdate job
-  , Show job
-  , ?modelContext :: ModelContext
-  ) => job -> IO ()
+    ( job ~ GetModelByTableName (GetTableName job)
+    , SetField "lockedBy" job (Maybe UUID)
+    , SetField "status" job JobStatus
+    , SetField "updatedAt" job UTCTime
+    , HasField "attemptsCount" job Int
+    , SetField "lastError" job (Maybe Text)
+    , Job job
+    , CanUpdate job
+    , Show job
+    , ?modelContext :: ModelContext
+    ) => job -> IO ()
 jobDidTimeout job = do
-  updatedAt <- getCurrentTime
+    updatedAt <- getCurrentTime
 
-  putStrLn "Job timed out"
+    putStrLn "Job timed out"
 
-  let ?job = job
-  let canRetry = get #attemptsCount job < maxAttempts
-  let status = if canRetry then JobStatusRetry else JobStatusTimedOut
-  job
-    |> set #status status
-    |> set #lockedBy Nothing
-    |> set #updatedAt updatedAt
-    |> set #lastError (Just "Timeout reached")
-    |> updateRecord
+    let ?job = job
+    let canRetry = get #attemptsCount job < maxAttempts
+    let status = if canRetry then JobStatusRetry else JobStatusTimedOut
+    job
+        |> set #status status
+        |> set #lockedBy Nothing
+        |> set #updatedAt updatedAt
+        |> set #lastError (Just "Timeout reached")
+        |> updateRecord
 
-  pure ()
+    pure ()
   
 
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
