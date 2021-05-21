@@ -5,9 +5,8 @@ Module: IHP.HaskellSupport
 Description: Provides helpers to write better haskell code
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.HaskellSupport (
- (|>)
-, isEmpty
+module IHP.HaskellSupport
+( (|>)
 , whenEmpty
 , whenNonEmpty
 , get
