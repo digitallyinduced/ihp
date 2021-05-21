@@ -108,6 +108,9 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig
     let ?modelContext = modelContext
 
+    runningJobs <- Queue.fetchRunningJobs @job
+    mapM_ (Queue.jobDidFail' job "Job was running at startup") runningJobs
+
     -- This loop schedules all jobs that are in the queue.
     -- It will be initally be called when first starting up this job worker
     -- and after that it will be called when something has been inserted into the queue (or changed to retry)

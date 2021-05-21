@@ -18,6 +18,22 @@ import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.Controller.Param
 
+fetchRunningJobs :: forall job.
+  ( ?modelContext :: ModelContext
+  , job ~ GetModelByTableName (GetTableName job)
+  , FilterPrimaryKey (GetTableName job)
+  , FromRow job
+  , Show (PrimaryKey (GetTableName job))
+  , PG.FromField (PrimaryKey (GetTableName job))
+  , KnownSymbol (GetTableName job)
+  ) => IO [job]
+fetchRunningJobs = do
+  let query = "SELECT * " <>
+              "FROM ? " <>
+              "WHERE status = 'job_status_running'"
+  let params = PG.Only $ PG.Identifier (tableName @job)
+  sqlQuery query params
+  
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
 -- The lock is set on the job row in an atomic way.
@@ -96,7 +112,7 @@ createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionN
 eventName :: Text -> Text
 eventName tableName = "job_available_" <> tableName
 
--- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
+-- | Called when a job failed. Uses jobDidFail' under the hood to set the job's status.
 jobDidFail :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
     , SetField "lockedBy" job (Maybe UUID)
@@ -110,21 +126,36 @@ jobDidFail :: forall job.
     , ?modelContext :: ModelContext
     ) => job -> SomeException -> IO ()
 jobDidFail job exception = do
-    updatedAt <- getCurrentTime
-
     putStrLn ("Failed job with exception: " <> tshow exception)
+    jobDidFail' job $ tshow exception
 
-    let ?job = job
-    let canRetry = get #attemptsCount job < maxAttempts
-    let status = if canRetry then JobStatusRetry else JobStatusFailed
-    job
-        |> set #status status
-        |> set #lockedBy Nothing
-        |> set #updatedAt updatedAt
-        |> set #lastError (Just (tshow exception))
-        |> updateRecord
+-- | Called by jobDidFail. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
+jobDidFail' :: forall job.
+  ( job ~ GetModelByTableName (GetTableName job)
+  , SetField "lockedBy" job (Maybe UUID)
+  , SetField "status" job JobStatus
+  , SetField "updatedAt" job UTCTime
+  , HasField "attemptsCount" job Int
+  , SetField "lastError" job (Maybe Text)
+  , Job job
+  , CanUpdate job
+  , Show job
+  , ?modelContext :: ModelContext
+  ) => job -> Text -> IO ()
+jobDidFail' job lastExceptionMessage = do
+  updatedAt <- getCurrentTime
 
-    pure ()
+  let ?job = job
+  let canRetry = get #attemptsCount job < maxAttempts
+  let status = if canRetry then JobStatusRetry else JobStatusFailed
+  job
+    |> set #status status
+    |> set #lockedBy Nothing
+    |> set #updatedAt updatedAt
+    |> set #lastError (Just lastExceptionMessage)
+    |> updateRecord
+
+  pure ()
 
 jobDidTimeout :: forall job.
   ( job ~ GetModelByTableName (GetTableName job)
