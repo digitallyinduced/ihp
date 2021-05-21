@@ -118,7 +118,10 @@ generateController schema config =
             <> "        render EditView { .. }\n"
 
         modelFields :: [Text]
-        modelFields = fieldsForTable schema (modelNameToTableName modelVariableSingular)
+        modelFields = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                |> mapMaybe (fieldsForTable schema)
+                |> headMay
+                |> fromMaybe []
 
         updateAction =
             ""
