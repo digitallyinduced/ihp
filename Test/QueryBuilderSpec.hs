@@ -112,6 +112,13 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT users.* FROM users INNER JOIN posts ON users.name = posts.title", [])
 
+        describe "filterWhereILike" do
+            it "should produce a SQL with a WHERE condition" do
+                let searchTerm = "good"
+                let theQuery = query @Article
+                     |> filterWhereILike (#title, "%" <> searchTerm <> "%")
+                (toSQL theQuery `shouldBe` ("SELECT * FROM articles WHERE title ILIKE '%good%'", []))
+
 
         
         describe "filterWhereSql" do
