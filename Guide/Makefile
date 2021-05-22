@@ -40,6 +40,7 @@ HTML_FILES+= logging.html
 HTML_FILES+= purescript.html
 HTML_FILES+= websockets.html
 HTML_FILES+= helpful-tips.html
+HTML_FILES+= assets.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 
