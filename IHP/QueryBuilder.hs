@@ -403,12 +403,13 @@ filterWhere (name, value) queryBuilderProvider = injectQueryBuilder FilterByQuer
 
 -- | Like filterWhere, but takes a type argument specifying the table which holds the column that is to be compared. The column must have been joined before using innerJoin or innerJoinThirdTable. Example: 
 --
+-- __Example:__ get posts by user Tom.
+--
 -- > tomPosts <- query @Post
 -- >                    |> innerJoin @User (#createdBy, #id)
 -- >                    |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
 -- >                    |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON post.created_by = users.id WHERE users.name = 'Tom'
---
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name = 'Tom'
 --
 filterWhereJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder q joinRegister, IsJoined model joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value) }
@@ -437,6 +438,15 @@ filterWhereIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQu
 {-# INLINE filterWhereIn #-}
 
 -- | Like filterWhereIn, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
+-- 
+-- __Example:__ get posts by Tom and Tim.
+--
+-- > tomOrTimPosts <- query @Post 
+-- >    |> innerJoin @User (#createdBy, #id) 
+-- >    |> filterWhereInJoinedTable @User (#name, ["Tom","Tim"]) 
+-- >    |> fetch
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name IN ('Tom', 'Tim') 
+--
 filterWhereInJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister, IsJoined model joinRegister) => (Proxy name, [value]) -> q table' -> q table'
 filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)) }
     where
@@ -465,6 +475,15 @@ filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 {-# INLINE filterWhereNotIn #-}
 
 -- | Like filterWhereNotIn, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
+--
+-- __Example:__ get posts by users not named Tom or Tim.
+--
+-- > notTomOrTimPosts <-
+-- >    query @Post |> 
+-- >    innerJoin @User (#createdBy, #id) |> 
+-- >    filterWhereNotInJoinedTable @User (#name, ["Tom","Tim"]) |>
+-- >    fetch
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name NOT IN ('Tom', 'Tim')
 filterWhereNotInJoinedTable :: forall model name table  value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, [value]) -> q table' -> q table'
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)) }
@@ -490,6 +509,14 @@ filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterBy
 {-# INLINE filterWhereLike #-}
 
 -- | Like filterWhereLike, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
+--
+-- __Example:__ Serach for Posts by users whose name contains "olaf" (case insensitive)
+--
+-- > olafPosts <- query @Post |> 
+-- >                innerJoin @User (#createdBy, #id) |> 
+-- >                filterWhereLikeJoinedTable @User (#name, "%Olaf%") |<
+-- Y                fetch
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name LIKE '%Olaf%'
 filterWhereLikeJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
     where
@@ -513,6 +540,15 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterB
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereILike #-}
 
+-- | Like filterWhereILike; case-insensitive version of filterWhereLikeJoinedTable, takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
+--
+-- __Example:__ Serach for Posts by users whose name contains "olaf" (case insensitive)
+--
+-- > olafPosts <- 
+-- >    query @Post |> 
+--      innerJoin @User (#createdBy, #id) |> 
+--      filterWhereILikeJoinedTable @User (#name, "%Olaf%")
+-- > --SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%' 
 
 filterWhereILikeJoinedTable :: forall model table name table' model' value q joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
@@ -537,13 +573,40 @@ filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder Filte
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereMatches #-}
 
+-- | Adds a @WHERE x ~ y@ condition to the query, where the column x is held by a joined table.
+--
+-- __Example:__ Find Posts by people with names with titles in front.
+--
+-- > articles <- query @Post
+-- >     |> innerJoin @User (#createdBy, #id)
+-- >     |> filterWhereMatchesJoinedTable (#title, "^(M(rs|r|iss|s)|Dr|Sir). ")
+-- >     |> fetch
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.title ~ '^(M(rs|r|iss|s)|Dr|Sir). '
+
+filterWhereMatchesJoinedTable :: forall table name model value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereMatchesJoinedTable #-}
+
+
 -- | Adds a @WHERE x ~* y@ condition to the query. Case-insensitive version of 'filterWhereMatches'.
-filterWhereIMatches :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhereIMatches :: forall name table model value q joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
 filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value) }
+    where
+        columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereIMatches #-}
+
+-- | Case-insensitive version of 'filterWhereMatchesJoinedTable'
+filterWhereIMatchesJoinedTable :: forall table name model value q joinRegister table'. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
-{-# INLINE filterWhereIMatches #-}
+{-# INLINE filterWhereIMatchesJoinedTable #-}
+
 
 -- | Allows to add a custom raw sql where condition
 --
