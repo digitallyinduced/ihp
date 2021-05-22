@@ -9,7 +9,7 @@ After updating your project, please consult the segments from your current relea
 Open `default.nix` and change the git commit in line 4 to the following:
 
 ```diff
--ref = "refs/tags/v0.8.0";
+-ref = "refs/tags/v0.9.0";
 +ref = "refs/tags/v0.10.0";
 ```
 
