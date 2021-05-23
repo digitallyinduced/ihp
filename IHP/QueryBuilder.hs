@@ -33,6 +33,8 @@ module IHP.QueryBuilder
 , filterWhereNotInJoinedTable
 , filterWhereLikeJoinedTable
 , filterWhereILikeJoinedTable
+, filterWhereMatchesJoinedTable
+, filterWhereIMatchesJoinedTable
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
