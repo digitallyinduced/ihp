@@ -11,7 +11,6 @@ For more complex sql queries, use 'IHP.ModelSupport.sqlQuery'.
 -}
 module IHP.QueryBuilder
 ( query
-, filterWhere
 , QueryBuilder (..)
 , In (In)
 , orderBy
@@ -22,6 +21,8 @@ module IHP.QueryBuilder
 , queryUnion
 , queryOr
 , DefaultScope (..)
+, filterWhere
+, filterWhereNot
 , filterWhereIn
 , filterWhereNotIn
 , filterWhereLike
@@ -62,7 +63,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.OverloadedLabels
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
-import IHP.HtmlSupport.ToHtml
+import IHP.HSX.ToHtml
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
@@ -81,18 +82,46 @@ instance Default (QueryBuilder table) where
 
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
 
-data FilterOperator = EqOp | InOp | NotInOp | IsOp | LikeOp !MatchSensitivity | MatchesOp !MatchSensitivity | SqlOp deriving (Show, Eq)
+data FilterOperator
+    = EqOp -- ^ @col = val@
+    | NotEqOp -- ^ @col != val@
+    | InOp -- ^ @col IN (set)@
+    | NotInOp -- ^ @col NOT IN (set)@
+    | IsOp -- ^ @col IS val@
+    | IsNotOp -- ^ @col IS NOT val@
+    | LikeOp !MatchSensitivity -- ^ @col LIKE val@
+    | NotLikeOp !MatchSensitivity -- ^ @col NOT LIKE val@
+    | MatchesOp !MatchSensitivity -- ^ @col ~ pattern@
+    | SqlOp -- ^ Used by 'filterWhereSql'
+    deriving (Show, Eq)
 
-{-# INLINE compileOperator #-}
+
+compileOperator :: FilterOperator -> ByteString
 compileOperator EqOp = "="
+compileOperator NotEqOp = "!="
 compileOperator InOp = "IN"
 compileOperator NotInOp = "NOT IN"
 compileOperator IsOp = "IS"
+compileOperator IsNotOp = "IS NOT"
 compileOperator (LikeOp CaseSensitive) = "LIKE"
 compileOperator (LikeOp CaseInsensitive) = "ILIKE"
-compileOperator (MatchesOp CaseSensitive) = "~"
-compileOperator (MatchesOp CaseInsensitive) = "~*"
+compileOperator (NotLikeOp CaseSensitive) = "NOT LIKE"
+compileOperator (NotLikeOp CaseInsensitive) = "NOT ILIKE"
 compileOperator SqlOp = ""
+{-# INLINE compileOperator #-}
+
+-- | Returns the "NOT" version of an operator
+--
+-- >>> negateFilterOperator EqOp
+-- NotEqOp
+--
+negateFilterOperator :: FilterOperator -> FilterOperator
+negateFilterOperator EqOp = NotEqOp
+negateFilterOperator InOp = NotInOp
+negateFilterOperator IsOp = IsNotOp
+negateFilterOperator (LikeOp matchSensitivity) = (NotLikeOp matchSensitivity)
+negateFilterOperator (MatchesOp matchSensitivity) = error "not supported"
+negateFilterOperator SqlOp = SqlOp
 
 data OrderByClause =
     OrderByClause
@@ -360,7 +389,7 @@ compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileCondit
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
 
 class FilterPrimaryKey table where
-    filterWhereId :: (HasQueryBuilder q joinRegister) => Id' table -> q table -> q table
+    filterWhereId :: Id' table -> QueryBuilder table -> QueryBuilder table
 
 -- | Adds a simple @WHERE x = y@ condition to the query.
 --
@@ -381,7 +410,7 @@ class FilterPrimaryKey table where
 --
 -- __Example:__ Find active projects owned by the current user.
 --
--- > projects <- query @User
+-- > projects <- query @Project
 -- >     |> filterWhere (#active, True)
 -- >     |> filterWhere (#currentUserId, currentUserId)
 -- >     |> fetch
@@ -420,6 +449,20 @@ filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder F
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereJoinedTable #-}
 
+-- | Like 'filterWhere' but negates the condition.
+--
+-- __Example:__ Only show projects created by other users.
+--
+-- > activeProjects <- query @Project
+-- >     |> filterWhereNot (#userId, currentUserId)
+-- >     |> fetch
+-- > -- SELECT * FROM projects WHERE user_id != '23d5ea33-b28e-4f0a-99b3-77a3564a2546'
+--
+filterWhereNot :: forall name table model value. (KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereNot (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, negateFilterOperator (toEqOrIsOperator value), toField value) }
+    where
+        columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+{-# INLINE filterWhereNot #-}
 
 -- | Adds a @WHERE x IN (y)@ condition to the query.
 --

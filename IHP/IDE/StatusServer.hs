@@ -197,7 +197,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
             errorContainer = [hsx|
                 <div id="ihp-error-container">
                     <h1 style="margin-bottom: 2rem; margin-top: 20%; font-size: 1rem; font-weight: 400; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1); color: hsla(196, 13%, 80%, 1)">{inner}</h1>
-                    <pre style="font-family: Menlo, monospace; width: 100%" id="stderr">{forEach (parseErrorOutput errorOutput) renderError}</pre>
+                    <pre style="font-family: Menlo, monospace; width: 100%" id="stderr">{forEach errors renderError}</pre>
 
                     <div class="ihp-error-other-solutions">
                         <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
@@ -208,6 +208,12 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{ByteString.unlines (reverse standardOutput)}</pre>
                 </div>
             |]
+                where
+                    -- Errors are reordered here as we want to display the most important compile errors first
+                    -- Warnings should come after the actual errors.
+                    errors = errorOutput
+                            |> parseErrorOutput
+                            |> sortBy (comparing (get #isWarning))
             parseErrorOutput :: [ByteString] -> [CompilerError]
             parseErrorOutput output =
                     splitToSections (reverse output) []

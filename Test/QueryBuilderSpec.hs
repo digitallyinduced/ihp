@@ -62,6 +62,19 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE external_url IS ?", [Plain "null"])
 
+        describe "filterWhereNot" do
+            it "should produce a SQL with a WHERE NOT condition" do
+                let theQuery = query @Post
+                        |> filterWhereNot (#title, "Test" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title != ?", [Escape "Test"])
+
+            it "should use a IS NOT operator for checking null" do
+                let theQuery = query @Post
+                        |> filterWhereNot (#externalUrl, Nothing)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE external_url IS NOT ?", [Plain "null"])
+
         describe "filterWhereIn" do
             it "should produce a SQL with a WHERE condition" do
                 let theValues :: [Text] = ["first", "second"]

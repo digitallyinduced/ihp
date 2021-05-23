@@ -247,3 +247,66 @@ scripts = do
 **If you're using IHP Cloud:** Nothing to do. The command `make static/prod.js static/prod.css` is automatically executed during deployment.
 
 **If you're deploying manually:** Make sure that `make static/prod.js static/prod.css` is called.
+
+
+## Operating an IHP app
+
+### Error Monitoring with Sentry
+
+In production it's highly recommended to use an exception tracking service like [Sentry](https://sentry.io/) for error monitoring.
+
+To use sentry in your IHP app you need to install the [ihp-sentry](https://github.com/digitallyinduced/ihp-sentry) plugin.
+
+When the `ihp-sentry` plugin is installed and configured, exceptions that happen in production (so `option Production` is set) are reported to sentry.
+
+#### Install ihp-sentry in your IHP app
+
+
+Add `ihp-sentry` to the `haskellDeps` in your `default.nix`:
+
+```nix
+let
+    ...
+    haskellEnv = import "${ihp}/NixSupport/default.nix" {
+        ihp = ihp;
+        haskellDeps = p: with p; [
+            # ...
+            ihp-sentry
+        ];
+    ...
+```
+
+Now you need to remake your environment using `make -B .envrc`.
+
+
+Next add `import IHP.Sentry` to your `Config/Config.hs`:
+```haskell
+module Config where
+
+-- ...
+
+import IHP.Sentry
+```
+
+
+Add a call to `initSentry` inside the `Config/Config.hs` to configure the sentry DSN:
+
+```haskell
+module Config where
+
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.Sentry
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+
+    initSentry "YOUR-SENTRY-DSN"
+```
+
+Now sentry is set up.
+
+**When running on IHP Cloud:** You also need to update the `Config.hs` inside your IHP Cloud project settings.

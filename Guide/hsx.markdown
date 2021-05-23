@@ -23,7 +23,7 @@ in
 
 **If the variable is another HSX expression, a blaze HTML element, a text or string**: it is just included as you would expect.
 
-**If the variable is any other custom Haskell data structure**: it will first be converted to a string representation by calling `show` on it. You can add a custom `ToHtml` (import it from `IHP.HtmlSupport.ToHtml`) instance, to customize rendering a data structure.
+**If the variable is any other custom Haskell data structure**: it will first be converted to a string representation by calling `show` on it. You can add a custom `ToHtml` (import it from `IHP.HSX.ToHtml`) instance, to customize rendering a data structure.
 
 You can also write more complex code like:
 

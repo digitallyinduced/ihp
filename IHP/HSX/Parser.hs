@@ -1,4 +1,4 @@
-module IHP.HtmlSupport.Parser
+module IHP.HSX.Parser
 ( parseHsx
 , Node (..)
 , Attribute (..)
@@ -39,13 +39,13 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
 -- | Parses a HSX text and returns a 'Node'
 --
 -- __Example:__
--- 
+--
 -- > let filePath = "my-template"
 -- > let line = 0
 -- > let col = 0
 -- > let position = Megaparsec.SourcePos filePath (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 -- > let hsxText = "<strong>Hello</strong>"
--- > 
+-- >
 -- > let (Right node) = parseHsx position hsxText
 parseHsx :: SourcePos -> Text -> Either (ParseErrorBundle Text Void) Node
 parseHsx position code = runParser (setPosition position *> parser) "" code
@@ -124,7 +124,7 @@ hsxNodeAttributes :: Parser a -> Parser [Attribute]
 hsxNodeAttributes end = staticAttributes
     where
         staticAttributes = do
-            attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end 
+            attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end
             let staticAttributes = List.filter isStaticAttribute attributes
             let keys = List.map (\(StaticAttribute name _) -> name) staticAttributes
             let uniqueKeys = List.nub keys
@@ -391,7 +391,7 @@ leafs = Set.fromList
 
 stripTextNodeWhitespaces nodes = stripLastTextNodeWhitespaces (stripFirstTextNodeWhitespaces nodes)
 
-stripLastTextNodeWhitespaces nodes = 
+stripLastTextNodeWhitespaces nodes =
     let strippedLastElement = if List.length nodes > 0
             then case List.last nodes of
                 TextNode text -> Just $ TextNode (Text.stripEnd text)
@@ -401,7 +401,7 @@ stripLastTextNodeWhitespaces nodes =
         Just last -> (fst $ List.splitAt ((List.length nodes) - 1) nodes) <> [last]
         Nothing -> nodes
 
-stripFirstTextNodeWhitespaces nodes = 
+stripFirstTextNodeWhitespaces nodes =
     let strippedFirstElement = if List.length nodes > 0
             then case List.head nodes of
                 TextNode text -> Just $ TextNode (Text.stripStart text)
@@ -415,7 +415,7 @@ stripFirstTextNodeWhitespaces nodes =
 collapseSpace :: Text -> Text
 collapseSpace text = cs $ filterDuplicateSpaces (cs text)
     where
-        filterDuplicateSpaces :: String -> String 
+        filterDuplicateSpaces :: String -> String
         filterDuplicateSpaces string = filterDuplicateSpaces' string False
 
         filterDuplicateSpaces' :: String -> Bool -> String

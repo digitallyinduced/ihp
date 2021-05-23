@@ -48,8 +48,8 @@ import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import qualified IHP.ControllerSupport as ControllerSupport
 import IHP.FlashMessages.Types
-import IHP.HtmlSupport.QQ (hsx)
-import IHP.HtmlSupport.ToHtml
+import IHP.HSX.QQ (hsx)
+import IHP.HSX.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
 import qualified IHP.View.CSSFramework as CSSFramework
@@ -75,14 +75,14 @@ class View theView where
 --
 -- Useful to automatically scope certain css rules to a specific view.
 -- Example:
--- 
+--
 -- > module Web.View.Projects.Show where
 -- > render = [hsx|<div id={currentViewId}>Hello World!</div>|]
--- 
+--
 -- This will render @<div id="projects-show">Hello World!</div>@
 {-# INLINE currentViewId #-}
 currentViewId :: (?view :: view, Typeable view) => Text
-currentViewId = 
+currentViewId =
         case moduleParts of
             [_, "View", controllerName, viewName] -> Either.fromRight (error "currentViewId: Failed to parse controller name") (Inflector.toDashed controllerName) <> "-" <> Either.fromRight (error "currentViewId: Failed to parse view name") (Inflector.toDashed viewName)
             _ -> error ("currentViewId: Failed to read view id for " <> cs moduleName)
@@ -118,7 +118,7 @@ currentViewId =
 -- This function returns @False@ when a sub-path is request. Uss 'isActivePathOrSub' if you want this example to return @True@.
 isActivePath :: (?context :: ControllerContext, PathString controller) => controller -> Bool
 isActivePath route =
-    let 
+    let
         currentPath = Wai.rawPathInfo theRequest <> Wai.rawQueryString theRequest
     in
         currentPath == cs (pathToString route)
@@ -166,7 +166,7 @@ onLoad = A.onload
 
 -- | Returns the current request
 theRequest :: (?context :: ControllerContext) => Wai.Request
-theRequest = 
+theRequest =
     let
         requestContext = getField @"requestContext" ?context
         request = getField @"request" requestContext
@@ -231,7 +231,7 @@ fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFra
 
 theCSSFramework :: (?context :: ControllerContext) => CSSFramework
 theCSSFramework = ?context
-        |> FrameworkConfig.getFrameworkConfig 
+        |> FrameworkConfig.getFrameworkConfig
         |> get #cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.

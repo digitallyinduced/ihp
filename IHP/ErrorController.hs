@@ -31,7 +31,7 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LBS
 
-import IHP.HtmlSupport.QQ (hsx)
+import IHP.HSX.QQ (hsx)
 import Database.PostgreSQL.Simple.FromField (ResultError (..))
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig

@@ -36,7 +36,7 @@ example :: IO [Project]
 example = do
     projects <- query @Project |> fetch
     -- Query: `SELECT * FROM projects`
-    return projects
+    pure projects
 ```
 
 ### maybe single row: `fetchOneOrNothing`
@@ -48,7 +48,7 @@ example :: IO (Maybe Project)
 example = do
     project <- query @Project |> fetchOneOrNothing
     -- Query: `SELECT * FROM projects LIMIT 1`
-    return project
+    pure project
 ```
 
 ### single row: `fetchOne`
@@ -60,7 +60,7 @@ example :: IO Project
 example = do
     project <- query @Project |> fetchOne
     -- Query: `SELECT * FROM projects LIMIT 1`
-    return project
+    pure project
 ```
 
 ## Where Conditions
@@ -75,10 +75,22 @@ projectsByUser userId = do
             |> filterWhere (#deleted, False)
             |> fetch
     -- Query: `SELECT * FROM projects WHERE user_id = <userId> AND deleted = false`
-    return projects
+    pure projects
 ```
 
-Or the more general `filterWhereSql`:
+Use `filterWhereNot` to negate a condition:
+
+```haskell
+projectsByUser :: UserId -> IO [Project]
+projectsByUser userId = do
+    otherProjects <- query @Project
+            |> filterWhereNot (#userId, userId)
+            |> fetch
+    -- Query: `SELECT * FROM projects WHERE user_id != <userId>`
+    pure otherProjects
+```
+
+You can also use the more general `filterWhereSql`:
 
 ```haskell
 retiredEmployees :: IO [Employee]
@@ -87,7 +99,7 @@ retiredEmployees = do
              |> filterWhereSql (#retireddate, "IS NOT NULL")
              |> fetch
     -- Query: `SELECT * FROM employee WHERE retireddate IS NOT NULL`
-    return employees
+    pure employees
 ```
 
 Several other filter-functions for generating `WHERE` clauses exist, such as `filterWhereIn` and `filterWhereNotIn` which take lists of items. Read more about these in the [API docs on QueryBuilder](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html)
