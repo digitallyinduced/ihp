@@ -628,7 +628,7 @@ filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder Filte
 -- >     |> fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.title ~ '^(M(rs|r|iss|s)|Dr|Sir). '
 
-filterWhereMatchesJoinedTable :: forall table name model value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereMatchesJoinedTable :: forall model table name value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -645,7 +645,7 @@ filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder Filt
 {-# INLINE filterWhereIMatches #-}
 
 -- | Case-insensitive version of 'filterWhereMatchesJoinedTable'
-filterWhereIMatchesJoinedTable :: forall table name model value q joinRegister table'. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereIMatchesJoinedTable :: forall model table name value q joinRegister table'. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
 filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
