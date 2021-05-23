@@ -107,6 +107,8 @@ compileOperator (LikeOp CaseSensitive) = "LIKE"
 compileOperator (LikeOp CaseInsensitive) = "ILIKE"
 compileOperator (NotLikeOp CaseSensitive) = "NOT LIKE"
 compileOperator (NotLikeOp CaseInsensitive) = "NOT ILIKE"
+compileOperator (MatchesOp CaseSensitive) = " ~ "
+compileOperator (MatchesOp CaseInsensitive) = " ~* "
 compileOperator SqlOp = ""
 {-# INLINE compileOperator #-}
 
