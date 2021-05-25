@@ -1,7 +1,7 @@
-import debounce from 'https://cdn.skypack.dev/underscore/modules/debounce';
-import { createState, createEffect } from 'https://cdn.skypack.dev/solid-js';
-import { render } from 'https://cdn.skypack.dev/solid-js/web';
-import html from 'https://cdn.skypack.dev/solid-js/html';
+import debounce from 'https://cdn.jsdelivr.net/npm/underscore@1.13.1/modules/debounce.js/+esm';
+import { createState, createEffect } from 'https://cdn.jsdelivr.net/npm/solid-js@0.26.5/dist/static.js/+esm';
+import { render } from 'https://cdn.jsdelivr.net/npm/solid-js@0.26.5/web/dist/web.js/+esm';
+import html from 'https://cdn.jsdelivr.net/npm/solid-js@0.26.5/html/dist/html.js/+esm';
 
 async function queryAPI(query) {
     const searchAttributes = [
