@@ -112,9 +112,9 @@ redirectBackWithFallback :: (?context :: ControllerContext) => Text -> IO ()
 redirectBackWithFallback fallbackPathOrUrl = do
     case getHeader "Referer" of
         Just referer -> case parseURI (cs referer) of
-                Just uri -> redirectToUrl (tshow uri)   -- Referer Is URL "https://google.com/..."
-                Nothing -> redirectToPath (cs referer)  -- Referer Is Path "/../"
+                Just uri -> redirectToUrl (tshow uri)           -- Referer Is URL "https://google.com/..."
+                Nothing -> redirectToPath (cs referer)          -- Referer Is Path "/../"
         Nothing -> case parseURI (cs fallbackPathOrUrl) of
-                Just uri -> redirectToUrl (tshow uri)
-                Nothing -> redirectToPath fallbackPathOrUrl
+                Just uri -> redirectToUrl (tshow uri)           -- Fallback Is URL "https://google.com/..."
+                Nothing -> redirectToPath fallbackPathOrUrl     -- Fallback Is Path "/../"
 {-# INLINABLE redirectBackWithFallback #-}
