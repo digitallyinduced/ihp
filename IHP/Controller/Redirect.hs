@@ -8,8 +8,7 @@ module IHP.Controller.Redirect
 , redirectToPath
 , redirectToUrl
 , redirectBack
-, redirectBackWithFallbackPath
-, redirectBackWithFallbackUrl
+, redirectBackWithFallback
 ) where
 
 import IHP.Prelude
@@ -78,7 +77,7 @@ redirectToUrl url = do
 --
 -- Uses the Referer header to do a redirect to page that got you here.
 --
--- In case the Referer header is not set this function will redirect to @/@. Use 'redirectBackWithFallbackPath' when you want
+-- In case the Referer header is not set this function will redirect to @/@. Use 'redirectBackWithFallback' when you want
 -- to specify a custom fallback path.
 --
 -- __Example:__
@@ -92,7 +91,7 @@ redirectToUrl url = do
 -- >     redirectBack
 --
 redirectBack :: (?context :: ControllerContext) => IO ()
-redirectBack = redirectBackWithFallbackPath "/"
+redirectBack = redirectBackWithFallback "/"
 {-# INLINABLE redirectBack #-}
 
 -- | Redirects back to the last page or the given fallback path in case the Referer header is missing
@@ -107,37 +106,15 @@ redirectBack = redirectBackWithFallbackPath "/"
 -- >         |> incrementField #likesCount
 -- >         |> updateRecord
 -- >
--- >     redirectBackWithFallbackPath (pathTo ShowPostAction { postId = get #id post })
+-- >     redirectBackWithFallback (pathTo ShowPostAction { postId = get #id post })
 --
-redirectBackWithFallbackPath :: (?context :: ControllerContext) => Text -> IO ()
-redirectBackWithFallbackPath fallbackPath = do
+redirectBackWithFallback :: (?context :: ControllerContext) => Text -> IO ()
+redirectBackWithFallback fallbackPathOrUrl = do
     case getHeader "Referer" of
         Just referer -> case parseURI (cs referer) of
                 Just uri -> redirectToUrl (tshow uri)   -- Referer Is URL "https://google.com/..."
                 Nothing -> redirectToPath (cs referer)  -- Referer Is Path "/../"
-        Nothing -> redirectToPath fallbackPath
-{-# INLINABLE redirectBackWithFallbackPath #-}
-
-
--- | Redirects back to the last page or the given fallback url in case the Referer header is missing
---
--- If you don't care about the missing-Referer-header case, use 'redirectBack'.
---
--- __Example:__
---
--- > action LikeAction { postId } = do
--- >     post <- fetch postId
--- >     post
--- >         |> incrementField #likesCount
--- >         |> updateRecord
--- >
--- >     redirectBackWithFallbackUrl "https://www.google.com/"
---
-redirectBackWithFallbackUrl :: (?context :: ControllerContext) => Text -> IO ()
-redirectBackWithFallbackUrl fallbackUrl = do
-    case getHeader "Referer" of
-        Just referer -> case parseURI (cs referer) of
-                Just uri -> redirectToUrl (tshow uri)   -- Referer Is URL "https://google.com/..."
-                Nothing -> redirectToPath (cs referer)  -- Referer Is Path "/../"
-        Nothing -> redirectToUrl fallbackUrl
-{-# INLINABLE redirectBackWithFallbackUrl #-}
+        Nothing -> case parseURI (cs fallbackPathOrUrl) of
+                Just uri -> redirectToUrl (tshow uri)
+                Nothing -> redirectToPath fallbackPathOrUrl
+{-# INLINABLE redirectBackWithFallback #-}
