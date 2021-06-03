@@ -140,9 +140,9 @@ class IsJoined a b
 instance IsJoined a (ConsModelList a b)
 instance {-# OVERLAPPABLE #-} (IsJoined a b) => IsJoined a (ConsModelList c b)
 
-class HasQueryBuilder q joinRegister | q -> joinRegister where
-    getQueryBuilder :: q table -> QueryBuilder table
-    injectQueryBuilder :: QueryBuilder table -> q table
+class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -> joinRegister where
+    getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
+    injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
 
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
 
@@ -247,7 +247,7 @@ query = (defaultScope @table) NewQueryBuilder
 {-# INLINE query #-}
 
 {-# INLINE buildQuery #-}
-buildQuery :: forall table q r. (KnownSymbol table, HasQueryBuilder q r) => q table -> SQLQuery
+buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
 buildQuery = buildQueryHelper . getQueryBuilder 
     where
     buildQueryHelper NewQueryBuilder =
@@ -324,8 +324,8 @@ buildQuery = buildQueryHelper . getQueryBuilder
 -- >>> let postsQuery = query @Post |> filterWhere (#public, True)
 -- >>> toSQL postsQuery
 -- ("SELECT posts.* FROM posts WHERE public = ?", [Plain "true"])
-toSQL :: (KnownSymbol table, HasQueryBuilder q r) => q table -> (ByteString, [Action])
-toSQL q = toSQL' (buildQuery $ getQueryBuilder q)
+toSQL :: (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> (ByteString, [Action])
+toSQL queryBuilderProvider = toSQL' (buildQuery $ getQueryBuilder queryBuilderProvider)
 {-# INLINE toSQL #-}
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
@@ -427,7 +427,7 @@ class FilterPrimaryKey table where
 -- For case-insensitive versions of these operators, see 'filterWhereILike' and 'filterWhereIMatches'.
 --
 -- When your condition is too complex, use a raw sql query with 'IHP.ModelSupport.sqlQuery'.
-filterWhere :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhere :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhere (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -444,7 +444,7 @@ filterWhere (name, value) queryBuilderProvider = injectQueryBuilder FilterByQuer
 -- >                    |> fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name = 'Tom'
 --
-filterWhereJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder q joinRegister, IsJoined model joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -477,7 +477,7 @@ filterWhereNot (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder,
 --
 -- For negation use 'filterWhereNotIn'
 --
-filterWhereIn :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, [value]) -> q table -> q table
+filterWhereIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -494,7 +494,7 @@ filterWhereIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQu
 -- >    |> fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name IN ('Tom', 'Tim') 
 --
-filterWhereInJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister, IsJoined model joinRegister) => (Proxy name, [value]) -> q table' -> q table'
+filterWhereInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -513,7 +513,7 @@ filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder
 --
 -- The inclusive version of this function is called 'filterWhereIn'.
 --
-filterWhereNotIn :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, [value]) -> q table -> q table
+filterWhereNotIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereNotIn (_, []) queryBuilder = queryBuilder -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)) }
     where
@@ -531,7 +531,7 @@ filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 -- >    filterWhereNotInJoinedTable @User (#name, ["Tom","Tim"]) |>
 -- >    fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name NOT IN ('Tom', 'Tim')
-filterWhereNotInJoinedTable :: forall model name table  value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, [value]) -> q table' -> q table'
+filterWhereNotInJoinedTable :: forall model name table  value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)) }
     where
@@ -548,7 +548,7 @@ filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuil
 -- >     |> filterWhereLike (#title, "%" <> searchTerm <> "%")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title LIKE '%..%'
-filterWhereLike :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhereLike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -564,7 +564,7 @@ filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterBy
 -- >                filterWhereLikeJoinedTable @User (#name, "%Olaf%") |<
 -- Y                fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name LIKE '%Olaf%'
-filterWhereLikeJoinedTable :: forall model name table value q joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereLikeJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -580,7 +580,7 @@ filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuild
 -- >     |> filterWhereILike (#title, "%" <> searchTerm <> "%")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title ILIKE '%..%'
-filterWhereILike :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhereILike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -597,7 +597,7 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 --      filterWhereILikeJoinedTable @User (#name, "%Olaf%")
 -- > --SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%' 
 
-filterWhereILikeJoinedTable :: forall model table name table' model' value q joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereILikeJoinedTable :: forall model table name table' model' value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -613,7 +613,7 @@ filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuil
 -- >     |> filterWhereMatches (#name, "^(M(rs|r|iss)|Dr|Sir). ")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title ~ '^(M(rs|r|iss)|Dr|Sir). '
-filterWhereMatches :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhereMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -630,7 +630,7 @@ filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder Filte
 -- >     |> fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.title ~ '^(M(rs|r|iss|s)|Dr|Sir). '
 
-filterWhereMatchesJoinedTable :: forall model table name value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -639,7 +639,7 @@ filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBu
 
 
 -- | Adds a @WHERE x ~* y@ condition to the query. Case-insensitive version of 'filterWhereMatches'.
-filterWhereIMatches :: forall name table model value q joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table -> q table
+filterWhereIMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -647,7 +647,7 @@ filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder Filt
 {-# INLINE filterWhereIMatches #-}
 
 -- | Case-insensitive version of 'filterWhereMatchesJoinedTable'
-filterWhereIMatchesJoinedTable :: forall model table name value q joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder q joinRegister) => (Proxy name, value) -> q table' -> q table'
+filterWhereIMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value) }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -666,7 +666,7 @@ filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryB
 -- >     |> fetch
 -- > -- SELECT * FROM projects WHERE started_at < current_timestamp - interval '1 day'
 --
-filterWhereSql :: forall name table model value q joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => (Proxy name, ByteString) -> q table -> q table
+filterWhereSql :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, ByteString) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, SqlOp, Plain (Builder.byteString sqlCondition)) }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -677,19 +677,19 @@ filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder Fi
 -- > query @Posts |>
 -- > innerJoin @Users (#author, #id)
 -- > -- SELECT users.* FROM users INNER JOIN posts ON users.id = posts.author ...
-innerJoin :: forall model' table' name' value' model table name value q joinRegister.
+innerJoin :: forall model' table' name' value' model table name value queryBuilderProvider joinRegister.
                             (
                                 KnownSymbol name, 
                                 KnownSymbol table,
                                 HasField name model value,
                                 KnownSymbol name', 
                                 KnownSymbol table',
-                                HasQueryBuilder q joinRegister,
+                                HasQueryBuilder queryBuilderProvider joinRegister,
                                 HasField name' model' value', 
                                 value ~ value',
                                 model ~ GetModelByTableName table,
                                 table' ~ GetTableName model'
-                            ) => (Proxy name, Proxy name') -> q table -> JoinQueryBuilderWrapper (ConsModelList model' joinRegister) table 
+                            ) => (Proxy name, Proxy name') -> queryBuilderProvider table -> JoinQueryBuilderWrapper (ConsModelList model' joinRegister) table 
 innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn 
     where 
         baseTableName = symbolToByteString @table
@@ -704,20 +704,20 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
 -- > innerJoinThirdTable @City @Users (#id, #homeTown)
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.author = users.id INNER JOIN cities ON user.home_town = cities.id
 --
-innerJoinThirdTable :: forall model model' name name' value value' table table' baseTable baseModel q joinRegister.
+innerJoinThirdTable :: forall model model' name name' value value' table table' baseTable baseModel queryBuilderProvider joinRegister.
                         ( 
                             KnownSymbol name,
                             KnownSymbol table,
                             HasField name model value,
                             KnownSymbol name',
                             KnownSymbol table',
-                            HasQueryBuilder q joinRegister,
+                            HasQueryBuilder queryBuilderProvider joinRegister,
                             HasField name' model' value',
                             value ~ value',
                             table ~ GetTableName model,
                             table' ~ GetTableName model',
                             baseModel ~ GetModelByTableName baseTable 
-                        ) => (Proxy name, Proxy name') -> q baseTable -> JoinQueryBuilderWrapper (ConsModelList model joinRegister) baseTable
+                        ) => (Proxy name, Proxy name') -> queryBuilderProvider baseTable -> JoinQueryBuilderWrapper (ConsModelList model joinRegister) baseTable
 innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
      where 
         baseTableName = symbolToByteString @table'
@@ -739,7 +739,7 @@ innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ Jo
 -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
-orderByAsc :: forall name model table value q joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => Proxy name -> q table -> q table
+orderByAsc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Asc } }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -757,7 +757,7 @@ orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder {
 -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM projects LIMIT 10 ORDER BY created_at DESC
-orderByDesc :: forall name model table value q joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => Proxy name -> q table -> q table
+orderByDesc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 orderByDesc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Desc } }
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -765,7 +765,7 @@ orderByDesc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder 
 {-# INLINE orderByDesc #-}
 
 -- | Alias for 'orderByAsc'
-orderBy :: (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q joinRegister) => Proxy name -> q table -> q table
+orderBy :: (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 orderBy !name = orderByAsc name
 {-# INLINE orderBy #-}
 
@@ -778,7 +778,7 @@ orderBy !name = orderByAsc name
 -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM posts LIMIT 10
-limit :: (HasQueryBuilder q joinRegister) => Int -> q model -> q model
+limit :: (HasQueryBuilder queryBuilderProvider joinRegister) => Int -> queryBuilderProvider model -> queryBuilderProvider model
 limit !queryLimit queryBuilderProvider = injectQueryBuilder LimitQueryBuilder { queryBuilder, queryLimit }
     where
         queryBuilder = getQueryBuilder queryBuilderProvider
@@ -794,7 +794,7 @@ limit !queryLimit queryBuilderProvider = injectQueryBuilder LimitQueryBuilder { 
 -- >     |> offset 10
 -- >     |> fetch
 -- > -- SELECT * FROM posts LIMIT 10 OFFSET 10
-offset :: (HasQueryBuilder q joinRegister) => Int -> q model -> q model
+offset :: (HasQueryBuilder queryBuilderProvider joinRegister) => Int -> queryBuilderProvider model -> queryBuilderProvider model
 offset !queryOffset queryBuilderProvider = injectQueryBuilder OffsetQueryBuilder { queryBuilder, queryOffset }
     where
         queryBuilder = getQueryBuilder queryBuilderProvider
@@ -810,7 +810,7 @@ offset !queryOffset queryBuilderProvider = injectQueryBuilder OffsetQueryBuilder
 -- > let teamPages = query @Page |> filterWhere (#teamId, currentTeamId)
 -- > pages <- queryUnion userPages teamPages |> fetch
 -- > -- (SELECT * FROM pages WHERE owner_id = '..') UNION (SELECT * FROM pages WHERE team_id = '..')
-queryUnion :: (HasQueryBuilder q joinRegister, HasQueryBuilder r joinRegister') => q model -> r model -> NoJoinQueryBuilderWrapper model
+queryUnion :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder r joinRegister') => queryBuilderProvider model -> r model -> NoJoinQueryBuilderWrapper model
 queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBuilderWrapper (UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder })
     where
         firstQueryBuilder = getQueryBuilder firstQueryBuilderProvider
@@ -830,7 +830,7 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >         (filterWhere (#public, True))
 -- >     |> fetch
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
-queryOr :: (HasQueryBuilder q jR, HasQueryBuilder r jR'', HasQueryBuilder s jR''') => (q model -> s model) -> (q model -> r model) -> q model -> NoJoinQueryBuilderWrapper model 
+queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBUilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBUilderProvider'' model) -> queryBuilderProvider model -> NoJoinQueryBuilderWrapper model 
 queryOr firstQuery secondQuery queryBuilder = NoJoinQueryBuilderWrapper 
     (UnionQueryBuilder { 
         firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder, 
@@ -848,7 +848,7 @@ queryOr firstQuery secondQuery queryBuilder = NoJoinQueryBuilderWrapper
 -- >     |> distinct
 -- >     |> fetch
 -- > -- SELECT DISTINCT * FROM books
-distinct :: (HasQueryBuilder q jR) => q table -> q table
+distinct :: (HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> queryBuilderProvider table
 distinct = injectQueryBuilder . DistinctQueryBuilder . getQueryBuilder
 {-# INLINE distinct #-}
 
@@ -862,7 +862,7 @@ distinct = injectQueryBuilder . DistinctQueryBuilder . getQueryBuilder
 -- >     |> distinctOn #categoryId
 -- >     |> fetch
 -- > -- SELECT DISTINCT ON (category_id) * FROM books
-distinctOn :: forall name model value table q jR. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder q jR) => Proxy name -> q table -> q table
+distinctOn :: forall name model value table queryBuilderProvider joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 distinctOn !name queryBuilderProvider = injectQueryBuilder DistinctOnQueryBuilder { distinctOnColumn = columnName, queryBuilder = getQueryBuilder queryBuilderProvider}
     where
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))

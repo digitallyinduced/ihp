@@ -94,7 +94,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (No
 
 
 {-# INLINE commonFetch #-}
-commonFetch :: forall model table q r.(HasQueryBuilder q r, model ~ GetModelByTableName table, KnownSymbol table, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => q table -> IO [model]
+commonFetch :: forall model table queryBUilderProvider joinRegister.(HasQueryBuilder queryBUilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => queryBUilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
     let !(theQuery, theParameters) = queryBuilder
             |> toSQL
@@ -102,7 +102,7 @@ commonFetch !queryBuilder = do
     sqlQuery (Query $ cs theQuery) theParameters
 
 {-# INLINE commonFetchOneOrNothing #-}
-commonFetchOneOrNothing :: forall model table q r.(?modelContext :: ModelContext) => (KnownSymbol table, HasQueryBuilder q r, PG.FromRow model, KnownSymbol (GetTableName model)) => q table -> IO (Maybe model)
+commonFetchOneOrNothing :: forall model table queryBUilderProvider joinRegister.(?modelContext :: ModelContext) => (KnownSymbol table, HasQueryBuilder queryBUilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBUilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
     let !(theQuery, theParameters) = queryBuilder
             |> buildQuery
@@ -113,7 +113,7 @@ commonFetchOneOrNothing !queryBuilder = do
     pure $ listToMaybe results
 
 {-# INLINE commonFetchOne #-}
-commonFetchOne :: (?modelContext :: ModelContext) => (KnownSymbol table, Fetchable (q table) model, HasQueryBuilder q r, PG.FromRow model, KnownSymbol (GetTableName model)) => q table -> IO model
+commonFetchOne :: (?modelContext :: ModelContext) => (KnownSymbol table, Fetchable (q table) model, HasQueryBuilder queryBUilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBUilderProvider table -> IO model
 commonFetchOne !queryBuilder = do
     maybeModel <- fetchOneOrNothing queryBuilder
     case maybeModel of
@@ -134,7 +134,7 @@ commonFetchOne !queryBuilder = do
 -- >         |> filterWhere (#isActive, True)
 -- >         |> fetchCount
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
-fetchCount :: forall table q r. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder q r) => q table -> IO Int
+fetchCount :: forall table queryBUilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBUilderProvider joinRegister) => queryBUilderProvider table -> IO Int
 fetchCount !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
@@ -153,7 +153,7 @@ fetchCount !queryBuilder = do
 -- >         |> filterWhere (#isUnread, True)
 -- >         |> fetchExists
 -- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
-fetchExists :: forall table q r. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder q r) => q table -> IO Bool
+fetchExists :: forall table queryBUilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBUilderProvider joinRegister) => queryBUilderProvider table -> IO Bool
 fetchExists !queryBuilder = do
     let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
