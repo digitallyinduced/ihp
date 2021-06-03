@@ -405,3 +405,25 @@ isUrl text = Failure "is not a valid url. It needs to start with http:// or http
 isInList :: (Eq value, Show value) => [value] -> value -> ValidatorResult
 isInList list value | list |> includes value = Success
 isInList list value = Failure ("is not allowed. It needs to be one of the following: " <> (tshow list))
+
+
+-- | Validates that value is True
+--
+-- >>> isTrue True
+-- Success
+--
+-- >>> isTrue False
+-- Failure "This field cannot be false"
+isTrue :: Bool -> ValidatorResult
+isTrue value = if value then Success else Failure "This field cannot be false"
+
+
+-- | Validates that value is False
+--
+-- >>> isFalse False
+-- Success
+--
+-- >>> isFalse True
+-- Failure "This field cannot be true"
+isFalse :: Bool -> ValidatorResult
+isFalse value = if not value then Success else Failure "This field cannot be true"
