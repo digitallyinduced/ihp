@@ -24,7 +24,7 @@ tests = do
         it "should handle trivial cases" do
             isEmptyValue ("" :: Text) `shouldBe` Success
             isEmptyValue Nothing `shouldBe` Success
-            
+
             isEmptyValue ("hi" :: Text) `shouldSatisfy` isFailure
             isEmptyValue (Just "hi") `shouldSatisfy` isFailure
 
@@ -34,7 +34,7 @@ tests = do
             isPhoneNumber "+1337" `shouldSatisfy` isFailure
             isPhoneNumber "0049123456789" `shouldSatisfy` isFailure
             isPhoneNumber "+49123456789" `shouldBe` Success
-            
+
     describe "The isEmail validator" do
         it "should handle trivial cases" do
             isEmail "foo@example.com" `shouldBe` Success
@@ -52,7 +52,7 @@ tests = do
 
         it "should allow Unicode characters" do
             isEmail "ॐ@मणिपद्मे.हूँ" `shouldBe` Success
-            
+
         it "should allow dotless domains" do
             isEmail "foo@localhost" `shouldBe` Success
 
@@ -93,14 +93,14 @@ tests = do
             hasMaxLength 7 "Rösrath" `shouldBe` Success
             hasMaxLength 6 "Rösrath" `shouldSatisfy` isFailure
 
-        {-    
+        {-
         it "should handle Unicode" do
             -- haha, not possible :-)
 
             -- What's the length of "ॐमणिपद्मेहूँ"?
             -- Okay, that was easy... what's the length of "🤦🏼‍♂️"?
-        -}          
-          
+        -}
+
     describe "The hasMinLength validator" do
         it "should handle trivial cases" do
             hasMinLength 3 "foo" `shouldBe` Success
@@ -111,7 +111,7 @@ tests = do
         it "should handle Umlauts" do
             hasMinLength 7 "Rösrath" `shouldBe` Success
             hasMinLength 8 "Rösrath" `shouldSatisfy` isFailure
-            
+
     describe "The isRgbHexColor validator" do
         it "should handle trivial cases" do
             isRgbHexColor "#ff0000" `shouldBe` Success
@@ -194,3 +194,13 @@ tests = do
 
             isInList ["C", "Haskell", "Rust"] "Haskell" `shouldBe` Success
             isInList ["C", "Haskell", "Rust"] "JavaScript" `shouldSatisfy` isFailure -- rightly!
+
+    describe "The isTrue validator" do
+        it "should handle trivial cases" do
+            isTrue True `shouldBe` Success
+            isTrue False `shouldSatisfy` isFailure
+
+    describe "The isFalse validator" do
+        it "should handle trivial cases" do
+            isFalse False `shouldBe` Success
+            isFalse True `shouldSatisfy` isFailure
