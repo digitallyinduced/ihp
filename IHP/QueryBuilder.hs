@@ -178,7 +178,7 @@ data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Cond
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
     toHtml queryBuilder = toHtml (toSQL queryBuilder)
 
-data Join = Join {table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString}
+data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString }
     deriving (Show, Eq)
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
