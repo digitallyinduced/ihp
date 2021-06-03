@@ -356,6 +356,16 @@ tests = do
                     , orReplace = False
                     }
 
+        it "should parse unsupported SQL as a unknown statement" do
+            let sql = "CREATE TABLE a(); CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y(); CREATE TABLE b();"
+            let statements =
+                    [ StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+                    , UnknownStatement { raw = "CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y()"  }
+                    , StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+                    ]
+            parseSqlStatements sql `shouldBe` statements
+            
+
 col :: Column
 col = Column
     { name = ""

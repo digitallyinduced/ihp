@@ -361,3 +361,9 @@ tests = do
                     }
 
             compileSql [statement] `shouldBe` sql
+
+
+        it "should compile a CREATE TRIGGER .." do
+            let sql = cs [plain|CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y();\n|]
+            let statement = UnknownStatement { raw = "CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y()"  }
+            compileSql [statement] `shouldBe` sql

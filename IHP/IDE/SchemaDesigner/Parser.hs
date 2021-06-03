@@ -58,7 +58,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> createEnumType <|> addConstraint <|> comment
     space
     pure s
 
@@ -415,3 +415,11 @@ createFunction = do
     lexeme "plpgsql"
     char ';'
     pure CreateFunction { functionName, functionBody, orReplace }
+
+-- | Triggers are not currently used by IHP, therefore they're implemented using UnknownStatement
+-- This avoid errors when having custom triggers in Schema.sql
+createTrigger = do
+    lexeme "CREATE"
+    lexeme "TRIGGER"
+    raw <- cs <$> someTill (anySingle) (char ';')
+    pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
