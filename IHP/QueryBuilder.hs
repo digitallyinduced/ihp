@@ -131,31 +131,45 @@ data OrderByClause =
     , orderByDirection :: !OrderByDirection }
     deriving (Show, Eq)
 
+-- Types implementing a type level list to record joined tables. EmptyModelList and ConsModelList correspond to the data constructors [] and :. NoJoins is like the empty List but cannot be extended.
 data NoJoins
 data EmptyModelList
 data ConsModelList model models
 
+-- Type class to represent the true list type EmptyModelList ConsModelList.
+class ModelList a
+
+instance ModelList EmptyModelList
+instance ModelList (ConsModelList model models)
+
+-- Typeclass to quer containment in the type-level list.
 class IsJoined a b
 
-instance IsJoined a (ConsModelList a b)
-instance {-# OVERLAPPABLE #-} (IsJoined a b) => IsJoined a (ConsModelList c b)
+instance (ModelList b) => IsJoined a (ConsModelList a b)
+instance {-# OVERLAPPABLE #-} (ModelList b, IsJoined a b) => IsJoined a (ConsModelList c b)
 
+-- Class to generalise over different QueryBuilder-providing types. The actual query builder can be extracted with 'getQueryBuilder' and injected with 'injectQueryBuilder'. Also assigns a join reqister to a queryBilderProvider. 
 class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -> joinRegister where
     getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
 
+-- Wrapper for QueryBuilders resulting from joins. Associates a joinRegister type.
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
 
+-- Wrapper for QueryBuilder that must not joins, e.g. queryUnion.
 newtype NoJoinQueryBuilderWrapper table = NoJoinQueryBuilderWrapper (QueryBuilder table)
 
+-- QueryBuilders have query builders and the join register is empty.
 instance HasQueryBuilder QueryBuilder EmptyModelList where
     getQueryBuilder = id
     injectQueryBuilder = id
 
+-- JoinQueryBuilderWrappers have query builders
 instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder queryBuilder = JoinQueryBuilderWrapper queryBuilder
 
+-- NoJoinQueryBuilderWrapper have query builders and the join register does not allow any joins
 instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder queryBuilder = NoJoinQueryBuilderWrapper queryBuilder
@@ -683,6 +697,7 @@ innerJoin :: forall model' table' name' value' model table name value queryBuild
                                 KnownSymbol name', 
                                 KnownSymbol table',
                                 HasQueryBuilder queryBuilderProvider joinRegister,
+                                ModelList joinRegister,
                                 HasField name' model' value', 
                                 value ~ value',
                                 model ~ GetModelByTableName table,
@@ -710,6 +725,7 @@ innerJoinThirdTable :: forall model model' name name' value value' table table' 
                             KnownSymbol name',
                             KnownSymbol table',
                             HasQueryBuilder queryBuilderProvider joinRegister,
+                            ModelList joinRegister,
                             HasField name' model' value',
                             value ~ value',
                             table ~ GetTableName model,
