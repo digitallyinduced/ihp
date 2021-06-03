@@ -178,7 +178,7 @@ data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Cond
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
     toHtml queryBuilder = toHtml (toSQL queryBuilder)
 
-data Join = Join {table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString}
+data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString }
     deriving (Show, Eq)
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
@@ -312,10 +312,10 @@ buildQuery = buildQueryHelper . getQueryBuilder
                     else
                         error "buildQuery: Union of complex queries not supported yet"
     
-    buildQueryHelper JoinQueryBuilder {queryBuilder, join } =
+    buildQueryHelper JoinQueryBuilder { queryBuilder, join } =
         let 
             firstQuery = buildQuery queryBuilder
-         in firstQuery {joins = join:joins firstQuery}
+         in firstQuery { joins = join:joins firstQuery }
     
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
@@ -521,15 +521,14 @@ filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterB
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotIn #-}
 
--- | Like filterWhereNotIn, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
+-- | Like 'filterWhereNotIn', but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
 --
 -- __Example:__ get posts by users not named Tom or Tim.
 --
--- > notTomOrTimPosts <-
--- >    query @Post |> 
--- >    innerJoin @User (#createdBy, #id) |> 
--- >    filterWhereNotInJoinedTable @User (#name, ["Tom","Tim"]) |>
--- >    fetch
+-- > notTomOrTimPosts <- query @Post
+-- >    |> innerJoin @User (#createdBy, #id)
+-- >    |> filterWhereNotInJoinedTable @User (#name, ["Tom","Tim"])
+-- >    |> fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name NOT IN ('Tom', 'Tim')
 filterWhereNotInJoinedTable :: forall model name table  value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
@@ -562,7 +561,7 @@ filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterBy
 -- > olafPosts <- query @Post |> 
 -- >                innerJoin @User (#createdBy, #id) |> 
 -- >                filterWhereLikeJoinedTable @User (#name, "%Olaf%") |<
--- Y                fetch
+-- >                fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name LIKE '%Olaf%'
 filterWhereLikeJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value) }
@@ -595,8 +594,7 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 -- >    query @Post |> 
 --      innerJoin @User (#createdBy, #id) |> 
 --      filterWhereILikeJoinedTable @User (#name, "%Olaf%")
--- > --SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%' 
-
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%' 
 filterWhereILikeJoinedTable :: forall model table name table' model' value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
     where
