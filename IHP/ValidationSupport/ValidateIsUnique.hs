@@ -21,7 +21,7 @@ import IHP.Fetch
 -- >         |> fill @'["email"]
 -- >         |> validateIsUnique #email
 -- >         >>= ifValid \case
--- >             Left user -> render NewView { .. } 
+-- >             Left user -> render NewView { .. }
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
