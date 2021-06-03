@@ -312,7 +312,7 @@ buildQuery = buildQueryHelper . getQueryBuilder
                     else
                         error "buildQuery: Union of complex queries not supported yet"
     
-    buildQueryHelper JoinQueryBuilder {queryBuilder, join } =
+    buildQueryHelper JoinQueryBuilder { queryBuilder, join } =
         let 
             firstQuery = buildQuery queryBuilder
          in firstQuery {joins = join:joins firstQuery}
