@@ -521,7 +521,7 @@ filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterB
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotIn #-}
 
--- | Like filterWhereNotIn, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
+-- | Like 'filterWhereNotIn', but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using innerJoin or innerJoinThirdTable.
 --
 -- __Example:__ get posts by users not named Tom or Tim.
 --
