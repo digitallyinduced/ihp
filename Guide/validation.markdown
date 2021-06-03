@@ -91,7 +91,7 @@ Here is a list of the most common validators:
 |> validateField #phoneNumber isPhoneNumber
 
 -- works with ints
-|> validateField #rating (isInRange 1 10)
+|> validateField #rating (isInRange (1, 10))
 ```
 
 You can find [the full list of built-in validators in the API Documentation](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html).
