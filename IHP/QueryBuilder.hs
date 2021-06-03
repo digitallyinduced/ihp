@@ -594,7 +594,7 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 -- >    query @Post |> 
 --      innerJoin @User (#createdBy, #id) |> 
 --      filterWhereILikeJoinedTable @User (#name, "%Olaf%")
--- > --SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%' 
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%' 
 filterWhereILikeJoinedTable :: forall model table name table' model' value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value) }
     where
