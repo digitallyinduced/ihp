@@ -373,7 +373,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
         joinClause = buildJoinClause $ reverse $ joins sqlQuery
         buildJoinClause :: [Join] -> Maybe ByteString
         buildJoinClause [] = Nothing
-        buildJoinClause (j:js) = Just $ "INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <>table j <> "." <> otherJoinColumn j <> maybe "" (" " <>) (buildJoinClause js)
+        buildJoinClause (joinClause:joinClauses) = Just $ "INNER JOIN " <> table joinClause <> " ON " <> tableJoinColumn joinClause <> " = " <>table joinClause <> "." <> otherJoinColumn joinClause <> maybe "" (" " <>) (buildJoinClause joinClauses)
 
 
 {-# INLINE toSQL' #-}
