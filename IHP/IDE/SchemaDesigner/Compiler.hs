@@ -28,6 +28,7 @@ compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> 
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
 compileStatement CreateIndex { indexName, tableName, columnNames } = "CREATE INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " columnNames) <> ");"
+compileStatement CreateFunction { functionName, functionBody, orReplace } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$" <> functionBody <> "$$ language plpgsql;"
 compileStatement UnknownStatement { raw } = raw
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns

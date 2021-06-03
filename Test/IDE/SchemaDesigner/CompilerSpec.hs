@@ -340,3 +340,24 @@ tests = do
                     , columnNames = ["user_name", "project_id"]
                     }
             compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
+            let sql = cs [plain|CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "notify_did_insert_webrtc_connection"
+                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+                    , orReplace = True
+                    }
+
+            compileSql [statement] `shouldBe` sql
+
+
+        it "should compile a CREATE FUNCTION ..() RETURNS TRIGGER .." do
+            let sql = cs [plain|CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "notify_did_insert_webrtc_connection"
+                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+                    , orReplace = False
+                    }
+
+            compileSql [statement] `shouldBe` sql

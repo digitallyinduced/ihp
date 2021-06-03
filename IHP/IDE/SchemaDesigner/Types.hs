@@ -21,6 +21,8 @@ data Statement
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName);
     | CreateIndex { indexName :: Text, tableName :: Text, columnNames :: [Text] }
+    -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
+    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
     deriving (Eq, Show)
 
 data CreateTable

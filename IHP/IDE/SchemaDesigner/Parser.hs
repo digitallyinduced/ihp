@@ -58,7 +58,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> createEnumType <|> addConstraint <|> comment
     space
     pure s
 
@@ -398,3 +398,20 @@ createIndex = do
     columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
     char ';'
     pure CreateIndex { indexName, tableName, columnNames }
+
+createFunction = do
+    lexeme "CREATE"
+    orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
+    lexeme "FUNCTION"
+    functionName <- identifier
+    lexeme "()"
+    lexeme "RETURNS"
+    lexeme "TRIGGER"
+    lexeme "AS"
+    space
+    functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
+    space
+    lexeme "language"
+    lexeme "plpgsql"
+    char ';'
+    pure CreateFunction { functionName, functionBody, orReplace }
