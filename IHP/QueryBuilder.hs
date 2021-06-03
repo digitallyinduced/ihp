@@ -315,7 +315,7 @@ buildQuery = buildQueryHelper . getQueryBuilder
     buildQueryHelper JoinQueryBuilder { queryBuilder, join } =
         let 
             firstQuery = buildQuery queryBuilder
-         in firstQuery {joins = join:joins firstQuery}
+         in firstQuery { joins = join:joins firstQuery }
     
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
