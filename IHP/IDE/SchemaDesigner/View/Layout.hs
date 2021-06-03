@@ -288,6 +288,8 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject AddConstraint {} id = mempty
         renderObject CreateExtension {} id = mempty
         renderObject CreateIndex {} id = mempty
+        renderObject CreateFunction {} id = mempty
+        renderObject UnknownStatement {} id = mempty
         renderObject statement id = [hsx|<div>{statement}</div>|]
 
         shouldRenderObject (StatementCreateTable CreateTable {}) = True
