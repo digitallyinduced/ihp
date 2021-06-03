@@ -525,11 +525,10 @@ filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 --
 -- __Example:__ get posts by users not named Tom or Tim.
 --
--- > notTomOrTimPosts <-
--- >    query @Post |> 
--- >    innerJoin @User (#createdBy, #id) |> 
--- >    filterWhereNotInJoinedTable @User (#name, ["Tom","Tim"]) |>
--- >    fetch
+-- > notTomOrTimPosts <- query @Post
+-- >    |> innerJoin @User (#createdBy, #id)
+-- >    |> filterWhereNotInJoinedTable @User (#name, ["Tom","Tim"])
+-- >    |> fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name NOT IN ('Tom', 'Tim')
 filterWhereNotInJoinedTable :: forall model name table  value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
