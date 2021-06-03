@@ -78,7 +78,7 @@ redirectToUrl url = do
 -- Uses the Referer header to do a redirect to page that got you here.
 --
 -- In case the Referer header is not set this function will redirect to @/@. Use 'redirectBackWithFallback' when you want
--- to specify a custom fallback url.
+-- to specify a custom fallback path.
 --
 -- __Example:__
 --
@@ -109,8 +109,12 @@ redirectBack = redirectBackWithFallback "/"
 -- >     redirectBackWithFallback (pathTo ShowPostAction { postId = get #id post })
 --
 redirectBackWithFallback :: (?context :: ControllerContext) => Text -> IO ()
-redirectBackWithFallback fallbackPath = do
+redirectBackWithFallback fallbackPathOrUrl = do
     case getHeader "Referer" of
-        Just referer -> redirectToPath (cs referer)
-        Nothing -> redirectToPath fallbackPath
+        Just referer -> case parseURI (cs referer) of
+                Just uri -> redirectToUrl (tshow uri)           -- Referer Is URL "https://google.com/..."
+                Nothing -> redirectToPath (cs referer)          -- Referer Is Path "/../"
+        Nothing -> case parseURI (cs fallbackPathOrUrl) of
+                Just uri -> redirectToUrl (tshow uri)           -- Fallback Is URL "https://google.com/..."
+                Nothing -> redirectToPath fallbackPathOrUrl     -- Fallback Is Path "/../"
 {-# INLINABLE redirectBackWithFallback #-}
