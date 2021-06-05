@@ -183,7 +183,7 @@ data QueryBuilder (table :: Symbol) =
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
     | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
-    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), join :: Join}
+    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
     deriving (Show, Eq)
 
 data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show, Eq)
@@ -326,10 +326,10 @@ buildQuery = buildQueryHelper . getQueryBuilder
                     else
                         error "buildQuery: Union of complex queries not supported yet"
     
-    buildQueryHelper JoinQueryBuilder { queryBuilder, join } =
+    buildQueryHelper JoinQueryBuilder { queryBuilder, joinData } =
         let 
             firstQuery = buildQuery queryBuilder
-         in firstQuery { joins = join:joins firstQuery }
+         in firstQuery { joins = joinData:joins firstQuery }
     
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
