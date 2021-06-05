@@ -175,6 +175,15 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name = ?", [Escape "Tom"])
 
+        describe "filterWhereNotJoinedTable" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name != ?", [Escape "Tom"])
+
 
 
         describe "orderBy" do

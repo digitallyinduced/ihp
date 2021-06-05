@@ -30,6 +30,7 @@ module IHP.QueryBuilder
 , filterWhereMatches
 , filterWhereIMatches
 , filterWhereJoinedTable
+, filterWhereNotJoinedTable
 , filterWhereInJoinedTable
 , filterWhereNotInJoinedTable
 , filterWhereLikeJoinedTable
@@ -183,7 +184,7 @@ data QueryBuilder (table :: Symbol) =
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
     | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
-    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), join :: Join}
+    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
     deriving (Show, Eq)
 
 data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show, Eq)
@@ -326,10 +327,10 @@ buildQuery = buildQueryHelper . getQueryBuilder
                     else
                         error "buildQuery: Union of complex queries not supported yet"
     
-    buildQueryHelper JoinQueryBuilder { queryBuilder, join } =
+    buildQueryHelper JoinQueryBuilder { queryBuilder, joinData } =
         let 
             firstQuery = buildQuery queryBuilder
-         in firstQuery { joins = join:joins firstQuery }
+         in firstQuery { joins = joinData:joins firstQuery }
     
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
@@ -480,6 +481,22 @@ filterWhereNot (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder,
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereNot #-}
 
+-- | Like 'filterWhereNotJoinedTable' but negates the condition.
+--
+-- __Example:__ Only show projects not created by user Tom.
+--
+-- > tomPosts <- query @Post
+-- >                    |> innerJoin @User (#createdBy, #id)
+-- >                    |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
+-- >                    |> fetch
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name = 'Tom'
+--
+filterWhereNotJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, negateFilterOperator (toEqOrIsOperator value), toField value) }
+    where
+        columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereNotJoinedTable #-}
 -- | Adds a @WHERE x IN (y)@ condition to the query.
 --
 -- __Example:__ Only show projects where @status@ is @Draft@ or @Active@.
