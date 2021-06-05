@@ -77,6 +77,24 @@ data Expression =
     | CallExpression Text [Expression]
     -- | Not equal operator, a <> b
     | NotEqExpression Expression Expression
+    -- | Equal operator, a = b
+    | EqExpression Expression Expression
+    -- | a AND b
+    | AndExpression Expression Expression
+    -- | a IS b
+    | IsExpression Expression Expression
+    -- | NOT a
+    | NotExpression Expression
+    -- | a OR b
+    | OrExpression Expression Expression
+    -- | a < b
+    | LessThanExpression Expression Expression
+    -- | a <= b
+    | LessThanOrEqualToExpression Expression Expression
+    -- | a > b
+    | GreaterThanExpression Expression Expression
+    -- | a >= b
+    | GreaterThanOrEqualToExpression Expression Expression
     deriving (Eq, Show)
 
 data PostgresType

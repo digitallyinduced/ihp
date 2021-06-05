@@ -78,6 +78,15 @@ compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
 compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
+compileExpression (EqExpression a b) = compileExpression a <> " = " <> compileExpression b
+compileExpression (IsExpression a b) = compileExpression a <> " IS " <> compileExpression b
+compileExpression (NotExpression a) = "NOT " <> compileExpression a
+compileExpression (AndExpression a b) = compileExpression a <> " AND " <> compileExpression b
+compileExpression (OrExpression a b) = "(" <> compileExpression a <> ") OR (" <> compileExpression b <> ")"
+compileExpression (LessThanExpression a b) = compileExpression a <> " < " <> compileExpression b
+compileExpression (LessThanOrEqualToExpression a b) = compileExpression a <> " <= " <> compileExpression b
+compileExpression (GreaterThanExpression a b) = compileExpression a <> " > " <> compileExpression b
+compileExpression (GreaterThanOrEqualToExpression a b) = compileExpression a <> " >= " <> compileExpression b
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
