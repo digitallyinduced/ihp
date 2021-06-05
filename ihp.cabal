@@ -335,6 +335,7 @@ executable RunDevServer
             -with-rtsopts=-A512m
             -with-rtsopts=-N
             -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
 
 executable new-application
