@@ -150,3 +150,7 @@
     font-weight: 800;
     font-size: 16px;
 }
+
+#schema-designer-viewer {
+    margin-bottom: 200px; /* Make sure the context menu has a bit of space, see https://github.com/digitallyinduced/ihp/issues/895 */
+}

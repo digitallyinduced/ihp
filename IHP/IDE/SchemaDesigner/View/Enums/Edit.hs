@@ -14,7 +14,7 @@ data EditEnumView = EditEnumView
 
 instance View EditEnumView where
     html EditEnumView { .. } = [hsx|
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
         {renderModal modal}
