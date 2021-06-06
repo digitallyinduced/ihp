@@ -68,6 +68,25 @@ config = do
 
 You need to replace `eu-central-1` with your availbility zone and `my-bucket-name` with the name of your S3 bucket.
 
+The AWS access key and secret key have to be provided using the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` env vars.
+
+For easy development you can add these env vars to your `./start` script:
+
+```bash
+#!/usr/bin/env bash
+# Script to start the local dev server
+
+# ...
+
+export AWS_ACCESS_KEY_ID="YOUR KEY"            # <---------
+export AWS_SECRET_ACCESS_KEY="YOUR SECRET"     # <---------
+
+# Finally start the dev server
+RunDevServer
+
+
+```
+
 ## Uploading
 
 ### Saving a User Upload to the Storage
