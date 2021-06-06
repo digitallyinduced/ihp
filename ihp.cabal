@@ -92,6 +92,8 @@ common shared-properties
             , fast-logger
             , regex-pcre-builtin
             , pcre-utils
+            , minio-hs
+            , temporary-rc
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
