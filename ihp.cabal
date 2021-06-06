@@ -94,6 +94,7 @@ common shared-properties
             , pcre-utils
             , minio-hs
             , temporary-rc
+            , conduit-extra
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -238,6 +239,10 @@ library
         , IHP.Assets.Types
         , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
+        , IHP.FileStorage.Types
+        , IHP.FileStorage.ControllerFunctions
+        , IHP.FileStorage.Config
+        , IHP.FileStorage.Preprocessor.ImageMagick
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
