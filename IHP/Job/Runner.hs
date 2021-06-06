@@ -28,8 +28,9 @@ runJobWorkers jobWorkers = do
     let oneSecond = 1000000
 
     putStrLn ("Starting worker " <> tshow workerId)
+    let ?frameworkConfig = ?context
 
-    let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context}
+    let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?frameworkConfig}
 
     threadId <- Concurrent.myThreadId
     exitSignalsCount <- newIORef 0
@@ -103,8 +104,9 @@ jobWorkerFetchAndRunLoop :: forall job.
     , Show job
     ) => JobWorkerArgs -> IO (Async.Async ())
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
-    let ?context = frameworkConfig
+    let ?frameworkConfig = frameworkConfig
     let ?modelContext = modelContext
+
 
     -- This loop schedules all jobs that are in the queue.
     -- It will be initally be called when first starting up this job worker
