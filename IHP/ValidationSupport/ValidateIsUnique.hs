@@ -1,4 +1,4 @@
-module IHP.ValidationSupport.ValidateIsUnique (validateIsUnique) where
+module IHP.ValidationSupport.ValidateIsUnique where
 
 import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
@@ -52,3 +52,44 @@ validateIsUnique fieldProxy model = do
         Just value | not $ (getField @"id" model) == (getField @"id" value) -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
         _ -> pure (attachValidatorResult fieldProxy Success model)
 {-# INLINE validateIsUnique #-}
+
+
+-- | Overrides the error message of a given IO validator function.
+--
+-- __Example:__ Validate that an email is unique with a custom error message
+--
+-- > action CreateUserAction = do
+-- >     let user = newRecord @User
+-- >     user
+-- >         |> fill @'["email"]
+-- >         |> withCustomErrorMessage' "Email Has Already Been Used" validateIsUnique #email
+-- >         >>= ifValid \case
+-- >             Left user -> render NewView { .. }
+-- >             Right user -> do
+-- >                 createRecord user
+-- >                 redirectTo UsersAction
+withCustomErrorMessage' :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+        savedModel ~ NormalizeModel model
+        , ?modelContext :: ModelContext
+        , FromRow savedModel
+        , KnownSymbol field
+        , HasField field model fieldValue
+        , HasField field savedModel fieldValue
+        , KnownSymbol (GetTableName savedModel)
+        , ToField fieldValue
+        , EqOrIsOperator fieldValue
+        , HasField "meta" model MetaBag
+        , SetField "meta" model MetaBag
+        , HasField "id" savedModel savedModelId
+        , HasField "id" model modelId
+        , savedModelId ~ modelId
+        , Eq modelId
+        , GetModelByTableName (GetTableName savedModel) ~ savedModel
+    ) => Text -> (Proxy field -> model -> IO model) -> Proxy field -> model -> IO model
+withCustomErrorMessage' message validator field model = do
+    validator field model >>= (\model ->
+                                let maybeFailure = getValidationFailure field model
+                                in case maybeFailure of
+                                    Just _ -> pure $ attachFailure field message model
+                                    Nothing -> pure model)
+{-# INLINABLE withCustomErrorMessage' #-}
