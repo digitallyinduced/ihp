@@ -45,6 +45,11 @@ renderTableSelector tableNames activeTableName = [hsx|
             </a>
             <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
                 <a href={pathTo (ShowTableAction name)}>Show Schema</a>
+                <a
+                    href={pathTo (DeleteTableRowsAction name)}
+                    class="js-delete"
+                    data-confirm={"Are you sure you want to delete all rows in '" <> name <> "' table?"}
+                >Delete All Rows</a>
             </div>
         |]
             where
