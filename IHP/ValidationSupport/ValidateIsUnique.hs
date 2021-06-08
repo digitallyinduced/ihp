@@ -62,13 +62,13 @@ validateIsUnique fieldProxy model = do
 -- >     let user = newRecord @User
 -- >     user
 -- >         |> fill @'["email"]
--- >         |> withCustomErrorMessage' "Email Has Already Been Used" validateIsUnique #email
+-- >         |> withCustomErrorMessageIO "Email Has Already Been Used" validateIsUnique #email
 -- >         >>= ifValid \case
 -- >             Left user -> render NewView { .. }
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-withCustomErrorMessage' :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+withCustomErrorMessageIO :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -86,10 +86,10 @@ withCustomErrorMessage' :: forall field model savedModel validationState fieldVa
         , Eq modelId
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
     ) => Text -> (Proxy field -> model -> IO model) -> Proxy field -> model -> IO model
-withCustomErrorMessage' message validator field model = do
+withCustomErrorMessageIO message validator field model = do
     validator field model >>= (\model ->
                                 let maybeFailure = getValidationFailure field model
                                 in case maybeFailure of
                                     Just _ -> pure $ attachFailure field message model
                                     Nothing -> pure model)
-{-# INLINABLE withCustomErrorMessage' #-}
+{-# INLINABLE withCustomErrorMessageIO #-}
