@@ -205,7 +205,7 @@ putStrLn message
 
 ### Customizing Error Messages
 
-Use `withCustomErrorMessage` to customize the error message when validation failed:
+#### Use `withCustomErrorMessage` to customize the error message when validation failed:
 
 ```haskell
 user
@@ -214,6 +214,19 @@ user
 ```
 
 In this example, when the `nonEmpty` adds an error to the user, the message `Please enter your firstname` will be used instead of the default `This field cannot be empty`.
+
+#### Use `withCustomErrorMessageIO` to customize the error message when using IO functions:
+
+```haskell
+user
+    |> fill @'["email"]
+    |> withCustomErrorMessageIO "Email Has Already Been Used" validateIsUnique #email
+    >>= ifValid \case
+        Left user -> ...
+        Right user -> ...
+```
+
+In this example, when the `validateIsUnique` function adds an error to the user, the message `Email Has Already Been Used` will be used instead of the default `This is already in use`.
 
 ## Internals
 
