@@ -26,7 +26,7 @@ make -B build/ihp-lib
 
 Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;` lines in the `IHP/ihp.nix` for fast rebuilds, otherwise you could up waiting up to half an hour while IHP builds itself.
 
-The best workflow is to use `make ghci` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+The best workflow is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
 ghci

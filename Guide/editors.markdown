@@ -20,7 +20,7 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 
 To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
 
-```bash 
+```bash
 export IHP_EDITOR="code --goto"
 ```
 
@@ -41,7 +41,7 @@ Recommended packages:
 
 To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
 
-```bash 
+```bash
 export IHP_EDITOR="sublime"
 ```
 
@@ -100,7 +100,7 @@ When running `./start` the application will automatically be opened in your defa
 export IHP_BROWSER=firefox
 ```
 
-You can disable the auto-start of the browser completly using `echo` as your browser:
+You can disable the auto-start of the browser completely using `echo` as your browser:
 
 ```bash
 export IHP_BROWSER=echo
