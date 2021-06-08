@@ -58,7 +58,7 @@ let
         ip
         fast-logger
         minio-hs
-        temporary-rc
+        temporary
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

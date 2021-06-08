@@ -93,7 +93,7 @@ common shared-properties
             , regex-pcre-builtin
             , pcre-utils
             , minio-hs
-            , temporary-rc
+            , temporary
             , conduit-extra
     default-extensions:
         OverloadedStrings
