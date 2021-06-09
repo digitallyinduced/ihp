@@ -3,7 +3,6 @@
 Module: IHP.QueryBuilder
 Description:  Tool to build simple sql queries
 Copyright: (c) digitally induced GmbH, 2020
-
 QueryBuilder is mainly used for doing simple `SELECT` sql queries. It allows dynamic
 creation of sql queries in a type safe way.
 
@@ -50,7 +49,9 @@ module IHP.QueryBuilder
 , HasQueryBuilder
 , JoinQueryBuilderWrapper
 , NoJoinQueryBuilderWrapper
+, IndexedQueryBuilderWrapper
 , getQueryBuilder
+, NoJoins
 )
 where
 
@@ -160,6 +161,9 @@ newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (Qu
 -- Wrapper for QueryBuilder that must not joins, e.g. queryUnion.
 newtype NoJoinQueryBuilderWrapper table = NoJoinQueryBuilderWrapper (QueryBuilder table)
 
+-- Wrapper for QueryBuilders with indexed results.
+newtype IndexedQueryBuilderWrapper foreignTable indexColumn indexValue table = IndexedQueryBuilderWrapper (QueryBuilder table)
+
 -- QueryBuilders have query builders and the join register is empty.
 instance HasQueryBuilder QueryBuilder EmptyModelList where
     getQueryBuilder = id
@@ -168,12 +172,17 @@ instance HasQueryBuilder QueryBuilder EmptyModelList where
 -- JoinQueryBuilderWrappers have query builders
 instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    injectQueryBuilder queryBuilder = JoinQueryBuilderWrapper queryBuilder
+    injectQueryBuilder = JoinQueryBuilderWrapper 
 
 -- NoJoinQueryBuilderWrapper have query builders and the join register does not allow any joins
 instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    injectQueryBuilder queryBuilder = NoJoinQueryBuilderWrapper queryBuilder
+    injectQueryBuilder  = NoJoinQueryBuilderWrapper 
+
+instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName  foreignTable, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
+    getQueryBuilder (IndexedQueryBuilderWrapper queryBuilder) = queryBuilder
+    injectQueryBuilder = IndexedQueryBuilderWrapper
+
 
 data QueryBuilder (table :: Symbol) =
     NewQueryBuilder
@@ -728,6 +737,14 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
+indexResults :: forall model table table' name value queryBuilderProvider joinRegister.
+                (
+                    table ~ GetTableName model, 
+                    HasField name model value,
+                    HasQueryBuilder queryBuilderProvider joinRegister
+                ) => Proxy name -> queryBuilderProvider table' -> IndexedQueryBuilderWrapper table name value table'
+indexResults name queryBuilderProvider = IndexedQueryBuilderWrapper $ getQueryBuilder queryBuilderProvider
+                    
 -- | Joins a table on a column held by a previously joined table. Example:
 -- > query @Posts 
 -- > |> innerJoin @Users (#author, #id)

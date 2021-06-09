@@ -32,6 +32,7 @@ import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
+import GHC.Generics as Gen
 import GHC.OverloadedLabels
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
@@ -89,6 +90,24 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (No
 
     {-# INLINE fetchOne #-}
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO model
+    fetchOne = commonFetchOne
+
+instance (model ~ GetModelByTableName table, KnownSymbol table, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName  foreignTable, FromField value, HasField columnName foreignModel value, Generic value) => Fetchable (IndexedQueryBuilderWrapper foreignTable columnName value table) model where
+    type instance FetchResult (IndexedQueryBuilderWrapper foreignTable columnName value table) model = [IndexedData value model]
+    {-# INLINE fetch #-}
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, FromField value, Gen.Generic value, HasField columnName foreignModel value, ?modelContext :: ModelContext,  HasQueryBuilder queryBuilderProvider NoJoins) => queryBuilderProvider table -> IO [IndexedData value model]
+    fetch !queryBuilderProvider = do
+        let !(theQuery, theParameters) = queryBuilderProvider
+                |> toSQL
+        trackTableRead (tableNameByteString @model)
+        sqlQuery @_ @(IndexedData value model) (Query $ cs theQuery) theParameters
+
+    {-# INLINE fetchOneOrNothing #-}
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
+    fetchOneOrNothing = commonFetchOneOrNothing
+
+    {-# INLINE fetchOne #-}
+    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO model
     fetchOne = commonFetchOne
 
 

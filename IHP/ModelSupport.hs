@@ -27,6 +27,7 @@ import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import GHC.Records
 import GHC.OverloadedLabels
 import GHC.TypeLits
@@ -258,6 +259,12 @@ instance Newtype.Newtype (Id' model) where
     type O (Id' model) = PrimaryKey model
     pack = Id
     unpack (Id uuid) = uuid
+
+data IndexedData a b = IndexedData { index :: a, content :: b }
+    deriving (Generic)
+
+instance (FromField index, Generic index, PG.FromRow a) => PGFR.FromRow (IndexedData index a) where
+    fromRow = IndexedData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
 -- to write the Id like a string:
