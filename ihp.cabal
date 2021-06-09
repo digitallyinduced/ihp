@@ -238,6 +238,8 @@ library
         , IHP.ServerSideComponent.RouterFunctions
         , IHP.ServerSideComponent.ControllerFunctions
         , IHP.ServerSideComponent.Controller.ComponentsController
+        , IHP.ServerSideComponent.HtmlDiff
+        , IHP.ServerSideComponent.HtmlParser
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
