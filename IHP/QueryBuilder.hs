@@ -154,6 +154,8 @@ instance {-# OVERLAPPABLE #-} (ModelList b, IsJoined a b) => IsJoined a (ConsMod
 class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -> joinRegister where
     getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
+    getQueryIndex :: queryBuilderProvider table -> Maybe ByteString
+    getQueryIndex _ = Nothing 
 
 -- Wrapper for QueryBuilders resulting from joins. Associates a joinRegister type.
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
@@ -179,9 +181,10 @@ instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder  = NoJoinQueryBuilderWrapper 
 
-instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName  foreignTable, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
+instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName  foreignTable, KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
     getQueryBuilder (IndexedQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder = IndexedQueryBuilderWrapper
+    getQueryIndex _ = Just $ symbolToByteString @foreignTable <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
 
 
 data QueryBuilder (table :: Symbol) =
@@ -207,7 +210,8 @@ data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoin
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery
-    { selectFrom :: !ByteString
+    { queryIndex :: !(Maybe ByteString)
+    , selectFrom :: !ByteString
     , distinctClause :: !(Maybe ByteString)
     , distinctOnClause :: !(Maybe ByteString)
     , whereCondition :: !(Maybe Condition)
@@ -272,12 +276,13 @@ query = (defaultScope @table) NewQueryBuilder
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
-buildQuery = buildQueryHelper . getQueryBuilder 
+buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
     where
     buildQueryHelper NewQueryBuilder =
         let tableName = symbolToByteString @table
         in SQLQuery
-                { selectFrom = tableName
+            {     queryIndex = getQueryIndex queryBuilderProvider
+                , selectFrom = tableName
                 , distinctClause = Nothing
                 , distinctOnClause = Nothing
                 , whereCondition = Nothing
@@ -353,7 +358,7 @@ toSQL queryBuilderProvider = toSQL' (buildQuery $ getQueryBuilder queryBuilderPr
 {-# INLINE toSQL #-}
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
-toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
+toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
         (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
@@ -373,7 +378,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
                     ]
 
         selectors :: ByteString
-        selectors = selectFrom <> ".*"
+        selectors = ByteString.intercalate ", " $ catMaybes [queryIndex , Just (selectFrom <> ".*")]
 
         fromClause :: ByteString
         fromClause = selectFrom
