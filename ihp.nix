@@ -55,7 +55,7 @@
 , ip
 , fast-logger
 , minio-hs
-, temporary-rc
+, temporary
 }:
 mkDerivation {
   pname = "ihp";
@@ -117,7 +117,7 @@ mkDerivation {
     ip
     fast-logger
     minio-hs
-    temporary-rc
+    temporary
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
