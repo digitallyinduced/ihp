@@ -36,6 +36,7 @@ module IHP.QueryBuilder
 , filterWhereILikeJoinedTable
 , filterWhereMatchesJoinedTable
 , filterWhereIMatchesJoinedTable
+, indexResults
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -54,7 +55,7 @@ module IHP.QueryBuilder
 , NoJoins
 )
 where
-
+import qualified Prelude
 import IHP.Prelude
 import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
@@ -70,6 +71,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
+import Debug.Trace
 
 class DefaultScope table where
     defaultScope :: QueryBuilder table -> QueryBuilder table
@@ -184,7 +186,7 @@ instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
 instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName  foreignTable, KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
     getQueryBuilder (IndexedQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder = IndexedQueryBuilderWrapper
-    getQueryIndex _ = Just $ symbolToByteString @foreignTable <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
+    getQueryIndex _ = Just $ symbolToByteString @foreignTable <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
 
 
 data QueryBuilder (table :: Symbol) =
@@ -241,6 +243,7 @@ deriving instance Eq Action
 instance Eq Builder.Builder where
     a == b = (Builder.toLazyByteString a) == (Builder.toLazyByteString b)
 
+instance SetField "queryIndex" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { queryIndex = value }
 instance SetField "selectFrom" SQLQuery ByteString where setField value sqlQuery = sqlQuery { selectFrom = value }
 instance SetField "distinctClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { distinctClause = value }
 instance SetField "distinctOnClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
@@ -276,12 +279,15 @@ query = (defaultScope @table) NewQueryBuilder
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
-buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
+buildQuery queryBuilderProvider = buildQueryHelper (getQueryBuilder queryBuilderProvider)
+--                                                        |> case getQueryIndex queryBuilderProvider of
+--                                                              Just index -> setJust #queryIndex index
+--                                                              Nothing -> id
     where
     buildQueryHelper NewQueryBuilder =
         let tableName = symbolToByteString @table
         in SQLQuery
-            {     queryIndex = getQueryIndex queryBuilderProvider
+            {     queryIndex = trace (Prelude.show $ getQueryIndex queryBuilderProvider) getQueryIndex queryBuilderProvider 
                 , selectFrom = tableName
                 , distinctClause = Nothing
                 , distinctOnClause = Nothing
@@ -292,33 +298,33 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                 , offsetClause = Nothing
                 }
     buildQueryHelper DistinctQueryBuilder { queryBuilder } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> setJust #distinctClause "DISTINCT"
     buildQueryHelper DistinctOnQueryBuilder { queryBuilder, distinctOnColumn } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
     buildQueryHelper FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, value) } =
                 let
                     condition = VarCondition (columnName <> " " <> compileOperator operator <> " ?") value
                 in
                     queryBuilder
-                        |> buildQuery
+                        |> buildQueryHelper
                         |> modify #whereCondition \case
                                 Just c -> Just (AndCondition c condition)
                                 Nothing -> Just condition
     buildQueryHelper OrderByQueryBuilder { queryBuilder, queryOrderByClause } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> modify #orderByClause (\value -> value <> [queryOrderByClause] ) -- although adding to the end of a list is bad form, these lists are very short
     buildQueryHelper LimitQueryBuilder { queryBuilder, queryLimit } =
                     queryBuilder
-                    |> buildQuery
+                    |> buildQueryHelper
                     |> setJust #limitClause (
                             (Builder.byteString "LIMIT " <> Builder.intDec queryLimit)
                             |> Builder.toLazyByteString
                             |> LByteString.toStrict
                         )
     buildQueryHelper OffsetQueryBuilder { queryBuilder, queryOffset } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> setJust #offsetClause (
                     (Builder.byteString "OFFSET " <> Builder.intDec queryOffset)
                     |> Builder.toLazyByteString
@@ -326,8 +332,8 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                 )
     buildQueryHelper UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder } =
                 let
-                    firstQuery = buildQuery firstQueryBuilder
-                    secondQuery = buildQuery secondQueryBuilder
+                    firstQuery = buildQueryHelper firstQueryBuilder
+                    secondQuery = buildQueryHelper secondQueryBuilder
                     isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
                     isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                     unionWhere =
@@ -343,7 +349,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
     
     buildQueryHelper JoinQueryBuilder { queryBuilder, joinData } =
         let 
-            firstQuery = buildQuery queryBuilder
+            firstQuery = buildQueryHelper queryBuilder
          in firstQuery { joins = joinData:joins firstQuery }
     
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
@@ -354,7 +360,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
 -- >>> toSQL postsQuery
 -- ("SELECT posts.* FROM posts WHERE public = ?", [Plain "true"])
 toSQL :: (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> (ByteString, [Action])
-toSQL queryBuilderProvider = toSQL' (buildQuery $ getQueryBuilder queryBuilderProvider)
+toSQL queryBuilderProvider = toSQL' (buildQuery queryBuilderProvider)
 {-# INLINE toSQL #-}
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
@@ -746,7 +752,8 @@ indexResults :: forall model table table' name value queryBuilderProvider joinRe
                 (
                     table ~ GetTableName model, 
                     HasField name model value,
-                    HasQueryBuilder queryBuilderProvider joinRegister
+                    HasQueryBuilder queryBuilderProvider joinRegister,
+                    KnownSymbol name
                 ) => Proxy name -> queryBuilderProvider table' -> IndexedQueryBuilderWrapper table name value table'
 indexResults name queryBuilderProvider = IndexedQueryBuilderWrapper $ getQueryBuilder queryBuilderProvider
                     

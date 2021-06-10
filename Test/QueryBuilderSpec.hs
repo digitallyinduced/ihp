@@ -185,6 +185,14 @@ tests = do
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name != ?", [Escape "Tom"])
 
 
+        describe "indexResults" do
+            it "should provide a query with index field" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> indexResults @User #id
+                (toSQL theQuery) `shouldBe` ("SELECT users.id, posts.* FROM posts INNER JOIN users ON posts.created_by = users.id", [])
+
+
 
         describe "orderBy" do
             describe "orderByAsc" do
