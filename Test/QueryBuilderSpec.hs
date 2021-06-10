@@ -88,6 +88,14 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE created_at  ?", [Plain "< current_timestamp - interval '1 day'"])
 
+        describe "filterWhereCaseInsensitive" do
+            it "should produce a SQL with a WHERE LOWER() condition" do
+                let theQuery = query @Post
+                        |> filterWhereCaseInsensitive (#title, "Test" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE LOWER(title) = LOWER(?)", [Escape "Test"])
+
+
         describe "orderBy" do
             describe "orderByAsc" do
                 it "should add a ORDER BY" do
