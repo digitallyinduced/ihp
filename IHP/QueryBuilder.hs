@@ -568,7 +568,7 @@ filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name NOT IN ('Tom', 'Tim')
 filterWhereNotInJoinedTable :: forall model name table  value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
-filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)) }
+filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
@@ -665,7 +665,7 @@ filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder Filte
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.title ~ '^(M(rs|r|iss|s)|Dr|Sir). '
 
 filterWhereMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value) }
+filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
