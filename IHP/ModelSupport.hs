@@ -260,10 +260,10 @@ instance Newtype.Newtype (Id' model) where
     pack = Id
     unpack (Id uuid) = uuid
 
-data IndexedData a b = IndexedData { index :: a, content :: b }
-    deriving (Generic)
+data IndexedData a b = IndexedData { indexValue :: a, contentValue :: b }
+    deriving (Show)
 
-instance (FromField index, Generic index, PG.FromRow a) => PGFR.FromRow (IndexedData index a) where
+instance (FromField index, PG.FromRow a) => PGFR.FromRow (IndexedData index a) where
     fromRow = IndexedData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
