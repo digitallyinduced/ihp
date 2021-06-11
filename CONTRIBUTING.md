@@ -137,6 +137,10 @@ Try to run `make -B build/ihp-lib` to create the symlink.
 
 In the project directory, try `make -B .envrc`
 
+### `*** WARNING: . is writable by someone else, IGNORING! Suggested fix: execute 'chmod go-w .'`
+
+You may receive this error when trying to load modules into GHCI like `:l Main`. Run `chmod go-w .` to change the permissions so the `.ghci` file could be loaded properly.
+
 ### Error messages about missing packages in `ghci`
 
 Perhaps a package was added to IHP recently. Start a `nix-shell` in the IHP directory to fetch missing packages.
