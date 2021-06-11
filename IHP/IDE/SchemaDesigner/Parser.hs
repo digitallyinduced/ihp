@@ -409,9 +409,9 @@ createIndex = do
     indexName <- identifier
     lexeme "ON"
     tableName <- identifier
-    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     char ';'
-    pure CreateIndex { indexName, tableName, columnNames }
+    pure CreateIndex { indexName, tableName, expressions }
 
 createFunction = do
     lexeme "CREATE"
