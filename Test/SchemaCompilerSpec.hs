@@ -113,7 +113,7 @@ tests = do
                             List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, get #id model))
                     |]
 
-            it "should compile CanUpdate instance with an array type with an explicit cast" $ \statment -> do
+            it "should compile CanUpdate instance with an array type with an explicit cast" do
                 let statement = StatementCreateTable $ CreateTable {
                     name = "users",
                     columns = [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False ],
