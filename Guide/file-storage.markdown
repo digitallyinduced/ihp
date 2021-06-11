@@ -118,7 +118,7 @@ action UpdateCompanyAction { companyId } = do
 
 The call to `uploadToStorage #logoUrl` will upload the file provided by the user. It will be saved as `companies/<some uuid>` on the configured storage. The the file url will be written to the `logoUrl` attribute.
 
-After calling `uploadToStorage` inside a action, you typcially need to use `>>=` instead of `|>`:
+After calling `uploadToStorage` inside a action, you typically need to use `>>=` instead of `|>`:
 
 ```haskell
 -- Bad, will cause a type error:
