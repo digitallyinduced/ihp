@@ -20,8 +20,26 @@ data Post = Post
         , public :: Bool
         , createdBy :: UUID
         }
+
 type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
+
+data User = User
+    { id :: UUID,
+      name :: Text
+    }
+
+type instance GetTableName User = "users"
+type instance GetModelByTableName "users" = User 
+
+data FavoriteTitle = FavoriteTitle
+    {
+        title :: Text,
+        likes :: Int
+    }
+
+type instance GetTableName FavoriteTitle = "favorite_title"
+type instance GetModelByTableName "favorite_title" = FavoriteTitle 
 
 tests = do
     describe "QueryBuilder" do
@@ -65,6 +83,16 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
 
+        describe "filterWhereInJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let theValues :: [Text] = ["first", "second"]
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereInJoinedTable @Post (#title, theValues)
+
+                (toSQL theQuery) `shouldBe` ("SELECT users.* FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
+
+
         describe "filterWhereNotIn" do
             it "should produce a SQL with a WHERE condition" do
                 let theValues :: [Text] = ["first", "second"]
@@ -79,6 +107,38 @@ tests = do
                         |> filterWhereNotIn (#title, theValues)
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts", [])
+
+        describe "filterWhereNotInJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let theValues :: [Text] = ["first", "second"]
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
+
+                (toSQL theQuery) `shouldBe` ("SELECT users.* FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title NOT IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
+
+            it "ignore an empty value list as this causes the query to always return nothing" do
+                let theValues :: [Text] = []
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
+
+                (toSQL theQuery) `shouldBe` ("SELECT users.* FROM users INNER JOIN posts ON users.name = posts.title", [])
+
+        describe "filterWhereILike" do
+            it "should produce a SQL with a WHERE condition" do
+                let searchTerm = "good"
+                let theQuery = query @Post
+                     |> filterWhereILike (#title, "%" <> searchTerm <> "%")
+                (toSQL theQuery `shouldBe` ("SELECT posts.* FROM posts WHERE title ILIKE ?", [Escape "%good%"]))
+
+        describe "filterWhereILikeJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let searchTerm = "louis"
+                let theQuery = query @Post
+                     |> innerJoin @User (#createdBy, #id)
+                     |> filterWhereILikeJoinedTable @User (#name, "%" <> searchTerm <> "%")
+                (toSQL theQuery `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE ?", [Escape "%louis%"]))
         
         describe "filterWhereSql" do
             it "should produce a SQL with a WHERE condition" do
@@ -87,6 +147,44 @@ tests = do
                         |> filterWhereSql (#createdAt, "< current_timestamp - interval '1 day'")
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE created_at  ?", [Plain "< current_timestamp - interval '1 day'"])
+
+        describe "innerJoin" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title", [])
+
+
+        describe "innerJoinThirdTable" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> innerJoinThirdTable @User @FavoriteTitle (#name, #title)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON favorite_title.title = users.name", [])
+
+        describe "filterWhereJoinedTable" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name = ?", [Escape "Tom"])
+
+        describe "filterWhereNotJoinedTable" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name != ?", [Escape "Tom"])
+
+
 
         describe "orderBy" do
             describe "orderByAsc" do
