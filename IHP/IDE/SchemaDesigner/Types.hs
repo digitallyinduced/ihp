@@ -19,8 +19,8 @@ data Statement
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
-    -- | CREATE INDEX indexName ON tableName (columnName);
-    | CreateIndex { indexName :: Text, tableName :: Text, columnNames :: [Text] }
+    -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
+    | CreateIndex { indexName :: Text, tableName :: Text, expressions :: [Expression] }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
     | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
     deriving (Eq, Show)

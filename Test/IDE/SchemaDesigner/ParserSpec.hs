@@ -410,13 +410,19 @@ tests = do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
                     , tableName = "users"
-                    , columnNames = ["user_name"]
+                    , expressions = [VarExpression "user_name"]
                     }
         it "should parse a CREATE INDEX statement with multiple columns" do
             parseSql "CREATE INDEX users_index ON users (user_name, project_id);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
                     , tableName = "users"
-                    , columnNames = ["user_name", "project_id"]
+                    , expressions = [VarExpression "user_name", VarExpression "project_id"]
+                    }
+        it "should parse a CREATE INDEX statement with a LOWER call" do
+            parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
+                    { indexName = "users_email_index"
+                    , tableName = "users"
+                    , expressions = [CallExpression "LOWER" [VarExpression "email"]]
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
