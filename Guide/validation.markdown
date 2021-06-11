@@ -133,6 +133,30 @@ action CreateUserAction = do
                 redirectTo UsersAction
 ```
 
+#### Case Insensitive Uniqueness
+
+Usually emails like `someone@example.com` and `Someone@example.com` belong to the same person. You can use `validateIsUniqueCaseInsensitive` to ignore the case when checking for uniqueness:
+
+
+```haskell
+action CreateUserAction = do
+    let user = newRecord @User
+    user
+        |> fill @'["email"]
+        |> validateIsUniqueCaseInsensitive #email
+        >>= ifValid \case
+            Left user -> render NewView { .. }
+            Right user -> do
+                createRecord user
+                redirectTo UsersAction
+```
+
+For good performance in production it's recommended to add an index on the column in your `Schema.sql`:
+
+```sql
+CREATE UNIQUE INDEX users_email_index ON users ((LOWER(email)));
+```
+
 ### Sharing Between Create and Update Action
 
 Usually, you have a lot of the same validation logic when creating and updating a record. To avoid duplicating the validation rules, you can apply them inside the `buildPost` function. This function is used by the create as well as the update action to read in the form values.
