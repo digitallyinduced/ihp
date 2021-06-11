@@ -92,10 +92,10 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (No
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO model
     fetchOne = commonFetchOne
 
-instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, KnownSymbol foreignTable, foreignTable ~ GetTableName foreignModel, KnownSymbol columnName, Gen.Generic value, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignModel columnName value) NoJoins) => Fetchable (IndexedQueryBuilderWrapper foreignModel columnName value table) model where
-    type instance FetchResult (IndexedQueryBuilderWrapper foreignModel columnName value table) model = [IndexedData value model]
+instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (IndexedQueryBuilderWrapper foreignTable columnName value table) model where
+    type instance FetchResult (IndexedQueryBuilderWrapper foreignTable columnName value table) model = [IndexedData value model]
     {-# INLINE fetch #-}
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, FromField value, KnownSymbol foreignTable, foreignTable ~ GetTableName foreignModel, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignModel columnName value) NoJoins, Gen.Generic value, ?modelContext :: ModelContext) => IndexedQueryBuilderWrapper foreignModel columnName value table -> IO [IndexedData value model]
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO [IndexedData value model]
     fetch !queryBuilderProvider = do
         let !(theQuery, theParameters) = queryBuilderProvider
                 |> toSQL
@@ -103,11 +103,11 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value,
         sqlQuery @_ @(IndexedData value model) (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignTable ~ GetTableName foreignModel, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignModel columnName value) NoJoins) => IndexedQueryBuilderWrapper foreignModel columnName value table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable columnName value) NoJoins) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignTable ~ GetTableName foreignModel, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignModel columnName value) NoJoins) => IndexedQueryBuilderWrapper foreignModel columnName value table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable columnName value) NoJoins) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO model
     fetchOne = commonFetchOne
 
 
