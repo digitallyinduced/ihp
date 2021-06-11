@@ -183,7 +183,7 @@ instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder  = NoJoinQueryBuilderWrapper 
 
-instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName  foreignTable, KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
+instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
     getQueryBuilder (IndexedQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder = IndexedQueryBuilderWrapper
     getQueryIndex _ = Just $ symbolToByteString @foreignTable <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
@@ -748,13 +748,17 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
-indexResults :: forall model table table' name value queryBuilderProvider joinRegister.
+indexResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
                 (
-                    table ~ GetTableName model, 
-                    HasField name model value,
+                    KnownSymbol foreignTable,
+                    KnownSymbol baseTable,
+                    foreignTable ~ GetTableName foreignModel, 
+                    baseModel ~ GetModelByTableName baseTable,
+                    HasField name foreignModel value,
                     HasQueryBuilder queryBuilderProvider joinRegister,
-                    KnownSymbol name
-                ) => Proxy name -> queryBuilderProvider table' -> IndexedQueryBuilderWrapper table name value table'
+                    KnownSymbol name,
+                    IsJoined foreignModel joinRegister
+                ) => Proxy name -> queryBuilderProvider baseTable -> IndexedQueryBuilderWrapper foreignTable name value baseTable
 indexResults name queryBuilderProvider = IndexedQueryBuilderWrapper $ getQueryBuilder queryBuilderProvider
                     
 -- | Joins a table on a column held by a previously joined table. Example:
