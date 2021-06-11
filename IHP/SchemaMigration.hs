@@ -26,11 +26,6 @@ migrate :: (?modelContext :: ModelContext) => IO ()
 migrate = do
     createSchemaMigrationsTable
 
-    -- Print out all sql queries during the migration. This might be set to false in it's called inside a production env
-    let modelContext = ?modelContext
-    logger <- defaultLogger
-    let ?modelContext = modelContext { logger }
-
     openMigrations <- findOpenMigrations
     forEach openMigrations runMigration
 
@@ -57,19 +52,27 @@ withTransaction block = do
 -- | Creates the @schema_migrations@ table if it doesn't exist yet
 createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
 createSchemaMigrationsTable = do
-    -- Hide the "NOTICE: relation schema_migrations already exists, skipping" message
-    -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
-    -- https://github.com/digitallyinduced/ihp/issues/818
+    -- Hide this query from the log
     let modelContext = ?modelContext
     let ?modelContext = modelContext { logger = (get #logger modelContext) { write = \_ -> pure ()} }
 
-    let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
-    _ <- sqlExec ddl ()
-    pure ()
+    -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
+    -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
+    -- https://github.com/digitallyinduced/ihp/issues/818
+    maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
+    let schemaMigrationTableExists = isJust maybeTableName
+
+    unless schemaMigrationTableExists do
+        let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
+        _ <- sqlExec ddl ()
+        pure ()
 
 -- | Returns all migrations that haven't been executed yet. The result is sorted so that the oldest revision is first.
 findOpenMigrations :: (?modelContext :: ModelContext) => IO [Migration]
 findOpenMigrations = do
+    let modelContext = ?modelContext
+    let ?modelContext = modelContext { logger = (get #logger modelContext) { write = \_ -> pure ()} }
+
     migratedRevisions <- findMigratedRevisions
     migrations <- findAllMigrations
     migrations

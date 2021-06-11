@@ -148,6 +148,13 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE created_at  ?", [Plain "< current_timestamp - interval '1 day'"])
 
+        describe "filterWhereCaseInsensitive" do
+            it "should produce a SQL with a WHERE LOWER() condition" do
+                let theQuery = query @Post
+                        |> filterWhereCaseInsensitive (#title, "Test" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE LOWER(title) = LOWER(?)", [Escape "Test"])
+
         describe "innerJoin" do
             it "should provide an inner join sql query" do
                 let theQuery = query @Post
@@ -183,7 +190,6 @@ tests = do
                         |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name != ?", [Escape "Tom"])
-
 
 
         describe "orderBy" do

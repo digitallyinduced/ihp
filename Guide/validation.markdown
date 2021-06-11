@@ -91,7 +91,7 @@ Here is a list of the most common validators:
 |> validateField #phoneNumber isPhoneNumber
 
 -- works with ints
-|> validateField #rating (isInRange 1 10)
+|> validateField #rating (isInRange (1, 10))
 ```
 
 You can find [the full list of built-in validators in the API Documentation](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html).
@@ -131,6 +131,30 @@ action CreateUserAction = do
             Right user -> do
                 createRecord user
                 redirectTo UsersAction
+```
+
+#### Case Insensitive Uniqueness
+
+Usually emails like `someone@example.com` and `Someone@example.com` belong to the same person. You can use `validateIsUniqueCaseInsensitive` to ignore the case when checking for uniqueness:
+
+
+```haskell
+action CreateUserAction = do
+    let user = newRecord @User
+    user
+        |> fill @'["email"]
+        |> validateIsUniqueCaseInsensitive #email
+        >>= ifValid \case
+            Left user -> render NewView { .. }
+            Right user -> do
+                createRecord user
+                redirectTo UsersAction
+```
+
+For good performance in production it's recommended to add an index on the column in your `Schema.sql`:
+
+```sql
+CREATE UNIQUE INDEX users_email_index ON users ((LOWER(email)));
 ```
 
 ### Sharing Between Create and Update Action
@@ -205,7 +229,7 @@ putStrLn message
 
 ### Customizing Error Messages
 
-Use `withCustomErrorMessage` to customize the error message when validation failed:
+#### Use `withCustomErrorMessage` to customize the error message when validation failed:
 
 ```haskell
 user
@@ -214,6 +238,19 @@ user
 ```
 
 In this example, when the `nonEmpty` adds an error to the user, the message `Please enter your firstname` will be used instead of the default `This field cannot be empty`.
+
+#### Use `withCustomErrorMessageIO` to customize the error message when using IO functions:
+
+```haskell
+user
+    |> fill @'["email"]
+    |> withCustomErrorMessageIO "Email Has Already Been Used" validateIsUnique #email
+    >>= ifValid \case
+        Left user -> ...
+        Right user -> ...
+```
+
+In this example, when the `validateIsUnique` function adds an error to the user, the message `Email Has Already Been Used` will be used instead of the default `This is already in use`.
 
 ## Internals
 

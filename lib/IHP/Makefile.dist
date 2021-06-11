@@ -206,5 +206,9 @@ hie.yaml: # Configuration for haskell-language-server
 	echo "  bios:" >> hie.yaml
 	echo "    program: build/ihp-lib/.hie-bios" >> hie.yaml
 
-ghci: # Start ghci with custom configuration (https://github.com/digitallyinduced/ihp/issues/130)
+# https://github.com/digitallyinduced/ihp/issues/130
+ghci:
 	ghci -package-env -
+
+# https://github.com/digitallyinduced/ihp/issues/776
+console: ghci ## Start IHP console, alias for 'make ghci'

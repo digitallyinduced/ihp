@@ -58,7 +58,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> createEnumType <|> addConstraint <|> comment
     space
     pure s
 
@@ -344,13 +344,26 @@ sqlType = choice $ map optionalArray
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
 
-term = parens expression <|> try callExpr <|> varExpr <|> textExpr
+term = parens expression <|> try callExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
-table = [ [ binary  "<>"  NotEqExpression ] ]
+table = [
+            [ binary  "<>"  NotEqExpression
+            , binary "="  EqExpression
+
+            , binary "<=" LessThanOrEqualToExpression
+            , binary "<"  LessThanExpression
+            , binary ">="  GreaterThanOrEqualToExpression
+            , binary ">"  GreaterThanExpression
+            
+            , binary "IS" IsExpression
+            , prefix "NOT" NotExpression
+            ],
+            [ binary "AND" AndExpression, binary "OR" OrExpression ]
+        ]
     where
-        binary  name f = InfixL  (f <$ symbol name)
+        binary  name f = InfixL  (f <$ try (symbol name))
         prefix  name f = Prefix  (f <$ symbol name)
         postfix name f = Postfix (f <$ symbol name)
 
@@ -370,6 +383,7 @@ callExpr :: Parser Expression
 callExpr = do
     func <- identifier
     args <- between (char '(') (char ')') (expression `sepBy` char ',')
+    space
     pure (CallExpression func args)
 
 textExpr :: Parser Expression
@@ -395,6 +409,31 @@ createIndex = do
     indexName <- identifier
     lexeme "ON"
     tableName <- identifier
-    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     char ';'
-    pure CreateIndex { indexName, tableName, columnNames }
+    pure CreateIndex { indexName, tableName, expressions }
+
+createFunction = do
+    lexeme "CREATE"
+    orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
+    lexeme "FUNCTION"
+    functionName <- identifier
+    lexeme "()"
+    lexeme "RETURNS"
+    lexeme "TRIGGER"
+    lexeme "AS"
+    space
+    functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
+    space
+    lexeme "language"
+    lexeme "plpgsql"
+    char ';'
+    pure CreateFunction { functionName, functionBody, orReplace }
+
+-- | Triggers are not currently used by IHP, therefore they're implemented using UnknownStatement
+-- This avoid errors when having custom triggers in Schema.sql
+createTrigger = do
+    lexeme "CREATE"
+    lexeme "TRIGGER"
+    raw <- cs <$> someTill (anySingle) (char ';')
+    pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }

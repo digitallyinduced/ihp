@@ -113,6 +113,20 @@ tests = do
                             List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, get #id model))
                     |]
 
+            it "should compile CanUpdate instance with an array type with an explicit cast" do
+                let statement = StatementCreateTable $ CreateTable {
+                    name = "users",
+                    columns = [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False ],
+                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
+                    constraints = []
+                }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [text|
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
+                    |]
 
 
 getInstanceDecl :: Text -> Text -> Text

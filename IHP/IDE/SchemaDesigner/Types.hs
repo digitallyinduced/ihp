@@ -19,8 +19,10 @@ data Statement
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
-    -- | CREATE INDEX indexName ON tableName (columnName);
-    | CreateIndex { indexName :: Text, tableName :: Text, columnNames :: [Text] }
+    -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
+    | CreateIndex { indexName :: Text, tableName :: Text, expressions :: [Expression] }
+    -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
+    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
     deriving (Eq, Show)
 
 data CreateTable
@@ -75,6 +77,24 @@ data Expression =
     | CallExpression Text [Expression]
     -- | Not equal operator, a <> b
     | NotEqExpression Expression Expression
+    -- | Equal operator, a = b
+    | EqExpression Expression Expression
+    -- | a AND b
+    | AndExpression Expression Expression
+    -- | a IS b
+    | IsExpression Expression Expression
+    -- | NOT a
+    | NotExpression Expression
+    -- | a OR b
+    | OrExpression Expression Expression
+    -- | a < b
+    | LessThanExpression Expression Expression
+    -- | a <= b
+    | LessThanOrEqualToExpression Expression Expression
+    -- | a > b
+    | GreaterThanExpression Expression Expression
+    -- | a >= b
+    | GreaterThanOrEqualToExpression Expression Expression
     deriving (Eq, Show)
 
 data PostgresType

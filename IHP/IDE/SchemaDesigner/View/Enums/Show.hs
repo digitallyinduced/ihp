@@ -15,7 +15,7 @@ data ShowEnumView = ShowEnumView
 instance View ShowEnumView where
     html ShowEnumView { .. } = [hsx|
         {renderFlashMessages}
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just name)}
             {renderEnumSelector name (zip [0..] values)}
         </div>
