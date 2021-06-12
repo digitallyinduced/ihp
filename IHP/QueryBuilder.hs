@@ -748,6 +748,18 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
+-- | Index the values from a table with values of a field from a table joined by 'innerJoin' or 'innerJoinThirdTable'. Useful to get, e.g., the comments to a set of posts in such a way that the assignment of comments to posts.
+--
+--
+-- __Example:__ Fetch a list of all comments, each paired with the id of the post it belongs to.
+-- > postIndexedComments <- query @Comment
+-- >                            |> innerJoin @Post (#postId, #id)
+-- >                            |> indexResults @Post #id
+-- >                            |> fetch
+-- > -- SELECT posts.id, comments.* FROM comments INNER JOIN posts ON comments.postId = posts.id 
+-- 
+-- postIndexedComments is a list of type ['IndexedData' (Id' "posts") Comment] such that "IndexedData postId comment" is contained in that list if "comment" is a comment to the post with id postId.
+--
 indexResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
                 (
                     KnownSymbol foreignTable,
@@ -799,8 +811,7 @@ innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ Jo
 -- __Example:__ Fetch the 10 oldest books.
 --
 -- > query @Book
--- >     |> orderBy #createdAt
--- >     |> limit 10
+-- >     |> orderBy #createdAt -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
 orderByAsc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
