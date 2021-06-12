@@ -104,6 +104,17 @@
     vertical-align: middle;
 }
 
+.index td {
+    padding-top: 0px;
+    padding-bottom: 0px;
+    vertical-align: middle;
+}
+
+.index .index-expressions {
+    font-size: 10px;
+    color:  #808080;
+}
+
 .nav-link.active {
     background-color: #f8f8f8 !important;
     border-color: #dee2e6 #dee2e6 #f8f8f8 !important;
@@ -149,4 +160,8 @@
     color: red;
     font-weight: 800;
     font-size: 16px;
+}
+
+#schema-designer-viewer {
+    margin-bottom: 200px; /* Make sure the context menu has a bit of space, see https://github.com/digitallyinduced/ihp/issues/895 */
 }

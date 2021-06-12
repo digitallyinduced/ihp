@@ -54,6 +54,8 @@
 , parser-combinators
 , ip
 , fast-logger
+, minio-hs
+, temporary
 }:
 mkDerivation {
   pname = "ihp";
@@ -114,6 +116,8 @@ mkDerivation {
     parser-combinators
     ip
     fast-logger
+    minio-hs
+    temporary
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

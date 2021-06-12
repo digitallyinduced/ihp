@@ -72,7 +72,8 @@ createSessionAction :: forall record action passwordField.
     ) => IO ()
 createSessionAction = do
     usersQueryBuilder
-    |> findMaybeBy #email (param @Text "email")
+    |> filterWhereCaseInsensitive (#email, param "email")
+    |> fetchOneOrNothing
     >>= \case
         Just (user :: record) -> do
             isLocked <- Lockable.isLocked user

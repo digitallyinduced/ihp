@@ -238,10 +238,10 @@ deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
 addTableIndex :: Text -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName tableName columnNames list = list <> [CreateIndex { indexName, tableName,  columnNames }]
+addTableIndex indexName tableName columnNames list = list <> [CreateIndex { indexName, tableName, expressions = map VarExpression columnNames }]
 
 deleteTableIndex :: Text -> [Statement] -> [Statement]
-deleteTableIndex indexName list = filter (\index -> not (index == CreateIndex { indexName = indexName, tableName = get #tableName index, columnNames = get #columnNames index })) list
+deleteTableIndex indexName list = filter (\index -> get #indexName index /= indexName) list
 
 getCreateTable :: [Statement] -> [CreateTable]
 getCreateTable statements = foldr step [] statements

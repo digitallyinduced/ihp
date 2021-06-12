@@ -90,6 +90,18 @@ projectsByUser userId = do
     pure otherProjects
 ```
 
+There's a case insensitive variant of `filterWhere` called `filterWhereCaseInsensitive`:
+
+```haskell
+userByEmail :: Text -> IO (Maybe User)
+userByEmail email = do
+    user <- query @User
+            |> filterWhereCaseInsensitive (#email, email)
+            |> fetchOneOrNothing
+    -- Query: `SELECT * FROM users WHERE LOWER(email) = <email>`
+    pure user
+```
+
 You can also use the more general `filterWhereSql`:
 
 ```haskell

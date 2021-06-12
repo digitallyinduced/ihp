@@ -92,6 +92,9 @@ common shared-properties
             , fast-logger
             , regex-pcre-builtin
             , pcre-utils
+            , minio-hs
+            , temporary
+            , conduit-extra
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -236,6 +239,10 @@ library
         , IHP.Assets.Types
         , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
+        , IHP.FileStorage.Types
+        , IHP.FileStorage.ControllerFunctions
+        , IHP.FileStorage.Config
+        , IHP.FileStorage.Preprocessor.ImageMagick
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
@@ -335,6 +342,7 @@ executable RunDevServer
             -with-rtsopts=-A512m
             -with-rtsopts=-N
             -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
 
 executable new-application

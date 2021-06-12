@@ -16,7 +16,7 @@ data NewColumnView = NewColumnView
 
 instance View NewColumnView where
     html NewColumnView { .. } = [hsx|
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
