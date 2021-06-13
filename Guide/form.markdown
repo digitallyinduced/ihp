@@ -516,7 +516,9 @@ instance CanSelect ContentType where
     -- You can also use the following shortcut: selectLabel = tshow
 ```
 
-## Custom Form Action / Form URLs
+## Customizing Forms
+
+### Custom Form Action / Form URLs
 
 The URL where the form is going to be submitted to is specified in HTML using the form's `action` attribute. When using `formFor` the `action` attribute is automatically set to the expected path.
 
@@ -545,6 +547,122 @@ renderForm :: Post -> Html
 renderForm post = formFor' post (pathTo CreateDraftAction) [hsx||]
 ```
 
+If you want to combine this with other customizations, you can also specify a custom path using `formForWithOptions`:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithOptions post options [hsx||]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+    formContext
+    |> set #formAction (pathTo CreateDraftAction)
+    |> set #formClass "..." -- Other customizations
+```
+
+### Custom Form Class
+
+By default forms have the CSS class `new-form` or `edit-form`, depending on if the record has been saved to the database yet:
+
+```html
+<form class="new-form">
+<form class="edit-form">
+```
+
+You can override the form class using `formForWithOptions`:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithOptions post options [hsx||]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+    formContext
+    |> set #formClass "custom-form-class"
+```
+
+The generated HTML will look like this:
+
+```html
+<form class="custom-form-class">
+```
+
+If you want to append your own classes while keeping the default `new-form` and `edit-form` classes, use `modify`:
+
+```haskell
+options :: FormContext Post -> FormContext Post
+options formContext =
+    formContext
+    |> modify #formClass (\classes -> classes <> " custom-form-class")
+```
+
+### Custom Form Id
+
+By default forms don't have an id. You can set a `<form id="">` attribute using `formForWithOptions`:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithOptions post options [hsx||]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+    formContext
+    |> set #formId "post-form"
+```
+
+The generated HTML will look like this:
+
+```html
+<form id="post-form">
+```
+
+### Custom Form Attributes
+
+You can specifiy custom HTMl attributes using `formForWithOptions`.
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithOptions post options [hsx||]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+        formContext
+        |> set #customFormAttributes [ ("data-post-id", show postId) ]
+    where
+        post = get #model formContext
+        postId = get #id post
+```
+
+The generated HTML will look like this:
+
+```html
+<form data-post-id="bd20f13d-e04b-4ef2-be62-64707cbda980">
+```
+
+### Disable Form Submission via JavaScript
+
+Your form will be submitted using AJAX and TurboLinks instead of browser-based form submission.
+
+Sometimes this behavior is problematic. For example when the successful form submissions redirects to page that starts a Single Page App. Usually you want to have a clean page refresh here to avoid troubles with the JavaScript.
+
+Set `disableJavascriptSubmission` to `True` to use normal browser-based form submission:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithOptions post options [hsx||]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+    formContext 
+    |> set #disableJavascriptSubmission True
+```
+
+There's also a shortcut called `formForWithoutJavascript` for this:
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithoutJavascript post [hsx||]
+```
 
 ## Advanced Forms
 

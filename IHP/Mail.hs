@@ -70,11 +70,29 @@ class BuildMail mail where
     -- | The email receiver
     --
     -- __Example:__
+    --
     -- > to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
-    to :: mail -> Address
+    --
+    -- __Example:__ Send all emails to a fixed email address while in development mode
+    --
+    -- > to CreateAccountMail { .. } = Address
+    -- >     { addressName = Just (fullName admin)
+    -- >     , addressEmail =
+    -- >         if isDevelopment then
+    -- >             "staging@example.com"
+    -- >         else
+    -- >             get #email admin
+    -- >     }
+    --
+    to :: (?context :: context, ConfigProvider context) => mail -> Address
 
     -- | Your sender address
-    from :: (?mail :: mail) => Address
+    --
+    -- __Example:__
+    --
+    -- > from = Address { addressName = "Acme Inc.", addressEmail = "hi@example.com" }
+    --
+    from :: (?mail :: mail, ?context :: context, ConfigProvider context) => Address
 
     -- | Similiar to a normal html view, HSX can be used here
     html :: (?context :: context, ConfigProvider context) => mail -> Html

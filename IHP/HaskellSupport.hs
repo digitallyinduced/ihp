@@ -5,9 +5,8 @@ Module: IHP.HaskellSupport
 Description: Provides helpers to write better haskell code
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.HaskellSupport (
- (|>)
-, isEmpty
+module IHP.HaskellSupport
+( (|>)
 , whenEmpty
 , whenNonEmpty
 , get
@@ -15,6 +14,7 @@ module IHP.HaskellSupport (
 , setJust
 , ifOrEmpty
 , modify
+, modifyJust
 , SetField (..)
 , UpdateField (..)
 , incrementField
@@ -161,9 +161,26 @@ setJust :: forall model name value. (KnownSymbol name, SetField name model (Mayb
 setJust name value record = setField @name (Just value) record
 {-# INLINE setJust #-}
 
-{-# INLINE modify #-}
+
 modify :: forall model name value updateFunction. (KnownSymbol name, Record.HasField name model value, SetField name model value) => Proxy name -> (value -> value) -> model -> model
 modify _ updateFunction model = let value = Record.getField @name model in setField @name (updateFunction value) model
+{-# INLINE modify #-}
+
+-- Like 'modify', but only modifies the value if it's not Nothing.
+--
+-- __Example:__
+--
+-- > let pauseDuration = now `diffUTCTime` pausedAt
+-- >
+-- > floorTimer <- floorTimer
+-- >         |> modifyJust #startedAt (addUTCTime pauseDuration)
+-- >         |> updateRecord
+--
+modifyJust :: forall model name value updateFunction. (KnownSymbol name, Record.HasField name model (Maybe value), SetField name model (Maybe value)) => Proxy name -> (value -> value) -> model -> model
+modifyJust _ updateFunction model = case Record.getField @name model of
+        Just value -> setField @name (Just (updateFunction value)) model
+        Nothing -> model
+{-# INLINE modifyJust #-}
 
 -- | Plus @1@ on record field.
 --

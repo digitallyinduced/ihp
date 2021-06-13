@@ -301,6 +301,25 @@ tests = do
                 it "should deal with parser errors" do
                     (readParameter @(Maybe Int) "not a number") `shouldBe` (Left "ParamReader Int: Failed reading: takeWhile1")
 
+            describe "Enum" do
+                it "should accept values" do
+                    (readParameter "Yellow") `shouldBe` (Right Yellow)
+                    (readParameter "Red") `shouldBe` (Right Red)
+                    (readParameter "Blue") `shouldBe` (Right Blue)
+
+                it "should fail on invalid values" do
+                    (readParameter @Color "black") `shouldBe` (Left "Invalid value")
+                    (readParameter @Color "") `shouldBe` (Left "Invalid value")
+
+                it "should deal with JSON" do
+                    (readParameterJSON (json "\"Yellow\"")) `shouldBe` (Right Yellow)
+                    (readParameterJSON (json "\"Red\"")) `shouldBe` (Right Red)
+                    (readParameterJSON (json "\"Blue\"")) `shouldBe` (Right Blue)
+
+                it "should fail on invalid JSON" do
+                    (readParameterJSON @Color (json "\"\"")) `shouldBe` (Left "Invalid value")
+                    (readParameterJSON @Color (json "1337")) `shouldBe` (Left "enumParamReaderJSON: Invalid value, expected a string but got something else")
+
 createControllerContextWithParams params =
         let
             requestBody = FormBody { params, files = [] }
@@ -312,3 +331,9 @@ json :: Text -> Aeson.Value
 json string =
     let (Just value) :: Maybe Aeson.Value = Aeson.decode (cs string)
     in value
+
+data Color = Yellow | Red | Blue deriving (Enum, Show, Eq)
+instance ParamReader Color where
+    readParameter = enumParamReader
+    readParameterJSON = enumParamReaderJSON
+instance InputValue Color where inputValue = tshow

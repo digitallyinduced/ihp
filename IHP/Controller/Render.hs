@@ -34,19 +34,19 @@ respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 {-# INLINABLE respondSvg #-}
 
-renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?theAction :: controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
+renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
 renderHtml !view = do
     let ?view = view
 
     ViewSupport.beforeRender view
 
     frozenContext <- Context.freeze ?context
-    
+
     let ?context = frozenContext
     let layout = case Context.maybeFromFrozenContext @ViewLayout of
             Just (ViewLayout layout) -> layout
             Nothing -> id
-    
+
     let boundHtml = let ?context = frozenContext in layout (ViewSupport.html ?view)
     pure boundHtml
 {-# INLINABLE renderHtml #-}
@@ -106,10 +106,10 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 
 
 {-# INLINABLE render #-}
-render :: forall view controller. (ViewSupport.View view, ?theAction :: controller, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO ()
+render :: forall view controller. (ViewSupport.View view, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = Just $ (renderHtml view) >>= respondHtml
             , json = Just $ renderJson (ViewSupport.json view)
             }
-    
+

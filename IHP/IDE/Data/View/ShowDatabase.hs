@@ -34,8 +34,23 @@ renderTableSelector tableNames activeTableName = [hsx|
     where
         renderTable :: Text -> Html
         renderTable name = [hsx|
-            <a href={ShowTableRowsAction name} class={classes [("object object-table w-100 context-table", True), ("active", name == activeTableName)]}>
+            <a
+                href={ShowTableRowsAction name}
+                class={classes [("object object-table w-100 context-table", True), ("active", name == activeTableName)]}
+                oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}
+            >
                 <div class="d-flex">
                     {name}
                 </div>
-            </a>|]
+            </a>
+            <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
+                <a href={pathTo (ShowTableAction name)}>Show Schema</a>
+                <a
+                    href={pathTo (DeleteTableRowsAction name)}
+                    class="js-delete"
+                    data-confirm={"Are you sure you want to delete all rows in '" <> name <> "' table?"}
+                >Delete All Rows</a>
+            </div>
+        |]
+            where
+                contextMenuId = "context-menu-table-" <> name

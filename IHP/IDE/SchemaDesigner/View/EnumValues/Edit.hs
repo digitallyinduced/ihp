@@ -15,7 +15,7 @@ data EditEnumValueView = EditEnumValueView
 
 instance View EditEnumValueView where
     html EditEnumValueView { .. } = [hsx|
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just enumName)}
             {renderEnumSelector enumName (zip [0..] values)}
         </div>

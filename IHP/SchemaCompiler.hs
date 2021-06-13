@@ -338,7 +338,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "instance Default " <> modelName <> " where def = " <> enumValueToControllerName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
-        <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader\n"
+        <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToControllerName values
@@ -350,6 +350,17 @@ compileToRowValues :: [Text] -> Text
 compileToRowValues bindingValues | length bindingValues == 1 = "Only (" <> (unsafeHead bindingValues) <> ")"
 compileToRowValues bindingValues = "(" <> intercalate ") :. (" (map (\list -> if length list == 1 then "Only (" <> (unsafeHead list) <> ")" else intercalate ", " list) (chunksOf 8 bindingValues)) <> ")"
 
+-- When we do an INSERT or UPDATE query like @INSERT INTO values (uuids) VALUES (?)@ where the type of @uuids@ is @UUID[]@
+-- we need to add a typecast to the placeholder @?@, otherwise this will throw an sql error
+-- See https://github.com/digitallyinduced/ihp/issues/593
+-- See https://github.com/digitallyinduced/ihp/issues/913
+columnPlaceholder :: Column -> Text
+columnPlaceholder column@Column { columnType } = if columnPlaceholderNeedsTypecast column
+        then "? :: " <> SqlCompiler.compilePostgresType columnType
+        else "?"
+    where
+        columnPlaceholderNeedsTypecast Column { columnType = PArray {} } = True
+        columnPlaceholderNeedsTypecast _ = False
 
 compileCreate :: CreateTable -> Text
 compileCreate table@(CreateTable { name, columns }) =
@@ -357,16 +368,6 @@ compileCreate table@(CreateTable { name, columns }) =
         modelName = tableNameToModelName name
         columnNames = commaSep (map (get #name) columns)
         values = commaSep (map columnPlaceholder columns)
-
-        -- When we do an INSERT query like @INSERT INTO values (uuids) VALUES (?)@ where the type of @uuids@ is @UUID[]@
-        -- we need to add a typecast to the placeholder @?@, otherwise this will throw an sql error
-        -- See https://github.com/digitallyinduced/ihp/issues/593
-        columnPlaceholder column@(Column { columnType }) = if columnPlaceholderNeedsTypecast column
-                then "? :: " <> SqlCompiler.compilePostgresType columnType
-                else "?"
-            where
-                columnPlaceholderNeedsTypecast Column { columnType = PArray {} } = True
-                columnPlaceholderNeedsTypecast _ = False
 
         toBinding column@(Column { name }) =
             if hasExplicitOrImplicitDefault column
@@ -414,7 +415,7 @@ compileUpdate table@(CreateTable { name, columns }) =
             in
                 compileToRowValues bindingValues
 
-        updates = commaSep (map (\column -> get #name column <> " = ?") columns)
+        updates = commaSep (map (\column -> get #name column <> " = " <> columnPlaceholder column ) columns)
     in
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"

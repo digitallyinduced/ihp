@@ -99,7 +99,7 @@ Inside the HTML code replace `It's working!` with `Hello World from Haskell!`, l
 
 You'll see that the web browser magically refreshes once you save the file changes.
 
-**Did it work?** Congratulations 🎉 You've officially build your first haskell web application :) That makes you a haskell programmer. Welcome to the Haskell community! :)
+**Did it work?** Congratulations 🎉 You've officially built your first haskell web application :) That makes you a haskell programmer. Welcome to the Haskell community! :)
 
 
 If you liked the live reloading, have some fun and play a around with the welcome view before you continue with the next steps.
@@ -520,7 +520,7 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 All our existing posts are saved here. You should also commit this file to git to share your fixtures with your teammates. We will need these saved fixtures in a moment when we want to update the database schema.
 
-Let's add a new `created_at` column. Open [http://localhost:8001/Tables](http://localhost:8001/Tables), enter `created_at` and select Timestamp for the type. Also set the default value to `NOW()`.
+Let's add a new `created_at` column. Open [http://localhost:8001/Tables](http://localhost:8001/Tables), right-click on `posts`, select `Add Column to Table`, enter `created_at` for the name, select Timestamp for the type, set the default value to `NOW()`, and press `Create Column`.
 
 ![Schema Designer Timestamp column](images/first-project/timestamp_column.png)
 
@@ -578,7 +578,7 @@ To install this package, open the `default.nix` file and append `mmark` to the `
 let
     ihp = builtins.fetchGit {
         url = "https://github.com/digitallyinduced/ihp.git";
-        ref = "refs/tags/v0.9.0";
+        ref = "refs/tags/v0.10.0";
     };
     haskellEnv = import "${ihp}/NixSupport/default.nix" {
         ihp = ihp;

@@ -23,7 +23,7 @@ in
 
 **If the variable is another HSX expression, a blaze HTML element, a text or string**: it is just included as you would expect.
 
-**If the variable is any other custom Haskell data structure**: it will first be converted to a string representation by calling `show` on it. You can add a custom `ToHtml` (import it from `IHP.HtmlSupport.ToHtml`) instance, to customize rendering a data structure.
+**If the variable is any other custom Haskell data structure**: it will first be converted to a string representation by calling `show` on it. You can add a custom `ToHtml` (import it from `IHP.HSX.ToHtml`) instance, to customize rendering a data structure.
 
 You can also write more complex code like:
 
@@ -70,10 +70,38 @@ Writing `False`:
 <input disabled={False} />
 ```
 
-This will not render the attribute:
+This will not render the attribute, [as specified in the HTML standard](https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#boolean-attributes):
 
 ```haskell
 <input />
+```
+
+#### Boolean data attributes
+
+This behavior of omiting a attribute when it's set to `False` does not apply to `data-` attributes.
+
+You can write
+
+```haskell
+<form data-disable-javascript-submission={True}/>
+```
+
+and it will render like this:
+
+```html
+<form data-disable-javascript-submission="true"/>
+```
+
+When set to `False`, like this:
+
+```haskell
+<form data-disable-javascript-submission={False}/>
+```
+
+the output HTML will keep the attribute and set it to `"false"`:
+
+```html
+<form data-disable-javascript-submission="false"/>
 ```
 
 ### Spread Values
@@ -190,3 +218,52 @@ The underlying HTML library blaze currently does not support an empty HTML attri
 #### Unescaped Strings
 
 If you use HTML entities, such as `&nbsp;` for a non-breaking space, you will notice they appear exactly like that. To output directly (i.e. unescaped) use the method `preEscapedToMarkup` from `Text.Blaze.Html5`.
+
+
+## Common HSX Patterns
+
+### Dealing with Maybe Values
+
+When dealing with `Maybe` values you sometimes want to conditionally render something. E.g. in react to render a tag with JSX you would do it like this:
+
+```html
+<p>Hi {user.name}</p>
+{user.country && <p><small>from {user.country}</small></p>}
+<p>Welcome!</p>
+```
+
+In HSX you usually write it like this:
+
+
+```haskell
+render user = [hsx|
+    <p>Hi {get #name user}</p>
+    {renderCountry}
+|]
+    where
+        renderCountry = case get #country user of
+            Just country -> [hsx|<p><small>{country}</small></p>|]
+            Nothing -> [hsx||]
+```
+
+What about if the country is a empty string? A simple solution could look like this:
+
+```haskell
+renderCountry = case get #country user of
+    Just "" -> [hsx||]
+    Just country -> [hsx|<p>from {country}!</p>|]
+    Nothing -> [hsx||]
+```
+
+That code doesn't feel right. It's better to deal with the problem at create time of the `User` record already. Use  `
+emptyValueToNothing` to transform an empty `Just ""` to `Nothing` before inserting it into the db:
+
+```haskell
+action CreateUserAction = do
+    newRecord @User
+        |> fill '["name", "country"]
+        |> emptyValueToNothing #country
+        |> createRecord
+```
+
+Now when the country input field is empty when creating the user, the `country` field will be set to `Nothing` instead of `Just ""`.

@@ -2,6 +2,41 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.10.0 from Beta 0.9.0
+
+## Switch IHP version
+
+Open `default.nix` and change the git commit in line 4 to the following:
+
+```diff
+-ref = "refs/tags/v0.9.0";
++ref = "refs/tags/v0.10.0";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+## Upgrade IHP.HtmlSupport
+
+If you got an type error related to `IHP.HtmlSupport`, follow this step:
+
+This error like is related to the rename of all `IHP.HtmlSupport.*` modules to `IHP.HSX.*`. You can fix this error by replacing all mentions of `IHP.HtmlSupport.` with `IHP.HSX.` in your code base.
+
+## Important `data-` attribute changes
+
+Boolean data attributes like `<div data-is-active={True}>` were rendered like `<div data-is-active="data-is-active">` or `<div>` (if `False`) in previous versions of IHP.
+
+These boolean data attributes are now rendered like `<div data-is-active="true">` and `<div data-is-active="false">`. If you have JS code consuming your data attributes, make sure that you update the JS code.
+
+Other non-data attributes like `<input disabled={True}>` are not affected by this change and will continue to render as `<input disabled="disabled"/>`.
+
 # Upgrade to Beta 0.9.0 from Beta 0.8.0
 
 ## Switch IHP version

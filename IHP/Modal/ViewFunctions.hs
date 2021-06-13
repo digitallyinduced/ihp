@@ -7,13 +7,13 @@ module IHP.Modal.ViewFunctions (modal, renderModal) where
 
 import IHP.Prelude
 import IHP.Controller.Context
-import IHP.HtmlSupport.QQ (hsx)
+import IHP.HSX.QQ (hsx)
 import IHP.Modal.Types
 import Text.Blaze.Html5 (Html, preEscapedText)
 
 renderModal modal = renderModal' modal True
 renderModal' Modal { .. } show = [hsx|
-        <div class={modalClassName} id="modal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true" style={displayStyle} onclick="if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()">
+        <div class={modalClassName} id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-title" aria-hidden="true" style={displayStyle} onclick="if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()">
             {modalInner}
         </div>
         <a id="modal-backdrop" href={modalCloseUrl} class={backdropClassName} style={displayStyle}/>
@@ -44,7 +44,7 @@ renderModal' Modal { .. } show = [hsx|
 renderModalHeader :: Text -> Text -> Html
 renderModalHeader title closeUrl = [hsx|
     <div class="modal-header">
-      <h5 class="modal-title" id="exampleModalLabel">{title}</h5>
+      <h5 class="modal-title" id="modal-title">{title}</h5>
       <a href={closeUrl} class="btn-link close" data-dismiss="modal" aria-label="Close">
         <span aria-hidden="true">{preEscapedText "&times;"}</span>
       </a>
@@ -52,7 +52,7 @@ renderModalHeader title closeUrl = [hsx|
 |]
 
 modal :: (?context :: ControllerContext) => Html
-modal = 
+modal =
     case maybeFromFrozenContext of
         Just (ModalContainer html) -> html
         Nothing -> mempty

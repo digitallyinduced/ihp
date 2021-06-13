@@ -36,11 +36,14 @@ instance FromField Point where
                      Left  err -> returnError ConversionFailed f err
                      Right val -> pure val
       where
+        -- Postgres supports storing NaN inside a point, so we have to deal
+        -- with that here as well
+        doubleOrNaN = double <|> (string "NaN" >> (pure $ 0 / 0))
         parser = do
             string "("
-            x <- double
+            x <- doubleOrNaN
             string ","
-            y <- double
+            y <- doubleOrNaN
             string ")"
             pure $ Point { x, y }
 

@@ -325,3 +325,48 @@ import qualified Config
 action MyAction = do
     let stripePublicKey = Config.stripePublicKey
 ```
+
+## Custom Configuration with IO
+
+The easiest way to add custom configuration to IHP apps is to define a static string like this:
+
+```haskell
+stripePublicKey :: Text
+stripePublicKey = "..."
+```
+
+When this doesn't work, you can run any custom code to load your configuration and make it available application-wide.
+
+In this example we're going to provide a custom Redis connection URL to our app. We read a string from the `REDIS_URL` env variable on app startup and then access it using `?applicationContext` from inside our controller actions:
+
+Inside our `Config.hs` we need to read the `REDIS_URL` env var:
+
+```haskell
+newtype RedisUrl = RedisUrl String -- A wrapper type for our string. This is required by IHP.
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+    
+    redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
+    option (RedisUrl redisUrl
+```
+
+From our actions, scripts and job workers we can access it like this:
+
+```haskell
+import qualified Data.TMap as TMap
+import Config -- For importing the RedisUrl data type
+
+action MyAction = do
+    let (RedisUrl connectionString) = redisUrl
+    putStrLn ("REDIS_URL = " <> cs connectionString)
+
+redisUrl :: (?context :: ControllerContext) => RedisUrl
+redisUrl = ?context
+        |> getFrameworkConfig
+        |> get #appConfig
+        |> TMap.lookup @RedisUrl
+        |> fromMaybe (error "Could not find RedisUrl in config")
+```

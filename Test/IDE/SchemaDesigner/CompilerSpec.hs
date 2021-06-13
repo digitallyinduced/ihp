@@ -191,6 +191,70 @@ tests = do
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');\n"
 
+        it "should compile a complex ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
+            let statement = AddConstraint
+                    { tableName = "properties"
+                    , constraintName = "foobar"
+                    , constraint = CheckConstraint
+                        { checkExpression = OrExpression
+                                (AndExpression
+                                    (AndExpression
+                                        (EqExpression (VarExpression "property_type") (TextExpression "haus_buy"))
+                                        (IsExpression (VarExpression "area_garden") (NotExpression (VarExpression "NULL")))
+                                    )
+                                    (IsExpression (VarExpression "rent_monthly") (VarExpression "NULL"))
+                                )
+
+                                (AndExpression
+                                    (AndExpression
+                                        (EqExpression (VarExpression "property_type") (TextExpression "haus_rent"))
+                                        (IsExpression (VarExpression "rent_monthly") (NotExpression (VarExpression "NULL")))
+                                    )
+                                    (IsExpression (VarExpression "price") (VarExpression "NULL"))
+                                )
+                        }
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE properties ADD CONSTRAINT foobar CHECK ((property_type = 'haus_buy' AND area_garden IS NOT NULL AND rent_monthly IS NULL) OR (property_type = 'haus_rent' AND rent_monthly IS NOT NULL AND price IS NULL));\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraintName = "check_title_length"
+                    , constraint = CheckConstraint
+                        { checkExpression = LessThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        }
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) < 20);\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <=" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraintName = "check_title_length"
+                    , constraint = CheckConstraint
+                        { checkExpression = LessThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        }
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) <= 20);\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraintName = "check_title_length"
+                    , constraint = CheckConstraint
+                        { checkExpression = GreaterThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        }
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) > 20);\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >=" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraintName = "check_title_length"
+                    , constraint = CheckConstraint
+                        { checkExpression = GreaterThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        }
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) >= 20);\n"
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
@@ -329,7 +393,7 @@ tests = do
             let statement = CreateIndex
                     { indexName = "users_index"
                     , tableName = "users"
-                    , columnNames = ["user_name"]
+                    , expressions = [VarExpression "user_name"]
                     }
             compileSql [statement] `shouldBe` sql
         it "should compile a CREATE INDEX statement with multiple columns" do
@@ -337,6 +401,42 @@ tests = do
             let statement = CreateIndex
                     { indexName = "users_index"
                     , tableName = "users"
-                    , columnNames = ["user_name", "project_id"]
+                    , expressions = [VarExpression "user_name", VarExpression "project_id"]
                     }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE INDEX statement with a LOWER call" do
+            let sql = cs [plain|CREATE INDEX users_email_index ON users (LOWER(email));\n|]
+            let statement = CreateIndex
+                    { indexName = "users_email_index"
+                    , tableName = "users"
+                    , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
+            let sql = cs [plain|CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "notify_did_insert_webrtc_connection"
+                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+                    , orReplace = True
+                    }
+
+            compileSql [statement] `shouldBe` sql
+
+
+        it "should compile a CREATE FUNCTION ..() RETURNS TRIGGER .." do
+            let sql = cs [plain|CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "notify_did_insert_webrtc_connection"
+                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+                    , orReplace = False
+                    }
+
+            compileSql [statement] `shouldBe` sql
+
+
+        it "should compile a CREATE TRIGGER .." do
+            let sql = cs [plain|CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y();\n|]
+            let statement = UnknownStatement { raw = "CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y()"  }
             compileSql [statement] `shouldBe` sql

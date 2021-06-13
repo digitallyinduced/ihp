@@ -18,7 +18,7 @@ data EditForeignKeyView = EditForeignKeyView
 
 instance View EditForeignKeyView where
     html EditForeignKeyView { .. } = [hsx|
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>

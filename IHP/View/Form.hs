@@ -11,36 +11,21 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.Form where
 
-import IHP.Prelude hiding (div)
-import           Data.String.Conversions            (cs)
+import IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.ConvertibleStrings ()
 import           IHP.ViewErrorMessages
 import           IHP.ViewSupport
-import           Text.Blaze.Html5                   (a, body, button, code, div, docTypeHtml, footer, form, h1, h2, h3, h4, h5, h6, head, hr, html, iframe, img,
-                                                     input, label, li, link, meta, nav, ol, p, pre, script, small, span, table, tbody, td, th, thead, title, tr,
-                                                     ul, (!), (!?))
-import qualified Text.Blaze.Html5                   as H
 import qualified Text.Blaze.Html5                   as Html5
-import           Text.Blaze.Html5.Attributes        (autocomplete, autofocus, charset, class_, content, href, httpEquiv, id, lang, method, name,
-                                                     onclick, placeholder, rel, src, style, type_, value)
-import qualified Text.Blaze.Html5.Attributes        as A
-
-import IHP.HtmlSupport.ToHtml
-import qualified IHP.NameSupport
+import IHP.HSX.ToHtml
+import IHP.NameSupport
 import GHC.Types
-import qualified Text.Inflections
-import qualified Data.Text as Text
-import Data.Maybe (fromJust)
-import IHP.Controller.RequestContext
 import IHP.RouterSupport hiding (get)
 import IHP.ModelSupport (getModelName, inputValue, isNew, GetModelName, Id', NormalizeModel, MetaBag, InputValue)
-import IHP.HtmlSupport.QQ (hsx)
+import IHP.HSX.QQ (hsx)
 import IHP.View.Types
-import IHP.View.Classes 
-import IHP.FrameworkConfig (ConfigProvider)
+import IHP.View.Classes
 import qualified Network.Wai as Wai
-import IHP.Controller.RequestContext
 import IHP.Controller.Context
 
 -- | Forms usually begin with a 'formFor' expression.
@@ -61,12 +46,12 @@ import IHP.Controller.Context
 -- >         <label for="post_title">Title</label>
 -- >         <input type="text" name="title" id="post_title" class="form-control" />
 -- >     </div>
--- > 
+-- >
 -- >     <div class="form-group" id="form-group-post_body">
 -- >         <label for="post_body">Body</label>
 -- >         <textarea name="body" id="post_body" class="form-control"></textarea>
 -- >     </div>
--- > 
+-- >
 -- >     <button class="btn btn-primary">Create Post</button>
 -- > </form>
 --
@@ -107,7 +92,7 @@ import IHP.Controller.Context
 -- >     />
 -- >     <div class="invalid-feedback">This field cannot be empty</div>
 -- > </div>
-formFor :: forall record parent id application. (
+formFor :: forall record id application. (
     ?context :: ControllerContext
     , Eq record
     , Typeable record
@@ -117,33 +102,99 @@ formFor :: forall record parent id application. (
     , Default id
     , Eq id
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
-formFor record = buildForm (createFormContext record) { formAction = modelFormAction @application record }
+formFor record formBody = formForWithOptions @record @id @application record (\c -> c) formBody
 {-# INLINE formFor #-}
 
--- | Allows a custom form action (form submission url) to be set
+-- | Like 'formFor' but allows changing the underlying 'FormContext'
 --
--- The URL where the form is going to be submitted to is specified in HTML using the form's @action@ attribute. When using 'formFor' the @action@ attribute is automatically set to the expected path.
--- 
--- E.g. given the below 'formFor' code, the @action@ is set to @/CreatePost@ or @/UpdatePost@:
--- 
+-- This is how you can render a form with a @id="post-form"@ id attribute and a custom @data-post-id@ attribute:
+--
 -- > renderForm :: Post -> Html
 -- > renderForm post = formFor post [hsx|
 -- >     {textField #title}
 -- >     {textareaField #body}
 -- >     {submitButton}
 -- > |]
--- 
+-- >
+-- > formOptions :: FormContext Post -> FormContext Post
+-- > formOptions formContext = formContext
+-- >     |> set #formId "post-form"
+-- >     |> set #customFormAttributes [("data-post-id", show (get #id (get #model formContext)))]
+--
+formForWithOptions :: forall record id application. (
+    ?context :: ControllerContext
+    , Eq record
+    , Typeable record
+    , ModelFormAction application record
+    , HasField "id" record id
+    , HasField "meta" record MetaBag
+    , Default id
+    , Eq id
+    ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+formForWithOptions record applyOptions formBody = buildForm (applyOptions (createFormContext record) { formAction = modelFormAction @application record }) formBody
+{-# INLINE formForWithOptions #-}
+
+-- | Like 'formFor' but disables the IHP javascript helpers.
+--
+-- Use it like this:
+--
+-- > renderForm :: Post -> Html
+-- > renderForm post = formForWithoutJavascript post [hsx|
+-- >     {textField #title}
+-- >     {textareaField #body}
+-- >     {submitButton}
+-- > |]
+--
+-- If you want to use this with e.g. a custom form action, remember that 'formForWithoutJavascript' is just a shortcut for 'formForWithOptions':
+--
+-- > renderForm :: Post -> Html
+-- > renderForm post = formFor post [hsx|
+-- >     {textField #title}
+-- >     {textareaField #body}
+-- >     {submitButton}
+-- > |]
+-- >
+-- > formOptions :: FormContext Post -> FormContext Post
+-- > formOptions formContext = formContext
+-- >     |> set #disableJavascriptSubmission True
+--
+formForWithoutJavascript :: forall record id application. (
+    ?context :: ControllerContext
+    , Eq record
+    , Typeable record
+    , ModelFormAction application record
+    , HasField "id" record id
+    , HasField "meta" record MetaBag
+    , Default id
+    , Eq id
+    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+formForWithoutJavascript record formBody = formForWithOptions @record @id @application record (\formContext -> formContext { disableJavascriptSubmission = True }) formBody
+{-# INLINE formForWithoutJavascript #-}
+
+-- | Allows a custom form action (form submission url) to be set
+--
+-- The URL where the form is going to be submitted to is specified in HTML using the form's @action@ attribute. When using 'formFor' the @action@ attribute is automatically set to the expected path.
+--
+-- E.g. given the below 'formFor' code, the @action@ is set to @/CreatePost@ or @/UpdatePost@:
+--
+-- > renderForm :: Post -> Html
+-- > renderForm post = formFor post [hsx|
+-- >     {textField #title}
+-- >     {textareaField #body}
+-- >     {submitButton}
+-- > |]
+--
 -- To override the auto-generated @action@ attribute use the 'formFor\'' function:
--- 
+--
 -- > renderForm :: Post -> Html
 -- > renderForm post = formFor' post "/my-custom-endpoint" [hsx||]
--- 
+--
 -- If you pass an action to that, you need to wrap it with 'pathTo':
--- 
+--
 -- > renderForm :: Post -> Html
 -- > renderForm post = formFor' post (pathTo CreateDraftAction) [hsx||]
 --
-formFor' :: forall record parent id application. (
+formFor' :: forall record id application. (
     ?context :: ControllerContext
     , Eq record
     , Typeable record
@@ -156,33 +207,37 @@ formFor' record action = buildForm (createFormContext record) { formAction = act
 {-# INLINE formFor' #-}
 
 -- | Used by 'formFor' to make a new form context
-createFormContext :: forall record viewContext parent id application. (
+createFormContext :: forall record viewContext id application. (
         ?context :: ControllerContext
         , Eq record
         , Typeable record
         , HasField "id" record id
         , HasField "meta" record MetaBag
+        , Default id
+        , Eq id
         ) => record -> FormContext record
 createFormContext record =
     FormContext
         { model = record
         , formAction = ""
         , cssFramework = theCSSFramework
+        , formId = ""
+        , formClass = if isNew record then "new-form" else "edit-form"
+        , customFormAttributes = []
+        , disableJavascriptSubmission = False
         }
 {-# INLINE createFormContext #-}
 
 -- | Used by 'formFor' to render the form
-buildForm :: forall model  parent id. (?context :: ControllerContext, HasField "id" model id, Default id, Eq id) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+buildForm :: forall model  id. (?context :: ControllerContext, HasField "id" model id, Default id, Eq id) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 buildForm formContext inner =
     let
         theModel = model formContext
         action = formAction formContext
-        isNewRecord = IHP.ModelSupport.isNew theModel
-        formId = if isNewRecord then "" else formAction formContext
-        formClass :: Text = if isNewRecord then "new-form" else "edit-form"
         formInner = let ?formContext = formContext in inner
+        customFormAttributes = get #customFormAttributes formContext
     in
-        [hsx|<form method="POST" action={action} id={formId} class={formClass}>{formInner}</form>|]
+        [hsx|<form method="POST" action={action} id={get #formId formContext} class={get #formClass formContext} data-disable-javascript-submission={get #disableJavascriptSubmission formContext} {...customFormAttributes}>{formInner}</form>|]
 {-# INLINE buildForm #-}
 
 -- | Renders a submit button
@@ -273,7 +328,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input type="text" name="title" id="post_title" class="form-control" />
 -- >     <small class="form-text text-muted">Max. 140 characters</small>
 -- > </div>
@@ -321,7 +376,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input
 -- >         type="text"
 -- >         name="title"
@@ -342,7 +397,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input
 -- >         type="text"
 -- >         name="title"
@@ -362,7 +417,7 @@ submitButton =
 --
 -- > <div class="form-group" id="form-group-post_title">
 -- >     <label for="post_title">Title</label>
--- > 
+-- >
 -- >     <input
 -- >         type="text"
 -- >         name="title"
@@ -384,7 +439,7 @@ textField field = FormField
         , fieldName = cs fieldName
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  inputValue ((getField @fieldName model) :: value)
-        , fieldInputId = cs (IHP.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName)
+        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationFailure field model
         , fieldClass = ""
         , labelClass = ""
@@ -580,7 +635,7 @@ checkboxField field = FormField
         , fieldName = cs fieldName
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  if getField @fieldName model then "yes" else "no"
-        , fieldInputId = cs (IHP.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName)
+        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationFailure field model
         , fieldClass = ""
         , labelClass = ""
@@ -653,7 +708,7 @@ selectField field items = FormField
         , fieldName = cs fieldName
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
         , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
-        , fieldInputId = cs (IHP.NameSupport.lcfirst (getModelName @model) <> "_" <> cs fieldName)
+        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationFailure field model
         , fieldClass = ""
         , labelClass = ""
@@ -727,26 +782,3 @@ instance (
             init path
                 |> (\path -> [""] <> (fromMaybe [] path) <> [action])
                 |> intercalate "/"
-
--- | Transform a data-field name like @userName@  to a friendly human-readable name like @User name@
-fieldNameToFieldLabel :: Text -> Text
-fieldNameToFieldLabel fieldName = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts)
-{-# INLINE fieldNameToFieldLabel #-}
-
--- | Transform a column name like @user_name@  to a friendly human-readable name like @User name@
-columnNameToFieldLabel :: Text -> Text
-columnNameToFieldLabel columnName = cs (let (Right parts) = Text.Inflections.parseSnakeCase [] columnName in Text.Inflections.titleize parts)
-{-# INLINE columnNameToFieldLabel #-}
-
--- | Removes @ Id@  from a string
---
--- >>> removeIdSuffix "User Id"
--- "User"
---
--- When the string does not end with @ Id@, it will just return the input string:
---
--- >>> removeIdSuffix "Project"
--- "Project"
-removeIdSuffix :: Text -> Text
-removeIdSuffix text = fromMaybe text (Text.stripSuffix " Id" text)
-{-# INLINE removeIdSuffix #-}

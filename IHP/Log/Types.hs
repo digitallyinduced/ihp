@@ -50,6 +50,8 @@ import System.Log.FastLogger (
     newTimeCache,
     simpleTimeFormat,
     simpleTimeFormat',
+    newTimedFastLogger,
+    ToLogStr (..)
     )
 
 import qualified System.Log.FastLogger as FastLogger (FormattedTime)
@@ -68,7 +70,7 @@ show = tshow
 -- logging operations. Users can also access this though the 'LoggingProvider'
 -- class in controller and model actions to perform logic based on the set log level.
 data Logger = Logger {
-    write     :: Text -> IO (),
+    write     :: (FastLogger.FormattedTime -> LogStr) -> IO (),
     level     :: LogLevel,
     formatter :: LogFormatter,
     timeCache :: IO FastLogger.FormattedTime,
@@ -99,8 +101,16 @@ data LogLevel
     | Unknown
     deriving (Enum, Eq, Ord, Show)
 
+instance ToLogStr LogLevel where
+    toLogStr Debug = "DEBUG"
+    toLogStr Info = "INFO"
+    toLogStr Warn = "WARN"
+    toLogStr Error = "ERROR"
+    toLogStr Fatal = "FATAL"
+    toLogStr Unknown = "UNKNOWN"
+
 -- | The timestamp in the formatted defined by the logger's timeFormat string.
-type FormattedTime = Text
+type FormattedTime = ByteString
 
 -- | Called every time a message is sent to the logger.
 -- Since this is just a function type, it's trivial to define custom formatters:
@@ -112,7 +122,7 @@ type FormattedTime = Text
 --          <> "[" <> time <> "] "
 --          <> toUpper msg <> " :) \n"
 -- @
-type LogFormatter = FormattedTime -> LogLevel -> Text -> Text
+type LogFormatter = FormattedTime -> LogLevel -> LogStr -> LogStr
 
 -- | A number of bytes, used in 'RotateSettings'
 newtype Bytes = Bytes Integer
@@ -208,11 +218,10 @@ instance {-# OVERLAPS #-} LoggingProvider Logger where
 newLogger :: LoggerSettings -> IO Logger
 newLogger LoggerSettings { .. } = do
     timeCache <- newTimeCache timeFormat
-    (write', cleanup) <- makeFastLogger destination
-    let write = write' . toLogStr
+    (write, cleanup) <- makeFastLogger timeCache destination
     pure Logger { .. }
     where
-        makeFastLogger destination = newFastLogger $
+        makeFastLogger timeCache destination = newTimedFastLogger timeCache $
             case destination of
                 None                    -> LogNone
                 Stdout buf              -> LogStdout buf
@@ -234,12 +243,12 @@ defaultFormatter _ _ msg = msg <> "\n"
 
 -- | Prepends the timestamp to the log message and adds a new line.
 withTimeFormatter :: LogFormatter
-withTimeFormatter  time _ msg = "[" <> time <> "] " <> msg <> "\n"
+withTimeFormatter  time _ msg = "[" <> toLogStr time <> "] " <> msg <> "\n"
 
 -- | Prepends the log level to the log message and adds a new line.
 withLevelFormatter :: LogFormatter
-withLevelFormatter time level msg = "[" <> toUpper (show level) <> "] " <> msg <> "\n"
+withLevelFormatter time level msg = "[" <> (toLogStr level) <> "] " <> msg <> "\n"
 
 -- | Prepends the log level and timestamp to the log message and adds a new line.
 withTimeAndLevelFormatter :: LogFormatter
-withTimeAndLevelFormatter time level msg = "[" <> toUpper (show level) <> "] [" <> time <> "] " <> msg <> "\n"
+withTimeAndLevelFormatter time level msg = "[" <> (toLogStr level) <> "] [" <> toLogStr time <> "] " <> msg <> "\n"

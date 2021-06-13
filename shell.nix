@@ -57,6 +57,8 @@ let
         parser-combinators
         ip
         fast-logger
+        minio-hs
+        temporary
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

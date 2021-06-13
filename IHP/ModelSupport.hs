@@ -319,6 +319,9 @@ measureTimeIfLogging queryAction theQuery theParameters = do
 -- > users <- sqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
+--
+-- *AutoRefresh:* When using 'sqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
+--
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
     measureTimeIfLogging
@@ -720,6 +723,20 @@ instance ToField value => ToField [value] where
 instance (FromField value, Typeable value) => FromField [value] where
     fromField field value = PG.fromPGArray <$> (fromField field value)
 
+-- | Useful to manually mark a table read when doing a custom sql query inside AutoRefresh or 'withTableReadTracker'.
+--
+-- When using 'fetch' on a query builder, this function is automatically called. That's why you only need to call
+-- it yourself when using 'sqlQuery' to run a custom query.
+--
+-- __Example:__
+--
+-- > action MyAction = autoRefresh do
+-- >     users <- sqlQuery "SELECT * FROM users WHERE .."
+-- >     trackTableRead "users"
+-- > 
+-- >     render MyView { .. }
+--
+--
 trackTableRead :: (?modelContext :: ModelContext) => ByteString -> IO ()
 trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
     Just callback -> callback tableName
