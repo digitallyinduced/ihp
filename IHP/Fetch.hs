@@ -92,22 +92,22 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (No
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO model
     fetchOne = commonFetchOne
 
-instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (IndexedQueryBuilderWrapper foreignTable columnName value table) model where
-    type instance FetchResult (IndexedQueryBuilderWrapper foreignTable columnName value table) model = [IndexedData value model]
+instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
+    type instance FetchResult (LabeledQueryBuilderWrapper foreignTable columnName value table) model = [LabeledData value model]
     {-# INLINE fetch #-}
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO [IndexedData value model]
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
         let !(theQuery, theParameters) = queryBuilderProvider
                 |> toSQL
         trackTableRead (tableNameByteString @model)
-        sqlQuery @_ @(IndexedData value model) (Query $ cs theQuery) theParameters
+        sqlQuery @_ @(LabeledData value model) (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable columnName value) NoJoins) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable columnName value) NoJoins) => IndexedQueryBuilderWrapper foreignTable columnName value table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
     fetchOne = commonFetchOne
 
 
