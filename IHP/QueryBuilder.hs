@@ -770,19 +770,20 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
--- | Index the values from a table with values of a field from a table joined by 'innerJoin' or 'innerJoinThirdTable'. Useful to get, e.g., the comments to a set of posts in such a way that the assignment of comments to posts.
+-- | Index the values from a table with values of a field from a table joined by 'innerJoin' or 'innerJoinThirdTable'. Useful to get, e.g., the tags to a set of posts in such a way that the assignment of tags to posts is preserved.
 --
 --
 -- __Example:__ Fetch a list of all comments, each paired with the id of the post it belongs to.
--- labeledTags <-
---   query @Tag
---      |> innerJoin @Tagging (#id, #tagId)
---      |> innerJoinThirdTable @Post @Tagging (#id, #postId)
---      |> labelResults @Post #id
---      |> fetch
----- > -- SELECT posts.id, tags.* FROM comments INNER JOIN taggings ON tags.id = taggings.tagId INNER JOIN posts ON posts.id = taggings.postId 
+--
+-- > labeledTags <-
+-- >  query @Tag
+-- >     |> innerJoin @Tagging (#id, #tagId)
+-- >     |> innerJoinThirdTable @Post @Tagging (#id, #postId)
+-- >     |> labelResults @Post #id
+-- >     |> fetch
+-- > -- SELECT posts.id, tags.* FROM comments INNER JOIN taggings ON tags.id = taggings.tagId INNER JOIN posts ON posts.id = taggings.postId 
 -- 
--- postLabeledTags is a list of type ['LabeledData' (Id' "posts") Tag] such that "LabeledData postId comment" is contained in that list if "comment" is a comment to the post with id postId.
+-- labeledTags is then a list of type ['LabeledData' (Id' "posts") Tag] such that "LabeledData postId tag" is contained in that list if "tag" is a tag of the post with id postId.
 --
 labelResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
                 (
