@@ -103,11 +103,11 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value,
         sqlQuery @_ @(LabeledData value model) (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model), KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
     fetchOne = commonFetchOne
 
 
