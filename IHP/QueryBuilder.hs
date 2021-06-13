@@ -774,13 +774,15 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
 --
 --
 -- __Example:__ Fetch a list of all comments, each paired with the id of the post it belongs to.
--- > postLabeledComments <- query @Comment
--- >                            |> innerJoin @Post (#postId, #id)
--- >                            |> labelResults @Post #id
--- >                            |> fetch
--- > -- SELECT posts.id, comments.* FROM comments INNER JOIN posts ON comments.postId = posts.id 
+-- labeledTags <-
+--   query @Tag
+--      |> innerJoin @Tagging (#id, #tagId)
+--      |> innerJoinThirdTable @Post @Tagging (#id, #postId)
+--      |> labelResults @Post #id
+--      |> fetch
+---- > -- SELECT posts.id, tags.* FROM comments INNER JOIN taggings ON tags.id = taggings.tagId INNER JOIN posts ON posts.id = taggings.postId 
 -- 
--- postLabeledComments is a list of type ['LabeledData' (Id' "posts") Comment] such that "LabeledData postId comment" is contained in that list if "comment" is a comment to the post with id postId.
+-- postLabeledTags is a list of type ['LabeledData' (Id' "posts") Tag] such that "LabeledData postId comment" is contained in that list if "comment" is a comment to the post with id postId.
 --
 labelResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
                 (

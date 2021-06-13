@@ -24,6 +24,24 @@ data Post = Post
 type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
 
+data Tag = Tag
+        { id :: UUID
+        , tagText :: Text
+        }
+
+type instance GetTableName Tag = "tags"
+type instance GetModelByTableName "tags" = Tag 
+
+data Tagging = Tagging 
+        { id :: UUID
+        , postId :: UUID
+        , tagId :: UUID
+        }
+
+
+type instance GetTableName Tagging = "taggings"
+type instance GetModelByTableName "taggings" = Tagging
+
 data User = User
     { id :: UUID,
       name :: Text
@@ -194,10 +212,11 @@ tests = do
 
         describe "labelResults" do
             it "should provide a query with index field" do
-                let theQuery = query @Post
-                        |> innerJoin @User (#createdBy, #id)
-                        |> labelResults @User #id
-                (toSQL theQuery) `shouldBe` ("SELECT users.id, posts.* FROM posts INNER JOIN users ON posts.created_by = users.id", [])
+                let theQuery = query @Tag
+                        |> innerJoin @Tagging (#id, #tagId)
+                        |> innerJoinThirdTable @Post @Tagging (#id, #postId)
+                        |> labelResults @Post #id
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, tags.* FROM tags INNER JOIN taggings ON tags.id = taggings.tag_id INNER JOIN posts ON taggings.post_id = posts.id", [])
 
 
 
