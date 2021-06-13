@@ -260,11 +260,12 @@ instance Newtype.Newtype (Id' model) where
     pack = Id
     unpack (Id uuid) = uuid
 
-data IndexedData a b = IndexedData { indexValue :: a, contentValue :: b }
+-- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
+data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
     deriving (Show)
 
-instance (FromField index, PG.FromRow a) => PGFR.FromRow (IndexedData index a) where
-    fromRow = IndexedData <$> PGFR.field <*> PGFR.fromRow
+instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) where
+    fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
 -- to write the Id like a string:

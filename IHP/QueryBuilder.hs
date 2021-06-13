@@ -37,7 +37,7 @@ module IHP.QueryBuilder
 , filterWhereILikeJoinedTable
 , filterWhereMatchesJoinedTable
 , filterWhereIMatchesJoinedTable
-, indexResults
+, labelResults
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -51,7 +51,7 @@ module IHP.QueryBuilder
 , HasQueryBuilder
 , JoinQueryBuilderWrapper
 , NoJoinQueryBuilderWrapper
-, IndexedQueryBuilderWrapper
+, LabeledQueryBuilderWrapper
 , getQueryBuilder
 , NoJoins
 )
@@ -167,7 +167,7 @@ newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (Qu
 newtype NoJoinQueryBuilderWrapper table = NoJoinQueryBuilderWrapper (QueryBuilder table)
 
 -- Wrapper for QueryBuilders with indexed results.
-newtype IndexedQueryBuilderWrapper foreignTable indexColumn indexValue table = IndexedQueryBuilderWrapper (QueryBuilder table)
+newtype LabeledQueryBuilderWrapper foreignTable indexColumn indexValue table = LabeledQueryBuilderWrapper (QueryBuilder table)
 
 -- QueryBuilders have query builders and the join register is empty.
 instance HasQueryBuilder QueryBuilder EmptyModelList where
@@ -184,9 +184,9 @@ instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
     injectQueryBuilder  = NoJoinQueryBuilderWrapper 
 
-instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (IndexedQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
-    getQueryBuilder (IndexedQueryBuilderWrapper queryBuilder) = queryBuilder
-    injectQueryBuilder = IndexedQueryBuilderWrapper
+instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
+    getQueryBuilder (LabeledQueryBuilderWrapper queryBuilder) = queryBuilder
+    injectQueryBuilder = LabeledQueryBuilderWrapper
     getQueryIndex _ = Just $ symbolToByteString @foreignTable <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
 
 
@@ -280,10 +280,7 @@ query = (defaultScope @table) NewQueryBuilder
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
-buildQuery queryBuilderProvider = buildQueryHelper (getQueryBuilder queryBuilderProvider)
---                                                        |> case getQueryIndex queryBuilderProvider of
---                                                              Just index -> setJust #queryIndex index
---                                                              Nothing -> id
+buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
     where
     buildQueryHelper NewQueryBuilder =
         let tableName = symbolToByteString @table
@@ -773,7 +770,19 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
-indexResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
+-- | Index the values from a table with values of a field from a table joined by 'innerJoin' or 'innerJoinThirdTable'. Useful to get, e.g., the comments to a set of posts in such a way that the assignment of comments to posts.
+--
+--
+-- __Example:__ Fetch a list of all comments, each paired with the id of the post it belongs to.
+-- > postLabeledComments <- query @Comment
+-- >                            |> innerJoin @Post (#postId, #id)
+-- >                            |> labelResults @Post #id
+-- >                            |> fetch
+-- > -- SELECT posts.id, comments.* FROM comments INNER JOIN posts ON comments.postId = posts.id 
+-- 
+-- postLabeledComments is a list of type ['LabeledData' (Id' "posts") Comment] such that "LabeledData postId comment" is contained in that list if "comment" is a comment to the post with id postId.
+--
+labelResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
                 (
                     KnownSymbol foreignTable,
                     KnownSymbol baseTable,
@@ -783,8 +792,8 @@ indexResults :: forall foreignModel baseModel foreignTable baseTable name value 
                     HasQueryBuilder queryBuilderProvider joinRegister,
                     KnownSymbol name,
                     IsJoined foreignModel joinRegister
-                ) => Proxy name -> queryBuilderProvider baseTable -> IndexedQueryBuilderWrapper foreignTable name value baseTable
-indexResults name queryBuilderProvider = IndexedQueryBuilderWrapper $ getQueryBuilder queryBuilderProvider
+                ) => Proxy name -> queryBuilderProvider baseTable -> LabeledQueryBuilderWrapper foreignTable name value baseTable
+labelResults name queryBuilderProvider = LabeledQueryBuilderWrapper $ getQueryBuilder queryBuilderProvider
                     
 -- | Joins a table on a column held by a previously joined table. Example:
 -- > query @Posts 
@@ -824,8 +833,7 @@ innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ Jo
 -- __Example:__ Fetch the 10 oldest books.
 --
 -- > query @Book
--- >     |> orderBy #createdAt
--- >     |> limit 10
+-- >     |> orderBy #createdAt -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
 orderByAsc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
