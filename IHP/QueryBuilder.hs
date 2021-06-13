@@ -279,10 +279,7 @@ query = (defaultScope @table) NewQueryBuilder
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
-buildQuery queryBuilderProvider = buildQueryHelper (getQueryBuilder queryBuilderProvider)
---                                                        |> case getQueryIndex queryBuilderProvider of
---                                                              Just index -> setJust #queryIndex index
---                                                              Nothing -> id
+buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
     where
     buildQueryHelper NewQueryBuilder =
         let tableName = symbolToByteString @table
