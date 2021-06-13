@@ -22,6 +22,7 @@ module IHP.Fetch
 , genericFetchIdsOne
 , fetchCount
 , fetchExists
+, fetchSQLQuery
 )
 where
 
@@ -226,3 +227,9 @@ instance (model ~ GetModelById (Id' table), value ~ Id' table, HasField "id" mod
     fetchOneOrNothing = genericfetchIdsOneOrNothing
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne
+
+fetchSQLQuery :: (PG.FromRow model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
+fetchSQLQuery theQuery = do
+    let (sql, theParameters) = toSQL' theQuery
+    trackTableRead (get #selectFrom theQuery)
+    sqlQuery (Query $ cs sql) theParameters

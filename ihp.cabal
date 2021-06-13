@@ -127,6 +127,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
+        , TemplateHaskell
     if flag(FastBuild)
         ghc-options:
             -j
@@ -239,6 +240,14 @@ library
         , IHP.Assets.Types
         , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
+        -- Server Side Component Modules
+        , IHP.ServerSideComponent.Types
+        , IHP.ServerSideComponent.ViewFunctions
+        , IHP.ServerSideComponent.RouterFunctions
+        , IHP.ServerSideComponent.ControllerFunctions
+        , IHP.ServerSideComponent.Controller.ComponentsController
+        , IHP.ServerSideComponent.HtmlDiff
+        , IHP.ServerSideComponent.HtmlParser
         , IHP.FileStorage.Types
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config

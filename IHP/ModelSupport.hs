@@ -37,7 +37,7 @@ import qualified Control.Newtype.Generics as Newtype
 import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
-import Data.Aeson (ToJSON (..))
+import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
@@ -699,6 +699,8 @@ fieldWithUpdate name model
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
 
+instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
+    parseJSON value = Id <$> parseJSON value
 
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException
