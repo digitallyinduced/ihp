@@ -13,6 +13,7 @@ import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, replace, schemaD
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
+import IHP.IDE.SchemaDesigner.Controller.Columns (updateForeignKeyConstraint)
 
 instance Controller TablesController where
     beforeAction = setLayout schemaDesignerLayout
@@ -60,6 +61,11 @@ instance Controller TablesController where
                 setErrorMessage message
                 redirectTo ShowTableAction { tableName = oldTableName }
             Success -> do
+                let updateConstraintsStatement =
+                        referencingTableForeignKeyConstraints oldTableName statements
+                            |> map (\constraint -> updateReferenceTableOfForeignKeyConstraint constraint tableName statements)
+
+                forEach updateConstraintsStatement updateSchema
                 updateSchema (updateTable tableId tableName)
                 redirectTo ShowTableAction { .. }
 
@@ -98,3 +104,28 @@ deleteForeignKeyConstraints tableName list = filter (\con -> not (con == AddCons
 
 validateTable :: [Statement] -> Maybe Text -> Validator Text
 validateTable statements = validateNameInSchema "table name" (getAllObjectNames statements)
+
+referencingTableForeignKeyConstraints tableName statements =
+    filter (\statement ->
+        statement ==
+            AddConstraint
+                { tableName = (get #tableName statement)
+                , constraintName = (get #constraintName statement)
+                , constraint =
+                    ForeignKeyConstraint
+                        { columnName = (get #columnName (get #constraint statement))
+                        , referenceTable = tableName
+                        , referenceColumn = (get #referenceColumn (get #constraint statement))
+                        , onDelete = (get #onDelete (get #constraint statement))
+                        }
+                }
+        ) statements
+
+updateReferenceTableOfForeignKeyConstraint constraint newTableName statements =
+    let Just constraintId = elemIndex constraint statements
+        tableName = get #tableName constraint
+        columnName = get #columnName (get #constraint constraint)
+        constraintName = get #constraintName constraint
+        referenceTable = newTableName
+        Just onDelete = get #onDelete (get #constraint constraint)
+    in updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId

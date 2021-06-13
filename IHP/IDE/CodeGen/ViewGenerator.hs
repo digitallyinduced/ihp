@@ -60,7 +60,10 @@ buildPlan' schema config =
                 ]
 
             modelFields :: [Text]
-            modelFields = fieldsForTable schema (modelNameToTableName pluralVariableName)
+            modelFields =  [ modelNameToTableName pluralVariableName, pluralVariableName ]
+                    |> mapMaybe (fieldsForTable schema)
+                    |> head
+                    |> fromMaybe []
 
 
             viewHeader =

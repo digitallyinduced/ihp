@@ -26,7 +26,7 @@ make -B build/ihp-lib
 
 Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;` lines in the `IHP/ihp.nix` for fast rebuilds, otherwise you could up waiting up to half an hour while IHP builds itself.
 
-The best workflow is to use `make ghci` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+The best workflow is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
 ghci
@@ -136,6 +136,10 @@ Try to run `make -B build/ihp-lib` to create the symlink.
 ### `direnv: error .envrc file not found`
 
 In the project directory, try `make -B .envrc`
+
+### `error: Could not find module 'Generated.Types'`
+
+You may receive this error when trying to load modules into GHCI like `:l Main`. Run `chmod go-w .` to change the permissions so the `.ghci` file could be loaded properly.
 
 ### Error messages about missing packages in `ghci`
 

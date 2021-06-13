@@ -53,7 +53,10 @@ buildPlan' schema config =
             indexAction = pluralize singularName <> "Action"
 
             modelFields :: [Text]
-            modelFields = fieldsForTable schema (modelNameToTableName pluralVariableName)
+            modelFields = [ modelNameToTableName pluralVariableName, pluralVariableName ]
+                    |> mapMaybe (fieldsForTable schema)
+                    |> head
+                    |> fromMaybe []
 
             mail =
                 ""

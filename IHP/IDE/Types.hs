@@ -32,14 +32,14 @@ sendGhciCommand ManagedProcess { inputHandle } command = do
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
-data OutputLine = StandardOutput ByteString | ErrorOutput ByteString deriving (Show, Eq)
+data OutputLine = StandardOutput !ByteString | ErrorOutput !ByteString deriving (Show, Eq)
 
 data Action =
     UpdatePostgresState PostgresState
     | UpdateAppGHCIState AppGHCIState
-    | AppModulesLoaded { success :: Bool }
+    | AppModulesLoaded { success :: !Bool }
     | AppStarted
-    | ReceiveAppOutput { line :: OutputLine }
+    | ReceiveAppOutput { line :: !OutputLine }
     | AssetChanged
     | HaskellFileChanged
     | SchemaChanged
@@ -53,7 +53,7 @@ data Action =
 data PostgresState
     = PostgresNotStarted
     | StartingPostgres
-    | PostgresStarted { process :: ManagedProcess, standardOutput :: IORef ByteString, errorOutput :: IORef ByteString }
+    | PostgresStarted { process :: !ManagedProcess, standardOutput :: !(IORef ByteString), errorOutput :: !(IORef ByteString) }
 
 instance Show PostgresState where
     show PostgresNotStarted = "NotStarted"
@@ -62,9 +62,9 @@ instance Show PostgresState where
 
 data AppGHCIState
     = AppGHCINotStarted
-    | AppGHCILoading { process :: ManagedProcess }
-    | AppGHCIModulesLoaded { process :: ManagedProcess }
-    | RunningAppGHCI { process :: ManagedProcess }
+    | AppGHCILoading { process :: !ManagedProcess }
+    | AppGHCIModulesLoaded { process :: !ManagedProcess }
+    | RunningAppGHCI { process :: !ManagedProcess }
 
 instance Show AppGHCIState where
     show AppGHCINotStarted = "NotStarted"
@@ -74,7 +74,7 @@ instance Show AppGHCIState where
 
 data LiveReloadNotificationServerState
     = LiveReloadNotificationServerNotStarted
-    | LiveReloadNotificationServerStarted { server :: Async (), clients :: IORef [Websocket.Connection] }
+    | LiveReloadNotificationServerStarted { server :: !(Async ()), clients :: !(IORef [Websocket.Connection]) }
 
 instance Show LiveReloadNotificationServerState where
     show LiveReloadNotificationServerNotStarted = "NotStarted"
@@ -82,7 +82,7 @@ instance Show LiveReloadNotificationServerState where
 
 data FileWatcherState
     = FileWatcherNotStarted
-    | FileWatcherStarted { thread :: Async () }
+    | FileWatcherStarted { thread :: !(Async ()) }
 
 instance Show FileWatcherState where
     show FileWatcherNotStarted = "NotStarted"
@@ -91,16 +91,16 @@ instance Show FileWatcherState where
 data StatusServerState
     = StatusServerNotStarted
     | StatusServerStarted
-        { serverRef :: IORef (Async ())
-        , clients :: IORef [(Websocket.Connection, MVar ())]
-        , standardOutput :: IORef [ByteString]
-        , errorOutput :: IORef [ByteString]
+        { serverRef :: !(IORef (Async ()))
+        , clients :: !(IORef [(Websocket.Connection, MVar ())])
+        , standardOutput :: !(IORef [ByteString])
+        , errorOutput :: !(IORef [ByteString])
         }
     | StatusServerPaused
-        { serverRef :: IORef (Async ())
-        , clients :: IORef [(Websocket.Connection, MVar ())]
-        , standardOutput :: IORef [ByteString]
-        , errorOutput :: IORef [ByteString]
+        { serverRef :: !(IORef (Async ()))
+        , clients :: !(IORef [(Websocket.Connection, MVar ())])
+        , standardOutput :: !(IORef [ByteString])
+        , errorOutput :: !(IORef [ByteString])
         }
 
 instance Show StatusServerState where
@@ -110,7 +110,7 @@ instance Show StatusServerState where
 
 data ToolServerState
     = ToolServerNotStarted
-    | ToolServerStarted { thread :: Async () }
+    | ToolServerStarted { thread :: !(Async ()) }
 
 instance Show ToolServerState where
     show ToolServerNotStarted = "NotStarted"
@@ -122,12 +122,12 @@ instance Show ProcessHandle where show _ = "(..)"
 instance Show (Async ()) where show _ = "(..)"
 
 data AppState = AppState
-    { postgresState :: PostgresState
-    , appGHCIState :: AppGHCIState
-    , statusServerState :: StatusServerState
-    , liveReloadNotificationServerState :: LiveReloadNotificationServerState
-    , fileWatcherState :: FileWatcherState
-    , toolServerState :: ToolServerState
+    { postgresState :: !PostgresState
+    , appGHCIState :: !AppGHCIState
+    , statusServerState :: !StatusServerState
+    , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
+    , fileWatcherState :: !FileWatcherState
+    , toolServerState :: !ToolServerState
     } deriving (Show)
 
 emptyAppState :: AppState
@@ -141,10 +141,10 @@ emptyAppState = AppState
     }
 
 data Context = Context
-    { actionVar :: MVar Action
-    , portConfig :: PortConfig
-    , appStateRef :: IORef AppState
-    , isDebugMode :: Bool
+    { actionVar :: !(MVar Action)
+    , portConfig :: !PortConfig
+    , appStateRef :: !(IORef AppState)
+    , isDebugMode :: !Bool
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()

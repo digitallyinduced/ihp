@@ -1,12 +1,12 @@
 {-|
-Module: Test.HtmlSupport.QQSpec
+Module: Test.HSX.QQSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.HtmlSupport.ParserSpec where
+module Test.HSX.ParserSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.HtmlSupport.Parser
+import IHP.HSX.Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Megaparsec.Error as Megaparsec
 import qualified "template-haskell" Language.Haskell.TH as TH
@@ -37,7 +37,7 @@ tests = do
         it "should strip spaces around nodes" do
             let p = parseHsx position "<div> <span> </span> </div>"
             p `shouldBe` (Right (Children [Node "div" [] [Node "span" [] [] False] False]))
-        
+
         it "should strip spaces after self closing tags" do
             let p = parseHsx position "<head>{\"meta\"}\n\n                        <link rel=\"stylesheet\" href=\"/vendor/bootstrap.min.css\"></head>"
             p `shouldBe` (Right (Children [Node "head" [] [SplicedNode (TH.LitE (TH.StringL "meta")),Node "link" [StaticAttribute "rel" (TextValue "stylesheet"),StaticAttribute "href" (TextValue "/vendor/bootstrap.min.css")] [] True] False]))
@@ -45,15 +45,15 @@ tests = do
         it "should not strip spaces in a text node" do
             let p = parseHsx position " Hello World "
             p `shouldBe` (Right (Children [TextNode "Hello World"]))
-        
+
         it "should deal with variables in text nodes" do
             let p = parseHsx position "<div>\n    Hello {\"name\"}! \n</div>"
             p `shouldBe`  (Right (Children [Node "div" [] [TextNode "Hello ",SplicedNode (TH.LitE (TH.StringL "name")),TextNode "!"] False]))
-        
+
         it "should parse self closing tags with spaces around it" do
             let p = parseHsx position " <div/> "
             p `shouldBe`  (Right (Children [Node "div" [] [] False]))
-        
+
         it "should collapse spaces" do
             let p = parseHsx position "\n    Hello\n    World\n    !    "
             p `shouldBe`  (Right (Children [TextNode "Hello World !"]))

@@ -17,7 +17,7 @@ data EditColumnView = EditColumnView
 
 instance View EditColumnView where
     html EditColumnView { column = column@Column { name }, .. } = [hsx|
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName (zip [0..] columns) statements}
         </div>

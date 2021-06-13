@@ -65,6 +65,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Dynamic
 import IHP.Router.Types
 import IHP.WebSocket (WSApp)
+import GHC.TypeLits as T
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
@@ -747,3 +748,18 @@ parseIntegerId queryVal = let
     rawValue :: Maybe Integer = readMay (cs queryVal :: String)
     in
        rawValue >>= Just . unsafeCoerce
+
+
+-- | Display a better error when the user missed to pass an argument to an action.
+--
+-- E.g. when you forgot to pass a projectId to the ShowProjectAction:
+--
+-- > <a href={ShowProjectAction}>Show project</a>
+--
+-- The correct code would be this:
+--
+-- > <a href={ShowProjectAction projectId}>Show project</a>
+--
+-- See https://forum.ihpapp.com/ShowThread?threadId=ad73d6a5-2481-4e2f-af46-9bf8849f998b
+-- See https://github.com/digitallyinduced/ihp/issues/840
+instance ((T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType argument) :<>: T.Text " to this " :<>: (T.ShowType controller))), Data argument, Data controller) => AutoRoute (argument -> controller) where

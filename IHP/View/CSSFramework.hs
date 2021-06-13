@@ -8,8 +8,8 @@ module IHP.View.CSSFramework where
 import IHP.Prelude
 import IHP.FlashMessages.Types
 import qualified Text.Blaze.Html5 as Blaze
-import IHP.HtmlSupport.QQ (hsx)
-import IHP.HtmlSupport.ToHtml
+import IHP.HSX.QQ (hsx)
+import IHP.HSX.ToHtml
 import IHP.View.Types
 import IHP.View.Classes
 
@@ -40,7 +40,7 @@ instance Default CSSFramework where
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
-            
+
             styledFormField :: CSSFramework -> FormField -> Blaze.Html
             styledFormField cssFramework formField =
                     case get #fieldType formField of

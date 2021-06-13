@@ -17,15 +17,15 @@ data GeneratorAction
 
 
 
-fieldsForTable :: [Statement] -> Text -> [Text]
+fieldsForTable :: [Statement] -> Text -> Maybe [Text]
 fieldsForTable database name =
     case getTable database name of
         Just (StatementCreateTable CreateTable { columns, primaryKeyConstraint }) -> columns
                 |> filter (columnRelevantForCreateOrEdit primaryKeyConstraint)
                 |> map (get #name)
                 |> map columnNameToFieldName
-        _ -> []
-
+                |> Just
+        _ -> Nothing
 -- | Returns True when a column should be part of the generated controller or forms
 --
 -- Returrns @False@ for primary keys, or fields such as @created_at@

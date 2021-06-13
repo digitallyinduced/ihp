@@ -39,7 +39,7 @@ tests = do
                         inputValue Sad = "sad" :: Text
                         inputValue VerySad = "very sad" :: Text
 
-                    instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader
+                    instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
             it "should not pluralize values" do
                 -- See https://github.com/digitallyinduced/ihp/issues/767
@@ -85,7 +85,7 @@ tests = do
                         inputValue Princeedwardisland = "PrinceEdwardIsland" :: Text
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
 
-                    instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader
+                    instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable {
@@ -113,6 +113,20 @@ tests = do
                             List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, get #id model))
                     |]
 
+            it "should compile CanUpdate instance with an array type with an explicit cast" do
+                let statement = StatementCreateTable $ CreateTable {
+                    name = "users",
+                    columns = [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False ],
+                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
+                    constraints = []
+                }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [text|
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
+                    |]
 
 
 getInstanceDecl :: Text -> Text -> Text
