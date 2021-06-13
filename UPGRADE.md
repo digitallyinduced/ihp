@@ -2,6 +2,32 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.11.0 from Beta 0.10.0
+
+## Switch IHP version
+
+Open `default.nix` and change the git commit in line 4 to the following:
+
+```diff
+-ref = "refs/tags/v0.10.0";
++ref = "refs/tags/v0.11.0";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+## Important Login Changes
+
+Important if you use IHP's Login: IHP's built-in sessions controller used for the built-in login now uses case-insensitive lookup for the email addresses at login. This will improve user experience for users that create their account with `Firstname.Lastname@example.com` and then try to log in using `firstname.lastname@example.com`.
+
+
 # Upgrade to Beta 0.10.0 from Beta 0.9.0
 
 ## Switch IHP version
