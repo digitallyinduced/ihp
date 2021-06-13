@@ -17,7 +17,7 @@ import qualified Data.Typeable as Typeable
 component :: forall component action. (Component component action, Typeable component) => Html
 component = componentFromState (initialState @component)
 
-componentFromState :: forall component action. (Component component action, Typeable component) => state -> Html
+componentFromState :: forall component action. (Component component action, Typeable component) => component -> Html
 componentFromState state = [hsx|<div class="ihp-ssc" data-path={path}>{render state}</div>|]
     where
         path = "/SSC/" <> typeName
