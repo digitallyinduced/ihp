@@ -40,28 +40,37 @@ data Counter = Counter { value :: !Int }
 -- The set of actions
 data CounterController
     = IncrementCounterAction
+    | SetCounterValue { newValue :: !Int }
     deriving (Eq, Show, Data)
 
 $(deriveSSC ''CounterController)
 
--- The render function and action handlers
 instance Component Counter CounterController where
     initialState = Counter { value = 0 }
-    
+
+    -- The render function
     render Counter { value } = [hsx|
         Current: {value} <br />
         <button onclick="callServerAction('IncrementCounterAction')">Plus One</button>
+        <hr />
+        <input type="number" value={inputValue value} onchange="callServerAction('SetCounterValue', { newValue: parseInt(this.value, 10) })"/>
     |]
     
+    -- The action handlers
     action state IncrementCounterAction = do
         state
             |> incrementField #value
             |> pure
 
+    action state SetCounterValue { newValue } = do
+        state
+            |> set #value newValue
+            |> pure
+
 instance SetField "value" Counter Int where setField value' counter = counter { value = value' }
 ```
 
-You can see that the `Counter` component has a state object with a number `data Counter = Counter { value :: !Int }`. It has only one action `IncrementCounterAction`. The `initialState = Counter { value = 0 }` means that the counter starts at 0.
+You can see that the `Counter` component has a state object with a number `data Counter = Counter { value :: !Int }`. It has two actions `IncrementCounterAction` and `SetCounterValue`. The `initialState = Counter { value = 0 }` means that the counter starts at 0.
 
 Inside the `render` function you can see how server-side actions are triggered from the client-side:
 
