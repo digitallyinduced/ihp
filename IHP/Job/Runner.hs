@@ -11,6 +11,7 @@ import IHP.ControllerPrelude
 import IHP.ScriptSupport
 import IHP.Job.Types
 import Control.Monad (void)
+import Data.HashMap.Strict (fromList, elems)
 import qualified IHP.Job.Queue as Queue
 import qualified Control.Exception as Exception
 import qualified Database.PostgreSQL.Simple as PG
@@ -61,7 +62,14 @@ runJobWorkers jobWorkers = do
     Signals.installHandler Signals.sigTERM (Signals.Catch catchHandler) Nothing
 
     jobWorkers
-        |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
+        |> map (\(JobWorker getFailRunningJobsForTable _) -> do
+                    getFailRunningJobsForTable jobWorkerArgs)
+        |> fromList
+        |> elems
+        |> sequence_
+  
+    jobWorkers
+        |> mapM (\(JobWorker _ listenAndRun)-> listenAndRun jobWorkerArgs)
         >>= Async.waitAnyCancel
 
     pure ()
@@ -84,7 +92,54 @@ worker :: forall job.
     , CanUpdate job
     , Show job
     ) => JobWorker
-worker = JobWorker (jobWorkerFetchAndRunLoop @job)
+worker = JobWorker
+  (getFailRunningJobsForTable @job)
+  (jobWorkerFetchAndRunLoop @job)
+
+getFailRunningJobsForTable :: forall job.
+    ( job ~ GetModelByTableName (GetTableName job)
+    , SetField "lockedBy" job (Maybe UUID)
+    , SetField "status" job JobStatus
+    , SetField "updatedAt" job UTCTime
+    , HasField "attemptsCount" job Int
+    , SetField "lastError" job (Maybe Text)
+    , Job job
+    , CanUpdate job
+    , Show job
+
+    , FromRow job
+    , Show (PrimaryKey (GetTableName job))
+    , PG.FromField (PrimaryKey (GetTableName job))
+    , KnownSymbol (GetTableName job)
+    , FilterPrimaryKey (GetTableName job)
+    ) => JobWorkerArgs -> (Text, IO ())
+getFailRunningJobsForTable jobWorkerArgs =
+    ( tableName @job
+    , failRunningJobs @job jobWorkerArgs
+    )
+
+failRunningJobs :: forall job.
+    ( job ~ GetModelByTableName (GetTableName job)
+    , SetField "lockedBy" job (Maybe UUID)
+    , SetField "status" job JobStatus
+    , SetField "updatedAt" job UTCTime
+    , HasField "attemptsCount" job Int
+    , SetField "lastError" job (Maybe Text)
+    , Job job
+    , CanUpdate job
+    , Show job
+
+    , FromRow job
+    , Show (PrimaryKey (GetTableName job))
+    , PG.FromField (PrimaryKey (GetTableName job))
+    , KnownSymbol (GetTableName job)
+    , FilterPrimaryKey (GetTableName job)
+    ) => JobWorkerArgs -> IO ()
+failRunningJobs JobWorkerArgs { .. } = do
+    let ?context = frameworkConfig
+    let ?modelContext = modelContext
+    runningJobs <- Queue.fetchRunningJobs @job
+    mapM_ (\j -> Queue.jobDidFail' j "Job was running at startup") runningJobs
 
 
 jobWorkerFetchAndRunLoop :: forall job.
@@ -107,9 +162,6 @@ jobWorkerFetchAndRunLoop :: forall job.
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig
     let ?modelContext = modelContext
-
-    runningJobs <- Queue.fetchRunningJobs @job
-    mapM_ (Queue.jobDidFail' job "Job was running at startup") runningJobs
 
     -- This loop schedules all jobs that are in the queue.
     -- It will be initally be called when first starting up this job worker

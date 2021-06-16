@@ -29,7 +29,7 @@ data JobWorkerArgs = JobWorkerArgs
     , modelContext :: ModelContext
     , frameworkConfig :: FrameworkConfig }
 
-newtype JobWorker = JobWorker (JobWorkerArgs -> IO (Async.Async ()))
+data JobWorker = JobWorker (JobWorkerArgs -> (Text, IO ())) (JobWorkerArgs -> IO (Async.Async ()))
 
 -- | Mapping for @JOB_STATUS@. The DDL statement for this can be found in IHPSchema.sql:
 --
