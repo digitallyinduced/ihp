@@ -218,7 +218,7 @@ uploadToStorageWithOptions options field record = do
                             |> setField @fieldName (Just (get #url storedFile))
                             |> pure
 
-        Nothing -> pure record
+        _ -> pure record
 
 -- | Saves an upload to the storage and sets the record attribute to the url.
 --
