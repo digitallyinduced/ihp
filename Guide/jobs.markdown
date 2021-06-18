@@ -56,11 +56,47 @@ This can be done in a controller action or in a script as will be shown below.
 
 In development mode, these watchers are started with the dev server. In production however, use `make build/bin/RunJobs` to build a binary that you can deploy along side your IHP app to watch for added jobs and run them.
 
-**NOTE: Jobs running automatically in development are currently broken on v0.9. Please run on master if you need this until the next release**
-
 ### Viewing job status
 
 A benefit of jobs compared to just running scripts is info about the jobs is stored persistently in the database. To see the status of a job, inspect it's `#status` field. If the job failed, you can see the error that caused it to fail in the field `#lastError`.
+
+### Configuring jobs
+
+Every job has two options you can configure:
+- maximum number of attempts
+- timeout
+
+#### Attempts
+
+When a job fails, it is automatically retried up to 10 times, or until it succeeds. If you want to configure this number, you can set `maxAttempts` to a custom value, like in this example:
+
+```haskell
+instance Job EmailCustomersJob where
+    perform EmailCustomersJob { .. } = do
+      customers <- query @Customer |> fetch
+      forEach customers sendToCustomer
+      where
+        sendToCustomer customer = sendMail (MarketingMail customer)
+        
+    maxAttempts = 3
+```
+
+#### Timeout
+
+Sometimes you might want a job to stop if its runtime exceeds some threshold. For that case, there's a `timeoutInMicroseconds` option which you can set for you job. The default is no timeout. If you want your job to time out after some time, set it to a `Just Int` value, like in the following example, which causes the job to time out after one minute:
+
+```haskell
+instance Job EmailCustomersJob where
+    perform EmailCustomersJob { .. } = do
+      customers <- query @Customer |> fetch
+      forEach customers sendToCustomer
+      where
+        sendToCustomer customer = sendMail (MarketingMail customer)
+        
+    timeoutInMicroseconds = Just $ 1000000 * 60
+```
+
+A timed out job will be retried, just as if it failed. If you want to prevent that, set its `maxAttempts` to `0`, as shown above.
 
 ### Scheduling jobs with cron
 
