@@ -147,11 +147,11 @@ jobDidTimeout job = do
     let canRetry = get #attemptsCount job < maxAttempts
     let status = if canRetry then JobStatusRetry else JobStatusTimedOut
     job
-      |> set #status status
-      |> set #lockedBy Nothing
-      |> set #updatedAt updatedAt
-      |> set #lastError (Just "Timeout reached")
-      |> updateRecord
+        |> set #status status
+        |> set #lockedBy Nothing
+        |> set #updatedAt updatedAt
+        |> setJust #lastError "Timeout reached"
+        |> updateRecord
 
     pure ()
   
