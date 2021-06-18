@@ -56,8 +56,6 @@ This can be done in a controller action or in a script as will be shown below.
 
 In development mode, these watchers are started with the dev server. In production however, use `make build/bin/RunJobs` to build a binary that you can deploy along side your IHP app to watch for added jobs and run them.
 
-**NOTE: Jobs running automatically in development are currently broken on v0.9. Please run on master if you need this until the next release**
-
 ### Viewing job status
 
 A benefit of jobs compared to just running scripts is info about the jobs is stored persistently in the database. To see the status of a job, inspect it's `#status` field. If the job failed, you can see the error that caused it to fail in the field `#lastError`.
