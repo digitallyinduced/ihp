@@ -17,6 +17,9 @@ class Job job where
     maxAttempts :: (?job :: job) => Int
     maxAttempts = 10
 
+    timeoutInMicroseconds :: (?job :: job) => Maybe Int
+    timeoutInMicroseconds = Nothing
+
 class Worker application where
     workers :: application -> [JobWorker]
 
@@ -35,6 +38,7 @@ data JobStatus
     = JobStatusNotStarted
     | JobStatusRunning
     | JobStatusFailed
+    | JobStatusTimedOut
     | JobStatusSucceeded
     | JobStatusRetry
     deriving (Eq, Show, Read, Enum)
