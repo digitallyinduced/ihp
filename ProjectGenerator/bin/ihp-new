@@ -184,7 +184,7 @@ cd "$PROJECT_NAME"
 rm -rf ".git"
 chmod go-w .ghci || true
 
-nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
+nix-shell -j auto --cores 0 --quiet --run 'make -s all .envrc; new-application Web'
 
 if [[ "$BOILERPLATE_GIT_BRANCH" == "elm" ]]; then
 	nix-shell -j auto --cores 0 --quiet --run 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
