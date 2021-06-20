@@ -1,5 +1,6 @@
 module IHP.IDE.Data.View.ShowQuery where
 
+import qualified Database.PostgreSQL.Simple as PG
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Layout
@@ -9,8 +10,8 @@ import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 
 data ShowQueryView = ShowQueryView
-    { rows :: [[DynamicField]]
-    , query :: Text
+    { queryResult :: Either PG.SqlError [[DynamicField]]
+    , queryText :: Text
     }
 
 instance View ShowQueryView where
@@ -21,22 +22,37 @@ instance View ShowQueryView where
                     {renderRows}
                 </div>
             </div>
-            {customQuery query}
+            {customQuery queryText}
         </div>
     |]
         where
-            renderRows = [hsx|
-                <table class="table table-sm table-hover table-striped data-rows-table">
-                    {tableHead}
-                    {tableBody}
-                </table>
-            |]
+            renderRows = case queryResult of
+                Right rows -> [hsx|
+                    <table class="table table-sm table-hover table-striped data-rows-table">
+                        {tableHead rows}
+                        {tableBody rows}
+                    </table>
+                |]
+                Left sqlError -> [hsx|
+                    <div class="alert alert-danger" role="alert">
+                        <h4 class="alert-heading">SQL Error - {get #sqlExecStatus sqlError}</h4>
+                        {showIfNotEmpty "Message" (get #sqlErrorMsg sqlError)}
+                        {showIfNotEmpty "Details" (get #sqlErrorDetail sqlError)}
+                        {showIfNotEmpty "Hint" (get #sqlErrorHint sqlError)}
+                        {showIfNotEmpty "State" (get #sqlState sqlError)}
+                    </div>
+                |]
 
-            tableHead = [hsx|<thead><tr>{forEach columnNames renderColumnHead}</tr></thead>|]
+            tableHead rows = [hsx|<thead><tr>{forEach (columnNames rows) renderColumnHead}</tr></thead>|]
             renderColumnHead name = [hsx|<th>{name}</th>|]
 
-            tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
+            tableBody rows = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
             renderRow fields = [hsx|<tr>{forEach fields renderField}</tr>|]
             renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{sqlValueToText fieldValue}</span></td>|]
 
-            columnNames = map (get #fieldName) (fromMaybe [] (head rows))
+            columnNames rows = maybe [] (map (get #fieldName)) (head rows)
+
+            showIfNotEmpty :: Text -> ByteString -> Html
+            showIfNotEmpty title text = case text of
+                "" -> mempty
+                _ -> [hsx|<div><strong>{title}:</strong> {text}</div>|]
