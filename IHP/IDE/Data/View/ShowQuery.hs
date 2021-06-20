@@ -53,6 +53,6 @@ instance View ShowQueryView where
             columnNames rows = maybe [] (map (get #fieldName)) (head rows)
 
             showIfNotEmpty :: Text -> ByteString -> Html
-            showIfNotEmpty title text = case text of
+            showIfNotEmpty title = \case
                 "" -> mempty
-                _ -> [hsx|<div><strong>{title}:</strong> {text}</div>|]
+                text -> [hsx|<div><strong>{title}:</strong> {text}</div>|]
