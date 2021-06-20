@@ -153,7 +153,7 @@ class ( Typeable record
     , FromRow record
     ) => SessionsControllerConfig record where
 
-    -- | Your home page, where the user is redirect after login
+    -- | Your home page, where the user is redirect after login, by default it's @/@
     afterLoginRedirectPath :: Text 
     afterLoginRedirectPath = "/"
 
