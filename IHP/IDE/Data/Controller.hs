@@ -48,7 +48,7 @@ instance Controller DataController where
         queryResult :: Either PG.SqlError [[DynamicField]] <- if isQuery queryText then
                 (PG.query_ connection query <&> Right) `catch` (pure . Left)
             else
-                PG.execute_ connection query >> pure (Right []) `catch` (pure . Left)
+                (PG.execute_ connection query >> pure (Right [])) `catch` (pure . Left)
 
         PG.close connection
         render ShowQueryView { .. }
