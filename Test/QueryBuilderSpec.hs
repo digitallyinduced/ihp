@@ -24,6 +24,24 @@ data Post = Post
 type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
 
+data Tag = Tag
+        { id :: UUID
+        , tagText :: Text
+        }
+
+type instance GetTableName Tag = "tags"
+type instance GetModelByTableName "tags" = Tag 
+
+data Tagging = Tagging 
+        { id :: UUID
+        , postId :: UUID
+        , tagId :: UUID
+        }
+
+
+type instance GetTableName Tagging = "taggings"
+type instance GetModelByTableName "taggings" = Tagging
+
 data User = User
     { id :: UUID,
       name :: Text
@@ -190,6 +208,16 @@ tests = do
                         |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name != ?", [Escape "Tom"])
+
+
+        describe "labelResults" do
+            it "should provide a query with index field" do
+                let theQuery = query @Tag
+                        |> innerJoin @Tagging (#id, #tagId)
+                        |> innerJoinThirdTable @Post @Tagging (#id, #postId)
+                        |> labelResults @Post #id
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, tags.* FROM tags INNER JOIN taggings ON tags.id = taggings.tag_id INNER JOIN posts ON taggings.post_id = posts.id", [])
+
 
 
         describe "orderBy" do

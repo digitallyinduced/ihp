@@ -27,6 +27,7 @@ import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import GHC.Records
 import GHC.OverloadedLabels
 import GHC.TypeLits
@@ -258,6 +259,13 @@ instance Newtype.Newtype (Id' model) where
     type O (Id' model) = PrimaryKey model
     pack = Id
     unpack (Id uuid) = uuid
+
+-- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
+data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
+    deriving (Show)
+
+instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) where
+    fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
 -- to write the Id like a string:
