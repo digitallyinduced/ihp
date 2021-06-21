@@ -17,8 +17,8 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
 import qualified Data.ByteString.Builder
-
 import qualified Data.ByteString.Char8 as BS
+import Data.Functor ((<&>))
 
 instance Controller DataController where
     action ShowDatabaseAction = do
@@ -41,9 +41,15 @@ instance Controller DataController where
 
     action ShowQueryAction = do
         connection <- connectToAppDb
-        let query = (param @Text "query")
-        when (query == "") $ redirectTo ShowDatabaseAction
-        rows :: [[DynamicField]] <- if isQuery query then PG.query_ connection (fromString (cs query)) else PG.execute_ connection (fromString (cs query)) >> return []
+        let queryText = param @Text "query"
+        when (queryText == "") $ redirectTo ShowDatabaseAction
+        let query = fromString $ cs queryText
+
+        queryResult :: Either PG.SqlError [[DynamicField]] <- if isQuery queryText then
+                (PG.query_ connection query <&> Right) `catch` (pure . Left)
+            else
+                (PG.execute_ connection query >> pure (Right [])) `catch` (pure . Left)
+
         PG.close connection
         render ShowQueryView { .. }
 

@@ -270,7 +270,7 @@ Or `distinctOn #tableField` to fetch distinct records based on the `#tableField`
 ```haskell
 do
     users <- query @User
-        |> distinctBy #fullName
+        |> distinctOn #fullName
         |> fetch
 ```
 
