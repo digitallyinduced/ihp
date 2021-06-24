@@ -10,4 +10,4 @@ import BasicPrelude
 -- | Represents a Postgres tsvector
 --
 -- See https://www.postgresql.org/docs/current/datatype-textsearch.html
-data TSVector = TSVector deriving (Eq, Show, Ord)
+type TSVector = Text
