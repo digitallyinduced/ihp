@@ -139,6 +139,9 @@ instance InputValue LocalTime where
 instance InputValue Day where
     inputValue date = cs (iso8601Show date)
 
+instance InputValue TimeOfDay where
+    inputValue timeOfDay = tshow timeOfDay
+
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
@@ -514,8 +517,11 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
 
+instance Default TimeOfDay where
+    def = TimeOfDay 0 0 0
+
 instance Default LocalTime where
-    def = LocalTime def (TimeOfDay 0 0 0)
+    def = LocalTime def def
 
 instance Default Day where
     def = ModifiedJulianDay 0
