@@ -95,6 +95,7 @@ common shared-properties
             , minio-hs
             , temporary
             , conduit-extra
+            , wai-cors
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

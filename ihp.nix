@@ -56,6 +56,7 @@
 , fast-logger
 , minio-hs
 , temporary
+, wai-cors
 }:
 mkDerivation {
   pname = "ihp";
@@ -118,6 +119,7 @@ mkDerivation {
     fast-logger
     minio-hs
     temporary
+    wai-cors
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''
