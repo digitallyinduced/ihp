@@ -59,6 +59,7 @@ let
         fast-logger
         minio-hs
         temporary
+        wai-cors
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli
