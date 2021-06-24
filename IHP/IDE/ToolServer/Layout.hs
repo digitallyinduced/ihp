@@ -21,7 +21,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <link rel="stylesheet" href="/vendor/select2.min.css"/>
 
     <script src="/vendor/morphdom-umd.min.js"></script>
-    <script src="/vendor/jquery-3.5.0.min.js"></script>
+    <script src="/vendor/jquery-3.6.0.min.js"></script>
     <script src="/vendor/timeago.js"></script>
     <script src="/vendor/popper.min.js"></script>
     <script src="/vendor/bootstrap.min.js"></script>
