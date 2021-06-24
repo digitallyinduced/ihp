@@ -226,6 +226,7 @@ library
         , IHP.Version
         , IHP.Postgres.Point
         , IHP.Postgres.Inet
+        , IHP.Postgres.TSVector
         , Paths_ihp
         , IHP.Job.Queue
         , IHP.Job.Runner

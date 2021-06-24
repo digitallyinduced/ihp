@@ -4,6 +4,7 @@ module IHP.ModelSupport
 ( module IHP.ModelSupport
 , module IHP.Postgres.Point
 , module IHP.Postgres.Inet
+, module IHP.Postgres.TSVector
 ) where
 
 import IHP.HaskellSupport
@@ -46,6 +47,7 @@ import qualified Data.Pool as Pool
 import qualified GHC.Conc
 import IHP.Postgres.Point
 import IHP.Postgres.Inet
+import IHP.Postgres.TSVector
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
 import qualified IHP.Log as Log
@@ -747,7 +749,7 @@ instance (FromField value, Typeable value) => FromField [value] where
 -- > action MyAction = autoRefresh do
 -- >     users <- sqlQuery "SELECT * FROM users WHERE .."
 -- >     trackTableRead "users"
--- > 
+-- >
 -- >     render MyView { .. }
 --
 --

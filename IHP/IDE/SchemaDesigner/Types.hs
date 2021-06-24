@@ -119,6 +119,7 @@ data PostgresType
     | PBigserial
     | PJSONB
     | PInet
+    | PTSVector
     | PArray PostgresType
     | PCustomType Text
     deriving (Eq, Show)

@@ -53,4 +53,4 @@ instance ToField Point where
         (toField x) :
         (Plain (char8 ',')) :
         (toField y) :
-        [Plain (char8 ')')] 
+        [Plain (char8 ')')]
