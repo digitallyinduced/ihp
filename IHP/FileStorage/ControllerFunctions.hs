@@ -5,6 +5,7 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.FileStorage.ControllerFunctions
 ( storeFile
+, removeFileFromStorage
 , storeFileWithOptions
 , contentDispositionAttachmentAndFileName
 , createTemporaryDownloadUrl
@@ -251,6 +252,30 @@ uploadToStorage :: forall (fieldName :: Symbol) context record (tableName :: Sym
         , SetField "meta" record MetaBag
     ) => Proxy fieldName -> record -> IO record
 uploadToStorage field record = uploadToStorageWithOptions def field record
+
+-- | Permanently removes a previously stored file from storage.
+--
+-- __Example:__ Delete a previously uploaded file. The objectPath and url are stored in the database in this example.
+--
+-- > action DeleteUploadedFileAction { uploadedFileId } = do
+-- >     uploadedFile <- fetch uploadedFile
+-- >     let storedFile = StoredFile
+-- >             { path = get #objectPath uploadedFile
+-- >             , url = get #url uploadedFile
+-- >             }
+-- >     removeFileFromStorage storedFile
+-- >     deleteRecord uploadedFile
+-- >     redirectTo UploadedFilesAction
+removeFileFromStorage :: (?context :: context, ConfigProvider context) => StoredFile -> IO (Either MinioErr ())
+removeFileFromStorage StoredFile { path, url } = do
+    case storage of
+        StaticDirStorage -> do
+            let fullPath :: String = cs $ "static/" <> path
+            Directory.removeFile fullPath
+            pure $ Right ()
+        S3Storage { connectInfo, bucket} -> do
+            runMinio connectInfo do
+              removeObject bucket path
 
 -- | Returns the current storage configured in Config.hs
 storage :: (?context :: context, ConfigProvider context) => FileStorage
