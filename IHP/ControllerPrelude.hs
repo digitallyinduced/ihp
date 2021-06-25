@@ -35,6 +35,7 @@ module IHP.ControllerPrelude
     , module IHP.FileStorage.Types
     , module IHP.FileStorage.ControllerFunctions
     , module IHP.FileStorage.Preprocessor.ImageMagick
+    , module IHP.Pagination.ControllerFunctions
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -78,3 +79,5 @@ import IHP.Assets.ControllerFunctions
 import IHP.FileStorage.Types
 import IHP.FileStorage.ControllerFunctions
 import IHP.FileStorage.Preprocessor.ImageMagick
+
+import IHP.Pagination.ControllerFunctions
