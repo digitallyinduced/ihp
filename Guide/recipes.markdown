@@ -385,7 +385,6 @@ with a 404:
     customNotFoundResponse = do
     page <- LBS.readFile "static/404.html"
     respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
-
 ```
 
 Now you can use your customNotFoundResponse:
@@ -398,5 +397,4 @@ Now you can use your customNotFoundResponse:
             Nothing ->  customNotFoundResponse -- Database record disappeared !!!
             Just post -> do
                     render ShowView { .. }
-
 ```
