@@ -370,3 +370,33 @@ redisUrl = ?context
         |> TMap.lookup @RedisUrl
         |> fromMaybe (error "Could not find RedisUrl in config")
 ```
+
+## Read a file from filesystem / create a custom 404 page
+
+If for some reason https://ihp.digitallyinduced.com/Guide/routing.html#custom-404-page 
+is not easy enough - you can also write your own function which reads a file and responses
+with a 404:
+
+
+```haskell
+
+    import qualified Data.ByteString.Lazy as LBS
+    customNotFoundResponse :: IO ()
+    customNotFoundResponse = do
+    page <- LBS.readFile "static/404.html"
+    respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
+
+```
+
+Now you can use your customNotFoundResponse:
+
+```haskell
+
+    action WelcomeAction  = do
+        post <- fetch ("30a73014-101e-4269-be91-be6c019de289" :: Id Post) 
+        case post of
+            Nothing ->  customNotFoundResponse -- Database record disappeared !!!
+            Just post -> do
+                    render ShowView { .. }
+
+```
