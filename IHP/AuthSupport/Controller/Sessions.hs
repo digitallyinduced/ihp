@@ -72,7 +72,8 @@ createSessionAction :: forall record action passwordField.
     ) => IO ()
 createSessionAction = do
     usersQueryBuilder
-    |> findMaybeBy #email (param @Text "email")
+    |> filterWhereCaseInsensitive (#email, param "email")
+    |> fetchOneOrNothing
     >>= \case
         Just (user :: record) -> do
             isLocked <- Lockable.isLocked user
@@ -152,7 +153,7 @@ class ( Typeable record
     , FromRow record
     ) => SessionsControllerConfig record where
 
-    -- | Your home page, where the user is redirect after login
+    -- | Your home page, where the user is redirect after login, by default it's @/@
     afterLoginRedirectPath :: Text 
     afterLoginRedirectPath = "/"
 

@@ -43,5 +43,6 @@
 :set -XPartialTypeSignatures
 :set -XStandaloneDeriving
 :set -XDerivingVia
+:set -XTemplateHaskell
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns

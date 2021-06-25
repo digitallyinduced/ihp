@@ -17,8 +17,8 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
 import qualified Data.ByteString.Builder
-
 import qualified Data.ByteString.Char8 as BS
+import Data.Functor ((<&>))
 
 instance Controller DataController where
     action ShowDatabaseAction = do
@@ -41,9 +41,15 @@ instance Controller DataController where
 
     action ShowQueryAction = do
         connection <- connectToAppDb
-        let query = (param @Text "query")
-        when (query == "") $ redirectTo ShowDatabaseAction
-        rows :: [[DynamicField]] <- if isQuery query then PG.query_ connection (fromString (cs query)) else PG.execute_ connection (fromString (cs query)) >> return []
+        let queryText = param @Text "query"
+        when (queryText == "") $ redirectTo ShowDatabaseAction
+        let query = fromString $ cs queryText
+
+        queryResult :: Either PG.SqlError [[DynamicField]] <- if isQuery queryText then
+                (PG.query_ connection query <&> Right) `catch` (pure . Left)
+            else
+                (PG.execute_ connection query >> pure (Right [])) `catch` (pure . Left)
+
         PG.close connection
         render ShowQueryView { .. }
 
@@ -112,7 +118,7 @@ instance Controller DataController where
     action EditRowValueAction { tableName, targetName, id } = do
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
-        
+
         rows :: [[DynamicField]] <- fetchRows connection tableName
 
         let targetId = cs id
@@ -144,6 +150,12 @@ instance Controller DataController where
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
+    action DeleteTableRowsAction { tableName } = do
+        connection <- connectToAppDb
+        let query = "TRUNCATE TABLE " <> tableName
+        PG.execute_ connection (PG.Query . cs $! query)
+        PG.close connection
+        redirectTo ShowTableRowsAction { .. }
 
 connectToAppDb :: (?context :: ControllerContext) => _
 connectToAppDb = PG.connectPostgreSQL $ fromConfig databaseUrl
@@ -188,7 +200,7 @@ fetchRowsPage :: FromRow r => PG.Connection -> Text -> Int -> Int -> IO [r]
 fetchRowsPage connection tableName page rows = do
     pkFields <- tablePrimaryKeyFields connection tableName
     let slice = " OFFSET " <> show (page * rows - rows) <> " ROWS FETCH FIRST " <> show rows <> " ROWS ONLY"
-    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice 
+    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice
 
     PG.query_ connection (PG.Query . cs $! query)
 

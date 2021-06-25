@@ -234,14 +234,41 @@ instance IsString string => IsString (Maybe string) where
 
 
 -- | Example:
--- forEach users \user -> putStrLn (tshow user)
+--
+-- > forEach users \user -> putStrLn (tshow user)
+--
+-- __Example:__ Within HSX
+--
+-- > renderUser :: User -> Html
+-- > renderUser user = [hsx|<div>User: {get #name user}</div>|]
+-- >
+-- > render = [hsx|{forEach users renderUser}|]
+--
 forEach :: (MonoFoldable mono, Applicative m) => mono -> (Element mono -> m ()) -> m ()
 forEach elements function = forM_ elements function
 {-# INLINE forEach #-}
 
 
--- | Example:
--- forEachWithIndex users \(index, user) -> putStrLn (tshow user)
+-- | Like 'forEach' but with an index, starting at 0
+--
+-- __Example:__ With a Callback
+--
+-- > forEachWithIndex users \(index, user) -> putStrLn (tshow index <> ": " <> tshow user)
+--
+-- __Example:__ With a Function
+--
+-- > printUser :: (Int, User) -> IO ()
+-- > printUser (index, user) = putStrLn (tshow index <> ": " <> tshow user)
+-- > 
+-- > forEachWithIndex users printUser
+--
+-- __Example:__ Within HSX
+--
+-- > renderUser :: (Int, User) -> Html
+-- > renderUser (index, user) = [hsx|<div>User {index}: {get #name user}</div>|]
+-- >
+-- > render = [hsx|{forEachWithIndex users renderUser}|]
+--
 forEachWithIndex :: (Applicative m) => [a] -> ((Int, a) -> m ()) -> m ()
 forEachWithIndex elements function = forM_ (ClassyPrelude.zip [0..] elements) function
 {-# INLINE forEachWithIndex #-}

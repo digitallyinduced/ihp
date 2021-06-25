@@ -27,6 +27,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
 import qualified Control.DeepSeq as DeepSeq
+import Text.Read (readMaybe)
 
 -- | Returns a query or body parameter from the current request. The raw string
 -- value is parsed before returning it. So the return value type depends on what
@@ -431,6 +432,19 @@ instance ParamReader Day where
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "ParamReader Day: Expected String"
+
+instance ParamReader TimeOfDay where
+    {-# INLINABLE readParameter #-}
+    readParameter "" = Left "ParamReader TimeOfDay: Parameter missing"
+    readParameter byteString =
+        let
+            input = (cs byteString)
+        in case readMaybe input of
+            Just value -> Right value
+            Nothing -> Left "ParamReader TimeOfDay: Please enter a valid time in the format hh:mm:ss"
+
+    readParameterJSON (Aeson.String string) = readParameter (cs string)
+    readParameterJSON _ = Left "ParamReader TimeOfDay: Expected String"
 
 instance {-# OVERLAPS #-} (ParamReader (ModelSupport.PrimaryKey model')) => ParamReader (ModelSupport.Id' model') where
     {-# INLINABLE readParameter #-}

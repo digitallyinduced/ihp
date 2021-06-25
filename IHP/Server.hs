@@ -37,6 +37,7 @@ import qualified IHP.Job.Types as Job
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Network.Wai.Middleware.Cors as Cors
 
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
@@ -52,15 +53,17 @@ run configBuilder = do
 
     sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
     staticMiddleware <- initStaticMiddleware frameworkConfig
+    let corsMiddleware = initCorsMiddleware frameworkConfig
     let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
 
     let run = withBackgroundWorkers frameworkConfig $
-            runServer frameworkConfig $
+           runServer frameworkConfig $
                 staticMiddleware $
-                    sessionMiddleware $
-                            requestLoggerMiddleware $
-                                    methodOverridePost $
-                                        application
+                    corsMiddleware $
+                        sessionMiddleware $
+                                requestLoggerMiddleware $
+                                        methodOverridePost $
+                                            application
 
     run `finally` do
         frameworkConfig |> get #logger |> get #cleanup
@@ -134,6 +137,11 @@ initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
     pure sessionMiddleware
+
+initCorsMiddleware :: FrameworkConfig -> Middleware
+initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePolicy of
+        Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
+        Nothing -> id
 
 initModelContext :: FrameworkConfig -> IO ModelContext
 initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } = do

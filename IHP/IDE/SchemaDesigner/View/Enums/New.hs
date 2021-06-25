@@ -10,7 +10,7 @@ data NewEnumView = NewEnumView { statements :: [Statement] }
 
 instance View NewEnumView where
     html NewEnumView { .. } = [hsx|
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
         {renderModal modal}

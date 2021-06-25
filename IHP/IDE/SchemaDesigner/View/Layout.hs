@@ -171,18 +171,19 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
                 <a href={DeleteForeignKeyAction (get #constraintName addConstraint) tableName} class="js-delete">Delete Foreign Key Constraint</a>|]
             _ -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
 
-renderColumnIndexes tableName statements = [hsx|
-<tr>
-    {index}
-</tr>
-|]
+renderColumnIndexes tableName statements = forEach (findTableIndexes statements tableName) renderIndex
     where
-        index = case findTableIndex statements tableName of
-            Just statement -> [hsx|
-                    <td>{get #indexName statement}</td>
-                    <td>{columns}</td>
-                |] where columns = get #columnNames statement |> intercalate ", "
-            Nothing -> [hsx||]
+        renderIndex index = [hsx|
+            <tr class="index">
+                <td class="index-name">{get #indexName index}</td>
+                <td class="index-expressions">{expressions}</td>
+            </tr>
+        |]
+            where
+                expressions = index
+                    |> get #expressions
+                    |> map compileExpression 
+                    |> intercalate ", "
 
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
 renderEnumSelector enumName values = [hsx|
@@ -323,6 +324,11 @@ findPrimaryKey statements tableName = do
 findTableIndex :: [Statement] -> Text -> Maybe Statement
 findTableIndex statements tableName =
     find (\case CreateIndex { tableName = tableName' } -> tableName' == tableName; otherwise -> False) statements
+
+findTableIndexes :: [Statement] -> Text -> [Statement]
+findTableIndexes statements tableName =
+    filter (\case CreateIndex { tableName = tableName' } -> tableName' == tableName; otherwise -> False) statements
+
 
 replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of

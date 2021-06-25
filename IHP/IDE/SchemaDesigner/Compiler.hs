@@ -27,7 +27,7 @@ compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIden
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
-compileStatement CreateIndex { indexName, tableName, columnNames } = "CREATE INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " columnNames) <> ");"
+compileStatement CreateIndex { indexName, tableName, expressions } = "CREATE INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ");"
 compileStatement CreateFunction { functionName, functionBody, orReplace } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$" <> functionBody <> "$$ language plpgsql;"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
@@ -78,6 +78,15 @@ compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
 compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
+compileExpression (EqExpression a b) = compileExpression a <> " = " <> compileExpression b
+compileExpression (IsExpression a b) = compileExpression a <> " IS " <> compileExpression b
+compileExpression (NotExpression a) = "NOT " <> compileExpression a
+compileExpression (AndExpression a b) = compileExpression a <> " AND " <> compileExpression b
+compileExpression (OrExpression a b) = "(" <> compileExpression a <> ") OR (" <> compileExpression b <> ")"
+compileExpression (LessThanExpression a b) = compileExpression a <> " < " <> compileExpression b
+compileExpression (LessThanOrEqualToExpression a b) = compileExpression a <> " <= " <> compileExpression b
+compileExpression (GreaterThanExpression a b) = compileExpression a <> " > " <> compileExpression b
+compileExpression (GreaterThanOrEqualToExpression a b) = compileExpression a <> " >= " <> compileExpression b
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT

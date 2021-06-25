@@ -10,7 +10,7 @@ data NewTableView = NewTableView { statements :: [Statement] }
 
 instance View NewTableView where
     html NewTableView { .. } = [hsx|
-        <div class="row no-gutters bg-white">
+        <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
         {renderModal modal}

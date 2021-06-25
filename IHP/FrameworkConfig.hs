@@ -27,6 +27,7 @@ import IHP.Log.Types
 import IHP.Log (makeRequestLogger, defaultRequestLogger)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Cors as Cors
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -118,6 +119,8 @@ ihpDefaultConfig = do
 
     option $ reqLoggerMiddleware
 
+    option $ defaultCorsResourcePolicy
+
     option $ Sendmail
 
     databaseUrl <- liftIO defaultDatabaseUrl
@@ -142,13 +145,18 @@ ihpDefaultConfig = do
 {-# INLINABLE ihpDefaultConfig #-}
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
-findOption = do
+findOption = fromMaybe (error optionNotFoundErrorMessage) <$> findOptionOrNothing @option
+    where
+        optionNotFoundErrorMessage = "Could not find " <> show (Typeable.typeOf (undefined :: option))
+{-# INLINABLE findOption #-}
+
+findOptionOrNothing :: forall option. Typeable option => State.StateT TMap.TMap IO (Maybe option)
+findOptionOrNothing = do
     options <- State.get
     options
         |> TMap.lookup @option
-        |> fromMaybe (error $ "Could not find " <> show (Typeable.typeOf (undefined :: option)))
         |> pure
-{-# INLINABLE findOption #-}
+{-# INLINABLE findOptionOrNothing #-}
 
 buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
 buildFrameworkConfig appConfig = do
@@ -166,6 +174,7 @@ buildFrameworkConfig appConfig = do
             cssFramework <- findOption @CSSFramework
             logger <- findOption @Logger
             exceptionTracker <- findOption @ExceptionTracker
+            corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
 
             appConfig <- State.get
 
@@ -252,6 +261,38 @@ data FrameworkConfig = FrameworkConfig
     -- >                |> fromMaybe (error "Could not find RedisUrl in config")
     -- > 
     , appConfig :: !TMap.TMap
+
+    -- | Configures CORS headers for the application. By default this is set to 'Nothing', and the server will not respond with any CORS headers
+    --
+    -- You can provide a custom CORS policy in @Config.hs@:
+    --
+    -- > -- Config.hs
+    -- > import qualified Network.Wai.Middleware.Cors as Cors
+    -- > 
+    -- > config :: ConfigBuilder
+    -- > config = do
+    -- >     option Development
+    -- >     option (AppHostname "localhost")
+    -- >
+    -- >     option Cors.simpleCorsResourcePolicy
+    -- >
+    -- 
+    -- Take a look at the documentation of wai-cors https://hackage.haskell.org/package/wai-cors-0.2.7/docs/Network-Wai-Middleware-Cors.html for understanding what @simpleCorsResourcePolicy@ is doing
+    --
+    -- You can specify CORS origins like this:
+    --
+    -- > -- Config.hs
+    -- > import qualified Network.Wai.Middleware.Cors as Cors
+    -- > 
+    -- > config :: ConfigBuilder
+    -- > config = do
+    -- >     option Development
+    -- >     option (AppHostname "localhost")
+    -- >
+    -- >     -- The boolean True specifies if credentials are allowed for the request. You still need to set withCredentials on your XmlHttpRequest
+    -- >     option Cors.simpleCorsResourcePolicy { Cors.corsOrigins = Just (["localhost"], True) }
+    -- >
+    , corsResourcePolicy :: Maybe Cors.CorsResourcePolicy
 }
 
 class ConfigProvider a where
@@ -326,3 +367,6 @@ isDevelopment = isEnvironment Development
 isProduction :: (?context :: context, ConfigProvider context) => Bool
 isProduction = isEnvironment Production
 {-# INLINABLE isProduction #-}
+
+defaultCorsResourcePolicy :: Maybe Cors.CorsResourcePolicy
+defaultCorsResourcePolicy = Nothing

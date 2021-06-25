@@ -282,6 +282,17 @@ tests = do
                 it "should accept JSON strings" do
                     (tshow (readParameterJSON @Day (json "\"2020-11-08\""))) `shouldBe` ("Right 2020-11-08")
 
+            describe "TimeOfDay" do
+                it "should accept time values" do
+                    (tshow (readParameter @TimeOfDay "12:00:00")) `shouldBe` ("Right 12:00:00")
+                
+                it "should fail on invalid inputs" do
+                    (readParameter @TimeOfDay "not a time") `shouldBe` (Left "ParamReader TimeOfDay: Please enter a valid time in the format hh:mm:ss")
+                    (readParameter @TimeOfDay "25:00:00") `shouldBe` (Left "ParamReader TimeOfDay: Please enter a valid time in the format hh:mm:ss")
+                
+                it "should accept JSON strings" do
+                    (tshow (readParameterJSON @TimeOfDay (json "\"13:37:00\""))) `shouldBe` ("Right 13:37:00")
+
             describe "Maybe" do
                 it "should accept values" do
                     (readParameter @(Maybe Int) "1") `shouldBe` (Right (Just 1))
