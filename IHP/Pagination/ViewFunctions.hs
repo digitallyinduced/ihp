@@ -101,6 +101,18 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 
 -- | Render a filtering box in your view. Allows the user to type in a query and filter
 -- results according to what they type.
+--
+-- Below is an example of how this might be used in your index. Replace the existing <h1> with:
+--        <div class="container">
+--          <div class="row justify-content-between">
+--              <div class="col-6">
+--                  <h1>Users<a href={pathTo NewUserAction} class="btn btn-primary ml-4">+ New</a></h1>
+--              </div>
+--              <div class="col-5">
+--                  {renderFilter "Username"}
+--              </div>
+--          </div>
+--        </div>
 renderFilter :: (?context::ControllerContext) =>
     Text    -- ^ Placeholder text for the text box
     -> Html
