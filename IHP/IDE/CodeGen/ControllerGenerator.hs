@@ -96,7 +96,8 @@ generateController schema config =
         indexAction =
             ""
             <> "    action " <> pluralName <> "Action = do\n"
-            <> "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
+            <> "        (" <> modelVariablePlural <> "Q, pagination) <- query @" <> model <> " |> paginate\n"
+            <> "        " <> modelVariablePlural <> " <- " <> modelVariablePlural <> "Q |> fetch\n"
             <> "        render IndexView { .. }\n"
 
         newAction =

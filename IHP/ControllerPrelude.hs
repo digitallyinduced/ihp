@@ -32,6 +32,7 @@ module IHP.ControllerPrelude
     , module IHP.PageTitle.ControllerFunctions
     , module IHP.WebSocket
     , module IHP.Assets.ControllerFunctions
+    , module IHP.Pagination.ControllerFunctions
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -71,3 +72,5 @@ import IHP.PageTitle.ControllerFunctions
 
 import IHP.WebSocket
 import IHP.Assets.ControllerFunctions
+
+import IHP.Pagination.ControllerFunctions
