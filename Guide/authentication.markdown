@@ -260,6 +260,7 @@ To create a user with a hashed password, you just need to call the hashing funct
                         |> set #passwordHash hashed
                         |> createRecord
                     setSuccessMessage "You have registered successfully"
+                    redirectToPath "/"
 ```
 
 ## Hashing a Password
