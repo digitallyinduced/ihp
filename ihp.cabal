@@ -224,6 +224,7 @@ library
         , IHP.Telemetry
         , IHP.Test.Mocking
         , IHP.Version
+        , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
         , IHP.Postgres.Inet
         , IHP.Postgres.TSVector
