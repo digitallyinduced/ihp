@@ -165,6 +165,9 @@ instance Default Bool where
 instance Default Point where
     def = Point def def
 
+instance Default TSVector where
+    def = TSVector def
+
 type FieldName = ByteString
 
 -- | Returns @True@ when the record has not been saved to the database yet. Returns @False@ otherwise.
