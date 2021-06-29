@@ -12,7 +12,9 @@ import IHP.Postgres.TypeInfo
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.TypeInfo.Macro
-import Data.Attoparsec.ByteString.Char8 as Attoparsec
+import Data.Attoparsec.ByteString.Char8 as Attoparsec hiding (Parser(..))
+import Data.Attoparsec.Internal.Types (Parser)
+import Data.ByteString.Builder (byteString, charUtf8, intDec)
 
 -- | Represents a Postgres tsvector
 --
@@ -36,13 +38,15 @@ instance FromField TSVector where
         else case v of
                Nothing -> returnError UnexpectedNull f ""
                Just bs ->
-                   case parseOnly parser bs of
+                   case parseOnly parseTSVector bs of
                      Left  err -> returnError ConversionFailed f err
                      Right val -> pure val
-      where
-        -- 'a:1A fat:2B,4C cat:5D'
-        -- 'descript':4 'one':1,3 'titl':2
-        parser = TSVector <$> many' parseLexeme
+
+-- 'a:1A fat:2B,4C cat:5D'
+-- 'descript':4 'one':1,3 'titl':2
+parseTSVector :: Parser ByteString TSVector
+parseTSVector = TSVector <$> many' parseLexeme
+    where
         parseLexeme = do
             skipSpace
 
@@ -61,5 +65,19 @@ instance FromField TSVector where
 
             pure $ Lexeme { token = cs token, ranking }
 
+
 instance ToField TSVector where
-    toField = undefined
+    toField = serializeTSVector
+
+serializeTSVector :: TSVector -> Action
+serializeTSVector (TSVector lexemes) = Many $ map serializeLexeme lexemes
+    where
+        serializeLexeme Lexeme { token, ranking } = Many
+            [ Plain $ byteString $ cs token
+            , toField ':'
+            , Many $ intersperse (toField ',') (map serializeLexemeRanking ranking)
+            ]
+        serializeLexemeRanking LexemeRanking { position, weight } = Many [toField position, toField weight]
+
+instance ToField Char where
+    toField char = Plain $ charUtf8 char
