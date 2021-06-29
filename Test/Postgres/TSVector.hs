@@ -34,10 +34,11 @@ tests = do
             , Many [ Plain "typeset",  Plain ":",  Many [ Many [ Plain "15", Plain "D" ] ] ]
             ]
 
-    describe "TSVector Parser" do
-        it "Should Parse" do
-            Attoparsec.parseOnly parseTSVector raw `shouldBe` Right parsed
+    describe "TSVector" do
+        describe "Parser" do
+            it "Should Parse" do
+                Attoparsec.parseOnly parseTSVector raw `shouldBe` Right parsed
 
-    describe "TSVector Serializer" do
-        it "Should Serialize" do
-            serializeTSVector parsed `shouldBe` serialized
+        describe "Serializer" do
+            it "Should Serialize" do
+                serializeTSVector parsed `shouldBe` serialized
