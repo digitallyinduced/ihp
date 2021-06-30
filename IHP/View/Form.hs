@@ -766,7 +766,7 @@ instance (
     -- Expects that AutoRoute is used. Otherwise you need to use @formFor'@ or specify
     -- a manual ModelFormAction instance.
     --
-    -- We guess the form submitt action based on the current url
+    -- We guess the form submit action based on the current url
     -- It's a @New..Action@ or @Edit..Action@. We guess the corresponding
     -- @Create..Action@ name or @Update..Action@ name based on the AutoRoute rules
     --
