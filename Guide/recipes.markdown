@@ -391,7 +391,7 @@ Now you can use your customNotFoundResponse:
 
 ```haskell
 action WelcomeAction  = do
-post <- fetch ("30a73014-101e-4269-be91-be6c019de289" :: Id Post) 
+post <- fetchOneOrNothing ("30a73014-101e-4269-be91-be6c019de289" :: Id Post) 
 case post of
    Nothing ->  customNotFoundResponse -- Database record disappeared !!!
    Just post -> render ShowView { .. }
