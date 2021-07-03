@@ -210,6 +210,7 @@ sqlType = choice $ map optionalArray
         , bigserial
         , jsonb
         , inet
+        , tsvector
         , customType
         ]
             where
@@ -336,6 +337,10 @@ sqlType = choice $ map optionalArray
                     try (symbol' "INET")
                     pure PInet
 
+                tsvector = do
+                    try (symbol' "TSVECTOR")
+                    pure PTSVector
+
                 optionalArray typeParser= do
                     arrayType <- typeParser;
                     (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
@@ -356,7 +361,7 @@ table = [
             , binary "<"  LessThanExpression
             , binary ">="  GreaterThanOrEqualToExpression
             , binary ">"  GreaterThanExpression
-            
+
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
             ],

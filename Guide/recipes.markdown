@@ -372,6 +372,7 @@ redisUrl = ?context
 ```
 
 
+
 ## How to get all values of an enum?
 
 Given a enum defined in the `Schema.sql` like this:
@@ -394,4 +395,30 @@ data Color = Yellow | Red | Blue deriving (Enum)
 
 let allColors = allEnumValues @Color
 -- allColors = [ Yellow, Red, Blue ]
+```
+
+## Read a file from filesystem / create a custom 404 page
+
+If for some reason [https://ihp.digitallyinduced.com/Guide/routing.html#custom-404-page ](https://ihp.digitallyinduced.com/Guide/routing.html#custom-404-page)
+is not easy enough - you can also write your own function which reads a file and responses
+with a 404:
+
+
+```haskell
+import qualified Data.ByteString.Lazy as LBS
+
+customNotFoundResponse :: IO ()
+customNotFoundResponse = do
+page <- LBS.readFile "static/404.html"
+respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
+```
+
+Now you can use your customNotFoundResponse:
+
+```haskell
+action WelcomeAction  = do
+post <- fetchOneOrNothing ("30a73014-101e-4269-be91-be6c019de289" :: Id Post) 
+case post of
+   Nothing ->  customNotFoundResponse -- Database record disappeared !!!
+   Just post -> render ShowView { .. }
 ```

@@ -73,6 +73,7 @@ atomicType = \case
     PArray type_ -> "[" <> atomicType type_ <> "]"
     PPoint -> "Point"
     PInet -> "Net.IP.IP"
+    PTSVector -> "TSVector"
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
 haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull }

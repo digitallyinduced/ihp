@@ -118,6 +118,7 @@ compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType PJSONB = "JSONB"
 compilePostgresType PInet = "INET"
+compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PCustomType theType) = theType
 
