@@ -534,9 +534,28 @@ filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilde
 --
 -- For negation use 'filterWhereNotIn'
 --
-filterWhereIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
+filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: *). (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIn (name, value) queryBuilderProvider =
+        case head nullValues of
+            Nothing -> injectQueryBuilder whereInQuery -- All values non null
+            Just nullValue ->
+                let
+                    isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
+                in
+                    case head nonNullValues of
+                        Just nonNullValue -> -- Some non null values, some null values
+                            injectQueryBuilder $ UnionQueryBuilder
+                                (injectQueryBuilder whereInQuery)
+                                (injectQueryBuilder isNullValueExpr)
+                        Nothing -> injectQueryBuilder isNullValueExpr -- All values null
     where
+        -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
+        -- https://github.com/digitallyinduced/ihp/issues/906
+        --
+        (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
+
+        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In nonNullValues)), applyLeft = Nothing, applyRight = Nothing }
+
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIn #-}
@@ -570,10 +589,23 @@ filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder
 --
 -- The inclusive version of this function is called 'filterWhereIn'.
 --
-filterWhereNotIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereNotIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereNotIn (_, []) queryBuilder = queryBuilder -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
-filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
+filterWhereNotIn (name, value) queryBuilderProvider =
+        case head nullValues of
+            Nothing -> injectQueryBuilder whereNotInQuery -- All values non null
+            Just nullValue ->
+                case head nonNullValues of
+                    Just nonNullValue -> injectQueryBuilder FilterByQueryBuilder { queryBuilder = whereNotInQuery, queryFilter = (columnName, IsNotOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing } -- Some non null values, some null values
+                    Nothing -> injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsNotOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing } -- All values null
     where
+        -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
+        -- https://github.com/digitallyinduced/ihp/issues/906
+        --
+        (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
+
+        whereNotInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In nonNullValues)), applyLeft = Nothing, applyRight = Nothing }
+
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotIn #-}

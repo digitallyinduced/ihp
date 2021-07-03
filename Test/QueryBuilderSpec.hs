@@ -19,6 +19,7 @@ data Post = Post
         , createdAt :: UTCTime
         , public :: Bool
         , createdBy :: UUID
+        , categoryId :: Maybe UUID
         }
 
 type instance GetTableName Post = "posts"
@@ -101,6 +102,29 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
 
+            describe "with Maybe / NULL values" do
+                it "should handle [Just .., Nothing]" do
+                    let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574", Nothing]
+                    let theQuery = query @Post
+                            |> filterWhereIn (#categoryId, theValues)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (category_id IN ?) OR (category_id IS ?)", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"], Plain "null"])
+
+                it "should handle [Just ..]" do
+                    let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574"]
+                    let theQuery = query @Post
+                            |> filterWhereIn (#categoryId, theValues)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id IN ?", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"]])
+
+                it "should handle [Nothing]" do
+                    let theValues :: [Maybe UUID] = [Nothing]
+                    let theQuery = query @Post
+                            |> filterWhereIn (#categoryId, theValues)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id IS ?", [Plain "null"])
+
+
         describe "filterWhereInJoinedTable" do
             it "should produce a SQL with a WHERE condition" do
                 let theValues :: [Text] = ["first", "second"]
@@ -125,6 +149,28 @@ tests = do
                         |> filterWhereNotIn (#title, theValues)
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts", [])
+
+            describe "with Maybe / NULL values" do
+                it "should handle [Just .., Nothing]" do
+                    let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574", Nothing]
+                    let theQuery = query @Post
+                            |> filterWhereNotIn (#categoryId, theValues)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (category_id NOT IN ?) AND (category_id IS NOT ?)", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"], Plain "null"])
+
+                it "should handle [Just ..]" do
+                    let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574"]
+                    let theQuery = query @Post
+                            |> filterWhereNotIn (#categoryId, theValues)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id NOT IN ?", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"]])
+
+                it "should handle [Nothing]" do
+                    let theValues :: [Maybe UUID] = [Nothing]
+                    let theQuery = query @Post
+                            |> filterWhereNotIn (#categoryId, theValues)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id IS NOT ?", [Plain "null"])
 
         describe "filterWhereNotInJoinedTable" do
             it "should produce a SQL with a WHERE condition" do
