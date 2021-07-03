@@ -26,6 +26,10 @@ tests = do
 
                 b' `shouldBe` RecordB { fieldA = 1, fieldB = "test" }
 
+        describe "allEnumValues" do
+            it "should return all enum values" do
+                (allEnumValues @Color) `shouldBe` [Yellow, Red, Blue]
+
 data RecordA = RecordA { fieldA :: Int, fieldB :: Text } deriving (Eq, Show)
 data RecordB = RecordB { fieldA :: Int, fieldB :: Text} deriving (Eq, Show)
 
@@ -34,3 +38,5 @@ instance SetField "fieldA" RecordB Int where
 
 instance SetField "fieldB" RecordB Text where
     setField value record = record { fieldB = value }
+
+data Color = Yellow | Red | Blue deriving (Enum, Show, Eq)

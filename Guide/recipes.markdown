@@ -370,3 +370,28 @@ redisUrl = ?context
         |> TMap.lookup @RedisUrl
         |> fromMaybe (error "Could not find RedisUrl in config")
 ```
+
+
+## How to get all values of an enum?
+
+Given a enum defined in the `Schema.sql` like this:
+
+```sql
+CREATE TYPE colors AS ENUM ('yellow', 'red', 'blue');
+```
+
+you can call `allEnumValues` to get a list of all the colors:
+
+```haskell
+let allColors = allEnumValues @Color
+-- allColors = [ Yellow, Red, Blue ]
+```
+
+This also works if you define custom type in `Web/Types.hs` that is deriving `Enum`:
+
+```haskell
+data Color = Yellow | Red | Blue deriving (Enum)
+
+let allColors = allEnumValues @Color
+-- allColors = [ Yellow, Red, Blue ]
+```

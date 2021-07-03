@@ -488,12 +488,11 @@ instance (TypeError ('Text ("Use 'let x = param \"..\"' instead of 'x <- param \
 -- >     readParameterJSON = enumParamReaderJSON
 enumParamReader :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => ByteString -> Either ByteString parameter
 enumParamReader string =
-        case find (\value -> ModelSupport.inputValue value == string') allValues of
+        case find (\value -> ModelSupport.inputValue value == string') allEnumValues of
             Just value -> Right value
             Nothing -> Left "Invalid value"
     where
         string' = cs string
-        allValues = enumFrom (toEnum 0) :: [parameter]
 
 -- | Used together with 'enumParamReader' as a default implementation for 'readParameterJSON' for enum structures
 --
