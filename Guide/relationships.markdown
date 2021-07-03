@@ -89,6 +89,8 @@ Then the `fetchRelated` basically just executes this query builder and puts the 
 
 ### Multiple Records
 
+#### Fetching all Posts with their Comments (One-to-many)
+
 When we want to fetch all the comments for a list of posts, we can use `collectionFetchRelated`:
 
 ```haskell
@@ -97,7 +99,7 @@ posts <- query @Post
     >>= collectionFetchRelated #comments
 ```
 
-This will query all posts with all their comments. The type of posts is `[Include "comments" Post]`.
+This will query all posts with all their comments. The type of `posts` is `[Include "comments" Post]`.
 
 The above Haskell code will trigger the following two SQL queries to be executed:
 
@@ -105,6 +107,66 @@ The above Haskell code will trigger the following two SQL queries to be executed
 SELECT posts.* FROM posts
 SELECT comments.* FROM comments WHERE post_id IN (?)
 ```
+
+Inside the view you can access the comments like this:
+
+```haskell
+render = [hsx|
+    <h1>Posts</h1>
+    {forEach posts renderPost}
+|]
+
+renderPost :: Include "comments" Post -> Html
+renderPost post = [hsx|
+    <h2>{get #title post}</h2>
+    {forEach comments renderComment}
+|]
+    where
+        comments = get #comments post
+
+renderComment :: Comment -> Html
+renderComment comment = [hsx|
+    <div class="comment">{get #body comment}</div>
+|]
+```
+
+#### Fetching all Comments with their Posts (Many-to-one)
+
+When we want to fetch all comments and display them with their posts, we need to do the reverse of the above:
+
+```
+comments <- query @Comment
+    |> fetch
+    >>= collectionFetchRelated #postId
+```
+
+This will query all comments and their respective posts. The type of `comments` is `[Include "postId" Comment]`.
+
+The Haskell code will trigger the following two SQL queries:
+
+```sql
+SELECT comments.* FROM comments
+SELECT posts.* FROM posts WHERE id IN (?)
+```
+
+Inside the view you can access the comment's post like this:
+
+```haskell
+render = [hsx|
+    <h1>Comments</h1>
+    {forEach comments renderComment}
+|]
+
+renderComment :: Include "postId" Comment -> Html
+renderComment comment = [hsx|
+    <h2>{get #title post}</h2>
+    <div class="comment">{get #body comment}</div>
+|]
+    where
+        -- The post is stored inside the postId field of the comment
+        post = get #postId comment
+```
+
 
 ### Sorting With Multiple Records
 
