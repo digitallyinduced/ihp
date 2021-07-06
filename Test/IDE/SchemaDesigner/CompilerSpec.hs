@@ -392,14 +392,17 @@ tests = do
             let sql = cs [plain|CREATE INDEX users_index ON users (user_name);\n|]
             let statement = CreateIndex
                     { indexName = "users_index"
+                    , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     }
             compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE INDEX statement with multiple columns" do
             let sql = cs [plain|CREATE INDEX users_index ON users (user_name, project_id);\n|]
             let statement = CreateIndex
                     { indexName = "users_index"
+                    , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
                     }
@@ -409,8 +412,19 @@ tests = do
             let sql = cs [plain|CREATE INDEX users_email_index ON users (LOWER(email));\n|]
             let statement = CreateIndex
                     { indexName = "users_email_index"
+                    , unique = False
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE UNIQUE INDEX statement" do
+            let sql = cs [plain|CREATE UNIQUE INDEX users_index ON users (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
                     }
             compileSql [statement] `shouldBe` sql
 

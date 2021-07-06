@@ -52,7 +52,7 @@ instance Controller ColumnsController where
 
                     let indexName = tableName <> "_" <> columnName <> "_index"
                     let columnNames = [columnName]
-                    let addTableIndexToSchema = addTableIndex indexName tableName columnNames
+                    let addTableIndexToSchema = addTableIndex indexName False tableName columnNames
 
                     updateSchema (addForeignKeyConstraintToSchema . addTableIndexToSchema)
 
@@ -237,8 +237,8 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable on
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
-addTableIndex :: Text -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName tableName columnNames list = list <> [CreateIndex { indexName, tableName, expressions = map VarExpression columnNames }]
+addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
+addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames }]
 
 deleteTableIndex :: Text -> [Statement] -> [Statement]
 deleteTableIndex indexName list = filter (\index -> get #indexName index /= indexName) list

@@ -176,13 +176,15 @@ renderColumnIndexes tableName statements = forEach (findTableIndexes statements 
         renderIndex index = [hsx|
             <tr class="index">
                 <td class="index-name">{get #indexName index}</td>
+                {unique}
                 <td class="index-expressions">{expressions}</td>
             </tr>
         |]
             where
+                unique = if get #unique index then [hsx|<td class="index-expressions">UNIQUE</td>|] else mempty
                 expressions = index
                     |> get #expressions
-                    |> map compileExpression 
+                    |> map compileExpression
                     |> intercalate ", "
 
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
