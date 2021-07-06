@@ -181,7 +181,7 @@ renderColumnIndexes tableName statements = forEach (findTableIndexes statements 
             </tr>
         |]
             where
-                unique = if get #unique index then [hsx|<td class="index-expressions">UNIQUE</td>|] else mempty
+                unique = when (get #unique index) [hsx|<td class="index-expressions">UNIQUE</td>|]
                 expressions = index
                     |> get #expressions
                     |> map compileExpression
