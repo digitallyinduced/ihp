@@ -87,6 +87,28 @@ tests = do
 
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
+            it "should deal with duplicate enum values" do
+                let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
+                let enum2 = CreateEnumType { name = "apartment_type", values = ["LOFT", "APARTMENT"] }
+                let output = compileStatementPreview [enum1, enum2] enum1 |> Text.strip
+
+                output `shouldBe` [text|
+                    data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum)
+                    instance FromField PropertyType where
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "APARTMENT") = pure PropertyTypeApartment
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "HOUSE") = pure House
+                        fromField field (Just value) = returnError ConversionFailed field ("Unexpected value for enum value. Got: " <> Data.String.Conversions.cs value)
+                        fromField field Nothing = returnError UnexpectedNull field "Unexpected null for enum value"
+                    instance Default PropertyType where def = PropertyTypeApartment
+                    instance ToField PropertyType where
+                        toField PropertyTypeApartment = toField ("APARTMENT" :: Text)
+                        toField House = toField ("HOUSE" :: Text)
+                    instance InputValue PropertyType where
+                        inputValue PropertyTypeApartment = "APARTMENT" :: Text
+                        inputValue House = "HOUSE" :: Text
+
+                    instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable {
                     name = "users",
