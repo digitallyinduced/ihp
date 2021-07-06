@@ -369,7 +369,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         -- we use the following naming schema:
         --
         -- > data PropertyType = PropertyTypeApartment | House
-        -- > data ApartmentType = Loft | PropertyTypeApartment
+        -- > data ApartmentType = Loft | ApartmentTypeApartment
         --
         -- This function returns True if the given enumValue (like 'APARTMENT') is unique across the schema.
         isEnumValueUniqueInSchema :: Text -> Bool
