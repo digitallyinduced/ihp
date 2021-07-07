@@ -618,7 +618,7 @@ The generated HTML will look like this:
 
 ### Custom Form Attributes
 
-You can specifiy custom HTMl attributes using `formForWithOptions`.
+You can specifiy custom HTML attributes using `formForWithOptions`.
 
 ```haskell
 renderForm :: Post -> Html

@@ -328,7 +328,7 @@ findForeignKeyConstraint CreateTable { name } column =
 
         (Schema statements) = ?schema
 
-compileEnumDataDefinitions :: Statement -> Text
+compileEnumDataDefinitions :: (?schema :: Schema) => Statement -> Text
 compileEnumDataDefinitions CreateEnumType { name = ""} = "" -- Ignore enums without any values
 compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum)\n"
@@ -336,16 +336,52 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> indent (unlines (map compileFromFieldInstanceForValue values))
         <> "    fromField field (Just value) = returnError ConversionFailed field (\"Unexpected value for enum value. Got: \" <> Data.String.Conversions.cs value)\n"
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
-        <> "instance Default " <> modelName <> " where def = " <> enumValueToControllerName (unsafeHead values) <> "\n"
+        <> "instance Default " <> modelName <> " where def = " <> enumValueToConstructorName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
         <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
     where
         modelName = tableNameToModelName name
-        valueConstructors = map enumValueToControllerName values
-        compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> enumValueToControllerName value
-        compileToFieldInstanceForValue value = "toField " <> enumValueToControllerName value <> " = toField (" <> tshow value <> " :: Text)"
-        compileInputValue value = "inputValue " <> enumValueToControllerName value <> " = " <> tshow value <> " :: Text"
+        valueConstructors = map enumValueToConstructorName values
+
+        enumValueToConstructorName :: Text -> Text
+        enumValueToConstructorName enumValue = if isEnumValueUniqueInSchema enumValue
+                then enumValueToControllerName enumValue
+                else modelName <> (enumValueToControllerName enumValue)
+
+        compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> enumValueToConstructorName value
+        compileToFieldInstanceForValue value = "toField " <> enumValueToConstructorName value <> " = toField (" <> tshow value <> " :: Text)"
+        compileInputValue value = "inputValue " <> enumValueToConstructorName value <> " = " <> tshow value <> " :: Text"
+
+        -- Let's say we have a schema like this:
+        --
+        -- > CREATE TYPE property_type AS ENUM ('APARTMENT', 'HOUSE');
+        -- > CREATE TYPE apartment_type AS ENUM ('LOFT', 'APARTMENT');
+        --
+        -- A naive enum implementation will generate these data constructors:
+        --
+        -- > data PropertyType = Apartment | House
+        -- > data ApartmentType = Loft | Apartment
+        --
+        -- Now we have two data constructors with the name 'Apartment'. This fails to compile.
+        --
+        -- To avoid this we detect if a name is unique across the schema. When it's not unique
+        -- we use the following naming schema:
+        --
+        -- > data PropertyType = PropertyTypeApartment | House
+        -- > data ApartmentType = Loft | ApartmentTypeApartment
+        --
+        -- This function returns True if the given enumValue (like 'APARTMENT') is unique across the schema.
+        isEnumValueUniqueInSchema :: Text -> Bool
+        isEnumValueUniqueInSchema enumValue =
+                ?schema
+                |> \case Schema statements -> statements
+                |> filter (\case
+                        CreateEnumType { name, values } | enumValue `elem` values -> True
+                        _                                                         -> False
+                    )
+                |> length
+                |> \count -> count == 1
 
 compileToRowValues :: [Text] -> Text
 compileToRowValues bindingValues | length bindingValues == 1 = "Only (" <> (unsafeHead bindingValues) <> ")"

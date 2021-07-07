@@ -215,7 +215,7 @@ tests = do
                     { tableName = "posts"
                     , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = 
+                        { checkExpression =
                             LessThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (VarExpression "20")
@@ -229,7 +229,7 @@ tests = do
                     { tableName = "posts"
                     , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = 
+                        { checkExpression =
                             LessThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (VarExpression "20")
@@ -241,7 +241,7 @@ tests = do
                     { tableName = "posts"
                     , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = 
+                        { checkExpression =
                             GreaterThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (VarExpression "20")
@@ -254,7 +254,7 @@ tests = do
                     { tableName = "posts"
                     , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = 
+                        { checkExpression =
                             GreaterThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (VarExpression "20")
@@ -409,20 +409,30 @@ tests = do
         it "should parse a CREATE INDEX statement" do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
+                    , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     }
         it "should parse a CREATE INDEX statement with multiple columns" do
             parseSql "CREATE INDEX users_index ON users (user_name, project_id);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
+                    , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
                     { indexName = "users_email_index"
+                    , unique = False
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    }
+        it "should parse a CREATE UNIQUE INDEX statement" do
+            parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
@@ -447,7 +457,7 @@ tests = do
                     , StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
                     ]
             parseSqlStatements sql `shouldBe` statements
-            
+
 
 col :: Column
 col = Column
