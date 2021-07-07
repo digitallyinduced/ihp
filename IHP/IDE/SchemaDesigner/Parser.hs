@@ -210,6 +210,7 @@ sqlType = choice $ map optionalArray
         , bigserial
         , jsonb
         , inet
+        , tsvector
         , customType
         ]
             where
@@ -336,6 +337,10 @@ sqlType = choice $ map optionalArray
                     try (symbol' "INET")
                     pure PInet
 
+                tsvector = do
+                    try (symbol' "TSVECTOR")
+                    pure PTSVector
+
                 optionalArray typeParser= do
                     arrayType <- typeParser;
                     (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
@@ -356,7 +361,7 @@ table = [
             , binary "<"  LessThanExpression
             , binary ">="  GreaterThanOrEqualToExpression
             , binary ">"  GreaterThanExpression
-            
+
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
             ],
@@ -405,13 +410,14 @@ comment = do
 
 createIndex = do
     lexeme "CREATE"
+    unique <- isJust <$> optional (lexeme "UNIQUE")
     lexeme "INDEX"
     indexName <- identifier
     lexeme "ON"
     tableName <- identifier
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     char ';'
-    pure CreateIndex { indexName, tableName, expressions }
+    pure CreateIndex { indexName, unique, tableName, expressions }
 
 createFunction = do
     lexeme "CREATE"

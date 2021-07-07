@@ -59,6 +59,10 @@ renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json 
 renderJson json = respondAndExit $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
 {-# INLINABLE renderJson #-}
 
+renderXml :: (?context :: ControllerContext) => LByteString -> IO ()
+renderXml xml = respondAndExit $ responseLBS status200 [(hContentType, "application/xml")] xml
+{-# INLINABLE renderXml #-}
+
 renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINABLE renderJson' #-}

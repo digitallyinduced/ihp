@@ -33,6 +33,7 @@ module IHP.HaskellSupport
 , symbolToByteString
 , IsEmpty (..)
 , copyFields
+, allEnumValues
 ) where
 
 import ClassyPrelude
@@ -390,3 +391,25 @@ instance (CopyFields rest destinationRecord sourceRecord
             |> set (Proxy @fieldName) (Record.getField @fieldName sourceRecord)
             |> copyFields @rest sourceRecord
     {-# INLINE copyFields #-}
+
+-- | Returns a list of all values of an enum type
+--
+-- Given a data structure like this:
+--
+-- > data Color = Yellow | Red | Blue deriving (Enum)
+--
+-- You can call 'allEnumValues' to get a list of all colors:
+--
+-- >>> allEnumValues @Color
+-- [Yellow, Red, Blue]
+--
+-- This also works if the enum is defined in the @Schema.sql@:
+--
+-- > CREATE TYPE brokerage_subscription_type AS ENUM ('basic_subscription', 'bronze_subscription', 'silver_subscription', 'gold_subscription');
+--
+-- >>> allEnumValues @BrokerageSubscriptionType
+-- [BasicSubscription, BronzeSubscription, SilverSubscription]
+--
+allEnumValues :: forall enumType. Enum enumType => [enumType]
+allEnumValues = enumFrom (toEnum 0)
+{-# INLINABLE allEnumValues #-}
