@@ -177,7 +177,7 @@ endif
 
 build/bin/Script/%: build/Script/Main/%.hs
 	mkdir -p build/bin/Script
-	ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/Script -hidir build/Script
+	ghc -O1 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/Script -hidir build/Script
 
 build/Script/Main/%.hs: Application/Script/%.hs
 	mkdir -p build/Script/Main
