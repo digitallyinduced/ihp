@@ -118,7 +118,7 @@ renderFilter :: (?context::ControllerContext) =>
     -> Html
 renderFilter placeholder =
     [hsx|
-        <form method="POST" action="" class="mt-2 float-right">
+        <form method="GET" action="" class="mt-2 float-right">
             <div class="form-row">
                 <div class="col-auto">
                 <label class="sr-only" for="inlineFormInput">Name</label>
@@ -127,7 +127,7 @@ renderFilter placeholder =
                 </div>
                 <div class="col-auto">
                 <button type="submit" class="btn btn-primary mb-2 mr-2">Filter</button>
-                <button onclick="window.location.href= window.location.pathname;" class="btn btn-primary mb-2">Clear</button>
+                <button onclick="window.location.href = removeURLParameter(window.location.href, 'filter');" class="btn btn-primary mb-2">Clear</button>
                 </div>
             </div>
         </form>
