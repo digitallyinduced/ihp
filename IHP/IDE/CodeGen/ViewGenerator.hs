@@ -171,7 +171,7 @@ buildPlan' schema config =
                 <> "                </thead>\n"
                 <> "                <tbody>{forEach " <> pluralVariableName <> " render" <> singularName <> "}</tbody>\n"
                 <> "            </table>\n"
-                <> "            { renderPagination pagination }\n"
+                <> "            {renderPagination pagination}\n"
                 <> "        </div>\n"
                 <> "    |]\n"
                 <> "\n\n"
