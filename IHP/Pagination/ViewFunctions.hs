@@ -16,6 +16,8 @@ import IHP.HSX.QQ (hsx)
 
 import IHP.Controller.Param (paramOrNothing)
 
+import IHP.View.Classes
+
 
 -- | Render a navigation for your pagination. This is to be used in your view whenever 
 -- to allow users to change pages, including "Next" and "Previous".
@@ -65,8 +67,8 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 in
                     [hsx|{forEach [10,20,50,100,200] oneOption}|]
             
-            nextClass = "page-item" ++ (if hasNextPage pagination then "" else " disabled") :: Text
-            prevClass = "page-item" ++ (if hasPreviousPage pagination then "" else " disabled") :: Text
+            nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+            prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
 
             renderItem pg =
                 case pg of
@@ -129,7 +131,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 -- Below is an example of how this might be used in your index. Replace the existing <h1> with:
 --        <div class="container">
 --          <div class="row justify-content-between">
---              <div class="col-6">
+--              <div class="col-7">
 --                  <h1>Users<a href={pathTo NewUserAction} class="btn btn-primary ml-4">+ New</a></h1>
 --              </div>
 --              <div class="col-5">
