@@ -1,17 +1,13 @@
 {-|
-Module: IHP.PageTitle.ControllerFunctions
+Module: IHP.Pagination.ControllerFunctions
 Description: Paginate results in your actions
 Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.Pagination.ControllerFunctions
 (   paginate, 
-    paginateOptions, 
+    paginateWithOptions, 
     filterList,
     defaultPaginationOptions,
-    itemsPerPage,
-    windowSize,
-    setItemsPerPage,
-    setWindowSize
 ) where
 
 import IHP.Prelude
@@ -30,14 +26,20 @@ import IHP.ModelSupport (GetModelByTableName)
 import Database.PostgreSQL.Simple.ToField
 
 
--- Paginate a query. 
+-- Paginate a query, with the following default options:
+-- 
+-- 1. Maximum items per page: 50. Each page will show at most 50 items.
+-- 2. Selector window size: 5. The selector will show the current page, and 5 pages before and after it,
+--    if they exist.
 --
 -- This function should be used inside your controller action. It will do two things: 
 --  
---     1. Applies the correct limit and offset to display the correct page according to the
---     current parameters.
+--     1. Using the 'page' (current page number to display) and 'maxItems' (which overrides the set maximum 
+--        items per page) request parameters, this applies the the needed limit and offset to display the 
+--        correct page. For instance, page 3 with a maxItems of 50 would produce a limit of 50 and an offset
+--        of 100 to display results 100 through 150.
 --     2. Returns a 'Pagination' state which should be passed through to your view and then,
---         in turn 'renderPagination'
+--        in turn, 'renderPagination'.
 --
 -- Example:
 --
@@ -50,33 +52,36 @@ import Database.PostgreSQL.Simple.ToField
 paginate :: (?context::ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, KnownSymbol q) =>
     QueryBuilder q
     -> IO (QueryBuilder q, Pagination)
-paginate = paginateOptions defaultPaginationOptions
+paginate = paginateWithOptions defaultPaginationOptions
 
--- Paginate with custom options. 
+-- Paginate with ability to override the default options for maximum items per page and selector window size. 
 --
 -- This function should be used inside your controller action. It will do two things: 
 --  
---     1. Applies the correct limit and offset to display the correct page according to the
---     current parameters.
+--     1. Using the 'page' (current page number to display) and 'maxItems' (which overrides the set maximum 
+--        items per page) request parameters, this applies the the needed limit and offset to display the 
+--        correct page. For instance, page 3 with a maxItems of 50 would produce a limit of 50 and an offset
+--        of 100 to display results 100 through 150.
 --     2. Returns a 'Pagination' state which should be passed through to your view and then,
---         in turn 'renderPagination'
+--        in turn, 'renderPagination'.
 --
 -- Example:
 --
 -- > action UsersAction = do
 -- >    (userQ, pagination) <- query @User 
 -- >        |> orderBy #email
--- >        |> paginateOptions (itemsPerPage 5)
+-- >        |> paginateWithOptions 
+-- >            (defaultPaginationOptions
+-- >                |> set #maxItems 10)
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
-paginateOptions :: (?context::ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, KnownSymbol q) =>
+paginateWithOptions :: (?context::ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, KnownSymbol q) =>
     Options
     -> QueryBuilder q
     -> IO (QueryBuilder q, Pagination)
-paginateOptions options q =
+paginateWithOptions options q =
     let page = paramOrDefault @Int 1 "page"
-        pageSize = paramOrDefault @Int (maxItemsOption options) "maxItems"
-        windowSize = windowSizeOption options
+        pageSize = paramOrDefault @Int (maxItems options) "maxItems"
     in do
         count <-
             q |> fetchCount
@@ -86,7 +91,7 @@ paginateOptions options q =
                     currentPage = page
                 ,   totalItems = fromIntegral count
                 ,   pageSize = pageSize
-                ,   window = windowSize
+                ,   window = windowSize options
                 }
 
         let results = q |> limit pageSize |> offset ((page - 1) * pageSize)
@@ -96,15 +101,16 @@ paginateOptions options q =
             , pagination
             )
 
--- | Filter a query according to the query entered in the filter box by the user (if any),
--- on a given text-based field.
+-- | Reading from the 'filter' query parameter, filters a query according to the string entered in the 
+--   filter box by the user (if any), on a given text-based field. Will return any results containing the
+--   string in a case-insenstive fashion. 
 --
 -- Example:
 -- 
 -- > action UsersAction = do
 -- >    (userQ, pagination) <- query @User 
 -- >        |> orderBy #email
--- >        |> paginateOptions (itemsPerPage 5)
+-- >        |> paginate
 -- >        |> filterList #email
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
@@ -117,60 +123,15 @@ filterList field =
        Just uf -> filterWhereILike (field, "%" <> uf <> "%")
        Nothing -> id
 
--- | Default options for a pagination. Can be passed into 'paginateOptions'.
+-- | Default options for a pagination. Can be passed into 'paginateOptions'. The defaults are as follows:
+-- 
+-- 1. Maximum items per page: 50. Each page will show at most 50 items.
+-- 2. Selector window size: 5. The selector will show the current page, and up to 5 pages before and after it,
+--    if they exist.
 defaultPaginationOptions :: Options
 defaultPaginationOptions =
     Options 
         {
-            maxItemsOption = 100
-        ,   windowSizeOption = 5
-        }
-
--- | Customize the default number of items per page. Can be 
---  passed into 'paginateOptions'.
-itemsPerPage :: Int -> Options
-itemsPerPage n =
-    Options
-        {
-            maxItemsOption = n
-        ,   windowSizeOption = 5
-        }
-
--- | Customize the ``window size'', which is the radius of the 
---   pages shown on the navbar. Can be passed into 'paginateOptions'.
-windowSize :: Int -> Options
-windowSize n =
-    Options
-        {
-            maxItemsOption = 100
-        ,   windowSizeOption = n
-        }
-
--- | Customize the default number of items per page in an existing 
---  'Options'. Can be used as part of 'paginateOptions':
---
--- > (userQ, pagination) <- query @User 
--- >        |> orderBy #email
--- >        |> paginateOptions 
--- >            (defaultOptions |> setItemsPerPage 5)
-setItemsPerPage :: Int -> Options -> Options
-setItemsPerPage n options =
-    options
-        {
-            maxItemsOption = n
-        }
-
--- | Customize the ``window size'' in an exsiting 'Options', which 
---   is the radius of the pages shown on the navbar. Can be used as 
---   part of 'paginateOptions':
---
--- > (userQ, pagination) <- query @User 
--- >        |> orderBy #email
--- >        |> paginateOptions 
--- >            (defaultOptions |> setWindowSize 3)
-setWindowSize :: Int -> Options -> Options
-setWindowSize n options =
-    options
-        {
-            windowSizeOption = n
+            maxItems = 50
+        ,   windowSize = 5
         }
