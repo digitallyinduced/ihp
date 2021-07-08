@@ -22,25 +22,49 @@ import IHP.Controller.Param (paramOrNothing)
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
 renderPagination pagination@Pagination {currentPage, window, pageSize} =
     [hsx|
-        <nav aria-label="Page Navigator">
-            <ul class="pagination justify-content-center">
-                <li class={prevClass}>
-                    <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
-                        <span aria-hidden="true">&laquo;</span>
-                        <span class="sr-only">Previous</span>
-                    </a>
-                </li>
-                {renderItems}
-                <li class={nextClass}>
-                    <a class="page-link" href={pageUrl $ currentPage + 1} aria-label="Previous">
-                        <span aria-hidden="true">&raquo;</span>
-                        <span class="sr-only">Next</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
+        <div class="row justify-content-md-center">
+            <div class="col-auto">
+            <nav aria-label="Page Navigator">
+                <ul class="pagination">
+                    <li class={prevClass}>
+                        <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                            <span class="sr-only">Previous</span>
+                        </a>
+                    </li>
+                    {renderItems}
+                    <li class={nextClass}>
+                        <a class="page-link" href={pageUrl $ currentPage + 1} aria-label="Previous">
+                            <span aria-hidden="true">&raquo;</span>
+                            <span class="sr-only">Next</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            </div>
+            <div class="col-auto">
+                <div class="form-row">
+                    <div class="col-auto mr-2">
+                        <select class="custom-select" id="maxItemsSelect" onchange="changeMaxItems(this);">
+                            {maxItemsGenerator}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     |]
         where
+            maxItemsGenerator = let
+                oneOption :: Int -> Html
+                oneOption n = 
+                    let
+                        selected = n == pageSize
+                    in
+                    [hsx|<option value={show n} selected={selected}>{n} items per page</option>|]
+                in
+                    [hsx|{forEach [10,20,50,100,200] oneOption}|]
+            
             nextClass = "page-item" ++ (if hasNextPage pagination then "" else " disabled") :: Text
             prevClass = "page-item" ++ (if hasPreviousPage pagination then "" else " disabled") :: Text
 
