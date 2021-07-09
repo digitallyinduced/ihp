@@ -410,13 +410,14 @@ comment = do
 
 createIndex = do
     lexeme "CREATE"
+    unique <- isJust <$> optional (lexeme "UNIQUE")
     lexeme "INDEX"
     indexName <- identifier
     lexeme "ON"
     tableName <- identifier
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     char ';'
-    pure CreateIndex { indexName, tableName, expressions }
+    pure CreateIndex { indexName, unique, tableName, expressions }
 
 createFunction = do
     lexeme "CREATE"

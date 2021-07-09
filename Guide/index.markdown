@@ -18,7 +18,19 @@ We believe that functional programming is the future of software development and
 
 Before open-sourcing, IHP has already been used in production by [digitally induced](https://www.digitallyinduced.com/) since 2017. Therefore you can expect continuous support and development in the future.
 
-Additionally IHP is used by companies such as [Prokapi](https://prokapi.com/) and [CodeKarussell (rausgegangen.de)](https://rausgegangen.de/).
+
+### digitally induced Partners
+
+The digitally induced Partners offer you professional IHP development, consulting and support. All partners have experience in working with IHP projects in production can help you build fast and well-architected projects.
+
+If you're using IHP in a professional context, the partner network ensures that there's always someone that can take over your project if needed.
+
+**Platinum Partners:**
+
+- [Systor Vest](https://systorvest.no/)
+- [Comhlan](http://comhlan.com/)
+
+You can find details on [the Partners page](https://ihp.digitallyinduced.com/Partners).
 
 ## Example Project
 
