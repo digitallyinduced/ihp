@@ -3,7 +3,6 @@
 Module: IHP.QueryBuilder
 Description:  Tool to build simple sql queries
 Copyright: (c) digitally induced GmbH, 2020
-
 QueryBuilder is mainly used for doing simple `SELECT` sql queries. It allows dynamic
 creation of sql queries in a type safe way.
 
@@ -38,6 +37,7 @@ module IHP.QueryBuilder
 , filterWhereILikeJoinedTable
 , filterWhereMatchesJoinedTable
 , filterWhereIMatchesJoinedTable
+, labelResults
 , EqOrIsOperator
 , filterWhereSql
 , FilterPrimaryKey (..)
@@ -46,15 +46,21 @@ module IHP.QueryBuilder
 , toSQL
 , toSQL'
 , buildQuery
+, SQLQuery (..)
+, OrderByClause (..)
+, OrderByDirection (..)
+, Condition (..)
 , innerJoin
 , innerJoinThirdTable
 , HasQueryBuilder
 , JoinQueryBuilderWrapper
 , NoJoinQueryBuilderWrapper
+, LabeledQueryBuilderWrapper
 , getQueryBuilder
+, NoJoins
 )
 where
-
+import qualified Prelude
 import IHP.Prelude
 import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
@@ -70,6 +76,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
+import Debug.Trace
 
 class DefaultScope table where
     defaultScope :: QueryBuilder table -> QueryBuilder table
@@ -154,12 +161,17 @@ instance {-# OVERLAPPABLE #-} (ModelList b, IsJoined a b) => IsJoined a (ConsMod
 class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -> joinRegister where
     getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
+    getQueryIndex :: queryBuilderProvider table -> Maybe ByteString
+    getQueryIndex _ = Nothing 
 
 -- Wrapper for QueryBuilders resulting from joins. Associates a joinRegister type.
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
 
 -- Wrapper for QueryBuilder that must not joins, e.g. queryUnion.
 newtype NoJoinQueryBuilderWrapper table = NoJoinQueryBuilderWrapper (QueryBuilder table)
+
+-- Wrapper for QueryBuilders with indexed results.
+newtype LabeledQueryBuilderWrapper foreignTable indexColumn indexValue table = LabeledQueryBuilderWrapper (QueryBuilder table)
 
 -- QueryBuilders have query builders and the join register is empty.
 instance HasQueryBuilder QueryBuilder EmptyModelList where
@@ -169,12 +181,18 @@ instance HasQueryBuilder QueryBuilder EmptyModelList where
 -- JoinQueryBuilderWrappers have query builders
 instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    injectQueryBuilder queryBuilder = JoinQueryBuilderWrapper queryBuilder
+    injectQueryBuilder = JoinQueryBuilderWrapper 
 
 -- NoJoinQueryBuilderWrapper have query builders and the join register does not allow any joins
 instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    injectQueryBuilder queryBuilder = NoJoinQueryBuilderWrapper queryBuilder
+    injectQueryBuilder  = NoJoinQueryBuilderWrapper 
+
+instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
+    getQueryBuilder (LabeledQueryBuilderWrapper queryBuilder) = queryBuilder
+    injectQueryBuilder = LabeledQueryBuilderWrapper
+    getQueryIndex _ = Just $ symbolToByteString @foreignTable <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
+
 
 data QueryBuilder (table :: Symbol) =
     NewQueryBuilder
@@ -199,7 +217,8 @@ data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoin
 
 data OrderByDirection = Asc | Desc deriving (Eq, Show)
 data SQLQuery = SQLQuery
-    { selectFrom :: !ByteString
+    { queryIndex :: !(Maybe ByteString)
+    , selectFrom :: !ByteString
     , distinctClause :: !(Maybe ByteString)
     , distinctOnClause :: !(Maybe ByteString)
     , whereCondition :: !(Maybe Condition)
@@ -229,6 +248,7 @@ deriving instance Eq Action
 instance Eq Builder.Builder where
     a == b = (Builder.toLazyByteString a) == (Builder.toLazyByteString b)
 
+instance SetField "queryIndex" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { queryIndex = value }
 instance SetField "selectFrom" SQLQuery ByteString where setField value sqlQuery = sqlQuery { selectFrom = value }
 instance SetField "distinctClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { distinctClause = value }
 instance SetField "distinctOnClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
@@ -264,12 +284,13 @@ query = (defaultScope @table) NewQueryBuilder
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
-buildQuery = buildQueryHelper . getQueryBuilder 
+buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
     where
     buildQueryHelper NewQueryBuilder =
         let tableName = symbolToByteString @table
         in SQLQuery
-                { selectFrom = tableName
+            {     queryIndex = trace (Prelude.show $ getQueryIndex queryBuilderProvider) getQueryIndex queryBuilderProvider 
+                , selectFrom = tableName
                 , distinctClause = Nothing
                 , distinctOnClause = Nothing
                 , whereCondition = Nothing
@@ -279,10 +300,10 @@ buildQuery = buildQueryHelper . getQueryBuilder
                 , offsetClause = Nothing
                 }
     buildQueryHelper DistinctQueryBuilder { queryBuilder } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> setJust #distinctClause "DISTINCT"
     buildQueryHelper DistinctOnQueryBuilder { queryBuilder, distinctOnColumn } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
     buildQueryHelper FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, value), applyLeft, applyRight } =
                 let
@@ -293,23 +314,23 @@ buildQuery = buildQueryHelper . getQueryBuilder
                     condition = VarCondition (applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> applyFn applyRight "?") value
                 in
                     queryBuilder
-                        |> buildQuery
+                        |> buildQueryHelper
                         |> modify #whereCondition \case
                                 Just c -> Just (AndCondition c condition)
                                 Nothing -> Just condition
     buildQueryHelper OrderByQueryBuilder { queryBuilder, queryOrderByClause } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> modify #orderByClause (\value -> value <> [queryOrderByClause] ) -- although adding to the end of a list is bad form, these lists are very short
     buildQueryHelper LimitQueryBuilder { queryBuilder, queryLimit } =
                     queryBuilder
-                    |> buildQuery
+                    |> buildQueryHelper
                     |> setJust #limitClause (
                             (Builder.byteString "LIMIT " <> Builder.intDec queryLimit)
                             |> Builder.toLazyByteString
                             |> LByteString.toStrict
                         )
     buildQueryHelper OffsetQueryBuilder { queryBuilder, queryOffset } = queryBuilder
-            |> buildQuery
+            |> buildQueryHelper
             |> setJust #offsetClause (
                     (Builder.byteString "OFFSET " <> Builder.intDec queryOffset)
                     |> Builder.toLazyByteString
@@ -317,8 +338,8 @@ buildQuery = buildQueryHelper . getQueryBuilder
                 )
     buildQueryHelper UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder } =
                 let
-                    firstQuery = buildQuery firstQueryBuilder
-                    secondQuery = buildQuery secondQueryBuilder
+                    firstQuery = buildQueryHelper firstQueryBuilder
+                    secondQuery = buildQueryHelper secondQueryBuilder
                     isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
                     isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                     unionWhere =
@@ -334,7 +355,7 @@ buildQuery = buildQueryHelper . getQueryBuilder
     
     buildQueryHelper JoinQueryBuilder { queryBuilder, joinData } =
         let 
-            firstQuery = buildQuery queryBuilder
+            firstQuery = buildQueryHelper queryBuilder
          in firstQuery { joins = joinData:joins firstQuery }
     
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
@@ -345,11 +366,11 @@ buildQuery = buildQueryHelper . getQueryBuilder
 -- >>> toSQL postsQuery
 -- ("SELECT posts.* FROM posts WHERE public = ?", [Plain "true"])
 toSQL :: (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> (ByteString, [Action])
-toSQL queryBuilderProvider = toSQL' (buildQuery $ getQueryBuilder queryBuilderProvider)
+toSQL queryBuilderProvider = toSQL' (buildQuery queryBuilderProvider)
 {-# INLINE toSQL #-}
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
-toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
+toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
         (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
@@ -369,7 +390,7 @@ toSQL' sqlQuery@SQLQuery { selectFrom, distinctClause, distinctOnClause, orderBy
                     ]
 
         selectors :: ByteString
-        selectors = selectFrom <> ".*"
+        selectors = ByteString.intercalate ", " $ catMaybes [queryIndex , Just (selectFrom <> ".*")]
 
         fromClause :: ByteString
         fromClause = selectFrom
@@ -513,9 +534,28 @@ filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilde
 --
 -- For negation use 'filterWhereNotIn'
 --
-filterWhereIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
+filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: *). (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIn (name, value) queryBuilderProvider =
+        case head nullValues of
+            Nothing -> injectQueryBuilder whereInQuery -- All values non null
+            Just nullValue ->
+                let
+                    isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
+                in
+                    case head nonNullValues of
+                        Just nonNullValue -> -- Some non null values, some null values
+                            injectQueryBuilder $ UnionQueryBuilder
+                                (injectQueryBuilder whereInQuery)
+                                (injectQueryBuilder isNullValueExpr)
+                        Nothing -> injectQueryBuilder isNullValueExpr -- All values null
     where
+        -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
+        -- https://github.com/digitallyinduced/ihp/issues/906
+        --
+        (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
+
+        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In nonNullValues)), applyLeft = Nothing, applyRight = Nothing }
+
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIn #-}
@@ -549,10 +589,23 @@ filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder
 --
 -- The inclusive version of this function is called 'filterWhereIn'.
 --
-filterWhereNotIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereNotIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereNotIn (_, []) queryBuilder = queryBuilder -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
-filterWhereNotIn (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
+filterWhereNotIn (name, value) queryBuilderProvider =
+        case head nullValues of
+            Nothing -> injectQueryBuilder whereNotInQuery -- All values non null
+            Just nullValue ->
+                case head nonNullValues of
+                    Just nonNullValue -> injectQueryBuilder FilterByQueryBuilder { queryBuilder = whereNotInQuery, queryFilter = (columnName, IsNotOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing } -- Some non null values, some null values
+                    Nothing -> injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsNotOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing } -- All values null
     where
+        -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
+        -- https://github.com/digitallyinduced/ihp/issues/906
+        --
+        (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
+
+        whereNotInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In nonNullValues)), applyLeft = Nothing, applyRight = Nothing }
+
         columnName = Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotIn #-}
@@ -753,6 +806,34 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
+-- | Index the values from a table with values of a field from a table joined by 'innerJoin' or 'innerJoinThirdTable'. Useful to get, e.g., the tags to a set of posts in such a way that the assignment of tags to posts is preserved.
+--
+--
+-- __Example:__ Fetch a list of all comments, each paired with the id of the post it belongs to.
+--
+-- > labeledTags <-
+-- >  query @Tag
+-- >     |> innerJoin @Tagging (#id, #tagId)
+-- >     |> innerJoinThirdTable @Post @Tagging (#id, #postId)
+-- >     |> labelResults @Post #id
+-- >     |> fetch
+-- > -- SELECT posts.id, tags.* FROM comments INNER JOIN taggings ON tags.id = taggings.tagId INNER JOIN posts ON posts.id = taggings.postId 
+-- 
+-- labeledTags is then a list of type ['LabeledData' (Id' "posts") Tag] such that "LabeledData postId tag" is contained in that list if "tag" is a tag of the post with id postId.
+--
+labelResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
+                (
+                    KnownSymbol foreignTable,
+                    KnownSymbol baseTable,
+                    foreignTable ~ GetTableName foreignModel, 
+                    baseModel ~ GetModelByTableName baseTable,
+                    HasField name foreignModel value,
+                    HasQueryBuilder queryBuilderProvider joinRegister,
+                    KnownSymbol name,
+                    IsJoined foreignModel joinRegister
+                ) => Proxy name -> queryBuilderProvider baseTable -> LabeledQueryBuilderWrapper foreignTable name value baseTable
+labelResults name queryBuilderProvider = LabeledQueryBuilderWrapper $ getQueryBuilder queryBuilderProvider
+                    
 -- | Joins a table on a column held by a previously joined table. Example:
 -- > query @Posts 
 -- > |> innerJoin @Users (#author, #id)
@@ -791,8 +872,7 @@ innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ Jo
 -- __Example:__ Fetch the 10 oldest books.
 --
 -- > query @Book
--- >     |> orderBy #createdAt
--- >     |> limit 10
+-- >     |> orderBy #createdAt -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
 orderByAsc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table

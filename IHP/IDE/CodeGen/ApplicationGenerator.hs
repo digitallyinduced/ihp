@@ -110,7 +110,7 @@ generateGenericApplication applicationName =
                 <> "scripts :: Html\n"
                 <> "scripts = [hsx|\n"
                 <> "        <script id=\"livereload-script\" src=\"/livereload.js\"></script>\n"
-                <> "        <script src=\"/vendor/jquery-3.2.1.slim.min.js\"></script>\n"
+                <> "        <script src=\"/vendor/jquery-3.6.0.slim.min.js\"></script>\n"
                 <> "        <script src=\"/vendor/timeago.js\"></script>\n"
                 <> "        <script src=\"/vendor/popper.min.js\"></script>\n"
                 <> "        <script src=\"/vendor/bootstrap.min.js\"></script>\n"

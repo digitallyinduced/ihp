@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             0.10.0
+version:             0.11.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             NONE
@@ -95,6 +95,7 @@ common shared-properties
             , minio-hs
             , temporary
             , conduit-extra
+            , wai-cors
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -127,6 +128,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
+        , TemplateHaskell
     if flag(FastBuild)
         ghc-options:
             -j
@@ -222,8 +224,10 @@ library
         , IHP.Telemetry
         , IHP.Test.Mocking
         , IHP.Version
+        , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
         , IHP.Postgres.Inet
+        , IHP.Postgres.TSVector
         , Paths_ihp
         , IHP.Job.Queue
         , IHP.Job.Runner
@@ -239,6 +243,14 @@ library
         , IHP.Assets.Types
         , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
+        -- Server Side Component Modules
+        , IHP.ServerSideComponent.Types
+        , IHP.ServerSideComponent.ViewFunctions
+        , IHP.ServerSideComponent.RouterFunctions
+        , IHP.ServerSideComponent.ControllerFunctions
+        , IHP.ServerSideComponent.Controller.ComponentsController
+        , IHP.ServerSideComponent.HtmlDiff
+        , IHP.ServerSideComponent.HtmlParser
         , IHP.FileStorage.Types
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config

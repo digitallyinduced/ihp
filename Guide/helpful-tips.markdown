@@ -50,7 +50,7 @@ These are type-level lists. You can write `@"type level strings"` and type level
 
 ### The `{ .. }`
 
-Inside actions the views are ususally rendered like this:
+Inside actions the views are usually rendered like this:
 
 ```haskell
 action UsersAction = do
@@ -58,7 +58,7 @@ action UsersAction = do
     render IndexView { .. }
 ```
 
-We asume that the view is defined like this:
+We assume that the view is defined like this:
 
 ```haskell
 data IndexView = IndexView { users :: [User] }
@@ -149,11 +149,11 @@ function arg1 arg2 object
 object |> function arg1 arg2
 ```
 
-[The operator is itself is defined as a haskell function inside `IHP.HaskellSupport`:](https://github.com/digitallyinduced/ihp/blob/master/IHP/HaskellSupport.hs#L56)
+[The operator itself is defined as a haskell function inside `IHP.HaskellSupport`:](https://github.com/digitallyinduced/ihp/blob/master/IHP/HaskellSupport.hs#L56)
 
 ```haskell
-infixl 8 |> -- This tells haskell to theat the |> as a infix operator
-a |> f = f a -- This is the actuall implementation
+infixl 8 |> -- This tells haskell to treat the |> as an infix operator
+a |> f = f a -- This is the actual implementation
 ```
 
 ## Tell GHC(Haskell Compiler) To Infer Constraints And Implicit Parameters

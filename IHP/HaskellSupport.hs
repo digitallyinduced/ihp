@@ -33,6 +33,7 @@ module IHP.HaskellSupport
 , symbolToByteString
 , IsEmpty (..)
 , copyFields
+, allEnumValues
 ) where
 
 import ClassyPrelude
@@ -234,14 +235,41 @@ instance IsString string => IsString (Maybe string) where
 
 
 -- | Example:
--- forEach users \user -> putStrLn (tshow user)
+--
+-- > forEach users \user -> putStrLn (tshow user)
+--
+-- __Example:__ Within HSX
+--
+-- > renderUser :: User -> Html
+-- > renderUser user = [hsx|<div>User: {get #name user}</div>|]
+-- >
+-- > render = [hsx|{forEach users renderUser}|]
+--
 forEach :: (MonoFoldable mono, Applicative m) => mono -> (Element mono -> m ()) -> m ()
 forEach elements function = forM_ elements function
 {-# INLINE forEach #-}
 
 
--- | Example:
--- forEachWithIndex users \(index, user) -> putStrLn (tshow user)
+-- | Like 'forEach' but with an index, starting at 0
+--
+-- __Example:__ With a Callback
+--
+-- > forEachWithIndex users \(index, user) -> putStrLn (tshow index <> ": " <> tshow user)
+--
+-- __Example:__ With a Function
+--
+-- > printUser :: (Int, User) -> IO ()
+-- > printUser (index, user) = putStrLn (tshow index <> ": " <> tshow user)
+-- > 
+-- > forEachWithIndex users printUser
+--
+-- __Example:__ Within HSX
+--
+-- > renderUser :: (Int, User) -> Html
+-- > renderUser (index, user) = [hsx|<div>User {index}: {get #name user}</div>|]
+-- >
+-- > render = [hsx|{forEachWithIndex users renderUser}|]
+--
 forEachWithIndex :: (Applicative m) => [a] -> ((Int, a) -> m ()) -> m ()
 forEachWithIndex elements function = forM_ (ClassyPrelude.zip [0..] elements) function
 {-# INLINE forEachWithIndex #-}
@@ -363,3 +391,25 @@ instance (CopyFields rest destinationRecord sourceRecord
             |> set (Proxy @fieldName) (Record.getField @fieldName sourceRecord)
             |> copyFields @rest sourceRecord
     {-# INLINE copyFields #-}
+
+-- | Returns a list of all values of an enum type
+--
+-- Given a data structure like this:
+--
+-- > data Color = Yellow | Red | Blue deriving (Enum)
+--
+-- You can call 'allEnumValues' to get a list of all colors:
+--
+-- >>> allEnumValues @Color
+-- [Yellow, Red, Blue]
+--
+-- This also works if the enum is defined in the @Schema.sql@:
+--
+-- > CREATE TYPE brokerage_subscription_type AS ENUM ('basic_subscription', 'bronze_subscription', 'silver_subscription', 'gold_subscription');
+--
+-- >>> allEnumValues @BrokerageSubscriptionType
+-- [BasicSubscription, BronzeSubscription, SilverSubscription]
+--
+allEnumValues :: forall enumType. Enum enumType => [enumType]
+allEnumValues = enumFrom (toEnum 0)
+{-# INLINABLE allEnumValues #-}

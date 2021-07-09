@@ -22,6 +22,7 @@ module IHP.Fetch
 , genericFetchIdsOne
 , fetchCount
 , fetchExists
+, fetchSQLQuery
 )
 where
 
@@ -33,6 +34,7 @@ import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.OverloadedLabels
+import GHC.Generics as Gen
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
 import IHP.HSX.ToHtml
@@ -91,6 +93,25 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (No
     fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO model
     fetchOne = commonFetchOne
 
+instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
+    type instance FetchResult (LabeledQueryBuilderWrapper foreignTable columnName value table) model = [LabeledData value model]
+    -- fetch needs to return a list of labeled data. The 
+    {-# INLINE fetch #-}
+    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
+    fetch !queryBuilderProvider = do
+        let !(theQuery, theParameters) = queryBuilderProvider
+                |> toSQL
+        trackTableRead (tableNameByteString @model)
+        sqlQuery @_ @(LabeledData value model) (Query $ cs theQuery) theParameters
+
+    {-# INLINE fetchOneOrNothing #-}
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
+    fetchOneOrNothing = commonFetchOneOrNothing
+
+    {-# INLINE fetchOne #-}
+    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
+    fetchOne = commonFetchOne
+
 
 
 {-# INLINE commonFetch #-}
@@ -113,7 +134,7 @@ commonFetchOneOrNothing !queryBuilder = do
     pure $ listToMaybe results
 
 {-# INLINE commonFetchOne #-}
-commonFetchOne :: (?modelContext :: ModelContext) => (KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBuilderProvider table -> IO model
+commonFetchOne :: forall model table queryBuilderProvider joinRegister.(?modelContext :: ModelContext) => (KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBuilderProvider table -> IO model
 commonFetchOne !queryBuilder = do
     maybeModel <- fetchOneOrNothing queryBuilder
     case maybeModel of
@@ -226,3 +247,9 @@ instance (model ~ GetModelById (Id' table), value ~ Id' table, HasField "id" mod
     fetchOneOrNothing = genericfetchIdsOneOrNothing
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne
+
+fetchSQLQuery :: (PG.FromRow model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
+fetchSQLQuery theQuery = do
+    let (sql, theParameters) = toSQL' theQuery
+    trackTableRead (get #selectFrom theQuery)
+    sqlQuery (Query $ cs sql) theParameters

@@ -38,6 +38,10 @@ import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
+import qualified Test.ServerSideComponent.HtmlParserSpec
+import qualified Test.ServerSideComponent.HtmlDiffSpec
+import qualified Test.Postgres.Point
+import qualified Test.Postgres.TSVector
 
 main :: IO ()
 main = hspec do
@@ -63,3 +67,7 @@ main = hspec do
     Test.SchemaCompilerSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests
+    Test.ServerSideComponent.HtmlParserSpec.tests
+    Test.ServerSideComponent.HtmlDiffSpec.tests
+    Test.Postgres.Point.tests
+    Test.Postgres.TSVector.tests

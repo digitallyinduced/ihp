@@ -64,5 +64,5 @@ applyImageMagick convertTo otherParams fileInfo = do
         imageMagickProcess <- Process.runCommand (cs imageMagickCommand)
         imageMagickExitCode <- Process.waitForProcess imageMagickProcess
 
-        newContent <- LBS.readFile tempFilePath
+        newContent <- LBS.readFile convertedFilePath
         pure fileInfo { Wai.fileContent = newContent }

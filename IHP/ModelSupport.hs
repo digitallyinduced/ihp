@@ -4,6 +4,7 @@ module IHP.ModelSupport
 ( module IHP.ModelSupport
 , module IHP.Postgres.Point
 , module IHP.Postgres.Inet
+, module IHP.Postgres.TSVector
 ) where
 
 import IHP.HaskellSupport
@@ -27,6 +28,7 @@ import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import GHC.Records
 import GHC.OverloadedLabels
 import GHC.TypeLits
@@ -37,7 +39,7 @@ import qualified Control.Newtype.Generics as Newtype
 import Control.Applicative (Const)
 import qualified GHC.Types as Type
 import qualified Data.Text as Text
-import Data.Aeson (ToJSON (..))
+import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
@@ -45,6 +47,7 @@ import qualified Data.Pool as Pool
 import qualified GHC.Conc
 import IHP.Postgres.Point
 import IHP.Postgres.Inet
+import IHP.Postgres.TSVector
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
 import qualified IHP.Log as Log
@@ -138,6 +141,9 @@ instance InputValue LocalTime where
 instance InputValue Day where
     inputValue date = cs (iso8601Show date)
 
+instance InputValue TimeOfDay where
+    inputValue timeOfDay = tshow timeOfDay
+
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
@@ -158,6 +164,9 @@ instance Default Bool where
 
 instance Default Point where
     def = Point def def
+
+instance Default TSVector where
+    def = TSVector def
 
 type FieldName = ByteString
 
@@ -258,6 +267,13 @@ instance Newtype.Newtype (Id' model) where
     type O (Id' model) = PrimaryKey model
     pack = Id
     unpack (Id uuid) = uuid
+
+-- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
+data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
+    deriving (Show)
+
+instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) where
+    fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
 -- to write the Id like a string:
@@ -506,8 +522,11 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
 
+instance Default TimeOfDay where
+    def = TimeOfDay 0 0 0
+
 instance Default LocalTime where
-    def = LocalTime def (TimeOfDay 0 0 0)
+    def = LocalTime def def
 
 instance Default Day where
     def = ModifiedJulianDay 0
@@ -699,6 +718,8 @@ fieldWithUpdate name model
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
 
+instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
+    parseJSON value = Id <$> parseJSON value
 
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException
@@ -731,7 +752,7 @@ instance (FromField value, Typeable value) => FromField [value] where
 -- > action MyAction = autoRefresh do
 -- >     users <- sqlQuery "SELECT * FROM users WHERE .."
 -- >     trackTableRead "users"
--- > 
+-- >
 -- >     render MyView { .. }
 --
 --

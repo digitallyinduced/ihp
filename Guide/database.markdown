@@ -270,7 +270,7 @@ Or `distinctOn #tableField` to fetch distinct records based on the `#tableField`
 ```haskell
 do
     users <- query @User
-        |> distinctBy #fullName
+        |> distinctOn #fullName
         |> fetch
 ```
 
@@ -588,6 +588,7 @@ IHP currently has support for the following postgres column types:
 - BIGSERIAL
 - JSONB
 - INET (Only IP addresses, CIDR not supported yet)
+- TSVECTOR
 - Arrays of all the above types
 - Custom types, usually enums
 
@@ -630,6 +631,6 @@ The `redirectTo` throws a `ResponseException` and will cause a rollback. This co
 action CreateUserAction = do
     user <- withTransaction do
         newRecord @User |> createRecord
-    
+
     redirectTo NewSessionAction
 ```

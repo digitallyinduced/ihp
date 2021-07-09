@@ -9,6 +9,7 @@ import IHP.Prelude
 import IHP.ModelSupport
 import qualified Data.Aeson as Aeson
 import qualified Data.Dynamic as Dynamic
+import Text.Read (read)
 
 tests = do
     describe "ModelSupport" do
@@ -54,6 +55,11 @@ tests = do
                     let (Just utctime) :: Maybe UTCTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" "2020-11-08T12:03:35Z"
                     let day :: Day = utctDay utctime
                     (inputValue day) `shouldBe` "2020-11-08"
+
+            describe "TimeOfDay" do
+                it "should return text representation" do
+                    let timeOfDay :: TimeOfDay = read "12:00:00"
+                    (inputValue timeOfDay) `shouldBe` "12:00:00"
             
             describe "Maybe" do
                 it "should return empty string on Nothing" do
