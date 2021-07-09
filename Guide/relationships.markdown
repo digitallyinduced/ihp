@@ -167,3 +167,51 @@ ALTER TABLE comments ADD CONSTRAINT comments_ref_post_id FOREIGN KEY (post_id) R
 ```
 
 Of course, you can change this using the Schema Designer by clicking on the foreign key next to the `post_id` column in the `comments` table.
+
+## Joins
+
+It is possible to join tables to a given primary table (the one associated with the queried type) and use the joined table to select rows from the primary table. For instance, the following code could be used to retrieve all posts by users from department 5:
+
+```haskell
+query @Posts 
+        |> innerJoin @User (#authorId, #id) 
+        |> innerJoinThirdTable @Department @User (#id, #departmentId) 
+        |> filterWhereJoinedTable @Department (#number, 5)
+```
+
+`innerJoin` is used to join the `users` table (for type `User`) to the primary table `posts` (for type `Posts`) on the columns `posts.author_id` and `users.id`. Type checks ascertain that both tables actually have the pertinent columns. 
+
+The function `innerJoinThirdTable` is used to join a third table on a column of some previously joined table. In the example, the table is `departments` and it is joined on `departments.id = users.department_id`. Again, the type system ascertains that the columns actually exist on the pertinent tables. It is furthermore ascertained that the table associated with the second type `User` has been joined before.
+
+To add `WHERE` clauses involving a joined table, there is a family of functions of functions named like the ordinary filter functions, but suffixed with "JoinedTable". Where the normal filter functions use columns from the primary table, the tabel that the JoinedTable-functions operate on is specified by the type they are called with. In the example, the `filterWhereJoinedTable` filters all rows where `department.number` equals 5.
+
+### Many-to-many relationships and labeled results
+
+Joins are also useful when it comes to many-to-many relationships. An example is the realationship between blog posts and tags: each post can have multiple tags and each tag can be attached to any number of posts. The following code could be used to obtain all posts with the tag 'haskell' or 'ihp'.
+
+```haskell
+query @Posts
+        |> innerJoin @Tagging (#id, #postId)
+        |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+        |> filterWhereInJoinedTable @Tag (#tagText, ["haskell", "ihp"])
+        |> fetch
+```
+
+In the above example, the relationship between tags and posts will be lost after executing the query and it is impossible to find out, from the list of results alone, which post bears which tag. The function labelResults can be used to make this relationship transparent. The following code could be used to obtain a list of all posts together with the ids of the tags they are attached to.
+
+```haskell
+labeledComments <-
+   query @Post
+      |> innerJoin @Tagging (#id, #postId)
+      |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+      |> labelResults @Tag #id
+      |> fetch
+```
+
+`labeledComments` will be a list of objects of type LabeledData:
+
+```haskell
+data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
+```
+
+In the case above, `a` would be instantiated by (Id' "tags") and `b` by `Post`.
