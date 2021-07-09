@@ -200,7 +200,9 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     <pre style="font-family: Menlo, monospace; width: 100%" id="stderr">{forEach errors renderError}</pre>
 
                     <div class="ihp-error-other-solutions">
-                        <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask the IHP Community on Gitter</a>
+                        <a href="https://ihp.digitallyinduced.com/Slack" target="_blank">Ask on Slack</a>
+                        <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask on Gitter</a>
+                        <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask on Stack Overflow</a>
                         <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
                         <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs $ ByteString.unlines errorOutput))} target="_blank">Open a GitHub Issue</a>
                     </div>
