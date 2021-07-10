@@ -121,7 +121,6 @@ generateGenericApplication applicationName =
                 <> "        <script src=\"/vendor/turbolinksMorphdom.js\"></script>\n"
                 <> "        <script src=\"/helpers.js\"></script>\n"
                 <> "        <script src=\"/ihp-auto-refresh.js\"></script>\n"
-                <> "        <script src=\"/vendor/pagination.js\"></script>\n"
                 <> "    |]\n"
                 <> "\n"
                 <> "metaTags :: Html\n"

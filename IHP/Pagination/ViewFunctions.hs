@@ -17,6 +17,9 @@ import IHP.HSX.QQ (hsx)
 import IHP.Controller.Param (paramOrNothing)
 
 import IHP.View.Classes
+import qualified Network.Wai as Wai
+import qualified Network.HTTP.Types.URI as Query
+import IHP.ViewSupport (theRequest)
 
 
 -- | Render a navigation for your pagination. This is to be used in your view whenever 
@@ -47,7 +50,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
             <div class="col-auto">
                 <div class="form-row">
                     <div class="col-auto mr-2">
-                        <select class="custom-select" id="maxItemsSelect" onchange="changeMaxItems(this);">
+                        <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
                             {maxItemsGenerator}
                         </select>
                     </div>
@@ -59,11 +62,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
         where
             maxItemsGenerator = let
                 oneOption :: Int -> Html
-                oneOption n = 
-                    let
-                        selected = n == pageSize
-                    in
-                    [hsx|<option value={show n} selected={selected}>{n} items per page</option>|]
+                oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
                 in
                     [hsx|{forEach [10,20,50,100,200] oneOption}|]
             
@@ -76,18 +75,36 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                         [hsx|<li class={linkClass n}><a class="page-link" href={pageUrl n}>{show n}</a></li>|]
                     DotDot n ->
                         [hsx|<li class="page-item"><a class="page-link" href={pageUrl n}>…</a></li>|]
-            linkClass n = "page-item" ++ (if n == currentPage then " active" else "") :: Text
-            pageUrl n = "?page=" ++ show n ++ maybeFilter ++ maybeMaxItems
-            maybeFilter =
+            linkClass n = classes ["page-item", ("active", n == currentPage)]
+
+            pageUrl n = path <> Query.renderQuery True newQueryString
+                where
+                    -- "?page=" ++ show n ++ maybeFilter ++ maybeMaxItems
+                    path = Wai.rawPathInfo theRequest
+                    queryString = Wai.queryString theRequest
+                    newQueryString = queryString
+                        |> setQueryValue "page" (cs $ show n)
+                        |> maybeFilter
+                        |> maybeMaxItems
+
+            itemsPerPageUrl n = path <> Query.renderQuery True newQueryString
+                where
+                    path = Wai.rawPathInfo theRequest
+                    queryString = Wai.queryString theRequest
+                    newQueryString = queryString
+                        |> setQueryValue "maxItems" (cs $ tshow n)
+
+            maybeFilter queryString =
                 case paramOrNothing @Text "filter" of
-                    Nothing -> ""
-                    Just "" -> ""
-                    Just u -> "&filter=" ++ u
-            maybeMaxItems =
+                    Nothing -> queryString
+                    Just "" -> queryString
+                    Just filterValue -> queryString |> setQueryValue "filter" (cs filterValue)
+
+            maybeMaxItems queryString =
                 case paramOrNothing @Text "maxItems" of
-                    Nothing -> ""
-                    Just "" -> ""
-                    Just m -> "&maxItems=" ++ m
+                    Nothing -> queryString
+                    Just "" -> queryString
+                    Just m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
 
             renderItems = [hsx|{forEach (processedPages pages) renderItem}|]
 
@@ -152,11 +169,44 @@ renderFilter placeholder =
                 <input name="filter" type="text" class="form-control mb-2" id="inlineFormInput" placeholder={placeholder} value={boxValue}>
                 </div>
                 <div class="col-auto">
-                <button type="submit" class="btn btn-primary mb-2 mr-2">Filter</button>
-                <button onclick="window.location.href = removeURLParameter(window.location.href, 'filter');" class="btn btn-primary mb-2">Clear</button>
+                    <button type="submit" class="btn btn-primary mb-2 mr-2">Filter</button>
+                    <a class="btn btn-primary mb-2" href={clearFilterUrl}>Clear</a>
                 </div>
             </div>
         </form>
     |]
         where
             boxValue = fromMaybe "" (paramOrNothing "filter") :: Text
+            clearFilterUrl = path <> Query.renderQuery True newQueryString
+                where
+                    path = Wai.rawPathInfo theRequest
+                    queryString = Wai.queryString theRequest
+                    newQueryString = queryString
+                        |> removeQueryItem "filter"
+
+
+-- | Set or replace a query string item
+--
+-- >>> setQueryValue "page" "1" []
+-- [("page", Just "1")]
+--
+-- >>> setQueryValue "page" "2" [("page", Just "1")]
+-- [("page", Just "2")]
+--
+setQueryValue :: ByteString -> ByteString -> Query.Query -> Query.Query
+setQueryValue name value queryString =
+    case lookup name queryString of
+        Just existingPage -> queryString
+                |> map (\(queryItem@(queryItemName, _)) -> if queryItemName == name
+                        then (name, Just value)
+                        else queryItem
+                    )
+        Nothing -> queryString <> [(name, Just value)]
+
+-- | Removes a query item, specificed by the name
+--
+-- >>> removeQueryItem "filter" [("filter", Just "test")]
+-- []
+--
+removeQueryItem :: ByteString -> Query.Query -> Query.Query
+removeQueryItem name queryString = queryString |> filter (\(queryItemName, _) -> queryItemName /= name)
