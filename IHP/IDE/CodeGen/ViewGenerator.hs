@@ -15,6 +15,7 @@ data ViewConfig = ViewConfig
     , applicationName :: Text
     , modelName :: Text
     , viewName :: Text
+    , paginationEnabled :: Bool
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
@@ -27,6 +28,7 @@ buildPlan viewName applicationName controllerName' =
                 Right statements -> pure statements
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
+            let paginationEnabled = False
             let viewConfig = ViewConfig { .. }
             pure $ Right $ buildPlan' schema viewConfig
 
@@ -58,6 +60,8 @@ buildPlan' schema config =
                 , ("EditView", editView)
                 , ("NewView", newView)
                 ]
+
+            paginationEnabled = get #paginationEnabled config
 
             modelFields :: [Text]
             modelFields =  [ modelNameToTableName pluralVariableName, pluralVariableName ]
@@ -149,7 +153,7 @@ buildPlan' schema config =
 
             indexView =
                 viewHeader
-                <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "], pagination :: Pagination }\n"
+                <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "]" <> (if paginationEnabled then ", pagination :: Pagination" else "") <> " }\n"
                 <> "\n"
                 <> "instance View IndexView where\n"
                 <> "    html IndexView { .. } = [hsx|\n"
@@ -171,7 +175,9 @@ buildPlan' schema config =
                 <> "                </thead>\n"
                 <> "                <tbody>{forEach " <> pluralVariableName <> " render" <> singularName <> "}</tbody>\n"
                 <> "            </table>\n"
-                <> "            {renderPagination pagination}\n"
+                <> (if paginationEnabled
+                        then "            {renderPagination pagination}\n"
+                        else "")
                 <> "        </div>\n"
                 <> "    |]\n"
                 <> "\n\n"

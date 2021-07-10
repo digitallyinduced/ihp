@@ -37,12 +37,13 @@ instance Controller CodeGenController where
     action NewControllerAction = do
         let controllerName = paramOrDefault "" "name"
         let applicationName = paramOrDefault "Web" "applicationName"
+        let pagination = paramOrDefault False "pagination"
         controllerAlreadyExists <- doesControllerExist controllerName applicationName
         applications <- findApplications
         when controllerAlreadyExists do
             setErrorMessage "Controller with this name does already exist."
             redirectTo NewControllerAction
-        plan <- ControllerGenerator.buildPlan controllerName applicationName
+        plan <- ControllerGenerator.buildPlan controllerName applicationName pagination
         render NewControllerView { .. }
         where
             doesControllerExist controllerName applicationName = doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName <> ".hs"
@@ -50,7 +51,8 @@ instance Controller CodeGenController where
     action CreateControllerAction = do
         let controllerName = param "name"
         let applicationName = param "applicationName"
-        (Right plan) <- ControllerGenerator.buildPlan controllerName applicationName
+        let pagination = paramOrDefault False "pagination"
+        (Right plan) <- ControllerGenerator.buildPlan controllerName applicationName pagination
         executePlan plan
         setSuccessMessage "Controller generated"
         redirectTo GeneratorsAction
