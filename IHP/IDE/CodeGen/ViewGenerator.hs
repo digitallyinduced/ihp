@@ -149,7 +149,7 @@ buildPlan' schema config =
 
             indexView =
                 viewHeader
-                <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "] }\n"
+                <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "], pagination :: Pagination }\n"
                 <> "\n"
                 <> "instance View IndexView where\n"
                 <> "    html IndexView { .. } = [hsx|\n"
@@ -171,6 +171,7 @@ buildPlan' schema config =
                 <> "                </thead>\n"
                 <> "                <tbody>{forEach " <> pluralVariableName <> " render" <> singularName <> "}</tbody>\n"
                 <> "            </table>\n"
+                <> "            {renderPagination pagination}\n"
                 <> "        </div>\n"
                 <> "    |]\n"
                 <> "\n\n"
