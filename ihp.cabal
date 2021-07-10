@@ -255,6 +255,10 @@ library
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config
         , IHP.FileStorage.Preprocessor.ImageMagick
+        , IHP.Pagination.ControllerFunctions
+        , IHP.Pagination.ViewFunctions
+        , IHP.Pagination.Types
+        , IHP.Pagination.Helpers
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
