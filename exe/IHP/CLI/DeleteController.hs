@@ -23,7 +23,8 @@ main = do
         _ -> usage
 
 deleteController applicationName controllerName = do
-    planOrError <- buildPlan applicationName controllerName
+    let paginationEnabled = False
+    planOrError <- buildPlan applicationName controllerName paginationEnabled
     case planOrError of
         Left error -> putStrLn error
         Right plan -> undoPlan $ reverse plan

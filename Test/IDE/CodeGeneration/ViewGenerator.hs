@@ -38,6 +38,7 @@ tests = do
             let controllerName = tableNameToControllerName rawControllerName
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
+            let paginationEnabled = False
             let config = ViewGenerator.ViewConfig { .. }
             let builtPlan = ViewGenerator.buildPlan' schema config
 
@@ -53,6 +54,7 @@ tests = do
             let controllerName = tableNameToControllerName rawControllerName
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
+            let paginationEnabled = False
             let config = ViewGenerator.ViewConfig { .. }
             let builtPlan = ViewGenerator.buildPlan' schema config
 
@@ -68,6 +70,7 @@ tests = do
             let controllerName = tableNameToControllerName rawControllerName
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
+            let paginationEnabled = False
             let config = ViewGenerator.ViewConfig { .. }
             let builtPlan = ViewGenerator.buildPlan' schema config
 
