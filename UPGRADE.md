@@ -2,6 +2,33 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.12.0 from Beta 0.11.0
+
+## Switch IHP version
+
+Open `default.nix` and change the git commit in line 4 to the following:
+
+```diff
+-ref = "refs/tags/v0.11.0";
++ref = "refs/tags/v0.12.0";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+## Updating jQuery
+
+The jQuery version used by IHP has changed. We're switching from `3.2.1` to `3.6.0`. jQuery `3.2.1` has some known security vulnerabilities, so it's recommended that you follow these update steps.
+
+To update your application looks search for the string `/vendor/jquery-3.2.1.slim.min.js` in your code base and replace it with `/vendor/jquery-3.6.0.slim.min.js`. Likely the only mention is inside the `Web/View/Layout.hs`.
+
 # Upgrade to Beta 0.11.0 from Beta 0.10.0
 
 ## Switch IHP version
