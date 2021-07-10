@@ -1,5 +1,6 @@
 module IHP.ValidationSupport.ValidateIsUnique
 ( validateIsUnique
+, validateIsUniqueCaseInsensitive
 , withCustomErrorMessageIO
 ) where
 
