@@ -13,7 +13,8 @@ The session works by storing the data inside a cryptographically signed and encr
 The cookie @max-age@ is set to 30 days by default. To protect against CSRF, the @SameSite@ Policy is set to @Lax@.
 -}
 module IHP.Controller.Session
-( setSession
+( SessionValue (..)
+, setSession
 , getSession
 , getSessionAndClear
 , getSessionInt
@@ -26,13 +27,70 @@ import IHP.Prelude
 import IHP.Controller.RequestContext
 import IHP.Controller.Context
 import IHP.ModelSupport
+import qualified Data.Aeson as Aeson
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Text.Read as Read
 import qualified Data.UUID as UUID
-import qualified Network.Wai as Wai
 import qualified Data.Vault.Lazy as Vault
+import qualified Network.Wai as Wai
+import GHC.Generics
+
+-- | Provides functions for converting values between custom
+-- representations and text to store.
+--
+-- Instead of manually writing your SessionValue instance,
+-- there are option for default implementation for types with
+-- FromJSON and ToJSON instances.
+--
+-- __Example:__
+--
+-- @
+-- {-\# LANGUAGE DeriveGeneric \#-}
+--
+-- import GHC.Generics
+-- import Data.Aeson
+--
+-- data Coord = Coord { x :: Int, y :: Int } deriving Generic
+--
+-- instance FromJSON Coord
+-- instance ToJSON Coord
+-- instance SessionValue Coord
+-- @
+--
+-- __Example:__ with deriving strategies
+--
+-- @
+-- {-\# LANGUAGE DeriveGeneric \#-}
+-- {-\# LANGUAGE DeriveAnyClass \#-}
+-- {-\# LANGUAGE DerivingStrategies \#-}
+--
+-- import GHC.Generics
+-- import Data.Aeson
+--
+-- data Point = Point { x :: Int, y :: Int }
+--     deriving stock Generic
+--     deriving anyclass (ToJSON, FromJSON, SessionValue)
+-- @
+class SessionValue value where
+    -- | Convert 'value' to 'Text'.
+    toSessionValue :: value -> Text
+
+    -- | Parse 'Text' to 'value'. Return ('Right' 'value') if parsing succssed
+    -- or ('Left' errorMessage) if parsing failed.
+    fromSessionValue :: Text -> Either Text value
+
+    default toSessionValue
+      :: (Aeson.ToJSON value) => value -> Text
+    toSessionValue = cs . Aeson.encode
+
+    default fromSessionValue
+      :: (Aeson.FromJSON value) => Text -> Either Text value
+    fromSessionValue = Bifunctor.first wrap . Aeson.eitherDecode @value . cs
+      where
+        wrap errorMessage = "SessionValue JSON error: " <> cs errorMessage
 
 -- | Stores a value inside the session:
--- 
+--
 -- > action SessionExampleAction = do
 -- >     setSession "userEmail" "hi@digitallyinduced.com"
 --
@@ -116,7 +174,7 @@ getSessionRecordId name = fmap Id <$> getSessionUUID name
 --
 -- > setSession "userId" "1337"
 -- > userId <- getSession "userId" -- Returns: Just 1337
--- > 
+-- >
 -- > deleteSession "userId"
 -- > userId <- getSession "userId" -- Returns: Nothing
 deleteSession :: (?context :: ControllerContext) => Text -> IO ()
