@@ -86,8 +86,50 @@ class SessionValue value where
     default fromSessionValue
       :: (Aeson.FromJSON value) => Text -> Either Text value
     fromSessionValue = Bifunctor.first wrap . Aeson.eitherDecode @value . cs
-      where
-        wrap errorMessage = "SessionValue JSON error: " <> cs errorMessage
+        where
+            wrap err = "SessionValue JSON error: " <> cs err
+
+instance SessionValue Text where
+    toSessionValue = id
+    fromSessionValue = Right
+
+instance SessionValue String where
+    toSessionValue = cs
+    fromSessionValue = Right . cs
+
+instance SessionValue ByteString where
+    toSessionValue = cs
+    fromSessionValue = Right . cs
+
+instance SessionValue Int where
+    toSessionValue = show
+    fromSessionValue = Bifunctor.bimap wrap fst . Read.signed Read.decimal
+        where
+            wrap err = "SessionValue Int error: " <> cs err
+
+instance SessionValue Integer where
+    toSessionValue = show
+    fromSessionValue = Bifunctor.bimap wrap fst . Read.signed Read.decimal
+        where
+            wrap err = "SessionValue Integer error: " <> cs err
+
+instance SessionValue Double where
+    toSessionValue = show
+    fromSessionValue = Bifunctor.bimap wrap fst . Read.signed Read.double
+        where
+            wrap err = "SessionValue Double error: " <> cs err
+
+instance SessionValue UUID where
+    toSessionValue = UUID.toText
+    fromSessionValue = maybe wrap Right . UUID.fromText
+        where
+            wrap = Left "SessionValue UUID parse error"
+
+instance SessionValue (PrimaryKey record) => SessionValue (Id' record) where
+    toSessionValue (Id value) = toSessionValue value
+    fromSessionValue = Bifunctor.bimap wrap Id . fromSessionValue
+        where
+            wrap err = "SessionValue Id error: " <> cs err
 
 -- | Stores a value inside the session:
 --
