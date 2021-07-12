@@ -13,15 +13,22 @@ The session works by storing the data inside a cryptographically signed and encr
 The cookie @max-age@ is set to 30 days by default. To protect against CSRF, the @SameSite@ Policy is set to @Lax@.
 -}
 module IHP.Controller.Session
-( SessionValue (..)
-, setSession
-, getSession
-, getSessionAndClear
-, getSessionInt
-, getSessionUUID
-, getSessionRecordId
-, deleteSession
-) where
+  (
+  -- * Session Value
+    SessionValue (..)
+  -- * Interacting with session store
+  , setSession
+  , getSession
+  , deleteSession
+  , getSessionAndClear
+  -- * Helper functions for getSession
+  -- | Helper functions for calling getSession
+  -- without type applications syntax.
+  -- If an error occurs while getting the value, the result will be @Nothing@.
+  , getSessionInt
+  , getSessionUUID
+  , getSessionRecordId
+  ) where
 
 import IHP.Prelude
 import IHP.Controller.RequestContext
@@ -33,7 +40,6 @@ import qualified Data.Text.Read as Read
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
-import GHC.Generics
 
 -- | Provides functions for converting values between custom
 -- representations and text to store.
@@ -75,8 +81,8 @@ class SessionValue value where
     -- | Convert 'value' to 'Text'.
     toSessionValue :: value -> Text
 
-    -- | Parse 'Text' to 'value'. Return ('Right' 'value') if parsing succssed
-    -- or ('Left' errorMessage) if parsing failed.
+    -- | Parse 'Text' to @value@. Return 'Right' @value@ if parsing succssed
+    -- or 'Left' @errorMessage@ if parsing failed.
     fromSessionValue :: Text -> Either Text value
 
     default toSessionValue
@@ -133,102 +139,97 @@ instance SessionValue (PrimaryKey record) => SessionValue (Id' record) where
 
 -- | Stores a value inside the session:
 --
--- > action SessionExampleAction = do
--- >     setSession "userEmail" "hi@digitallyinduced.com"
+-- > action SessionExampleAction { userId } = do
+-- >     setSession "userEmail" ("hi@digitallyinduced.com" :: Text)
+-- >     setSession "userId" userId
 --
--- Right now, 'setSession' only accepts Text values.
--- Other types like 'Int' have to be converted to 'Text' using @show theIntValue@.
-setSession :: (?context :: ControllerContext) => Text -> Text -> IO ()
+setSession :: (?context :: ControllerContext, SessionValue value)
+           => Text -> value -> IO ()
 setSession name value = case vaultLookup of
-    Just (_, sessionInsert) -> sessionInsert (cs name) (cs value)
+    Just (_, sessionInsert) -> sessionInsert stringName stringValue
     Nothing -> pure ()
     where
         RequestContext { request, vault } = get #requestContext ?context
         vaultLookup = Vault.lookup vault (Wai.vault request)
+        stringValue = cs $ toSessionValue value
+        stringName = cs name
 
--- | Retrives a value from the session, returns it as a Text:
+-- | Retrives a value from the session:
 --
 -- > action SessionExampleAction = do
--- >     userEmail <- getSession "userEmail"
+-- >     userEmail <- getSession @Text "userEmail"
+-- >     counter <- getSession @Int "counter"
+-- >     userId <- getSession @UUID "userId"
 --
--- @userEmail@ is set to @Just\ "hi@digitallyinduced.com"@ when the value has been set before. Otherwise, it will be @Nothing@.
---
--- For convenience you can use 'getSessionInt' to retrieve the value as a @Maybe Int@, and 'getSessionUUID' to retrieve the value as a @Maybe UUID@:
---
--- > action SessionExampleAction = do
--- >     counter :: Maybe Int <- getSessionInt "counter"
--- >     userId :: Maybe UUID <- getSessionUUID "userId"
---
-getSession :: (?context :: ControllerContext) => Text -> IO (Maybe Text)
+-- @userEmail@ is set to 'Just' \"hi@digitallyinduced.com\"
+-- when the value has been set before. Otherwise, it will be 'Nothing'.
+-- If an error occurs while getting the value, the result will be 'Nothing'.
+getSession :: forall value
+            . (?context :: ControllerContext, SessionValue value)
+           => Text -> IO (Maybe value)
 getSession name = case vaultLookup of
-    Just (sessionLookup, _) -> do
-        value <- (sessionLookup (cs name))
-        let textValue = fmap cs value
-        pure $! if textValue == Just "" then Nothing else textValue
+    Just (sessionLookup, _) -> sessionLookup (cs name) >>= \case
+        Nothing -> pure Nothing
+        Just "" -> pure Nothing
+        Just stringValue -> case fromSessionValue (cs stringValue) of
+            Left _ -> pure Nothing
+            Right value -> pure $ Just value
     Nothing -> pure Nothing
     where
         RequestContext { request, vault } = get #requestContext ?context
         vaultLookup = Vault.lookup vault (Wai.vault request)
 
--- | Retrives a value from the session, and parses it as an 'Int':
---
--- > action SessionExampleAction = do
--- >     counter :: Maybe Int <- getSessionInt "counter"
---
--- Return @Nothing@ if parsing fails.
-getSessionInt :: (?context :: ControllerContext) => Text -> IO (Maybe Int)
-getSessionInt name = do
-    value <- getSession name
-    pure $! case fmap (Read.decimal . cs) value of
-            Just (Right value) -> Just $ fst value
-            _                  -> Nothing
-
--- | Retrives a value from the session, and parses it as an 'UUID':
---
--- > action SessionExampleAction = do
--- >     userId :: Maybe UUID <- getSessionUUID "userId"
---
--- Return @Nothing@ if parsing fails.
-getSessionUUID :: (?context :: ControllerContext) => Text -> IO (Maybe UUID)
-getSessionUUID name = do
-    value <- getSession name
-    pure $! case fmap UUID.fromText value of
-            Just (Just value) -> Just value
-            _                 -> Nothing
-
--- | Retrives e.g. an @Id User@ or @Id Project@ from the session:
---
--- > action SessionExampleAction = do
--- >     userId :: Maybe (Id User) <- getSessionRecordId @User "userId"
---
--- Return @Nothing@ if parsing fails.
-getSessionRecordId :: forall record. (?context :: ControllerContext, PrimaryKey (GetTableName record) ~ UUID) => Text -> IO (Maybe (Id record))
-getSessionRecordId name = fmap Id <$> getSessionUUID name
-
--- | After deleting a session value, calls to 'getSession' will returns @Nothing@
+-- | Remove session values ​​from storage:
 --
 -- __Example:__ Deleting a @userId@ field from the session
 --
 -- > action LogoutAction = do
 -- >     deleteSession "userId"
 --
--- __Example:__ Calling 'getSession' after using 'deleteSession' will return @Nothing@
+-- __Example:__ Calling 'getSession' after
+-- using 'deleteSession' will return @Nothing@
 --
--- > setSession "userId" "1337"
--- > userId <- getSession "userId" -- Returns: Just 1337
+-- > setSession "userId" (1337 :: Int)
+-- > userId <- getSession @Int "userId" -- Returns: Just 1337
 -- >
 -- > deleteSession "userId"
--- > userId <- getSession "userId" -- Returns: Nothing
+-- > userId <- getSession @Int "userId" -- Returns: Nothing
 deleteSession :: (?context :: ControllerContext) => Text -> IO ()
-deleteSession name = setSession name ""
+deleteSession name = setSession name ("" :: Text)
 
 -- | Returns a value from the session, and deletes it after retrieving:
 --
 -- > action SessionExampleAction = do
--- >     notification :: Maybe Text <- getSessionAndClear "notification"
---
-getSessionAndClear :: (?context :: ControllerContext) => Text -> IO (Maybe Text)
+-- >     notification <- getSessionAndClear @Text "notification"
+getSessionAndClear :: forall value
+                    . (?context :: ControllerContext, SessionValue value)
+                   => Text -> IO (Maybe value)
 getSessionAndClear name = do
-    value <- getSession name
+    value <- getSession @value name
     when (isJust value) (deleteSession name)
     pure value
+
+-- | Retrives a value from the session, and parses it as an 'Int':
+--
+-- > action SessionExampleAction = do
+-- >     counter :: Maybe Int <- getSessionInt "counter"
+getSessionInt :: (?context :: ControllerContext) => Text -> IO (Maybe Int)
+getSessionInt = getSession
+
+-- | Retrives a value from the session, and parses it as an 'UUID':
+--
+-- > action SessionExampleAction = do
+-- >     userId :: Maybe UUID <- getSessionUUID "userId"
+getSessionUUID :: (?context :: ControllerContext) => Text -> IO (Maybe UUID)
+getSessionUUID = getSession @UUID
+
+-- | Retrives e.g. an @Id User@ or @Id Project@ from the session:
+--
+-- > action SessionExampleAction = do
+-- >     userId :: Maybe (Id User) <- getSessionRecordId @User "userId"
+getSessionRecordId :: forall record
+                    . ( ?context :: ControllerContext
+                      , SessionValue (PrimaryKey (GetTableName record))
+                      )
+                   => Text -> IO (Maybe (Id record))
+getSessionRecordId = getSession @(Id record)
