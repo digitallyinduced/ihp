@@ -16,11 +16,16 @@ module IHP.Controller.Session
   (
   -- * Session Value
     SessionValue (..)
+
+  -- * Session Error
+  , SessionError (..)
+
   -- * Interacting with session store
   , setSession
   , getSession
   , deleteSession
   , getSessionAndClear
+
   -- * Helper functions for getSession
   -- | Helper functions for calling getSession
   -- without type applications syntax.
@@ -136,6 +141,16 @@ instance SessionValue (PrimaryKey record) => SessionValue (Id' record) where
     fromSessionValue = Bifunctor.bimap wrap Id . fromSessionValue
         where
             wrap err = "SessionValue Id error: " <> cs err
+
+-- | Types of possible errors as a result of
+-- requesting a value from the session storage
+data SessionError
+    -- | Session storage not found in the context of the request
+    = VaultError
+    -- | Value not found in the session storage
+    | NotFoundError
+    -- | Error occurce during parsing value
+    | ParseError Text
 
 -- | Stores a value inside the session:
 --
