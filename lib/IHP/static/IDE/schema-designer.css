@@ -37,6 +37,11 @@
     transition: color 0.1s;
 }
 
+.object svg {
+	margin-right: 0.1rem;
+	width:24px;
+}
+
 .object-selector, .column-selector, .visual-error {
     border: 1px solid #d5d4d5;
     user-select: none;
