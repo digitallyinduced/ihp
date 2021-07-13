@@ -6,6 +6,7 @@ module Test.Controller.SessionSpec where
 
 import Data.Either (isLeft)
 import IHP.Controller.Session
+import IHP.ModelSupport
 import IHP.Prelude
 import Test.Hspec
 
@@ -23,6 +24,7 @@ sessionValue = describe "SessionValue" do
     sessionValueString
     sessionValueByteString
     sessionValueUUID
+    sessionValueRecordId
 
 sessionValueInt = describe "Int" do
     describe "toSessionValue" do
@@ -212,5 +214,36 @@ sessionValueUUID = describe "UUID" do
         it "with correct uuid" do
             conversion @UUID uuid `shouldBe` Right uuid
 
+sessionValueRecordId = describe "RecordId" do
+    let intId = 100 :: Int
+    let intText = "100" :: Text
+    let uuidId = "a020ba17-a94e-453f-9414-c54aa30caa54" :: UUID
+    let uuidText = "a020ba17-a94e-453f-9414-c54aa30caa54" :: Text
+    let post = Post { id = Id intId }
+    let user = User { id = Id uuidId }
+    describe "toSessionValue" do
+        it "should handle records with int id" do
+            toSessionValue @(Id Post) (get #id post) `shouldBe` intText
+        it "should handle records with uuid id" do
+            toSessionValue @(Id User) (get #id user) `shouldBe` uuidText
+    describe "fromSessionValue" do
+        it "should handle records with int id" do
+            fromSessionValue @(Id Post) intText `shouldBe` Right (get #id post)
+        it "should handle records with uuid id" do
+            fromSessionValue @(Id User) uuidText `shouldBe` Right (get #id user)
+    describe "fromSessionValue equel toSessionValue on correct input" do
+        it "with int id" do
+            conversion @(Id Post) (get #id post) `shouldBe` Right (get #id post)
+        it "with uuid id" do
+            conversion @(Id User) (get #id user) `shouldBe` Right (get #id user)
+
 conversion :: forall value . SessionValue value => value -> Either Text value
 conversion = fromSessionValue @value . toSessionValue @value
+
+data Post = Post { id :: (Id' "posts") }
+type instance PrimaryKey "posts" = Int
+type instance GetTableName Post = "posts"
+
+data User = User { id :: (Id' "users") }
+type instance PrimaryKey "users" = UUID
+type instance GetTableName User = "users"
