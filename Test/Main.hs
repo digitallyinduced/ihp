@@ -33,6 +33,7 @@ import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
+import qualified Test.Controller.SessionSpec
 import qualified Test.SchemaMigrationSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
@@ -62,6 +63,7 @@ main = hspec do
     Test.View.CSSFrameworkSpec.tests
     Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
+    Test.Controller.SessionSpec.tests
     Test.SchemaMigrationSpec.tests
     Test.ModelSupportSpec.tests
     Test.SchemaCompilerSpec.tests
