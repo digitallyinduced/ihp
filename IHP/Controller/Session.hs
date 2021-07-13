@@ -141,6 +141,12 @@ instance SessionValue Double where
         where
             wrap err = "SessionValue Double error: " <> cs err
 
+instance SessionValue Float where
+    toSessionValue = show
+    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.rational
+        where
+            wrap err = "SessionValue Float error: " <> cs err
+
 instance SessionValue UUID where
     toSessionValue = UUID.toText
     fromSessionValue = maybe wrap Right . UUID.fromText
