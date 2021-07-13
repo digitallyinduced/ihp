@@ -125,19 +125,19 @@ instance SessionValue ByteString where
 
 instance SessionValue Int where
     toSessionValue = show
-    fromSessionValue = Bifunctor.bimap wrap fst . Read.signed Read.decimal
+    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.decimal
         where
             wrap err = "SessionValue Int error: " <> cs err
 
 instance SessionValue Integer where
     toSessionValue = show
-    fromSessionValue = Bifunctor.bimap wrap fst . Read.signed Read.decimal
+    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.decimal
         where
             wrap err = "SessionValue Integer error: " <> cs err
 
 instance SessionValue Double where
     toSessionValue = show
-    fromSessionValue = Bifunctor.bimap wrap fst . Read.signed Read.double
+    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.double
         where
             wrap err = "SessionValue Double error: " <> cs err
 
@@ -335,3 +335,12 @@ getSessionEitherRecordId :: forall record
                             )
                          => Text -> IO (Either SessionError (Id record))
 getSessionEitherRecordId = getSessionEither @(Id record)
+
+-- | Internal helper function for parsing numeric values
+-- for an input starting with numbers but containing text afterwards
+checkAllInput :: forall value . Num value
+              => Read.Reader value -> Text -> Either Text value
+checkAllInput reader input = case Read.signed reader input of
+    Right (value, "") -> Right value
+    Right (value, rest) -> Left "input contains non digit chars"
+    Left _ -> Left "input contains non digit chars"
