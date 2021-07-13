@@ -7,6 +7,7 @@ module IHP.FileStorage.ControllerFunctions
 ( storeFile
 , removeFileFromStorage
 , storeFileWithOptions
+, storeFileFromUrl
 , contentDispositionAttachmentAndFileName
 , createTemporaryDownloadUrl
 , createTemporaryDownloadUrlFromPath
@@ -34,6 +35,9 @@ import qualified System.Directory as Directory
 import qualified Control.Exception as Exception
 import qualified System.IO.Temp as Temp
 import qualified System.Process as Process
+import qualified Network.Wai.Parse as Wai
+import qualified Network.Wreq as Wreq
+import Control.Lens hiding ((|>), set)
 
 -- | Uploads a file to a directory in the storage
 --
@@ -118,6 +122,37 @@ storeFileWithOptions fileInfo options = do
             pure $ "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com/" <> objectPath
     
     pure StoredFile { path = objectPath, url }
+
+-- | Fetchs an url and uploads it to the storage.
+--
+-- The stored file has the content type provided by @Content-Type@ header of the downloaded file.
+--
+-- __Example:__ Copy a file from a remote server to the @pictures@ directory
+--
+-- > let externalUrl = "http://example/picture.jpg"
+-- >
+-- > let options :: StoreFileOptions = def
+-- >         { directory = "pictures"
+-- >         }
+-- >
+-- > storedFile <- storeFileFromUrl externalUrl options
+-- > let newUrl = get #url storedFile
+--
+storeFileFromUrl :: (?context :: FrameworkConfig) => Text -> StoreFileOptions -> IO StoredFile
+storeFileFromUrl url options = do
+    (contentType, responseBody) <- do
+        response <- Wreq.get (cs url)
+        let contentType = response ^. Wreq.responseHeader "Content-Type"
+        let responseBody = response ^. Wreq.responseBody
+        pure (contentType, responseBody)
+
+    let file = Wai.FileInfo
+            { fileName = ""
+            , fileContentType = contentType
+            , fileContent = responseBody
+            }
+
+    storeFileWithOptions file options
 
 -- | Returns a signed url for a path inside the storage. The url is valid for 7 days.
 --
