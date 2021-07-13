@@ -83,9 +83,53 @@ export AWS_SECRET_ACCESS_KEY="YOUR SECRET"     # <---------
 
 # Finally start the dev server
 RunDevServer
-
-
 ```
+
+### Minio
+
+Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
+
+```haskell
+import IHP.FileStorage.Config
+```
+
+Then add a call to `initMinioStorage`:
+
+```haskell
+module Config where
+
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.FileStorage.Config
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+
+    initMinioStorage "https://minio.example.com" "my-bucket-name"
+```
+
+You need to replace `https://minio.example.com` with your minio server and `my-bucket-name` with the name of your bucket.
+
+The Minio access key and secret key have to be provided using the `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` env vars.
+
+For easy development you can add these env vars to your `./start` script:
+
+```bash
+#!/usr/bin/env bash
+# Script to start the local dev server
+
+# ...
+
+export MINIO_ACCESS_KEY="YOUR KEY"            # <---------
+export MINIO_SECRET_KEY="YOUR SECRET"     # <---------
+
+# Finally start the dev server
+RunDevServer
+```
+
 
 ## Uploading
 

@@ -108,7 +108,7 @@ storeFileWithOptions fileInfo options = do
 
             let frameworkConfig = getFrameworkConfig ?context
             pure $ (get #baseUrl frameworkConfig) <> "/" <> objectPath
-        S3Storage { connectInfo, bucket, region } -> do
+        S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
                     |> get #fileContent
                     |> Conduit.sourceLbs
@@ -119,7 +119,7 @@ storeFileWithOptions fileInfo options = do
                 let options :: PutObjectOptions = defaultPutObjectOptions { pooContentType = Just contentType, pooContentDisposition = contentDisposition }
                 putObject bucket objectPath payload Nothing options
 
-            pure $ "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com/" <> objectPath
+            pure $ baseUrl <> objectPath
     
     pure StoredFile { path = objectPath, url }
 
