@@ -19,6 +19,10 @@ sessionValue = describe "SessionValue" do
     sessionValueInteger
     sessionValueDouble
     sessionValueFloat
+    sessionValueText
+    sessionValueString
+    sessionValueByteString
+    sessionValueUUID
 
 sessionValueInt = describe "Int" do
     describe "toSessionValue" do
@@ -159,6 +163,54 @@ sessionValueFloat = describe "Float" do
             conversion @Float (-1984.123) `shouldBe` Right (-1984.123)
         it "with zero" do
             conversion @Float 0 `shouldBe` Right 0
+
+sessionValueText = describe "Text" do
+    describe "toSessionValue" do
+        it "should handle text input" do
+            toSessionValue @Text "test" `shouldBe` "test"
+    describe "fromSessionValue" do
+        it "should handle text input" do
+            fromSessionValue @Text "test" `shouldBe` Right "test"
+    describe "fromSessionValue equel toSessionValue on correct input" do
+        it "with text input" do
+            conversion @Text "test" `shouldBe` Right "test"
+
+sessionValueString = describe "String" do
+    describe "toSessionValue" do
+        it "should handle text input" do
+            toSessionValue @String "test" `shouldBe` "test"
+    describe "fromSessionValue" do
+        it "should handle text input" do
+            fromSessionValue @String "test" `shouldBe` Right "test"
+    describe "fromSessionValue equel toSessionValue on correct input" do
+        it "with text input" do
+            conversion @String "test" `shouldBe` Right "test"
+
+sessionValueByteString = describe "ByteString" do
+    describe "toSessionValue" do
+        it "should handle text input" do
+            toSessionValue @ByteString "test" `shouldBe` "test"
+    describe "fromSessionValue" do
+        it "should handle text input" do
+            fromSessionValue @ByteString "test" `shouldBe` Right "test"
+    describe "fromSessionValue equel toSessionValue on correct input" do
+        it "with text input" do
+            conversion @ByteString "test" `shouldBe` Right "test"
+
+sessionValueUUID = describe "UUID" do
+    let uuid = "6188329c-6bad-47f6-800c-2fd19ce0b2df" :: UUID
+    let uuidText = "6188329c-6bad-47f6-800c-2fd19ce0b2df" :: Text
+    describe "toSessionValue" do
+        it "should handle correct uuid" do
+            toSessionValue @UUID uuid `shouldBe` uuidText
+    describe "fromSessionValue" do
+        it "should handle correct uuid" do
+            fromSessionValue @UUID uuidText `shouldBe` Right uuid
+        it "should fail on invalid input" do
+            fromSessionValue @UUID "not a uuid" `shouldSatisfy` isLeft
+    describe "fromSessionValue equel toSessionValue on correct input" do
+        it "with correct uuid" do
+            conversion @UUID uuid `shouldBe` Right uuid
 
 conversion :: forall value . SessionValue value => value -> Either Text value
 conversion = fromSessionValue @value . toSessionValue @value
