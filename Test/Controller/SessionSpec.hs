@@ -9,6 +9,8 @@ import IHP.Controller.Session
 import IHP.ModelSupport
 import IHP.Prelude
 import Test.Hspec
+import GHC.Generics
+import qualified Data.Aeson as Aeson
 
 
 tests = do
@@ -25,6 +27,7 @@ sessionValue = describe "SessionValue" do
     sessionValueByteString
     sessionValueUUID
     sessionValueRecordId
+    sessionValueJson
 
 sessionValueInt = describe "Int" do
     describe "toSessionValue" do
@@ -237,6 +240,33 @@ sessionValueRecordId = describe "RecordId" do
         it "with uuid id" do
             conversion @(Id User) (get #id user) `shouldBe` Right (get #id user)
 
+sessionValueJson = describe "JSON" do
+    let coord = Coord { x = 42, y = 24 }
+    let jsonCoord = "{\"x\":42,\"y\":24}"
+    describe "toSessionValue" do
+        it "should handle record type" do
+            toSessionValue coord `shouldBe` jsonCoord
+        it "should handle sum type" do
+            toSessionValue Red `shouldBe` "\"Red\""
+            toSessionValue Green `shouldBe` "\"Green\""
+            toSessionValue Blue `shouldBe` "\"Blue\""
+    describe "fromSessionValue" do
+        it "should handle record type" do
+            fromSessionValue @Coord jsonCoord `shouldBe` Right coord
+        it "should handle sum type" do
+            fromSessionValue @Color "\"Red\"" `shouldBe` Right Red
+            fromSessionValue @Color "\"Green\"" `shouldBe` Right Green
+            fromSessionValue @Color "\"Blue\"" `shouldBe` Right Blue
+        it "should fail on incorrect input" do
+            fromSessionValue @Coord "{\"z\":54}" `shouldSatisfy` isLeft
+    describe "fromSessionValue equel toSessionValue on correct input" do
+        it "with record type" do
+            conversion @Coord coord `shouldBe` Right coord
+        it "with sum type" do
+            conversion @Color Red `shouldBe` Right Red
+            conversion @Color Green `shouldBe` Right Green
+            conversion @Color Blue `shouldBe` Right Blue
+
 conversion :: forall value . SessionValue value => value -> Either Text value
 conversion = fromSessionValue @value . toSessionValue @value
 
@@ -247,3 +277,17 @@ type instance GetTableName Post = "posts"
 data User = User { id :: (Id' "users") }
 type instance PrimaryKey "users" = UUID
 type instance GetTableName User = "users"
+
+data Color = Red | Green | Blue
+    deriving (Eq, Show, Generic)
+
+instance Aeson.FromJSON Color
+instance Aeson.ToJSON Color
+instance SessionValue Color
+
+data Coord = Coord { x :: Int, y :: Int }
+    deriving (Eq, Show, Generic)
+
+instance Aeson.FromJSON Coord
+instance Aeson.ToJSON Coord
+instance SessionValue Coord
