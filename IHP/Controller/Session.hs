@@ -23,8 +23,10 @@ module IHP.Controller.Session
   -- * Interacting with session store
   , setSession
   , getSession
+  , getSessionEither
   , deleteSession
   , getSessionAndClear
+  , getSessionAndClearEither
 
   -- * Helper functions for getSession
   -- | Helper functions for calling getSession
@@ -33,12 +35,21 @@ module IHP.Controller.Session
   , getSessionInt
   , getSessionUUID
   , getSessionRecordId
+  -- * Helper functions for getSessionEither
+  -- | Helper functions for calling getSessionEither
+  -- without type applications syntax.
+  -- If an error occurs while getting the value, the
+  -- result will be 'SessionError'.
+  , getSessionEitherInt
+  , getSessionEitherUUID
+  , getSessionEitherRecordId
   ) where
 
 import IHP.Prelude
 import IHP.Controller.RequestContext
 import IHP.Controller.Context
 import IHP.ModelSupport
+import Data.Either (isRight)
 import qualified Data.Aeson as Aeson
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Text.Read as Read
@@ -194,6 +205,33 @@ getSession name = case vaultLookup of
         RequestContext { request, vault } = get #requestContext ?context
         vaultLookup = Vault.lookup vault (Wai.vault request)
 
+-- | Retrives a value from the session:
+--
+-- getSession variant, which returns 'SessionError' if an error occurs
+-- while getting value from session storage
+--
+-- > action SessionExampleAction = do
+-- >     counter <- getSessionEither @Int "counter"
+-- >     case counter of
+-- >         Right value -> ...
+-- >         Left (ParseError errorMessage) -> ...
+-- >         Left NotFoundError -> ...
+-- >         Left VaultError -> ...
+getSessionEither :: forall value
+            . (?context :: ControllerContext, SessionValue value)
+           => Text -> IO (Either SessionError value)
+getSessionEither name = case vaultLookup of
+    Just (sessionLookup, _) -> sessionLookup (cs name) >>= \case
+        Nothing -> pure $ Left NotFoundError
+        Just "" -> pure $ Left NotFoundError
+        Just stringValue -> case fromSessionValue (cs stringValue) of
+            Left error -> pure . Left $ ParseError error
+            Right value -> pure $ Right value
+    Nothing -> pure $ Left VaultError
+    where
+        RequestContext { request, vault } = get #requestContext ?context
+        vaultLookup = Vault.lookup vault (Wai.vault request)
+
 -- | Remove session values ​​from storage:
 --
 -- __Example:__ Deleting a @userId@ field from the session
@@ -224,12 +262,34 @@ getSessionAndClear name = do
     when (isJust value) (deleteSession name)
     pure value
 
+-- | Returns a value from the session, and deletes it after retrieving:
+--
+-- getSessionAndClear variant, which returns 'SessionError' if an error
+-- occurs while getting value from session storage
+--
+-- > action SessionExampleAction = do
+-- >     counter <- getSessionAndClearEither @Int "counter"
+-- >     case counter of
+-- >         Right value -> ...
+-- >         Left (ParseError errorMessage) -> ...
+-- >         Left NotFoundError -> ...
+-- >         Left VaultError -> ...
+getSessionAndClearEither :: forall value
+                          . ( ?context :: ControllerContext
+                            , SessionValue value
+                            )
+                         => Text -> IO (Either SessionError value)
+getSessionAndClearEither name = do
+    value <- getSessionEither @value name
+    when (isRight value) (deleteSession name)
+    pure value
+
 -- | Retrives a value from the session, and parses it as an 'Int':
 --
 -- > action SessionExampleAction = do
 -- >     counter :: Maybe Int <- getSessionInt "counter"
 getSessionInt :: (?context :: ControllerContext) => Text -> IO (Maybe Int)
-getSessionInt = getSession
+getSessionInt = getSession @Int
 
 -- | Retrives a value from the session, and parses it as an 'UUID':
 --
@@ -248,3 +308,30 @@ getSessionRecordId :: forall record
                       )
                    => Text -> IO (Maybe (Id record))
 getSessionRecordId = getSession @(Id record)
+
+-- | Retrives a value from the session, and parses it as an 'Int':
+--
+-- > action SessionExampleAction = do
+-- >     counter :: Either SessionError Int <- getSessionEitherInt "counter"
+getSessionEitherInt :: (?context :: ControllerContext)
+                    => Text -> IO (Either SessionError Int)
+getSessionEitherInt = getSessionEither @Int
+
+-- | Retrives a value from the session, and parses it as an 'UUID':
+--
+-- > action SessionExampleAction = do
+-- >     userId :: Either SessionError UUID <- getSessionEitherUUID "userId"
+getSessionEitherUUID :: (?context :: ControllerContext)
+                     => Text -> IO (Either SessionError UUID)
+getSessionEitherUUID = getSessionEither @UUID
+
+-- | Retrives e.g. an @Id User@ or @Id Project@ from the session:
+--
+-- > action SessionExampleAction = do
+-- >     userId :: Either SessionError (Id User) <- getSessionEitherRecordId @User "userId"
+getSessionEitherRecordId :: forall record
+                          . ( ?context :: ControllerContext
+                            , SessionValue (PrimaryKey (GetTableName record))
+                            )
+                         => Text -> IO (Either SessionError (Id record))
+getSessionEitherRecordId = getSessionEither @(Id record)
