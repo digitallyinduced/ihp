@@ -16,7 +16,7 @@ import qualified Network.Wai.Parse as Wai
 
 data FileStorage
     = StaticDirStorage -- ^ Stores files publicly visible inside the project's @static@ directory
-    | S3Storage { connectInfo :: Minio.ConnectInfo, bucket :: Text, region :: Text } -- ^ Stores files inside a S3 compatible cloud storage
+    | S3Storage { connectInfo :: Minio.ConnectInfo, bucket :: Text, baseUrl :: Text } -- ^ Stores files inside a S3 compatible cloud storage
 
 -- | Result of a 'storeFile' operation
 data StoredFile = StoredFile { path :: Text, url :: Text }

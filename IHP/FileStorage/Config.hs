@@ -6,6 +6,7 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.FileStorage.Config
 ( initS3Storage
 , initStaticDirStorage
+, initMinioStorage
 ) where
 
 import IHP.Prelude
@@ -45,7 +46,36 @@ initS3Storage region bucket = do
         |> setCredsFrom [fromAWSEnv]
         |> liftIO
 
-    option S3Storage { connectInfo, bucket, region }
+    let baseUrl = "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com/"
+    option S3Storage { connectInfo, bucket, baseUrl }
+
+-- | The Minio access key and secret key have to be provided using the @MINIO_ACCESS_KEY@ and @MINIO_SECRET_KEY@ env vars.
+--
+-- __Example:__ Set up a minio storage in @Config.hs@
+--
+-- > module Config where
+-- >
+-- > import IHP.Prelude
+-- > import IHP.Environment
+-- > import IHP.FrameworkConfig
+-- > import IHP.FileStorage.Config
+-- >
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     option Development
+-- >     option (AppHostname "localhost")
+-- >     initMinioStorage "https://minio.example.com" "my-bucket-name"
+--
+initMinioStorage :: Text -> Text -> State.StateT TMap.TMap IO ()
+initMinioStorage server bucket = do
+    connectInfo <- server
+        |> cs
+        |> fromString
+        |> setCredsFrom [fromMinioEnv]
+        |> liftIO
+
+    let baseUrl = server <> "/"
+    option S3Storage { connectInfo, bucket, baseUrl }
 
 -- | Stores files publicly visible inside the @static@ directory
 --

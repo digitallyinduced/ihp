@@ -96,6 +96,7 @@ common shared-properties
             , temporary
             , conduit-extra
             , wai-cors
+            , lens
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

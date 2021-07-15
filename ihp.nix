@@ -57,6 +57,7 @@
 , minio-hs
 , temporary
 , wai-cors
+, lens
 }:
 mkDerivation {
   pname = "ihp";
@@ -120,6 +121,7 @@ mkDerivation {
     minio-hs
     temporary
     wai-cors
+    lens
   ];
   license = stdenv.lib.licenses.mit;
   postInstall = ''

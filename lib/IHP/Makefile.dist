@@ -177,7 +177,13 @@ endif
 
 build/bin/Script/%: build/Script/Main/%.hs
 	mkdir -p build/bin/Script
-	ghc -O1 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/Script -hidir build/Script
+	# If RunOptimizedProdServer is compiled, likely we have object files with O2 in the build directory, so we're making an optimized script
+	# Otherwise we're doing a unoptimized compile as it's much faster
+	if [[ -f "build/bin/RunOptimizedProdServer" ]]; then \
+		ghc -O2 ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer; \
+	else \
+		ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer; \
+	fi
 
 build/Script/Main/%.hs: Application/Script/%.hs
 	mkdir -p build/Script/Main
@@ -187,9 +193,15 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript Config.config run" >> $@
 
-build/bin/RunJobs: build/RunJobs.hs
+build/bin/RunJobs: build/RunJobs.hs ## Builds an unopimited binary for running the job workers
 	mkdir -p build/bin
-	ghc -O1 -main-is 'RunJobs.main' ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build -hidir build
+	ghc -O0 -main-is 'RunJobs.main' ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer # We use object files by build/bin/RunUnoptimizedProdServer here to speed up compilation during deployments
+
+build/bin/RunJobsOptimized: build/RunJobs.hs ## Builds an optimized binary for running the job workers, symlinks it to build/bin/RunJobs
+	mkdir -p build/bin
+	ghc -O2 -main-is 'RunJobs.main' ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer # We use object files by build/bin/RunOptimizedProdServer here to speed up compilation during deployments
+	rm -f build/bin/RunJobs
+	ln -s `basename $@` build/bin/RunJobs
 
 build/RunJobs.hs: build/Generated/Types.hs
 	echo "module RunJobs (main) where" > $@
