@@ -5,13 +5,12 @@ Copyright: (c) digitally induced GmbH, 2020
 module Test.Controller.SessionSpec where
 
 import Data.Either (isLeft)
+import GHC.Generics
 import IHP.Controller.Session
 import IHP.ModelSupport
 import IHP.Prelude
 import Test.Hspec
-import GHC.Generics
 import qualified Data.Aeson as Aeson
-
 
 tests = do
     describe "IHP.Controller.Session" do
