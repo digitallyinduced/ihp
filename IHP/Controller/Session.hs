@@ -168,6 +168,7 @@ data SessionError
     | NotFoundError
     -- | Error occurce during parsing value
     | ParseError Text
+    deriving (Show, Eq)
 
 -- | Stores a value inside the session:
 --
