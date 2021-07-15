@@ -1,4 +1,5 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-|
 Module: IHP.Controller.Session
 Description: Functions to work with session cookies, provides 'setSession', 'getSession' and friends
