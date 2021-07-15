@@ -198,9 +198,25 @@ data SessionError
 -- | Stores a value inside the session:
 --
 -- > action SessionExampleAction { userId } = do
--- >     setSession "userEmail" ("hi@digitallyinduced.com" :: Text)
 -- >     setSession "userId" userId
 --
+-- For cases where setSession is used with literals,
+-- to avoid type ambiguity, you can use one of the options below
+--
+-- __Example:__ Annotate a literal with a type
+--
+-- > action LogoutAction = do
+-- >     setSession "userEmail" ("hi@digitallyinduced.com" :: Text)
+--
+-- __Example:__ Using setSession with type application
+--
+-- > action LogoutAction = do
+-- >     setSession @Text "userEmail" "hi@digitallyinduced.com"
+--
+-- __Example:__ Using helper functions for setSession
+--
+-- > action LogoutAction = do
+-- >     setSessionText "userEmail" "hi@digitallyinduced.com"
 setSession :: (?context :: ControllerContext, SessionValue value)
            => Text -> value -> IO ()
 setSession name value = case vaultLookup of
@@ -379,14 +395,14 @@ setSessionUUID name value = setSession @UUID name value
 -- | Retrives a value from the session, and parses it as an 'Int':
 --
 -- > action SessionExampleAction = do
--- >     counter :: Maybe Int <- getSessionInt "counter"
+-- >     counter <- getSessionInt "counter"
 getSessionInt :: (?context :: ControllerContext) => Text -> IO (Maybe Int)
 getSessionInt = getSession @Int
 
 -- | Retrives a value from the session, and parses it as an 'Integer':
 --
 -- > action SessionExampleAction = do
--- >     counter :: Maybe Integer <- getSessionInteger "counter"
+-- >     counter <- getSessionInteger "counter"
 getSessionInteger :: (?context :: ControllerContext)
                   => Text -> IO (Maybe Integer)
 getSessionInteger = getSession @Integer
@@ -410,14 +426,14 @@ getSessionFloat = getSession @Float
 -- | Retrives a value from the session, and parses it as an 'Text':
 --
 -- > action SessionExampleAction = do
--- >     name <- getSessionText "name"
+-- >     userEmail <- getSessionText "userEmail"
 getSessionText :: (?context :: ControllerContext) => Text -> IO (Maybe Text)
 getSessionText = getSession @Text
 
 -- | Retrives a value from the session, and parses it as an 'String':
 --
 -- > action SessionExampleAction = do
--- >     name <- getSessionString "name"
+-- >     userEmail <- getSessionString "userEmail"
 getSessionString :: (?context :: ControllerContext)
                  => Text -> IO (Maybe String)
 getSessionString = getSession @String
@@ -425,7 +441,7 @@ getSessionString = getSession @String
 -- | Retrives a value from the session, and parses it as an 'ByteString':
 --
 -- > action SessionExampleAction = do
--- >     name <- getSessionBS "name"
+-- >     userEmail <- getSessionBS "userEmail"
 getSessionBS :: (?context :: ControllerContext)
              => Text -> IO (Maybe ByteString)
 getSessionBS = getSession @ByteString
@@ -433,14 +449,14 @@ getSessionBS = getSession @ByteString
 -- | Retrives a value from the session, and parses it as an 'UUID':
 --
 -- > action SessionExampleAction = do
--- >     userId :: Maybe UUID <- getSessionUUID "userId"
+-- >     userId <- getSessionUUID "userId"
 getSessionUUID :: (?context :: ControllerContext) => Text -> IO (Maybe UUID)
 getSessionUUID = getSession @UUID
 
 -- | Retrives e.g. an @Id User@ or @Id Project@ from the session:
 --
 -- > action SessionExampleAction = do
--- >     userId :: Maybe (Id User) <- getSessionRecordId @User "userId"
+-- >     userId <- getSessionRecordId @User "userId"
 getSessionRecordId :: forall record
                     . ( ?context :: ControllerContext
                       , SessionValue (PrimaryKey (GetTableName record))
@@ -451,7 +467,7 @@ getSessionRecordId = getSession @(Id record)
 -- | Retrives a value from the session, and parses it as an 'Int':
 --
 -- > action SessionExampleAction = do
--- >     counter :: Either SessionError Int <- getSessionEitherInt "counter"
+-- >     counter <- getSessionEitherInt "counter"
 getSessionEitherInt :: (?context :: ControllerContext)
                     => Text -> IO (Either SessionError Int)
 getSessionEitherInt = getSessionEither @Int
@@ -483,7 +499,7 @@ getSessionEitherFloat = getSessionEither @Float
 -- | Retrives a value from the session, and parses it as an 'Text':
 --
 -- > action SessionExampleAction = do
--- >     name <- getSessionEitherText "name"
+-- >     userEmail <- getSessionEitherText "userEmail"
 getSessionEitherText :: (?context :: ControllerContext)
                      => Text -> IO (Either SessionError Text)
 getSessionEitherText = getSessionEither @Text
@@ -491,7 +507,7 @@ getSessionEitherText = getSessionEither @Text
 -- | Retrives a value from the session, and parses it as an 'String':
 --
 -- > action SessionExampleAction = do
--- >     name <- getSessionEitherString "name"
+-- >     userEmail <- getSessionEitherString "userEmail"
 getSessionEitherString :: (?context :: ControllerContext)
                        => Text -> IO (Either SessionError String)
 getSessionEitherString = getSessionEither @String
@@ -499,7 +515,7 @@ getSessionEitherString = getSessionEither @String
 -- | Retrives a value from the session, and parses it as an 'ByteString':
 --
 -- > action SessionExampleAction = do
--- >     name <- getSessionEitherBS "name"
+-- >     userEmail <- getSessionEitherBS "userEmail"
 getSessionEitherBS :: (?context :: ControllerContext)
                    => Text -> IO (Either SessionError ByteString)
 getSessionEitherBS = getSessionEither @ByteString
@@ -507,7 +523,7 @@ getSessionEitherBS = getSessionEither @ByteString
 -- | Retrives a value from the session, and parses it as an 'UUID':
 --
 -- > action SessionExampleAction = do
--- >     userId :: Either SessionError UUID <- getSessionEitherUUID "userId"
+-- >     userId <- getSessionEitherUUID "userId"
 getSessionEitherUUID :: (?context :: ControllerContext)
                      => Text -> IO (Either SessionError UUID)
 getSessionEitherUUID = getSessionEither @UUID
