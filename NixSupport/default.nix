@@ -13,6 +13,7 @@ in
     pkgs.stdenv.mkDerivation {
         name = "app";
         buildPhase = ''
+          make -B build/ihp-lib
           make -B build/bin/RunUnoptimizedProdServer
         '';
         installPhase = ''
