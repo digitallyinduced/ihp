@@ -28,6 +28,18 @@ module IHP.Controller.Session
   , getSessionAndClear
   , getSessionAndClearEither
 
+  -- * Helper functions for setSession
+  -- | Helper functions for calling setSession
+  -- without type applications syntax.
+  , setSessionInt
+  , setSessionInteger
+  , setSessionDouble
+  , setSessionFloat
+  , setSessionText
+  , setSessionString
+  , setSessionBS
+  , setSessionUUID
+
   -- * Helper functions for getSession
   -- | Helper functions for calling getSession
   -- without type applications syntax.
@@ -303,6 +315,66 @@ getSessionAndClearEither name = do
     value <- getSessionEither @value name
     when (isRight value) (deleteSession name)
     pure value
+
+-- | Stores an 'Int' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionInt "counter" 1
+setSessionInt :: (?context :: ControllerContext) => Text -> Int -> IO ()
+setSessionInt name value = setSession @Int name value
+
+-- | Stores an 'Integer' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionInteger "counter" 1
+setSessionInteger :: (?context :: ControllerContext)
+                  => Text -> Integer -> IO ()
+setSessionInteger name value = setSession @Integer name value
+
+-- | Stores a 'Double' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionDouble "double" 1.234
+setSessionDouble :: (?context :: ControllerContext)
+                 => Text -> Double -> IO ()
+setSessionDouble name value = setSession @Double name value
+
+-- | Stores a 'Float' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionDouble "float" 1.234
+setSessionFloat :: (?context :: ControllerContext) => Text -> Float -> IO ()
+setSessionFloat name value = setSession @Float name value
+
+-- | Stores a 'Text' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionText "userEmail" "hi@digitallyinduced.com"
+setSessionText :: (?context :: ControllerContext) => Text -> Text -> IO ()
+setSessionText name value = setSession @Text name value
+
+-- | Stores a 'String' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionString "userEmail" "hi@digitallyinduced.com"
+setSessionString :: (?context :: ControllerContext)
+                 => Text -> String -> IO ()
+setSessionString name value = setSession @String name value
+
+-- | Stores a 'ByteString' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionBS "userEmail" "hi@digitallyinduced.com"
+setSessionBS :: (?context :: ControllerContext)
+             => Text -> ByteString -> IO ()
+setSessionBS name value = setSession @ByteString name value
+
+-- | Stores a 'UUID' value inside the session:
+--
+-- > action SessionExampleAction = do
+-- >     setSessionUUID "userUUID" "a020ba17-a94e-453f-9414-c54aa30caa54"
+setSessionUUID :: (?context :: ControllerContext) => Text -> UUID -> IO ()
+setSessionUUID name value = setSession @UUID name value
 
 -- | Retrives a value from the session, and parses it as an 'Int':
 --
