@@ -5,6 +5,7 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Mail.Types
 ( MailServer (..)
+, MailAttachment (..)
 )
 where
 
@@ -28,3 +29,9 @@ data MailServer =
            , port :: PortNumber
            -- (Username,Password) combination
            , credentials :: Maybe (String, String)}
+
+data MailAttachment = MailAttachment
+    { name :: Text -- ^ File name of an attachment
+    , content :: LByteString
+    , contentType :: Text
+    } deriving (Eq, Show)
