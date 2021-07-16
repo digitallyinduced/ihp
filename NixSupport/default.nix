@@ -13,6 +13,13 @@ in
     pkgs.stdenv.mkDerivation {
         name = "app";
         buildPhase = ''
+          mkdir -p build
+          rm -f build/ihp-lib
+
+          mkdir -p IHP
+          ln -s "${ihp}/lib/IHP" build/ihp-lib
+          ln -s "${ihp}/lib" IHP/lib # Avoid the Makefile calling 'which RunDevServer'
+
           make -B build/bin/RunUnoptimizedProdServer
         '';
         installPhase = ''
