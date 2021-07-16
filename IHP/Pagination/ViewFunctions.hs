@@ -101,9 +101,8 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     Just filterValue -> queryString |> setQueryValue "filter" (cs filterValue)
 
             maybeMaxItems queryString =
-                case paramOrNothing @Text "maxItems" of
+                case paramOrNothing @Int "maxItems" of
                     Nothing -> queryString
-                    Just "" -> queryString
                     Just m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
 
             renderItems = [hsx|{forEach (processedPages pages) renderItem}|]
