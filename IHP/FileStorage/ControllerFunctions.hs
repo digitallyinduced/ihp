@@ -8,6 +8,7 @@ module IHP.FileStorage.ControllerFunctions
 , removeFileFromStorage
 , storeFileWithOptions
 , storeFileFromUrl
+, storeFileFromPath
 , contentDispositionAttachmentAndFileName
 , createTemporaryDownloadUrl
 , createTemporaryDownloadUrlFromPath
@@ -38,6 +39,7 @@ import qualified System.Process as Process
 import qualified Network.Wai.Parse as Wai
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
+import qualified Data.MIME.Types as MIME
 
 -- | Uploads a file to a directory in the storage
 --
@@ -138,7 +140,7 @@ storeFileWithOptions fileInfo options = do
 -- > storedFile <- storeFileFromUrl externalUrl options
 -- > let newUrl = get #url storedFile
 --
-storeFileFromUrl :: (?context :: FrameworkConfig) => Text -> StoreFileOptions -> IO StoredFile
+storeFileFromUrl :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromUrl url options = do
     (contentType, responseBody) <- do
         response <- Wreq.get (cs url)
@@ -150,6 +152,40 @@ storeFileFromUrl url options = do
             { fileName = ""
             , fileContentType = contentType
             , fileContent = responseBody
+            }
+
+    storeFileWithOptions file options
+
+
+-- | Uploads a local file to the storage
+--
+-- The content type is guessed based on the file extension.
+--
+-- __Example:__ Copy a local "picture.jpg" to the @pictures@ directory inside the storage
+--
+-- >
+-- > let options :: StoreFileOptions = def
+-- >         { directory = "pictures"
+-- >         }
+-- >
+-- > storedFile <- storeFileFromPath "picture.jpg" options
+-- > let newUrl = get #url storedFile
+--
+storeFileFromPath :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
+storeFileFromPath path options = do
+    let fileContentType =
+            path
+            |> cs
+            |> MIME.guessType MIME.defaultmtd False
+            |> fst
+            |> fromMaybe "application/octet-stream"
+            |> cs
+
+    fileContent <- LBS.readFile (cs path)
+    let file = Wai.FileInfo
+            { fileName = ""
+            , fileContentType
+            , fileContent
             }
 
     storeFileWithOptions file options
