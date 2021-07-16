@@ -134,25 +134,25 @@ instance Exception ParamException where
     displayException (ParamNotFoundException { name }) = "param: Parameter '" <> cs name <> "' not found"
     displayException (ParamCouldNotBeParsedException { name, parserError }) = "param: Parameter '" <> cs name <> "' could not be parsed, " <> cs parserError
 
--- | Specialisied version of param for 'Text'.
+-- | Specialized version of param for 'Text'.
 --
 -- This way you don't need to know about the type application syntax.
 paramText :: (?context :: ControllerContext) => ByteString -> Text
 paramText = param @Text
 
--- | Specialisied version of param for 'Int'.
+-- | Specialized version of param for 'Int'.
 --
 -- This way you don't need to know about the type application syntax.
 paramInt :: (?context :: ControllerContext) => ByteString -> Int
 paramInt = param @Int
 
--- | Specialisied version of param for 'Bool'.
+-- | Specialized version of param for 'Bool'.
 --
 -- This way you don't need to know about the type application syntax.
 paramBool :: (?context :: ControllerContext) => ByteString -> Bool
 paramBool = param @Bool
 
--- | Specialisied version of param for 'UUID'.
+-- | Specialized version of param for 'UUID'.
 --
 -- This way you don't need to know about the type application syntax.
 paramUUID :: (?context :: ControllerContext) => ByteString -> UUID
