@@ -39,7 +39,7 @@ import qualified System.Process as Process
 import qualified Network.Wai.Parse as Wai
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
-import qualified Data.MIME.Types as MIME
+import IHP.FileStorage.MimeTypes
 
 -- | Uploads a file to a directory in the storage
 --
@@ -173,13 +173,7 @@ storeFileFromUrl url options = do
 --
 storeFileFromPath :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromPath path options = do
-    let fileContentType =
-            path
-            |> cs
-            |> MIME.guessType MIME.defaultmtd False
-            |> fst
-            |> fromMaybe "application/octet-stream"
-            |> cs
+    let fileContentType = path |> guessMimeType |> cs
 
     fileContent <- LBS.readFile (cs path)
     let file = Wai.FileInfo
