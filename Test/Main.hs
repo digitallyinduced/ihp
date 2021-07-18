@@ -42,6 +42,7 @@ import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
 import qualified Test.Postgres.Point
 import qualified Test.Postgres.TSVector
+import qualified Test.FileStorage.MimeTypesSpec
 
 main :: IO ()
 main = hspec do
@@ -71,3 +72,4 @@ main = hspec do
     Test.ServerSideComponent.HtmlDiffSpec.tests
     Test.Postgres.Point.tests
     Test.Postgres.TSVector.tests
+    Test.FileStorage.MimeTypesSpec.tests

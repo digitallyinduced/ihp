@@ -256,6 +256,7 @@ library
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config
         , IHP.FileStorage.Preprocessor.ImageMagick
+        , IHP.FileStorage.MimeTypes
         , IHP.Pagination.ControllerFunctions
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
