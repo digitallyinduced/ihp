@@ -47,7 +47,7 @@ getSuccessMessage = getSession successMessageKey
 
 -- | Removes the current flash message
 clearSuccessMessage :: (?context :: ControllerContext) => IO ()
-clearSuccessMessage = setSession successMessageKey ""
+clearSuccessMessage = setSession successMessageKey ("" :: Text)
 
 -- Returns a list of all flash messages which need to be displayed to the user
 --
