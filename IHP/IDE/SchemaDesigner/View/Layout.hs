@@ -288,66 +288,17 @@ renderObjectSelector statements activeObjectName = [hsx|
             where
                 contextMenuId = "context-menu-" <> tshow id
 
-        renderObject CreateIndex { indexName, unique } id = [hsx|
-        <div class="object object-table w-100">
-            <div class="d-flex">
-                {icon} {indexName}
-            </div>
-        </div>
-        |]
-            where
-                icon = if unique
-                           then uniqueIndexIcon
-                           else indexIcon
-
-        renderObject Comment { content } id = [hsx|
-        <div class="object object-table w-100">
-            <div class="d-flex">
-                {commentIcon} {content}
-            </div>
-        </div>
-        |]
-
-        renderObject AddConstraint { tableName, constraintName } id = [hsx|
-        <div class="object object-table w-100">
-            <div class="d-flex">
-                {constraintIcon} {constraintName}
-            </div>
-        </div>
-        |]
-
-        renderObject CreateExtension { name } id = [hsx|
-        <div class="object object-table w-100">
-            <div class="d-flex">
-                {extensionIcon} {name}
-            </div>
-        </div>
-        |]
-
-        renderObject CreateFunction { functionName } id = [hsx|
-        <div class="object object-table w-100">
-            <div class="d-flex">
-                {functionIcon} {functionName}
-            </div>
-        </div>
-        |]
-
-        renderObject UnknownStatement { raw } id = [hsx|
-        <div class="object object-table w-100">
-            <div class="d-flex">
-                {unknownIcon} {raw}
-            </div>
-        </div>
-        |]
+        renderObject Comment {} id = mempty
+        renderObject AddConstraint {} id = mempty
+        renderObject CreateExtension {} id = mempty
+        renderObject CreateIndex {} id = mempty
+        renderObject CreateFunction {} id = mempty
+        renderObject UnknownStatement {} id = mempty
+        renderObject statement id = [hsx|<div>{statement}</div>|]
 
         shouldRenderObject (StatementCreateTable CreateTable {}) = True
         shouldRenderObject CreateEnumType {} = True
-        shouldRenderObject CreateExtension {} = True
-        shouldRenderObject AddConstraint {} = True
-        shouldRenderObject Comment {} = True
-        shouldRenderObject CreateIndex {} = True
-        shouldRenderObject CreateFunction {} = True
-        shouldRenderObject UnknownStatement {} = False
+        shouldRenderObject _ = False
 
 removeQuotes :: [Char] -> Text
 removeQuotes (x:xs) = cs $ fromMaybe [] (init xs)
