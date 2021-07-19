@@ -74,7 +74,7 @@ initMinioStorage server bucket = do
         |> setCredsFrom [fromMinioEnv]
         |> liftIO
 
-    let baseUrl = server <> "/"
+    let baseUrl = server <> "/" <> bucket <> "/"
     option S3Storage { connectInfo, bucket, baseUrl }
 
 -- | Stores files publicly visible inside the @static@ directory
