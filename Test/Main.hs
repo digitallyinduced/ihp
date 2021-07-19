@@ -33,6 +33,7 @@ import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
+import qualified Test.Controller.SessionSpec
 import qualified Test.SchemaMigrationSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
@@ -42,6 +43,7 @@ import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
 import qualified Test.Postgres.Point
 import qualified Test.Postgres.TSVector
+import qualified Test.FileStorage.MimeTypesSpec
 
 main :: IO ()
 main = hspec do
@@ -62,6 +64,7 @@ main = hspec do
     Test.View.CSSFrameworkSpec.tests
     Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
+    Test.Controller.SessionSpec.tests
     Test.SchemaMigrationSpec.tests
     Test.ModelSupportSpec.tests
     Test.SchemaCompilerSpec.tests
@@ -71,3 +74,4 @@ main = hspec do
     Test.ServerSideComponent.HtmlDiffSpec.tests
     Test.Postgres.Point.tests
     Test.Postgres.TSVector.tests
+    Test.FileStorage.MimeTypesSpec.tests

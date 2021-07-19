@@ -3,7 +3,7 @@ Module: IHP.View.TimeAgo
 Description: View Helpers for dealing with Time and Dates
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.View.TimeAgo (timeAgo, dateTime, date) where
+module IHP.View.TimeAgo (timeAgo, dateTime, date, time) where
 
 import IHP.Prelude
 import Data.Time.Format.ISO8601 (iso8601Show)
@@ -24,12 +24,12 @@ import qualified Text.Blaze.Html5.Attributes as A
 -- __Example:__ Generated HTML
 --
 -- >>> <div>{timeAgo (get #createdAt project)}</div>
--- <div><time class="time-ago">31.08.2007, 16:47</div>
+-- <div><time class="time-ago">31.08.2007, 16:47</time></div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
 -- >>> <div>{timeAgo (get #createdAt project)}</div>
--- <div><time class="time-ago">a while ago</div>
+-- <div><time class="time-ago">a while ago</time></div>
 timeAgo :: UTCTime -> Html
 timeAgo = timeElement "time-ago"
 
@@ -45,12 +45,12 @@ timeAgo = timeElement "time-ago"
 -- __Example:__ Generated HTML
 --
 -- >>> <div>{dateTime (get #createdAt project)}</div>
--- <div><time class="date-time">31.08.2007, 16:47</div>
+-- <div><time class="date-time">31.08.2007, 16:47</time></div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
 -- >>> <div>{dateTime (get #createdAt project)}</div>
--- <div><time class="date-time">31.08.2007, 16:47 Uhr</div>
+-- <div><time class="date-time">31.08.2007, 16:47 Uhr</time></div>
 dateTime :: UTCTime -> Html
 dateTime = timeElement "date-time"
 
@@ -66,14 +66,35 @@ dateTime = timeElement "date-time"
 -- __Example:__ Generated HTML
 --
 -- >>> <div>{date (get #createdAt project)}</div>
--- <div><time class="date">31.08.2007, 16:47</div>
+-- <div><time class="date">31.08.2007, 16:47</time></div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
 -- >>> <div>{date (get #createdAt project)}</div>
--- <div><time class="date">31.08.2007</div>
+-- <div><time class="date">31.08.2007</time></div>
 date :: UTCTime -> Html
 date = timeElement "date"
+
+-- | __Display time like @16:47@__
+--
+-- Render's a @\<time\>@ HTML-Element for displaying the time.
+-- 
+-- Requires the javascript helpers to be available. Then the time will displayed in the current browser
+-- timezone.
+--
+-- The js helper uses `toLocaleDateString` to display the date in the browsers locale format.
+--
+-- __Example:__ Generated HTML
+--
+-- >>> <div>{time (get #createdAt project)}</div>
+-- <div><time class="time">16:47</time></div>
+--
+-- __Example:__ HTML after javascript helpers have been applied
+--
+-- >>> <div>{time (get #createdAt project)}</div>
+-- <div><time class="time">16:47 Uhr</time></div>
+time :: UTCTime -> Html
+time = timeElement "time"
 
 timeElement :: Text -> UTCTime -> Html
 timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (beautifyUtcTime dateTime)
