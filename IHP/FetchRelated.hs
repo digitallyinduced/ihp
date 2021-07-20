@@ -107,7 +107,7 @@ instance (
 --
 -- > users <- query @User
 -- >     |> fetch
--- >     >>= collectionFetchRelated #companyId
+-- >     >>= collectionFetchRelatedOrNothing #companyId
 --
 -- This will query all users with their company. The type of @users@ is @[Include "companyId" User]@.
 --
