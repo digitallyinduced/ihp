@@ -312,7 +312,8 @@ From JavaScript you can get the JSON using `fetch`:
 ```javascript
 const response = await fetch('http://localhost:8000/Posts', {
     headers: { Accept: 'application/json' },
-}).then((response) => response.json());
+});
+const json = await response.json();
 ```
 
 #### curl
