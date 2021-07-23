@@ -24,7 +24,7 @@ isIllegalKeyword :: Text -> Bool
 isIllegalKeyword input =
     case input of
         "_" -> True
-        _ -> isSQLKeyword input || isHaskellKeyword input
+        _ -> isSQLKeyword input || (isHaskellKeyword (singularize input))
 
 isSQLKeyword :: Text -> Bool
 isSQLKeyword input = case (toUpper input) of
