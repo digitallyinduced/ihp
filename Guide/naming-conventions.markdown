@@ -34,6 +34,27 @@ Posts -- Should be lowercase `posts`
 company -- Should be `companies`
 ```
 
+### Column Names
+
+Column names should always use lowercase and snake case.
+
+Column names are typically folded to lowercase by postgres. Therefore camel case names like `firstName` will be stored as `firstname` in the schema. It's better to name this column `first_name`.
+
+Here are some examples of good column names:
+
+```sql
+email
+is_paid
+user_id
+created_at
+```
+
+Here are some examples of bad column names:
+```sql
+isConfirmed -- Not in snake case, should be `is_confirmed`
+firstName -- Not in snake case, should be `first_name`
+```
+
 ## View
 
 **Module Names:**
