@@ -245,6 +245,30 @@ This will render like:
 </div>
 ```
 
+### Disabled Fields
+
+You can mark an input as disabled like this:
+
+```haskell
+{(textField #title) { disabled = True } }
+```
+
+This will render like:
+
+```html
+<div class="form-group" id="form-group-post_title">
+    <label for="post_title">Title</label>
+
+    <input
+        type="text"
+        name="title"
+        id="post_title"
+        disabled="disabled"
+        class="form-control"
+    />
+</div>
+```
+
 ### Autofocus
 
 You can mark an input with autofocus, to ensure it will be given the input focus on page load, like this:
@@ -268,7 +292,6 @@ This will render like:
     />
 </div>
 ```
-
 
 ### Custom Submit Button Text
 
@@ -566,7 +589,8 @@ By default forms have the CSS class `new-form` or `edit-form`, depending on if t
 
 ```html
 <form class="new-form">
-<form class="edit-form">
+    <form class="edit-form"></form>
+</form>
 ```
 
 You can override the form class using `formForWithOptions`:
@@ -584,7 +608,7 @@ options formContext =
 The generated HTML will look like this:
 
 ```html
-<form class="custom-form-class">
+<form class="custom-form-class"></form>
 ```
 
 If you want to append your own classes while keeping the default `new-form` and `edit-form` classes, use `modify`:
@@ -613,7 +637,7 @@ options formContext =
 The generated HTML will look like this:
 
 ```html
-<form id="post-form">
+<form id="post-form"></form>
 ```
 
 ### Custom Form Attributes
@@ -636,7 +660,7 @@ options formContext =
 The generated HTML will look like this:
 
 ```html
-<form data-post-id="bd20f13d-e04b-4ef2-be62-64707cbda980">
+<form data-post-id="bd20f13d-e04b-4ef2-be62-64707cbda980"></form>
 ```
 
 ### Disable Form Submission via JavaScript
@@ -653,7 +677,7 @@ renderForm post = formForWithOptions post options [hsx||]
 
 options :: FormContext Post -> FormContext Post
 options formContext =
-    formContext 
+    formContext
     |> set #disableJavascriptSubmission True
 ```
 
