@@ -78,7 +78,7 @@ instance Default CSSFramework where
                     validationResult = unless (get #disableValidationResult formField) ((get #styledValidationResult cssFramework) cssFramework formField)
 
                     renderCheckboxFormField :: FormField -> Blaze.Html
-                    renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) = do
+                    renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) = do
                         formGroup do
                             (H.div ! A.class_ "form-check") do
                                 let element = if disableLabel then H.div else H.label ! A.class_ (if labelClass == "" then "form-check-label" else H.textValue labelClass)
@@ -90,6 +90,7 @@ instance Default CSSFramework where
                                             !? (required, A.required "required")
                                             !? (autofocus, A.autofocus "autofocus")
                                             !? (fieldValue == "yes", A.checked "checked")
+                                            !? (disabled, A.disabled "disabled")
                                     theInput
                                     H.input ! A.type_ "hidden" ! A.name fieldName ! A.value (cs $ inputValue False)
                                     Blaze.text fieldLabel
@@ -97,7 +98,7 @@ instance Default CSSFramework where
                                     helpText
 
                     renderTextField :: Blaze.AttributeValue -> FormField -> Blaze.Html
-                    renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required, autofocus }) =
+                    renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required, autofocus }) =
                         formGroup do
                             unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
                             let theInput = (fieldInput formField)
@@ -108,15 +109,16 @@ instance Default CSSFramework where
                                     ! A.class_ (cs $ classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))])
                                     !? (required, A.required "required")
                                     !? (autofocus, A.autofocus "autofocus")
+                                    !? (disabled, A.disabled "disabled")
                             if fieldValue == "" then theInput else theInput ! A.value (cs fieldValue)
                             validationResult
                             helpText
 
                     renderSelectField :: FormField -> Blaze.Html
-                    renderSelectField formField@(FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) =
+                    renderSelectField formField@(FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) =
                         formGroup do
                             unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                            H.select ! A.name fieldName ! A.id (cs fieldInputId) ! A.class_ (cs $ classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]) ! A.value (cs fieldValue) !? (required, A.required "required") !? (autofocus, A.autofocus "autofocus") $ do
+                            H.select ! A.name fieldName ! A.id (cs fieldInputId) ! A.class_ (cs $ classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]) ! A.value (cs fieldValue) !? (disabled, A.disabled "disabled") !? (required, A.required "required") !? (autofocus, A.autofocus "autofocus") $ do
                                 let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
                                 (if isValueSelected then Blaze.option else Blaze.option ! A.selected "selected")  ! A.disabled "disabled" $ Blaze.text placeholder
                                 forEach (options fieldType) $ \(optionLabel, optionValue) -> (let option = Blaze.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
