@@ -8,7 +8,7 @@ This modules provides helper functions to access relationshops for a model.
 
 See https://ihp.digitallyinduced.com/Guide/relationships.html for some examples.
 -}
-module IHP.FetchRelated (fetchRelated, collectionFetchRelated, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
+module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRelatedOrNothing, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
 
 import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
@@ -29,6 +29,23 @@ class CollectionFetchRelated relatedFieldValue relatedModel where
             ?modelContext :: ModelContext,
             HasField relatedField model relatedFieldValue,
             UpdateField relatedField model (Include relatedField model) relatedFieldValue (FetchResult relatedFieldValue relatedModel),
+            Fetchable relatedFieldValue relatedModel,
+            KnownSymbol (GetTableName relatedModel),
+            PG.FromRow relatedModel,
+            KnownSymbol relatedField
+        ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
+
+-- | This class provides the collectionFetchRelatedOrNothing function
+--
+-- This function is provided by this class as we have to deal with two cases:
+-- 
+-- 1. the related field is an id, e.g. like the company ids in @users |> collectionFetchRelated #companyId@
+-- 2. the related field is a query builder, e.g. in @posts |> collectionFetchRelated #comments@
+class CollectionFetchRelatedOrNothing relatedFieldValue relatedModel where
+    collectionFetchRelatedOrNothing :: forall model relatedField. (
+            ?modelContext :: ModelContext,
+            HasField relatedField model (Maybe relatedFieldValue),
+            UpdateField relatedField model (Include relatedField model) (Maybe relatedFieldValue) (Maybe (FetchResult relatedFieldValue relatedModel)),
             Fetchable relatedFieldValue relatedModel,
             KnownSymbol (GetTableName relatedModel),
             PG.FromRow relatedModel,
@@ -76,6 +93,53 @@ instance (
                             Just m -> m
                             Nothing -> error ("Could not find record with id = " <> show targetForeignKey <> " in result set. Looks like the foreign key is pointing to a non existing record")
                     targetForeignKey = (getField @relatedField model :: Id' tableName)
+                in
+                    updateField @relatedField relatedModel model
+
+        let
+            result :: [Include relatedField model]
+            result = map assignRelated model
+        pure result
+
+-- | Provides collectionFetchRelatedOrNothing for nullable ids, e.g. @collectionFetchRelatedOrNothing #companyId@
+--
+-- When we want to fetch all the users with their companies, we can use collectionFetchRelatedOrNothing like this:
+--
+-- > users <- query @User
+-- >     |> fetch
+-- >     >>= collectionFetchRelatedOrNothing #companyId
+--
+-- This will query all users with their company. The type of @users@ is @[Include "companyId" User]@.
+--
+-- This example will trigger only two SQL queries:
+-- 
+-- > SELECT * FROM users
+-- > SELECT * FROM companies WHERE id IN (?)
+instance (
+        Eq (PrimaryKey tableName)
+        , ToField (PrimaryKey tableName)
+        , Show (PrimaryKey tableName)
+        , HasField "id" relatedModel (Id' tableName)
+        , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
+        ) => CollectionFetchRelatedOrNothing (Id' tableName) relatedModel where
+    collectionFetchRelatedOrNothing :: forall model relatedField. (
+            ?modelContext :: ModelContext,
+            HasField relatedField model (Maybe (Id' tableName)),
+            UpdateField relatedField model (Include relatedField model) (Maybe (Id' tableName)) (Maybe (FetchResult (Id' tableName) relatedModel)),
+            Fetchable (Id' tableName) relatedModel,
+            KnownSymbol (GetTableName relatedModel),
+            PG.FromRow relatedModel,
+            KnownSymbol relatedField
+        ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
+    collectionFetchRelatedOrNothing relatedField model = do
+        relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, mapMaybe (getField @relatedField) model) |> fetch
+        let
+            assignRelated :: model -> Include relatedField model
+            assignRelated model =
+                let
+                    relatedModel :: Maybe (FetchResult (Id' tableName) relatedModel)
+                    relatedModel = find (\r -> Just (getField @"id" r :: (Id' tableName)) == targetForeignKey) relatedModels
+                    targetForeignKey = (getField @relatedField model :: Maybe (Id' tableName))
                 in
                     updateField @relatedField relatedModel model
 
