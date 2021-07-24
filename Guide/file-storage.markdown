@@ -66,7 +66,7 @@ config = do
     initS3Storage "eu-central-1" "my-bucket-name"
 ```
 
-You need to replace `eu-central-1` with your availbility zone and `my-bucket-name` with the name of your S3 bucket.
+You need to replace `eu-central-1` with your availability zone and `my-bucket-name` with the name of your S3 bucket.
 
 The AWS access key and secret key have to be provided using the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` env vars.
 
@@ -130,12 +130,11 @@ export MINIO_SECRET_KEY="YOUR SECRET"     # <---------
 RunDevServer
 ```
 
-
 ## Uploading
 
 ### Saving a User Upload to the Storage
 
-In this example we asume the following data schema:
+In this example we assume the following data schema:
 
 ```sql
 CREATE TABLE companies (
@@ -231,7 +230,6 @@ The `applyImageMagick` function requires `imagemagick` to be installed. You can 
 
 After that run `make -B .envrc` and restart your development server.
 
-
 #### Jpegs
 
 To store an image as a jpeg and reduce it's quality use this:
@@ -248,7 +246,6 @@ The browser uses the [`Content-Disposition`](https://developer.mozilla.org/en-US
 By default no `Content-Disposition` header is set.
 
 If you use the S3 Storage you can use the `contentDispositionAttachmentAndFileName` function to mark a file as an attachment and use it's original provided file name as the downloaded file name:
-
 
 ```haskell
 let uploadAttachment = uploadToStorageWithOptions $ def
@@ -312,7 +309,6 @@ let options :: StoreFileOptions = def
 storedFile <- storeFileWithOptions file options
 let url = get #url storedFile
 ```
-
 
 ## Signed Temporary Download Urls
 
