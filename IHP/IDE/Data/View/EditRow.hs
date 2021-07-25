@@ -61,7 +61,7 @@ instance View EditRowView where
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
             renderPrimaryKeyInput (primaryKeyField, primaryKeyValue) = [hsx|<input type="hidden" name={primaryKeyField <> "-pk"} value={primaryKeyValue}>|]
-            
+
             renderFormField :: (ColumnDefinition, DynamicField) -> Html
             renderFormField (def, val) = [hsx|
                     <div class="form-group">
@@ -171,6 +171,38 @@ instance View EditRowView where
                                 </div>
                             </div>
                                 |]
+            renderInputMethod (def, val) | sqlValueToText (get #fieldValue val) == "NULL" = [hsx|
+                            {isBooleanParam False def}
+                            <input
+                                id={get #columnName def <> "-alt"}
+                                type="text"
+                                name={get #columnName def}
+                                class="form-control text-monospace text-secondary bg-light"
+                                value={sqlValueToText (get #fieldValue val)}
+                            />
+                            <div class="input-group-append">
+                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                    <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "false"}>DEFAULT</a>
+                                    <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "false"}>NULL</a>
+                                    <a class="dropdown-item">
+                                        <input
+                                            id={get #columnName def <> "-sqlbox"}
+                                            type="checkbox"
+                                            name={get #columnName def <> "_"}
+                                            checked={True}
+                                            class="mr-1"
+                                            onclick={"sqlModeCheckbox('" <> get #columnName def <> "', this)"}
+                                            />
+                                        <label class="form-check-label" for={get #columnName def <> "-sqlbox"}> Parse as SQL</label>
+                                    </a>
+                                    <input
+                                        type="hidden"
+                                        name={get #columnName def <> "_"}
+                                        value={inputValue False}
+                                        />
+                                </div>
+                            </div>|]
             renderInputMethod (def, val) = [hsx|
                             {isBooleanParam False def}
                             <input
