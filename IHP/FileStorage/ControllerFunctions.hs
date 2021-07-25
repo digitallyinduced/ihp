@@ -12,6 +12,7 @@ module IHP.FileStorage.ControllerFunctions
 , contentDispositionAttachmentAndFileName
 , createTemporaryDownloadUrl
 , createTemporaryDownloadUrlFromPath
+, uploadToStorage
 , uploadToStorageWithOptions
 ) where
 
@@ -92,7 +93,7 @@ storeFile fileInfo directory = storeFileWithOptions fileInfo (def { directory })
 storeFileWithOptions :: (?context :: context, ConfigProvider context) => Wai.FileInfo LByteString -> StoreFileOptions -> IO StoredFile
 storeFileWithOptions fileInfo options = do
     objectId <- UUID.nextRandom
-    
+
     let directory = get #directory options
     let objectPath = directory <> "/" <> UUID.toText objectId
     let preprocess = get #preprocess options
@@ -122,7 +123,7 @@ storeFileWithOptions fileInfo options = do
                 putObject bucket objectPath payload Nothing options
 
             pure $ baseUrl <> objectPath
-    
+
     pure StoredFile { path = objectPath, url }
 
 -- | Fetchs an url and uploads it to the storage.
@@ -208,7 +209,7 @@ createTemporaryDownloadUrlFromPath objectPath = do
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do
-            
+
             url <- runMinio connectInfo do
                 presignedGetObjectUrl bucket objectPath validInSeconds [] []
 
@@ -241,11 +242,11 @@ contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; file
 -- | Saves an upload to the storage and sets the record attribute to the url.
 --
 -- __Example:__ Upload a logo for a Company and convert it to a 512x512 PNG
--- 
+--
 -- > action UpdateCompanyAction { companyId } = do
 -- >     let uploadLogo = uploadToStorageWithOptions $ def
 -- >             { preprocess = applyImageMagick "png" "-resize '512x512^' -gravity north -extent 512x512 -quality 100% -strip"  }
--- > 
+-- >
 -- >     company <- fetch companyId
 -- >     company
 -- >         |> fill @'["name"]
@@ -293,7 +294,7 @@ uploadToStorageWithOptions options field record = do
 -- See 'uploadToStorageWithOptions' if you want to provide custom options.
 --
 -- __Example:__ Upload a logo for a Company
--- 
+--
 -- > action UpdateCompanyAction { companyId } = do
 -- >     company <- fetch companyId
 -- >     company
