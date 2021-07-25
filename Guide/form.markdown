@@ -293,6 +293,7 @@ This will render like:
 </div>
 ```
 
+
 ### Custom Submit Button Text
 
 Customize it like this:
@@ -589,8 +590,7 @@ By default forms have the CSS class `new-form` or `edit-form`, depending on if t
 
 ```html
 <form class="new-form">
-    <form class="edit-form"></form>
-</form>
+<form class="edit-form">
 ```
 
 You can override the form class using `formForWithOptions`:
@@ -608,7 +608,7 @@ options formContext =
 The generated HTML will look like this:
 
 ```html
-<form class="custom-form-class"></form>
+<form class="custom-form-class">
 ```
 
 If you want to append your own classes while keeping the default `new-form` and `edit-form` classes, use `modify`:
@@ -637,7 +637,7 @@ options formContext =
 The generated HTML will look like this:
 
 ```html
-<form id="post-form"></form>
+<form id="post-form">
 ```
 
 ### Custom Form Attributes
@@ -660,7 +660,7 @@ options formContext =
 The generated HTML will look like this:
 
 ```html
-<form data-post-id="bd20f13d-e04b-4ef2-be62-64707cbda980"></form>
+<form data-post-id="bd20f13d-e04b-4ef2-be62-64707cbda980">
 ```
 
 ### Disable Form Submission via JavaScript
@@ -677,7 +677,7 @@ renderForm post = formForWithOptions post options [hsx||]
 
 options :: FormContext Post -> FormContext Post
 options formContext =
-    formContext
+    formContext 
     |> set #disableJavascriptSubmission True
 ```
 
