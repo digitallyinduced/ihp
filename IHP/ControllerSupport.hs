@@ -56,7 +56,6 @@ import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
 import qualified IHP.Assets.ControllerFunctions as Assets
-import qualified Network.Wai.Middleware.AddHeaders as Headers
 
 type Action' = IO ResponseReceived
 
@@ -187,7 +186,6 @@ setHeader header = do
 addHeaders :: [Header] -> Response -> Response
 addHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers ++ hs)
 {-# INLINABLE addHeaders #-}
-
 
 addResponseHeadersFromContext :: (?context :: ControllerContext) => Response -> IO Response
 addResponseHeadersFromContext response = do
