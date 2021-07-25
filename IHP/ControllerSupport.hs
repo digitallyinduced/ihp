@@ -183,10 +183,21 @@ setHeader header = do
     Context.putContext (header : headers)
 {-# INLINABLE setHeader #-}
 
+-- | Add headers to current response
+-- | Returns a Response with headers
+--
+-- >>>  addResponseHeaders [("Content-Type", "text/html")] response
+--
 addResponseHeaders :: [Header] -> Response -> Response
 addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers ++ hs)
 {-# INLINABLE addResponseHeaders #-}
 
+-- | Add headers to current response, getting the headers from ControllerContext
+-- | Returns a Response with headers
+--
+-- >>>  addResponseHeadersFromContext response
+-- You probabaly want `setHeader`
+--
 addResponseHeadersFromContext :: (?context :: ControllerContext) => Response -> IO Response
 addResponseHeadersFromContext response = do
     maybeHeaders <- Context.maybeFromContext @[Header]
