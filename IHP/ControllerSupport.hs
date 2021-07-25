@@ -23,7 +23,7 @@ module IHP.ControllerSupport
 , requestBodyJSON
 , startWebSocketApp
 , setHeader
-, addHeaders
+, addResponseHeaders
 , addResponseHeadersFromContext
 ) where
 
@@ -183,15 +183,15 @@ setHeader header = do
     Context.putContext (header : headers)
 {-# INLINABLE setHeader #-}
 
-addHeaders :: [Header] -> Response -> Response
-addHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers ++ hs)
-{-# INLINABLE addHeaders #-}
+addResponseHeaders :: [Header] -> Response -> Response
+addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers ++ hs)
+{-# INLINABLE addResponseHeaders #-}
 
 addResponseHeadersFromContext :: (?context :: ControllerContext) => Response -> IO Response
 addResponseHeadersFromContext response = do
     maybeHeaders <- Context.maybeFromContext @[Header]
     let headers = fromMaybe [] maybeHeaders
-    let responseWithHeaders = addHeaders headers response
+    let responseWithHeaders = addResponseHeaders headers response
     pure responseWithHeaders
 {-# INLINABLE addResponseHeadersFromContext #-}
 
