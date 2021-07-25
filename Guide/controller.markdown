@@ -266,6 +266,13 @@ to `Just "the user agent value"`.
 
 The lookup for the header in the request is case insensitive.
 
+Use `setHeader` to set a request header:
+
+```haskell
+action ExampleAction = do
+    setHeader ("Max-Age", 10)
+```
+
 ## Rendering Responses
 
 ### Rendering Views
