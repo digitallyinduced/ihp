@@ -269,6 +269,31 @@ This will render like:
 </div>
 ```
 
+### Multiple
+
+You can mark an input with multiple, to ensure it will aceept multiple values, like this:
+
+```haskell
+{(textField #email) { multiple = True } }
+```
+
+This will render like:
+
+```html
+<div class="form-group" id="form-group-post_email">
+    <label for="post_email">Email</label>
+
+    <input
+        type="email"
+        name="email"
+        id="post_email"
+        class="form-control"
+        multiple="multiple"
+    />
+</div>
+```
+
+Note: `multiple` attribute is only valid for email input, file input, and select
 
 ### Custom Submit Button Text
 
