@@ -26,7 +26,7 @@ type HtmlWithContext context = (?context :: context) => Blaze.Html
 -- | A layout is just a function taking a view and returning a new view.
 --
 -- __Example:__ A very basic html layout.
--- 
+--
 -- > myLayout :: Layout
 -- > myLayout view = [hsx|
 -- >     <html>
@@ -55,6 +55,7 @@ data FormField = FormField
     , placeholder :: !Text
     , required :: Bool
     , autofocus :: Bool
+    , multiple :: Bool
     }
 
 data SubmitButton = SubmitButton
