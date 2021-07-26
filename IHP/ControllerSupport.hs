@@ -186,7 +186,7 @@ setHeader header = do
 -- | Add headers to current response
 -- | Returns a Response with headers
 --
--- >>>  addResponseHeaders [("Content-Type", "text/html")] response
+-- > addResponseHeaders [("Content-Type", "text/html")] response
 --
 addResponseHeaders :: [Header] -> Response -> Response
 addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers ++ hs)
