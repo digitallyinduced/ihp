@@ -189,7 +189,7 @@ setHeader header = do
 -- > addResponseHeaders [("Content-Type", "text/html")] response
 --
 addResponseHeaders :: [Header] -> Response -> Response
-addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers ++ hs)
+addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers <> hs)
 {-# INLINABLE addResponseHeaders #-}
 
 -- | Add headers to current response, getting the headers from ControllerContext
