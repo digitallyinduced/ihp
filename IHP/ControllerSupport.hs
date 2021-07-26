@@ -195,7 +195,7 @@ addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers ++ h
 -- | Add headers to current response, getting the headers from ControllerContext
 -- | Returns a Response with headers
 --
--- >>>  addResponseHeadersFromContext response
+-- > addResponseHeadersFromContext response
 -- You probabaly want `setHeader`
 --
 addResponseHeadersFromContext :: (?context :: ControllerContext) => Response -> IO Response
