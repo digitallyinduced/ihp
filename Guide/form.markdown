@@ -245,6 +245,30 @@ This will render like:
 </div>
 ```
 
+### Disabled Fields
+
+You can mark an input as disabled like this:
+
+```haskell
+{(textField #title) { disabled = True } }
+```
+
+This will render like:
+
+```html
+<div class="form-group" id="form-group-post_title">
+    <label for="post_title">Title</label>
+
+    <input
+        type="text"
+        name="title"
+        id="post_title"
+        disabled="disabled"
+        class="form-control"
+    />
+</div>
+```
+
 ### Autofocus
 
 You can mark an input with autofocus, to ensure it will be given the input focus on page load, like this:
