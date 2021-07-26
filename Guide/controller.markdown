@@ -270,7 +270,7 @@ Use `setHeader` to set a request header:
 
 ```haskell
 action ExampleAction = do
-    setHeader ("Max-Age", 10)
+    setHeader ("Max-Age", "10")
 ```
 
 ## Rendering Responses
