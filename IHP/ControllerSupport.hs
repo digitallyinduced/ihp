@@ -22,6 +22,9 @@ module IHP.ControllerSupport
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
+, setHeader
+, addResponseHeaders
+, addResponseHeadersFromContext
 ) where
 
 import ClassyPrelude
@@ -137,7 +140,7 @@ jumpToAction theAction = do
 
 {-# INLINE getRequestBody #-}
 getRequestBody :: (?context :: ControllerContext) => IO LByteString
-getRequestBody = 
+getRequestBody =
     ?context
     |> get #requestContext
     |> get #requestBody
@@ -168,6 +171,40 @@ getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQuery
 getHeader :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
 {-# INLINABLE getHeader #-}
+
+-- | Set a header value for a given header name.
+--
+-- >>> setHeader ("Content-Language", "en")
+--
+setHeader :: (?context :: ControllerContext) => Header -> IO ()
+setHeader header = do
+    maybeHeaders <- Context.maybeFromContext @[Header]
+    let headers = fromMaybe [] maybeHeaders
+    Context.putContext (header : headers)
+{-# INLINABLE setHeader #-}
+
+-- | Add headers to current response
+-- | Returns a Response with headers
+--
+-- > addResponseHeaders [("Content-Type", "text/html")] response
+--
+addResponseHeaders :: [Header] -> Response -> Response
+addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers <> hs)
+{-# INLINABLE addResponseHeaders #-}
+
+-- | Add headers to current response, getting the headers from ControllerContext
+-- | Returns a Response with headers
+--
+-- > addResponseHeadersFromContext response
+-- You probabaly want `setHeader`
+--
+addResponseHeadersFromContext :: (?context :: ControllerContext) => Response -> IO Response
+addResponseHeadersFromContext response = do
+    maybeHeaders <- Context.maybeFromContext @[Header]
+    let headers = fromMaybe [] maybeHeaders
+    let responseWithHeaders = addResponseHeaders headers response
+    pure responseWithHeaders
+{-# INLINABLE addResponseHeadersFromContext #-}
 
 -- | Returns the current HTTP request.
 --
@@ -220,7 +257,8 @@ instance Show ResponseException where show _ = "ResponseException { .. }"
 
 instance Exception ResponseException
 
-
-respondAndExit :: Response -> IO ()
-respondAndExit response = Exception.throwIO (ResponseException response)
+respondAndExit :: (?context::ControllerContext) => Response -> IO ()
+respondAndExit response = do
+    responseWithHeaders <- addResponseHeadersFromContext response
+    Exception.throwIO (ResponseException responseWithHeaders)
 {-# INLINE respondAndExit #-}
