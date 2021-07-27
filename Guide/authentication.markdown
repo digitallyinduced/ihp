@@ -228,7 +228,7 @@ To block login (requires `isConfirmed`boolean field in `Users` table):
 ```haskell
 instance Sessions.SessionsControllerConfig User where
     beforeLogin user = do
-        unless (get #isconfirmed user) do
+        unless (get #isConfirmed user) do
             setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
             redirectTo NewSessionAction
 ```
