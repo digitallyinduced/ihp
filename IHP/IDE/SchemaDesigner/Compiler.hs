@@ -87,6 +87,8 @@ compileExpression (LessThanExpression a b) = compileExpression a <> " < " <> com
 compileExpression (LessThanOrEqualToExpression a b) = compileExpression a <> " <= " <> compileExpression b
 compileExpression (GreaterThanExpression a b) = compileExpression a <> " > " <> compileExpression b
 compileExpression (GreaterThanOrEqualToExpression a b) = compileExpression a <> " >= " <> compileExpression b
+compileExpression (DoubleExpression double) = tshow double
+compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT

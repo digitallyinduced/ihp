@@ -557,17 +557,23 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
 
                 isNullExpr (VarExpression varName) = toUpper varName == "NULL"
                 isNullExpr _ = False
+
+                -- We remove type casts here, as we need the actual value literal for setting our default value
+                theNormalizedDefaultValue = theDefaultValue |> SchemaDesigner.removeTypeCasts
             in
                 if isNullExpr theDefaultValue
                     then "Nothing"
                     else
                         case columnType of
-                            PText -> case theDefaultValue of
+                            PText -> case theNormalizedDefaultValue of
                                 TextExpression value -> wrapNull notNull (tshow value)
                                 otherwise            -> error ("toDefaultValueExpr: TEXT column needs to have a TextExpression as default value. Got: " <> show otherwise)
-                            PBoolean -> case theDefaultValue of
+                            PBoolean -> case theNormalizedDefaultValue of
                                 VarExpression value -> wrapNull notNull (tshow (toLower value == "true"))
                                 otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
+                            PDouble -> case theNormalizedDefaultValue of
+                                DoubleExpression value -> wrapNull notNull (tshow value)
+                                otherwise           -> error ("toDefaultValueExpr: DOUBLE column needs to have a DoubleExpression as default value. Got: " <> show otherwise)
                             _ -> "def"
 toDefaultValueExpr _ = "def"
 
