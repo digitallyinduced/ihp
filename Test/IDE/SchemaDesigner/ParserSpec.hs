@@ -458,6 +458,13 @@ tests = do
                     ]
             parseSqlStatements sql `shouldBe` statements
 
+        it "should parse a decimal default value with a type-cast" do
+            let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
+            let statements =
+                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+                    ]
+            parseSqlStatements sql `shouldBe` statements
+
 
 col :: Column
 col = Column

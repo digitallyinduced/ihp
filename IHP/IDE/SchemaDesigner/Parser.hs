@@ -9,6 +9,7 @@ module IHP.IDE.SchemaDesigner.Parser
 , parseDDL
 , expression
 , sqlType
+, removeTypeCasts
 ) where
 
 import IHP.Prelude
@@ -349,7 +350,7 @@ sqlType = choice $ map optionalArray
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
 
-term = parens expression <|> try callExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try callExpr <|> try doubleExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -364,6 +365,7 @@ table = [
 
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
+            , typeCast
             ],
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
         ]
@@ -371,6 +373,13 @@ table = [
         binary  name f = InfixL  (f <$ try (symbol name))
         prefix  name f = Prefix  (f <$ symbol name)
         postfix name f = Postfix (f <$ symbol name)
+
+        -- Cannot be implemented as a infix operator as that requires two expression operands,
+        -- but the second is the type-cast type which is not an expression
+        typeCast = Postfix do
+            symbol "::"
+            castType <- sqlType
+            pure $ \expr -> TypeCastExpression expr castType
 
 -- | Parses a SQL expression
 --
@@ -383,6 +392,9 @@ expression = do
 
 varExpr :: Parser Expression
 varExpr = VarExpression <$> identifier
+
+doubleExpr :: Parser Expression
+doubleExpr = DoubleExpression <$> Lexer.float
 
 callExpr :: Parser Expression
 callExpr = do
@@ -443,3 +455,9 @@ createTrigger = do
     lexeme "TRIGGER"
     raw <- cs <$> someTill (anySingle) (char ';')
     pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
+
+
+-- | Turns sql like '1::double precision' into just '1'
+removeTypeCasts :: Expression -> Expression
+removeTypeCasts (TypeCastExpression value _) = value
+removeTypeCasts otherwise = otherwise
