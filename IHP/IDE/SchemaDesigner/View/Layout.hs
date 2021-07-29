@@ -176,12 +176,12 @@ renderColumnIndexes tableName statements = forEach (findTableIndexes statements 
         renderIndex index = [hsx|
             <tr class="index">
                 <td class="index-name">{get #indexName index}</td>
-                {unique}
+                <td class="index-expressions">{unique}</td>
                 <td class="index-expressions">{expressions}</td>
             </tr>
         |]
             where
-                unique = when (get #unique index) [hsx|<td class="index-expressions">UNIQUE</td>|]
+                unique = when (get #unique index) [hsx|UNIQUE|]
                 expressions = index
                     |> get #expressions
                     |> map compileExpression
