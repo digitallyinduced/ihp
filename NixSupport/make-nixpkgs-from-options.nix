@@ -3,7 +3,7 @@
 # the project
 { ihp
 , haskellPackagesDir
-, dontCheckPackages ? ["mmark"]
+, dontCheckPackages ? ["mmark" "mmark-ext"]
 , doJailbreakPackages ? []
 , dontHaddockPackages ? []
 , nixPkgsRev ? "303e44b3c11a1ed3b470f90bc6d1f03efdb87239"
