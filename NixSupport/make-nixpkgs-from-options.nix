@@ -4,7 +4,7 @@
 { ihp
 , haskellPackagesDir
 , dontCheckPackages ? ["mmark" "mmark-ext"]
-, doJailbreakPackages ? []
+, doJailbreakPackages ? ["haskell-to-elm"]
 , dontHaddockPackages ? []
 , nixPkgsRev ? "303e44b3c11a1ed3b470f90bc6d1f03efdb87239"
 , nixPkgsSha256 ? "0kfrw1mvpx2nkr493iq6bw0d6cxdwrmp6xqsir20bhmqwr36sds7"
