@@ -23,4 +23,5 @@ mkDerivation {
   homepage = "https://github.com/mmark-md/mmark";
   description = "Strict markdown processor for writers";
   license = lib.licenses.bsd3;
+  doCheck = true;
 }
