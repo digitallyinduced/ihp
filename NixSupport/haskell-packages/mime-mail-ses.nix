@@ -1,7 +1,7 @@
 { mkDerivation, base, base16-bytestring, base64-bytestring
 , byteable, bytestring, case-insensitive, conduit, cryptohash
 , http-client, http-client-tls, http-conduit, http-types, mime-mail
-, optparse-applicative, stdenv, tasty, tasty-hunit, text, time
+, optparse-applicative, lib, tasty, tasty-hunit, text, time
 , xml-conduit, xml-types
 }:
 mkDerivation {
@@ -24,5 +24,5 @@ mkDerivation {
   ];
   homepage = "http://github.com/snoyberg/mime-mail";
   description = "Send mime-mail messages via Amazon SES";
-  license = stdenv.lib.licenses.mit;
+  license = lib.licenses.mit;
 }

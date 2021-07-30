@@ -3,7 +3,7 @@
 , cryptonite-conduit, digest, directory, exceptions, filepath
 , http-client, http-client-tls, http-conduit, http-types, ini
 , memory, network-uri, protolude, QuickCheck, raw-strings-qq
-, resourcet, retry, stdenv, tasty, tasty-hunit, tasty-quickcheck
+, resourcet, retry, lib, tasty, tasty-hunit, tasty-quickcheck
 , tasty-smallcheck, text, time, transformers, unliftio
 , unliftio-core, unordered-containers, xml-conduit, fetchFromGitHub
 }:
@@ -37,5 +37,5 @@ mkDerivation {
   ];
   homepage = "https://github.com/minio/minio-hs#readme";
   description = "A MinIO Haskell Library for Amazon S3 compatible cloud storage";
-  license = stdenv.lib.licenses.asl20;
+  license = lib.licenses.asl20;
 }
