@@ -1,4 +1,4 @@
-{ ihp, mkDerivation, base, stdenv, fetchFromGitHub, raven-haskell, wai, warp
+{ ihp, mkDerivation, base, lib, fetchFromGitHub, raven-haskell, wai, warp
 }:
 mkDerivation {
   pname = "ihp-sentry";
@@ -10,7 +10,7 @@ mkDerivation {
   testHaskellDepends = [ ];
   homepage = "https://github.com/digitallyinduced/ihp-sentry";
   description = "Track exceptions in your IHP apps with sentry";
-  license = stdenv.lib.licenses.mit;
+  license = lib.licenses.mit;
   src = fetchFromGitHub {
     owner = "digitallyinduced";
     repo = "ihp-sentry";

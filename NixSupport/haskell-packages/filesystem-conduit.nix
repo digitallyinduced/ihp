@@ -1,6 +1,6 @@
 { mkDerivation, base, blaze-builder, bytestring, conduit
      , containers, hspec, QuickCheck, system-fileio, system-filepath
-     , text, transformers, unix, conduit-extra, stdenv, resourcet
+     , text, transformers, unix, conduit-extra, lib, resourcet
      }:
      mkDerivation {
        pname = "filesystem-conduit";
@@ -20,6 +20,6 @@
        		sed -i -e 's/Prelude hiding (FilePath)/Prelude hiding (FilePath, traverse)/g' Data/Conduit/Filesystem.hs
        '';
        description = "Use system-filepath data types with conduits. (deprecated)";
-       license = stdenv.lib.licenses.mit;
-       hydraPlatforms = stdenv.lib.platforms.none;
+       license = lib.licenses.mit;
+       hydraPlatforms = lib.platforms.none;
      }
