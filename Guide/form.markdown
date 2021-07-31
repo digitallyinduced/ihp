@@ -540,6 +540,32 @@ instance CanSelect ContentType where
     -- You can also use the following shortcut: selectLabel = tshow
 ```
 
+### Select Inputs with Integers
+
+It's a common use case to have a select field consisting of ints, e.g. inside a shopping cart to select the quantity of an item. 
+
+The form can look like this:
+
+```haskell
+formFor subscription [hsx|
+    {selectField #quantity quantities}
+|]
+    where
+        quantities :: [Int]
+        quantities = [1..10]
+        -- Quick reminder: [1..10] is just a shortcut for [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] in haskell :)
+```
+
+You also need a `CanSelect` instance like this:
+
+
+```haskell
+instance CanSelect Int where
+    type SelectValue Int = Int
+    selectValue quantity = quantity
+    selectLabel quantity = tshow quantity
+```
+
 ## Customizing Forms
 
 ### Custom Form Action / Form URLs
