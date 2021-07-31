@@ -393,4 +393,4 @@ TODO
 
 ## File Uploads
 
-TODO
+[See File Storage & Uploads](file-storage.html)

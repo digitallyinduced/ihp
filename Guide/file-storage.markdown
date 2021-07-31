@@ -310,6 +310,34 @@ storedFile <- storeFileWithOptions file options
 let url = get #url storedFile
 ```
 
+### Accessing Uploaded Files without Storing them
+
+You can read the content of an uploaded file without saving it to the cloud storage. This can be useful when you're dealing with text files:
+
+```haskell
+action SubmitMarkdownAction = do
+    let content :: Text =
+            fileOrNothing "markdown"
+            |> fromMaybe (error "no file given")
+            |> get #fileContent
+            |> cs -- content is a LazyByteString, so we use `cs` to convert it to Text
+
+    -- We can now do anything with the content of the uploaded file
+    -- E.g. printing it to the terminal
+    putStrLn content
+```
+
+To upload a file to this action you can use the following form:
+```html
+<form method="POST" action={SubmitMarkdownAction}>
+    <input
+        type="file"
+        name="markdown"
+        accept="text/markdown, text/plain"
+    >
+</form>
+```
+
 ## Signed Temporary Download Urls
 
 When your S3 bucket is not configured for public read access, you need use a temporary download url to provide access to the file:
