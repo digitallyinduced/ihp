@@ -81,6 +81,7 @@ generateGenericApplication applicationName =
                 <> "import IHP.Controller.RequestContext\n"
                 <> "import " <> applicationName <> ".Types\n"
                 <> "import " <> applicationName <> ".Routes\n"
+                <> "import Application.Helper.View\n"
                 <> "\n"
                 <> "defaultLayout :: Html -> Html\n"
                 <> "defaultLayout inner = H.docTypeHtml ! A.lang \"en\" $ [hsx|\n"

@@ -26,6 +26,33 @@ import qualified System.Process as Process
 -- | Returns a file upload from the request as a ByteString.
 --
 -- Returns `Nothing` when the file is not found in the request body.
+--
+-- __Example:__
+--
+-- Given a form like this:
+--
+-- > <form method="POST" action={SubmitMarkdownAction}>
+-- >     <input
+-- >         type="file"
+-- >         name="markdown"
+-- >         accept="text/markdown, text/plain"
+-- >     >
+-- > </form>
+--
+-- The file can be accessed within the action like this:
+--
+-- > action SubmitMarkdownAction = do
+-- >     let content :: Text =
+-- >             fileOrNothing "markdown"
+-- >             |> fromMaybe (error "no file given")
+-- >             |> get #fileContent
+-- >             |> cs -- content is a LazyByteString, so we use `cs` to convert it to Text
+-- >
+--
+-- See 'filesByName' if multiple files can be uploaded by the user in a single form submission.
+--
+-- See 'IHP.FileStorage.ControllerFunctions.storeFile' to upload the file to S3 or similiar cloud storages.
+--
 fileOrNothing :: (?context :: ControllerContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
 fileOrNothing !name =
         ?context
@@ -34,7 +61,52 @@ fileOrNothing !name =
         |> \case
             FormBody { files } -> lookup name files
             _ -> Nothing
-{-# INLINE fileOrNothing #-}
+
+-- | Like 'fileOrNothing' but allows uploading multiple files in the same request
+--
+-- __Example:__
+--
+-- For uploading multiple files we need to set the multiple attribute on the file input:
+--
+-- > <form method="POST" action={SubmitMarkdownAction}>
+-- >     <input
+-- >         type="file"
+-- >         name="markdown"
+-- >         accept="text/markdown, text/plain"
+-- >         multiple
+-- >     >
+-- > </form>
+--
+-- When the user selects multiple files, we can access them like this:
+--
+-- > action SubmitMarkdownAction = do
+-- >     let contents :: [Text] =
+-- >             filesByName "markdown"
+-- >             |> map (get #fileContent)
+-- >             |> map cs -- content is a LazyByteString, so we use `cs` to convert it to Text
+-- >
+--
+-- Use 'IHP.HaskellSupport.forEach' to store multiple files inside the cloud storage:
+--
+-- > action SubmitMarkdownAction = do
+-- >     let markdownFiles = filesByName "markdown"
+-- >
+-- >     forEach markdownFiles \file -> do
+-- >         storeFile file "notes"
+-- >         
+-- >         pure ()
+-- >
+--
+filesByName :: (?context :: ControllerContext) => ByteString -> [FileInfo LBS.ByteString]
+filesByName !name =
+        ?context
+        |> get #requestContext
+        |> get #requestBody
+        |> \case
+            FormBody { files } -> files
+                    |> filter (\(filename, _) -> filename == name)
+                    |> map snd
+            _ -> []
 
 -- | Options to be used together with 'uploadImageWithOptions'
 --

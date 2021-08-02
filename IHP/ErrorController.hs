@@ -136,7 +136,7 @@ genericHandler exception controller additionalInfo = do
     let devTitle = [hsx|{Exception.displayException exception}|]
 
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
-    let prodTitle = [hsx|An error happend|]
+    let prodTitle = [hsx|An error happened|]
 
     let (errorMessage, errorTitle) = if fromConfig environment == Environment.Development
             then (devErrorMessage, devTitle)

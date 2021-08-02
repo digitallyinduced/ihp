@@ -245,6 +245,30 @@ This will render like:
 </div>
 ```
 
+### Disabled Fields
+
+You can mark an input as disabled like this:
+
+```haskell
+{(textField #title) { disabled = True } }
+```
+
+This will render like:
+
+```html
+<div class="form-group" id="form-group-post_title">
+    <label for="post_title">Title</label>
+
+    <input
+        type="text"
+        name="title"
+        id="post_title"
+        disabled="disabled"
+        class="form-control"
+    />
+</div>
+```
+
 ### Autofocus
 
 You can mark an input with autofocus, to ensure it will be given the input focus on page load, like this:
@@ -514,6 +538,32 @@ instance CanSelect ContentType where
     selectLabel Article = "Article"
     selectLabel Audio = "Audio"
     -- You can also use the following shortcut: selectLabel = tshow
+```
+
+### Select Inputs with Integers
+
+It's a common use case to have a select field consisting of ints, e.g. inside a shopping cart to select the quantity of an item. 
+
+The form can look like this:
+
+```haskell
+formFor subscription [hsx|
+    {selectField #quantity quantities}
+|]
+    where
+        quantities :: [Int]
+        quantities = [1..10]
+        -- Quick reminder: [1..10] is just a shortcut for [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] in haskell :)
+```
+
+You also need a `CanSelect` instance like this:
+
+
+```haskell
+instance CanSelect Int where
+    type SelectValue Int = Int
+    selectValue quantity = quantity
+    selectLabel quantity = tshow quantity
 ```
 
 ## Customizing Forms
