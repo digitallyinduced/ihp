@@ -26,7 +26,7 @@ import IHP.ModelSupport (GetModelByTableName)
 import Database.PostgreSQL.Simple.ToField
 
 
--- Paginate a query, with the following default options:
+-- | Paginate a query, with the following default options:
 -- 
 -- 1. Maximum items per page: 50. Each page will show at most 50 items.
 -- 2. Selector window size: 5. The selector will show the current page, and 5 pages before and after it,
@@ -54,7 +54,7 @@ paginate :: (?context::ControllerContext, ?modelContext :: ModelContext, ?theAct
     -> IO (QueryBuilder q, Pagination)
 paginate = paginateWithOptions defaultPaginationOptions
 
--- Paginate with ability to override the default options for maximum items per page and selector window size. 
+-- | Paginate with ability to override the default options for maximum items per page and selector window size. 
 --
 -- This function should be used inside your controller action. It will do two things: 
 --  
