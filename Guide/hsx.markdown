@@ -267,3 +267,37 @@ action CreateUserAction = do
 ```
 
 Now when the country input field is empty when creating the user, the `country` field will be set to `Nothing` instead of `Just ""`.
+
+### Displaying HTML without Escaping
+
+In HSX all variables and expressions are automatically escaped to avoid [XSS](https://en.wikipedia.org/wiki/Cross-site_scripting).
+
+Let's say we have variable `myVariable = "<script>alert(1)</script>"`. This is how the HSX will behave:
+
+```html
+<div>{myVariable}</div>
+
+-- RENDERS to this HTML:
+<div>%3Cscript%3Ealert%281%29%3C/script%3E</div>
+```
+
+Sometimes you want to insert some actual HTML code to your HSX using a variable. E.g. when your app is rendering markdown, the generated HTML by the markdown library should not be escaped, the markdown library typically already takes care of that.
+
+In these cases you can use `preEscapedToHtml` to mark a text as already escaped:
+
+```html
+<div>{markdownHtml |> preEscapedToHtml}</div>
+
+-- Let's define `markdownHtml = "<p>hello</p>"`
+
+-- This will render the followign HTML:
+<div><p>hello</p></div>
+```
+
+Be careful when using `preEscapedToHtml` as it can easily introduce security issues.
+
+The `preEscapedToHtml` function can also be used to output HTML code that is not supported by HSX:
+
+```html
+{"<!--[if IE]> Internet Explorer Conditional Comments <![endif]-->" |> preEscapedToHtml}
+```
