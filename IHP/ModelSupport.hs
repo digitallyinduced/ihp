@@ -52,6 +52,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
+import Data.Scientific
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -154,6 +155,9 @@ instance InputValue value => InputValue [value] where
 instance InputValue Aeson.Value where
     inputValue json = json |> Aeson.encode |> cs
 
+instance InputValue Scientific where
+    inputValue = tshow
+
 instance Default Text where
     {-# INLINE def #-}
     def = ""
@@ -167,6 +171,9 @@ instance Default Point where
 
 instance Default TSVector where
     def = TSVector def
+
+instance Default Scientific where
+    def = 0
 
 type FieldName = ByteString
 
