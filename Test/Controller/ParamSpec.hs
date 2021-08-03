@@ -16,6 +16,7 @@ import qualified Data.UUID as UUID
 import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import qualified GHC.IO as IO
+import Data.Scientific (Scientific)
 
 tests = do
     describe "IHP.Controller.Param" do
@@ -152,6 +153,27 @@ tests = do
                 it "should fail on other JSON input " do
                     (readParameterJSON @Double (json "true")) `shouldBe` (Left "ParamReader Double: Expected Double")
                     (readParameterJSON @Double (json "\"1\"")) `shouldBe` (Left "ParamReader Double: Expected Double")
+
+            describe "Scientific" do
+                it "should accept integer input" do
+                    (readParameter @Scientific "1337") `shouldBe` (Right 1337)
+
+                it "should accept floating point input" do
+                    (readParameter @Scientific "1.2") `shouldBe` (Right 1.2)
+                    (readParameter @Scientific "1.2345679") `shouldBe` (Right 1.2345679)
+                    let x = "1e-1024" -- -1024 is smaller than minimal Double exponent of -1021
+                        y = "1.0e-1024"
+                    (show <$> readParameter @Scientific x) `shouldBe` (Right y)
+
+                it "should accept JSON integer input" do
+                    (readParameterJSON @Scientific (json "1337")) `shouldBe` (Right 1337)
+
+                it "should accept JSON floating point input" do
+                    (readParameterJSON @Scientific (json "1.2")) `shouldBe` (Right 1.2)
+
+                it "should fail on other JSON input " do
+                    (readParameterJSON @Scientific (json "true")) `shouldBe` (Left "ParamReader Scientific: Expected Scientific")
+                    (readParameterJSON @Scientific (json "\"1\"")) `shouldBe` (Left "ParamReader Scientific: Expected Scientific")
 
             describe "Float" do
                 it "should accept integer input" do
