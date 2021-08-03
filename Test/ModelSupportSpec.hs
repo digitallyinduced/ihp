@@ -10,6 +10,7 @@ import IHP.ModelSupport
 import qualified Data.Aeson as Aeson
 import qualified Data.Dynamic as Dynamic
 import Text.Read (read)
+import Data.Scientific (Scientific)
 
 tests = do
     describe "ModelSupport" do
@@ -30,6 +31,11 @@ tests = do
             describe "Double" do
                 it "should return numeric representation" do
                     (inputValue (1.337 :: Double)) `shouldBe` "1.337"
+
+            describe "Scientific" do
+                it "should return numeric representation" do
+                    (inputValue (1.0e-1024 :: Scientific)) `shouldBe` "1.0e-1024"
+                    -- -1024 is smaller than minimal Double exponent of -1021
 
             describe "Float" do
                 it "should return numeric representation" do
