@@ -142,7 +142,7 @@ tests = do
 
                 it "should accept floating point input" do
                     (readParameter @Double "1.2") `shouldBe` (Right 1.2)
-                    (readParameter @Float "1.2345679") `shouldBe` (Right 1.2345679)
+                    (readParameter @Double "1.2345679") `shouldBe` (Right 1.2345679)
 
                 it "should accept JSON integer input" do
                     (readParameterJSON @Double (json "1337")) `shouldBe` (Right 1337)
