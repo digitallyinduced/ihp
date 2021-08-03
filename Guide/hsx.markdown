@@ -290,7 +290,7 @@ In these cases you can use `preEscapedToHtml` to mark a text as already escaped:
 
 -- Let's define `markdownHtml = "<p>hello</p>"`
 
--- This will render the followign HTML:
+-- This will render the following HTML:
 <div><p>hello</p></div>
 ```
 
