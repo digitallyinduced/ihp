@@ -300,6 +300,16 @@ instance ParamReader Double where
                     Right integer -> Right (fromIntegral integer)
     readParameterJSON _ = Left "ParamReader Double: Expected Double"
 
+instance ParamReader Scientific.Scientific where
+    {-# INLINABLE readParameter #-}
+    readParameter byteString =
+        case Attoparsec.parseOnly (Attoparsec.scientific <* Attoparsec.endOfInput) byteString of
+            Right value -> Right value
+            Left error -> Left ("ParamReader Scientific: " <> cs error)
+
+    readParameterJSON (Aeson.Number number) = Right number
+    readParameterJSON _ = Left "ParamReader Scientific: Expected Scientific"
+
 instance ParamReader Float where
     {-# INLINABLE readParameter #-}
     readParameter byteString =

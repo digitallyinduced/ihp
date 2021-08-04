@@ -67,7 +67,7 @@ atomicType = \case
     PTime -> "TimeOfDay"
     PCustomType theType -> tableNameToModelName theType
     PTimestamp -> "LocalTime"
-    (PNumeric _ _) -> "Float"
+    (PNumeric _ _) -> "Scientific"
     (PVaryingN _) -> "Text"
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
@@ -145,6 +145,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import IHP.Job.Types\n"
                   <> "import IHP.Job.Queue ()\n"
                   <> "import qualified Data.Dynamic\n"
+                  <> "import Data.Scientific\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
