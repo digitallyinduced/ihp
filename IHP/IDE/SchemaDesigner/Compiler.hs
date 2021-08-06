@@ -27,7 +27,7 @@ compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIden
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
-compileStatement CreateIndex { indexName, unique, tableName, expressions } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ");"
+compileStatement CreateIndex { indexName, unique, tableName, expressions, whereClause } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
 compileStatement CreateFunction { functionName, functionBody, orReplace } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$" <> functionBody <> "$$ language plpgsql;"
 compileStatement UnknownStatement { raw } = raw <> ";"
 

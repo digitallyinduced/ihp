@@ -428,8 +428,11 @@ createIndex = do
     lexeme "ON"
     tableName <- identifier
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
+    whereClause <- optional do
+        lexeme "WHERE"
+        expression
     char ';'
-    pure CreateIndex { indexName, unique, tableName, expressions }
+    pure CreateIndex { indexName, unique, tableName, expressions, whereClause }
 
 createFunction = do
     lexeme "CREATE"

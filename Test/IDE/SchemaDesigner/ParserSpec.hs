@@ -412,6 +412,7 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
                     }
         it "should parse a CREATE INDEX statement with multiple columns" do
             parseSql "CREATE INDEX users_index ON users (user_name, project_id);\n" `shouldBe` CreateIndex
@@ -419,6 +420,7 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
+                    , whereClause = Nothing
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
@@ -426,6 +428,7 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    , whereClause = Nothing
                     }
         it "should parse a CREATE UNIQUE INDEX statement" do
             parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
@@ -433,6 +436,7 @@ tests = do
                     , unique = True
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
@@ -464,6 +468,18 @@ tests = do
                     [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
                     ]
             parseSqlStatements sql `shouldBe` statements
+
+        it "should parse a partial index" do
+            parseSql "CREATE UNIQUE INDEX unique_source_id ON listings (source, source_id) WHERE source IS NOT NULL AND source_id IS NOT NULL;" `shouldBe` CreateIndex
+                    { indexName = "unique_source_id"
+                    , unique = True
+                    , tableName = "listings"
+                    , expressions = [ VarExpression "source", VarExpression "source_id" ]
+                    , whereClause = Just (
+                        AndExpression
+                            (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
+                            (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
+                    }
 
 
 col :: Column
