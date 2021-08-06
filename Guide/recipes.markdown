@@ -350,7 +350,7 @@ config = do
     option (AppHostname "localhost")
     
     redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
-    option (RedisUrl redisUrl
+    option (RedisUrl redisUrl)
 ```
 
 From our actions, scripts and job workers we can access it like this:
