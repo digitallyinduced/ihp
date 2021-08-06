@@ -2,6 +2,35 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.13.0 from Beta 0.12.0
+
+## Switch IHP version
+
+Open `default.nix` and change the git commit in line 4 to the following:
+
+```diff
+-ref = "refs/tags/v0.12.0";
++ref = "refs/tags/v0.13.0";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+## Updating nixpkgs
+
+If you have custom nix package definitions in your project, you will likely get an error that `stdenv` doesn't exist in expressions like `stdenv.lib.SOMETHING`.
+
+nixpkgs has moved `stdenv.lib` to just `lib`. So you need to replace all mentions of `stdenv.lib.` with `lib.`. You might also need to change import statements that import `stdenv` to instead import `lib` directly.
+
+[To get a better understanding of this, take a look a the upgrade commit to see what changes we did to the custom package definitions included with IHP.](https://github.com/digitallyinduced/ihp/commit/cfc8ceb4918749e833f79ba3d362082d0010f1b4)
+
 # Upgrade to Beta 0.12.0 from Beta 0.11.0
 
 ## Switch IHP version
