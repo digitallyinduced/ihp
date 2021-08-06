@@ -159,12 +159,14 @@ parseFuncs parseIdType = [
             -- Try and parse a UUID. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
             -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
             -- Therefore, we're able to safely cast it to its @Id@ type with @unsafeCoerce@.
-            \case
-                Just queryValue -> queryValue
-                    |> fromASCIIBytes
-                    |> \case
-                        Just uuid -> uuid |> unsafeCoerce |> Right
-                        Nothing -> Left NotMatched
+            \queryValue -> case eqT :: Maybe (d :~: UUID) of
+                Just Refl -> case queryValue of
+                    Just queryValue -> queryValue
+                        |> fromASCIIBytes
+                        |> \case
+                            Just uuid -> uuid |> unsafeCoerce |> Right
+                            Nothing -> Left NotMatched
+                    Nothing -> Left NotMatched
                 Nothing -> Left NotMatched,
 
             -- Try and parse @[Text]@. If value is not present then default to empty list.
