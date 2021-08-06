@@ -133,7 +133,7 @@ assertSuccess body response = do
 
 assertFailure :: SResponse -> IO ()
 assertFailure response = do
-    get #simpleStatus response `shouldBe` status404
+    get #simpleStatus response `shouldBe` status400
 
 tests :: Spec
 tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) do
