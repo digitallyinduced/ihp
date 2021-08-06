@@ -39,7 +39,8 @@ instance View NewEnumValueView where
                     </div>
 
                     <div class="text-right">
-                        <button type="submit" class="btn btn-primary">Create Enum Value</button>
+                        <input type="submit" name="submit" value="Save" class="btn btn-secondary mr-2">
+                        <input type="submit" name="submit" value="Save & Add Another" class="btn btn-primary">
                     </div>
                 </form>
             |]

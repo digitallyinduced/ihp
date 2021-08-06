@@ -28,7 +28,15 @@ instance Controller EnumValuesController where
                 setErrorMessage message
             Success ->
                 updateSchema (map (addValueToEnum enumName enumValueName))
-        redirectTo ShowEnumAction { .. }
+
+        -- The form to save an enum has two save buttons:
+        --
+        -- 1. Save
+        -- 2. Save & Add another
+        --
+        case paramOrDefault @Text "Save" "submit" of
+            "Save" -> redirectTo ShowEnumAction { .. }
+            "Save & Add Another" -> redirectTo NewEnumValueAction { .. }
 
     action EditEnumValueAction { .. } = do
         statements <- readSchema
