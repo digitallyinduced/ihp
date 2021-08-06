@@ -31,6 +31,10 @@ instance View NewEnumValueView where
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="enumValueName" type="text" class="form-control" autofocus="autofocus"/>
+                            <div class="invalid-feedback">It's highly recommended to use sneak case / underscores for naming your enum values</div>
+                            <small class="text-muted">
+                                Use underscores instead of camel case. E.g.: <code>public_user</code>, <code>in_progress</code>, <code>currency_eur</code>
+                            </small>
                         </div>
                     </div>
 
