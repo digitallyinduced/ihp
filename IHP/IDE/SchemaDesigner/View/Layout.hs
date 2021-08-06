@@ -43,6 +43,7 @@ databaseControls = [hsx|
             data-placement="bottom"
             data-html="true"
             title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
+            onclick="checkBeforeUnload()"
             >Update DB</button>
 
         <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -59,6 +60,7 @@ databaseControls = [hsx|
                 data-placement="left"
                 data-html="true"
                 title="Saves the content of all tables to Application/Fixtures.sql"
+                onclick="checkBeforeUnload()"
                 >Save DB to Fixtures</button>
             <button
                 type="submit"
@@ -68,6 +70,7 @@ databaseControls = [hsx|
                 data-placement="left"
                 data-html="true"
                 title="Delete the DB and recreate using Application/Schema.sql and Application/Fixture.sql<br><br><strong class=text-danger>Save DB to Fixtures before using this to avoid data loss</strong>"
+                onclick="checkBeforeUnload()"
                 >Push to DB</button>
         </div>
     </div>
@@ -85,7 +88,7 @@ findStatementByName statementName statements = find pred statements
 visualNav :: Html
 visualNav =
     if isActivePath ShowCodeAction
-        then [hsx|<a class="custom-control custom-switch visual-switch" href={TablesAction}>
+        then [hsx|<a class="custom-control custom-switch visual-switch" href={TablesAction} onclick="checkBeforeUnload()">
                 <input type="checkbox" class="custom-control-input" id="visual-switch" checked="checked"/>
                 <label class="custom-control-label" for="visual-switch">Code Editor</label>
             </a>|]
