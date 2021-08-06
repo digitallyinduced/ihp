@@ -193,7 +193,7 @@ parseFuncs parseIdType = [
                     Nothing -> Left NotMatched
                 Nothing -> Left NotMatched,
 
-            -- **This has to be last parser in the list**
+            -- This has to be last parser in the list
             --
             -- Try and parse a UUID wrapped with a Id. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
             -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
