@@ -117,7 +117,7 @@ parseFuncs parseIdType = [
                     Just Refl -> readMay (cs queryValue :: String)
                         |> \case
                             Just int -> Right int
-                            Nothing -> Left BadType
+                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
                         Just Refl -> Right $ readMay (cs queryValue :: String)
                         Nothing -> Left NotMatched
@@ -130,7 +130,7 @@ parseFuncs parseIdType = [
                     Just Refl -> readMay (cs queryValue :: String)
                         |> \case
                             Just int -> Right int
-                            Nothing -> Left BadType
+                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
                         Just Refl -> Right $ readMay (cs queryValue :: String)
                         Nothing -> Left NotMatched
@@ -165,7 +165,7 @@ parseFuncs parseIdType = [
                         |> fromASCIIBytes
                         |> \case
                             Just uuid -> uuid |> unsafeCoerce |> Right
-                            Nothing -> Left NotMatched
+                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
                     Nothing -> Left NotMatched
                 Nothing -> Left NotMatched,
 
@@ -212,13 +212,6 @@ querySortedByFields query constructor = constrFields constructor
         |> map cs
         |> map (\field -> (field, join $ List.lookup field query))
 
-data TypedAutoRouteError
-    = BadType
-    | TooFewArguments
-    | NotMatched
-    | NoConstructorMatched
-    deriving (Show)
-
 -- | Given a constructor and a parsed query string, attempt to construct a value of the constructor's type.
 -- For example, given the controller
 --
@@ -235,11 +228,15 @@ applyConstr parseIdType constructor query = let
     -- | Given some query item (key, optional value), try to parse into the current expected type
     -- by iterating through the available parse functions.
     attemptToParseArg :: forall d. (Data d) => (ByteString, Maybe ByteString) -> [Maybe ByteString -> Either TypedAutoRouteError d] -> State.StateT Query (Either TypedAutoRouteError) d
-    attemptToParseArg _ [] = State.lift (Left NoConstructorMatched)
+    attemptToParseArg queryParam@(queryName, queryValue) [] = State.lift (Left NoConstructorMatched
+                { field = queryName
+                , value = queryValue
+                , expectedType = (dataTypeOf (undefined :: d)) |> dataTypeName |> cs
+                })
     attemptToParseArg queryParam@(k, v) (parseFunc:restFuncs) = case parseFunc v of
             Right result -> pure result
             -- BadType will be returned if, for example, a text is passed to a query parameter typed as int.
-            Left BadType -> State.lift (Left BadType)
+            Left badType@BadType{} -> State.lift (Left badType { field = k })
             -- otherwise, safe to assume the match just failed, so recurse on the rest of the functions and try to find one that matches.
             Left _ -> attemptToParseArg queryParam restFuncs
 
@@ -294,15 +291,12 @@ class Data controller => AutoRoute controller where
                             unless (allowedMethods |> includes method) (error ("Invalid method, expected one of: " <> show allowedMethods))
                             pure action
 
-                    action :: Maybe controller
                     action = case applyConstr parseIdFunc constr query of
                         Right parsedAction -> pure parsedAction
-                        Left e -> Nothing
+                        Left e -> Exception.throw e
 
                 in do
-                    parsedAction <- string prefix >> (string actionPath <* endOfInput) *> (case action of
-                        Just a -> pure a
-                        Nothing -> fail "Failed to parse action")
+                    parsedAction <- string prefix >> (string actionPath <* endOfInput) *> action
                     checkRequestMethod parsedAction
 
         in choice (map parseAction allConstructors)

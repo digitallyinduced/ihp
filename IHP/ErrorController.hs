@@ -91,13 +91,11 @@ displayException exception action additionalInfo = do
             , paramNotFoundExceptionHandler
             , patternMatchFailureHandler
             , recordNotFoundExceptionHandlerDev
-            , handleInvalidActionArgumentExceptionDev
             ]
 
     -- Prod handlers should not leak any information about the system
     let prodHandlers =
             [ recordNotFoundExceptionHandlerProd
-            , handleInvalidActionArgumentExceptionProd
             ]
 
     let allHandlers = if fromConfig environment == Environment.Development
@@ -325,43 +323,39 @@ recordNotFoundExceptionHandlerProd exception controller additionalInfo =
         Nothing -> Nothing
 
 handleRouterException :: (?context :: RequestContext) => SomeException -> IO ResponseReceived
-handleRouterException exception = do
-    let errorMessage = [hsx|
-            Routing failed with: {tshow exception}
-
-            <h2>Possible Solutions</h2>
-            <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
-            <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
-        |]
-    let title = H.text "Routing failed"
-    let RequestContext { respond } = ?context
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
-
--- | Renders a helpful error when e.g. an UUID value is expected as an action argument, but something else is given
-handleInvalidActionArgumentExceptionDev :: (?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
-handleInvalidActionArgumentExceptionDev exception controller additionalInfo = do
+handleRouterException exception =
     case fromException exception of
-        Just Router.InvalidActionArgumentException { expectedType, value, field } -> do
+        Just Router.NoConstructorMatched { expectedType, value, field } -> do
+            let errorMessage = [hsx|
+                    <p>Routing failed with: {tshow exception}</p>
+
+                    <h2>Possible Solutions</h2>
+                    <p>You can pass this parameter by appending <code>&{field}=someValue</code> to the URL.</p>
+                |]
+            let title = case value of
+                    Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
+                    Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]
+            let RequestContext { respond } = ?context
+            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+        Just Router.BadType { expectedType, value = Just value, field } -> do
+            let errorMessage = [hsx|
+                    <p>Routing failed with: {tshow exception}</p>
+                |]
+            let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
+            let RequestContext { respond } = ?context
+            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+        _ -> do
             let errorMessage = [hsx|
                     Routing failed with: {tshow exception}
 
                     <h2>Possible Solutions</h2>
-                    <p>Are you using AutoRoute but some of your fields are not UUID? In that case <a href="https://ihp.digitallyinduced.com/Guide/routing.html#parameter-types" target="_blank">please see the documentation on Parameter Types</a></p>
                     <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
                 |]
-            let title = [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
-            let RequestContext { respond } = get #requestContext ?context
-            Just $ respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
-        Nothing -> Nothing
+            let title = H.text "Routing failed"
+            let RequestContext { respond } = ?context
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
-handleInvalidActionArgumentExceptionProd :: (?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
-handleInvalidActionArgumentExceptionProd exception controller additionalInfo = do
-    case fromException exception of
-        Just Router.InvalidActionArgumentException { expectedType, value, field } -> do
-            let title = [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong>|]
-            let RequestContext { respond } = get #requestContext ?context
-            Just $ respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title mempty))
-        Nothing -> Nothing
 
 renderError :: forall context. (?context :: context, ConfigProvider context) => H.Html -> H.Html -> H.Html
 renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
