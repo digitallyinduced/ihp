@@ -251,7 +251,9 @@ allParams = case requestBody of
 -- Parses the input bytestring. Returns @Left "some error"@ when there is an error parsing the value.
 -- Returns @Right value@ when the parsing succeeded.
 class ParamReader a where
+    -- | The error messages here should be human-readable, as they're visible e.g. in forms
     readParameter :: ByteString -> Either ByteString a
+    -- | The error messages here are directed at other developers, so they can be a bit more technical than 'readParameter' errors
     readParameterJSON :: Aeson.Value -> Either ByteString a
 
 instance ParamReader ByteString where
@@ -259,86 +261,86 @@ instance ParamReader ByteString where
     readParameter byteString = pure byteString
 
     readParameterJSON (Aeson.String bytestring) = Right (cs bytestring)
-    readParameterJSON _ = Left "ParamReader ByteString: Expected String"
+    readParameterJSON _ = Left "Expected String"
 
 instance ParamReader Int where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Int: " <> cs error)
+            Left error -> Left "has to be an integer"
 
     readParameterJSON (Aeson.Number number) =
             case Scientific.floatingOrInteger number of
-                    Left float -> Left "ParamReader Int: Expected Int"
+                    Left float -> Left "Expected Int"
                     Right int -> Right int
-    readParameterJSON _ = Left "ParamReader Int: Expected Int"
+    readParameterJSON _ = Left "Expected Int"
 
 instance ParamReader Integer where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly ((Attoparsec.signed Attoparsec.decimal) <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Integer: " <> cs error)
+            Left error -> Left "has to be an integer"
 
     readParameterJSON (Aeson.Number number) =
             case Scientific.floatingOrInteger number of
-                    Left float -> Left "ParamReader Integer: Expected Integer"
+                    Left float -> Left "Expected Integer"
                     Right integer -> Right integer
-    readParameterJSON _ = Left "ParamReader Integer: Expected Integer"
+    readParameterJSON _ = Left "Expected Integer"
 
 instance ParamReader Double where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Double: " <> cs error)
+            Left error -> Left "has to be a number with decimals"
 
     readParameterJSON (Aeson.Number number) =
             case Scientific.floatingOrInteger number of
                     Left double -> Right double
                     Right integer -> Right (fromIntegral integer)
-    readParameterJSON _ = Left "ParamReader Double: Expected Double"
+    readParameterJSON _ = Left "Expected Double"
 
 instance ParamReader Scientific.Scientific where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.scientific <* Attoparsec.endOfInput) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Scientific: " <> cs error)
+            Left error -> Left "has to be a number with decimals"
 
     readParameterJSON (Aeson.Number number) = Right number
-    readParameterJSON _ = Left "ParamReader Scientific: Expected Scientific"
+    readParameterJSON _ = Left "Expected Scientific"
 
 instance ParamReader Float where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (Attoparsec.double <* Attoparsec.endOfInput) byteString of
             Right value -> Right (Float.double2Float value)
-            Left error -> Left ("ParamReader Float: " <> cs error)
+            Left error -> Left "has to be a number with decimals"
 
     readParameterJSON (Aeson.Number number) =
             case Scientific.floatingOrInteger number of
                     Left double -> Right double
                     Right integer -> Right (fromIntegral integer)
-    readParameterJSON _ = Left "ParamReader Float: Expected Float"
+    readParameterJSON _ = Left "Expected Float"
 
 instance ParamReader ModelSupport.Point where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
         case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure ModelSupport.Point { x, y }) byteString of
             Right value -> Right value
-            Left error -> Left ("ParamReader Point: " <> cs error)
+            Left error -> Left "has to be two numbers with a comma, e.g. '1,2'"
 
     readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in  readParameter byteString
-    readParameterJSON _ = Left "ParamReader Point: Expected Point"
+    readParameterJSON _ = Left "Expected Point"
 
 instance ParamReader Text where
     {-# INLINABLE readParameter #-}
     readParameter byteString = pure (cs byteString)
 
     readParameterJSON (Aeson.String text) = Right text
-    readParameterJSON _ = Left "ParamReader Text: Expected String"
+    readParameterJSON _ = Left "Expected String"
 
 -- | Parses comma separated input like @userIds=1,2,3@
 --
@@ -364,7 +366,7 @@ instance ParamReader value => ParamReader [value] where
         |> \case
             ([], values) -> Right values
             ((first:rest), _) -> Left first
-    readParameterJSON _ = Left "ParamReader Text: Expected Array"
+    readParameterJSON _ = Left "Expected Array"
 
 -- | Parses a boolean.
 --
@@ -377,25 +379,25 @@ instance ParamReader Bool where
     readParameter _ = pure False
 
     readParameterJSON (Aeson.Bool bool) = Right bool
-    readParameterJSON _ = Left "ParamReader Bool: Expected Bool"
+    readParameterJSON _ = Left "Expected Bool"
 
 instance ParamReader UUID where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
         case UUID.fromASCIIBytes byteString of
             Just uuid -> pure uuid
-            Nothing -> Left "FromParameter UUID: Parse error"
+            Nothing -> Left "has to be an UUID"
 
     readParameterJSON (Aeson.String string) =
         case UUID.fromText string of
             Just uuid -> pure uuid
-            Nothing -> Left "FromParameter UUID: Parse error"
-    readParameterJSON _ = Left "ParamReader UUID: Expected String"
+            Nothing -> Left "Invalid UUID"
+    readParameterJSON _ = Left "Expected String with an UUID"
 
 -- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
 instance ParamReader UTCTime where
     {-# INLINABLE readParameter #-}
-    readParameter "" = Left "ParamReader UTCTime: Parameter missing"
+    readParameter "" = Left "This field cannot be empty"
     readParameter byteString =
         let
             input = (cs byteString)
@@ -404,16 +406,16 @@ instance ParamReader UTCTime where
         in case dateTime of
             Nothing -> case date of
                 Just value -> Right value
-                Nothing -> Left "ParamReader UTCTime: Failed parsing"
+                Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
             Just value -> Right value
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
-    readParameterJSON _ = Left "ParamReader UTCTime: Expected String"
+    readParameterJSON _ = Left "Expected String"
 
 -- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
 instance ParamReader LocalTime where
     {-# INLINABLE readParameter #-}
-    readParameter "" = Left "ParamReader LocalTime: Parameter missing"
+    readParameter "" = Left "This field cannot be empty"
     readParameter byteString =
         let
             input = (cs byteString)
@@ -422,39 +424,39 @@ instance ParamReader LocalTime where
         in case dateTime of
             Nothing -> case date of
                 Just value -> Right value
-                Nothing -> Left "ParamReader LocalTime: Failed parsing"
+                Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
             Just value -> Right value
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
-    readParameterJSON _ = Left "ParamReader LocalTime: Expected String"
+    readParameterJSON _ = Left "Expected String"
 
 -- | Accepts values such as @2020-11-08@
 instance ParamReader Day where
     {-# INLINABLE readParameter #-}
-    readParameter "" = Left "ParamReader Day: Parameter missing"
+    readParameter "" = Left "This field cannot be empty"
     readParameter byteString =
         let
             input = (cs byteString)
             date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
         in case date of
             Just value -> Right value
-            Nothing -> Left "ParamReader Day: Failed parsing"
+            Nothing -> Left "has to be a date, e.g. 2020-11-08"
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
-    readParameterJSON _ = Left "ParamReader Day: Expected String"
+    readParameterJSON _ = Left "Expected String"
 
 instance ParamReader TimeOfDay where
     {-# INLINABLE readParameter #-}
-    readParameter "" = Left "ParamReader TimeOfDay: Parameter missing"
+    readParameter "" = Left "This field cannot be empty"
     readParameter byteString =
         let
             input = (cs byteString)
         in case readMaybe input of
             Just value -> Right value
-            Nothing -> Left "ParamReader TimeOfDay: Please enter a valid time in the format hh:mm:ss"
+            Nothing -> Left "has to be time in the format hh:mm:ss"
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
-    readParameterJSON _ = Left "ParamReader TimeOfDay: Expected String"
+    readParameterJSON _ = Left "Expected String"
 
 instance {-# OVERLAPS #-} (ParamReader (ModelSupport.PrimaryKey model')) => ParamReader (ModelSupport.Id' model') where
     {-# INLINABLE readParameter #-}

@@ -27,7 +27,7 @@ tests = do
 
             it "should fail on empty input" do
                 let ?context = createControllerContextWithParams [("page", "")]
-                (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "ParamReader Int: not enough input" })
+                (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
             it "should fail if param not provided" do
                 let ?context = createControllerContextWithParams []
@@ -35,7 +35,7 @@ tests = do
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
-                (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "ParamReader Int: Failed reading: takeWhile1" })
+                (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
         describe "paramOrNothing" do
             it "should parse valid input" do
@@ -52,7 +52,7 @@ tests = do
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("referredBy", "not a uuid")]
-                (IO.evaluate (paramOrNothing @UUID "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "FromParameter UUID: Parse error" })
+                (IO.evaluate (paramOrNothing @UUID "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "has to be an UUID" })
 
         describe "paramOrDefault" do
             it "should parse valid input" do
@@ -69,7 +69,7 @@ tests = do
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
-                (IO.evaluate (paramOrDefault @Int 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "ParamReader Int: Failed reading: takeWhile1" })
+                (IO.evaluate (paramOrDefault @Int 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
 
         describe "paramList" do
@@ -106,7 +106,7 @@ tests = do
                     (readParameterJSON @ByteString (json "\"test\"")) `shouldBe` (Right ("test" :: ByteString))
 
                 it "should fail on other JSON input" do
-                    (readParameterJSON @ByteString (json "1")) `shouldBe` (Left ("ParamReader ByteString: Expected String" :: ByteString))
+                    (readParameterJSON @ByteString (json "1")) `shouldBe` (Left ("Expected String" :: ByteString))
 
             describe "Int" do
                 it "should accept numeric input" do
@@ -119,7 +119,7 @@ tests = do
                     (readParameterJSON @Int (json "1337")) `shouldBe` (Right 1337)
 
                 it "should fail on other JSON input " do
-                    (readParameterJSON @Int (json "true")) `shouldBe` (Left "ParamReader Int: Expected Int")
+                    (readParameterJSON @Int (json "true")) `shouldBe` (Left "Expected Int")
 
             describe "Integer" do
                 it "should accept numeric input" do
@@ -132,8 +132,8 @@ tests = do
                     (readParameterJSON @Integer (json "1337")) `shouldBe` (Right 1337)
 
                 it "should fail on other JSON input " do
-                    (readParameterJSON @Integer (json "true")) `shouldBe` (Left "ParamReader Integer: Expected Integer")
-                    (readParameterJSON @Integer (json "\"1\"")) `shouldBe` (Left "ParamReader Integer: Expected Integer")
+                    (readParameterJSON @Integer (json "true")) `shouldBe` (Left "Expected Integer")
+                    (readParameterJSON @Integer (json "\"1\"")) `shouldBe` (Left "Expected Integer")
 
 
             describe "Double" do
@@ -151,8 +151,8 @@ tests = do
                     (readParameterJSON @Double (json "1.2")) `shouldBe` (Right 1.2)
 
                 it "should fail on other JSON input " do
-                    (readParameterJSON @Double (json "true")) `shouldBe` (Left "ParamReader Double: Expected Double")
-                    (readParameterJSON @Double (json "\"1\"")) `shouldBe` (Left "ParamReader Double: Expected Double")
+                    (readParameterJSON @Double (json "true")) `shouldBe` (Left "Expected Double")
+                    (readParameterJSON @Double (json "\"1\"")) `shouldBe` (Left "Expected Double")
 
             describe "Scientific" do
                 it "should accept integer input" do
@@ -172,8 +172,8 @@ tests = do
                     (readParameterJSON @Scientific (json "1.2")) `shouldBe` (Right 1.2)
 
                 it "should fail on other JSON input " do
-                    (readParameterJSON @Scientific (json "true")) `shouldBe` (Left "ParamReader Scientific: Expected Scientific")
-                    (readParameterJSON @Scientific (json "\"1\"")) `shouldBe` (Left "ParamReader Scientific: Expected Scientific")
+                    (readParameterJSON @Scientific (json "true")) `shouldBe` (Left "Expected Scientific")
+                    (readParameterJSON @Scientific (json "\"1\"")) `shouldBe` (Left "Expected Scientific")
 
             describe "Float" do
                 it "should accept integer input" do
@@ -190,8 +190,8 @@ tests = do
                     (readParameterJSON @Float (json "1.2")) `shouldBe` (Right 1.2)
 
                 it "should fail on other JSON input " do
-                    (readParameterJSON @Float (json "true")) `shouldBe` (Left "ParamReader Float: Expected Float")
-                    (readParameterJSON @Float (json "\"1\"")) `shouldBe` (Left "ParamReader Float: Expected Float")
+                    (readParameterJSON @Float (json "true")) `shouldBe` (Left "Expected Float")
+                    (readParameterJSON @Float (json "\"1\"")) `shouldBe` (Left "Expected Float")
 
             describe "Point" do
                 it "should accept integer input" do
@@ -207,9 +207,9 @@ tests = do
                     (readParameterJSON @Point (json "\"1.2,1.3\"")) `shouldBe` (Right Point { x = 1.2, y = 1.3 })
 
                 it "should fail on other JSON input " do
-                    (readParameterJSON @Point (json "true")) `shouldBe` (Left "ParamReader Point: Expected Point")
-                    (readParameterJSON @Point (json "\"1\"")) `shouldBe` (Left "ParamReader Point: ,: not enough input")
-                    (readParameterJSON @Point (json "\"1.2\"")) `shouldBe` (Left "ParamReader Point: ,: not enough input")
+                    (readParameterJSON @Point (json "true")) `shouldBe` (Left "Expected Point")
+                    (readParameterJSON @Point (json "\"1\"")) `shouldBe` (Left "has to be two numbers with a comma, e.g. '1,2'")
+                    (readParameterJSON @Point (json "\"1.2\"")) `shouldBe` (Left "has to be two numbers with a comma, e.g. '1,2'")
 
             describe "Text" do
                 it "should handle text input" do
@@ -219,7 +219,7 @@ tests = do
                     (readParameterJSON @Text (json "\"test\"")) `shouldBe` (Right ("test"))
 
                 it "should fail on other JSON input" do
-                    (readParameterJSON @Text (json "1")) `shouldBe` (Left ("ParamReader Text: Expected String"))
+                    (readParameterJSON @Text (json "1")) `shouldBe` (Left ("Expected String"))
 
             describe "CSV" do
                 it "should handle empty input" do
@@ -232,13 +232,13 @@ tests = do
                     (readParameter @[Int] "1,2,3") `shouldBe` (Right [1,2,3])
 
                 it "should fail if a single value is invalid" do
-                    (readParameter @[Int] "1,a,3") `shouldBe` (Left "ParamReader Int: Failed reading: takeWhile1")
+                    (readParameter @[Int] "1,a,3") `shouldBe` (Left "has to be an integer")
 
                 it "should handle JSON arrays" do
                     (readParameterJSON @[Int] (json "[1,2,3]")) `shouldBe` (Right [1,2,3])
 
                 it "should fail on JSON input that is not an array" do
-                    (readParameterJSON @[Int] (json "true")) `shouldBe` (Left "ParamReader Text: Expected Array")
+                    (readParameterJSON @[Int] (json "true")) `shouldBe` (Left "Expected Array")
 
             describe "Bool" do
                 it "should accept 'on' as True" do
@@ -259,14 +259,14 @@ tests = do
                     (readParameter @UUID "a020ba17-a94e-453f-9414-c54aa30caa54") `shouldBe` (Right "a020ba17-a94e-453f-9414-c54aa30caa54")
 
                 it "should fail on invalid values" do
-                    (readParameter @UUID "not a uuid") `shouldBe` (Left "FromParameter UUID: Parse error")
+                    (readParameter @UUID "not a uuid") `shouldBe` (Left "has to be an UUID")
 
                 it "should accept JSON UUIDs" do
                     (readParameterJSON @UUID (json "\"6188329c-6bad-47f6-800c-2fd19ce0b2df\"")) `shouldBe` (Right "6188329c-6bad-47f6-800c-2fd19ce0b2df")
 
                 it "should fail on invalid JSON input" do
-                    (readParameterJSON @UUID (json "\"not a uuid\"")) `shouldBe` (Left "FromParameter UUID: Parse error")
-                    (readParameterJSON @UUID (json "false")) `shouldBe` (Left "ParamReader UUID: Expected String")
+                    (readParameterJSON @UUID (json "\"not a uuid\"")) `shouldBe` (Left "Invalid UUID")
+                    (readParameterJSON @UUID (json "false")) `shouldBe` (Left "Expected String with an UUID")
 
             describe "UTCTime" do
                 it "should accept timestamps" do
@@ -276,7 +276,7 @@ tests = do
                     (tshow (readParameter @UTCTime "2020-11-08")) `shouldBe` ("Right 2020-11-08 00:00:00 UTC")
 
                 it "should fail on invalid inputs" do
-                    (readParameter @UTCTime "not a timestamp") `shouldBe` (Left "ParamReader UTCTime: Failed parsing")
+                    (readParameter @UTCTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z")
 
                 it "should accept JSON strings" do
                     (tshow (readParameterJSON @UTCTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35 UTC")
@@ -289,7 +289,7 @@ tests = do
                     (tshow (readParameter @LocalTime "2020-11-08")) `shouldBe` ("Right 2020-11-08 00:00:00")
 
                 it "should fail on invalid inputs" do
-                    (readParameter @LocalTime "not a timestamp") `shouldBe` (Left "ParamReader LocalTime: Failed parsing")
+                    (readParameter @LocalTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z")
 
                 it "should accept JSON strings" do
                     (tshow (readParameterJSON @LocalTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35")
@@ -299,7 +299,7 @@ tests = do
                     (tshow (readParameter @Day "2020-11-08")) `shouldBe` ("Right 2020-11-08")
 
                 it "should fail on invalid inputs" do
-                    (readParameter @Day "not a timestamp") `shouldBe` (Left "ParamReader Day: Failed parsing")
+                    (readParameter @Day "not a timestamp") `shouldBe` (Left "has to be a date, e.g. 2020-11-08")
 
                 it "should accept JSON strings" do
                     (tshow (readParameterJSON @Day (json "\"2020-11-08\""))) `shouldBe` ("Right 2020-11-08")
@@ -309,8 +309,8 @@ tests = do
                     (tshow (readParameter @TimeOfDay "12:00:00")) `shouldBe` ("Right 12:00:00")
 
                 it "should fail on invalid inputs" do
-                    (readParameter @TimeOfDay "not a time") `shouldBe` (Left "ParamReader TimeOfDay: Please enter a valid time in the format hh:mm:ss")
-                    (readParameter @TimeOfDay "25:00:00") `shouldBe` (Left "ParamReader TimeOfDay: Please enter a valid time in the format hh:mm:ss")
+                    (readParameter @TimeOfDay "not a time") `shouldBe` (Left "has to be time in the format hh:mm:ss")
+                    (readParameter @TimeOfDay "25:00:00") `shouldBe` (Left "has to be time in the format hh:mm:ss")
 
                 it "should accept JSON strings" do
                     (tshow (readParameterJSON @TimeOfDay (json "\"13:37:00\""))) `shouldBe` ("Right 13:37:00")
@@ -332,7 +332,7 @@ tests = do
                     (readParameter @(Maybe Bool) "") `shouldBe` (Right (Just False))
 
                 it "should deal with parser errors" do
-                    (readParameter @(Maybe Int) "not a number") `shouldBe` (Left "ParamReader Int: Failed reading: takeWhile1")
+                    (readParameter @(Maybe Int) "not a number") `shouldBe` (Left "has to be an integer")
 
             describe "Enum" do
                 it "should accept values" do
