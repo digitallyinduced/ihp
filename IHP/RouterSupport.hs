@@ -302,7 +302,7 @@ class Data controller => AutoRoute controller where
 
                     checkRequestMethod action = do
                             method <- getMethod
-                            unless (allowedMethods |> includes method) (error ("Invalid method, expected one of: " <> show allowedMethods))
+                            unless (allowedMethods |> includes method) (Exception.throw UnexpectedMethodException { allowedMethods, method })
                             pure action
 
                     action = case applyConstr parseIdFunc constr query of

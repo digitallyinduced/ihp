@@ -13,6 +13,7 @@ module IHP.ErrorController
 import IHP.Prelude hiding (displayException)
 import qualified IHP.Controller.Param as Param
 import qualified IHP.Router.Types as Router
+import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -344,17 +345,77 @@ handleRouterException exception =
             let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
             let RequestContext { respond } = ?context
             respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
-
-        _ -> do
-            let errorMessage = [hsx|
-                    Routing failed with: {tshow exception}
-
-                    <h2>Possible Solutions</h2>
-                    <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
+        _ -> case fromException exception of
+            Just Router.UnexpectedMethodException { allowedMethods = [Router.DELETE], method = Router.GET } -> do
+                let exampleLink :: Text = "<a href={DeleteProjectAction} class=\"js-delete\">Delete Project</a>"
+                let formExample :: Text = cs [plain|
+<form method="POST" action={DeleteProjectAction}>
+    <input type="hidden" name="_method" value="DELETE"/>
+    <button type="submit">Delete Project</button>
+</form>
                 |]
-            let title = H.text "Routing failed"
-            let RequestContext { respond } = ?context
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+                let errorMessage = [hsx|
+                        <p>
+                            You cannot directly link to Delete Action.
+                            GET requests should not have any external side effects, as a user could accidentally trigger it by following a normal link.
+                        </p>
+
+                        <h2>Possible Solutions</h2>
+                        <p>
+                            a) Add a <code>js-delete</code> class to your link. IHP's helper.js will intercept link clicks on these links and use a form with a DELETE request to submit the request.
+                            <br /><br/>
+
+                            Example: <br /><br />
+                            <code>{exampleLink}</code>
+                        </p>
+                        <p>
+                            b) Use a form to submit the request as a DELETE request:
+                            <br /><br/>
+
+                            Example: <br />
+                            <pre>{formExample}</pre>
+                            HTML forms don't support DELETE requests natively, therefore we use the hidden input field to work around this browser limitation.
+                        </p>
+                    |]
+                let title = [hsx|Action was called from a GET request, but needs to be called as a DELETE request|]
+                let RequestContext { respond } = ?context
+                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            Just Router.UnexpectedMethodException { allowedMethods = [Router.POST], method = Router.GET } -> do
+                let errorMessage = [hsx|
+                        <p>
+                            You cannot directly link to Create Action.
+                            GET requests should not have any external side effects, as a user could accidentally trigger it by following a normal link.
+                        </p>
+
+                        <h2>Possible Solutions</h2>
+                        <p>
+                            <a style="text-decoration: none" href="https://ihp.digitallyinduced.com/Guide/form.html" target="_blank">Make a form with <code>formFor</code> to do the request</a>
+                        </p>
+                    |]
+                let title = [hsx|Action was called from a GET request, but needs to be called as a POST request|]
+                let RequestContext { respond } = ?context
+                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            Just Router.UnexpectedMethodException { allowedMethods, method } -> do
+                let errorMessage = [hsx|
+                        <p>Routing failed with: {tshow exception}</p>
+                        <h2>Possible Solutions</h2>
+                        <p>
+                            <a style="text-decoration: none" href="https://ihp.digitallyinduced.com/Guide/form.html" target="_blank">Make a form with <code>formFor</code> to do the request</a>
+                        </p>
+                    |]
+                let title = [hsx|Action was called with a {method} request, but needs to be called with one of these request methods: <q>{allowedMethods}</q>|]
+                let RequestContext { respond } = ?context
+                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            _ -> do
+                let errorMessage = [hsx|
+                        Routing failed with: {tshow exception}
+
+                        <h2>Possible Solutions</h2>
+                        <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
+                    |]
+                let title = H.text "Routing failed"
+                let RequestContext { respond } = ?context
+                respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 
 renderError :: forall context. (?context :: context, ConfigProvider context) => H.Html -> H.Html -> H.Html

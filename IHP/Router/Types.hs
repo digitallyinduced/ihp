@@ -7,6 +7,7 @@ module IHP.Router.Types where
 
 import IHP.Prelude
 import Control.Exception
+import Network.HTTP.Types.Method
 
 data TypedAutoRouteError
     = BadType
@@ -27,4 +28,13 @@ data TypedAutoRouteError
         , value :: !(Maybe ByteString)
         , field :: !ByteString
         }
+    deriving (Show, Exception)
+
+-- | Thrown e.g. a @CreateProjectAction@ is called from a GET request
+--
+data UnexpectedMethodException
+    = UnexpectedMethodException
+    { allowedMethods :: [StdMethod]
+    , method :: StdMethod
+    }
     deriving (Show, Exception)
