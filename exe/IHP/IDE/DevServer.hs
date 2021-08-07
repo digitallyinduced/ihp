@@ -322,11 +322,11 @@ startLoadedApp :: (?context :: Context) => AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     let commands =
             [ "ClassyPrelude.uninterruptibleCancel app"
-            , "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> putStrLn (tshow e))"
+            , "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
             ]
     forEach commands (sendGhciCommand process)
 startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
-startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> putStrLn (tshow e))"
+startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
 startLoadedApp _ = when (get #isDebugMode ?context) (putStrLn "startLoadedApp: App not running")
 
 
