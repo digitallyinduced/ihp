@@ -239,7 +239,7 @@ deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames }]
+addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames, whereClause = Nothing }]
 
 deleteTableIndex :: Text -> [Statement] -> [Statement]
 deleteTableIndex indexName list =
