@@ -477,6 +477,18 @@ Let's also make it clickable by wrapping it in a link. We can just put a `<a hre
 
 Now we can also remove the "Show" link. We can do that by removing the next line `<td><a href={ShowPostAction (get #id post)}>Show</a></td>`.
 
+Also remove the corresponding `<th></th>` from `thead` so that there are only three `th` tags:
+
+```html
+<thead>
+    <tr>
+        <th>Post</th>
+        <th></th>
+        <th></th>
+    </tr>
+</thead>
+```
+
 ### Adding Validation
 
 Let's make sure that every post has at least a title. Validations can be defined inside our controller `Web/Controller/Posts.hs`.
