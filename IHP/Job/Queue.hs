@@ -13,10 +13,12 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Control.Concurrent.Async as Async
+import qualified Control.Concurrent as Concurrent
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.Controller.Param
+import qualified System.Random as Random
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -40,7 +42,7 @@ fetchNextJob :: forall job.
     , KnownSymbol (GetTableName job)
     ) => UUID -> IO (Maybe job)
 fetchNextJob workerId = do
-    let query = "UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE (status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds') AND locked_by IS NULL ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id"
+    let query = "UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id"
     let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry)
 
     result :: [PG.Only (Id job)] <- sqlQuery query params
@@ -65,18 +67,49 @@ fetchNextJob workerId = do
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => Text -> IO () -> IO (Async.Async ())
-watchForJob tableName handleJob = do
+watchForJob :: (?modelContext :: ModelContext) => Text -> Int -> IO () -> IO (Async.Async ())
+watchForJob tableName pollInterval handleJob = do
     sqlExec (PG.Query $ cs $ createNotificationTrigger tableName) ()
 
     let listenStatement = "LISTEN " <> PG.Query (cs $ eventName tableName)
-    Async.asyncBound do
+    watcher <- Async.asyncBound do
         forever do
             notification <- withDatabaseConnection \databaseConnection -> do
                 PG.execute databaseConnection listenStatement ()
                 PG.getNotification databaseConnection
 
             handleJob
+
+    poller <- pollForJob tableName pollInterval handleJob
+
+    -- When the watcher is stopped, we also want to stop the poller
+    Async.link2Only (const True) watcher poller
+
+    pure watcher
+
+-- | Periodically checks the queue table for open jobs. Calls the callback if there are any.
+--
+-- 'watchForJob' only catches jobs when something is changed on the table. When a job is scheduled
+-- with a 'runAt' in the future, and no other operation is happening on the queue, the database triggers
+-- will not run, and so 'watchForJob' cannot pick up the job even when 'runAt' is now in the past.
+--
+-- This function returns a Async. Call 'cancel' on the async to stop polling the database.
+--
+pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> IO () -> IO (Async.Async ())
+pollForJob tableName pollInterval handleJob = do
+    let query = "SELECT COUNT(*) FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() LIMIT 1"
+    let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry)
+    Async.asyncBound do
+        forever do
+            count :: Int <- sqlQueryScalar query params
+
+            when (count > 0) handleJob
+
+            -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
+            jitter <- Random.randomRIO (0, 2000000)
+            let pollIntervalWithJitter = pollInterval + jitter
+
+            Concurrent.threadDelay pollIntervalWithJitter
 
 createNotificationTrigger :: Text -> Text
 createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
