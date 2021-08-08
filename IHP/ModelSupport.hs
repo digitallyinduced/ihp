@@ -53,6 +53,7 @@ import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
 import Data.Scientific
+import GHC.Stack
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -288,6 +289,7 @@ instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) w
 -- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 instance (Read (PrimaryKey model), ParsePrimaryKey (PrimaryKey model)) => IsString (Id' model) where
     fromString uuid = textToId uuid
+    {-# INLINE fromString #-}
 
 class ParsePrimaryKey primaryKey where
     parsePrimaryKey :: Text -> Maybe primaryKey
@@ -309,7 +311,7 @@ instance ParsePrimaryKey Text where
 -- can just write it like:
 --
 -- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
-textToId :: (ParsePrimaryKey (PrimaryKey model), ConvertibleStrings text Text) => text -> Id' model
+textToId :: (HasCallStack, ParsePrimaryKey (PrimaryKey model), ConvertibleStrings text Text) => text -> Id' model
 textToId text = case parsePrimaryKey (cs text) of
         Just id -> Id id
         Nothing -> error (cs $ "Unable to convert " <> (cs text :: Text) <> " to Id value. Is it a valid uuid?")
