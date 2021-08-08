@@ -78,6 +78,7 @@ worker :: forall job.
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
     , SetField "updatedAt" job UTCTime
+    , HasField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
     , SetField "lastError" job (Maybe Text)
     , Job job
@@ -134,6 +135,6 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     startLoop
 
     -- Start a job when a new job is added to the table or when it's set to retry
-    watcher <- Queue.watchForJob (tableName @job) startLoop
+    watcher <- Queue.watchForJob (tableName @job) (queuePollInterval @job) startLoop
 
     pure watcher
