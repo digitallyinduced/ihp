@@ -58,6 +58,7 @@
 , temporary
 , wai-cors
 , lens
+, random
 }:
 mkDerivation {
   pname = "ihp";
@@ -122,6 +123,7 @@ mkDerivation {
     temporary
     wai-cors
     lens
+    random
   ];
   license = lib.licenses.mit;
   postInstall = ''
