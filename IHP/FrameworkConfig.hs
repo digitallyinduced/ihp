@@ -28,6 +28,7 @@ import IHP.Log (makeRequestLogger, defaultRequestLogger)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
+import qualified Network.Wai.Parse as WaiParse
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -139,6 +140,8 @@ ihpDefaultConfig = do
     (BaseUrl currentBaseUrl) <- findOption @BaseUrl
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
 
+    option WaiParse.defaultParseRequestBodyOptions
+
     option bootstrap
 
 
@@ -175,8 +178,10 @@ buildFrameworkConfig appConfig = do
             logger <- findOption @Logger
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
+            parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
 
             appConfig <- State.get
+
 
             pure FrameworkConfig { .. }
 
@@ -293,6 +298,29 @@ data FrameworkConfig = FrameworkConfig
     -- >     option Cors.simpleCorsResourcePolicy { Cors.corsOrigins = Just (["localhost"], True) }
     -- >
     , corsResourcePolicy :: Maybe Cors.CorsResourcePolicy
+
+    -- | Configures the limits for request parameters, uploaded files, maximum number of headers etc.
+    --
+    -- IHP is using 'Network.Wai.Parse.parseRequestBodyEx' for parsing the HTTP request. By default it applies certain limits
+    -- to avoid a single request overloading the server.
+    --
+    -- You can find the default limits here: https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:defaultParseRequestBodyOptions
+    --
+    -- You can override the default limits like this:
+    --
+    -- > -- Config.hs
+    -- > import qualified Network.Wai.Parse as WaiParse
+    -- >
+    -- > config :: ConfigBuilder
+    -- > config = do
+    -- >     option Development
+    -- >     option (AppHostname "localhost")
+    -- >
+    -- >     -- We extend the default options here
+    -- >     option $ WaiParse.defaultParseRequestBodyOptions
+    -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
+    -- >
+    , parseRequestBodyOptions :: WaiParse.ParseRequestBodyOptions
 }
 
 class ConfigProvider a where

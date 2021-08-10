@@ -46,7 +46,7 @@ import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
-import IHP.FrameworkConfig (FrameworkConfig)
+import IHP.FrameworkConfig (FrameworkConfig (..))
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext)
 import IHP.FlashMessages.ControllerFunctions
@@ -244,7 +244,7 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
             let jsonPayload = Aeson.decode rawPayload
             pure RequestContext.JSONBody { jsonPayload, rawPayload }
         _ -> do
-            (params, files) <- WaiParse.parseRequestBodyEx WaiParse.defaultParseRequestBodyOptions WaiParse.lbsBackEnd request
+            (params, files) <- WaiParse.parseRequestBodyEx (frameworkConfig |> get #parseRequestBodyOptions) WaiParse.lbsBackEnd request
             pure RequestContext.FormBody { .. }
 
     pure RequestContext.RequestContext { request, respond, requestBody, vault = session, frameworkConfig }

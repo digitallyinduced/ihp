@@ -352,3 +352,33 @@ let expiredAt :: UTCTime = get #expiredAt signedUrl
 If the `StaticDirStorage` is used, a unsigned normal URL will be returned, as these files are public anyways.
 
 The signed url is valid for 7 days.
+
+
+## File Upload Limits
+
+To avoid a single request overloading the server, [IHP has certain request limits in place](https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:defaultParseRequestBodyOptions):
+
+- Maximum key/filename length: 32 bytes
+- Maximum files: 10
+- Filesize unlimited
+- Maximum size for parameters: 64kbytes
+- Maximum number of header lines: 32 bytes (applies only to headers of a mime/multipart message)
+- Maximum header line length: 8190 (like apache)
+
+You can change the limits in the `Config/Config.hs` like this:
+
+```haskell
+import qualified Network.Wai.Parse as WaiParse -- <--- ADD THIS IMPORT
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+
+    -- We extend the default options here
+    option $ WaiParse.defaultParseRequestBodyOptions
+            |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
+
+```
+
+[You can find a full list of `WaiParser.set...` functions on the `Network.Wai.Parse` documentation](https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:setMaxRequestKeyLength)
