@@ -32,7 +32,6 @@
 :set -XBlockArguments
 :set -XMultiWayIf
 :set -XFunctionalDependencies
-:set -package typerep-map
 :set -fbyte-code
 :set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
