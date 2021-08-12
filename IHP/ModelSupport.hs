@@ -330,7 +330,7 @@ measureTimeIfLogging queryAction theQuery theParameters = do
 
             case result of
                 Left (e :: SomeException) -> do
-                    error $ replicate "=" 30 <> "\nError in query: \n" <> show theQuery <> "\n" <> show e <> replicate "=" 30
+                    error $ "\nError in query: " <> show theQuery <> "\n" <> show e
                 Right result -> do
                     end <- getCurrentTime
                     let theTime = end `diffUTCTime` start
