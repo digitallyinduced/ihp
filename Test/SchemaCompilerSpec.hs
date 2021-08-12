@@ -187,6 +187,11 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
 
+
+                    instance () => PrimaryKeyCondition (User' ) where
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
@@ -202,6 +207,7 @@ tests = do
                     instance Record User where
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0.17  def
+                    instance Default (Id' "users") where def = Id def
                 |]
 
 getInstanceDecl :: Text -> Text -> Text
