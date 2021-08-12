@@ -340,7 +340,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                 let
                     firstQuery = buildQueryHelper firstQueryBuilder
                     secondQuery = buildQueryHelper secondQueryBuilder
-                    isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query)
+                    isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query) && null (joins query)
                     isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                     unionWhere =
                         case (whereCondition firstQuery, whereCondition secondQuery) of
