@@ -18,7 +18,7 @@ import IHP.Pagination.Types
     ( Options(..), Pagination(..) )
 
 import IHP.QueryBuilder
-    ( QueryBuilder, filterWhereILike, limit, offset )
+    ( QueryBuilder, HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 
 import IHP.ModelSupport (GetModelByTableName)
@@ -49,9 +49,14 @@ import Database.PostgreSQL.Simple.ToField
 -- >        |> paginate
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
-paginate :: (?context::ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, KnownSymbol q) =>
-    QueryBuilder q
-    -> IO (QueryBuilder q, Pagination)
+paginate :: forall controller table queryBuilderProvider joinRegister . 
+    (?context::ControllerContext
+    , ?modelContext :: ModelContext
+    , ?theAction :: controller
+    , KnownSymbol table
+    , HasQueryBuilder queryBuilderProvider joinRegister) =>
+    queryBuilderProvider table
+    -> IO (queryBuilderProvider table, Pagination)
 paginate = paginateWithOptions defaultPaginationOptions
 
 -- | Paginate with ability to override the default options for maximum items per page and selector window size. 
@@ -75,16 +80,21 @@ paginate = paginateWithOptions defaultPaginationOptions
 -- >                |> set #maxItems 10)
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
-paginateWithOptions :: (?context::ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, KnownSymbol q) =>
+paginateWithOptions :: forall controller table queryBuilderProvider joinRegister . 
+    (?context::ControllerContext
+    , ?modelContext :: ModelContext
+    , ?theAction :: controller
+    , KnownSymbol table
+    , HasQueryBuilder queryBuilderProvider joinRegister) =>
     Options
-    -> QueryBuilder q
-    -> IO (QueryBuilder q, Pagination)
-paginateWithOptions options q =
+    -> queryBuilderProvider table
+    -> IO (queryBuilderProvider table, Pagination)
+paginateWithOptions options query =
     let page = paramOrDefault @Int 1 "page"
         pageSize = paramOrDefault @Int (maxItems options) "maxItems"
     in do
-        count <-
-            q |> fetchCount
+        count <- query 
+            |> fetchCount
 
         let pagination = Pagination
                 {
@@ -94,7 +104,9 @@ paginateWithOptions options q =
                 ,   window = windowSize options
                 }
 
-        let results = q |> limit pageSize |> offset ((page - 1) * pageSize)
+        let results = query 
+                |> limit pageSize 
+                |> offset ((page - 1) * pageSize)
 
         pure
             ( results
@@ -114,10 +126,15 @@ paginateWithOptions options q =
 -- >        |> filterList #email
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
-filterList :: forall name table model . (?context::ControllerContext, KnownSymbol name, HasField name model Text, model ~ GetModelByTableName table) =>
+filterList :: forall name table model queryBuilderProvider joinRegister . 
+    (?context::ControllerContext
+    , KnownSymbol name
+    , HasField name model Text
+    , model ~ GetModelByTableName table
+    , HasQueryBuilder queryBuilderProvider joinRegister) =>
     Proxy name
-    -> QueryBuilder table
-    -> QueryBuilder table
+    -> queryBuilderProvider table
+    -> queryBuilderProvider table
 filterList field =
     case paramOrNothing @Text "filter" of
        Just uf -> filterWhereILike (field, "%" <> uf <> "%")
