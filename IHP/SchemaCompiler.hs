@@ -78,7 +78,6 @@ atomicType = \case
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
 haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull }
     | [name] == primaryKeyColumnNames primaryKeyConstraint = "(" <> primaryKeyTypeName tableName <> ")"
-    | name `elem` primaryKeyColumnNames primaryKeyConstraint = atomicType columnType
     | otherwise =
         let
             actualType =
@@ -595,10 +594,11 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
     where
         idType :: Text
         idType = case primaryKeyColumns table of
-            [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-            [c] -> colType c
-            cs -> "(" <> intercalate ", " (map colType cs) <> ")"
-            where colType = atomicType . get #columnType
+                [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+                [c] -> colType c
+                cs -> "(" <> intercalate ", " (map colType cs) <> ")"
+            where
+                colType column = haskellType table column
 
         primaryKeyPattern = case primaryKeyColumns table of
             [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
