@@ -161,19 +161,21 @@ compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCr
             <> compileGetModelName table
             <> compilePrimaryKeyInstance table
             <> section
+            <> compilePrimaryKeyConditionInstance table
+            <> section
             <> compileInclude table
             <> compileCreate table
             <> section
             <> compileUpdate table
             <> section
             <> compileBuild table
-            <> if needsHasFieldId table
+            <> (if needsHasFieldId table
                     then compileHasFieldId table
-                    else ""
+                    else "")
             <> section
-            <> if compileGetAndSetFieldInstances
+            <> (if compileGetAndSetFieldInstances
                     then compileSetFieldInstances table <> compileUpdateFieldInstances table
-                    else ""
+                    else "")
             <> section
 
 compileStatement _ enum@(CreateEnumType {}) = compileEnumDataDefinitions enum
@@ -547,6 +549,7 @@ compileBuild table@(CreateTable { name, columns }) =
         "instance Record " <> tableNameToModelName name <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
         <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> (columnsReferencingTable name |> map (const "def") |> unwords) <> " def\n"
+        <> "instance Default (Id' \"" <> name <> "\") where def = Id def"
 
 
 toDefaultValueExpr :: Column -> Text
@@ -595,8 +598,8 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
         idType :: Text
         idType = case primaryKeyColumns table of
                 [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-                [c] -> colType c
-                cs -> "(" <> intercalate ", " (map colType cs) <> ")"
+                [column] -> atomicType (get #columnType column) -- PrimaryKey User = UUID
+                cs -> "(" <> intercalate ", " (map colType cs) <> ")" -- PrimaryKey PostsTag = (Id' "posts", Id' "tags")
             where
                 colType column = haskellType table column
 
@@ -610,6 +613,44 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
 
         primaryKeyFilter :: Column -> Text
         primaryKeyFilter Column {name} = "QueryBuilder.filterWhere (#" <> columnNameToFieldName name <> ", " <> columnNameToFieldName name <> ")"
+
+compilePrimaryKeyConditionInstance :: (?schema :: Schema) => CreateTable -> Text
+compilePrimaryKeyConditionInstance table@(CreateTable { name, columns, constraints }) = cs [i|
+instance #{instanceHead} where
+    primaryKeyCondition #{pattern} = #{condition}
+    {-# INLINABLE primaryKeyCondition #-}
+|]
+    where
+        instanceHead :: Text
+        instanceHead = instanceConstraints <> " => PrimaryKeyCondition (" <> compileTypePattern table <> ")"
+            where
+                instanceConstraints =
+                    table
+                    |> primaryKeyColumns
+                    |> map (get #name)
+                    |> map columnNameToFieldName
+                    |> filter (\field -> field `elem` (dataTypeArguments table))
+                    |> map (\field -> "ToField " <> field)
+                    |> intercalate ", "
+                    |> \inner -> "(" <> inner <> ")"
+
+        primaryKeyColumnNames :: [Text]
+        primaryKeyColumnNames = (primaryKeyColumns table) |> map (get #name)
+
+        primaryKeyFieldNames :: [Text]
+        primaryKeyFieldNames = primaryKeyColumnNames |> map columnNameToFieldName
+
+        pattern :: Text
+        pattern = tableNameToModelName name <> " { " <> intercalate ", " primaryKeyFieldNames <> " }"
+
+        condition :: Text
+        condition = primaryKeyColumns table
+                |> map primaryKeyToCondition
+                |> intercalate ", "
+                |> \listInner -> "[" <> listInner <> "]"
+
+        primaryKeyToCondition :: Column -> Text
+        primaryKeyToCondition column = "(\"" <> get #name column <> "\", toField " <> columnNameToFieldName (get #name column) <> ")"
 
 compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"

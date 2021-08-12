@@ -29,6 +29,7 @@ import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
+import qualified Database.PostgreSQL.Simple.ToField as PG
 import GHC.Records
 import GHC.OverloadedLabels
 import GHC.TypeLits
@@ -317,11 +318,6 @@ textToId text = case parsePrimaryKey (cs text) of
         Nothing -> error (cs $ "Unable to convert " <> (cs text :: Text) <> " to Id value. Is it a valid uuid?")
 {-# INLINE textToId #-}
 
-instance Default (PrimaryKey model) => Default (Id' model) where
-    {-# INLINE def #-}
-    def = Newtype.pack def
-
-
 -- | Measure and log the query time for a given query action if the log level is Debug.
 -- If the log level is greater than debug, just perform the query action without measuring time.
 measureTimeIfLogging :: (?modelContext :: ModelContext, Show q) => IO a -> Query -> q -> IO a
@@ -483,8 +479,14 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
-deleteRecord model = get #id model |> deleteRecordById @model @id
+deleteRecord :: forall model id. (?modelContext :: ModelContext, KnownSymbol (GetTableName model), PrimaryKeyCondition model) => model -> IO ()
+deleteRecord model = do
+    let condition = primaryKeyCondition model
+    let whereConditions = condition |> map (\(field, _) -> field <> " = ?") |> intercalate " AND "
+    let theQuery = "DELETE FROM " <> tableName @model <> " WHERE " <> whereConditions
+    let theParameters = map snd condition
+    sqlExec (PG.Query . cs $! theQuery) theParameters
+    pure ()
 {-# INLINABLE deleteRecord #-}
 
 -- | Like 'deleteRecord' but using an Id
@@ -792,3 +794,18 @@ withTableReadTracker trackedSection = do
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar
     trackedSection
+
+class PrimaryKeyCondition record where
+    -- | Returns WHERE conditions to match an entity by it's primary key
+    --
+    -- For tables with a simple primary key this returns a tuple with the id:
+    --
+    -- >>> primaryKeyCondition project
+    -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
+    --
+    -- If the table has a composite primary key, this returns multiple elements:
+    --
+    -- >>> primaryKeyCondition postTag
+    -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
+    --
+    primaryKeyCondition :: record -> [(Text, PG.Action)]
