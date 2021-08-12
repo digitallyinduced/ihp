@@ -131,6 +131,7 @@ filterList :: forall name table model queryBuilderProvider joinRegister .
     , KnownSymbol name
     , HasField name model Text
     , model ~ GetModelByTableName table
+    , KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister) =>
     Proxy name
     -> queryBuilderProvider table
