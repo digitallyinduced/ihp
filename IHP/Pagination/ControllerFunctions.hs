@@ -114,7 +114,7 @@ paginateWithOptions options q =
 -- >        |> filterList #email
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
-filterList :: forall name table model . (?context::ControllerContext, KnownSymbol name, HasField name model Text, model ~ GetModelByTableName table) =>
+filterList :: forall name table model . (?context::ControllerContext, KnownSymbol table, KnownSymbol name, HasField name model Text, model ~ GetModelByTableName table) =>
     Proxy name
     -> QueryBuilder table
     -> QueryBuilder table
