@@ -73,26 +73,26 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhere (#title, "Test" :: Text)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title = ?", [Escape "Test"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.title = ?", [Escape "Test"])
 
             it "should use a IS operator for checking null" do
                 let theQuery = query @Post
                         |> filterWhere (#externalUrl, Nothing)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE external_url IS ?", [Plain "null"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.external_url IS ?", [Plain "null"])
 
         describe "filterWhereNot" do
             it "should produce a SQL with a WHERE NOT condition" do
                 let theQuery = query @Post
                         |> filterWhereNot (#title, "Test" :: Text)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title != ?", [Escape "Test"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.title != ?", [Escape "Test"])
 
             it "should use a IS NOT operator for checking null" do
                 let theQuery = query @Post
                         |> filterWhereNot (#externalUrl, Nothing)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE external_url IS NOT ?", [Plain "null"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.external_url IS NOT ?", [Plain "null"])
 
         describe "filterWhereIn" do
             it "should produce a SQL with a WHERE condition" do
@@ -100,7 +100,7 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhereIn (#title, theValues)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.title IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
 
             describe "with Maybe / NULL values" do
                 it "should handle [Just .., Nothing]" do
@@ -108,21 +108,21 @@ tests = do
                     let theQuery = query @Post
                             |> filterWhereIn (#categoryId, theValues)
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (category_id IN ?) OR (category_id IS ?)", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"], Plain "null"])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (posts.category_id IN ?) OR (posts.category_id IS ?)", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"], Plain "null"])
 
                 it "should handle [Just ..]" do
                     let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574"]
                     let theQuery = query @Post
                             |> filterWhereIn (#categoryId, theValues)
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id IN ?", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"]])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.category_id IN ?", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"]])
 
                 it "should handle [Nothing]" do
                     let theValues :: [Maybe UUID] = [Nothing]
                     let theQuery = query @Post
                             |> filterWhereIn (#categoryId, theValues)
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id IS ?", [Plain "null"])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.category_id IS ?", [Plain "null"])
 
 
         describe "filterWhereInJoinedTable" do
@@ -141,7 +141,7 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhereNotIn (#title, theValues)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE title NOT IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.title NOT IN ?", [Many [Plain "(", Escape "first", Plain ",", Escape "second", Plain ")"]])
 
             it "ignore an empty value list as this causes the query to always return nothing" do
                 let theValues :: [Text] = []
@@ -156,21 +156,21 @@ tests = do
                     let theQuery = query @Post
                             |> filterWhereNotIn (#categoryId, theValues)
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (category_id NOT IN ?) AND (category_id IS NOT ?)", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"], Plain "null"])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (posts.category_id NOT IN ?) AND (posts.category_id IS NOT ?)", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"], Plain "null"])
 
                 it "should handle [Just ..]" do
                     let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574"]
                     let theQuery = query @Post
                             |> filterWhereNotIn (#categoryId, theValues)
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id NOT IN ?", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"]])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.category_id NOT IN ?", [Many [Plain "(", Plain "'44dcf2cf-a79d-4caf-a2ea-427838ba3574'", Plain ")"]])
 
                 it "should handle [Nothing]" do
                     let theValues :: [Maybe UUID] = [Nothing]
                     let theQuery = query @Post
                             |> filterWhereNotIn (#categoryId, theValues)
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE category_id IS NOT ?", [Plain "null"])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.category_id IS NOT ?", [Plain "null"])
 
         describe "filterWhereNotInJoinedTable" do
             it "should produce a SQL with a WHERE condition" do
@@ -194,7 +194,7 @@ tests = do
                 let searchTerm = "good"
                 let theQuery = query @Post
                      |> filterWhereILike (#title, "%" <> searchTerm <> "%")
-                (toSQL theQuery `shouldBe` ("SELECT posts.* FROM posts WHERE title ILIKE ?", [Escape "%good%"]))
+                (toSQL theQuery `shouldBe` ("SELECT posts.* FROM posts WHERE posts.title ILIKE ?", [Escape "%good%"]))
 
         describe "filterWhereILikeJoinedTable" do
             it "should produce a SQL with a WHERE condition" do
@@ -210,14 +210,14 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhereSql (#createdAt, "< current_timestamp - interval '1 day'")
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE created_at  ?", [Plain "< current_timestamp - interval '1 day'"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE posts.created_at  ?", [Plain "< current_timestamp - interval '1 day'"])
 
         describe "filterWhereCaseInsensitive" do
             it "should produce a SQL with a WHERE LOWER() condition" do
                 let theQuery = query @Post
                         |> filterWhereCaseInsensitive (#title, "Test" :: Text)
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE LOWER(title) = LOWER(?)", [Escape "Test"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE LOWER(posts.title) = LOWER(?)", [Escape "Test"])
 
         describe "innerJoin" do
             it "should provide an inner join sql query" do
@@ -272,28 +272,28 @@ tests = do
                     let theQuery = query @Post
                             |> orderByAsc #createdAt
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY created_at", [])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY posts.created_at", [])
                 
                 it "should accumulate multiple ORDER BY's" do
                     let theQuery = query @Post
                             |> orderByAsc #createdAt
                             |> orderByAsc #title
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY created_at,title", [])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY posts.created_at,posts.title", [])
             
             describe "orderByDesc" do
                 it "should add a ORDER BY DESC" do
                     let theQuery = query @Post
                             |> orderByDesc #createdAt
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY created_at DESC", [])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY posts.created_at DESC", [])
                 
                 it "should accumulate multiple ORDER BY's" do
                     let theQuery = query @Post
                             |> orderByDesc #createdAt
                             |> orderByDesc #title
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY created_at DESC,title DESC", [])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts ORDER BY posts.created_at DESC,posts.title DESC", [])
         
         describe "limit" do
             it "should add a LIMIT" do
@@ -317,7 +317,7 @@ tests = do
                             (filterWhere (#public, True))
 
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (created_by = ?) OR (public = ?)", [Plain "'fe41a985-36a3-4f14-b13c-c166977dc7e8'", Plain "true"])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.* FROM posts WHERE (posts.created_by = ?) OR (posts.public = ?)", [Plain "'fe41a985-36a3-4f14-b13c-c166977dc7e8'", Plain "true"])
 
         describe "distinct" do
             it "should add a DISTINCT" do
@@ -331,7 +331,7 @@ tests = do
                 let theQuery = query @Post
                         |> distinctOn #title
 
-                (toSQL theQuery) `shouldBe` ("SELECT DISTINCT ON (title) posts.* FROM posts", [])
+                (toSQL theQuery) `shouldBe` ("SELECT DISTINCT ON (posts.title) posts.* FROM posts", [])
 
         describe "Complex Queries" do
             it "should allow a query with limit and offset" do
@@ -355,7 +355,7 @@ tests = do
                         |> limit 10
 
                 (toSQL theQuery) `shouldBe` (
-                        "SELECT posts.* FROM posts WHERE (((title = ?) AND (public = ?)) AND (external_url IS ?)) OR (created_by = ?) ORDER BY created_at,title LIMIT 10",
+                        "SELECT posts.* FROM posts WHERE (((posts.title = ?) AND (posts.public = ?)) AND (posts.external_url IS ?)) OR (posts.created_by = ?) ORDER BY posts.created_at,posts.title LIMIT 10",
                         [ Escape "test"
                         , Plain "true"
                         , Plain "null"
