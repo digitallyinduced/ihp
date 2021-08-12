@@ -326,11 +326,16 @@ measureTimeIfLogging queryAction theQuery theParameters = do
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
-            result <- queryAction
-            end <- getCurrentTime
-            let theTime = end `diffUTCTime` start
-            logQuery theQuery theParameters theTime
-            pure result
+            result <- try $ queryAction
+
+            case result of
+                Left (e :: SomeException) -> do
+                    error $ replicate "=" 30 <> "\nError in query: \n" <> show theQuery <> "\n" <> show e <> replicate "=" 30
+                Right result -> do
+                    end <- getCurrentTime
+                    let theTime = end `diffUTCTime` start
+                    logQuery theQuery theParameters theTime
+                    pure result
         else queryAction
 
 -- | Runs a raw sql query
