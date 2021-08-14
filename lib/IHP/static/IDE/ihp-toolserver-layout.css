@@ -20,7 +20,7 @@ body {
     flex-direction: column;
 }
 
-#nav * { transition: all 0.2s }
+#nav > * { transition: all 0.2s }
 
 #nav .nav-item {
     height: 70px;
@@ -65,23 +65,51 @@ body {
     font-size: 8px;
     text-align: center;
     margin: 8px;
-    margin-top: auto;
     opacity: 0.5;
     color: hsla(196, 13%, 80%, 1);
     text-decoration: none !important;
+    margin-top: 1rem;
 }
 
-#nav-logo-lambda {
-    font-size: 32px;
-    font-weight: 600;
+.nav-user {
+    margin-top: auto;
+}
+
+.nav-user > a {
+    text-align: center;
+    margin-top: auto;
+    display: block;
+}
+
+.nav-user > a img {
+    width:  32px;
+    height: 32px;
+    border-radius: 100%;
+    border:  1px solid hsla(196, 13%, 80%, 1);
+    transition: all 0.2s
+}
+
+.nav-user:hover > a img {
+    transform: scale(1.1);
+}
+
+.nav-user.logged-out img {
+    border-color:  rgb(197, 207, 211);
 }
 
 #nav-logo {
     text-align: center;
     line-height: 1;
-    margin-bottom: 2rem;
     margin-top: 1rem;
     font-size: 9px;
+    width: 32px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#ihp-plan {
+    text-align: center;
+    margin-bottom: 2rem;
 }
 
 #content {
