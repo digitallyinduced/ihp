@@ -15,7 +15,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
-    <link rel="shortcut icon" type="image/x-icon" href="/ihp-logo.svg"/>
+    <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
     <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
     <link rel="stylesheet" href="/IDE/schema-designer.css"/>
     <link rel="stylesheet" href="/vendor/select2.min.css"/>
@@ -43,14 +43,12 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src="/IDE/ihp-codegen.js"></script>
 
 
-    <title>IHP</title>
+    <title>IHP IDE</title>
 </head>
 <body class="d-flex h-100 flex-row">
     <div id="nav">
-        <div id="nav-logo">
-            <div id="nav-logo-lambda">λ</div>
-            IHP
-        </div>
+        <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
+        <div id="ihp-plan">IHP</div>
         {apps}
         {schema}
         {data_}
