@@ -181,26 +181,29 @@ type FieldName = ByteString
 
 -- | Returns @True@ when the record has not been saved to the database yet. Returns @False@ otherwise.
 --
--- __Example:__ Returns @False@ when a record has not been inserted yet.
+-- __Example:__ Returns @True@ when a record has not been inserted yet.
 --
 -- >>> let project = newRecord @Project
 -- >>> isNew project
--- False
+-- True
 --
--- __Example:__ Returns @True@ after inserting a record.
+-- __Example:__ Returns @False@ after inserting a record.
 --
 -- >>> project <- createRecord project
 -- >>> isNew project
--- True
+-- False
 --
--- __Example:__ Returns @True@ for records which have been fetched from the database.
+-- __Example:__ Returns @False@ for records which have been fetched from the database.
 --
 -- >>> book <- query @Book |> fetchOne
 -- >>> isNew book
 -- False
-isNew :: forall model id. (HasField "id" model id, Default id, Eq id) => model -> Bool
-isNew model = def == (getField @"id" model)
-{-# INLINE isNew #-}
+isNew :: forall model id. (HasField "meta" model MetaBag) => model -> Bool
+isNew model = model
+        |> get #meta
+        |> get #originalDatabaseRecord
+        |> isNothing
+{-# INLINABLE isNew #-}
 
 type family GetModelName model :: Symbol
 
