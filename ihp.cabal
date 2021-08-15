@@ -332,6 +332,13 @@ library
         , IHP.IDE.SchemaDesigner.Parser
         , IHP.IDE.SchemaDesigner.Types
 
+        -- IHP PRO
+        , IHP.AuthSupport.Controller.PasswordResets
+        , IHP.AuthSupport.Mail.PasswordResets.PasswordResetLink
+        , IHP.AuthSupport.Types
+        , IHP.AuthSupport.View.PasswordResets.New
+        , IHP.AuthSupport.View.PasswordResets.Show
+
 executable RunDevServer
     import: shared-properties
     build-depends: ihp
