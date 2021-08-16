@@ -21,6 +21,8 @@ import Text.Blaze.Html (Html)
 import GHC.Records
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
+import qualified IHP.FrameworkConfig as FrameworkConfig
+import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
@@ -28,7 +30,26 @@ renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/
 {-# INLINABLE renderPlain #-}
 
 respondHtml :: (?context :: ControllerContext) => Html -> IO ()
-respondHtml html = respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+respondHtml html =
+        -- The seq is required to force evaluation of `maybeEvaluatedBuilder` before returning the IO action. See below for details
+        maybeEvaluatedBuilder `seq` (respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] maybeEvaluatedBuilder)
+    where
+        builder = Blaze.renderHtmlBuilder html
+        builderAsByteString = ByteString.toLazyByteString builder
+
+        -- In dev mode we force the full evaluation of the blaze html expressions to catch
+        -- any runtime errors with the IHP error middleware. Without this full evaluation
+        -- certain thunks might only cause an error when warp is building the response string.
+        -- But then it's already too late to catch the exception and the user will only get
+        -- the default warp error message instead of our nice IHP error message design.
+        --
+        -- In production we only evaluate lazy as it improves performance and these kind of
+        -- errors are unlikely to happen in production
+        --
+        -- See https://github.com/digitallyinduced/ihp/issues/1028
+        maybeEvaluatedBuilder = if FrameworkConfig.isDevelopment
+            then (Data.ByteString.Lazy.length builderAsByteString) `seq` (ByteString.lazyByteString builderAsByteString)
+            else builder
 {-# INLINABLE respondHtml #-}
 
 respondSvg :: (?context :: ControllerContext) => Html -> IO ()

@@ -102,7 +102,7 @@ You'll see that the web browser magically refreshes once you save the file chang
 **Did it work?** Congratulations 🎉 You've officially built your first haskell web application :) That makes you a haskell programmer. Welcome to the Haskell community! :)
 
 
-If you liked the live reloading, have some fun and play a around with the welcome view before you continue with the next steps.
+If you liked the live reloading, have some fun and play around with the welcome view before you continue with the next steps.
 
 ## 3. Data Structures & PostgreSQL
 
@@ -476,6 +476,18 @@ Let's also make it clickable by wrapping it in a link. We can just put a `<a hre
 ```
 
 Now we can also remove the "Show" link. We can do that by removing the next line `<td><a href={ShowPostAction (get #id post)}>Show</a></td>`.
+
+Also remove the corresponding `<th></th>` from `thead` so that there are only three `th` tags:
+
+```html
+<thead>
+    <tr>
+        <th>Post</th>
+        <th></th>
+        <th></th>
+    </tr>
+</thead>
+```
 
 ### Adding Validation
 

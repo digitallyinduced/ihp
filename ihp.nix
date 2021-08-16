@@ -1,7 +1,7 @@
 { mkDerivation
 , callPackage
 , fetchFromGitHub
-, stdenv
+, lib
 , cabal-install
 , base
 , classy-prelude
@@ -57,10 +57,12 @@
 , minio-hs
 , temporary
 , wai-cors
+, lens
+, random
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v0.11.0";
+  version = "v0.13.0";
   src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
@@ -120,8 +122,10 @@ mkDerivation {
     minio-hs
     temporary
     wai-cors
+    lens
+    random
   ];
-  license = stdenv.lib.licenses.mit;
+  license = lib.licenses.mit;
   postInstall = ''
     cp exe/IHP/CLI/run-script $out/bin/run-script
 

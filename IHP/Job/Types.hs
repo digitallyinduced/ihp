@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module IHP.Job.Types
 ( Job (..)
 , JobWorkerArgs (..)
@@ -19,6 +20,13 @@ class Job job where
 
     timeoutInMicroseconds :: (?job :: job) => Maybe Int
     timeoutInMicroseconds = Nothing
+
+    -- | While jobs are typically fetch using pg_notiy, we have to poll the queue table
+    -- periodically to catch jobs with a @run_at@ in the future
+    --
+    -- By default we only poll every minute
+    queuePollInterval :: Int
+    queuePollInterval = 60 * 1000000
 
 class Worker application where
     workers :: application -> [JobWorker]

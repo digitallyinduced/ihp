@@ -1,4 +1,4 @@
-{ compiler ? "ghc8103", ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./., withHoogle ? false }:
+{ compiler ? "ghc8104", ihp, haskellDeps ? (p: []), otherDeps ? (p: []), projectPath ? ./., withHoogle ? false }:
 
 let
     pkgs = import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; };
@@ -13,6 +13,13 @@ in
     pkgs.stdenv.mkDerivation {
         name = "app";
         buildPhase = ''
+          mkdir -p build
+          rm -f build/ihp-lib
+
+          mkdir -p IHP
+          ln -s "${ihp}/lib/IHP" build/ihp-lib
+          ln -s "${ihp}/lib" IHP/lib # Avoid the Makefile calling 'which RunDevServer'
+
           make -B build/bin/RunUnoptimizedProdServer
         '';
         installPhase = ''

@@ -289,11 +289,10 @@ app stateRef statusServerState pendingConnection = do
 
             let errorContainer = renderErrorView standardOutput' errorOutput' isCompiling
             let html = Blaze.renderHtml errorContainer
-            
 
             result <- Exception.try (Websocket.sendTextData connection html)
             case result of
-                Left (Exception.SomeException e) -> pure () -- Client was proapbly disconnected
+                Left (Exception.SomeException e) -> pure () -- Client was probably disconnected
                 Right _ -> notifyClient
 
     notifyClient

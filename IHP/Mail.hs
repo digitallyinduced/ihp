@@ -27,14 +27,18 @@ import qualified Text.Blaze.Html.Renderer.Text as Blaze
 import qualified Data.Text as Text
 import Data.Maybe
 
-buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO Mail
-buildMail mail = let ?mail = mail in simpleMail (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) []
+buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> Mail
+buildMail mail = let ?mail = mail in simpleMailInMemory (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) attachments'
+    where
+        attachments' = mail
+                |> attachments
+                |> map (\MailAttachment { name, content, contentType } -> (contentType, name, content))
 
 -- | Sends an email
 --
 -- Uses the mail server provided in the controller context, configured in Config/Config.hs
 sendMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO ()
-sendMail mail = buildMail mail >>= sendWithMailServer (fromConfig mailServer)
+sendMail mail = sendWithMailServer (fromConfig mailServer) (buildMail mail)
 
 sendWithMailServer :: MailServer -> Mail -> IO ()
 sendWithMailServer SES { .. } mail = do
@@ -100,3 +104,12 @@ class BuildMail mail where
     -- | When no plain text version of the email is specified it falls back to using the html version but striping out all the html tags
     text :: (?context :: context, ConfigProvider context) => mail -> Text
     text mail = stripTags (cs $ Blaze.renderHtml (html mail))
+
+    -- | Optional, mail attachments
+    --
+    -- __Example:__
+    --
+    -- > attachments = [ MailAttachment { name = "attached_file.xml", contentType = "application/xml", content = "<xml><hello/></xml>" } ]
+    --
+    attachments :: (?context :: context, ConfigProvider context) => mail -> [MailAttachment]
+    attachments mail = []

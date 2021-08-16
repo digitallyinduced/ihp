@@ -1,4 +1,4 @@
-{ ihp, mkDerivation, base, stdenv, fetchFromGitHub, zip-archive
+{ ihp, mkDerivation, base, lib, fetchFromGitHub, zip-archive
 }:
 mkDerivation {
   pname = "ihp-zip";
@@ -10,7 +10,7 @@ mkDerivation {
   testHaskellDepends = [ ];
   homepage = "https://github.com/digitallyinduced/ihp-zip";
   description = "Support for making ZIP Archives with IHP";
-  license = stdenv.lib.licenses.mit;
+  license = lib.licenses.mit;
   src = fetchFromGitHub {
     owner = "digitallyinduced";
     repo = "ihp-zip";

@@ -91,16 +91,16 @@ login user = Session.setSession (sessionKey @user) (tshow (get #id user))
 -- Log's out an entity
 {-# INLINABLE logout #-}
 logout :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
-logout user = Session.setSession (sessionKey @user) ""
+logout user = Session.setSession (sessionKey @user) ("" :: Text)
 
 {-# INLINABLE sessionKey #-}
 sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Text
 sessionKey = "login." <> ModelSupport.getModelName @user
 
 redirectToLoginWithMessage :: (?context :: ControllerContext) => Text -> IO ()
-redirectToLoginWithMessage newSessionPath = do 
+redirectToLoginWithMessage newSessionPath = do
     setSuccessMessage "Please log in to access this page"
-    setSession "IHP.LoginSupport.redirectAfterLogin" (cs getRequestPathAndQuery)
+    setSession "IHP.LoginSupport.redirectAfterLogin" getRequestPathAndQuery
     redirectToPath newSessionPath
     error "Unreachable"
 

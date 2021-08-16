@@ -21,7 +21,7 @@ data Statement
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
-    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression] }
+    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
     | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
     deriving (Eq, Show)
@@ -96,6 +96,10 @@ data Expression =
     | GreaterThanExpression Expression Expression
     -- | a >= b
     | GreaterThanOrEqualToExpression Expression Expression
+    -- | Double literal value, e.g. 0.1337
+    | DoubleExpression Double
+    -- | value::type
+    | TypeCastExpression Expression PostgresType
     deriving (Eq, Show)
 
 data PostgresType

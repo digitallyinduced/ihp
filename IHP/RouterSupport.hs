@@ -117,7 +117,7 @@ parseFuncs parseIdType = [
                     Just Refl -> readMay (cs queryValue :: String)
                         |> \case
                             Just int -> Right int
-                            Nothing -> Left BadType
+                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
                         Just Refl -> Right $ readMay (cs queryValue :: String)
                         Nothing -> Left NotMatched
@@ -130,7 +130,7 @@ parseFuncs parseIdType = [
                     Just Refl -> readMay (cs queryValue :: String)
                         |> \case
                             Just int -> Right int
-                            Nothing -> Left BadType
+                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
                         Just Refl -> Right $ readMay (cs queryValue :: String)
                         Nothing -> Left NotMatched
@@ -154,17 +154,6 @@ parseFuncs parseIdType = [
                         Just Refl -> Right idValue
                         Nothing -> Left NotMatched
                     Nothing -> Left NotMatched
-                Nothing -> Left NotMatched,
-
-            -- Try and parse a UUID. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
-            -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
-            -- Therefore, we're able to safely cast it to its @Id@ type with @unsafeCoerce@.
-            \case
-                Just queryValue -> queryValue
-                    |> fromASCIIBytes
-                    |> \case
-                        Just uuid -> uuid |> unsafeCoerce |> Right
-                        Nothing -> Left NotMatched
                 Nothing -> Left NotMatched,
 
             -- Try and parse @[Text]@. If value is not present then default to empty list.
@@ -191,8 +180,35 @@ parseFuncs parseIdType = [
                         |> catMaybes
                         |> Right
                     Nothing -> Right []
-                Nothing -> Left NotMatched
+                Nothing -> Left NotMatched,
 
+            -- Try and parse a raw UUID
+            \queryValue -> case eqT :: Maybe (d :~: UUID) of
+                Just Refl -> case queryValue of
+                    Just queryValue -> queryValue
+                        |> fromASCIIBytes
+                        |> \case
+                            Just uuid -> uuid |> Right
+                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
+                    Nothing -> Left NotMatched
+                Nothing -> Left NotMatched,
+
+            -- This has to be last parser in the list
+            --
+            -- Try and parse a UUID wrapped with a Id. In IHP types these are wrapped in a newtype @Id@ such as @Id User@.
+            -- Since @Id@ is a newtype wrapping a UUID, it has the same data representation in GHC.
+            -- Therefore, we're able to safely cast it to its @Id@ type with @unsafeCoerce@.
+            --
+            -- We cannot use 'eqT' here for checking the types, as it's wrapped inside the @Id@ type. We expect
+            -- that if it looks like a UUID, we can just treat it like an @Id@ type. For that to not overshadow other
+            -- parsers, we need to have this last.
+            \queryValue -> case queryValue of
+                Just queryValue -> queryValue
+                    |> fromASCIIBytes
+                    |> \case
+                        Just uuid -> uuid |> unsafeCoerce |> Right
+                        Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
+                Nothing -> Left NotMatched
             ]
 
 -- | As we fold over a constructor, we want the values parsed from the query string
@@ -210,13 +226,6 @@ querySortedByFields query constructor = constrFields constructor
         |> map cs
         |> map (\field -> (field, join $ List.lookup field query))
 
-data TypedAutoRouteError
-    = BadType
-    | TooFewArguments
-    | NotMatched
-    | NoConstructorMatched
-    deriving (Show)
-
 -- | Given a constructor and a parsed query string, attempt to construct a value of the constructor's type.
 -- For example, given the controller
 --
@@ -233,11 +242,15 @@ applyConstr parseIdType constructor query = let
     -- | Given some query item (key, optional value), try to parse into the current expected type
     -- by iterating through the available parse functions.
     attemptToParseArg :: forall d. (Data d) => (ByteString, Maybe ByteString) -> [Maybe ByteString -> Either TypedAutoRouteError d] -> State.StateT Query (Either TypedAutoRouteError) d
-    attemptToParseArg _ [] = State.lift (Left NoConstructorMatched)
+    attemptToParseArg queryParam@(queryName, queryValue) [] = State.lift (Left NoConstructorMatched
+                { field = queryName
+                , value = queryValue
+                , expectedType = (dataTypeOf (undefined :: d)) |> dataTypeName |> cs
+                })
     attemptToParseArg queryParam@(k, v) (parseFunc:restFuncs) = case parseFunc v of
             Right result -> pure result
             -- BadType will be returned if, for example, a text is passed to a query parameter typed as int.
-            Left BadType -> State.lift (Left BadType)
+            Left badType@BadType{} -> State.lift (Left badType { field = k })
             -- otherwise, safe to assume the match just failed, so recurse on the rest of the functions and try to find one that matches.
             Left _ -> attemptToParseArg queryParam restFuncs
 
@@ -289,18 +302,15 @@ class Data controller => AutoRoute controller where
 
                     checkRequestMethod action = do
                             method <- getMethod
-                            unless (allowedMethods |> includes method) (error ("Invalid method, expected one of: " <> show allowedMethods))
+                            unless (allowedMethods |> includes method) (Exception.throw UnexpectedMethodException { allowedMethods, method })
                             pure action
 
-                    action :: Maybe controller
                     action = case applyConstr parseIdFunc constr query of
                         Right parsedAction -> pure parsedAction
-                        Left e -> Nothing
+                        Left e -> Exception.throw e
 
                 in do
-                    parsedAction <- string prefix >> (string actionPath <* endOfInput) *> (case action of
-                        Just a -> pure a
-                        Nothing -> fail "Failed to parse action")
+                    parsedAction <- string prefix >> (string actionPath <* endOfInput) *> action
                     checkRequestMethod parsedAction
 
         in choice (map parseAction allConstructors)

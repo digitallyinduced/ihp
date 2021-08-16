@@ -395,6 +395,7 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -405,6 +406,7 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
+                    , whereClause = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -415,6 +417,7 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    , whereClause = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -425,6 +428,7 @@ tests = do
                     , unique = True
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -454,3 +458,22 @@ tests = do
             let sql = cs [plain|CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y();\n|]
             let statement = UnknownStatement { raw = "CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y()"  }
             compileSql [statement] `shouldBe` sql
+
+        it "should compile a decimal default value with a type-cast" do
+            let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a partial index" do
+            let sql = cs [plain|CREATE UNIQUE INDEX unique_source_id ON listings (source, source_id) WHERE source IS NOT NULL AND source_id IS NOT NULL;\n|]
+            let index = CreateIndex
+                    { indexName = "unique_source_id"
+                    , unique = True
+                    , tableName = "listings"
+                    , expressions = [ VarExpression "source", VarExpression "source_id" ]
+                    , whereClause = Just (
+                        AndExpression
+                            (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
+                            (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
+                    }
+            compileSql [index] `shouldBe` sql

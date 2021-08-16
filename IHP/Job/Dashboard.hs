@@ -299,8 +299,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
     -- | Delete job in 'table' with ID 'uuid'.
     deleteJob table uuid = do
         let id :: Id job = unsafeCoerce uuid
-        j <- fetch id
-        deleteRecord j
+        deleteRecordById @job id
         setSuccessMessage (columnNameToFieldLabel table <> " record deleted.")
         redirectTo ListJobsAction
 

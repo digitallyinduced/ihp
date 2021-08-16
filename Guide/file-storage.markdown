@@ -66,7 +66,7 @@ config = do
     initS3Storage "eu-central-1" "my-bucket-name"
 ```
 
-You need to replace `eu-central-1` with your availbility zone and `my-bucket-name` with the name of your S3 bucket.
+You need to replace `eu-central-1` with your availability zone and `my-bucket-name` with the name of your S3 bucket.
 
 The AWS access key and secret key have to be provided using the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` env vars.
 
@@ -83,15 +83,58 @@ export AWS_SECRET_ACCESS_KEY="YOUR SECRET"     # <---------
 
 # Finally start the dev server
 RunDevServer
+```
 
+### Minio
 
+Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
+
+```haskell
+import IHP.FileStorage.Config
+```
+
+Then add a call to `initMinioStorage`:
+
+```haskell
+module Config where
+
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.FileStorage.Config
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+
+    initMinioStorage "https://minio.example.com" "my-bucket-name"
+```
+
+You need to replace `https://minio.example.com` with your minio server and `my-bucket-name` with the name of your bucket.
+
+The Minio access key and secret key have to be provided using the `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` env vars.
+
+For easy development you can add these env vars to your `./start` script:
+
+```bash
+#!/usr/bin/env bash
+# Script to start the local dev server
+
+# ...
+
+export MINIO_ACCESS_KEY="YOUR KEY"            # <---------
+export MINIO_SECRET_KEY="YOUR SECRET"     # <---------
+
+# Finally start the dev server
+RunDevServer
 ```
 
 ## Uploading
 
 ### Saving a User Upload to the Storage
 
-In this example we asume the following data schema:
+In this example we assume the following data schema:
 
 ```sql
 CREATE TABLE companies (
@@ -187,7 +230,6 @@ The `applyImageMagick` function requires `imagemagick` to be installed. You can 
 
 After that run `make -B .envrc` and restart your development server.
 
-
 #### Jpegs
 
 To store an image as a jpeg and reduce it's quality use this:
@@ -204,7 +246,6 @@ The browser uses the [`Content-Disposition`](https://developer.mozilla.org/en-US
 By default no `Content-Disposition` header is set.
 
 If you use the S3 Storage you can use the `contentDispositionAttachmentAndFileName` function to mark a file as an attachment and use it's original provided file name as the downloaded file name:
-
 
 ```haskell
 let uploadAttachment = uploadToStorageWithOptions $ def
@@ -269,6 +310,33 @@ storedFile <- storeFileWithOptions file options
 let url = get #url storedFile
 ```
 
+### Accessing Uploaded Files without Storing them
+
+You can read the content of an uploaded file without saving it to the cloud storage. This can be useful when you're dealing with text files:
+
+```haskell
+action SubmitMarkdownAction = do
+    let content :: Text =
+            fileOrNothing "markdown"
+            |> fromMaybe (error "no file given")
+            |> get #fileContent
+            |> cs -- content is a LazyByteString, so we use `cs` to convert it to Text
+
+    -- We can now do anything with the content of the uploaded file
+    -- E.g. printing it to the terminal
+    putStrLn content
+```
+
+To upload a file to this action you can use the following form:
+```html
+<form method="POST" action={SubmitMarkdownAction}>
+    <input
+        type="file"
+        name="markdown"
+        accept="text/markdown, text/plain"
+    >
+</form>
+```
 
 ## Signed Temporary Download Urls
 
@@ -284,3 +352,33 @@ let expiredAt :: UTCTime = get #expiredAt signedUrl
 If the `StaticDirStorage` is used, a unsigned normal URL will be returned, as these files are public anyways.
 
 The signed url is valid for 7 days.
+
+
+## File Upload Limits
+
+To avoid a single request overloading the server, [IHP has certain request limits in place](https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:defaultParseRequestBodyOptions):
+
+- Maximum key/filename length: 32 bytes
+- Maximum files: 10
+- Filesize unlimited
+- Maximum size for parameters: 64kbytes
+- Maximum number of header lines: 32 bytes (applies only to headers of a mime/multipart message)
+- Maximum header line length: 8190 (like apache)
+
+You can change the limits in the `Config/Config.hs` like this:
+
+```haskell
+import qualified Network.Wai.Parse as WaiParse -- <--- ADD THIS IMPORT
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+
+    -- We extend the default options here
+    option $ WaiParse.defaultParseRequestBodyOptions
+            |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
+
+```
+
+[You can find a full list of `WaiParser.set...` functions on the `Network.Wai.Parse` documentation](https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:setMaxRequestKeyLength)

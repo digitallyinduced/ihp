@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://ihp.digitallyinduced.com/" target="_blank">
-    <img src="Guide/images/ihp-logo-readme.png"/>
+    <img src="Guide/images/ihp-logo-readme.svg" />
   </a>
 </p>
 

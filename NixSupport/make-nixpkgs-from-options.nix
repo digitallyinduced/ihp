@@ -3,12 +3,12 @@
 # the project
 { ihp
 , haskellPackagesDir
-, dontCheckPackages ? []
-, doJailbreakPackages ? []
+, dontCheckPackages ? ["mmark" "mmark-ext"]
+, doJailbreakPackages ? ["haskell-to-elm"]
 , dontHaddockPackages ? []
-, nixPkgsRev ? "c7f75838c360473805afcf5fb2fa65e678efd94b"
-, nixPkgsSha256 ? "04vx1j2gybm1693a8wxw6bpcsd4h1jdw541vwic8nfm3n80r4ckm"
-, compiler ? "ghc8103"
+, nixPkgsRev ? "303e44b3c11a1ed3b470f90bc6d1f03efdb87239"
+, nixPkgsSha256 ? "0kfrw1mvpx2nkr493iq6bw0d6cxdwrmp6xqsir20bhmqwr36sds7"
+, compiler ? "ghc8104"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 }:
 let

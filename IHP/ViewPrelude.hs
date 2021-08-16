@@ -33,6 +33,7 @@ module IHP.ViewPrelude (
     module IHP.LoginSupport.Helper.View,
     module IHP.PageTitle.ViewFunctions,
     module IHP.Assets.ViewFunctions,
+    module IHP.Pagination.ViewFunctions,
 ) where
 
 import IHP.Prelude
@@ -66,3 +67,5 @@ import IHP.LoginSupport.Helper.View
 import IHP.PageTitle.ViewFunctions
 
 import IHP.Assets.ViewFunctions
+
+import IHP.Pagination.ViewFunctions

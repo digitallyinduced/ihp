@@ -146,7 +146,28 @@ config = do
 
 ## Email Attachments
 
-TODO
+You can add file attachments by adding a `attachments` statement:
+
+```haskell
+module Web.Mail.Users.Confirmation where
+import Web.View.Prelude
+import IHP.MailPrelude
+
+data ConfirmationMail = ConfirmationMail { user :: User }
+
+instance BuildMail ConfirmationMail where
+    subject = "Subject"
+    to ConfirmationMail { .. } = Address { addressName = Just "F L", addressEmail = "fname.lname@example.com" }
+    from = "hi@example.com"
+    html ConfirmationMail { .. } = [hsx|
+        Hello World
+    |]
+
+    attachments ConfirmationMail { .. } = [
+        MailAttachment { name = "attachment.xml", contentType = "application/xml", content = "<xml>...</xml>" }
+    ]
+```
+
 
 ## Plain Text Emails
 

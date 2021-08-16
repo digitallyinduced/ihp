@@ -16,19 +16,19 @@ import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 
 
-buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
-buildPlan rawControllerName applicationName = do
+buildPlan :: Text -> Text -> Bool -> IO (Either Text [GeneratorAction])
+buildPlan rawControllerName applicationName paginationEnabled = do
     schema <- SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> pure []
         Right statements -> pure statements
     let controllerName = tableNameToControllerName rawControllerName
     let modelName = tableNameToModelName rawControllerName
-    pure $ Right $ buildPlan' schema applicationName controllerName modelName
+    pure $ Right $ buildPlan' schema applicationName controllerName modelName paginationEnabled
 
-buildPlan' schema applicationName controllerName modelName =
+buildPlan' schema applicationName controllerName modelName paginationEnabled =
     let
-        config = ControllerConfig { modelName, controllerName, applicationName }
-        viewPlans = generateViews schema applicationName controllerName
+        config = ControllerConfig { modelName, controllerName, applicationName, paginationEnabled }
+        viewPlans = generateViews schema applicationName controllerName paginationEnabled
     in
         [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
         , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = "\n" <> (controllerInstance config) }
@@ -42,6 +42,7 @@ data ControllerConfig = ControllerConfig
     { controllerName :: Text
     , applicationName :: Text
     , modelName :: Text
+    , paginationEnabled :: Bool
     } deriving (Eq, Show)
 
 controllerInstance :: ControllerConfig -> Text
@@ -93,10 +94,16 @@ generateController schema config =
         modelVariableSingular = lcfirst singularName
         idFieldName = lcfirst singularName <> "Id"
         model = ucfirst singularName
+        paginationEnabled = get #paginationEnabled config
+
         indexAction =
             ""
             <> "    action " <> pluralName <> "Action = do\n"
-            <> "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
+            <> (if paginationEnabled
+                then   "        (" <> modelVariablePlural <> "Q, pagination) <- query @" <> model <> " |> paginate\n"
+                    <> "        " <> modelVariablePlural <> " <- " <> modelVariablePlural <> "Q |> fetch\n"
+                else "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
+            )
             <> "        render IndexView { .. }\n"
 
         newAction =
@@ -194,8 +201,8 @@ qualifiedViewModuleName config viewName =
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName
 
-generateViews :: [Statement] -> Text -> Text -> [GeneratorAction]
-generateViews schema applicationName controllerName' =
+generateViews :: [Statement] -> Text -> Text -> Bool -> [GeneratorAction]
+generateViews schema applicationName controllerName' paginationEnabled =
     if null controllerName'
         then []
         else do

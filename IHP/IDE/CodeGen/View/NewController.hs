@@ -15,6 +15,7 @@ data NewControllerView = NewControllerView
     , controllerName :: Text
     , applicationName :: Text
     , applications :: [Text]
+    , pagination :: Bool
     }
 
 instance View NewControllerView where
@@ -30,17 +31,18 @@ instance View NewControllerView where
         </div>
     |]
         where
-            renderEmpty = [hsx|<form method="POST" action={NewControllerAction} class="d-flex">
-                        {when (length applications /= 1) renderApplicationSelector}
-                        <input
-                            type="text"
-                            name="name"
-                            placeholder="Controller name"
-                            class="form-control"
-                            autofocus="autofocus"
-                            value={controllerName}
-                            />
-                        <button class="btn btn-primary" type="submit">Preview</button>
+            renderEmpty = [hsx|
+                <form method="POST" action={NewControllerAction} class="d-flex">
+                    {when (length applications /= 1) renderApplicationSelector}
+                    <input
+                        type="text"
+                        name="name"
+                        placeholder="Controller name"
+                        class="form-control"
+                        autofocus="autofocus"
+                        value={controllerName}
+                        />
+                    <button class="btn btn-primary" type="submit">Preview</button>
                 </form>|]
 
             renderPreview = [hsx|
@@ -49,9 +51,25 @@ instance View NewControllerView where
 
                     <input type="hidden" name="name" value={controllerName}/>
                     <input type="hidden" name="applicationName" value={applicationName}/>
+                    <input type="hidden" name="pagination" value={inputValue pagination}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
+
+                <div class="generator-options">
+                    <form method="POST" action={NewControllerAction}>
+                        <input type="hidden" name="name" value={controllerName}/>
+                        <input type="hidden" name="applicationName" value={applicationName}/>
+                        <input
+                            type="checkbox"
+                            name="pagination"
+                            id="pagination"
+                            checked={pagination}
+                            onchange="this.form.submit()"
+                            />
+                        <label class="pl-1" for="pagination">Pagination</label>
+                    </form>
+                </div>
             |]
             renderApplicationOptions = forM_ applications (\x -> [hsx|<option selected={x == applicationName}>{x}</option>|])
             renderApplicationSelector = [hsx|

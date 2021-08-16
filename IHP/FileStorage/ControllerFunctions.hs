@@ -7,9 +7,12 @@ module IHP.FileStorage.ControllerFunctions
 ( storeFile
 , removeFileFromStorage
 , storeFileWithOptions
+, storeFileFromUrl
+, storeFileFromPath
 , contentDispositionAttachmentAndFileName
 , createTemporaryDownloadUrl
 , createTemporaryDownloadUrlFromPath
+, uploadToStorage
 , uploadToStorageWithOptions
 ) where
 
@@ -34,6 +37,10 @@ import qualified System.Directory as Directory
 import qualified Control.Exception as Exception
 import qualified System.IO.Temp as Temp
 import qualified System.Process as Process
+import qualified Network.Wai.Parse as Wai
+import qualified Network.Wreq as Wreq
+import Control.Lens hiding ((|>), set)
+import IHP.FileStorage.MimeTypes
 
 -- | Uploads a file to a directory in the storage
 --
@@ -86,7 +93,7 @@ storeFile fileInfo directory = storeFileWithOptions fileInfo (def { directory })
 storeFileWithOptions :: (?context :: context, ConfigProvider context) => Wai.FileInfo LByteString -> StoreFileOptions -> IO StoredFile
 storeFileWithOptions fileInfo options = do
     objectId <- UUID.nextRandom
-    
+
     let directory = get #directory options
     let objectPath = directory <> "/" <> UUID.toText objectId
     let preprocess = get #preprocess options
@@ -104,7 +111,7 @@ storeFileWithOptions fileInfo options = do
 
             let frameworkConfig = getFrameworkConfig ?context
             pure $ (get #baseUrl frameworkConfig) <> "/" <> objectPath
-        S3Storage { connectInfo, bucket, region } -> do
+        S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
                     |> get #fileContent
                     |> Conduit.sourceLbs
@@ -115,9 +122,68 @@ storeFileWithOptions fileInfo options = do
                 let options :: PutObjectOptions = defaultPutObjectOptions { pooContentType = Just contentType, pooContentDisposition = contentDisposition }
                 putObject bucket objectPath payload Nothing options
 
-            pure $ "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com/" <> objectPath
-    
+            pure $ baseUrl <> objectPath
+
     pure StoredFile { path = objectPath, url }
+
+-- | Fetchs an url and uploads it to the storage.
+--
+-- The stored file has the content type provided by @Content-Type@ header of the downloaded file.
+--
+-- __Example:__ Copy a file from a remote server to the @pictures@ directory
+--
+-- > let externalUrl = "http://example/picture.jpg"
+-- >
+-- > let options :: StoreFileOptions = def
+-- >         { directory = "pictures"
+-- >         }
+-- >
+-- > storedFile <- storeFileFromUrl externalUrl options
+-- > let newUrl = get #url storedFile
+--
+storeFileFromUrl :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
+storeFileFromUrl url options = do
+    (contentType, responseBody) <- do
+        response <- Wreq.get (cs url)
+        let contentType = response ^. Wreq.responseHeader "Content-Type"
+        let responseBody = response ^. Wreq.responseBody
+        pure (contentType, responseBody)
+
+    let file = Wai.FileInfo
+            { fileName = ""
+            , fileContentType = contentType
+            , fileContent = responseBody
+            }
+
+    storeFileWithOptions file options
+
+
+-- | Uploads a local file to the storage
+--
+-- The content type is guessed based on the file extension.
+--
+-- __Example:__ Copy a local "picture.jpg" to the @pictures@ directory inside the storage
+--
+-- >
+-- > let options :: StoreFileOptions = def
+-- >         { directory = "pictures"
+-- >         }
+-- >
+-- > storedFile <- storeFileFromPath "picture.jpg" options
+-- > let newUrl = get #url storedFile
+--
+storeFileFromPath :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
+storeFileFromPath path options = do
+    let fileContentType = path |> guessMimeType |> cs
+
+    fileContent <- LBS.readFile (cs path)
+    let file = Wai.FileInfo
+            { fileName = ""
+            , fileContentType
+            , fileContent
+            }
+
+    storeFileWithOptions file options
 
 -- | Returns a signed url for a path inside the storage. The url is valid for 7 days.
 --
@@ -143,7 +209,7 @@ createTemporaryDownloadUrlFromPath objectPath = do
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do
-            
+
             url <- runMinio connectInfo do
                 presignedGetObjectUrl bucket objectPath validInSeconds [] []
 
@@ -176,11 +242,11 @@ contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; file
 -- | Saves an upload to the storage and sets the record attribute to the url.
 --
 -- __Example:__ Upload a logo for a Company and convert it to a 512x512 PNG
--- 
+--
 -- > action UpdateCompanyAction { companyId } = do
 -- >     let uploadLogo = uploadToStorageWithOptions $ def
 -- >             { preprocess = applyImageMagick "png" "-resize '512x512^' -gravity north -extent 512x512 -quality 100% -strip"  }
--- > 
+-- >
 -- >     company <- fetch companyId
 -- >     company
 -- >         |> fill @'["name"]
@@ -228,7 +294,7 @@ uploadToStorageWithOptions options field record = do
 -- See 'uploadToStorageWithOptions' if you want to provide custom options.
 --
 -- __Example:__ Upload a logo for a Company
--- 
+--
 -- > action UpdateCompanyAction { companyId } = do
 -- >     company <- fetch companyId
 -- >     company

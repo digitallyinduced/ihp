@@ -40,7 +40,6 @@ haddock --html --hyperlinked-source --built-in-themes --quickjump -o haddock-bui
     --optghc="-XBangPatterns" \
     --optghc="-XInstanceSigs" \
     --optghc="-XFunctionalDependencies" \
-    --optghc="-package typerep-map" \
     --optghc="-XDefaultSignatures" \
     --optghc="-XStandaloneDeriving" \
     --optghc="-package-env -"

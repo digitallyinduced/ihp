@@ -29,6 +29,7 @@ import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
+import qualified Database.PostgreSQL.Simple.ToField as PG
 import GHC.Records
 import GHC.OverloadedLabels
 import GHC.TypeLits
@@ -52,6 +53,8 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
+import Data.Scientific
+import GHC.Stack
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -154,6 +157,9 @@ instance InputValue value => InputValue [value] where
 instance InputValue Aeson.Value where
     inputValue json = json |> Aeson.encode |> cs
 
+instance InputValue Scientific where
+    inputValue = tshow
+
 instance Default Text where
     {-# INLINE def #-}
     def = ""
@@ -168,30 +174,36 @@ instance Default Point where
 instance Default TSVector where
     def = TSVector def
 
+instance Default Scientific where
+    def = 0
+
 type FieldName = ByteString
 
 -- | Returns @True@ when the record has not been saved to the database yet. Returns @False@ otherwise.
 --
--- __Example:__ Returns @False@ when a record has not been inserted yet.
+-- __Example:__ Returns @True@ when a record has not been inserted yet.
 --
 -- >>> let project = newRecord @Project
 -- >>> isNew project
--- False
+-- True
 --
--- __Example:__ Returns @True@ after inserting a record.
+-- __Example:__ Returns @False@ after inserting a record.
 --
 -- >>> project <- createRecord project
 -- >>> isNew project
--- True
+-- False
 --
--- __Example:__ Returns @True@ for records which have been fetched from the database.
+-- __Example:__ Returns @False@ for records which have been fetched from the database.
 --
 -- >>> book <- query @Book |> fetchOne
 -- >>> isNew book
 -- False
-isNew :: forall model id. (HasField "id" model id, Default id, Eq id) => model -> Bool
-isNew model = def == (getField @"id" model)
-{-# INLINE isNew #-}
+isNew :: forall model id. (HasField "meta" model MetaBag) => model -> Bool
+isNew model = model
+        |> get #meta
+        |> get #originalDatabaseRecord
+        |> isNothing
+{-# INLINABLE isNew #-}
 
 type family GetModelName model :: Symbol
 
@@ -281,6 +293,7 @@ instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) w
 -- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
 instance (Read (PrimaryKey model), ParsePrimaryKey (PrimaryKey model)) => IsString (Id' model) where
     fromString uuid = textToId uuid
+    {-# INLINE fromString #-}
 
 class ParsePrimaryKey primaryKey where
     parsePrimaryKey :: Text -> Maybe primaryKey
@@ -302,16 +315,11 @@ instance ParsePrimaryKey Text where
 -- can just write it like:
 --
 -- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
-textToId :: (ParsePrimaryKey (PrimaryKey model), ConvertibleStrings text Text) => text -> Id' model
+textToId :: (HasCallStack, ParsePrimaryKey (PrimaryKey model), ConvertibleStrings text Text) => text -> Id' model
 textToId text = case parsePrimaryKey (cs text) of
         Just id -> Id id
         Nothing -> error (cs $ "Unable to convert " <> (cs text :: Text) <> " to Id value. Is it a valid uuid?")
 {-# INLINE textToId #-}
-
-instance Default (PrimaryKey model) => Default (Id' model) where
-    {-# INLINE def #-}
-    def = Newtype.pack def
-
 
 -- | Measure and log the query time for a given query action if the log level is Debug.
 -- If the log level is greater than debug, just perform the query action without measuring time.
@@ -474,8 +482,14 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => model -> IO ()
-deleteRecord model = get #id model |> deleteRecordById @model @id
+deleteRecord :: forall model id. (?modelContext :: ModelContext, KnownSymbol (GetTableName model), PrimaryKeyCondition model) => model -> IO ()
+deleteRecord model = do
+    let condition = primaryKeyCondition model
+    let whereConditions = condition |> map (\(field, _) -> field <> " = ?") |> intercalate " AND "
+    let theQuery = "DELETE FROM " <> tableName @model <> " WHERE " <> whereConditions
+    let theParameters = map snd condition
+    sqlExec (PG.Query . cs $! theQuery) theParameters
+    pure ()
 {-# INLINABLE deleteRecord #-}
 
 -- | Like 'deleteRecord' but using an Id
@@ -783,3 +797,18 @@ withTableReadTracker trackedSection = do
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar
     trackedSection
+
+class PrimaryKeyCondition record where
+    -- | Returns WHERE conditions to match an entity by it's primary key
+    --
+    -- For tables with a simple primary key this returns a tuple with the id:
+    --
+    -- >>> primaryKeyCondition project
+    -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
+    --
+    -- If the table has a composite primary key, this returns multiple elements:
+    --
+    -- >>> primaryKeyCondition postTag
+    -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
+    --
+    primaryKeyCondition :: record -> [(Text, PG.Action)]
