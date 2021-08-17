@@ -23,6 +23,7 @@ import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Data.ByteString.Builder as ByteString
+import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
@@ -58,9 +59,8 @@ respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "im
 renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
 renderHtml !view = do
     let ?view = view
-
+    initFlashMessages
     ViewSupport.beforeRender view
-
     frozenContext <- Context.freeze ?context
 
     let ?context = frozenContext

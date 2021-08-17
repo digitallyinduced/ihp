@@ -94,7 +94,6 @@ runActionWithNewContext controller = do
     let ?context = controllerContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
-    initFlashMessages
     Assets.initAssetVersion
 
     try (initContext @application) >>= \case
