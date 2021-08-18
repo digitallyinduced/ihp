@@ -1,0 +1,60 @@
+cabal-version:       2.2
+name:                ihp-oauth-google
+version:             0.0.1
+synopsis:            ihp-oauth-google
+description:         Login with Google
+license:             NONE
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+build-type:          Simple
+
+library
+    build-depends:
+        ihp
+        , aeson
+        , base
+        , transformers
+        , typerep-map
+        , uri-encode
+        , wreq
+        , lens
+        , jose-jwt
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.OAuth.Google.Controller
+        , IHP.OAuth.Google.Config
+        , IHP.OAuth.Google.Types
+        , IHP.OAuth.Google.View.NewSessionWithGoogle

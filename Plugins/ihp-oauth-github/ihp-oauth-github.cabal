@@ -1,0 +1,59 @@
+cabal-version:       2.2
+name:                ihp-oauth-github
+version:             0.0.1
+synopsis:            ihp-oauth-github
+description:         Login with GitHub
+license:             NONE
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+build-type:          Simple
+
+library
+    build-depends:
+        ihp
+        , aeson
+        , base
+        , transformers
+        , typerep-map
+        , uri-encode
+        , wreq
+        , lens
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.OAuth.Github.Config
+        , IHP.OAuth.Github.Controller
+        , IHP.OAuth.Github.GithubApi
+        , IHP.OAuth.Github.Types
