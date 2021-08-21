@@ -41,6 +41,15 @@ tests = do
 
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
+            it "should deal with enums that have no values" do
+                -- https://github.com/digitallyinduced/ihp/issues/1026
+                -- Empty enums typically happen when an enum was just created in the schema designer and no value has been added yet by the user
+                let statement = CreateEnumType { name = "mood", values = [] }
+                let output = compileStatementPreview [statement] statement |> Text.strip
+
+                -- We don't generate anything when no values are defined as there's nothing you could do with the enum yet
+                -- An empty data declaration is not really useful in this case
+                output `shouldBe` mempty
             it "should not pluralize values" do
                 -- See https://github.com/digitallyinduced/ihp/issues/767
                 let statement = CreateEnumType { name = "Province", values = ["Alberta", "BritishColumbia", "Saskatchewan", "Manitoba", "Ontario", "Quebec", "NovaScotia", "NewBrunswick", "PrinceEdwardIsland", "NewfoundlandAndLabrador"] }
