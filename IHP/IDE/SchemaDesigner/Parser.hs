@@ -350,7 +350,7 @@ sqlType = choice $ map optionalArray
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
 
-term = parens expression <|> try callExpr <|> try doubleExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try callExpr <|> try doubleExpr <|> try intExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -395,6 +395,9 @@ varExpr = VarExpression <$> identifier
 
 doubleExpr :: Parser Expression
 doubleExpr = DoubleExpression <$> Lexer.float
+
+intExpr :: Parser Expression
+intExpr = IntExpression <$> Lexer.decimal
 
 callExpr :: Parser Expression
 callExpr = do

@@ -98,6 +98,8 @@ data Expression =
     | GreaterThanOrEqualToExpression Expression Expression
     -- | Double literal value, e.g. 0.1337
     | DoubleExpression Double
+    -- | Integer literal value, e.g. 1337
+    | IntExpression Int
     -- | value::type
     | TypeCastExpression Expression PostgresType
     deriving (Eq, Show)

@@ -218,7 +218,7 @@ tests = do
                         { checkExpression =
                             LessThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
@@ -232,7 +232,7 @@ tests = do
                         { checkExpression =
                             LessThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
@@ -244,7 +244,7 @@ tests = do
                         { checkExpression =
                             GreaterThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
@@ -257,7 +257,7 @@ tests = do
                         { checkExpression =
                             GreaterThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
@@ -466,6 +466,13 @@ tests = do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
             let statements =
                     [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+                    ]
+            parseSqlStatements sql `shouldBe` statements
+
+        it "should parse a integer default value" do
+            let sql = "CREATE TABLE a(electricity_unit_price INT DEFAULT 0 NOT NULL);"
+            let statements =
+                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
                     ]
             parseSqlStatements sql `shouldBe` statements
 

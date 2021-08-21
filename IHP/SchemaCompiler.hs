@@ -576,6 +576,7 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                                 otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
                             PDouble -> case theNormalizedDefaultValue of
                                 DoubleExpression value -> wrapNull notNull (tshow value)
+                                IntExpression value -> wrapNull notNull (tshow value)
                                 otherwise           -> error ("toDefaultValueExpr: DOUBLE column needs to have a DoubleExpression as default value. Got: " <> show otherwise)
                             _ -> "def"
 toDefaultValueExpr _ = "def"

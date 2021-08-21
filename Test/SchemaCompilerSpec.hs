@@ -170,8 +170,6 @@ tests = do
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                putStrLn compileOutput
-
                 compileOutput `shouldBe` [text|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -216,6 +214,64 @@ tests = do
                     instance Record User where
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0.17  def
+                    instance Default (Id' "users") where def = Id def
+                |]
+            it "should deal with integer default values for double columns" do
+                let statement = StatementCreateTable CreateTable
+                        { name = "users"
+                        , columns =
+                            [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False
+                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                compileOutput `shouldBe` [text|
+                    data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+                    type User = User' 
+
+                    instance FromRow User where
+                        fromRow = do
+                            id <- field
+                            ids <- field
+                            electricityUnitPrice <- field
+                            let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+                    type instance GetModelName (User' ) = "User"
+
+                    type instance PrimaryKey "users" = UUID
+
+                    instance QueryBuilder.FilterPrimaryKey "users" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
+
+
+                    instance () => PrimaryKeyCondition (User' ) where
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING *" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING *") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
+
+                    instance Record User where
+                        {-# INLINE newRecord #-}
+                        newRecord = User def def 0  def
                     instance Default (Id' "users") where def = Id def
                 |]
 
