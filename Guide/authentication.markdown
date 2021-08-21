@@ -263,7 +263,7 @@ To create a user with a hashed password, you just need to call the hashing funct
                     redirectToPath "/"
 ```
 
-## Hashing a Password
+### Hashing a Password
 
 To manually insert a user into your database you need to hash the password first. You can do this by calling the `hash-password` tool from your command line:
 
@@ -276,10 +276,115 @@ sha256|17|Y32Ga1uke5CisJvVp6p2sg==|TSDuEs1+Xdaels6TYCkyCgIBHxWA/US7bvBlK0vHzvc=
 
 Use [`hashPassword`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Authentication.html#v:hashPassword) to hash a password from inside your application.
 
-[Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)
+### Email Confirmation
+
+*Requires IHP Pro*
+
+In production apps you typically want to send a confirmation email to the user before the user can log in.
+
+To enable email confirmation add a `confirmation_token` and `is_confirmed` column to your `users` table:
+
+```sql
+CREATE TABLE users (
+    /* ... */
+
+    confirmation_token TEXT DEFAULT NULL,
+    is_confirmed BOOLEAN DEFAULT false NOT NULL,
+);
+```
+
+Next we need to send out the confirmation mail.
 
 
+#### Confirmation Mail
+
+First we need to create a new confirmation mail.
+
+Create a new file at `Web/Mail/Users/ConfirmationMail.hs` and copy paste the following template in there:
+
+```haskell
+module Web.Mail.Users.ConfirmationMail where
+import Web.View.Prelude
+import IHP.MailPrelude
+import IHP.AuthSupport.Confirm
+
+instance BuildMail (ConfirmationMail User) where
+    subject = "Confirm your Account"
+    to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
+    from = "someone@example.com"
+    html ConfirmationMail { .. } = [hsx|
+        Hey {get #name user},
+        just checking it's you.
+
+        <a href={urlTo (ConfirmUserAction (get #id user) confirmationToken))} target="_blank">
+            Active your Account
+        </a>
+    |]
+```
+
+[You can change this email to your liking.](mail.html)
+
+#### Sending the Confirmation Mail
+
+Open your registration action, typically the `CreateUserAction` in `Web/Controller/Users.hs` and:
+
+1. Add an import `import IHP.AuthSupport.Confirm`
+2. Call to `sendConfirmationMail user` after the user has been created
+
+```haskell
+import IHP.AuthSupport.Confirm -- <-- ADD THIS IMPORT TO THE TOP OF THE FILE
+
+-- ..
+
+action CreateUserAction = do
+    let user = newRecord @User
+    user
+        |> fill @["email", "passwordHash"]
+        |> validateField #email isEmail
+        |> validateField #passwordHash nonEmpty
+        |> ifValid \case
+            Left user -> render NewView { .. }
+            Right user -> do
+                hashed <- hashPassword (get #passwordHash user)
+                user <- user
+                    |> set #passwordHash hashed
+                    |> createRecord
+
+
+                sendConfirmationMail user -- <------ ADD THIS FUNCTION CALL TO YOUR ACTION
+
+
+                -- We can also customize the flash message text to let the user know that we have sent him an email
+                setSuccessMessage $ "Welcome onboard! Before you can start, please quickly confirm your email address by clicking the link we've sent to " <> get #email user
+                
+                redirectTo NewSessionAction
+```
+
+Now whenever a user registers, he will receive our confirmation mail.
+
+#### Disallowing Login for unconfirmed Users
+
+We still need to ensure that a user cannot log in before the email is confirmed.
+
+Open `Web/Controller/Sessions.hs` and:
+
+1. Add an import to `IHP.AuthSupport.Confirm` at the top of the file:
+    ```haskell
+    import qualified IHP.AuthSupport.Confirm as Confirm
+    ```
+2. Append a call to `Confirm.ensureIsConfirmed user` to the `beforeLogin` function of `SessionsControllerConfig`:
+
+    ```haskell
+    instance Sessions.SessionsControllerConfig User where
+        beforeLogin user = do
+            Confirm.ensureIsConfirmed user
+    ```
+
+Now all logins by users that are not confirmed are blocked.
 
 ## Aside: Admin authentication
 
 If you are creating an admin sub-application, first use the code generator to create an application called `Admin`, then follow this guide replacing `Web` with `Admin` and `User` with `Admin` everywhere (except for the lower-case `user` in the file `Admin/View/Sessions/New.hs`, which comes from an imported module).
+
+
+[Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)
