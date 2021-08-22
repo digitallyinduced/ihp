@@ -338,6 +338,7 @@ library
         , IHP.AuthSupport.Types
         , IHP.AuthSupport.View.PasswordResets.New
         , IHP.AuthSupport.View.PasswordResets.Show
+        , IHP.AuthSupport.Controller.Confirmations
 
 executable RunDevServer
     import: shared-properties
