@@ -293,12 +293,41 @@ CREATE TABLE users (
 );
 ```
 
-Next we need to send out the confirmation mail.
+#### Confirmation Action
 
+First we need to create a new confirmation action to our `UsersController`.
+
+Open `Web/Types.hs` and add a `| ConfirmUserAction { userId :: !(Id User), confirmationToken :: !Text }` to the `data UsersController`:
+
+```haskell
+data UsersController
+    = NewUserAction
+    -- ...
+    | ConfirmUserAction { userId :: !(Id User), confirmationToken :: !Text } -- <--- ADD THIS ACTION
+    deriving (Eq, Show, Data)
+```
+
+Next open `Web/Controller/Users.hs` and:
+
+1. Add these imports to the top of the file:
+    ```haskell
+    import qualified IHP.AuthSupport.Controller.Confirmations as Confirmations
+    import qualified Web.Controller.Sessions ()
+    ```
+2. Add this action implementation:
+    ```haskell
+    action ConfirmUserAction { userId, confirmationToken } = Confirmations.confirmAction userId confirmationToken
+    ```
+    This will delegate all calls of the confirm action to the IHP confirmation action.
+3. Add an instance of `Confirmations.ConfirmationsControllerConfig User`:
+    ```haskell
+    instance Confirmations.ConfirmationsControllerConfig User where
+    ```
+    This instance can be used to customize the confirmation process. E.g. to send an welcome email after confirmation. For now we don't customize anything here yet, therefore we leave the instance empty.
 
 #### Confirmation Mail
 
-First we need to create a new confirmation mail.
+Next we need to send out the confirmation mail.
 
 Create a new file at `Web/Mail/Users/ConfirmationMail.hs` and copy paste the following template in there:
 
@@ -326,39 +355,38 @@ instance BuildMail (ConfirmationMail User) where
 
 #### Sending the Confirmation Mail
 
-Open your registration action, typically the `CreateUserAction` in `Web/Controller/Users.hs` and:
+To send out the confirmation mail, open your registration action. Typically this is the `CreateUserAction` in `Web/Controller/Users.hs`.
 
-1. Add an import `import IHP.AuthSupport.Confirm`
-2. Call to `sendConfirmationMail user` after the user has been created
-
-```haskell
-import IHP.AuthSupport.Confirm -- <-- ADD THIS IMPORT TO THE TOP OF THE FILE
-
--- ..
-
-action CreateUserAction = do
-    let user = newRecord @User
-    user
-        |> fill @["email", "passwordHash"]
-        |> validateField #email isEmail
-        |> validateField #passwordHash nonEmpty
-        |> ifValid \case
-            Left user -> render NewView { .. }
-            Right user -> do
-                hashed <- hashPassword (get #passwordHash user)
-                user <- user
-                    |> set #passwordHash hashed
-                    |> createRecord
-
-
-                sendConfirmationMail user -- <------ ADD THIS FUNCTION CALL TO YOUR ACTION
+1. Add imports
+    ```haskell
+    import IHP.AuthSupport.Confirm
+    import Web.Mail.Users.ConfirmationMail
+    ```
+2. Call `sendConfirmationMail user` after the user has been created in `action CreateUserAction`:
+    ```haskell
+    action CreateUserAction = do
+        let user = newRecord @User
+        user
+            |> fill @["email", "passwordHash"]
+            |> validateField #email isEmail
+            |> validateField #passwordHash nonEmpty
+            |> ifValid \case
+                Left user -> render NewView { .. }
+                Right user -> do
+                    hashed <- hashPassword (get #passwordHash user)
+                    user <- user
+                        |> set #passwordHash hashed
+                        |> createRecord
 
 
-                -- We can also customize the flash message text to let the user know that we have sent him an email
-                setSuccessMessage $ "Welcome onboard! Before you can start, please quickly confirm your email address by clicking the link we've sent to " <> get #email user
-                
-                redirectTo NewSessionAction
-```
+                    sendConfirmationMail user -- <------ ADD THIS FUNCTION CALL TO YOUR ACTION
+
+
+                    -- We can also customize the flash message text to let the user know that we have sent him an email
+                    setSuccessMessage $ "Welcome onboard! Before you can start, please quickly confirm your email address by clicking the link we've sent to " <> get #email user
+                    
+                    redirectTo NewSessionAction
+    ```
 
 Now whenever a user registers, he will receive our confirmation mail.
 
@@ -381,6 +409,28 @@ Open `Web/Controller/Sessions.hs` and:
     ```
 
 Now all logins by users that are not confirmed are blocked.
+
+#### Optional: Send a Welcome Email after Confirmation (After-Confirmation Hook)
+
+You can use the `ConfirmationsControllerConfig` instance defined in `Web/Controller/Users.hs` to run any code after the user is confirmed:
+
+```haskell
+-- Web/Controller/Users.hs
+
+instance Confirmations.ConfirmationsControllerConfig User where
+    afterConfirmation user = do
+        -- This code here is called whenever a user was confirmed
+```
+
+
+A common scenario is to send a welcome email after the user is confirmed. Let's asume you've already created a new `WelcomeEmail` using the Email Code Generator. You can then use this to send the welcome email after confirmation:
+
+```haskell
+instance Confirmations.ConfirmationsControllerConfig User where
+    afterConfirmation user = do
+        sendMail WelcomeMail { user }
+```
+
 
 ## Aside: Admin authentication
 
