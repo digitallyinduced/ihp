@@ -10,11 +10,10 @@ mkDerivation {
   testHaskellDepends = [ ];
   homepage = "https://github.com/digitallyinduced/ihp-sentry";
   description = "Track exceptions in your IHP apps with sentry";
-  license = lib.licenses.mit;
-  src = fetchFromGitHub {
-    owner = "digitallyinduced";
-    repo = "ihp-sentry";
-    rev = "7439e6134dc59aaa843ce75bf98e60d601e5cb8b";
-    sha256 = "1qpz1j1ygbssz5p0cr002f67vc2zc0crr6p2rj1k0755vf7cn9i1";
+  license = {
+    fullName = "IHP Pro License";
+    url = "https://ihp.digitallyinduced.com/license/";
+    free = true; # Not actually free, but we want to make the install seamless
   };
+  src = ./../../Plugins/ihp-sentry;
 }
