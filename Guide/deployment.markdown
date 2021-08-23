@@ -255,9 +255,9 @@ scripts = do
 
 In production it's highly recommended to use an exception tracking service like [Sentry](https://sentry.io/) for error monitoring.
 
-To use sentry in your IHP app you need to install the [ihp-sentry](https://github.com/digitallyinduced/ihp-sentry) plugin.
+To use sentry in your IHP app you need to install the ihp-sentry plugin. The ihp-sentry plugin is bundled with IHP Pro.
 
-When the `ihp-sentry` plugin is installed and configured, exceptions that happen in production (so `option Production` is set) are reported to sentry.
+Once the `ihp-sentry` plugin is installed and configured, exceptions that happen in production (so `option Production` is set) are reported to sentry.
 
 #### Install ihp-sentry in your IHP app
 
