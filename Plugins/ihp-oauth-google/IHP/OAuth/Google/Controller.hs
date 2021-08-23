@@ -101,7 +101,8 @@ googleConnectCallbackAction = do
                             |> set #passwordHash hashed
                             |> set #email (get #email googleClaims)
                             |> setJust #googleUserId googleUserId
-                    user <- loginNewUser user googleClaims
+
+                    user <- createUser (beforeCreateUser user googleClaims) googleClaims
 
                     login @user user
                     pure ()
@@ -117,8 +118,11 @@ ensureIsNotLocked user = do
         redirectToPath (newSessionUrl (Proxy @user))
 
 class GoogleOAuthControllerConfig user where
-    loginNewUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Google.GoogleClaims -> IO user
-    loginNewUser user googleClaims = createRecord user
+    createUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Google.GoogleClaims -> IO user
+    createUser user googleClaims = createRecord user
+    
+    beforeCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Google.GoogleClaims -> user
+    beforeCreateUser user googleClaims = user
 
 
 googleOAuthConfig :: (?context :: ControllerContext) => Google.GoogleOAuthConfig
