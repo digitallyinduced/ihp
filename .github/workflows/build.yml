@@ -44,7 +44,7 @@ jobs:
           echo '$new_content_with_ref = str_replace("p.ihp", "p.ihp wreq mmark mmark-ext strip-ansi-escape stripe-signature stripe-concepts http-conduit units units-defs haskell-to-elm aeson-casing ihp-zip ihp-sentry ihp-oauth-google ihp-oauth-github minio-hs", $new_content_with_ref);' >> replace.php
           echo "file_put_contents('./default.nix', \$new_content_with_ref);" >> replace.php
           echo "?>" >> replace.php
-          php replace.php "./ihp-pro-src/"
+          php replace.php "./ihp-pro-src"
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
