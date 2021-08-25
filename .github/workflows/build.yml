@@ -59,4 +59,4 @@ jobs:
     - name: Notify IHP Website about the new build
       run: |
           hash=$(nix-prefetch-url --unpack $TARBALL_URL | tail -1)
-          curl -X POST https://ihp.digitallyinduced.com/CreateBuild -F 'commitSha=${{ github.sha }}' -F 'tarballSha256=$hash' --user ${{ secrets.IHP_WEBSITE_AUTH }}
+          curl -X POST https://ihp.digitallyinduced.com/CreateBuild -F 'commitSha=${{ github.sha }}' -F "tarballSha256=$hash" --user ${{ secrets.IHP_WEBSITE_AUTH }}
