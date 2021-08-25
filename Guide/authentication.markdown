@@ -345,11 +345,13 @@ instance BuildMail (ConfirmationMail User) where
         Hey {get #name user},
         just checking it's you.
 
-        <a href={urlTo (ConfirmUserAction (get #id user) confirmationToken))} target="_blank">
-            Active your Account
+        <a href={urlTo (ConfirmUserAction (get #id user) confirmationToken)} target="_blank">
+            Activate your Account
         </a>
     |]
 ```
+
+This asumes your `users` table has a `name` field. If you't store the name of the user, remove all mentions of `get #name user` in the template.
 
 [You can change this email to your liking.](mail.html)
 
