@@ -56,4 +56,7 @@ jobs:
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
-          
+    - name: Notify IHP Website about the new build
+      run: |
+          hash=$(nix-prefetch-url --unpack $TARBALL_URL | tail -1)
+          curl -X POST https://ihp.digitallyinduced.com/CreateBuild -F 'commitSha=${{ github.sha }}' -F 'tarballSha256=$hash' --user ${{ secrets.IHP_WEBSITE_AUTH }}
