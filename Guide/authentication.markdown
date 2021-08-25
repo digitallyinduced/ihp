@@ -339,15 +339,15 @@ import IHP.AuthSupport.Confirm
 
 instance BuildMail (ConfirmationMail User) where
     subject = "Confirm your Account"
-    to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
+    to ConfirmationMail { .. } = Address { addressName = Nothing, addressEmail = get #email user }
     from = "someone@example.com"
     html ConfirmationMail { .. } = [hsx|
-        Hey {get #name user},
+        Hey,
         just checking it's you.
 
-        <a href={urlTo (ConfirmUserAction (get #id user) confirmationToken))} target="_blank">
-            Active your Account
-        </a>
+        <a href={urlTo (ConfirmUserAction (get #id user) confirmationToken)} target="_blank">
+            Activate your Account
+        </a> 
     |]
 ```
 
