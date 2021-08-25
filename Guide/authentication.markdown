@@ -289,7 +289,7 @@ CREATE TABLE users (
     /* ... */
 
     confirmation_token TEXT DEFAULT NULL,
-    is_confirmed BOOLEAN DEFAULT false NOT NULL,
+    is_confirmed BOOLEAN DEFAULT false NOT NULL
 );
 ```
 
