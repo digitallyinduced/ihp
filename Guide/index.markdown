@@ -29,6 +29,7 @@ If you're using IHP in a professional context, the partner network ensures that 
 
 - [Systor Vest](https://systorvest.no/)
 - [Comhlan](http://comhlan.com/)
+- [Zallocate Software](https://zallocate.com/)
 
 You can find details on [the Partners page](https://ihp.digitallyinduced.com/Partners).
 

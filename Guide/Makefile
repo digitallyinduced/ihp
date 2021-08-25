@@ -43,6 +43,7 @@ HTML_FILES+= helpful-tips.html
 HTML_FILES+= assets.html
 HTML_FILES+= file-storage.html
 HTML_FILES+= server-side-components.html
+HTML_FILES+= oauth.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 

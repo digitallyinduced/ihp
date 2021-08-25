@@ -464,6 +464,11 @@ tests = do
             let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a integer default value" do
+            let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a partial index" do
             let sql = cs [plain|CREATE UNIQUE INDEX unique_source_id ON listings (source, source_id) WHERE source IS NOT NULL AND source_id IS NOT NULL;\n|]
             let index = CreateIndex

@@ -540,6 +540,17 @@ instance CanSelect ContentType where
     -- You can also use the following shortcut: selectLabel = tshow
 ```
 
+The helper function `allEnumValues @ContentType` can then be used in your 
+view to generate the list of select fields:
+
+```haskell
+  formFor subscription [hsx|
+    {selectField #contentType allContentTypes}
+|]
+    where
+      allContentTypes = allEnumValues @ContentTypes
+```
+
 ### Select Inputs with Integers
 
 It's a common use case to have a select field consisting of ints, e.g. inside a shopping cart to select the quantity of an item. 

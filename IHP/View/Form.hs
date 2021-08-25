@@ -94,13 +94,9 @@ import IHP.Controller.Context
 -- > </div>
 formFor :: forall record id application. (
     ?context :: ControllerContext
-    , Eq record
     , Typeable record
     , ModelFormAction application record
-    , HasField "id" record id
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor record formBody = formForWithOptions @record @id @application record (\c -> c) formBody
 {-# INLINE formFor #-}
@@ -123,13 +119,9 @@ formFor record formBody = formForWithOptions @record @id @application record (\c
 --
 formForWithOptions :: forall record id application. (
     ?context :: ControllerContext
-    , Eq record
     , Typeable record
     , ModelFormAction application record
-    , HasField "id" record id
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formForWithOptions record applyOptions formBody = buildForm (applyOptions (createFormContext record) { formAction = modelFormAction @application record }) formBody
 {-# INLINE formForWithOptions #-}
@@ -160,13 +152,9 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 --
 formForWithoutJavascript :: forall record id application. (
     ?context :: ControllerContext
-    , Eq record
     , Typeable record
     , ModelFormAction application record
-    , HasField "id" record id
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formForWithoutJavascript record formBody = formForWithOptions @record @id @application record (\formContext -> formContext { disableJavascriptSubmission = True }) formBody
 {-# INLINE formForWithoutJavascript #-}
@@ -196,12 +184,8 @@ formForWithoutJavascript record formBody = formForWithOptions @record @id @appli
 --
 formFor' :: forall record id application. (
     ?context :: ControllerContext
-    , Eq record
     , Typeable record
-    , HasField "id" record id
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
@@ -209,12 +193,8 @@ formFor' record action = buildForm (createFormContext record) { formAction = act
 -- | Used by 'formFor' to make a new form context
 createFormContext :: forall record viewContext id application. (
         ?context :: ControllerContext
-        , Eq record
         , Typeable record
-        , HasField "id" record id
         , HasField "meta" record MetaBag
-        , Default id
-        , Eq id
         ) => record -> FormContext record
 createFormContext record =
     FormContext
@@ -229,7 +209,7 @@ createFormContext record =
 {-# INLINE createFormContext #-}
 
 -- | Used by 'formFor' to render the form
-buildForm :: forall model  id. (?context :: ControllerContext, HasField "id" model id, Default id, Eq id) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+buildForm :: forall model  id. (?context :: ControllerContext) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 buildForm formContext inner =
     let
         theModel = model formContext
@@ -282,7 +262,7 @@ buildForm formContext inner =
 -- > <form method="POST" action="/CreatePost" id="" class="new-form">
 -- >     <button class="btn btn-primary create-button">Create Post</button>
 -- > </form>
-submitButton :: forall model id. (?formContext :: FormContext model, HasField "id" model id, KnownSymbol (GetModelName model), Eq id, Default id) => SubmitButton
+submitButton :: forall model id. (?formContext :: FormContext model, HasField "meta" model MetaBag, KnownSymbol (GetModelName model)) => SubmitButton
 submitButton =
     let
         modelName = IHP.ModelSupport.getModelName @model
@@ -757,8 +737,9 @@ instance ToHtml SubmitButton where
 class ModelFormAction application record where
     modelFormAction :: (?context :: ControllerContext) => record -> Text
 
-instance (
-    HasField "id" record id
+instance
+    ( HasField "id" record id
+    , HasField "meta" record MetaBag
     , Eq id
     , Default id
     , KnownSymbol (GetModelName record)

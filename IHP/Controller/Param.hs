@@ -576,7 +576,7 @@ ifValid branch model = branch ((if null annotations then Right else Left) model)
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model
 
-ifNew :: forall record id. (?context :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, HasField "id" record id, Default id, Eq id) => (record -> record) -> record -> record
+ifNew :: forall record id. (?context :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, HasField "meta" record MetaBag) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 

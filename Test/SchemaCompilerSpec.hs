@@ -41,6 +41,15 @@ tests = do
 
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
+            it "should deal with enums that have no values" do
+                -- https://github.com/digitallyinduced/ihp/issues/1026
+                -- Empty enums typically happen when an enum was just created in the schema designer and no value has been added yet by the user
+                let statement = CreateEnumType { name = "mood", values = [] }
+                let output = compileStatementPreview [statement] statement |> Text.strip
+
+                -- We don't generate anything when no values are defined as there's nothing you could do with the enum yet
+                -- An empty data declaration is not really useful in this case
+                output `shouldBe` mempty
             it "should not pluralize values" do
                 -- See https://github.com/digitallyinduced/ihp/issues/767
                 let statement = CreateEnumType { name = "Province", values = ["Alberta", "BritishColumbia", "Saskatchewan", "Manitoba", "Ontario", "Quebec", "NovaScotia", "NewBrunswick", "PrinceEdwardIsland", "NewfoundlandAndLabrador"] }
@@ -161,8 +170,6 @@ tests = do
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                putStrLn compileOutput
-
                 compileOutput `shouldBe` [text|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -207,6 +214,64 @@ tests = do
                     instance Record User where
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0.17  def
+                    instance Default (Id' "users") where def = Id def
+                |]
+            it "should deal with integer default values for double columns" do
+                let statement = StatementCreateTable CreateTable
+                        { name = "users"
+                        , columns =
+                            [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False
+                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                compileOutput `shouldBe` [text|
+                    data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+                    type User = User' 
+
+                    instance FromRow User where
+                        fromRow = do
+                            id <- field
+                            ids <- field
+                            electricityUnitPrice <- field
+                            let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+                    type instance GetModelName (User' ) = "User"
+
+                    type instance PrimaryKey "users" = UUID
+
+                    instance QueryBuilder.FilterPrimaryKey "users" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
+
+
+                    instance () => PrimaryKeyCondition (User' ) where
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING *" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING *") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
+
+                    instance Record User where
+                        {-# INLINE newRecord #-}
+                        newRecord = User def def 0  def
                     instance Default (Id' "users") where def = Id def
                 |]
 
