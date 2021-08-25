@@ -30,7 +30,7 @@ jobs:
           ihp-boilerplate/build
         key: ${{ runner.os }}-ghc
     - run: |
-          git archive master --format=tar| gzip >${{ github.sha }}.tar.gz
+          git archive master --format=tar --prefix=ihp-pro/ | gzip >${{ github.sha }}.tar.gz
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
