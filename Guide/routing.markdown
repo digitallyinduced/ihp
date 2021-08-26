@@ -12,7 +12,6 @@ The simplest way to define a route is by using `AutoRoute`, which automatically 
 
 ```haskell
 instance AutoRoute PostsController
-type instance ModelControllerMap WebApplication Post = PostsController
 ```
 
 Afterwards enable the routes for `PostsController` in `Web/FrontController.hs` like this:
