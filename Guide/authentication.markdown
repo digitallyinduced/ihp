@@ -339,10 +339,10 @@ import IHP.AuthSupport.Confirm
 
 instance BuildMail (ConfirmationMail User) where
     subject = "Confirm your Account"
-    to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
+    to ConfirmationMail { .. } = Address { addressName = Nothing, addressEmail = get #email user }
     from = "someone@example.com"
     html ConfirmationMail { .. } = [hsx|
-        Hey {get #name user},
+        Hey,
         just checking it's you.
 
         <a href={urlTo (ConfirmUserAction (get #id user) confirmationToken)} target="_blank">
@@ -350,8 +350,6 @@ instance BuildMail (ConfirmationMail User) where
         </a>
     |]
 ```
-
-This asumes your `users` table has a `name` field. If you't store the name of the user, remove all mentions of `get #name user` in the template.
 
 [You can change this email to your liking.](mail.html)
 
