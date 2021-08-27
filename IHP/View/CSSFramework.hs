@@ -55,6 +55,7 @@ instance Default CSSFramework where
                         HiddenInput -> renderTextField "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True }
                         TextareaInput -> renderTextField "text" formField
                         SelectInput {} -> renderSelectField formField
+                        FileInput -> renderTextField "file" formField
                 where
                     -- | Wraps the input inside a @<div class="form-group">...</div>@ (unless @disableGroup = True@)
                     formGroup :: Blaze.Html -> Blaze.Html
@@ -155,6 +156,7 @@ bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupCl
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
         styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
 
+        styledInputClass FormField { fieldType = FileInput } = "form-control-file"
         styledInputClass FormField {} = "form-control"
         styledInputInvalidClass _ = "is-invalid"
 

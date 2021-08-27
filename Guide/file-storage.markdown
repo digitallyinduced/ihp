@@ -181,20 +181,64 @@ company
 
 #### Form
 
-To submit a file upload, add a `<input type="file"/>` to the form that calls the action:
+To submit a file upload, add a `{fileField #logoUrl}` to the form that calls the action:
 
 ```haskell
 renderForm :: Company -> Html
 renderForm company = formFor company [hsx|
     {(textField #name)}
 
-    <input type="file" name="logoUrl" class="form-control form-control-file"/>
+    {(fileField #logoUrl)}
+
+    {submitButton}
+|]
+```
+
+##### Custom File Field
+
+If you need to more customization on the file field which the `fileField` helper doesn't allow, you can also use a handwritten file input:
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    <input
+        type="file"
+        name="logoUrl"
+        class="form-control-file"
+        accept="image/*"
+    />
 
     {submitButton}
 |]
 ```
 
 It's important that `<input>` has `name="logoUrl` attribute, as that's where `uploadToStorage #logoUrl` expects to find the file.
+
+##### Inline Preview
+
+For image uploads it's a good user experience to see a small preview of the uploaded file. IHP's `helpers.js` contain a small helper for this. You can set a `data-preview=".my-img-element"` attribute on the `<input type="file">` and a preview will be set on the element matched by the CSS selector in the `data-preview` attribute:
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    <input
+        type="file"
+        name="logoUrl"
+        class="form-control-file"
+        accept="image/*"
+        data-preview="#logoUrlPreview"
+    />
+
+    <img id="logoUrlPreview"/>
+
+    {submitButton}
+|]
+```
+
 
 ### Image Preprocessing
 

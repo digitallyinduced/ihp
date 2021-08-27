@@ -93,6 +93,7 @@ data InputType
     | DateTimeInput
     | PasswordInput
     | SelectInput { options :: ![(Text, Text)] }
+    | FileInput
 
 
 -- | Render functions to render with bootstrap etc.
