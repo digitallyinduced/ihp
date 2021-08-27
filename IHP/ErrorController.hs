@@ -41,6 +41,7 @@ import IHP.Controller.Context
 import qualified System.Directory as Directory
 import qualified IHP.Log as Log
 import IHP.ApplicationContext
+import qualified System.Environment as Env
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -148,14 +149,14 @@ postgresHandler :: (Show controller, ?context :: ControllerContext) => SomeExcep
 postgresHandler exception controller additionalInfo = do
     let
         handlePostgresError :: Show exception => exception -> Text -> IO ResponseReceived
-        handlePostgresError exception errorText =
-            let
-                title = H.text ("Database looks outdated. " <> errorText)
-                errorMessage = [hsx|
+        handlePostgresError exception errorText = do
+            ihpIdeBaseUrl <- fromMaybe "http://localhost:8001" <$> Env.lookupEnv "IHP_IDE_BASEURL"
+            let title = H.text ("Database looks outdated. " <> errorText)
+            let errorMessage = [hsx|
                         <h2>Possible Solutions</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
                             Have you clicked on
-                            <form method="POST" action="http://localhost:8001/UpdateDb" target="_blank" style="display: inline">
+                            <form method="POST" action={ihpIdeBaseUrl <> "/UpdateDb"} target="_blank" style="display: inline">
                                 <button type="submit">Update DB</button>
                             </form>
                             after updating the Schema?
@@ -165,9 +166,8 @@ postgresHandler exception controller additionalInfo = do
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            in do
-                let RequestContext { respond } = get #requestContext ?context
-                respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            let RequestContext { respond } = get #requestContext ?context
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
     case fromException exception of
         Just (exception :: PG.ResultError) -> Just (handlePostgresError exception "The database result does not match the expected type.")
         Nothing -> case fromException exception of

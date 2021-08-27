@@ -12,6 +12,7 @@ module IHP.FileStorage.ControllerFunctions
 , contentDispositionAttachmentAndFileName
 , createTemporaryDownloadUrl
 , createTemporaryDownloadUrlFromPath
+, createTemporaryDownloadUrlFromPathWithExpiredAt
 , uploadToStorage
 , uploadToStorageWithOptions
 ) where
@@ -197,11 +198,27 @@ storeFileFromPath path options = do
 -- > let url :: Text = get #url signedUrl
 -- > let expiredAt :: UTCTime = get #expiredAt signedUrl
 --
+-- See 'createTemporaryDownloadUrlFromPathWithExpiredAt' if you want to customize the url expiration time of 7 days.
+--
 createTemporaryDownloadUrlFromPath :: (?context :: context, ConfigProvider context) => Text -> IO TemporaryDownloadUrl
-createTemporaryDownloadUrlFromPath objectPath = do
-    let validInSeconds = 7 * 24 * 3600
-    publicUrlExpiredAt <- addUTCTime (fromIntegral validInSeconds) <$> getCurrentTime
+createTemporaryDownloadUrlFromPath objectPath = createTemporaryDownloadUrlFromPathWithExpiredAt (7 * 24 * 3600) objectPath
 
+
+-- | Like 'createTemporaryDownloadUrlFromPath', but with a custom expiration time. Returns a signed url for a path inside the storage. The url is valid for 7 days.
+--
+-- If the 'StaticDirStorage' is used, a unsigned normal URL will be returned, as these files are public anyways.
+--
+-- __Example:__ Get a signed url for a path that expires in 5 minutes
+--
+-- > let validInSeconds = 5 * 60
+-- > signedUrl <- createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds "logos/8ed22caa-11ea-4c45-a05e-91a51e72558d"
+-- >
+-- > let url :: Text = get #url signedUrl
+-- > let expiredAt :: UTCTime = get #expiredAt signedUrl
+--
+createTemporaryDownloadUrlFromPathWithExpiredAt :: (?context :: context, ConfigProvider context) => Int -> Text -> IO TemporaryDownloadUrl
+createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
+    publicUrlExpiredAt <- addUTCTime (fromIntegral validInSeconds) <$> getCurrentTime
     case storage of
         StaticDirStorage -> do
             let frameworkConfig = getFrameworkConfig ?context

@@ -595,6 +595,23 @@ hiddenField :: forall fieldName model value.
 hiddenField field = (textField field) { fieldType = HiddenInput }
 {-# INLINE hiddenField #-}
 
+-- | Renders an file field
+--
+-- >>> {fileField #profilePicture}
+-- <input type="file" name="profilePicture" id="user_profilePicture" class="form-control" />
+--
+-- See 'textField' for examples of possible form control options.
+fileField :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue value
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> FormField
+fileField field = (textField field) { fieldType = FileInput }
+{-# INLINE fileField #-}
+
 -- | Renders a checkbox field
 --
 -- >>> {checkboxField #active}

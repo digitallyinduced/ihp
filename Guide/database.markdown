@@ -276,7 +276,9 @@ do
 
 ## Raw SQL Queries
 
-Use the function `sqlQuery` to run a raw SQL query.
+The IHP query builder is designed to be able to easily express many basic sql queries. When your application is growing you will typically hit a point where a complex SQL query cannot be easily expressed with the IHP query builder. In that case it's recommended to use handwritten SQL to access your data.
+
+Use the function `sqlQuery` to run a raw SQL query:
 
 ```haskell
 do
@@ -300,6 +302,138 @@ do
 
     randomString :: Text <- sqlQueryScalar "SELECT md5(random()::text)" ()
 ```
+
+### Dealing With Complex Query Results
+
+Let's say you're querying posts and a count of comments on each post:
+
+
+```haskell
+do
+    result :: [Post] <- sqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
+```
+
+This will fail at runtime because the result set cannot be decoded as expected. The result has the columns `id`, `title` and `comments_count` but a Post record consists of `id`, `title`, `body`.
+
+The solution here is to write our own data type and mapping code:
+
+```haskell
+module Application.PostsQuery where
+
+import IHP.Prelude
+import IHP.ModelSupport
+import Database.PostgreSQL.Simple
+import Database.PostgreSQL.Simple.FromRow
+
+data PostWithCommentsCount = PostWithCommentsCount
+    { id :: Id Post
+    , title :: Text
+    , commentsCount :: Int
+    }
+    deriving (Eq, Show)
+
+instance FromRow PostWithCommentsCount where
+    fromRow =
+        PostWithCommentsCount
+            <$> field
+            <*> field
+            <*> field
+
+fetchPostsWithCommentsCount :: (?modelContext :: ModelContext) => IO [PostWithCommentsCount]
+fetchPostsWithCommentsCount = do
+    trackTableRead "posts" -- This is needed when using auto refresh, so auto refresh knows that your action is accessing the posts table
+    sqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
+```
+
+You can now fetch posts with their comments count like this:
+
+```haskell
+import Application.PostsQuery as PostsQuery
+
+action MyAction = do
+    postsWithCommentsCount <- PostsQuery.fetchPostsWithCommentsCount
+
+    render MyView { ..}
+```
+
+#### Complex Query Results: Real-world Example
+
+Here's a real world example of dealing with complex query results:
+
+```haskell
+module Application.People.Query (
+    fetchActiveWorkers,
+    Row (..),
+) where
+
+import Application.People.Person (botGoesBy)
+import "string-interpolate" Data.String.Interpolate (i)
+import Database.PostgreSQL.Simple (Query)
+import Database.PostgreSQL.Simple.FromRow (field, fromRow)
+import qualified Generated.Types as Types
+import IHP.ModelSupport
+import IHP.Prelude
+
+data Row = Row
+    { id :: !(Id Types.Person)
+    , firstName :: !Text
+    , lastName :: !Text
+    , goesBy :: !Text
+    , sendMessageActionState :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+instance FromRow Row where
+    fromRow =
+        Row
+            <$> field
+            <*> field
+            <*> field
+            <*> field
+            <*> field
+
+fetchActiveWorkers :: (?modelContext :: ModelContext) => IO [Row]
+fetchActiveWorkers = do
+    trackTableRead "people"
+    trackTableRead "worker_settings"
+    trackTableRead "action_run_states"
+    trackTableRead "send_message_actions"
+    sqlQuery query ()
+
+query :: Query
+query =
+    [i|
+        select
+            people.id,
+            people.first_name,
+            people.last_name,
+            people.goes_by,
+            max(action_run_states.state) send_message_action_state
+        from
+            people
+            inner join
+                worker_settings on (worker_settings.person_id = people.id)
+            inner join
+                phone_contacts on (phone_contacts.person_id = people.id)
+            left join
+                send_message_actions on (send_message_actions.to_id = phone_contacts.phone_number_id)
+            left join
+                action_run_states on (
+                    action_run_states.id = send_message_actions.action_run_state_id 
+                    and (action_run_states.state = 'not_started' or action_run_states.state = 'suspended')
+                )
+        where
+            people.goes_by <> '#{botGoesBy}'
+            and worker_settings.is_active
+        group by
+            people.id
+        order by
+            people.last_name,
+            people.first_name;
+    |]
+```
+
+`Row` is the data type used to hold the result of the query. The use of `trackTableRead` enables the query to play nicely with Auto Refresh.
 
 ## Create
 

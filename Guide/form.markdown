@@ -63,6 +63,7 @@ IHP has the most commonly-used form controls built in. In general the form contr
 {hiddenField #projectId}
 {checkboxField #termsAccepted}
 {selectField #projectId allProjects}
+{fileFile #profilePicture}
 {submitButton}
 ```
 
