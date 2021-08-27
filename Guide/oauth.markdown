@@ -116,7 +116,7 @@ Open `Web/FrontController.hs` and
 
 #### View Prelude
 
-As the types for the controller are defined in `IHP.OAuth.Google.Tyypes` instead of the usual `Web.Types` we need to make changes to our `Web/View/Prelude.hs`:
+As the types for the controller are defined in `IHP.OAuth.Google.Types` instead of the usual `Web.Types` we need to make changes to our `Web/View/Prelude.hs`:
 
 ```haskell
 module Web.View.Prelude
@@ -165,7 +165,7 @@ export OAUTH_GOOGLE_CLIENT_ID="MY_GOOGLE_CLIENT_ID" # <-- ADD THIS LINE BEFORE T
 RunDevServer
 ```
 
-You need to replace the `MY_GOOGLE_CLIENT_ID` with your google client id.
+You need to replace the `MY_GOOGLE_CLIENT_ID` with your google client id. After making the changes to `start`, you need to restart your local dev server.
 
 ### Trying it out
 
@@ -244,3 +244,198 @@ function initGoogleLogin() {
 Now you should be able to log in with Google from your normal login page.
 
 ## Login with GitHub
+
+### Setup
+
+To use the Login with GitHub functionality you first need to enable the `ihp-oauth-github` package.
+
+Open your project's `default.nix` and a `ihp-oauth-github` dependency to `haskellDeps`:
+
+```nix
+let
+    ihp = ..
+    haskellEnv = import "${ihp}/NixSupport/default.nix" {
+        ihp = ihp;
+        haskellDeps = p: with p; [
+            # ...
+
+            ihp-oauth-github # <----- ADD THIS LINE
+        ];
+        otherDeps = p: with p; [
+        ];
+        projectPath = ./.;
+    };
+in
+    haskellEnv
+```
+
+After that stop your local development server and run the following command to install the package:
+
+```
+make -B .envrc
+```
+
+Now you can run `./start` again and the `ihp-oauth-github` package is enabled.
+
+
+### Schema Changes
+
+For GitHub OAuth Login to work, we need to add a `github_user_id INT` column to our `users` table. The column needs to be nullable and have `NULL` as the default value.
+
+Open `Application/Schema.sql` and add `github_iser_id INT` to the `CREATE TABLE users` statement:
+```sql
+CREATE TABLE users (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    -- ... ,
+    github_user_id INT DEFAULT NULL UNIQUE,
+);
+```
+
+
+### Creating the Controller
+
+Next we need to add the `GithubOAuth` controller. For that create a new file `Web/Controller/GithubOAuth.hs` with the following content:
+
+```haskell
+module Web.Controller.GithubOAuth where
+
+import Web.Controller.Prelude
+import Web.Controller.Sessions ()
+import IHP.OAuth.Github.Controller
+import qualified IHP.OAuth.Github.Types as Github
+
+instance Controller Github.GithubOAuthController where
+    action Github.NewSessionWithGithubAction = newSessionWithGithubAction @User
+    action Github.GithubConnectCallbackAction = githubConnectCallbackAction @User
+
+
+instance GithubOAuthControllerConfig User where
+    beforeCreateUser user githubUser = user |> set #isConfirmed True -- This will auto-confirm your user's email. Remove this line if you don't use email confirmation
+
+
+    afterCreateUser user = do
+        -- Called after a new user is created
+        -- E.g. you could send a welcome email here:
+        --
+        -- > sendMail WelcomeMail { .. }
+        --
+        pure ()
+
+    beforeLogin user githubUser = do
+        -- Called before the user is logged in
+        -- Here you can e.g. set the app's profile picture to the one provided by github:
+        --
+        -- > user
+        -- >     |> setJust #profilePicture (get #avatarUrl githubUser)
+        -- >     |> setJust #githubName (get #login githubUser)
+        -- >     |> pure
+        --
+        pure user
+```
+
+#### Routing
+
+We also need to enable routing for this controller. Open `Web/Routes.hs` and
+
+1. Import the type definition by adding this import to the top of the file:
+    ```haskell
+    import IHP.OAuth.Github.Types
+    ```
+2. Enable AutoRoute by adding this to end of the file:
+    ```haskell
+    instance AutoRoute GithubOAuthController
+    ```
+
+#### FrontController
+
+Next we need to enable this controller inside the FrontController, so that requests can be routed there.
+
+Open `Web/FrontController.hs` and
+
+1. Add the following imports to the top of the file:
+    ```haskell
+    import IHP.OAuth.Github.Types
+    import Web.Controller.GithubOAuth
+    ```
+2. Add `GithubOAuthController` to the list of controllers:
+    ```haskell
+    instance FrontController WebApplication where
+        controllers = 
+            [ startPage StartpageAction
+            -- ...
+            , parseRoute @GithubOAuthController -- <----- ADD THIS
+            ]
+    ```
+
+#### View Prelude
+
+As the types for the controller are defined in `IHP.OAuth.Github.Types` instead of the usual `Web.Types` we need to make changes to our `Web/View/Prelude.hs`:
+
+```haskell
+module Web.View.Prelude
+( module IHP.ViewPrelude
+-- ...
+, module IHP.OAuth.Github.Types -- <---- ADD THIS
+) where
+
+import IHP.ViewPrelude
+-- ...
+import IHP.OAuth.Github.Types  -- <---- ADD THIS
+```
+
+This ensures that we can write `pathTo NewSessionWithGithubAction` and similiar calls without always manually needing to add import statements.
+
+
+### Config
+
+Before the controller can be used, we need to configure the github client id and client secret. 
+
+[Follow this Guide by GitHub to create a GitHub app and get your client id and secret.](https://docs.github.com/en/developers/apps/building-github-apps/creating-a-github-app). During the setup you need to provide a **Callback URL**. Set this to `http://localhost:8000/GithubConnectCallback`.
+
+**Once you got your client id and secret, you can continue here:**
+
+1. Open `Config/Config.hs`
+2. Add this import:
+    ```haskell
+    import IHP.OAuth.Github.Config
+    ```
+3. Call `initGithubOAuth`:
+    ```haskell
+    config :: ConfigBuilder
+    config = do
+        option Development
+        option (AppHostname "localhost")
+
+        initGithubOAuth -- <--- ADD THIS
+    ```
+
+The call to `initGithubOAuth` will read the `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET` environment variables, and pass it to the `GithubOAuthController`. We also need to define this environment variable locally. For that open the `start` script in your project and add two statements like this:
+
+```bash
+# ...
+
+export OAUTH_GITHUB_CLIENT_ID="MY_GITHUB_CLIENT_ID" # <-- ADD THIS LINE BEFORE THE RunDevServer CALL
+export OAUTH_GITHUB_CLIENT_SECRET="MY_GITHUB_SECRET"
+
+RunDevServer
+```
+
+You need to replace `MY_GITHUB_CLIENT_ID` and `MY_GITHUB_SECRET` with your values. After making the changes to `start`, you need to restart your local dev server.
+
+### Trying it out
+
+Now Github Login is ready and we can try it out.
+
+Open `http://localhost:8000/NewSessionWithGithub` and click on the `Login with Github` button. It will redirect to github and then continue logging into the app.
+
+You can place a `Login with Github` button by linking to the `NewSessionWithGithubAction`:
+
+```haskell
+<a href={NewSessionWithGithubAction} target="_self" class="btn btn-primary">
+    Continue with GitHub
+</a>
+```
+
+Use `target="_self"` for these links to avoid turbolinks interfering with the redirect to github.
+
+Now your github integration is ready to use.
