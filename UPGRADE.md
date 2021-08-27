@@ -2,6 +2,42 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.14.0 from Beta 0.13.1
+
+## Switch IHP version
+
+Open `default.nix` and change the git commit in line 4 to the following:
+
+```diff
+-ref = "refs/tags/v0.13.1";
++ref = "refs/tags/v0.14.0";
+```
+
+After that run the following command to update your project:
+
+```bash
+make clean
+nix-shell -j auto --cores 0 --run 'make -B .envrc'
+make -B build/ihp-lib
+```
+
+Now you can start your project as usual with `./start`.
+
+## IHP Background Jobs
+
+IHP jobs now can be scheduled to run at a specific time with `runAt`. For that every table that acts as a job queue in your application needs to be migration.
+
+1. Create a new migration using `new-migration`.
+2. For every table ending with `_jobs` do this:
+    ```sql
+    alter table $TABLE add column run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL;
+    update $TABLE set run_at = created_at;
+    ```
+    where `$TABLE` should be replaced with the jobs table.
+
+    The line `update $TABLE set run_at = created_at;` sets the right `run_at` value for all existing jobs.
+
+After that apply this migration to all your IHP instances running on `v.0.14.0`.
 
 # Upgrade to Beta 0.13.1 from Beta 0.13.0
 
