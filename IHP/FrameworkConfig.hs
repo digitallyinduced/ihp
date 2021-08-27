@@ -134,8 +134,14 @@ ihpDefaultConfig = do
     option $ DBPoolMaxConnections 20
 
     (AppPort port) <- findOption @AppPort
-    (AppHostname appHostname) <- findOption @AppHostname
-    option $ BaseUrl ("http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else ""))
+
+    -- The IHP_BASEURL env var can override the hardcoded base url in Config.hs
+    ihpBaseUrlEnvVar <- liftIO (Environment.lookupEnv "IHP_BASEURL")
+    case ihpBaseUrlEnvVar of 
+        Just baseUrl -> option (BaseUrl (cs baseUrl))
+        Nothing -> do
+            (AppHostname appHostname) <- findOption @AppHostname
+            option $ BaseUrl ("http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else ""))
 
     (BaseUrl currentBaseUrl) <- findOption @BaseUrl
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)

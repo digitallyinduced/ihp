@@ -72,6 +72,11 @@ startToolServer' port isDebugMode = do
         Config.option $ Config.AppHostname "localhost"
         Config.option $ Config.AppPort port
 
+        ihpIdeBaseUrlEnvVar <- liftIO (Env.lookupEnv "IHP_IDE_BASEURL")
+        case ihpIdeBaseUrlEnvVar of
+            Just baseUrl -> Config.option $ Config.BaseUrl (cs baseUrl)
+            Nothing -> pure ()
+
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (get #sessionCookie frameworkConfig) session
