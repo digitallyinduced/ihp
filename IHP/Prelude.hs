@@ -37,6 +37,7 @@ module IHP.Prelude
 , module Data.Time.Format
 , null
 , module Control.Exception
+, module Control.Monad.Fail
 )
 where
 
@@ -69,6 +70,7 @@ import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef
 import Data.Time.Format
 import Control.Exception (throw, throwIO, catch)
+import Control.Monad.Fail (fail)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b
