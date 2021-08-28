@@ -79,7 +79,7 @@ action UsersAction = do
 
 ### The bang operator `!`
 
-Inside your `Types.hs` you see lots of `!`s, like this:
+Inside your `Web/Types.hs` you see lots of `!`s, like this:
 
 ```haskell
 ShowPostAction { postId :: !(Id Post) }
