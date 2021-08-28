@@ -167,7 +167,7 @@ fetchTableNames connection = do
 
 fetchTableCols :: PG.Connection -> Text -> IO [ColumnDefinition]
 fetchTableCols connection tableName = do
-    PG.query connection "SELECT column_name,data_type,column_default,CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns where table_name = ?" (PG.Only tableName)
+    PG.query connection "SELECT column_name,data_type,column_default,CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns where table_name = ? ORDER BY ordinal_position" (PG.Only tableName)
 
 fetchRow :: PG.Connection -> Text -> [Text] -> IO [[DynamicField]]
 fetchRow connection tableName primaryKeyValues = do
