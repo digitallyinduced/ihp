@@ -26,6 +26,10 @@ import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
 import qualified Data.Time.Clock as Clock
 
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
+import Data.Default (def, Default (..))
+
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
@@ -38,11 +42,13 @@ main = do
     -- Like: $ DEBUG=1 ./start
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
 
-    -- Print IHP Version when in debug mode
-    when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpVersion))
     setProcessLimits
 
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
+    logger <- Log.newLogger def
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger }
+    
+    -- Print IHP Version when in debug mode
+    when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
 
     threadId <- myThreadId
     let catchHandler = do
@@ -55,9 +61,9 @@ main = do
     async Telemetry.reportTelemetry
     forever do
         appState <- readIORef appStateRef
-        when isDebugMode (putStrLn $ " ===> " <> (tshow appState))
+        when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
         action <- takeMVar actionVar
-        when isDebugMode (putStrLn $ tshow action)
+        when isDebugMode (Log.debug $ tshow action)
         nextAppState <- handleAction appState action
         writeIORef appStateRef nextAppState
 
@@ -95,7 +101,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
         AppGHCIModulesLoaded { } -> do
             -- You can trigger this case by running: $ while true; do touch test.hs; done;
-            when (get #isDebugMode ?context) (putStrLn "AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event")
+            when (get #isDebugMode ?context) (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
             pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState, liveReloadNotificationServerState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
@@ -145,7 +151,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
 
 handleAction state SchemaChanged = do
     async do
-        SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do putStrLn (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
+        SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do Log.error (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
     pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
@@ -153,7 +159,7 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
         RunningAppGHCI { .. } -> do
             pauseAppGHCI appGHCIState
             pure state { appGHCIState = AppGHCIModulesLoaded { .. } }
-        otherwise -> do putStrLn ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
+        otherwise -> do Log.info ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
 
 
 
@@ -169,7 +175,7 @@ start = do
 
 stop :: (?context :: Context) => AppState -> IO ()
 stop AppState { .. } = do
-    when (get #isDebugMode ?context) (putStrLn "Stop called")
+    when (get #isDebugMode ?context) (Log.debug ("Stop called" :: Text))
     stopAppGHCI appGHCIState
     stopPostgres postgresState
     stopStatusServer statusServerState
@@ -290,7 +296,7 @@ startAppGHCI = do
             ]
 
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
-                unless isDebugMode (ByteString.putStrLn line)
+                unless isDebugMode (Log.info line)
                 if "Server started" `isInfixOf` line
                     then dispatch AppStarted
                     else if "Failed," `isInfixOf` line
@@ -302,7 +308,7 @@ startAppGHCI = do
                                 else dispatch ReceiveAppOutput { line = StandardOutput line }
 
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
-        unless isDebugMode (ByteString.putStrLn line)
+        unless isDebugMode (Log.info line)
         if "cannot find object file for module" `isInfixOf` line
             then do
                 forEach loadAppCommands (sendGhciCommand process)
@@ -311,7 +317,7 @@ startAppGHCI = do
 
 
     -- Compile Schema before loading the app
-    SchemaCompiler.compile `catch` (\(e :: SomeException) -> putStrLn (tshow e))
+    SchemaCompiler.compile `catch` (\(e :: SomeException) -> Log.error (tshow e))
 
     forEach loadAppCommands (sendGhciCommand process)
 
@@ -327,7 +333,7 @@ startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     forEach commands (sendGhciCommand process)
 startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
 startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
-startLoadedApp _ = when (get #isDebugMode ?context) (putStrLn "startLoadedApp: App not running")
+startLoadedApp _ = when (get #isDebugMode ?context) (Log.debug ("startLoadedApp: App not running" :: Text))
 
 
 stopAppGHCI :: AppGHCIState -> IO ()

@@ -9,6 +9,9 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.PortConfig
 import Data.String.Conversions (cs)
 
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
+
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
     , outputHandle :: !Handle
@@ -28,7 +31,7 @@ cleanupManagedProcess (ManagedProcess { .. }) = Process.cleanupProcess (Just inp
 
 sendGhciCommand :: (?context :: Context) => ManagedProcess -> ByteString -> IO ()
 sendGhciCommand ManagedProcess { inputHandle } command = do
-    when (isDebugMode ?context) (putStrLn ("GHCI: " <> cs command))
+    when (isDebugMode ?context) (Log.debug ("GHCI: " <> cs command :: Text))
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
@@ -145,7 +148,11 @@ data Context = Context
     , portConfig :: !PortConfig
     , appStateRef :: !(IORef AppState)
     , isDebugMode :: !Bool
+    , logger :: !Log.Logger
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
+
+instance Log.LoggingProvider Context where
+    getLogger Context { logger } = logger
