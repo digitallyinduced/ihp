@@ -7,7 +7,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 
-numberOfPagesForTable :: _ => Text -> Int -> IO Int
+numberOfPagesForTable :: (?modelContext::ModelContext) => Text -> Int -> IO Int
 numberOfPagesForTable table pageSize = do
     (PG.Only totalRecords : _) <- sqlQuery
         (PG.Query $ cs $ "SELECT COUNT(*) FROM " <> table)

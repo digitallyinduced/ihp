@@ -157,7 +157,7 @@ instance Controller DataController where
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
-connectToAppDb :: (?context :: ControllerContext) => _
+connectToAppDb :: (?context :: ControllerContext) => IO PG.Connection
 connectToAppDb = PG.connectPostgreSQL $ fromConfig databaseUrl
 
 fetchTableNames :: PG.Connection -> IO [Text]
@@ -204,7 +204,7 @@ fetchRowsPage connection tableName page rows = do
 
     PG.query_ connection (PG.Query . cs $! query)
 
-tableLength :: _ => PG.Connection -> Text -> IO Int
+tableLength :: PG.Connection -> Text -> IO Int
 tableLength connection tableName = do
     [Only count] <- PG.query connection "SELECT COUNT(*) FROM ?" [PG.Identifier tableName]
     pure count
