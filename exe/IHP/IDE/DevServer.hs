@@ -230,7 +230,7 @@ startGHCI = do
             , "-package-env -" -- Do not load `~/.ghc/arch-os-version/environments/name file`, global packages interfere with our packages
             , "-ignore-dot-ghci" -- Ignore the global ~/.ghc/ghci.conf That file sometimes causes trouble (specifically `:set +c +s`)
             , "-ghci-script", ".ghci" -- Because the previous line ignored default ghci config file locations, we have to manual load our .ghci
-            , "+RTS", "-A512m", "-n4m", "-H512m", "--nonmoving-gc", "-N"
+            , "+RTS", "-A128m", "-n2m", "-H2m", "--nonmoving-gc", "-N"
             ]
     createManagedProcess (Process.proc "ghci" args)
             { Process.std_in = Process.CreatePipe
