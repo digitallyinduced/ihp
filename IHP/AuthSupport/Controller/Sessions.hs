@@ -15,13 +15,8 @@ where
 import IHP.Prelude
 import IHP.ControllerPrelude hiding (Success, currentUserOrNothing)
 import IHP.AuthSupport.View.Sessions.New
-import IHP.AuthSupport.Authentication
-import IHP.FrameworkConfig
-import IHP.ViewSupport (View, Layout)
-import IHP.LoginSupport.Types
-import IHP.LoginSupport.Helper.Controller hiding (currentUserOrNothing)
+import IHP.ViewSupport (View)
 import Data.Data
-import Data.Maybe (fromJust)
 import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
 

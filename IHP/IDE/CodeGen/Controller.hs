@@ -25,7 +25,6 @@ import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
-import Control.Exception
 import System.Directory
 import qualified IHP.SchemaMigration as SchemaMigration
 

@@ -32,7 +32,6 @@ module IHP.ViewSupport
 ) where
 
 import IHP.Prelude
-import qualified Text.Blaze
 import qualified Text.Blaze.Html5 as Html5
 import IHP.ControllerSupport
 import IHP.ModelSupport
@@ -46,13 +45,11 @@ import qualified Data.ByteString as ByteString
 import IHP.RouterSupport hiding (get)
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
-import qualified IHP.ControllerSupport as ControllerSupport
-import IHP.FlashMessages.Types
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
-import qualified IHP.View.CSSFramework as CSSFramework
+import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context

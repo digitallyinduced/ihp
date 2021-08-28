@@ -4,7 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data EditColumnView = EditColumnView

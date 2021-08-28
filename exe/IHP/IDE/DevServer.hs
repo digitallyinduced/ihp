@@ -17,10 +17,7 @@ import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Environment as Env
-import System.Info
 import Data.String.Conversions (cs)
-import qualified IHP.FrameworkConfig as Config
-import IHP.Environment
 import qualified IHP.LibDir as LibDir
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version

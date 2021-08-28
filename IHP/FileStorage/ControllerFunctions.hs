@@ -26,7 +26,6 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.ValidationSupport
 
 import Network.Minio
-import qualified System.IO.Temp as Temp
 import qualified Data.Conduit.Binary as Conduit
 import qualified Network.Wai.Parse as Wai
 
@@ -36,9 +35,6 @@ import qualified Data.TMap as TMap
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Directory as Directory
 import qualified Control.Exception as Exception
-import qualified System.IO.Temp as Temp
-import qualified System.Process as Process
-import qualified Network.Wai.Parse as Wai
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
 import IHP.FileStorage.MimeTypes

@@ -17,10 +17,8 @@ import IHP.Prelude
 import Network.Wai.Parse (FileInfo, fileContent)
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
-import qualified System.Process as Process
 import IHP.Controller.RequestContext
 import IHP.Controller.Context
-import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified System.Process as Process
 
 -- | Returns a file upload from the request as a ByteString.

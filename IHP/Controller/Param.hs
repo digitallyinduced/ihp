@@ -9,7 +9,6 @@ module IHP.Controller.Param where
 
 import IHP.Prelude
 import qualified Data.Either as Either
-import qualified Data.Text.Read
 import IHP.Controller.RequestContext
 import qualified Network.Wai as Wai
 import qualified Data.UUID as UUID
@@ -23,7 +22,6 @@ import qualified Control.Exception as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
 import qualified Control.DeepSeq as DeepSeq
@@ -255,6 +253,7 @@ class ParamReader a where
     readParameter :: ByteString -> Either ByteString a
     -- | The error messages here are directed at other developers, so they can be a bit more technical than 'readParameter' errors
     readParameterJSON :: Aeson.Value -> Either ByteString a
+    readParameterJSON = enumParamReaderJSON
 
 instance ParamReader ByteString where
     {-# INLINABLE readParameter #-}
@@ -506,7 +505,7 @@ enumParamReader string =
     where
         string' = cs string
 
--- | Used together with 'enumParamReader' as a default implementation for 'readParameterJSON' for enum structures
+-- | Used as a default implementation for 'readParameterJSON'
 --
 -- __Example:__
 --
@@ -515,8 +514,8 @@ enumParamReader string =
 -- > instance ParamReader Color where
 -- >     readParameter = enumParamReader
 -- >     readParameterJSON = enumParamReaderJSON
-enumParamReaderJSON :: forall parameter. (Enum parameter, ModelSupport.InputValue parameter) => Aeson.Value -> Either ByteString parameter
-enumParamReaderJSON (Aeson.String string) = enumParamReader (cs string)
+enumParamReaderJSON :: forall parameter. (ParamReader parameter) => Aeson.Value -> Either ByteString parameter
+enumParamReaderJSON (Aeson.String string) = readParameter (cs string)
 enumParamReaderJSON otherwise = Left "enumParamReaderJSON: Invalid value, expected a string but got something else"
 
 -- | Provides the 'fill' function for mass-assignment of multiple parameters to a record

@@ -14,7 +14,7 @@ import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.TypeInfo.Macro
 import Data.Attoparsec.ByteString.Char8 as Attoparsec hiding (Parser(..))
 import Data.Attoparsec.Internal.Types (Parser)
-import Data.ByteString.Builder (byteString, charUtf8, intDec)
+import Data.ByteString.Builder (byteString, charUtf8)
 
 -- | Represents a Postgres tsvector
 --

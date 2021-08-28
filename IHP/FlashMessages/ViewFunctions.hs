@@ -7,10 +7,6 @@ module IHP.FlashMessages.ViewFunctions where
 
 import IHP.Prelude
 import IHP.FlashMessages.Types
-import IHP.Controller.RequestContext
-import IHP.Controller.Session
-import qualified Data.Maybe as Maybe
-import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Text.Blaze.Html5 as Html5
 import IHP.ViewSupport
 import IHP.View.Types

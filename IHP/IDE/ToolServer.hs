@@ -1,18 +1,8 @@
 module IHP.IDE.ToolServer where
 
 import IHP.Prelude
-import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.WebSockets as Websocket
-import qualified Network.Wai.Handler.WebSockets as Websocket
-import qualified Control.Concurrent as Concurrent
-import IHP.HaskellSupport
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import qualified Network.HTTP.Types.Header as HTTP
-import qualified Text.Blaze.Html5 as Html5
-import qualified Network.HTTP.Types as HTTP
-import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.Types
 import IHP.IDE.PortConfig
 import qualified IHP.ControllerSupport as ControllerSupport
@@ -20,29 +10,26 @@ import qualified IHP.ErrorController as ErrorController
 import IHP.ApplicationContext
 import IHP.ModelSupport
 import IHP.RouterSupport hiding (get)
-import qualified Data.Time.Clock
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static hiding ((<|>))
-import Network.Wai.Session (withSession, Session)
-import qualified System.Directory as Directory
+import Network.Wai.Session (withSession)
 
 import qualified IHP.FrameworkConfig as Config
-import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.Controller.EnumValues
-import IHP.IDE.SchemaDesigner.Controller.Enums
-import IHP.IDE.SchemaDesigner.Controller.Columns
-import IHP.IDE.SchemaDesigner.Controller.Schema
-import IHP.IDE.SchemaDesigner.Controller.Tables
-import IHP.IDE.Data.Controller
-import IHP.IDE.Logs.Controller
-import IHP.IDE.CodeGen.Controller
+import IHP.IDE.SchemaDesigner.Controller.EnumValues ()
+import IHP.IDE.SchemaDesigner.Controller.Enums ()
+import IHP.IDE.SchemaDesigner.Controller.Columns ()
+import IHP.IDE.SchemaDesigner.Controller.Schema ()
+import IHP.IDE.SchemaDesigner.Controller.Tables ()
+import IHP.IDE.Data.Controller ()
+import IHP.IDE.Logs.Controller ()
+import IHP.IDE.CodeGen.Controller ()
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.Controller as Helper
 import Control.Concurrent.Async
-import IHP.IDE.ToolServer.Routes
+import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
 import System.Info
 import qualified System.Environment as Env

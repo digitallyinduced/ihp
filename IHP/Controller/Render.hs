@@ -1,14 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 module IHP.Controller.Render where
 import ClassyPrelude
-import IHP.HaskellSupport
-import Data.String.Conversions (cs)
-import Network.Wai (Response, Request, responseLBS, requestBody, queryString, responseBuilder, responseFile)
+import Network.Wai (responseLBS, responseBuilder, responseFile)
 import qualified Network.Wai
-import Network.HTTP.Types (status200, status302, status406)
+import Network.HTTP.Types (status200, status406)
 import Network.HTTP.Types.Header
 import IHP.ModelSupport
-import qualified Network.Wai.Util
 import qualified Data.ByteString.Lazy
 import qualified IHP.ViewSupport as ViewSupport
 import qualified Data.Aeson
@@ -18,7 +15,6 @@ import qualified Data.List as List
 
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
-import GHC.Records
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import qualified IHP.FrameworkConfig as FrameworkConfig

@@ -1,7 +1,6 @@
 module IHP.IDE.Data.Controller where
 
 import IHP.ControllerPrelude
-import IHP.Controller.RequestContext
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.ShowTableRows
@@ -17,7 +16,6 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
 import qualified Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as BS
 import Data.Functor ((<&>))
 
 instance Controller DataController where
@@ -157,7 +155,7 @@ instance Controller DataController where
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
-connectToAppDb :: (?context :: ControllerContext) => _
+connectToAppDb :: (?context :: ControllerContext) => IO PG.Connection
 connectToAppDb = PG.connectPostgreSQL $ fromConfig databaseUrl
 
 fetchTableNames :: PG.Connection -> IO [Text]
@@ -204,7 +202,7 @@ fetchRowsPage connection tableName page rows = do
 
     PG.query_ connection (PG.Query . cs $! query)
 
-tableLength :: _ => PG.Connection -> Text -> IO Int
+tableLength :: PG.Connection -> Text -> IO Int
 tableLength connection tableName = do
     [Only count] <- PG.query connection "SELECT COUNT(*) FROM ?" [PG.Identifier tableName]
     pure count

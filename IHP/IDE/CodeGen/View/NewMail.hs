@@ -1,14 +1,9 @@
 module IHP.IDE.CodeGen.View.NewMail where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.View.Generators (renderPlan)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 
 data NewMailView = NewMailView
     { plan :: Either Text [GeneratorAction]

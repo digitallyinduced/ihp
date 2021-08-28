@@ -10,7 +10,6 @@ import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.ModelSupport hiding (withTransaction)
-import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char

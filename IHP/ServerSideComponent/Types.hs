@@ -6,7 +6,6 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.ServerSideComponent.Types where
 
 import IHP.ViewPrelude
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Network.WebSockets as WebSocket
 
 class Component state action | state -> action where

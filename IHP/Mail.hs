@@ -12,8 +12,6 @@ module IHP.Mail
 where
 
 import IHP.Prelude
-import IHP.Controller.RequestContext
-import IHP.ControllerSupport
 import IHP.Mail.Types
 import IHP.FrameworkConfig
 

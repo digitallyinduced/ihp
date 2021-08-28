@@ -14,18 +14,16 @@ module IHP.View.Form where
 import IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.ConvertibleStrings ()
-import           IHP.ViewErrorMessages
+import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5
 import IHP.HSX.ToHtml
-import IHP.NameSupport
 import GHC.Types
-import IHP.RouterSupport hiding (get)
 import IHP.ModelSupport (getModelName, inputValue, isNew, GetModelName, Id', NormalizeModel, MetaBag, InputValue)
 import IHP.HSX.QQ (hsx)
 import IHP.View.Types
-import IHP.View.Classes
-import qualified Network.Wai as Wai
+import IHP.View.Classes ()
+import Network.Wai (pathInfo)
 import IHP.Controller.Context
 
 -- | Forms usually begin with a 'formFor' expression.

@@ -12,7 +12,7 @@ module IHP.ValidationSupport.ValidateField where
 import ClassyPrelude
 import Data.Proxy
 import IHP.ValidationSupport.Types
-import GHC.TypeLits (KnownSymbol, Symbol)
+import GHC.TypeLits (KnownSymbol)
 import GHC.Records
 import IHP.ModelSupport
 import IHP.HaskellSupport

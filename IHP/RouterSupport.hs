@@ -36,18 +36,13 @@ import GHC.Records
 import IHP.Controller.RequestContext
 import Network.Wai
 import IHP.ControllerSupport
-import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
+import Data.Attoparsec.ByteString.Char8 (string, Parser, parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import GHC.TypeLits
 import Data.Data
-import qualified Data.UUID as UUID
-import Data.Maybe (fromJust)
-import qualified Text.Inflections as Inflections
-import qualified Data.Either as Either
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Text as Text
 import Network.HTTP.Types.URI
-import Data.List ((!!))
 import qualified Data.List as List
 import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)

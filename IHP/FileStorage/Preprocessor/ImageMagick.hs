@@ -8,7 +8,6 @@ module IHP.FileStorage.Preprocessor.ImageMagick
 ) where
 
 import IHP.Prelude
-import IHP.FileStorage.Types
 
 import qualified Network.Wai.Parse as Wai
 import qualified Data.ByteString.Lazy as LBS

@@ -7,8 +7,6 @@ import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.View.Generators (renderPlan)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 
 data NewActionView = NewActionView
     { plan :: Either Text [GeneratorAction]
