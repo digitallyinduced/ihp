@@ -9,7 +9,6 @@ module IHP.Controller.Param where
 
 import IHP.Prelude
 import qualified Data.Either as Either
-import qualified Data.Text.Read
 import IHP.Controller.RequestContext
 import qualified Network.Wai as Wai
 import qualified Data.UUID as UUID
@@ -23,7 +22,6 @@ import qualified Control.Exception as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
 import qualified Control.DeepSeq as DeepSeq

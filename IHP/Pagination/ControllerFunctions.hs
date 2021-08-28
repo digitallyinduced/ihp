@@ -18,12 +18,10 @@ import IHP.Pagination.Types
     ( Options(..), Pagination(..) )
 
 import IHP.QueryBuilder
-    ( QueryBuilder, HasQueryBuilder, filterWhereILike, limit, offset )
+    ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 
 import IHP.ModelSupport (GetModelByTableName)
-
-import Database.PostgreSQL.Simple.ToField
 
 
 -- | Paginate a query, with the following default options:

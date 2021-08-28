@@ -62,13 +62,8 @@ module IHP.QueryBuilder
 where
 import qualified Prelude
 import IHP.Prelude
-import Database.PostgreSQL.Simple (Connection)
-import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
-import Database.PostgreSQL.Simple.FromField hiding (Field, name)
+import Database.PostgreSQL.Simple.Types (In (In))
 import Database.PostgreSQL.Simple.ToField
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import GHC.OverloadedLabels
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
 import IHP.HSX.ToHtml

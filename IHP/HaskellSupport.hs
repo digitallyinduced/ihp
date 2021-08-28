@@ -37,7 +37,6 @@ module IHP.HaskellSupport
 ) where
 
 import ClassyPrelude
-import Control.Monad (when)
 import qualified Data.Default
 import qualified Data.UUID as UUID
 import Data.Proxy
@@ -49,7 +48,6 @@ import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs)
 import qualified Debug.Trace
 import qualified Data.Text as Text
-import qualified Data.Maybe
 import qualified Data.ByteString.Char8 as ByteString
 
 --(|>) :: a -> f -> f a

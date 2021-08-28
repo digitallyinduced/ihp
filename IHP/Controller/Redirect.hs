@@ -17,14 +17,7 @@ import Network.URI (parseURI)
 import IHP.Controller.RequestContext
 import IHP.RouterSupport (HasPath (pathTo))
 import IHP.FrameworkConfig
-import qualified Network.Wai as Wai
-import qualified Data.Text.Encoding as TE
-import Data.String.Conversions (cs)
-import Data.Maybe (fromJust)
-import Network.HTTP.Types (status200, status302)
 import Network.HTTP.Types.Status
-import Network.HTTP.Types.Header (hLocation)
-import GHC.Records
 
 import IHP.Controller.Context
 import IHP.ControllerSupport

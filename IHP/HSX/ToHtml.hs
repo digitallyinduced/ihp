@@ -8,7 +8,6 @@ import ClassyPrelude
 import Data.String.Conversions (cs)
 import IHP.View.ConvertibleStrings ()
 import qualified Data.ByteString
-import Prelude (String)
 
 class ToHtml a where
     toHtml :: a -> Html5.Html

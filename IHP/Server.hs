@@ -10,24 +10,15 @@ import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
-import qualified Data.Time.Clock
 import IHP.ModelSupport
 import IHP.ApplicationContext
 import qualified IHP.ControllerSupport as ControllerSupport
-import Database.PostgreSQL.Simple
-import qualified IHP.LoginSupport.Middleware
 import qualified IHP.Environment as Env
-import System.Info
 import IHP.Log.Types
-import qualified IHP.Log as Log
 
 import IHP.FrameworkConfig
-import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController, webSocketApp, webSocketAppWithCustomPath)
+import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
 import qualified IHP.ErrorController as ErrorController
-import qualified IHP.Controller.RequestContext as RequestContext
-import qualified Network.WebSockets as Websocket
-import qualified Network.Wai.Handler.WebSockets as Websocket
-import qualified Control.Concurrent as Concurrent
 import Control.Exception (finally)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh

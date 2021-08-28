@@ -15,7 +15,6 @@ import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByN
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import System.Exit
-import IHP.IDE.SchemaDesigner.Parser (schemaFilePath)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.IDE.SchemaDesigner.View.Layout

@@ -1,13 +1,11 @@
 module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer) where
 
 import IHP.ViewPrelude hiding (catch)
-import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
-import IHP.HaskellSupport
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Network.HTTP.Types.Header as HTTP
 import qualified Text.Blaze.Html5 as Html5

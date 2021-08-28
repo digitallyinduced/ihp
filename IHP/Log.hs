@@ -22,7 +22,6 @@ module IHP.Log
 
 import IHP.HaskellSupport hiding (debug)
 
-import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show, log, debug)
 import Control.Monad (when)
 import IHP.Log.Types
@@ -30,8 +29,6 @@ import Network.Wai (Middleware)
 import Network.Wai.Middleware.RequestLogger (mkRequestLogger, RequestLoggerSettings, destination)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import Data.Default (Default (def))
-import Data.String.Conversions (cs)
-import System.IO.Unsafe (unsafePerformIO)
 import qualified System.Log.FastLogger as FastLogger
 
 -- | Format a log and send it to the logger.

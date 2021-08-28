@@ -37,7 +37,7 @@ module IHP.ViewPrelude (
 ) where
 
 import IHP.Prelude
-import           IHP.ViewErrorMessages
+import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
 import Text.Blaze (preEscapedText, stringValue, text, (!))
 import Text.Blaze.Html5 (preEscapedToHtml)

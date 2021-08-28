@@ -15,14 +15,12 @@ module IHP.IDE.SchemaDesigner.Parser
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
 import qualified Prelude
-import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Text.Megaparsec
 import Data.Void
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
 import Data.Char
-import IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import Control.Monad.Combinators.Expr
 
 schemaFilePath = "Application/Schema.sql"

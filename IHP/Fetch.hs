@@ -27,21 +27,11 @@ module IHP.Fetch
 where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple (Connection)
-import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
+import Database.PostgreSQL.Simple.Types (Query (Query))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import GHC.OverloadedLabels
-import GHC.Generics as Gen
 import IHP.ModelSupport
-import qualified Data.ByteString.Builder as Builder
-import IHP.HSX.ToHtml
-import qualified Data.ByteString.Char8 as ByteString
-import qualified Data.ByteString.Lazy as LByteString
-import qualified Control.DeepSeq as DeepSeq
-import qualified Data.Text.Encoding as Text
 import IHP.QueryBuilder
 
 class Fetchable fetchable model | fetchable -> model where

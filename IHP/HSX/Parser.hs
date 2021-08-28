@@ -20,9 +20,7 @@ import Prelude (show)
 import qualified Language.Haskell.Meta as Haskell
 import qualified Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
-import qualified "template-haskell" Language.Haskell.TH.Syntax as TH
 import qualified Data.Set as Set
-import Data.Set (Set)
 
 data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 

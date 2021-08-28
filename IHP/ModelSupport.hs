@@ -9,12 +9,9 @@ module IHP.ModelSupport
 
 import IHP.HaskellSupport
 import IHP.NameSupport
-import qualified Prelude
 import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
-import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
-import qualified Text.Inflections
-import Database.PostgreSQL.Simple.Types (Query (Query))
+import Database.PostgreSQL.Simple.Types (Query)
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
@@ -23,23 +20,17 @@ import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Time.Calendar
-import Data.Time.Format
-import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import GHC.Records
-import GHC.OverloadedLabels
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
 import Data.Data
 import qualified Control.Newtype.Generics as Newtype
-import Control.Applicative (Const)
-import qualified GHC.Types as Type
-import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -47,9 +38,8 @@ import qualified Text.Read as Read
 import qualified Data.Pool as Pool
 import qualified GHC.Conc
 import IHP.Postgres.Point
-import IHP.Postgres.Inet
+import IHP.Postgres.Inet ()
 import IHP.Postgres.TSVector
-import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic

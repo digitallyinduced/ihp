@@ -9,8 +9,6 @@ import IHP.Prelude
 import IHP.ViewSupport
 import IHP.ServerSideComponent.Types
 import IHP.HSX.QQ (hsx)
-import qualified Text.Blaze.Html5 as Html5
-import IHP.Controller.Context
 
 import qualified Data.Typeable as Typeable
 

@@ -29,8 +29,7 @@ module IHP.ControllerSupport
 
 import ClassyPrelude
 import IHP.HaskellSupport
-import Data.String.Conversions (cs)
-import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, requestHeaders)
+import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
@@ -41,15 +40,12 @@ import qualified Data.ByteString.Lazy
 import qualified IHP.Controller.RequestContext as RequestContext
 import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
-import Control.Monad.Reader
-import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig (..))
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext)
-import IHP.FlashMessages.ControllerFunctions
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets

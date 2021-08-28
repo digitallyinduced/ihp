@@ -20,16 +20,13 @@ module IHP.LoginSupport.Helper.Controller
 ) where
 
 import IHP.Prelude
-import IHP.Controller.Context
 import IHP.Controller.Redirect
 import IHP.Controller.Session
 import IHP.LoginSupport.Types
-import IHP.Controller.RequestContext
 import qualified IHP.Controller.Session as Session
 import IHP.FlashMessages.ControllerFunctions
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
-import IHP.FrameworkConfig
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.AuthSupport.Authorization
 import IHP.AuthSupport.Authentication

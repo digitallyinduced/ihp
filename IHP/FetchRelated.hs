@@ -13,7 +13,6 @@ module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRe
 import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
 import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName)
 import IHP.QueryBuilder
 import IHP.Fetch

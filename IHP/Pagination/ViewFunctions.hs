@@ -7,7 +7,6 @@ module IHP.Pagination.ViewFunctions (
 import IHP.Prelude
 import IHP.Pagination.Types
 import IHP.Pagination.Helpers
-import IHP.Pagination.ControllerFunctions
 
 import IHP.ControllerSupport
 

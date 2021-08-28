@@ -11,7 +11,6 @@ module IHP.Controller.Layout
 import IHP.Prelude
 import IHP.ViewSupport
 import IHP.Controller.Context
-import qualified Data.TMap as TypeMap
 
 newtype ViewLayout = ViewLayout ((?context :: ControllerContext) => Layout)
 

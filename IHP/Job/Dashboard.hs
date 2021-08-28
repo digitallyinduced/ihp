@@ -43,7 +43,6 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
-import qualified IHP.Log as Log
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodGet, methodPost)
 import GHC.TypeLits
