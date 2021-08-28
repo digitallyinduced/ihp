@@ -27,6 +27,9 @@ instance IsLabel name (Proxy name') where
 
 So `#companyId` can be written as `fromLabel @"companyId"` which IHP turns into `Proxy @"companyId"`. The `Proxy` value is now a normal haskell value and is passed to functions such as `get` or `set`.
 
+Note that the `fromLabel @"companyId"` style syntax is currently not supported inside HSX expressions. See [this stackoverflow answer](https://stackoverflow.com/a/68962193/268581) for an explanation.
+
+
 ### The at symbol @
 
 Another symbol used often in IHP is the `@` symbol, like this:
