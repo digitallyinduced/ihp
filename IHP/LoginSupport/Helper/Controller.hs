@@ -31,7 +31,6 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
 import IHP.FrameworkConfig
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Monad.Fail
 import IHP.AuthSupport.Authorization
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context

@@ -4,7 +4,6 @@ import IHP.Prelude
 import IHP.SchemaMigration
 import qualified System.Posix.Env.ByteString as Posix
 import qualified System.Directory as Directory
-import Control.Monad.Fail
 import IHP.IDE.ToolServer.Helper.Controller (openEditor)
 
 main :: IO ()

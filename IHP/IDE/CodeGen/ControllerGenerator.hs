@@ -11,7 +11,6 @@ import qualified Data.Char as Char
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import qualified System.Posix.Env.ByteString as Posix
-import Control.Monad.Fail
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 
