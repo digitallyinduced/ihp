@@ -6,7 +6,7 @@
 
 ## Introduction
 
-HSX can be written pretty much like normal HTML. You can write an HSX expression inside your Haskell code by wrapping it with `[hsx|YOUR HSX CODE|]`. HSX expressions are just a syntax for blaze HTML and thus are automatically escaped as described in the blaze documentation.
+HSX can be written pretty much like normal HTML. You can write an HSX expression inside your Haskell code by wrapping it with `[hsx|YOUR HSX CODE|]`. HSX expressions are just a syntax for [BlazeHtml](https://jaspervdj.be/blaze/) and thus are automatically escaped as described in the blaze documentation.
 
 Because the HSX is parsed, you will get a syntax error when you type in invalid HTML.
 
