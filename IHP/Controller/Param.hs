@@ -538,7 +538,7 @@ enumParamReaderJSON otherwise = Left "enumParamReaderJSON: Invalid value, expect
 -- >     user
 -- >         |> fill @["firstname", "lastname", "email"]
 --
--- This code will read the firstname, lastname and email from the request and aissgn them to the user.
+-- This code will read the firstname, lastname and email from the request and assign them to the user.
 class FillParams (params :: [Symbol]) record where
     fill :: (
         ?context :: ControllerContext
