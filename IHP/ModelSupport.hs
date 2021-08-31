@@ -232,7 +232,7 @@ deriving instance (Hashable (PrimaryKey table)) => Hashable (Id' table)
 deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
 deriving instance (KnownSymbol table, NFData (PrimaryKey table)) => NFData (Id' table)
 
--- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
+-- | We need to map the model to its table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
 -- But `type Project = Project' { id :: Id "projects" }` will
 type Id model = Id' (GetTableName model)
