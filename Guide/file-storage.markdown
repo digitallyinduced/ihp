@@ -276,7 +276,7 @@ After that run `make -B .envrc` and restart your development server.
 
 #### Jpegs
 
-To store an image as a jpeg and reduce it's quality use this:
+To store an image as a jpeg and reduce its quality use this:
 
 ```haskell
 let uploadLogo = uploadToStorageWithOptions $ def
@@ -289,7 +289,7 @@ The browser uses the [`Content-Disposition`](https://developer.mozilla.org/en-US
 
 By default no `Content-Disposition` header is set.
 
-If you use the S3 Storage you can use the `contentDispositionAttachmentAndFileName` function to mark a file as an attachment and use it's original provided file name as the downloaded file name:
+If you use the S3 Storage you can use the `contentDispositionAttachmentAndFileName` function to mark a file as an attachment and use its original provided file name as the downloaded file name:
 
 ```haskell
 let uploadAttachment = uploadToStorageWithOptions $ def
