@@ -427,3 +427,18 @@ isTrue value = if value then Success else Failure "This field cannot be false"
 -- Failure "This field cannot be true"
 isFalse :: Bool -> ValidatorResult
 isFalse value = if not value then Success else Failure "This field cannot be true"
+
+
+-- | Validates that value is matched by the regular expression
+--
+-- >>> matchesRegex "^[0-9]{4}$" "2016"
+-- Success
+--
+-- >>> matchesRegex "^[0-9]{4}$" "16"
+-- Failure "This field does not match the regular expression \"^[0-9]{4}$\""
+--
+-- >>> matchesRegex "[0-9]{4}" "xx2016xx"
+-- Success -- regex is missing ^ and $
+--
+matchesRegex :: Text -> Text -> ValidatorResult
+matchesRegex regex text = if text =~ regex then Success else Failure $ "This field does not match the regular expression \"" <> regex <> "\""
