@@ -129,6 +129,7 @@ validateAny validators text =
   case any isSuccess $ map ($ text) validators of
     True -> Success
     False -> Failure "did not pass any validators"
+{-# INLINABLE validateAny #-}
 
 
 -- | Validates that value passes all of the given validators
@@ -146,6 +147,8 @@ validateAll validators text =
   in case all isSuccess results of
     True -> Success
     False -> (filter isFailure results) !! 0
+{-# INLINABLE validateAll #-}
+
 
 -- | Validates that value is not empty
 --
@@ -389,6 +392,7 @@ isColor = validateAny [isRgbHexColor, isRgbaHexColor, isRgbColor, isRgbaColor]
   |> withCustomErrorMessage "is not a valid color"
 {-# INLINABLE isColor #-}
 
+
 -- | Validates string starts with @http://@ or @https://@
 --
 -- >>> isUrl "https://digitallyinduced.com"
@@ -405,7 +409,7 @@ isUrl text = Failure "is not a valid url. It needs to start with http:// or http
 isInList :: (Eq value, Show value) => [value] -> value -> ValidatorResult
 isInList list value | list |> includes value = Success
 isInList list value = Failure ("is not allowed. It needs to be one of the following: " <> (tshow list))
-
+{-# INLINABLE isInList #-}
 
 -- | Validates that value is True
 --
@@ -416,6 +420,7 @@ isInList list value = Failure ("is not allowed. It needs to be one of the follow
 -- Failure "This field cannot be false"
 isTrue :: Bool -> ValidatorResult
 isTrue value = if value then Success else Failure "This field cannot be false"
+{-# INLINABLE isTrue #-}
 
 
 -- | Validates that value is False
@@ -427,6 +432,7 @@ isTrue value = if value then Success else Failure "This field cannot be false"
 -- Failure "This field cannot be true"
 isFalse :: Bool -> ValidatorResult
 isFalse value = if not value then Success else Failure "This field cannot be true"
+{-# INLINABLE isFalse #-}
 
 
 -- | Validates that value is matched by the regular expression
@@ -442,3 +448,17 @@ isFalse value = if not value then Success else Failure "This field cannot be tru
 --
 matchesRegex :: Text -> Text -> ValidatorResult
 matchesRegex regex text = if text =~ regex then Success else Failure $ "This field does not match the regular expression \"" <> regex <> "\""
+{-# INLINABLE matchesRegex #-}
+
+
+-- | Validates that value is a valid slug
+--
+-- >>> isSlug "i-am-a-slug"
+-- Success
+--
+-- >>> isSlug "I-AM-A-Slug (Copy)"
+-- Failure "is not a valid slug (consisting of only letters, numbers, underscores or hyphens)"
+isSlug :: Text -> ValidatorResult
+isSlug text | text =~ ("^[a-zA-Z0-9_-]+$" :: Text) = Success
+isSlug text = Failure "is not a valid slug (consisting of only letters, numbers, underscores or hyphens)"
+{-# INLINABLE isSlug #-}
