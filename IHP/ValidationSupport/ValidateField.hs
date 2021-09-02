@@ -442,3 +442,15 @@ isFalse value = if not value then Success else Failure "This field cannot be tru
 --
 matchesRegex :: Text -> Text -> ValidatorResult
 matchesRegex regex text = if text =~ regex then Success else Failure $ "This field does not match the regular expression \"" <> regex <> "\""
+
+
+-- | Validates that value is a valid slug
+--
+-- >>> isSlug "i-am-a-slug"
+-- Success
+--
+-- >>> isSlug "I-AM-A-Slug (Copy)"
+-- Failure "is not a valid slug (consisting of only letters, numbers, underscores or hyphens)"
+isSlug :: Text -> ValidatorResult
+isSlug text | text =~ ("^[a-zA-Z0-9_-]+$" :: Text) = Success
+isSlug text = Failure "is not a valid slug (consisting of only letters, numbers, underscores or hyphens)"
