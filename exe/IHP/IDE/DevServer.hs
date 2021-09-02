@@ -41,7 +41,7 @@ main = do
 
     logger <- Log.newLogger def
     let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger }
-    
+
     -- Print IHP Version when in debug mode
     when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
 
@@ -253,7 +253,7 @@ ensureUserIsNotRoot = do
 startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
     let isDebugMode = ?context |> get #isDebugMode
-    -- The app is using the `PORT` env variable for it's web server
+    -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = ?context
             |> get #portConfig
             |> get #appPort
