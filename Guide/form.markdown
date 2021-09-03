@@ -549,7 +549,7 @@ view to generate the list of select fields:
     {selectField #contentType allContentTypes}
 |]
     where
-      allContentTypes = allEnumValues @ContentTypes
+      allContentTypes = allEnumValues @ContentType
 ```
 
 ### Select Inputs with Integers
