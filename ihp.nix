@@ -137,7 +137,7 @@ mkDerivation {
 
   # For faster builds when hacking on IHP:
   # Uncommenting will build without optimizations
-   configureFlags = [ "--flag FastBuild" ];
+  # configureFlags = [ "--flag FastBuild" ];
   # Uncommenting will not generate documentation
-   doHaddock = false;
+  # doHaddock = false;
 }
