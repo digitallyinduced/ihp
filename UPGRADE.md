@@ -89,6 +89,10 @@ nixpkgs has moved `stdenv.lib` to just `lib`. So you need to replace all mention
 
 [To get a better understanding of this, take a look a the upgrade commit to see what changes we did to the custom package definitions included with IHP.](https://github.com/digitallyinduced/ihp/commit/cfc8ceb4918749e833f79ba3d362082d0010f1b4)
 
+### Postgres: v11 -> v13
+
+With the nixpkgs update the development postgres server has been updated. Make sure that you run `make clean` during the update process. Otherwise the local database might not start as expected. When you get an error like `libpq: failed (could not connect to server: No such file or directory`, likely postgres is not starting up because your database state is still on v11, while the new postgres is v13.
+
 # Upgrade to Beta 0.12.0 from Beta 0.11.0
 
 ## Switch IHP version
