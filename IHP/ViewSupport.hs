@@ -255,3 +255,4 @@ liveReloadWebsocketUrl = ?context
     |> FrameworkConfig.getFrameworkConfig
     |> get #ideBaseUrl
     |> Text.replace "http://" "ws://"
+    |> Text.replace "https://" "wss://"
