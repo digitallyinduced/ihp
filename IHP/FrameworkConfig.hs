@@ -62,6 +62,9 @@ type ConfigBuilder = State.StateT TMap.TMap IO ()
 -- | Interface for exception tracking services such as sentry
 newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> SomeException -> IO () }
 
+-- | Typically "http://localhost:8001", Url where the IDE is running
+newtype IdeBaseUrl = IdeBaseUrl Text
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -141,6 +144,10 @@ ihpDefaultConfig = do
 
     option bootstrap
 
+    when (environment == Development) do
+        ihpIdeBaseUrl <- fromMaybe "http://localhost:8001" <$> liftIO (Environment.lookupEnv "IHP_IDE_BASEURL")
+        option (IdeBaseUrl (cs ihpIdeBaseUrl))
+
 
 {-# INLINABLE ihpDefaultConfig #-}
 
@@ -176,6 +183,7 @@ buildFrameworkConfig appConfig = do
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
+            (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
 
             appConfig <- State.get
 
@@ -318,6 +326,7 @@ data FrameworkConfig = FrameworkConfig
     -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
     -- >
     , parseRequestBodyOptions :: WaiParse.ParseRequestBodyOptions
+    , ideBaseUrl :: Text
 }
 
 class ConfigProvider a where

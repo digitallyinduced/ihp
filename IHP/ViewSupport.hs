@@ -29,6 +29,7 @@ module IHP.ViewSupport
 , stripTags
 , theCSSFramework
 , fromCSSFramework
+, liveReloadWebsocketUrl
 ) where
 
 import IHP.Prelude
@@ -247,3 +248,10 @@ instance {-# OVERLAPPABLE #-} HasField "requestContext" viewContext RequestConte
             |> get #frameworkConfig
 
 type Html = HtmlWithContext ControllerContext
+
+-- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
+liveReloadWebsocketUrl :: (?context :: ControllerContext) => Text
+liveReloadWebsocketUrl = ?context
+    |> FrameworkConfig.getFrameworkConfig
+    |> get #ideBaseUrl
+    |> Text.replace "http://" "ws://"

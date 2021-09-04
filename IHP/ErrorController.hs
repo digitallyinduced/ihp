@@ -145,7 +145,9 @@ postgresHandler exception controller additionalInfo = do
     let
         handlePostgresError :: Show exception => exception -> Text -> IO ResponseReceived
         handlePostgresError exception errorText = do
-            ihpIdeBaseUrl <- fromMaybe "http://localhost:8001" <$> Env.lookupEnv "IHP_IDE_BASEURL"
+            let ihpIdeBaseUrl = ?context
+                    |> getFrameworkConfig
+                    |> get #ideBaseUrl
             let title = H.text ("Database looks outdated. " <> errorText)
             let errorMessage = [hsx|
                         <h2>Possible Solutions</h2>

@@ -16,6 +16,8 @@ import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Middleware.Static hiding ((<|>))
 import Network.Wai.Session (withSession)
+import qualified Network.WebSockets as Websocket
+import qualified Network.Wai.Handler.WebSockets as Websocket
 
 import qualified IHP.FrameworkConfig as Config
 import IHP.IDE.SchemaDesigner.Controller.EnumValues ()
@@ -38,6 +40,7 @@ import IHP.Controller.Context
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.LibDir as LibDir
+import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -86,8 +89,17 @@ startToolServer' port isDebugMode = do
 
     let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
 
+    liveReloadNotificationServerState <- ?context
+            |> get #appStateRef
+            |> readIORef
+            >>= pure . get #liveReloadNotificationServerState
+
     Warp.runSettings warpSettings $
-            staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware $ application
+            staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware
+                $ Websocket.websocketsOr
+                    Websocket.defaultConnectionOptions
+                    (LiveReloadNotificationServer.app liveReloadNotificationServerState)
+                    application
 
 stopToolServer ToolServerStarted { thread } = uninterruptibleCancel thread
 stopToolServer ToolServerNotStarted = pure ()

@@ -30,7 +30,7 @@ import Data.Default (def, Default (..))
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
-    appStateRef <- newIORef emptyAppState
+    appStateRef <- emptyAppState >>= newIORef
     portConfig <- findAvailablePortConfig
     LibDir.ensureSymlink
     ensureUserIsNotRoot
@@ -70,11 +70,6 @@ handleAction state (UpdateToolServerState toolServerState) = pure state { toolSe
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
-handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = pure state { liveReloadNotificationServerState }
-handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerStarted {} }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) =
-    case liveReloadNotificationServerState of
-        LiveReloadNotificationServerNotStarted -> pure state { liveReloadNotificationServerState }
-        otherwise -> error "Cannot start live reload notification server twice"
 handleAction state (UpdateFileWatcherState fileWatcherState) = pure state { fileWatcherState }
 handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = do
     notifyBrowserOnApplicationOutput statusServerState line
@@ -162,7 +157,6 @@ start :: (?context :: Context) => IO ()
 start = do
     async startToolServer
     async startStatusServer
-    async startLiveReloadNotificationServer
     async startAppGHCI
     async startPostgres
     async startFileWatcher
@@ -174,7 +168,6 @@ stop AppState { .. } = do
     stopAppGHCI appGHCIState
     stopPostgres postgresState
     stopStatusServer statusServerState
-    stopLiveReloadNotification liveReloadNotificationServerState
     stopFileWatcher fileWatcherState
     stopToolServer toolServerState
 

@@ -122,7 +122,7 @@ generateGenericApplication applicationName =
                 <> "\n"
                 <> "devScripts :: Html\n"
                 <> "devScripts = [hsx|\n"
-                <> "        <script id=\"livereload-script\" src={assetPath \"/livereload.js\"}></script>\n"
+                <> "        <script id=\"livereload-script\" src={assetPath \"/livereload.js\"} data-ws={liveReloadWebsocketUrl}></script>\n"
                 <> "    |]\n"
                 <> "\n"
                 <> "metaTags :: Html\n"
