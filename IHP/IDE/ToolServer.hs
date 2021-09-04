@@ -131,9 +131,11 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
     initContext = do
         availableApps <- AvailableApps <$> findApplications
         webControllers <- WebControllers <$> findWebControllers
-        let appUrl = AppUrl ("http://localhost:" <> tshow Helper.appPort)
+
+        let defaultAppUrl = "http://localhost:" <> tshow Helper.appPort
+        appUrl :: Text <- fromMaybe defaultAppUrl <$> fmap cs <$> Env.lookupEnv "IHP_BASEURL"
 
         putContext availableApps
         putContext webControllers
-        putContext appUrl
+        putContext (AppUrl appUrl)
         setLayout Layout.toolServerLayout
