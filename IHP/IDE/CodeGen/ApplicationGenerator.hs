@@ -117,6 +117,7 @@ generateGenericApplication applicationName =
                 <> "        <script src={assetPath \"/vendor/turbolinksMorphdom.js\"}></script>\n"
                 <> "        <script src={assetPath \"/helpers.js\"}></script>\n"
                 <> "        <script src={assetPath \"/ihp-auto-refresh.js\"}></script>\n"
+                <> "        <script src={assetPath \"/app.js\"}></script>\n"
                 <> "    |]\n"
                 <> "\n"
                 <> "devScripts :: Html\n"
