@@ -65,7 +65,8 @@ buildPlan' config =
                 <> "    last_error TEXT DEFAULT NULL,\n"
                 <> "    attempts_count INT DEFAULT 0 NOT NULL,\n"
                 <> "    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,\n"
-                <> "    locked_by UUID DEFAULT NULL\n"
+                <> "    locked_by UUID DEFAULT NULL,\n"
+                <> "    run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL\n"
                 <> ");\n"
 
 
