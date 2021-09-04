@@ -1,10 +1,14 @@
 module IHP.IDE.Postgres (startPostgres, stopPostgres) where
 
 import IHP.IDE.Types
-import ClassyPrelude
+import IHP.Prelude
 import qualified System.Process as Process
 import qualified System.Directory as Directory
 import qualified Data.ByteString.Char8 as ByteString
+import GHC.IO.Handle
+
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
 
 startPostgres :: (?context :: Context) => IO ManagedProcess
 startPostgres = do
@@ -33,11 +37,23 @@ stopPostgres :: PostgresState -> IO ()
 stopPostgres PostgresStarted { .. } = cleanupManagedProcess process
 stopPostgres _ = pure ()
 
-redirectHandleToVariable :: Handle -> IO (IORef ByteString)
+redirectHandleToVariable :: (?context :: Context) => Handle -> IO (IORef ByteString)
 redirectHandleToVariable handle = do
+    let isDebugMode = ?context |> get #isDebugMode
+
     ref <- newIORef ""
     async $ forever $ do
         line <- ByteString.hGetLine handle
+
+        -- Always log fatal errors to the output:
+        -- 2021-09-04 12:18:08.888 CEST [55794] FATAL:  database files are incompatible with server
+        --
+        -- If we're in debug mode, log all output
+        if "FATAL" `ByteString.isInfixOf` line
+            then if "database files are incompatible with server" `ByteString.isInfixOf` line
+                then Log.error ("The current database state has been created with a different postgres server. Likely you just upgraded the IHP version. Delete your local dev database with 'rm -rf build/db'. You can use 'make dumpdb' to save your database state to Fixtures.sql, otherwise all changes in your local db will be lost. After that run './start' again." :: Text)
+                else Log.error line
+            else when isDebugMode (Log.debug line)
         modifyIORef ref (\log -> log <> "\n" <> line)
     pure ref
 
@@ -87,6 +103,6 @@ initDatabase = do
 waitUntilReady process callback = do
     let ManagedProcess { errorHandle } = process
     line <- ByteString.hGetLine errorHandle
-    if "database system is ready to accept connections" `isInfixOf` line
+    if "database system is ready to accept connections" `ByteString.isInfixOf` line
         then callback
         else waitUntilReady process callback

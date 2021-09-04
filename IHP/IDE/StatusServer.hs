@@ -15,7 +15,7 @@ import IHP.IDE.Types
 import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes
-import ClassyPrelude (async, uninterruptibleCancel, catch, forever)
+import ClassyPrelude (catch, forever)
 import qualified Network.URI as URI
 import qualified Control.Exception as Exception
 
