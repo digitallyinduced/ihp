@@ -961,8 +961,8 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >         (filterWhere (#public, True))
 -- >     |> fetch
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
-queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBUilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBUilderProvider'' model) -> queryBuilderProvider model -> NoJoinQueryBuilderWrapper model 
-queryOr firstQuery secondQuery queryBuilder = NoJoinQueryBuilderWrapper 
+queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBuilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBuilderProvider'' model) -> queryBuilderProvider model -> queryBuilderProvider model
+queryOr firstQuery secondQuery queryBuilder = injectQueryBuilder
     (UnionQueryBuilder { 
         firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder, 
         secondQueryBuilder = getQueryBuilder $ secondQuery queryBuilder}
