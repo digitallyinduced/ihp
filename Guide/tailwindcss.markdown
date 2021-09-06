@@ -115,23 +115,16 @@ form label {
 We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
 
 ```makefile
-tailwind-dev:
-    ls tailwind/*.css|NODE_ENV=development entr npx tailwindcss build -i tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
+tailwind-dev: ; ls tailwind/*.css|NODE_ENV=development entr npx tailwindcss build -i tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js
 ```
-
-**Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
 
 This defines a new command `make tailwind-dev` that runs `npx tailwindcss build` whenever a CSS file inside the `tailwind/` directory changes. The CSS output will be placed at `static/app.css` (the standard main CSS file of IHP apps). It will use the tailwind configuration at `tailwind/tailwind.config.js`.
 
 For production builds we also need a new make target:
 
 ```makefile
-static/app.css:
-    NODE_ENV=production npm ci
-    NODE_ENV=production npx tailwindcss build -i tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js --minify
+static/app.css: ; NODE_ENV=production npm ci ; NODE_ENV=production npx tailwindcss build -i tailwind/app.css -o static/app.css -c tailwind/tailwind.config.js --minify
 ```
-
-**Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
 
 ### Updating the .gitignore
 
