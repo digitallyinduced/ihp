@@ -148,13 +148,13 @@ nix.trustedUsers = [ "root" "USERNAME_HERE" ];
 
 #### GitPod
 
-If you use GitPod for Development in the Cloud, [you can use IHP GitPod Template](https://github.com/digitallyinduced/ihp-gitpod-template). Use the `Use this template` button on GitHub to make your own repository with the needed starting files.
+If you use GitPod for Development in the Cloud, [you can use IHP GitPod Template](https://github.com/gitpod-io/template-ihp/generate).
 
 On first start up, GitPod will automatically generate a new IHP project for you. You just need to call `git add .` and then commit the boilerplate after first start.
 
 If you want to try it out before making your own repo, use this button below:
 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/digitallyinduced/ihp-gitpod-template)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/gitpod-io/template-ihp)
 
 ## 3. Next
 
