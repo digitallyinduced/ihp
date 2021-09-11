@@ -39,7 +39,7 @@ To add a new layout, add a new function to the `Web.View.Layout`:
 appLayout :: Layout
 appLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
-    <title>My App</title>
+    <title>{pageTitleOrDefault "My App"}</title>
 </head>
 <body>
     <h1>Welcome to my app</h1>
@@ -143,6 +143,49 @@ By default, a message `Are you sure you want to delete this?` is shown as a simp
 
 ```haskell
 <a href={DeleteToolAction (get #id tool)} class="js-delete js-delete-no-confirm">Delete Tool</a>
+```
+
+### SEO
+
+#### Setting the Page Title
+
+You can override the default page title by calling `setTitle` inside the `beforeRender` function of your view:
+
+```haskell
+instance View MyView where
+    beforeRender MyView { post } = do
+        setTitle (get #title post)
+
+    -- ...
+```
+
+You can also call `setTitle` from the controller action if needed:
+
+```haskell
+module Web.Controller.Posts where
+
+import Web.Controller.Prelude
+import Web.View.Posts.Show
+
+instance Controller PostsController where
+    action ShowPostAction { postId } = do
+        post <- fetch postId
+        setTitle (get #title post)
+        render ShowView { .. }
+```
+
+If the page title is not changed as expected, make sure that your `Layout.hs` is using `pageTitleDefault`:
+
+```html
+WRONG:
+<head>
+    <title>This title will not support customization</title>
+</head>
+
+RIGHT:
+<head>
+    <title>{pageTitleOrDefault "The default page title, can be overriden in views"}</title>
+</head>
 ```
 
 ## Diff-Based DOM Updates
