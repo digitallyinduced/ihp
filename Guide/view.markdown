@@ -99,6 +99,79 @@ instance View MyView where
     -- ...
 ```
 
+### Layout Variables
+
+Sometimes you want to pass values to the layout without always having to specify them manually inside the `render MyView { .. }` calls.
+
+Here's some examples:
+
+- Your business application wants to display the user's company name as part of the layout on every page
+- The site's navigation is built dynamically based on a `navigation_items` table in the database
+- The layout should show unread notifications
+- The current logged in user. You don't pass this manually to the layout inside the `render MyView { .. }` statement of your action, but it's still accessible via `currentUser` inside the views.
+
+In all of these cases you don't want to deal with passing the information to the layout inside every action of your application.
+
+The general idea is that we store the needed information inside the controller context. The controller context is an implicit parameter that is passed around via the `?context` variable during the request response lifecycle. Think of it as a key-value map which you can write to before rendering, and read from during the view rendering.
+
+Let's deal with the first case: Our business application wants to display the user's company name as part of the layout on every page.
+
+Open `Web/FrontController.hs` and customize it like this:
+
+```haskell
+-- Web/FrontControlller.hs
+
+instance InitControllerContext WebApplication where
+    initContext = do
+        -- ...
+
+        initCompanyContext -- <---- ADD THIS
+
+initCompanyContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+initCompanyContext =
+    case currentUserOrNothing of
+        Just currentUser -> do
+            company <- fetch (get #companyId currentUser)
+
+            -- Here the magic happen: We put the company of the user into the context
+            putContext company
+
+        Nothing -> pure ()
+```
+
+The `initContext` is called on every request, just before the action is executed. The `initCompanyContext` fetches the current user's company and then calls `putContext company` to store it inside the controller context.
+
+Next we'll read the company from the `Layout.hs`
+
+```haskell
+-- Web/View/Layout.hs
+
+defaultLayout :: Html -> Html
+defaultLayout inner = [hsx|
+    {inner}
+
+    {when isLoggedIn renderCompany}
+|]
+    where
+        isLoggedIn = isJust currentUserOrNothing
+
+renderCompany :: Html
+renderCompany = [hsx|
+    <div class="company">
+        {get #name company}
+    </div>
+|]
+
+company :: (?context :: ControllerContext) => Company
+company = fromFrozenContext
+```
+
+Here the company is read by using the `fromFrozenContext` function.
+
+You might wonder: How does `fromFrozenContext` know that I want the company? The context is a key-value map, where the key's are the type of the object. Using the `company :: Company` type annotation the `fromFrozenContext` knows we want to read the value with the key `Company`.
+
+Now the `company` variable can be used to read the current user's company across the layout and also in all views (you need to add `company` to the export list of the Layout module for that). If the `company` value is used somewhere during rendering while the user is not logged it will raise a runtime error.
+
 ## Common View Tasks
 
 ### Accessing the Request
