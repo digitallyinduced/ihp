@@ -730,6 +730,102 @@ renderForm post = formForWithoutJavascript post [hsx||]
 
 You can get very far with the built-in form helpers. But sometimes you might need a very custom functionality which is not easily doable with the form helpers. In this case, we highly recommend not to use the form helpers for that specific case. Don't fight the tools.
 
+### Multi Records in a Single Form
+
+In some advanced cases you might want to have a single form that when submitted creates an arbitrary count of record. E.g. a form that creates multiple `posts` records.  When the form is submitted, each input should create its own record, so that if there are 60 inputs then 60 records should be made.
+
+An action that can deal with an arbitrary amount of fields can look like this:
+
+```haskell
+    action CreatePostAction = do
+        let titles :: [Text] = paramList "title"
+        let bodys :: [Text] = paramList "body"
+
+        let posts = zip titles bodys
+                |> map (\(title, body) -> newRecord @Post
+                        |> set #title title
+                        |> set #body body
+                        |> validateField #title nonEmpty
+                        |> validateField #body nonEmpty
+                    )
+
+        validatedPosts :: [Either Post Post] <- forM posts (ifValid (\post -> pure post))
+
+        case Either.partitionEithers validatedPosts of
+            ([], posts) -> do
+                createMany posts
+                setSuccessMessage "Post created"
+                redirectTo PostsAction
+
+            (invalidPosts, validPosts) -> render NewView { posts }
+```
+
+The `NewView` needs to be changed as well to deal with an arbitrary amount of posts. For these cases we cannot use `formFor`, but we'll handle the job of `formFor` manually:
+
+```haskell
+module Web.View.Posts.New where
+import Web.View.Prelude
+import qualified Text.Blaze.Html5 as H
+import qualified Text.Blaze.Html5.Attributes as A
+
+data NewView = NewView { posts :: [Post] }
+
+instance View NewView where
+    html NewView { .. } = [hsx|
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
+                <li class="breadcrumb-item active">New Post</li>
+            </ol>
+        </nav>
+        <h1>New Post</h1>
+
+        <form id="main-form" method="POST" action={CreatePostAction}>
+            <input type="submit" class="btn btn-primary"/>
+            {forEach posts renderForm}
+        </form>
+    |]
+
+renderForm :: Post -> Html
+renderForm post = [hsx|
+    <div class="form-group">
+        <label>
+            Title
+        </label>
+        <input type="text" name="title" value={get #title post} class={classes ["form-control", ("is-invalid", isInvalidTitle)]}/>
+        {titleFeedback}
+    </div>
+
+    <div class="form-group">
+        <label>
+            Body
+        </label>
+        <input type="text" name="body" value={get #body post} class={classes ["form-control", ("is-invalid", isInvalidBody)]}/>
+        {bodyFeedback}
+    </div>
+|]
+    where
+        isInvalidTitle = isJust (getValidationFailure #title post)
+        isInvalidBody = isJust (getValidationFailure #body post)
+
+        titleFeedback = case getValidationFailure #title post of
+            Just result -> [hsx|<div class="invalid-feedback">{result}</div>|]
+            Nothing -> mempty
+
+        bodyFeedback = case getValidationFailure #body post of
+            Just result -> [hsx|<div class="invalid-feedback">{result}</div>|]
+            Nothing -> mempty
+```
+
+We also need to make modifications to the `NewPostAction`:
+
+```haskell
+    action NewPostAction = do
+        let post = newRecord
+        let posts = take (paramOrDefault 2 "forms") $ repeat post
+        render NewView { .. }
+```
+
 ## CSRF
 
 IHP by default sets its session cookies using the Lax [SameSite](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite) option. While `Lax` sounds not very secure, this protects against all common CSRF vectors. This browser-based CSRF protection works with all modern browsers, therefore token-based protection is not used in IHP applications.
