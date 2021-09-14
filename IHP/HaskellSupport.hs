@@ -12,6 +12,7 @@ module IHP.HaskellSupport
 , get
 , set
 , setJust
+, setIfJust
 , ifOrEmpty
 , modify
 , modifyJust
@@ -144,6 +145,29 @@ get _ record = Record.getField @name record
 set :: forall model name value. (KnownSymbol name, SetField name model value) => Proxy name -> value -> model -> model
 set name value record = setField @name value record
 {-# INLINE set #-}
+
+
+-- | Like 'set' but doesn't set the value if it's 'Nothing'. Useful when you update NULL values
+-- | e.g. via a cron job and don't want to lose that work on subsequent updates.
+--
+-- __Example:__
+--
+-- > data Project = Project { name :: Maybe Text }
+-- >
+-- > let project = Project { name = Nothing }
+--
+-- >>> setIfJust #name (Just "New Name") project
+-- Project { name = Just "New Name" }
+--
+-- >>> setIfJust #name Nothing project
+-- Project { name = Just "New Name" } -- previous value is kept
+--
+setIfJust :: forall model name value. (KnownSymbol name, SetField name model (Maybe value)) => Proxy name -> Maybe value -> model -> model
+setIfJust name value record = case value of
+    Just value -> setField @name (Just value) record
+    Nothing    -> record
+{-# INLINE setIfJust #-}
+
 
 -- | Like 'set' but wraps the value with a 'Just'. Useful when you want to set a 'Maybe' field
 --
