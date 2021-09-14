@@ -30,16 +30,16 @@ tests = do
             it "should return all enum values" do
                 (allEnumValues @Color) `shouldBe` [Yellow, Red, Blue]
 
-        describe "setIfJust" do
+        describe "setMaybe" do
             it "should set a Just value" do
                 let c = RecordC { field = Nothing }
-                let c' = c |> setIfJust #field (Just 1)
+                let c' = c |> setMaybe #field (Just 1)
 
                 c' `shouldBe` RecordC { field = Just 1 }
 
             it "should not set a Nothing value" do
                 let c = RecordC { field = Just 1 }
-                let c' = c |> setIfJust #field Nothing
+                let c' = c |> setMaybe #field Nothing
 
                 c' `shouldBe` RecordC { field = Just 1 }
 
