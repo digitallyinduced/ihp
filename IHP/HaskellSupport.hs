@@ -12,6 +12,7 @@ module IHP.HaskellSupport
 , get
 , set
 , setJust
+, setMaybe
 , ifOrEmpty
 , modify
 , modifyJust
@@ -114,9 +115,9 @@ instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Pr
 -- | Returns the field value for a field name
 --
 -- __Example:__
--- 
+--
 -- > data Project = Project { name :: Text, isPublic :: Bool }
--- > 
+-- >
 -- > let project = Project { name = "Hello World", isPublic = False }
 --
 -- >>> get #name project
@@ -131,9 +132,9 @@ get _ record = Record.getField @name record
 -- | Sets a field of a record and returns the new record.
 --
 -- __Example:__
--- 
+--
 -- > data Project = Project { name :: Text, isPublic :: Bool }
--- > 
+-- >
 -- > let project = Project { name = "Hello World", isPublic = False }
 --
 -- >>> set #name "New Name" project
@@ -145,12 +146,35 @@ set :: forall model name value. (KnownSymbol name, SetField name model value) =>
 set name value record = setField @name value record
 {-# INLINE set #-}
 
+
+-- | Like 'set' but doesn't set the value if it's 'Nothing'. Useful when you update NULL values
+-- | e.g. via a cron job and don't want to lose that work on subsequent updates.
+--
+-- __Example:__
+--
+-- > data Project = Project { name :: Maybe Text }
+-- >
+-- > let project = Project { name = Nothing }
+--
+-- >>> setMaybe #name (Just "New Name") project
+-- Project { name = Just "New Name" }
+--
+-- >>> setMaybe #name Nothing project
+-- Project { name = Just "New Name" } -- previous value is kept
+--
+setMaybe :: forall model name value. (KnownSymbol name, SetField name model (Maybe value)) => Proxy name -> Maybe value -> model -> model
+setMaybe name value record = case value of
+    Just value -> setField @name (Just value) record
+    Nothing    -> record
+{-# INLINE setMaybe #-}
+
+
 -- | Like 'set' but wraps the value with a 'Just'. Useful when you want to set a 'Maybe' field
 --
 -- __Example:__
--- 
+--
 -- > data Project = Project { name :: Maybe Text }
--- > 
+-- >
 -- > let project = Project { name = Nothing }
 --
 -- >>> setJust #name "New Name" project
@@ -184,9 +208,9 @@ modifyJust _ updateFunction model = case Record.getField @name model of
 -- | Plus @1@ on record field.
 --
 -- __Example:__
--- 
+--
 -- > data Project = Project { name :: Text, followersCount :: Int }
--- > 
+-- >
 -- > let project = Project { name = "Hello World", followersCount = 0 }
 --
 -- >>> project |> incrementField #followersCount
@@ -198,9 +222,9 @@ incrementField _ model = let value = Record.getField @name model in setField @na
 -- | Minus @1@ on a record field.
 --
 -- __Example:__
--- 
+--
 -- > data Project = Project { name :: Text, followersCount :: Int }
--- > 
+-- >
 -- > let project = Project { name = "Hello World", followersCount = 1337 }
 --
 -- >>> project |> decrementField #followersCount
@@ -258,7 +282,7 @@ forEach elements function = forM_ elements function
 --
 -- > printUser :: (Int, User) -> IO ()
 -- > printUser (index, user) = putStrLn (tshow index <> ": " <> tshow user)
--- > 
+-- >
 -- > forEachWithIndex users printUser
 --
 -- __Example:__ Within HSX
