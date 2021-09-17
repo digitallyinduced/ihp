@@ -10,6 +10,7 @@
 , nixPkgsSha256 ? "0kfrw1mvpx2nkr493iq6bw0d6cxdwrmp6xqsir20bhmqwr36sds7"
 , compiler ? "ghc8104"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
+, additionalNixpkgsOptions ? {}
 }:
 let
   generatedOverrides = haskellPackagesNew: haskellPackagesOld:
@@ -75,7 +76,7 @@ let
     repo = "nixpkgs";
     rev = nixPkgsRev;
     sha256 = nixPkgsSha256;
-  })) { inherit config; };
+  })) ({ inherit config; } // additionalNixpkgsOptions);
 
 in
     pkgs
