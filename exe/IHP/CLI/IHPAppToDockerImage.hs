@@ -16,12 +16,14 @@ import qualified Control.Exception as Exception
 
 main :: IO ()
 main = do
+    ensureIsInAppDirectory
     ensureDockerRemoteBuilder
     Directory.createDirectoryIfMissing True "build"
     createDockerNix
     createAppNix
 
-    exitCode <- Process.system "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nix-build build/docker.nix > docker.tar.gz"
+    removeFileIfExists "docker.tar.gz"    
+    exitCode <- Process.system "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nix-build build/docker.nix -o docker.tar.gz"
 
     let isSuccess = exitCode == Exit.ExitSuccess
     if isSuccess
@@ -156,9 +158,9 @@ initRemoteBuilder = initRemoteBuilder' `Exception.onException` cleanupTempResour
             when dockerExists do
                 Process.callCommand "docker stop nix-docker && docker rm nix-docker"
 
-        removeFileIfExists path = do
-            exists <- Directory.doesFileExist path
-            when exists (Directory.removeFile path)
+removeFileIfExists path = do
+    exists <- Directory.doesFileExist path
+    when exists (Directory.removeFile path)
                 
 
 -- | https://github.com/LnL7/nix-docker/blob/master/ssh/machines
@@ -215,3 +217,8 @@ dockerNixContent =
 
 isMacOS :: Bool
 isMacOS = System.os == "darwin"
+
+ensureIsInAppDirectory :: IO ()
+ensureIsInAppDirectory = do
+    mainHsExists <- Directory.doesFileExist "Main.hs"
+    unless mainHsExists (fail "You have to be in a project directory to run the generator")
