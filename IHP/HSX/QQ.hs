@@ -9,7 +9,6 @@ import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
 import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
-import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
 import Data.String.Conversions

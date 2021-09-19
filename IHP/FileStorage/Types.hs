@@ -11,7 +11,6 @@ module IHP.FileStorage.Types
 
 import IHP.Prelude
 import qualified Network.Minio as Minio
-import qualified Data.UUID.V4 as UUID
 import qualified Network.Wai.Parse as Wai
 
 data FileStorage

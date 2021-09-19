@@ -2,16 +2,11 @@ module IHP.IDE.CodeGen.ControllerGenerator (buildPlan, buildPlan') where
 
 import ClassyPrelude
 import IHP.NameSupport
-import Data.String.Conversions (cs)
-import Data.Text.IO (appendFile)
-import qualified System.Exit as Exit
 import IHP.HaskellSupport
 import qualified Data.Text as Text
 import qualified Data.Char as Char
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import qualified System.Posix.Env.ByteString as Posix
-import Control.Monad.Fail
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 

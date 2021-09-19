@@ -7,10 +7,8 @@ import ClassyPrelude
 import Data.String.Conversions (cs)
 import Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName, pluralize)
-import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
-import Data.List ((!!), (\\))
 import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner

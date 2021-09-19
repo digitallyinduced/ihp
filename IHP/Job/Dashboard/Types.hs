@@ -12,7 +12,6 @@ module IHP.Job.Dashboard.Types (
 
 import IHP.Prelude
 import IHP.ControllerPrelude
-import GHC.TypeLits
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG

@@ -30,12 +30,10 @@ module IHP.Log.Types
 , withTimeAndLevelFormatter
 ) where
 
-import IHP.HaskellSupport
 import qualified Prelude
 import CorePrelude hiding (putStr, putStrLn, print, error, show)
 import Data.Text as Text
 import Data.Default (Default (def))
-import Data.String.Conversions (cs)
 import System.Log.FastLogger (
     LogStr,
     LogType'(..),
@@ -43,7 +41,6 @@ import System.Log.FastLogger (
     FileLogSpec(..),
     TimedFileLogSpec(..),
     TimeFormat,
-    newFastLogger,
     toLogStr,
     fromLogStr,
     defaultBufSize,

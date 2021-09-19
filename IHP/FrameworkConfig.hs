@@ -5,24 +5,15 @@ import ClassyPrelude (readMay)
 import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
-import Data.String.Conversions (cs)
-import qualified System.Directory as Directory
 import qualified Data.Text as Text
-import qualified System.Process as Process
-import Network.Wai (Middleware)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
-import Data.Default (def)
-import Data.Time.Clock (NominalDiffTime)
 import IHP.Mail.Types
 import qualified Control.Monad.Trans.State.Strict as State
-import Data.Maybe (fromJust)
 import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
-import IHP.HaskellSupport hiding (set)
 import IHP.View.Types
 import IHP.View.CSSFramework
-import System.IO.Unsafe (unsafePerformIO)
 import IHP.Log.Types
 import IHP.Log (makeRequestLogger, defaultRequestLogger)
 import Network.Wai
@@ -70,6 +61,9 @@ type ConfigBuilder = State.StateT TMap.TMap IO ()
 
 -- | Interface for exception tracking services such as sentry
 newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> SomeException -> IO () }
+
+-- | Typically "http://localhost:8001", Url where the IDE is running
+newtype IdeBaseUrl = IdeBaseUrl Text
 
 -- | Puts an option into the current configuration
 --
@@ -150,6 +144,10 @@ ihpDefaultConfig = do
 
     option bootstrap
 
+    when (environment == Development) do
+        ihpIdeBaseUrl <- fromMaybe "http://localhost:8001" <$> liftIO (Environment.lookupEnv "IHP_IDE_BASEURL")
+        option (IdeBaseUrl (cs ihpIdeBaseUrl))
+
 
 {-# INLINABLE ihpDefaultConfig #-}
 
@@ -185,6 +183,7 @@ buildFrameworkConfig appConfig = do
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
+            (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
 
             appConfig <- State.get
 
@@ -327,6 +326,7 @@ data FrameworkConfig = FrameworkConfig
     -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
     -- >
     , parseRequestBodyOptions :: WaiParse.ParseRequestBodyOptions
+    , ideBaseUrl :: Text
 }
 
 class ConfigProvider a where

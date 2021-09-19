@@ -17,19 +17,20 @@ import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Environment as Env
-import System.Info
 import Data.String.Conversions (cs)
-import qualified IHP.FrameworkConfig as Config
-import IHP.Environment
 import qualified IHP.LibDir as LibDir
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
 import qualified Data.Time.Clock as Clock
 
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
+import Data.Default (def, Default (..))
+
 main :: IO ()
 main = do
     actionVar <- newEmptyMVar
-    appStateRef <- newIORef emptyAppState
+    appStateRef <- emptyAppState >>= newIORef
     portConfig <- findAvailablePortConfig
     LibDir.ensureSymlink
     ensureUserIsNotRoot
@@ -38,11 +39,11 @@ main = do
     -- Like: $ DEBUG=1 ./start
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
 
-    -- Print IHP Version when in debug mode
-    when isDebugMode (putStrLn ("IHP Version: " <> Version.ihpVersion))
-    setProcessLimits
+    logger <- Log.newLogger def
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger }
 
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode }
+    -- Print IHP Version when in debug mode
+    when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
 
     threadId <- myThreadId
     let catchHandler = do
@@ -55,9 +56,9 @@ main = do
     async Telemetry.reportTelemetry
     forever do
         appState <- readIORef appStateRef
-        when isDebugMode (putStrLn $ " ===> " <> (tshow appState))
+        when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
         action <- takeMVar actionVar
-        when isDebugMode (putStrLn $ tshow action)
+        when isDebugMode (Log.debug $ tshow action)
         nextAppState <- handleAction appState action
         writeIORef appStateRef nextAppState
 
@@ -69,11 +70,6 @@ handleAction state (UpdateToolServerState toolServerState) = pure state { toolSe
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
-handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) = pure state { liveReloadNotificationServerState }
-handleAction state@(AppState { liveReloadNotificationServerState = LiveReloadNotificationServerStarted {} }) (UpdateLiveReloadNotificationServerState liveReloadNotificationServerState) =
-    case liveReloadNotificationServerState of
-        LiveReloadNotificationServerNotStarted -> pure state { liveReloadNotificationServerState }
-        otherwise -> error "Cannot start live reload notification server twice"
 handleAction state (UpdateFileWatcherState fileWatcherState) = pure state { fileWatcherState }
 handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = do
     notifyBrowserOnApplicationOutput statusServerState line
@@ -95,7 +91,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
         AppGHCIModulesLoaded { } -> do
             -- You can trigger this case by running: $ while true; do touch test.hs; done;
-            when (get #isDebugMode ?context) (putStrLn "AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event")
+            when (get #isDebugMode ?context) (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
             pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState, liveReloadNotificationServerState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
@@ -145,7 +141,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
 
 handleAction state SchemaChanged = do
     async do
-        SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do putStrLn (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
+        SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do Log.error (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
     pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
@@ -153,7 +149,7 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
         RunningAppGHCI { .. } -> do
             pauseAppGHCI appGHCIState
             pure state { appGHCIState = AppGHCIModulesLoaded { .. } }
-        otherwise -> do putStrLn ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
+        otherwise -> do Log.info ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
 
 
 
@@ -161,7 +157,6 @@ start :: (?context :: Context) => IO ()
 start = do
     async startToolServer
     async startStatusServer
-    async startLiveReloadNotificationServer
     async startAppGHCI
     async startPostgres
     async startFileWatcher
@@ -169,11 +164,10 @@ start = do
 
 stop :: (?context :: Context) => AppState -> IO ()
 stop AppState { .. } = do
-    when (get #isDebugMode ?context) (putStrLn "Stop called")
+    when (get #isDebugMode ?context) (Log.debug ("Stop called" :: Text))
     stopAppGHCI appGHCIState
     stopPostgres postgresState
     stopStatusServer statusServerState
-    stopLiveReloadNotification liveReloadNotificationServerState
     stopFileWatcher fileWatcherState
     stopToolServer toolServerState
 
@@ -226,30 +220,13 @@ startGHCI = do
             , "-package-env -" -- Do not load `~/.ghc/arch-os-version/environments/name file`, global packages interfere with our packages
             , "-ignore-dot-ghci" -- Ignore the global ~/.ghc/ghci.conf That file sometimes causes trouble (specifically `:set +c +s`)
             , "-ghci-script", ".ghci" -- Because the previous line ignored default ghci config file locations, we have to manual load our .ghci
-            , "+RTS", "-A512m", "-n4m", "-H512m", "--nonmoving-gc", "-N"
+            , "+RTS", "-A128m", "-n2m", "-H2m", "--nonmoving-gc", "-N"
             ]
     createManagedProcess (Process.proc "ghci" args)
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe
             }
-
--- | On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
---
--- The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
--- and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
--- and will close the remaining lazy bytestring handles.
---
-setProcessLimits :: IO ()
-setProcessLimits = when (os == "darwin") do
-    proc <- createManagedProcess (Process.proc "ulimit" ["-n", "1024"])
-            { Process.std_in = Process.CreatePipe
-            , Process.std_out = Process.CreatePipe
-            , Process.std_err = Process.CreatePipe
-            }
-
-    Process.waitForProcess (get #processHandle proc)
-    cleanupManagedProcess proc
 
 -- | Exit with an error if running as the root user
 --
@@ -269,7 +246,7 @@ ensureUserIsNotRoot = do
 startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
     let isDebugMode = ?context |> get #isDebugMode
-    -- The app is using the `PORT` env variable for it's web server
+    -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = ?context
             |> get #portConfig
             |> get #appPort
@@ -290,7 +267,7 @@ startAppGHCI = do
             ]
 
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
-                unless isDebugMode (ByteString.putStrLn line)
+                unless isDebugMode (Log.info line)
                 if "Server started" `isInfixOf` line
                     then dispatch AppStarted
                     else if "Failed," `isInfixOf` line
@@ -302,7 +279,7 @@ startAppGHCI = do
                                 else dispatch ReceiveAppOutput { line = StandardOutput line }
 
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
-        unless isDebugMode (ByteString.putStrLn line)
+        unless isDebugMode (Log.info line)
         if "cannot find object file for module" `isInfixOf` line
             then do
                 forEach loadAppCommands (sendGhciCommand process)
@@ -311,7 +288,7 @@ startAppGHCI = do
 
 
     -- Compile Schema before loading the app
-    SchemaCompiler.compile `catch` (\(e :: SomeException) -> putStrLn (tshow e))
+    SchemaCompiler.compile `catch` (\(e :: SomeException) -> Log.error (tshow e))
 
     forEach loadAppCommands (sendGhciCommand process)
 
@@ -327,7 +304,7 @@ startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     forEach commands (sendGhciCommand process)
 startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
 startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
-startLoadedApp _ = when (get #isDebugMode ?context) (putStrLn "startLoadedApp: App not running")
+startLoadedApp _ = when (get #isDebugMode ?context) (Log.debug ("startLoadedApp: App not running" :: Text))
 
 
 stopAppGHCI :: AppGHCIState -> IO ()

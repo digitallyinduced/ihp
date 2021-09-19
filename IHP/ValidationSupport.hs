@@ -10,7 +10,6 @@ module IHP.ValidationSupport
 )
 where
 
-import ClassyPrelude
 import IHP.ValidationSupport.Types
 import IHP.ValidationSupport.ValidateCanView
 import IHP.ValidationSupport.ValidateIsUnique

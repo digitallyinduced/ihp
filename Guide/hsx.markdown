@@ -6,7 +6,7 @@
 
 ## Introduction
 
-HSX can be written pretty much like normal HTML. You can write an HSX expression inside your Haskell code by wrapping it with `[hsx|YOUR HSX CODE|]`. HSX expressions are just a syntax for blaze HTML and thus are automatically escaped as described in the blaze documentation.
+HSX can be written pretty much like normal HTML. You can write an HSX expression inside your Haskell code by wrapping it with `[hsx|YOUR HSX CODE|]`. HSX expressions are just a syntax for [BlazeHtml](https://jaspervdj.be/blaze/) and thus are automatically escaped as described in the blaze documentation.
 
 Because the HSX is parsed, you will get a syntax error when you type in invalid HTML.
 
@@ -300,4 +300,50 @@ The `preEscapedToHtml` function can also be used to output HTML code that is not
 
 ```html
 {"<!--[if IE]> Internet Explorer Conditional Comments <![endif]-->" |> preEscapedToHtml}
+```
+
+## Example: HSX and the equivalent BlazeHtml
+
+The following code using HSX:
+
+```haskell
+instance View EditView where
+    html EditView { .. } = [hsx|
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
+                <li class="breadcrumb-item active">Edit Post</li>
+            </ol>
+        </nav>
+        <h1>Edit Post</h1>
+        {renderForm post}
+    |]
+```
+
+is roughly equivalent to the following BlazeHTML code:
+
+```haskell
+instance View EditView where
+    html EditView { .. } = do
+        H.nav $ do
+            H.ol ! A.class_ "breadcrumb" $ do
+                H.li ! A.class_ "breadcrumb-item" $ do
+                    H.a ! A.href (fromString (P.show PostsAction)) $ do
+                        "Posts"
+                H.li ! A.class_ "breadcrumb-item active" $ do
+                    "Edit Post"
+        H.h1 "Edit Post"
+        renderForm post
+```
+
+given the following imports:
+
+```haskell
+module Web.View.Posts.Edit where
+import Web.View.Prelude
+
+import qualified Text.Blaze.Html5 as H
+import qualified Text.Blaze.Html5.Attributes as A
+
+import Prelude as P
 ```

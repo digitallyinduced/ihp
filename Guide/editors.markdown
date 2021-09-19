@@ -92,7 +92,9 @@ Because haskell-language-server is tightly coupled to the GHC version it comes p
 
 When something goes wrong you can also run `haskell-language-server` inside the project directory (within a `nix-shell`). This might output some helpful error messages.
 
-## Customizing the Web Browser used by IHP
+## IHP Dev Server
+
+### Customizing the Web Browser used by IHP
 
 When running `./start` the application will automatically be opened in your default browser. You can manually specificy a browser by setting the env var `IHP_BROWSER`:
 
@@ -105,3 +107,15 @@ You can disable the auto-start of the browser completely using `echo` as your br
 ```bash
 export IHP_BROWSER=echo
 ```
+
+
+### Running the IHP Dev Server On a Host Different From `localhost`
+
+If you run the IHP dev server on computer different from your local machine (e.g. a second computer in your network or a Cloud Dev Env like GitPod), you need to specify the right base url:
+
+```bash
+export IHP_BASEURL=http://some-other-host:8000 # App Url, Default: http://localhost:8000
+export IHP_IDE_BASEURL=http://some-other-host:8001 # SchemaDesigner etc., Default: http://localhost:8001
+```
+
+Next time you use the dev server via `./start` all links will use the right `IHP_BASEURL` instead of using `localhost:8000`;

@@ -7,7 +7,6 @@ module IHP.Pagination.ViewFunctions (
 import IHP.Prelude
 import IHP.Pagination.Types
 import IHP.Pagination.Helpers
-import IHP.Pagination.ControllerFunctions
 
 import IHP.ControllerSupport
 
@@ -27,9 +26,8 @@ import IHP.ViewSupport (theRequest)
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
 renderPagination pagination@Pagination {currentPage, window, pageSize} =
     [hsx|
-        <div class="row justify-content-md-center">
-            <div class="col-auto">
-            <nav aria-label="Page Navigator">
+        <div class="d-flex justify-content-md-center">
+            <nav aria-label="Page Navigator" class="mr-2">
                 <ul class="pagination">
                     <li class={prevClass}>
                         <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
@@ -46,14 +44,11 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     </li>
                 </ul>
             </nav>
-            </div>
-            <div class="col-auto">
-                <div class="form-row">
-                    <div class="col-auto mr-2">
-                        <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                            {maxItemsGenerator}
-                        </select>
-                    </div>
+            <div class="form-row">
+                <div class="col-auto mr-2">
+                    <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                        {maxItemsGenerator}
+                    </select>
                 </div>
             </div>
         </div>

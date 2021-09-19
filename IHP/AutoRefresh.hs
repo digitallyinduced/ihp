@@ -7,25 +7,16 @@ module IHP.AutoRefresh where
 
 import IHP.Prelude
 import IHP.AutoRefresh.Types
-import qualified Data.TMap as TypeMap
 import IHP.ControllerSupport
 import IHP.ApplicationContext
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import IHP.Controller.Session
-import qualified Network.WebSockets as Websocket
-import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Network.Wai.Internal as Wai
-import IHP.ControllerSupport
 import qualified Data.Binary.Builder as ByteString
-import qualified Control.Concurrent as Concurrent
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Data.Set as Set
 import IHP.ModelSupport
 import qualified Control.Exception as Exception
-import Control.Monad (void)
 import Control.Concurrent.Async
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe

@@ -38,7 +38,7 @@ import IHP.Log.Types
 --
 -- >>> let (CurrentLayout layout) = fromFrozenContext in ...
 --
--- The context is initially created before a action is going to be executed. It's life cycle looks like this:
+-- The context is initially created before a action is going to be executed. Its life cycle looks like this:
 --
 -- - @newControllerContext@: The new controller context is created
 -- - The 'IHP.ControllerSupport.runActionWithNewContext' fills in a few default values: The current @?application@ and also the Flash Messages to be rendered in the to-be-generated response.
@@ -56,7 +56,7 @@ newControllerContext = do
     pure ControllerContext { requestContext = ?requestContext, customFieldsRef }
 {-# INLINABLE newControllerContext #-}
 
--- | After freezing a container you can access it's values from pure non-IO code by using 'fromFronzenContext'
+-- | After freezing a container you can access its values from pure non-IO code by using 'fromFronzenContext'
 --
 -- Calls to 'putContext' will throw an exception after it's frozen.
 freeze :: ControllerContext -> IO ControllerContext

@@ -12,12 +12,6 @@ module IHP.PageTitle.ViewFunctions
 
 import IHP.Prelude
 import IHP.PageTitle.Types
-import IHP.Controller.RequestContext
-import qualified Data.Maybe as Maybe
-import qualified IHP.FrameworkConfig as FrameworkConfig
-import qualified Text.Blaze.Html5 as Html5
-import IHP.ViewSupport
-import IHP.View.Types
 import IHP.Controller.Context
 import IHP.PageTitle.ControllerFunctions
 

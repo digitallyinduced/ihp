@@ -381,15 +381,19 @@ The `putStrLn` will never be called because the `redirectTo` already stops execu
 
 When you have created a [`Response`](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Response) manually, you can use [`respondAndExit`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#respondAndExit) to send your response and stop action execution.
 
-## Request Context
-
-Actions have access to the special variable `?requestContext`.
-
-The `?requestContext` provides access to the Wai request as well as information like the request query and post parameters and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the `getHeader` function uses the `?requestContext` to access the request headers.
-
 ## Controller Context
 
 TODO
+
+### Request Context
+
+Actions have access to the Request Context via the controller context:
+
+```
+let requestContext = get #requestContext ?context
+```
+
+The Request Context provides access to the Wai request as well as information like the request query and post parameters and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the `getHeader` function uses the Request Context to access the request headers.
 
 ## File Uploads
 

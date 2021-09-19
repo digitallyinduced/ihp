@@ -18,6 +18,9 @@ import qualified Data.ByteString.Base16 as Base16
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
+
 data TelemetryInfo = TelemetryInfo
     { ihpVersion :: !Text
     , os :: !Text
@@ -28,16 +31,16 @@ data TelemetryInfo = TelemetryInfo
 -- | Reports telemetry info to the IHP Telemetry server
 --
 -- This can be disabled by setting the env var IHP_TELEMETRY_DISABLED=1
-reportTelemetry :: IO ()
+reportTelemetry :: (?context :: context, Log.LoggingProvider context) => IO ()
 reportTelemetry = do
     isDisabled <- maybe False (\value -> value == "1") <$> Env.lookupEnv "IHP_TELEMETRY_DISABLED"
     unless isDisabled do
         payload <- toPayload <$> getTelemetryInfo
-        putStrLn $ show payload
+        Log.info (tshow payload)
         result <- Exception.try (Wreq.post "https://ihp-telemetry.digitallyinduced.com/CreateEvent" payload)
         case result of
-            Left (e :: IOException) -> putStrLn ("Telemetry failed: " <> show e)
-            Right _ -> putStrLn "IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1"
+            Left (e :: IOException) -> Log.warn ("Telemetry failed: " <> show e)
+            Right _ -> Log.info ("IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1" :: Text)
 
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do

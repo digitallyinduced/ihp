@@ -14,7 +14,7 @@ tests = do
             it "should deal with empty input" do
                 stripTags "" `shouldBe` ""
 
-            it "should strip html tags and return the plain text" do 
+            it "should strip html tags and return the plain text" do
                 stripTags "This is <b>Bold</b>" `shouldBe` "This is Bold"
 
         describe "copyFields" do
@@ -30,13 +30,31 @@ tests = do
             it "should return all enum values" do
                 (allEnumValues @Color) `shouldBe` [Yellow, Red, Blue]
 
+        describe "setMaybe" do
+            it "should set a Just value" do
+                let c = RecordC { field = Nothing }
+                let c' = c |> setMaybe #field (Just 1)
+
+                c' `shouldBe` RecordC { field = Just 1 }
+
+            it "should not set a Nothing value" do
+                let c = RecordC { field = Just 1 }
+                let c' = c |> setMaybe #field Nothing
+
+                c' `shouldBe` RecordC { field = Just 1 }
+
+
 data RecordA = RecordA { fieldA :: Int, fieldB :: Text } deriving (Eq, Show)
-data RecordB = RecordB { fieldA :: Int, fieldB :: Text} deriving (Eq, Show)
+data RecordB = RecordB { fieldA :: Int, fieldB :: Text } deriving (Eq, Show)
+data RecordC = RecordC { field :: Maybe Int } deriving (Eq, Show)
 
 instance SetField "fieldA" RecordB Int where
     setField value record = record { fieldA = value }
 
 instance SetField "fieldB" RecordB Text where
     setField value record = record { fieldB = value }
+
+instance SetField "field" RecordC (Maybe Int) where
+    setField value record = record { field = value }
 
 data Color = Yellow | Red | Blue deriving (Enum, Show, Eq)

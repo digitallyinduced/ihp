@@ -9,11 +9,8 @@ module IHP.Postgres.Point where
 import GHC.Float
 import BasicPrelude
 
-import qualified Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
-import qualified Database.PostgreSQL.Simple.Types
-import           Database.PostgreSQL.Simple.TypeInfo as TI
 import qualified Database.PostgreSQL.Simple.TypeInfo.Static as TI
 import           Database.PostgreSQL.Simple.TypeInfo.Macro as TI
 import           Data.ByteString.Builder (byteString, char8)

@@ -16,8 +16,6 @@ import qualified IHP.Router.Types as Router
 import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import System.IO (stderr)
 import IHP.Controller.RequestContext
 import Network.HTTP.Types (status500, status404, status400)
 import Network.Wai
@@ -28,18 +26,15 @@ import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LBS
 
 import IHP.HSX.QQ (hsx)
-import Database.PostgreSQL.Simple.FromField (ResultError (..))
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import qualified System.Directory as Directory
-import qualified IHP.Log as Log
 import IHP.ApplicationContext
 import qualified System.Environment as Env
 
@@ -150,7 +145,9 @@ postgresHandler exception controller additionalInfo = do
     let
         handlePostgresError :: Show exception => exception -> Text -> IO ResponseReceived
         handlePostgresError exception errorText = do
-            ihpIdeBaseUrl <- fromMaybe "http://localhost:8001" <$> Env.lookupEnv "IHP_IDE_BASEURL"
+            let ihpIdeBaseUrl = ?context
+                    |> getFrameworkConfig
+                    |> get #ideBaseUrl
             let title = H.text ("Database looks outdated. " <> errorText)
             let errorMessage = [hsx|
                         <h2>Possible Solutions</h2>

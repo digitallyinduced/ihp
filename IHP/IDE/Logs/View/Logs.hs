@@ -2,7 +2,7 @@ module IHP.IDE.Logs.View.Logs where
 
 import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
+import IHP.IDE.ToolServer.Layout ()
 
 data LogsView = LogsView { standardOutput :: ByteString, errorOutput :: ByteString }
 

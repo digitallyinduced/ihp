@@ -60,13 +60,16 @@
 .code-generator input[name="name"], .code-generator input[name="description"] {
     font-size: 24px;
     outline: none;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    border-top-left-radius: 0;
     border-bottom: 1px solid #c0c0c0;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     border-top-right-radius: 0;
     background-color: #ebebeb;
+}
+
+.code-generator input[name="name"]:first-child, .code-generator input[name="description"]:first-child {
+    border-top-left-radius: 8px;
 }
 
 .code-generator input[name="name"]:focus, .code-generator input[name="description"]:focus {
@@ -80,7 +83,7 @@
     color: #ababaa;
 }
 
-.code-generator input[type="submit"] {
+.code-generator input[type="submit"], .code-generator button[type="submit"] {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;

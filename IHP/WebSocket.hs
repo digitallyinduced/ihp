@@ -17,10 +17,8 @@ where
 
 import IHP.Prelude
 import qualified Network.WebSockets as Websocket
-import qualified Network.Wai.Handler.WebSockets as Websocket
 import IHP.ApplicationContext
 import IHP.Controller.RequestContext
-import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
 import qualified Control.Exception as Exception

@@ -62,13 +62,8 @@ module IHP.QueryBuilder
 where
 import qualified Prelude
 import IHP.Prelude
-import Database.PostgreSQL.Simple (Connection)
-import Database.PostgreSQL.Simple.Types (Query (Query), In (In))
-import Database.PostgreSQL.Simple.FromField hiding (Field, name)
+import Database.PostgreSQL.Simple.Types (In (In))
 import Database.PostgreSQL.Simple.ToField
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import GHC.OverloadedLabels
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
 import IHP.HSX.ToHtml
@@ -966,8 +961,8 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >         (filterWhere (#public, True))
 -- >     |> fetch
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
-queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBUilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBUilderProvider'' model) -> queryBuilderProvider model -> NoJoinQueryBuilderWrapper model 
-queryOr firstQuery secondQuery queryBuilder = NoJoinQueryBuilderWrapper 
+queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBuilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBuilderProvider'' model) -> queryBuilderProvider model -> queryBuilderProvider model
+queryOr firstQuery secondQuery queryBuilder = injectQueryBuilder
     (UnionQueryBuilder { 
         firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder, 
         secondQueryBuilder = getQueryBuilder $ secondQuery queryBuilder}

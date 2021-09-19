@@ -8,7 +8,6 @@ import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.ValidationSupport.Types
-import IHP.HaskellSupport
 import IHP.QueryBuilder
 import IHP.Fetch
 

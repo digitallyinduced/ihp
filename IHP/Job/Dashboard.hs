@@ -43,7 +43,6 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
-import qualified IHP.Log as Log
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodGet, methodPost)
 import GHC.TypeLits
@@ -352,14 +351,14 @@ getTableName :: forall job. (DisplayableJob job) => job -> Text
 getTableName _ = tableName @job
 
 -- | Get the job with in the given table with the given ID as a 'BaseJob'.
-queryBaseJob :: _ => Text -> UUID -> IO BaseJob
+queryBaseJob :: (?modelContext :: ModelContext) => Text -> UUID -> IO BaseJob
 queryBaseJob table id = do
     (job : _) <- sqlQuery
         (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " where id = ?")
         [table, tshow id]
     pure job
 
-queryBaseJobsFromTablePaginated :: _ => Text -> Int -> Int -> IO [BaseJob]
+queryBaseJobsFromTablePaginated :: (?modelContext :: ModelContext) => Text -> Int -> Int -> IO [BaseJob]
 queryBaseJobsFromTablePaginated table page pageSize =
     sqlQuery
         (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)

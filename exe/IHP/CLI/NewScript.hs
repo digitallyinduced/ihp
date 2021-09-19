@@ -1,10 +1,7 @@
 module Main where
 
 import IHP.Prelude
-import IHP.HaskellSupport
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import IHP.ViewSupport
 import IHP.IDE.CodeGen.ScriptGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
 

@@ -9,12 +9,8 @@ module IHP.Job.Runner where
 import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.ScriptSupport
-import IHP.Job.Types
-import Control.Monad (void)
 import qualified IHP.Job.Queue as Queue
 import qualified Control.Exception as Exception
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent as Concurrent
