@@ -420,3 +420,10 @@ executable hash-password
     build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/HashPassword.hs
+
+-- IHP Pro
+executable ihp-app-to-docker-image
+    import: shared-properties
+    build-depends: ihp
+    hs-source-dirs: exe
+    main-is: IHP/CLI/IHPAppToDockerImage.hs
