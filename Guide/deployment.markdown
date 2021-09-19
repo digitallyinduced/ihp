@@ -29,9 +29,9 @@ When your CSS or JS looks broken, take a look at the next section `CSS & JS Bund
 
 ### DB Migrations
 
-Currently, IHP has no standard way of doing migrations. Therefore currently you need to manually migrate your IHP Cloud database after deploying.
+[Database Migrations](database-migrations.html) are automatically executed during the deployment on IHP Cloud.
 
-Open the project in IHP Cloud, click `Settings`, then click `Database`. There you can find the database credentials for the Postgres DB that is running for your application. Connect to your database and manually apply the migrations.
+If you need to make manual changes to your database schema, you can of course also do this: Open the project in IHP Cloud, click `Settings`, then click `Database`. There you can find the database credentials for the Postgres DB that is running for your application. Connect to your database and manually apply the migrations.
 
 ### Changing the domain
 
