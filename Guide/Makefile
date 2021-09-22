@@ -45,6 +45,7 @@ HTML_FILES+= file-storage.html
 HTML_FILES+= server-side-components.html
 HTML_FILES+= oauth.html
 HTML_FILES+= ihp-pro.html
+HTML_FILES+= examples.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js
 
