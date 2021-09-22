@@ -30,6 +30,8 @@ import qualified Data.List as List
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 
+import qualified System.Environment as Env
+import qualified System.Directory as Directory
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -125,7 +127,14 @@ initStaticMiddleware FrameworkConfig { environment } = do
 
 initSessionMiddleware :: Vault.Key (Session IO String String) -> FrameworkConfig -> IO Middleware
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    let path = "Config/client_session_key.aes"
+
+    hasSessionSecretEnvVar <- isJust <$> Env.lookupEnv "IHP_SESSION_SECRET"
+    doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
+    store <- clientsessionStore <$>
+            if hasSessionSecretEnvVar || not doesConfigDirectoryExist
+                then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
+                else ClientSession.getKey path
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
     pure sessionMiddleware
 

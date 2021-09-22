@@ -127,7 +127,7 @@ Note that nix can gradually grow to use several GB of disk space, especially aft
 You can now install IHP by running:
 
 ```bash
-nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
 
 #### NixOS specific
