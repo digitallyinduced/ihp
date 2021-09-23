@@ -228,6 +228,7 @@ paramOrError !name =
                     Just value -> case readParameterJSON @paramType value of
                         Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
                         Right value -> Right value
+                    Nothing -> Left ParamNotFoundException { name }
                 _ -> Left ParamNotFoundException { name }
 {-# INLINABLE paramOrError #-}
 
@@ -559,12 +560,10 @@ instance (FillParams rest record
     ) => FillParams (fieldName:rest) record where
     fill !record = do
         let name :: ByteString = cs $! (symbolVal (Proxy @fieldName))
-        case paramOrNothing name of
-            Just !paramValue ->
-                case readParameter paramValue of
-                    Left !error -> fill @rest (attachFailure (Proxy @fieldName) (cs error) record)
-                    Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
-            Nothing -> fill @rest record
+        case paramOrError name of
+            Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
+            Left ParamCouldNotBeParsedException { parserError } -> fill @rest (attachFailure (Proxy @fieldName) (cs parserError) record)
+            Left ParamNotFoundException {} -> fill @rest record
     {-# INLINABLE fill #-}
 
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
