@@ -239,9 +239,9 @@ library
         , IHP.Job.Dashboard.Auth
         , IHP.Job.Dashboard.View
         , IHP.Job.Dashboard.Utils
-        , IHP.PageTitle.ControllerFunctions
-        , IHP.PageTitle.Types
-        , IHP.PageTitle.ViewFunctions
+        , IHP.PageHead.ControllerFunctions
+        , IHP.PageHead.Types
+        , IHP.PageHead.ViewFunctions
         , IHP.Assets.Types
         , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions

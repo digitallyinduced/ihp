@@ -29,7 +29,7 @@ module IHP.ControllerPrelude
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
     , Only (..)
-    , module IHP.PageTitle.ControllerFunctions
+    , module IHP.PageHead.ControllerFunctions
     , module IHP.WebSocket
     , module IHP.Assets.ControllerFunctions
     , module IHP.FileStorage.Types
@@ -71,7 +71,7 @@ import IHP.Job.Types
 import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
 
 import IHP.LoginSupport.Helper.Controller
-import IHP.PageTitle.ControllerFunctions
+import IHP.PageHead.ControllerFunctions
 
 import IHP.WebSocket
 import IHP.Assets.ControllerFunctions
