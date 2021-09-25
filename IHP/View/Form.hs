@@ -781,3 +781,37 @@ instance
             init path
                 |> (\path -> [""] <> (fromMaybe [] path) <> [action])
                 |> intercalate "/"
+
+-- | Renders a validation failure for a field. If the field passed all validation, no error is shown.
+--
+-- >>> {validationResult #email}
+-- <div class="invalid-feedback">is not a valid email</div>
+validationResult :: forall fieldName model fieldType.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model fieldType
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue fieldType
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> Html
+validationResult field = styledValidationResult cssFramework cssFramework (textField field)
+    where
+        result = getValidationFailure field model
+        model = ?formContext |> get #model
+        cssFramework = ?formContext |> get #cssFramework
+
+-- | Returns the validation failure for a field. If the field passed all validation, this returns 'Nothing'.
+--
+-- >>> {validationResultMaybe #email}
+-- Just "is not a valid email"
+validationResultMaybe :: forall fieldName model fieldType.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model fieldType
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue fieldType
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> Maybe Text
+validationResultMaybe field = getValidationFailure field model
+    where
+        model = ?formContext |> get #model

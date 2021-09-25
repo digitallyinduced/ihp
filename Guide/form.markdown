@@ -449,6 +449,69 @@ You can specify `disableValidationResult` to stop the validation error message b
 
 This works out of the box for most Haskell data types. When you are working with a custom data type, e.g. a custom enum value, you need to add a `InputValue MyDataType` implementation. We will cover this later in this Guide.
 
+### Standalone Validation Errors
+
+If you're using a custom widget for a form field, you might still want to show IHP's validation errors. Use `validationResult #someField` to render a standalone validation error:
+
+```haskell
+formFor user [hsx|
+    <div class="form-group">
+        <label class="" for="passwordReset_email">Email</label>
+
+        <!-- Custom widget here instead of using textField -->
+        <input type="text" name="email" placeholder="" id="passwordReset_email" class="form-control is-invalid">
+
+        {validationResult #email}
+    </div>
+|]
+```
+
+The `{validationResult #email}` will render like this when the validation failed:
+
+```html
+<div class="invalid-feedback">is not a valid email</div>
+```
+
+If there's no validation failure on the given field, the `validationResult` will not render anything.
+
+#### Standalone Validation Errors Without Styling
+
+If you need more control over the styling of your validation error, you can use `validationResultMaybe #someField`. This function will return `Just "some error"` when there's a validation failure on that field or `Nothing` if the field passed validation.
+
+You can use this to write custom error messages in your form:
+
+```haskell
+formFor user [hsx|
+    <div class="form-group">
+        <label class="" for="passwordReset_email">Email</label>
+
+        <!-- Custom widget here instead of using textField -->
+        <input type="text" name="email" placeholder="" id="passwordReset_email" class="form-control is-invalid">
+
+        {validationResultMaybe #email |> renderCustomError}
+    </div>
+|]
+
+renderCustomError :: Maybe Text -> Html
+renderCustomError (Just message) = [hsx|<p>validation failed: {message}</p>|]
+renderCustomError Nothing = [hsx|all good|]
+```
+
+#### Adding Custom Errors
+
+You can also add validation errors to a model manual, without using the IHP validation system:
+
+```haskell
+action NewInviteAction = do
+    let invite = newRecord @Invite
+            |> if isFreeUser
+                then attachFailure #email "This feature requires you to have the paid plan of our product"
+                else \user -> user
+
+    render NewView { .. }
+```
+
+
 ## Select Inputs
 
 Select inputs require you to pass a list of possible values to select.
