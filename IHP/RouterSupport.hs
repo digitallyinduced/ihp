@@ -24,6 +24,7 @@ CanRoute (..)
 , webSocketApp
 , webSocketAppWithCustomPath
 , onlyAllowMethods
+, getMethod
 ) where
 
 import qualified Prelude

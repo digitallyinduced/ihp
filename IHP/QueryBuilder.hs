@@ -58,6 +58,9 @@ module IHP.QueryBuilder
 , LabeledQueryBuilderWrapper
 , getQueryBuilder
 , NoJoins
+, Condition (..)
+, Join (..)
+, OrderByDirection (..)
 )
 where
 import qualified Prelude
