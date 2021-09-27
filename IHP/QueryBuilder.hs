@@ -83,9 +83,9 @@ instance {-# OVERLAPPABLE #-} DefaultScope table where
     {-# INLINE defaultScope #-}
     defaultScope queryBuilder = queryBuilder
 
-instance Default (QueryBuilder table) where
+instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
-    def = NewQueryBuilder
+    def = NewQueryBuilder { columns = columnNames @(GetModelByTableName table) }
 
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
 
@@ -193,7 +193,7 @@ instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTa
 
 
 data QueryBuilder (table :: Symbol) =
-    NewQueryBuilder
+    NewQueryBuilder { columns :: ![ByteString] }
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
     | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !ByteString }
     | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Action), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
@@ -224,6 +224,7 @@ data SQLQuery = SQLQuery
     , orderByClause :: ![OrderByClause]
     , limitClause :: !(Maybe ByteString)
     , offsetClause :: !(Maybe ByteString)
+    , columns :: ![ByteString]
     } deriving (Show, Eq)
 
 -- | Needed for the 'Eq QueryBuilder' instance
@@ -276,15 +277,15 @@ instance SetField "offsetClause" SQLQuery (Maybe ByteString) where setField valu
 -- >    query @User
 -- >     |> filterWhere (#active, True)
 -- >     |> fetch
-query :: forall model table. (table ~ GetTableName model) => DefaultScope table => QueryBuilder table
-query = (defaultScope @table) NewQueryBuilder
+query :: forall model table. (table ~ GetTableName model, Table model) => DefaultScope table => QueryBuilder table
+query = (defaultScope @table) NewQueryBuilder { columns = columnNames @model }
 {-# INLINE query #-}
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
 buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
     where
-    buildQueryHelper NewQueryBuilder =
+    buildQueryHelper NewQueryBuilder { columns } =
         let tableName = symbolToByteString @table
         in SQLQuery
             {     queryIndex = trace (Prelude.show $ getQueryIndex queryBuilderProvider) getQueryIndex queryBuilderProvider 
@@ -296,6 +297,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                 , orderByClause = []
                 , limitClause = Nothing
                 , offsetClause = Nothing
+                , columns
                 }
     buildQueryHelper DistinctQueryBuilder { queryBuilder } = queryBuilder
             |> buildQueryHelper
@@ -368,7 +370,7 @@ toSQL queryBuilderProvider = toSQL' (buildQuery queryBuilderProvider)
 {-# INLINE toSQL #-}
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
-toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
+toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
         (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
@@ -388,8 +390,13 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
                     ]
 
         selectors :: ByteString
-        selectors = ByteString.intercalate ", " $ catMaybes [queryIndex , Just (selectFrom <> ".*")]
-
+        selectors = ByteString.intercalate ", " $ (catMaybes [queryIndex]) <> selectFromWithColumns
+            where
+                -- Generates a string like: `posts.id, posts.title, posts.body`
+                selectFromWithColumns :: [ByteString]
+                selectFromWithColumns = 
+                    columns
+                    |> map (\column -> selectFrom <> "." <> column)
         fromClause :: ByteString
         fromClause = selectFrom
 

@@ -447,8 +447,8 @@ class
     --
 
     tableName :: Text
-    default tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
-    tableName = symbolToText @(GetTableName model)
+    default tableName :: forall model. (KnownSymbol (GetTableName record)) => Text
+    tableName = symbolToText @(GetTableName record)
     {-# INLINE tableName #-}
 
     -- | Returns the table name of a given model as a bytestring.
@@ -459,8 +459,8 @@ class
     -- "users"
     --
     tableNameByteString :: ByteString
-    default tableNameByteString :: forall model. (KnownSymbol (GetTableName model)) => ByteString
-    tableNameByteString = symbolToByteString @(GetTableName model)
+    default tableNameByteString :: forall model. (KnownSymbol (GetTableName record)) => ByteString
+    tableNameByteString = symbolToByteString @(GetTableName record)
     {-# INLINE tableNameByteString #-}
 
     -- | Returns the list of column names for a given model
@@ -470,7 +470,7 @@ class
     -- >>> columnNames @User
     -- ["id", "email", "created_at"]
     --
-    columnNames :: [Text]
+    columnNames :: [ByteString]
 
     -- | Returns WHERE conditions to match an entity by it's primary key
     --
