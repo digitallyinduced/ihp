@@ -168,18 +168,16 @@ renderComment comment = [hsx|
 ```
 
 
-### Sorting With Multiple Records
+### Order With Multiple Records
 
 If you want to sort the results after fetching multiple records with `collectionFetchRelated`
 
 ```haskell
 posts <-
-    query @Post |> fetch
+    query @Post
+        |> fetch
+        >>= pure . map (modify #comments (orderBy #createdAt))
         >>= collectionFetchRelated #comments
-        >>= \posts ->
-            posts
-                |> sortOn (\post -> post |> get #comment |> get #title)
-                |> pure
 ```
 
 ## Belongs To Relationships
