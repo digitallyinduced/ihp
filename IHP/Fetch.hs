@@ -36,58 +36,58 @@ import IHP.QueryBuilder
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO (FetchResult fetchable model)
-    fetchOneOrNothing :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO (Maybe model)
-    fetchOne :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO model
+    fetch :: (Table model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO (FetchResult fetchable model)
+    fetchOneOrNothing :: (Table model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO (Maybe model)
+    fetchOne :: (Table model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => fetchable -> IO model
 
 -- The instance declaration had to be split up because a type variable ranging over HasQueryBuilder instances is not allowed in the declaration of the associated type. The common*-functions reduce the redundancy to the necessary minimum.
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (QueryBuilder table) model where
     type instance FetchResult (QueryBuilder table) model = [model]
     {-# INLINE fetch #-}
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
+    fetch :: (Table model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
     fetch = commonFetch 
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => QueryBuilder table -> IO model
     fetchOne = commonFetchOne
 
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (JoinQueryBuilderWrapper r table) model where
     type instance FetchResult (JoinQueryBuilderWrapper r table) model = [model]
     {-# INLINE fetch #-}
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => JoinQueryBuilderWrapper r table -> IO [model]
+    fetch :: (Table model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => JoinQueryBuilderWrapper r table -> IO [model]
     fetch = commonFetch 
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => JoinQueryBuilderWrapper r table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => JoinQueryBuilderWrapper r table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => JoinQueryBuilderWrapper r table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => JoinQueryBuilderWrapper r table -> IO model
     fetchOne = commonFetchOne
 
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (NoJoinQueryBuilderWrapper table) model where
     type instance FetchResult (NoJoinQueryBuilderWrapper table) model = [model]
     {-# INLINE fetch #-}
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => NoJoinQueryBuilderWrapper table -> IO [model]
+    fetch :: (Table model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => NoJoinQueryBuilderWrapper table -> IO [model]
     fetch = commonFetch 
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => NoJoinQueryBuilderWrapper table -> IO model
     fetchOne = commonFetchOne
 
 instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
     type instance FetchResult (LabeledQueryBuilderWrapper foreignTable columnName value table) model = [LabeledData value model]
     -- fetch needs to return a list of labeled data. The 
     {-# INLINE fetch #-}
-    fetch :: (KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
+    fetch :: (Table model, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
         let !(theQuery, theParameters) = queryBuilderProvider
                 |> toSQL
@@ -95,17 +95,17 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value,
         sqlQuery @_ @(LabeledData value model) (Query $ cs theQuery) theParameters
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, KnownSymbol (GetTableName model)) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
     fetchOne = commonFetchOne
 
 
 
 {-# INLINE commonFetch #-}
-commonFetch :: forall model table queryBuilderProvider joinRegister.(HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
+commonFetch :: forall model table queryBuilderProvider joinRegister.(Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, KnownSymbol (GetTableName model), PG.FromRow model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
     let !(theQuery, theParameters) = queryBuilder
             |> toSQL
@@ -113,7 +113,7 @@ commonFetch !queryBuilder = do
     sqlQuery (Query $ cs theQuery) theParameters
 
 {-# INLINE commonFetchOneOrNothing #-}
-commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister.(?modelContext :: ModelContext) => (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBuilderProvider table -> IO (Maybe model)
+commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister.(?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
     let !(theQuery, theParameters) = queryBuilder
             |> buildQuery
@@ -124,7 +124,7 @@ commonFetchOneOrNothing !queryBuilder = do
     pure $ listToMaybe results
 
 {-# INLINE commonFetchOne #-}
-commonFetchOne :: forall model table queryBuilderProvider joinRegister.(?modelContext :: ModelContext) => (KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBuilderProvider table -> IO model
+commonFetchOne :: forall model table queryBuilderProvider joinRegister.(?modelContext :: ModelContext) => (Table model, KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, KnownSymbol (GetTableName model)) => queryBuilderProvider table -> IO model
 commonFetchOne !queryBuilder = do
     maybeModel <- fetchOneOrNothing queryBuilder
     case maybeModel of
@@ -174,27 +174,27 @@ fetchExists !queryBuilder = do
 {-# INLINE fetchExists #-}
 
 {-# INLINE genericFetchId #-}
-genericFetchId :: forall table model. (KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO [model]
+genericFetchId :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO [model]
 genericFetchId !id = query @model |> filterWhereId id |> fetch
 
 {-# INLINE genericfetchIdOneOrNothing #-}
-genericfetchIdOneOrNothing :: forall table model. (KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO (Maybe model)
+genericfetchIdOneOrNothing :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO (Maybe model)
 genericfetchIdOneOrNothing !id = query @model |> filterWhereId id |> fetchOneOrNothing
 
 {-# INLINE genericFetchIdOne #-}
-genericFetchIdOne :: forall table model. (KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO model
+genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO model
 genericFetchIdOne !id = query @model |> filterWhereId id |> fetchOne
 
 {-# INLINE genericFetchIds #-}
-genericFetchIds :: forall table model value. (KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value, model ~ GetModelByTableName table, GetTableName model ~ table) => [value] -> IO [model]
+genericFetchIds :: forall table model value. (Table model, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value, model ~ GetModelByTableName table, GetTableName model ~ table) => [value] -> IO [model]
 genericFetchIds !ids = query @model |> filterWhereIn (#id, ids) |> fetch
 
 {-# INLINE genericfetchIdsOneOrNothing #-}
-genericfetchIdsOneOrNothing :: forall model value table. (KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value, model ~ GetModelByTableName table, GetTableName model ~ table) => [value] -> IO (Maybe model)
+genericfetchIdsOneOrNothing :: forall model value table. (Table model, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value, model ~ GetModelByTableName table, GetTableName model ~ table) => [value] -> IO (Maybe model)
 genericfetchIdsOneOrNothing !ids = query @model |> filterWhereIn (#id, ids) |> fetchOneOrNothing
 
 {-# INLINE genericFetchIdsOne #-}
-genericFetchIdsOne :: forall model value table. (KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value, model ~ GetModelByTableName table, GetTableName model ~ table) => [value] -> IO model
+genericFetchIdsOne :: forall model value table. (Table model, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext, ToField value, EqOrIsOperator value, HasField "id" model value, model ~ GetModelByTableName table, GetTableName model ~ table) => [value] -> IO model
 genericFetchIdsOne !ids = query @model |> filterWhereIn (#id, ids) |> fetchOne
 
 {-# INLINE findBy #-}

@@ -12,16 +12,17 @@ import IHP.ModelSupport
 import IHP.Controller.Context
 
 {-# INLINE initAuthentication #-}
-initAuthentication :: forall user.
+initAuthentication :: forall user normalizedModel.
         ( ?context :: ControllerContext
         , ?modelContext :: ModelContext
-        , Typeable (NormalizeModel user)
-        , KnownSymbol (GetTableName (NormalizeModel user))
+        , normalizedModel ~ NormalizeModel user
+        , Typeable normalizedModel
+        , Table normalizedModel
+        , FromRow normalizedModel
+        , PrimaryKey (GetTableName normalizedModel) ~ UUID
+        , GetTableName normalizedModel ~ GetTableName user
+        , FilterPrimaryKey (GetTableName normalizedModel)
         , KnownSymbol (GetModelName user)
-        , GetTableName (NormalizeModel user) ~ GetTableName user
-        , FromRow (NormalizeModel user)
-        , PrimaryKey (GetTableName user) ~ UUID
-        , FilterPrimaryKey (GetTableName user)
     ) => IO ()
 initAuthentication = do
     user <- getSessionRecordId @user (sessionKey @user)

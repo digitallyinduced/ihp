@@ -64,6 +64,7 @@ createSessionAction :: forall record action passwordField.
     , CanUpdate record
     , Show (PrimaryKey (GetTableName record))
     , record ~ GetModelByTableName (GetTableName record)
+    , Table record
     ) => IO ()
 createSessionAction = do
     usersQueryBuilder

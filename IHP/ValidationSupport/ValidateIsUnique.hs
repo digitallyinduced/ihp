@@ -45,6 +45,7 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , savedModelId ~ modelId
         , Eq modelId
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
+        , Table savedModel
     ) => Proxy field -> model -> IO model
 validateIsUnique fieldProxy model = validateIsUniqueCaseAware fieldProxy model True
 {-# INLINE validateIsUnique #-}
@@ -85,6 +86,7 @@ validateIsUniqueCaseInsensitive :: forall field model savedModel validationState
         , savedModelId ~ modelId
         , Eq modelId
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
+        , Table savedModel
     ) => Proxy field -> model -> IO model
 validateIsUniqueCaseInsensitive fieldProxy model = validateIsUniqueCaseAware fieldProxy model False
 {-# INLINE validateIsUniqueCaseInsensitive #-}
@@ -107,6 +109,7 @@ validateIsUniqueCaseAware :: forall field model savedModel validationState field
         , savedModelId ~ modelId
         , Eq modelId
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
+        , Table savedModel
     ) => Proxy field -> model -> Bool -> IO model
 validateIsUniqueCaseAware fieldProxy model caseSensitive = do
     let value = getField @field model
