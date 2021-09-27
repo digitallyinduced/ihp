@@ -74,6 +74,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
     , Record job
     , Show job
     , Eq job
+    , Table job
     , Typeable job) => DisplayableJob job where
 
     -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
