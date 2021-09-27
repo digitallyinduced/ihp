@@ -173,6 +173,10 @@ postgresHandler exception controller additionalInfo = do
                 |  "relation" `ByteString.isPrefixOf` (get #sqlErrorMsg exception)
                 && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg exception)
                 -> Just (handlePostgresError exception "A table is missing.")
+            Just (exception :: PG.SqlError)
+                |  "column" `ByteString.isPrefixOf` (get #sqlErrorMsg exception)
+                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg exception)
+                -> Just (handlePostgresError exception "A column is missing.")
             _ -> Nothing
 
 patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
