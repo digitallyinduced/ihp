@@ -44,6 +44,7 @@ githubConnectCallbackAction :: forall user.
     , Sessions.SessionsControllerConfig user
     , HasField "lockedAt" user (Maybe UTCTime)
     , CanCreate user
+    , Table user
     ) => IO ()
 githubConnectCallbackAction = do
     let code = param @Text "code"

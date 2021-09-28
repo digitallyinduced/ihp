@@ -30,6 +30,7 @@ confirmAction :: forall record action.
     , HasField "confirmationToken" record (Maybe Text)
     , HasField "isConfirmed" record Bool
     , Sessions.SessionsControllerConfig record
+    , Table record
     ) => Id record -> Text -> IO ()
 confirmAction userId confirmationToken = do
     user <- fetch userId

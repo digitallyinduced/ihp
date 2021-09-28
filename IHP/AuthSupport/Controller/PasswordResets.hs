@@ -38,6 +38,7 @@ showPasswordResetAction :: forall record action.
     , KnownSymbol (GetTableName record)
     , FromRow record
     , FilterPrimaryKey (GetTableName record)
+    , Table record
     ) => Id record -> Text -> IO ()
 showPasswordResetAction userId token = do
         user <- fetch userId
@@ -60,6 +61,7 @@ updatePasswordAction :: forall record action.
     , FromRow record
     , FilterPrimaryKey (GetTableName record)
     , KnownSymbol (GetTableName record)
+    , Table record
     ) => Id record -> Text -> IO ()
 updatePasswordAction userId token = do
     user <- fetch userId
@@ -95,6 +97,7 @@ createPasswordResetAction :: forall record action passwordField.
     , SetField "passwordResetToken" record (Maybe Text)
     , FromRow record
     , KnownSymbol (GetTableName record)
+    , Table record
     ) => IO ()
 createPasswordResetAction = do
     let passwordReset = newRecord @PasswordReset
