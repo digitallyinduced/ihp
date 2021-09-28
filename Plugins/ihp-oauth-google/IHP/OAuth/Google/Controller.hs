@@ -47,6 +47,7 @@ googleConnectCallbackAction :: forall user.
     , SetField "passwordHash" user Text
     , Record user
     , CanCreate user
+    , Table user
     ) => IO ()
 googleConnectCallbackAction = do
     let jwtString = param @ByteString "jwt"
