@@ -9,6 +9,7 @@
 
     <link rel="shortcut icon" type="image/x-icon" href="ihp-logo.svg"/>
     <link rel="stylesheet" href="bootstrap.css" crossorigin="anonymous"/>
+    <link rel="stylesheet" href="search.css" /> 
     <script defer data-domain="ihp.digitallyinduced.com" src="https://plausible.io/js/plausible.js"></script>
   </head>
   <body class="d-flex">
@@ -27,8 +28,6 @@
             <div class="nav-logo">
                 <img src="images/ihp-logo-readme.svg" style="width:13ch;" />
             </div>
-
-            <div id="guide-search"></div>
 
             <nav class="nav flex-column primary-nav">
                 <a class="nav-link headline" href="index.html">Getting Started</a>
@@ -114,6 +113,11 @@
             {{& output }}
         </main>
 
+        <div id="search-container">
+            <div id="search">
+            </div>
+        </div>
+
 
 
     <style>
@@ -159,7 +163,6 @@
         main {
             padding: 1rem;
             width: 100%;
-            margin-top: 70px;
         }
 
         .primary-nav .nav-link {
@@ -304,6 +307,14 @@
         .next-button:hover {
             background-color: hsla(192, 81%, 26%, 0.8)
         }
+
+        .DocSearch.DocSearch-Button {
+            margin-left: 0;
+            position: fixed;
+        }
+        #search-container {
+            margin-top: 70px;
+        }
     </style>
 
     <script>
@@ -330,6 +341,7 @@
     <script src="instantclick.js" data-no-instant></script>
     <script src="spoilify.js"></script>
     <script data-no-instant>InstantClick.init(); spoilify(); InstantClick.on('change', spoilify);</script>
-    <script async defer type="module" src="search.js"></script>
+
+    <script type="text/javascript" src="search.js"></script> 
   </body>
 </html>

@@ -47,7 +47,7 @@ HTML_FILES+= oauth.html
 HTML_FILES+= ihp-pro.html
 HTML_FILES+= examples.html
 
-all: $(HTML_FILES) bootstrap.css instantclick.js
+all: $(HTML_FILES) bootstrap.css instantclick.js search.js search.css
 
 %.html: %.markdown layout.html
 	mmark -i $< -o $@ --template layout.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 2-6
@@ -65,3 +65,12 @@ bootstrap.css:
 
 instantclick.js:
 	curl http://instantclick.io/v3.1.0/instantclick.min.js --output $@
+
+search/node_modules:
+	cd search && npm install
+
+search.js: search/node_modules
+	./search/node_modules/.bin/esbuild search/search.jsx --bundle --minify-whitespace --outfile=search.js
+
+search.css: search/node_modules
+	./search/node_modules/.bin/esbuild search/node_modules/@docsearch/css/dist/style.css --minify-whitespace --outfile=search.css
