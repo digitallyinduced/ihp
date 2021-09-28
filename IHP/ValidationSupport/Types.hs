@@ -45,7 +45,7 @@ attachValidatorResult field (FailureHtml message) record = modify #meta prependA
 -- You can use this together with 'getValidationFailure'
 --
 -- > user
--- >     |> attachFailure #email"cannot be empty"
+-- >     |> attachFailure #email "cannot be empty"
 -- >     |> getValidationFailure #email
 -- >
 -- > --  Returns: Just "cannot be empty"
@@ -65,7 +65,7 @@ attachFailure field !message = attachValidatorResult field (Failure message)
 -- You can use this together with 'getValidationViolation'
 --
 -- > user
--- >     |> attachFailure #email"cannot be empty"
+-- >     |> attachFailure #email "cannot be empty"
 -- >     |> getValidationViolation #email
 -- >
 -- > --  Returns: Just (HtmlViolation "should be a valid email. <a href="https://example.com/docs#email">Check out the documentation</a>")
@@ -80,7 +80,7 @@ attachFailureHtml field !message = attachValidatorResult field (FailureHtml rend
 -- | Returns the validation failure for a field or Nothing
 --
 -- > user
--- >     |> attachFailure #email"cannot be empty"
+-- >     |> attachFailure #email "cannot be empty"
 -- >     |> getValidationFailure #email
 -- >
 -- > --  Returns: Just "cannot be empty"

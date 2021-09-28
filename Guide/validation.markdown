@@ -330,7 +330,7 @@ If you try to use HTML code within `attachFailure`, the HTML code will be escape
 ```haskell
 post
     |> attachFailure #title "Invalid value. <a href="https://example.com/docs">Check the documentation</a>"
-    -- Link will not be clickable as it's going through escaping
+    -- Link will not be clickable as the HTML is escaped
 ```
 
 Use `attachFailureHtml` instead:
