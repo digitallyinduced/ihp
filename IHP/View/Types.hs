@@ -19,6 +19,7 @@ where
 import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
+import IHP.ModelSupport (Violation)
 
 
 type HtmlWithContext context = (?context :: context) => Blaze.Html
@@ -43,7 +44,7 @@ data FormField = FormField
     , fieldLabel :: !Text
     , fieldValue :: !Text
     , fieldInputId :: !Text
-    , validatorResult :: !(Maybe Text)
+    , validatorResult :: !(Maybe Violation)
     , fieldInput :: !(FormField -> Blaze.Html)
     , fieldClass :: !Text
     , labelClass :: !Text

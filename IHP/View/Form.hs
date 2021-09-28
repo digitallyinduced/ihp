@@ -418,7 +418,7 @@ textField field = FormField
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  inputValue ((getField @fieldName model) :: value)
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationFailure field model
+        , validatorResult = getValidationViolation field model
         , fieldClass = ""
         , labelClass = ""
         , disabled = False
@@ -632,7 +632,7 @@ checkboxField field = FormField
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  if getField @fieldName model then "yes" else "no"
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationFailure field model
+        , validatorResult = getValidationViolation field model
         , fieldClass = ""
         , labelClass = ""
         , disabled = False
@@ -706,7 +706,7 @@ selectField field items = FormField
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
         , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationFailure field model
+        , validatorResult = getValidationViolation field model
         , fieldClass = ""
         , labelClass = ""
         , disabled = False
@@ -781,3 +781,37 @@ instance
             init path
                 |> (\path -> [""] <> (fromMaybe [] path) <> [action])
                 |> intercalate "/"
+
+-- | Renders a validation failure for a field. If the field passed all validation, no error is shown.
+--
+-- >>> {validationResult #email}
+-- <div class="invalid-feedback">is not a valid email</div>
+validationResult :: forall fieldName model fieldType.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model fieldType
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue fieldType
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> Html
+validationResult field = styledValidationResult cssFramework cssFramework (textField field)
+    where
+        result = getValidationFailure field model
+        model = ?formContext |> get #model
+        cssFramework = ?formContext |> get #cssFramework
+
+-- | Returns the validation failure for a field. If the field passed all validation, this returns 'Nothing'.
+--
+-- >>> {validationResultMaybe #email}
+-- Just "is not a valid email"
+validationResultMaybe :: forall fieldName model fieldType.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model fieldType
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue fieldType
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> Maybe Text
+validationResultMaybe field = getValidationFailure field model
+    where
+        model = ?formContext |> get #model

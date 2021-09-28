@@ -4,6 +4,7 @@ import IHP.Prelude
 import qualified Database.PostgreSQL.Simple           as PG
 import IHP.AuthSupport.Authorization
 import IHP.Fetch (Fetchable, fetchOneOrNothing)
+import IHP.ModelSupport (Table)
 import IHP.ValidationSupport.Types
 
 validateCanView :: forall field user model validationState fieldValue validationStateValue fetchedModel. (
@@ -18,6 +19,7 @@ validateCanView :: forall field user model validationState fieldValue validation
         , ValidateCanView' fieldValue fetchedModel
         , HasField "meta" user MetaBag
         , SetField "meta" user MetaBag
+        , Table fetchedModel
     ) => Proxy field -> user -> IO user
 validateCanView field user = do
     let id = getField @field ?model
@@ -36,16 +38,16 @@ validateCanView field user = do
 --
 -- Therefore we have to handle this special of `Maybe TeamId` with the following type class.
 class ValidateCanView' id model where
-    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model) => Proxy model -> user -> id -> IO ValidatorResult
+    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model, Table model) => Proxy model -> user -> id -> IO ValidatorResult
 
 -- Maybe someId
-instance {-# OVERLAPS #-} (ValidateCanView' id' model, Fetchable id' model) => ValidateCanView' (Maybe id') model where
+instance {-# OVERLAPS #-} (ValidateCanView' id' model, Fetchable id' model, Table model) => ValidateCanView' (Maybe id') model where
     -- doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model) => Proxy model -> user -> (Maybe id) -> IO ValidatorResult
     doValidateCanView model user id = maybe (pure Success) (doValidateCanView model user) id
 
 -- Catch all
 instance {-# OVERLAPPABLE #-} ValidateCanView' any model where
-    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model) => Proxy model -> user -> id -> IO ValidatorResult
+    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model, Table model) => Proxy model -> user -> id -> IO ValidatorResult
     doValidateCanView model user id = do
         fetchedModel <- liftIO (fetchOneOrNothing id)
         canView' <- maybe (pure False) (\fetchedModel -> canView fetchedModel user) fetchedModel

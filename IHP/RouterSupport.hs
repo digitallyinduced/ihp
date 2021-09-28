@@ -23,6 +23,8 @@ CanRoute (..)
 , parseText
 , webSocketApp
 , webSocketAppWithCustomPath
+, onlyAllowMethods
+, getMethod
 ) where
 
 import qualified Prelude
@@ -598,6 +600,37 @@ post path action = do
             pure (runActionWithNewContext action)
         _   -> fail "Invalid method, expected POST"
 {-# INLINABLE post #-}
+
+-- | Filter methods when writing a custom routing parser
+--
+-- __Example:__
+--
+-- > instance CanRoute ApiController where
+-- >    parseRoute' = do
+-- >        string "/api/"
+-- >        let
+-- >            createRecordAction = do
+-- >                onlyAllowMethods [POST]
+-- >
+-- >                table <- parseText
+-- >                endOfInput
+-- >                pure CreateRecordAction { table }
+-- >
+-- >            updateRecordAction = do
+-- >                onlyAllowMethods [PATCH]
+-- >                
+-- >                table <- parseText
+-- >                string "/"
+-- >                id <- parseUUID
+-- >                pure UpdateRecordAction { table, id }
+-- >        
+-- > createRecordAction <|> updateRecordAction
+--
+onlyAllowMethods :: (?context :: RequestContext) => [StdMethod] -> Parser ()
+onlyAllowMethods methods = do
+    method <- getMethod
+    unless (method `elem` methods) (fail ("Invalid method, expected one of: " <> show methods))
+{-# INLINABLE onlyAllowMethods #-}
 
 -- | Routes to a given WebSocket app if the path matches the WebSocket app name
 --

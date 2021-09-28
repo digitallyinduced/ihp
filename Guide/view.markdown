@@ -261,6 +261,42 @@ RIGHT:
 </head>
 ```
 
+
+#### OG Meta Tags
+
+To dynamically manage meta tags like `<meta property="og:description" content="dynamic content"/>` add this to your `Layout.hs`:
+
+```html
+<head>
+    <title>App</title>
+
+    <!-- ADD THIS: -->
+    {ogTitleOrDefault "default title"}
+    {ogTypeOrDefault "article"}
+    {ogDescriptionOrDefault "Hello world"}
+    {ogUrl}
+    {ogImage}
+</head>
+```
+
+You can set the values for these meta tags from the `beforeRender` function within your view:
+
+
+```haskell
+instance View MyView where
+    beforeRender MyView { post } = do
+        setOGTitle (get #title post)
+        setOGDescription (get #summary post)
+        setOGUrl (urlTo ShowPostAction { .. })
+
+        case get #imageUrl post of
+            Just url -> setOGImage url
+            Nothing -> pure () -- When setOGImage is not called, the og:image tag will not be rendered
+
+    -- ...
+```
+
+
 ## Diff-Based DOM Updates
 
 When in development, your views will automatically refresh on code changes. This works by re-requesting the view from the server via AJAX and then using [morphdom](https://github.com/patrick-steele-idem/morphdom) to update the visible DOM.

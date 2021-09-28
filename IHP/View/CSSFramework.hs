@@ -129,9 +129,14 @@ instance Default CSSFramework where
 
 
             styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
-            styledValidationResult cssFramework formField@(FormField { validatorResult = Just message }) =
-                let className :: Text = get #styledValidationResultClass cssFramework
-                in [hsx|<div class={className}>{message}</div>|]
+            styledValidationResult cssFramework formField@(FormField { validatorResult = Just violation }) =
+                let
+                    className :: Text = get #styledValidationResultClass cssFramework
+                    message = case violation of
+                        TextViolation text -> [hsx|{text}|]
+                        HtmlViolation html -> H.preEscapedToHtml html
+                in
+                    [hsx|<div class={className}>{message}</div>|]
             styledValidationResult _ _ = mempty
 
             styledValidationResultClass = ""

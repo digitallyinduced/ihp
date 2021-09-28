@@ -29,13 +29,14 @@ module IHP.ControllerPrelude
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
     , Only (..)
-    , module IHP.PageTitle.ControllerFunctions
+    , module IHP.PageHead.ControllerFunctions
     , module IHP.WebSocket
     , module IHP.Assets.ControllerFunctions
     , module IHP.FileStorage.Types
     , module IHP.FileStorage.ControllerFunctions
     , module IHP.FileStorage.Preprocessor.ImageMagick
     , module IHP.Pagination.ControllerFunctions
+    , module IHP.HSX.QQ
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -71,7 +72,7 @@ import IHP.Job.Types
 import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
 
 import IHP.LoginSupport.Helper.Controller
-import IHP.PageTitle.ControllerFunctions
+import IHP.PageHead.ControllerFunctions
 
 import IHP.WebSocket
 import IHP.Assets.ControllerFunctions
@@ -81,3 +82,5 @@ import IHP.FileStorage.ControllerFunctions
 import IHP.FileStorage.Preprocessor.ImageMagick
 
 import IHP.Pagination.ControllerFunctions
+import IHP.HSX.QQ (hsx)
+import IHP.HSX.ToHtml

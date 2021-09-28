@@ -80,6 +80,7 @@ worker :: forall job.
     , Job job
     , CanUpdate job
     , Show job
+    , Table job
     ) => JobWorker
 worker = JobWorker (jobWorkerFetchAndRunLoop @job)
 
@@ -100,6 +101,7 @@ jobWorkerFetchAndRunLoop :: forall job.
     , Job job
     , CanUpdate job
     , Show job
+    , Table job
     ) => JobWorkerArgs -> IO (Async.Async ())
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig

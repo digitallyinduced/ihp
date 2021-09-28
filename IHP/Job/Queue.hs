@@ -39,7 +39,7 @@ fetchNextJob :: forall job.
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
-    , KnownSymbol (GetTableName job)
+    , Table job
     ) => UUID -> IO (Maybe job)
 fetchNextJob workerId = do
     let query = "UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id"
