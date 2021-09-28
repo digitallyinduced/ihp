@@ -377,7 +377,7 @@ tests = do
                 let ?context = createControllerContextWithParams [("colorField", "invalid color")]
                 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def { annotations = [("colorField", "Invalid value")] } }
+                let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def { annotations = [("colorField", TextViolation "Invalid value")] } }
                 
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord

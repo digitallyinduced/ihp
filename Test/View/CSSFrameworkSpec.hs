@@ -12,6 +12,7 @@ import IHP.FlashMessages.Types
 import IHP.Controller.Session
 import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H
+import IHP.ModelSupport
 
 tests = do
     describe "CSS Framework" do
@@ -65,7 +66,7 @@ tests = do
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-fname\"><label class=\"\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\" disabled=\"disabled\"></div>"
 
                 it "should render a validation error" do
-                    let textField = baseTextField { validatorResult = Just "should not be empty" }
+                    let textField = baseTextField { validatorResult = Just (TextViolation "should not be empty") }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-fname\"><label class=\"\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control is-invalid\"><div class=\"invalid-feedback\">should not be empty</div></div>"
 
                 it "should render with disableLabel = True" do
