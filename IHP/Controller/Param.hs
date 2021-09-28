@@ -569,7 +569,7 @@ instance (FillParams rest record
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
 ifValid branch model = branch ((if null annotations then Right else Left) model)
     where
-        annotations :: [(Text, Text)]
+        annotations :: [(Text, ModelSupport.Violation)]
         annotations = getField @"annotations" meta
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model

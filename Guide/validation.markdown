@@ -323,6 +323,24 @@ post
 
 This record now has a validation error attached to its title.
 
+#### Attaching Errors with HTML
+
+If you try to use HTML code within `attachFailure`, the HTML code will be escaped and not rendered as expected:
+
+```haskell
+post
+    |> attachFailure #title "Invalid value. <a href="https://example.com/docs">Check the documentation</a>"
+    -- Link will not be clickable as the HTML is escaped
+```
+
+Use `attachFailureHtml` instead:
+
+```haskell
+post
+    |> attachFailureHtml #title [hsx|Invalid value. <a href="https://example.com/docs">Check the documentation</a>|]
+    -- Link will work as expected, as it's HSX
+```
+
 ### Retrieving The First Error Message For A Field
 
 You can also access an error for a specific field using `getValidationFailure`:
