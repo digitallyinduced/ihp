@@ -19,6 +19,7 @@ import IHP.View.Classes
 import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest)
+import qualified Data.Containers.ListUtils as List
 
 
 -- | Render a navigation for your pagination. This is to be used in your view whenever 
@@ -134,7 +135,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     if window > totalPages then
                         [1..getLastPage pagination]
                     else
-                        nub $ 1 : [max 1 lowerBound..min (getLastPage pagination) upperBound] ++ [totalPages]
+                        List.nubInt $ 1 : [max 1 lowerBound..min (getLastPage pagination) upperBound] ++ [totalPages]
 
 -- | Render a filtering box in your view. Allows the user to type in a query and filter
 -- results according to what they type.

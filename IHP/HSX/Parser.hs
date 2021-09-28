@@ -21,6 +21,7 @@ import qualified Language.Haskell.Meta as Haskell
 import qualified Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
+import qualified Data.Containers.ListUtils as List
 
 data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 
@@ -125,7 +126,7 @@ hsxNodeAttributes end = staticAttributes
             attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end
             let staticAttributes = List.filter isStaticAttribute attributes
             let keys = List.map (\(StaticAttribute name _) -> name) staticAttributes
-            let uniqueKeys = List.nub keys
+            let uniqueKeys = List.nubOrd keys
             unless (keys == uniqueKeys) (fail $ "Duplicate attribute found in tag: " <> show (keys List.\\ uniqueKeys))
             pure attributes
 
