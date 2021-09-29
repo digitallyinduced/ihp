@@ -275,3 +275,61 @@ data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
 ```
 
 In the case above, `a` would be instantiated by (Id' "tags") and `b` by `Post`.
+
+### Many-to-many relationships and views
+
+Let's say we have the following schema:
+
+```
+posts:
+- id
+
+tags:
+- id
+- name
+
+- posts_tags:
+- id
+- post_id
+- tag_id
+```
+
+We want to display a list of all posts with their tags.
+
+We can use it like this:
+
+```haskell
+action PostsAction = do
+    posts <- query @Post |> fetch
+    
+    postsTags <- query @PostTag
+        |> filterWhereIn (#postId, ids posts)
+        |> fetch
+    
+    tags <- query @Tag
+        |> filterWhereIn (#id, map (get #tagId) postsTags)
+        |> fetch
+
+    render PostsView { .. }
+```
+
+In our view we can now render the posts like this:
+```haskell
+html PostsView { .. } = [hsx|
+    {forEach posts renderPost}
+|]
+    where
+        renderPost post = [hsx|
+            {post}
+            {forEach thisTags renderTag}
+        |]
+            where
+                thisTags :: [Tag]
+                thisTags = postsTags
+                    |> filter (\postTag -> get #postId postTag == get #id post)
+                    |> mapMaybe (\postTag -> find (\tag -> get #id tag == get #tagId postTag) tags)
+
+        renderTag tag = [hsx|
+            <span>{get #name tag}</span>
+        |]
+```
