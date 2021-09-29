@@ -45,6 +45,7 @@ import qualified IHP.Log as Log
 import Data.Dynamic
 import Data.Scientific
 import GHC.Stack
+import qualified Numeric
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -110,10 +111,10 @@ instance InputValue Integer where
     inputValue = tshow
 
 instance InputValue Double where
-    inputValue = tshow
+    inputValue double = cs (Numeric.showFFloat Nothing double "")
 
 instance InputValue Float where
-    inputValue = tshow
+    inputValue float = cs (Numeric.showFFloat Nothing float "")
 
 instance InputValue Bool where
     inputValue True = "on"

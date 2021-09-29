@@ -31,6 +31,10 @@ tests = do
             describe "Double" do
                 it "should return numeric representation" do
                     (inputValue (1.337 :: Double)) `shouldBe` "1.337"
+                
+                it "should deal with large numbers" do
+                    -- https://stackoverflow.com/questions/69306646/ihp-haskell-field-display-format-double-values
+                    (inputValue (50000000 :: Double)) `shouldBe` "50000000.0"
 
             describe "Scientific" do
                 it "should return numeric representation" do
@@ -40,6 +44,10 @@ tests = do
             describe "Float" do
                 it "should return numeric representation" do
                     (inputValue (1.337 :: Float)) `shouldBe` "1.337"
+                
+                it "should deal with large numbers" do
+                    -- https://stackoverflow.com/questions/69306646/ihp-haskell-field-display-format-double-values
+                    (inputValue (50000000 :: Float)) `shouldBe` "50000000.0"
 
             describe "Bool" do
                 it "should deal with True and False" do
