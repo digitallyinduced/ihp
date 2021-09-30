@@ -488,6 +488,8 @@ tests = do
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     }
 
+        it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
+            parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
 
 col :: Column
 col = Column

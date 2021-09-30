@@ -482,3 +482,8 @@ tests = do
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     }
             compileSql [index] `shouldBe` sql
+
+        it "should compile 'ENABLE ROW LEVEL SECURITY' statements" do
+            let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
+            let statements = [EnableRowLevelSecurity { tableName = "tasks" }]
+            compileSql statements `shouldBe` sql

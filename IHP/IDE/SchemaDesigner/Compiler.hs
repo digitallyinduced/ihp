@@ -29,6 +29,7 @@ compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTE
 compileStatement Comment { content } = "-- " <> content
 compileStatement CreateIndex { indexName, unique, tableName, expressions, whereClause } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
 compileStatement CreateFunction { functionName, functionBody, orReplace } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$" <> functionBody <> "$$ language plpgsql;"
+compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns

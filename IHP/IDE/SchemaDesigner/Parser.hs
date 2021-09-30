@@ -57,7 +57,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> createEnumType <|> alterTable <|> comment
     space
     pure s
 
@@ -115,10 +115,7 @@ createEnumType = do
     char ';'
     pure CreateEnumType { name, values }
 
-addConstraint = do
-    lexeme "ALTER"
-    lexeme "TABLE"
-    tableName <- identifier
+addConstraint tableName = do
     lexeme "ADD"
     lexeme "CONSTRAINT"
     constraintName <- identifier
@@ -460,6 +457,19 @@ createTrigger = do
     raw <- cs <$> someTill (anySingle) (char ';')
     pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
 
+alterTable = do
+    lexeme "ALTER"
+    lexeme "TABLE"
+    tableName <- identifier
+    addConstraint tableName <|> enableRowLevelSecurity tableName
+
+enableRowLevelSecurity tableName = do
+    lexeme "ENABLE"
+    lexeme "ROW"
+    lexeme "LEVEL"
+    lexeme "SECURITY"
+    char ';'
+    pure EnableRowLevelSecurity { tableName }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

@@ -24,6 +24,8 @@ data Statement
     | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
     | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
+    -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
+    | EnableRowLevelSecurity { tableName :: Text }
     deriving (Eq, Show)
 
 data CreateTable
