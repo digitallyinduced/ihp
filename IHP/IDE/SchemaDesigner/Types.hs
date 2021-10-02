@@ -23,7 +23,7 @@ data Statement
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
     | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
+    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     deriving (Eq, Show)
@@ -130,5 +130,6 @@ data PostgresType
     | PInet
     | PTSVector
     | PArray PostgresType
+    | PTrigger
     | PCustomType Text
     deriving (Eq, Show)

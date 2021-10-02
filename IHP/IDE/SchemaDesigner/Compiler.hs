@@ -28,7 +28,7 @@ compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> 
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
 compileStatement CreateIndex { indexName, unique, tableName, expressions, whereClause } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
-compileStatement CreateFunction { functionName, functionBody, orReplace } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$" <> functionBody <> "$$ language plpgsql;"
+compileStatement CreateFunction { functionName, functionBody, orReplace, returns, language } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS " <> compilePostgresType returns <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
@@ -124,6 +124,7 @@ compilePostgresType PJSONB = "JSONB"
 compilePostgresType PInet = "INET"
 compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
+compilePostgresType PTrigger = "TRIGGER"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: Text -> Text

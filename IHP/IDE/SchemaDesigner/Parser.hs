@@ -207,6 +207,7 @@ sqlType = choice $ map optionalArray
         , jsonb
         , inet
         , tsvector
+        , trigger
         , customType
         ]
             where
@@ -341,6 +342,10 @@ sqlType = choice $ map optionalArray
                     arrayType <- typeParser;
                     (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
 
+                trigger = do
+                    try (symbol' "TRIGGER")
+                    pure PTrigger
+
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
@@ -439,15 +444,15 @@ createFunction = do
     functionName <- identifier
     lexeme "()"
     lexeme "RETURNS"
-    lexeme "TRIGGER"
+    returns <- sqlType
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
     space
-    lexeme "language"
-    lexeme "plpgsql"
+    lexeme "language" <|> lexeme "LANGUAGE"
+    language <- symbol "plpgsql" <|> symbol "SQL"
     char ';'
-    pure CreateFunction { functionName, functionBody, orReplace }
+    pure CreateFunction { functionName, functionBody, orReplace, returns, language }
 
 -- | Triggers are not currently used by IHP, therefore they're implemented using UnknownStatement
 -- This avoid errors when having custom triggers in Schema.sql

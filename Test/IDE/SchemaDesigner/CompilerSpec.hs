@@ -438,6 +438,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -449,6 +451,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
