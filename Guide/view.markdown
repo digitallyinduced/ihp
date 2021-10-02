@@ -271,6 +271,7 @@ To dynamically manage meta tags like `<meta property="og:description" content="d
     <title>App</title>
 
     <!-- ADD THIS: -->
+    {descriptionOrDefault "default meta description"}
     {ogTitleOrDefault "default title"}
     {ogTypeOrDefault "article"}
     {ogDescriptionOrDefault "Hello world"}

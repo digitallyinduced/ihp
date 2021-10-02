@@ -8,6 +8,8 @@ import IHP.Prelude
 
 newtype PageTitle = PageTitle Text
 
+newtype PageDescription = PageDescription Text
+
 newtype OGTitle = OGTitle Text
 
 newtype OGType = OGType Text
