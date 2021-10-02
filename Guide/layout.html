@@ -260,8 +260,9 @@
             position: absolute;
             width: 100%;
             height: fit-content;
-            margin-top: 70px;
+            margin-top: 64px;
             padding-top: 0;
+            z-index: 1000;
         }
         .nav-column.visible, #mobile-navbar {
             background-color: #f5f6f6;
@@ -271,6 +272,7 @@
         #mobile-navbar .nav-logo .nav-logo-lambda { font-size: 2rem; }
         #mobile-navbar .nav-logo .nav-logo-name { font-size: 1rem; }
 
+        main { padding-top: 74px; }
         @media (min-width: 768px) {
             #mobile-navbar { display: none }
             .nav-column {
@@ -308,12 +310,21 @@
             background-color: hsla(192, 81%, 26%, 0.8)
         }
 
-        .DocSearch.DocSearch-Button {
-            margin-left: 0;
-            position: fixed;
-        }
         #search-container {
-            margin-top: 70px;
+            position: absolute;
+            top: 80px;
+            right: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            .DocSearch.DocSearch-Button {
+                margin-left: 0;
+                position: fixed;
+            }
+            #search-container {
+                margin-top: 70px;
+                position: initial;
+            }
         }
     </style>
 
