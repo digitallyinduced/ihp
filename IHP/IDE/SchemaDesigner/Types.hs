@@ -26,6 +26,8 @@ data Statement
     | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
+    -- CREATE POLICY name ON tableName USING using WITH CHECK check;
+    | CreatePolicy { name :: Text, tableName :: Text, using :: Maybe Expression, check :: Maybe Expression }
     deriving (Eq, Show)
 
 data CreateTable

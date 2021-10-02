@@ -491,3 +491,21 @@ tests = do
             let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
             let statements = [EnableRowLevelSecurity { tableName = "tasks" }]
             compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE POLICY' statements" do
+            let sql = "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());\n"
+            let policy = CreatePolicy
+                    { name = "Users can manage their tasks"
+                    , tableName = "tasks"
+                    , using = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    , check = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    }
+            compileSql [policy] `shouldBe` sql

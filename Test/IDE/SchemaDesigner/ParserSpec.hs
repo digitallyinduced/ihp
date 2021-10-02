@@ -495,6 +495,22 @@ tests = do
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
             parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
 
+        it "should parse 'CREATE POLICY' statements" do
+            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe` CreatePolicy
+                    { name = "Users can manage their tasks"
+                    , tableName = "tasks"
+                    , using = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    , check = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    }
+
 col :: Column
 col = Column
     { name = ""

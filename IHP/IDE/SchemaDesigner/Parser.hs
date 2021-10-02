@@ -57,7 +57,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> createEnumType <|> alterTable <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> createPolicy <|> alterTable <|> comment
     space
     pure s
 
@@ -475,6 +475,26 @@ enableRowLevelSecurity tableName = do
     lexeme "SECURITY"
     char ';'
     pure EnableRowLevelSecurity { tableName }
+
+createPolicy = do
+    lexeme "CREATE"
+    lexeme "POLICY"
+    name <- identifier
+    lexeme "ON"
+    tableName <- identifier
+
+    using <- optional do
+        lexeme "USING"
+        expression
+
+    check <- optional do
+        lexeme "WITH"
+        lexeme "CHECK"
+        expression
+
+    char ';'
+
+    pure CreatePolicy { name, tableName, using, check }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression
