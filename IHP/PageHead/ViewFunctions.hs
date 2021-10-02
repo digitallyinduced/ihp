@@ -134,7 +134,7 @@ ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}
 -- > 
 -- >     html ShowView { .. } = [hsx|..|]
 descriptionOrDefault :: (?context :: ControllerContext) => Text -> Html
-descriptionOrDefault defaultValue = [hsx|<meta property="description" content={content}/>|]
+descriptionOrDefault defaultValue = [hsx|<meta name="description" content={content}/>|]
     where
         content = case maybeFromFrozenContext @PageDescription of
             Just (PageDescription description) -> description
