@@ -5,6 +5,7 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.PageHead.ControllerFunctions
 ( setTitle
+, setDescription
 , setOGTitle
 , setOGType
 , setOGDescription
@@ -36,6 +37,9 @@ import IHP.Controller.Context
 --
 setTitle :: (?context :: ControllerContext) => Text -> IO ()
 setTitle title = putContext (PageTitle title)
+
+setDescription :: (?context :: ControllerContext) => Text -> IO ()
+setDescription description = putContext (PageDescription description)
 
 setOGTitle :: (?context :: ControllerContext) => Text -> IO ()
 setOGTitle title = putContext (OGTitle title)

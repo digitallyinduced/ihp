@@ -7,6 +7,7 @@ module IHP.PageHead.ViewFunctions
 ( pageTitle
 , pageTitleOrDefault
 , pageTitleOrNothing
+, descriptionOrDefault
 , ogTitleOrDefault
 , ogTypeOrDefault
 , ogDescriptionOrDefault
@@ -109,6 +110,35 @@ ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}
             Just (OGTitle title) -> title
             Nothing -> defaultValue
 
+-- | Returns @<meta name="description" content="Lorem Ipsum">@ element. The description can be set using @setDescription "my description"@ from the view.
+--
+-- You can use this inside your Layout like this:
+--
+-- > [hsx|
+-- >     <head>
+-- >         <title>{pageTitle}</title>
+-- >         {descriptionOrDefault "CO2 Database"}
+-- >     </head>
+-- > |]
+--
+--
+-- *View-specific description:*
+-- 
+-- You can override the default description inside the view by calling 'setDescription' inside the 'beforeRender' hook:
+--
+-- > module JobSite.View.JobPositions.Show where
+-- > 
+-- > instance View ShowView where
+-- >     beforeRender ShowView { .. } = do
+-- >         setDescription "The CO2 Footprint of beef is about 67kg CO2 per 1kg of beef."
+-- > 
+-- >     html ShowView { .. } = [hsx|..|]
+descriptionOrDefault :: (?context :: ControllerContext) => Text -> Html
+descriptionOrDefault defaultValue = [hsx|<meta property="description" content={content}/>|]
+    where
+        content = case maybeFromFrozenContext @PageDescription of
+            Just (PageDescription description) -> description
+            Nothing -> defaultValue
 
 -- | Returns the meta og:type element. The og:type can be set using @setOGType "data"@ from the view.
 --
