@@ -195,8 +195,8 @@ ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" conte
 -- >         setOGUrl (urlTo ShowAction { .. })
 -- > 
 -- >     html ShowView { .. } = [hsx|..|]
-ogUrl :: (?context :: ControllerContext) => Text -> Html
-ogUrl defaultValue = case maybeFromFrozenContext @OGUrl of
+ogUrl :: (?context :: ControllerContext) => Html
+ogUrl = case maybeFromFrozenContext @OGUrl of
     Just (OGUrl url) -> [hsx|<meta property="og:url" content={url}/>|]
     Nothing -> mempty
 
@@ -225,7 +225,7 @@ ogUrl defaultValue = case maybeFromFrozenContext @OGUrl of
 -- >         setOGImage "https://example.com/image.png"
 -- > 
 -- >     html ShowView { .. } = [hsx|..|]
-ogImage :: (?context :: ControllerContext) => Text -> Html
-ogImage defaultValue = case maybeFromFrozenContext @OGImage of
+ogImage :: (?context :: ControllerContext) => Html
+ogImage = case maybeFromFrozenContext @OGImage of
     Just (OGImage url) -> [hsx|<meta property="og:image" content={url}/>|]
     Nothing -> mempty
