@@ -59,7 +59,17 @@ The `post |> get #comments` returns a list of the comments belonging to the post
 
 The type of `post` is `Include "comments" Post` instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
 
-It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as `Include "comments" (Include "tags" Post)`
+It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as `Include "comments" (Include "tags" Post)` or with the more convinient way as `Include' ["comments", "tags"] Post`.
+
+Note that for the above example, it is expected that the query will change as-well:
+
+```haskell
+let postId :: Id Post = ...
+
+post <- fetch postId
+    >>= fetchRelated #comments
+    >>= fetchRelated #tags
+```
 
 ### Order by
 
@@ -235,13 +245,13 @@ Of course, you can change this using the Schema Designer by clicking on the fore
 It is possible to join tables to a given primary table (the one associated with the queried type) and use the joined table to select rows from the primary table. For instance, the following code could be used to retrieve all posts by users from department 5:
 
 ```haskell
-query @Posts 
-        |> innerJoin @User (#authorId, #id) 
-        |> innerJoinThirdTable @Department @User (#id, #departmentId) 
+query @Posts
+        |> innerJoin @User (#authorId, #id)
+        |> innerJoinThirdTable @Department @User (#id, #departmentId)
         |> filterWhereJoinedTable @Department (#number, 5)
 ```
 
-`innerJoin` is used to join the `users` table (for type `User`) to the primary table `posts` (for type `Posts`) on the columns `posts.author_id` and `users.id`. Type checks ascertain that both tables actually have the pertinent columns. 
+`innerJoin` is used to join the `users` table (for type `User`) to the primary table `posts` (for type `Posts`) on the columns `posts.author_id` and `users.id`. Type checks ascertain that both tables actually have the pertinent columns.
 
 The function `innerJoinThirdTable` is used to join a third table on a column of some previously joined table. In the example, the table is `departments` and it is joined on `departments.id = users.department_id`. Again, the type system ascertains that the columns actually exist on the pertinent tables. It is furthermore ascertained that the table associated with the second type `User` has been joined before.
 
@@ -303,11 +313,11 @@ We can use it like this:
 ```haskell
 action PostsAction = do
     posts <- query @Post |> fetch
-    
+
     postsTags <- query @PostTag
         |> filterWhereIn (#postId, ids posts)
         |> fetch
-    
+
     tags <- query @Tag
         |> filterWhereIn (#id, map (get #tagId) postsTags)
         |> fetch
