@@ -298,6 +298,7 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject CreateFunction {} id = mempty
         renderObject UnknownStatement {} id = mempty
         renderObject EnableRowLevelSecurity {} id = mempty
+        renderObject CreatePolicy {} id = mempty
 
         shouldRenderObject (StatementCreateTable CreateTable {}) = True
         shouldRenderObject CreateEnumType {} = True
