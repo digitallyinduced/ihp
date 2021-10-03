@@ -262,6 +262,15 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
+        -- DataSync
+        , IHP.DataSync.Types
+        , IHP.DataSync.RowLevelSecurity
+        , IHP.DataSync.DynamicQuery
+        , IHP.DataSync.ChangeNotifications
+        , IHP.DataSync.Controller
+        , IHP.DataSync.REST.Types
+        , IHP.DataSync.REST.Routes
+        , IHP.DataSync.REST.Controller
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
