@@ -59,6 +59,8 @@ The `post |> get #comments` returns a list of the comments belonging to the post
 
 The type of `post` is `Include "comments" Post` instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
 
+It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as `Include "comments" (Include "tags" Post)`
+
 ### Order by
 
 When we want to order the relationship in a certain way, we can just apply our commonly used `orderBy` function:
