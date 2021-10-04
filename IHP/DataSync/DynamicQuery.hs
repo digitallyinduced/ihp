@@ -14,6 +14,8 @@ import qualified Database.PostgreSQL.Simple.FromRow as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.Notification as PG
+import qualified IHP.QueryBuilder as QueryBuilder
+import Data.Aeson.TH
 
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
@@ -23,6 +25,40 @@ data DynamicValue
     | BoolValue Bool
     | UUIDValue UUID
     | DateTimeValue UTCTime
+
+-- | Similiar to IHP.QueryBuilder.SQLQuery, but is designed to be accessed by external users
+--
+-- When compiling to SQL we have to be extra careful to escape all identifers and variables in the query.
+-- The normal IHP.QueryBuilder doesn't need to be that careful as parts of the input are derived from
+-- generated code from the Schema.sql.
+--
+data DynamicSQLQuery = DynamicSQLQuery
+    { table :: !Text
+    , selectedColumns :: SelectedColumns
+    , whereCondition :: !(Maybe Condition)
+    , orderByClause :: ![OrderByClause]
+    , limitClause :: !(Maybe Text)
+    , offsetClause :: !(Maybe Text)
+    } deriving (Show, Eq)
+
+data SelectedColumns
+    = SelectAll -- | SELECT * FROM table
+    | SelectSpecific [Text] -- | SELECT a, b, c FROM table
+    deriving (Show, Eq)
+
+
+$(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
+$(deriveFromJSON defaultOptions 'QueryBuilder.Join)
+$(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
+$(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
+$(deriveFromJSON defaultOptions 'SelectAll)
+$(deriveFromJSON defaultOptions 'DynamicSQLQuery)
+
+instance FromJSON ByteString where
+    parseJSON (String v) = pure $ cs v
+
+instance FromJSON PG.Action where
+    parseJSON (String v) = pure (PG.Escape (cs v))
 
 instance {-# OVERLAPS #-} ToJSON [Field] where
     toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (fieldValueToJSON fieldValue)) fields)

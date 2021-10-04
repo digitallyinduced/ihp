@@ -16,41 +16,29 @@ import Data.Aeson.TH
 import qualified Data.Text as Text
 import qualified Control.Concurrent.MVar as MVar
 import IHP.DataSync.DynamicQuery (transformColumnNamesToFieldNames)
+import qualified IHP.DataSync.RowLevelSecurity as RLS
 
 data ChangeNotification
     = DidInsert { id :: UUID }
     | DidUpdate { id :: UUID, changeSet :: Value }
     | DidDelete { id :: UUID }
 
--- | Calls a callback every time something is inserted, updated or deleted in a given database table.
---
--- In the background this function creates a database trigger to notify this function about table changes
--- using pg_notify. When there are existing triggers, it will silently recreate them. So this will most likely
--- not fail.
---
--- This function returns a Async. Call 'cancel' on the async to stop watching the database.
---
--- __Example:__
---
--- > watchInsertOrUpdateTable "projects" do
--- >     putStrLn "Something changed in the projects table"
---
--- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
--- You will see that @"Something changed in the projects table"@ is printed onto the screen.
---
-watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => ByteString -> IO (MVar.MVar ChangeNotification)
-watchInsertOrUpdateTable tableName = do
-    let listenStatement = "LISTEN " <> PG.Query (eventName tableName)
+-- | The table is wrapped as a TableWithRLS to ensure that the RLS has been checked before calling this
+watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO (MVar.MVar ChangeNotification)
+watchInsertOrUpdateTable table = do
+    let tableName = table |> get #tableName
+    let (listenStatement, listenArgs) = ("LISTEN ?", [PG.Identifier (eventName tableName)])
     
     latestNotification <- MVar.newEmptyMVar
     
     async do
+
         withDatabaseConnection \databaseConnection -> do
-            PG.execute databaseConnection (PG.Query $ createNotificationFunction tableName) ()
+            PG.execute databaseConnection (PG.Query $ cs $ createNotificationFunction tableName) ()
 
         forever do
             notification <- withDatabaseConnection \databaseConnection -> do
-                PG.execute databaseConnection listenStatement ()
+                PG.execute databaseConnection listenStatement listenArgs
                 PG.getNotification databaseConnection
 
             case decode (cs $ get #notificationData notification) of
@@ -61,7 +49,7 @@ watchInsertOrUpdateTable tableName = do
     pure latestNotification
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
-createNotificationFunction :: ByteString -> ByteString
+createNotificationFunction :: Text -> Text
 createNotificationFunction tableName = [i|
     BEGIN;
 
@@ -119,7 +107,7 @@ createNotificationFunction tableName = [i|
         deleteTriggerName = "did_delete_" <> tableName
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
-eventName :: ByteString -> ByteString
+eventName :: Text -> Text
 eventName tableName = "did_change_" <> tableName
 
 

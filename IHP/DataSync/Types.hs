@@ -6,8 +6,8 @@ import IHP.QueryBuilder
 import IHP.DataSync.DynamicQuery
 
 data DataSyncMessage
-    = DataSyncQuery { query :: !SQLQuery, requestId :: !Int }
-    | CreateDataSubscription { query :: !SQLQuery, requestId :: !Int }
+    = DataSyncQuery { query :: !DynamicSQLQuery, requestId :: !Int }
+    | CreateDataSubscription { query :: !DynamicSQLQuery, requestId :: !Int }
     | DeleteDataSubscription { subscriptionId :: !UUID, requestId :: !Int }
     deriving (Eq, Show)
 

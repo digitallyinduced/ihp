@@ -21,6 +21,7 @@ import qualified Control.Concurrent.MVar as MVar
 import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
+import IHP.DataSync.DynamicQueryCompiler
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 
 instance (
@@ -40,24 +41,24 @@ instance (
         let
             handleMessage :: DataSyncMessage -> IO ()
             handleMessage DataSyncQuery { query, requestId } = do
-                ensureRLSEnabled (cs $ get #selectFrom query)
+                ensureRLSEnabled (get #table query)
 
-                let (theQuery, theParams) = toSQL' (queryFieldNamesToColumnNames query)
+                let (theQuery, theParams) = compileQuery query
 
-                result :: [[Field]] <- withRLS $ sqlQuery (PG.Query theQuery) theParams
+                result :: [[Field]] <- withRLS $ sqlQuery theQuery theParams
 
                 sendJSON DataSyncResult { result, requestId }
             
             handleMessage CreateDataSubscription { query, requestId } = do
-                ensureRLSEnabled (cs $ get #selectFrom query)
+                tableNameRLS <- ensureRLSEnabled (get #table query)
 
                 subscriptionId <- UUID.nextRandom
 
-                let (theQuery, theParams) = toSQL' (queryFieldNamesToColumnNames query)
+                let (theQuery, theParams) = compileQuery query
 
-                result :: [[Field]] <- withRLS $ sqlQuery (PG.Query theQuery) theParams
+                result :: [[Field]] <- withRLS $ sqlQuery theQuery theParams
 
-                let tableName = get #selectFrom query
+                let tableName = get #table query
 
                 -- We need to keep track of all the ids of entities we're watching to make
                 -- sure that we only send update notifications to clients that can actually
@@ -67,7 +68,7 @@ instance (
                 -- Store it in IORef as an INSERT requires us to add an id
                 watchedRecordIdsRef <- newIORef watchedRecordIds
 
-                notificationStream <- ChangeNotifications.watchInsertOrUpdateTable tableName
+                notificationStream <- ChangeNotifications.watchInsertOrUpdateTable tableNameRLS
 
                 streamReader <- async do
                     forever do
@@ -80,7 +81,7 @@ instance (
                                 --
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
-                                newRecord :: [[Field]] <- withRLS $ sqlQuery "SELECT * FROM ? WHERE id = ? LIMIT 1" (PG.Identifier (cs $ get #selectFrom query), id)
+                                newRecord :: [[Field]] <- withRLS $ sqlQuery "SELECT * FROM ? WHERE id = ? LIMIT 1" (PG.Identifier (get #table query), id)
 
                                 case headMay newRecord of
                                     Just record -> do
@@ -159,12 +160,6 @@ cleanupAllSubscriptions = do
 
 sendJSON payload = sendTextData (Aeson.encode payload)
 
-instance FromJSON ByteString where
-    parseJSON (String v) = pure $ cs v
-
-instance FromJSON PG.Action where
-    parseJSON (String v) = pure (PG.Escape (cs v))
-
 
 queryFieldNamesToColumnNames :: SQLQuery -> SQLQuery
 queryFieldNamesToColumnNames sqlQuery = sqlQuery
@@ -172,13 +167,7 @@ queryFieldNamesToColumnNames sqlQuery = sqlQuery
     where
         convertOrderByClause OrderByClause { orderByColumn, orderByDirection } = OrderByClause { orderByColumn = cs (fieldNameToColumnName (cs orderByColumn)), orderByDirection }
 
-$(deriveFromJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" } } 'SQLQuery)
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Join)
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
 $(deriveFromJSON defaultOptions 'DataSyncQuery)
-
 $(deriveToJSON defaultOptions 'DataSyncResult)
 
 instance SetField "subscriptions" DataSyncController (HashMap UUID Subscription) where

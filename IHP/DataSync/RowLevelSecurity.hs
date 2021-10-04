@@ -1,4 +1,10 @@
-module IHP.DataSync.RowLevelSecurity where
+module IHP.DataSync.RowLevelSecurity
+( withRLS
+, ensureRLSEnabled
+, hasRLSEnabled
+, TableWithRLS (tableName)
+)
+where
 
 import IHP.ControllerPrelude
 import qualified Database.PostgreSQL.Simple as PG
@@ -28,10 +34,12 @@ withRLS callback = withTransaction inner
             sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only maybeUserId)
             callback
 
-ensureRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO ()
+-- | Returns a proof that RLS is enabled for a table
+ensureRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO TableWithRLS
 ensureRLSEnabled table = do
     rlsEnabled <- hasRLSEnabled table
     unless rlsEnabled (error "Row level security is required for accessing this table")
+    pure (TableWithRLS table)
 
 -- | Returns 'True' if row level security has been enabled on a table
 --
@@ -45,3 +53,10 @@ ensureRLSEnabled table = do
 -- True
 hasRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO Bool
 hasRLSEnabled table = sqlQueryScalar "SELECT relrowsecurity FROM pg_class WHERE oid = ?::regclass" [table]
+
+-- | Can be constructed using 'ensureRLSEnabled'
+--
+-- > tableWithRLS <- ensureRLSEnabled "my_table"
+--
+-- Useful to carry a proof that the RLS is actually enabled
+newtype TableWithRLS = TableWithRLS { tableName :: Text }
