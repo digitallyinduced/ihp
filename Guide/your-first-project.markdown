@@ -220,7 +220,7 @@ The preview will show you all the files which are going to be created or modifie
 
 ![](images/first-project/code_gen_3_posts.png)
 
-After the files have been created as in the preview, your controller is ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Created, Read, Update, Delete) actions going.
+After the files have been created as in the preview, your controller is ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Create, Read, Update, Delete) actions going.
 
 Here's how the new `/Posts` page looks like:
 
