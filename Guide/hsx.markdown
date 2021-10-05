@@ -295,8 +295,8 @@ In these cases you can use [`preEscapedToHtml`](https://ihp.digitallyinduced.com
 
 Be careful when using [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:preEscapedToHtml) as it can easily introduce security issues.
 
-The `preEscapedToHtml` function can also be used to output HTML code that is not supported by HSX:
-The [`preEscapedToHtml`]() function can also be used to output HTML code that is not supported by HSX:
+The [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:preEscapedToHtml) function can also be used to output HTML code that is not supported by HSX:
+The [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:preEscapedToHtml) function can also be used to output HTML code that is not supported by HSX:
 
 ```html
 {"<!--[if IE]> Internet Explorer Conditional Comments <![endif]-->" |> preEscapedToHtml}
