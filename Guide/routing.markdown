@@ -6,7 +6,7 @@
 
 ## Routing Basics
 
-In your project routes are defined in the `Web/Routes.hs`. In addition to defining that route, it also has to be added in `Web/FrontController.hs` to be picked up by the routing system.
+In your project, routes are defined in the `Web/Routes.hs`. In addition to defining that route, it also has to be added in `Web/FrontController.hs` to be picked up by the routing system.
 
 The simplest way to define a route is by using `AutoRoute`, which automatically maps each controller action to an URL. For a `PostsController`, the definition in `Web/Routes.hs` will look like this:
 
