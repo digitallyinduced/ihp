@@ -6,7 +6,7 @@
 
 ## Restricting an action to logged-in users
 
-To restrict an action to a logged-in user, use `ensureIsUser`:
+To restrict an action to a logged-in user, use [`ensureIsUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:ensureIsUser):
 
 ```haskell
 action PostsAction = do
@@ -17,7 +17,7 @@ action PostsAction = do
 
 When someone is trying to access the `PostsAction` but is not logged-in, the browser will be redirected to the login page. After the login succeeded, the user will be redirected back to the `PostsAction`.
 
-It's common to restrict all actions inside a controller to logged-in users only. Place the `ensureIsUser` inside the `beforeAction` hook to automatically apply it to all actions:
+It's common to restrict all actions inside a controller to logged-in users only. Place the [`ensureIsUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:ensureIsUser) inside the [`beforeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:beforeAction) hook to automatically apply it to all actions:
 
 ```haskell
 instance Controller PostsController where
@@ -36,7 +36,7 @@ In this case `PostsAction` and `ShowPostAction` are only accessible to logged-in
 
 ## Restricting an action to logged-in admins
 
-To restrict an action to a logged-in admin, use `ensureIsAdmin` instead of `ensureIsUser`. If you get
+To restrict an action to a logged-in admin, use [`ensureIsAdmin`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:beforeAction) instead of [`ensureIsUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:ensureIsUser). If you get
 
 ```
 error:
@@ -57,7 +57,7 @@ instance Controller UserController where
 
 ## Checking for Permissions
 
-You can use `accessDeniedUnless` to allow certain things only for specific users. For example, to restrict a `ShowPostAction` only to the user who a post belongs to, use this:
+You can use [`accessDeniedUnless`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Authorization.html#v:accessDeniedUnless) to allow certain things only for specific users. For example, to restrict a `ShowPostAction` only to the user who a post belongs to, use this:
 
 ```haskell
     action ShowPostAction { postId } = do
