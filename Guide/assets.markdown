@@ -19,7 +19,7 @@ IHP provides an `assetPath` view helper to automatically add these hashes:
 
 ```haskell
 [hsx|
-    <script={assetPath "/app.js"}/>
+    <script src={assetPath "/app.js"}/>
     <link rel="stylesheet" href={assetPath "/app.css"}/>
 |]
 ```
