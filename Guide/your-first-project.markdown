@@ -72,9 +72,9 @@ Start the development server by running the following in the `blog` directory:
 Your application is starting now. The development server will automatically launch the built-in IDE.
 The server can be stopped by pressing CTRL+C.
 
-By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`.
+By default, your app is available at [`http://localhost:8000`](http://localhost:8000) and your development tooling is at [`http://localhost:8001`](http://localhost:8001).
 
-The development server automatically picks other ports when they are already in use by some other server. For example, it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
+The development server automatically picks other ports when they are already in use by some other server. For example, it would pick [`http://localhost:8001`](http://localhost:8001) and [`http://localhost:8002`](http://localhost:8002) if port 8000 is used.
 
 In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a WebSocket server to power live reloads on file saves inside your app.
 
@@ -83,7 +83,7 @@ The very first time you start this might take a while, and in rare cases may eve
 
 ### Hello Haskell World
 
-Open http://localhost:8000 and you will see this:
+Open [`http://localhost:8000`](http://localhost:8000) and you will see this:
 
 ![It's working screen](images/first-project/its-working.png)
 
