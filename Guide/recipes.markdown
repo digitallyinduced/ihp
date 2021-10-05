@@ -33,7 +33,7 @@ instance Controller StaticController where
     action AboutAction = render AboutView
 ```
 
-We can now customize the routing in `Web.Routes` by first deleting the `instance AutoRoute StaticController` statement to delete the auto generated routing configuration and append:
+We can now customize the routing in `Web.Routes` by first deleting the [`instance AutoRoute StaticController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:AutoRoute) statement to delete the auto generated routing configuration and append:
 
 ```haskell
 instance HasPath StaticController where
@@ -50,7 +50,7 @@ Now the terms can be reached at `/terms` instead of `/Terms`. The about is at `/
 
 ## Uploading a user profile picture
 
-You can easily upload a user profile picture using `uploadImageWithOptions` inside your `UpdateUserAction`:
+You can easily upload a user profile picture using [`uploadImageWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-FileUpload.html#v:uploadImageWithOptions) inside your `UpdateUserAction`:
 
 ```haskell
 action UpdateUserAction { userId } = do
@@ -206,9 +206,9 @@ The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by JavaS
 
 ## Making a dynamic Login/Logout button
 
-Depending on the `Maybe User` type in the [ControllerContext](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html), by using `fromFrozenContext` we can tell if no user logged in when the `Maybe User` is `Nothing`, and confirm someone is logged in if the `Maybe User` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
+Depending on the `Maybe User` type in the [ControllerContext](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html), by using [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) we can tell if no user logged in when the `Maybe User` is `Nothing`, and confirm someone is logged in if the `Maybe User` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
 
-> The `@` syntax from `fromFrozenContext @(Maybe User)` is just syntax sugar for `let maybeUser :: Maybe User = fromFrozenContext`
+> The `@` syntax from [`fromFrozenContext @(Maybe User)`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) is just syntax sugar for `let maybeUser :: Maybe User = fromFrozenContext`
 
 ```haskell
 navbar :: Html
@@ -243,7 +243,7 @@ Protip: If the `Maybe User` is a `Just user` you can use the user object to run 
 
 ## Making an HTTP request
 
-To make an HTTP request, you need `Wreq`. You need to add it to your Haskell dependencies in the `default.nix` file, like here:
+To make an HTTP request, you need [`Wreq`](https://hackage.haskell.org/package/wreq). You need to add it to your Haskell dependencies in the `default.nix` file, like here:
 
 ```bash
 ...
@@ -290,7 +290,7 @@ To confirm before a link is fired add an `onclick` to the link.
 
 ## How to generate a random string
 
-To generate a random string which can be used as a secure token or hash use `generateAuthenticationToken`:
+To generate a random string which can be used as a secure token or hash use [`generateAuthenticationToken`](https://hackage.haskell.org/package/wreq):
 
 ```haskell
 import IHP.AuthSupport.Authentication -- Not needed if you're inside a IHP controller
@@ -381,7 +381,7 @@ Given a enum defined in the `Schema.sql` like this:
 CREATE TYPE colors AS ENUM ('yellow', 'red', 'blue');
 ```
 
-you can call `allEnumValues` to get a list of all the colors:
+you can call [`allEnumValues`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:allEnumValues) to get a list of all the colors:
 
 ```haskell
 let allColors = allEnumValues @Color
@@ -413,7 +413,7 @@ page <- LBS.readFile "static/404.html"
 respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
 ```
 
-Now you can use your customNotFoundResponse:
+Now you can use your `customNotFoundResponse`:
 
 ```haskell
 action WelcomeAction  = do
