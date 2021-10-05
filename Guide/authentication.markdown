@@ -54,7 +54,7 @@ instance HasNewSessionUrl User where
 type instance CurrentUserRecord = User
 ```
 
-The `instance HasNewSessionUrl User` tells the auth module where to redirect a user in case the user tries to access a action that requires login. The definition of `CurrentUserRecord` tells the auth system to use our `User` type within the login system.
+The `instance HasNewSessionUrl User` tells the auth module where to redirect a user in case the user tries to access a action that requires login. The definition of [`CurrentUserRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Types.html#t:CurrentUserRecord) tells the auth system to use our `User` type within the login system.
 
 We also need to add the type definitions for the `SessionsController`:
 
@@ -134,7 +134,7 @@ import IHP.LoginSupport.Middleware
 import Web.Controller.Sessions
 ```
 
-We then need to mount our session controller by adding `parseRoute @SessionController`:
+We then need to mount our session controller by adding [`parseRoute @SessionController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseRoute):
 
 ```haskell
 instance FrontController WebApplication where
@@ -154,7 +154,7 @@ instance InitControllerContext WebApplication where
         initAutoRefresh
 ```
 
-We need to extend this function with a `initAuthentication @User` like this:
+We need to extend this function with a [`initAuthentication @User`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Middleware.html#v:initAuthentication) like this:
 
 ```haskell
 instance InitControllerContext WebApplication where
@@ -164,7 +164,7 @@ instance InitControllerContext WebApplication where
         initAuthentication @User
 ```
 
-This will fetch the user from the database when a `userId` is given in the session. The fetched user record is saved to the special `?context` variable and is used by all the helper functions like `currentUser`.
+This will fetch the user from the database when a `userId` is given in the session. The fetched user record is saved to the special `?context` variable and is used by all the helper functions like [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser).
 
 
 ## Trying out the login
@@ -177,7 +177,7 @@ After you have completed the above steps, you can open the login at `/NewSession
 
 ## Accessing the current user
 
-Inside your actions you can then use `currentUser` to get access to the current logged in user:
+Inside your actions you can then use [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser) to get access to the current logged in user:
 
 ```haskell
 action MyAction = do
@@ -185,9 +185,9 @@ action MyAction = do
     renderPlain text
 ```
 
-In case the user is logged out, an exception will be thrown when accessing `currentUser` and the browser will automatically be redirected to the `NewSessionAction`.
+In case the user is logged out, an exception will be thrown when accessing [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser) and the browser will automatically be redirected to the `NewSessionAction`.
 
-You can use `currentUserOrNothing` to manually deal with the not-logged-in case:
+You can use [`currentUserOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUserOrNothing) to manually deal with the not-logged-in case:
 
 ```haskell
 action MyAction = do
@@ -198,9 +198,9 @@ action MyAction = do
         Nothing -> renderPlain "Please login first"
 ```
 
-Additionally you can use `currentUserId` as a shortcut for `currentUser |> get #id`.
+Additionally you can use [`currentUserId`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUserId) as a shortcut for `currentUser |> get #id`.
 
-You can also access the user using `currentUser` inside your views:
+You can also access the user using [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser) inside your views:
 
 ```html
 [hsx|
@@ -210,7 +210,7 @@ You can also access the user using `currentUser` inside your views:
 
 ## Performing actions on login
 
-The sessioncontroller has a convenient `beforeLogin` which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins or aborting the login when the user is blocked. Add code for it in your `Web/Controller/Sessions.hs`. To update number of logins (requires `logins` integer field in `Users` table):
+The sessioncontroller has a convenient [`beforeLogin`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Controller-Sessions.html#v:beforeLogin) which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins or aborting the login when the user is blocked. Add code for it in your `Web/Controller/Sessions.hs`. To update number of logins (requires `logins` integer field in `Users` table):
 
 ```haskell
 instance Sessions.SessionsControllerConfig User where
@@ -223,7 +223,7 @@ updateLoginHistory user = do
     pure ()
 ```
 
-To block login (requires `isConfirmed`boolean field in `Users` table):
+To block login (requires `isConfirmed` boolean field in `Users` table):
 
 ```haskell
 instance Sessions.SessionsControllerConfig User where
