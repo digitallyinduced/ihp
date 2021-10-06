@@ -78,8 +78,7 @@ Inside the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideCo
 <button onclick="callServerAction('IncrementCounterAction')">Plus One</button>
 ```
 
-When the `callServerAction('IncrementCounterAction')` is called, it will trigger the `action state IncrementCounterAction = do` haskell block to be called on the server.
-When the `callServerAction('IncrementCounterAction')` is called, it will trigger the [`action state IncrementCounterAction = do`]() haskell block to be called on the server.
+When the `callServerAction('IncrementCounterAction')` is called, it will trigger the [`action state IncrementCounterAction = do`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:action) haskell block to be called on the server.
 
 You can see that the [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:action) handler get's passed the current state and will return a new state based on the action and the current state.
 
