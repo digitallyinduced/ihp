@@ -50,7 +50,7 @@ cd haddock-build
 find . -type f \( -iname "*.html" \) -exec sed -i 's#<head>#<head><link rel="shortcut icon" type="image\/x-icon" href="https:\/\/ihp.digitallyinduced.com\/ihp-logo.svg"\/>#g' '{}' +
 
 # Add ihp-haddock.css
-cp ../ihp-haddock.css haddock-build/
+cp ../ihp-haddock.css ihp-haddock.css
 find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
 
 # Link title to index
