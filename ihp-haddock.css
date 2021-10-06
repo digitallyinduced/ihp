@@ -1,0 +1,104 @@
+a[href]:link {
+    color: hsla(192, 81%, 26%, 0.8)
+}
+
+a[href]:visited {
+    color: #839496;
+}
+
+a[href]:hover {
+    text-decoration: none;
+    color: #093642;
+}
+
+#package-header {
+    background-color: hsla(192, 81%, 5%, 0.04);
+    border-bottom: 5px solid transparent;
+}
+
+#package-header > .caption {
+    color: #073642;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+}
+
+#package-header > .caption img {
+    height: 24px;
+    margin-right: 24px;
+    line-height: 24px;
+}
+
+#package-header #page-menu a:link, #package-header #page-menu a:visited {
+    color: rgb(13 14 15 / 64%)
+}
+
+.caption, h1, h2, h3, h4, h5, h6, summary {
+    color: #073642;
+}
+
+#content > #module-list:first-child { display: none }
+
+.collapser:before, .expander:before, .noexpander:before {
+    color: currentColor;
+}
+
+* {
+    transition: all 0.1s;
+}
+
+.src {
+    background-color:  rgba(0, 43, 54, 0.11);
+    border-radius: 3px;
+}
+
+.top p.src {
+    border-bottom-color: rgba(0, 43, 54, 0.11);
+}
+
+#interface .src .selflink, #interface .src .link {
+    color: #839496
+}
+
+.keyword {
+    color: #859900;
+}
+
+.def {
+    color: #073642;
+}
+
+body {
+    font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+    background-color: hsla(192, 81%, 5%, 0.01);
+    color: #073642;
+}
+
+#module-header .info {
+    display: none;
+}
+
+#module-header .caption {
+    border-bottom: 0;
+    font-weight: 800;
+    font-size: 2rem;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+#interface > h1 {
+    display: none;
+}
+
+#footer {
+    opacity: 0;
+}
+
+pre, code, kbd, samp, tt, .src {
+    font-family: Menlo, Consolas, monospace;
+}
+
+#module-list span.collapser, #module-list span.expander {
+    font-weight: 600;
+    color: #073642;
+}
