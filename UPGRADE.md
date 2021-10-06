@@ -46,7 +46,7 @@ After that apply this migration to all your IHP instances running on `v.0.14.0`.
 Open `default.nix` and change the git commit in line 4 to the following:
 
 ```diff
--ref = "refs/tags/v0.12.0";
+-ref = "refs/tags/v0.13.0";
 +ref = "refs/tags/v0.13.1";
 ```
 
