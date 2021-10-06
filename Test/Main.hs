@@ -44,6 +44,7 @@ import qualified Test.ServerSideComponent.HtmlDiffSpec
 import qualified Test.Postgres.Point
 import qualified Test.Postgres.TSVector
 import qualified Test.FileStorage.MimeTypesSpec
+import qualified Test.DataSync.DynamicQueryCompiler
 
 main :: IO ()
 main = hspec do
@@ -75,3 +76,4 @@ main = hspec do
     Test.Postgres.Point.tests
     Test.Postgres.TSVector.tests
     Test.FileStorage.MimeTypesSpec.tests
+    Test.DataSync.DynamicQueryCompiler.tests
