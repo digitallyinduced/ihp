@@ -371,7 +371,7 @@ CSS_FILES += static/startpage.css # The second import of app.css
 
 We need to update the `Layout.hs` to only load `prod.css` and `prod.js` when running in production. 
 
-For that we use `isDevelopment` and `isProduction` to conditionally load different files. Change your `Web/View/Layout.hs` to look like this:
+For that we use [`isDevelopment`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isDevelopment) and [`isProduction`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isProduction) to conditionally load different files. Change your `Web/View/Layout.hs` to look like this:
 
 ```haskell
 stylesheets :: Html

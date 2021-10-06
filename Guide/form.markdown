@@ -14,7 +14,7 @@ Unless javascript helpers have been deactivated, your form will be submitted usi
 
 ## Simple Forms
 
-Forms usually begin with a `formFor` expression. This is how a simple form can look like:
+Forms usually begin with a [`formFor`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor) expression. This is how a simple form can look like:
 
 ```haskell
 renderForm :: Post -> Html
@@ -51,21 +51,19 @@ All inputs have auto-generated class names and ids for styling. Also, all `name`
 
 IHP has the most commonly-used form controls built in. In general the form control helpers just need to be passed the field name. Here is a list of all built-in form control helpers:
 
-```haskell
-{textField #title}
-{textareaField #body}
-{colorField #brandColor}
-{emailField #email}
-{dateField #dueAt}
-{passwordField #password}
-{dateTimeField #createdAt}
-{numberField #quantity}
-{hiddenField #projectId}
-{checkboxField #termsAccepted}
-{selectField #projectId allProjects}
-{fileFile #profilePicture}
-{submitButton}
-```
+- [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField)
+- [`{textareaField #body}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textareaField)
+- [`{colorField #brandColor}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:colorField)
+- [`{emailField #email}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:emailField)
+- [`{dateField #dueAt}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:dateField)
+- [`{passwordField #password}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:passwordField)
+- [`{dateTimeField #createdAt}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:dateTimeField)
+- [`{numberField #quantity}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:numberField)
+- [`{hiddenField #projectId}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:hiddenField)
+- [`{checkboxField #termsAccepted}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:checkboxField)
+- [`{selectField #projectId allProjects}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:selectField)
+- [`{fileFile #profilePicture}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField)
+- [`{submitButton}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:submitButton)
 
 A form control is always filled with the value of the given field when rendering. For example, given a post
 
@@ -73,7 +71,7 @@ A form control is always filled with the value of the given field when rendering
 let post = Post { ..., title = "Hello World" }
 ```
 
-Rendering `{textField #title}`, the input value will be set like
+Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField), the input value will be set like
 
 ```html
 <input ... value="Hello World" />
@@ -90,7 +88,7 @@ let post = Post { ..., title = "" }
     |> validateField #title nonEmpty
 ```
 
-Rendering `{textField #title}`, the input will have the css class `is-invalid` and an element with the error message will be rendered below the input:
+Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField), the input will have the css class `is-invalid` and an element with the error message will be rendered below the input:
 
 ```html
 <div class="form-group" id="form-group-post_title">
@@ -108,7 +106,7 @@ Rendering `{textField #title}`, the input will have the css class `is-invalid` a
 
 ## Forms Are Also HSX
 
-It's important to understand that while the form helpers like `{textField #title}` are called by `formFor`, you can still use HSX there. So you can just add any kind of HSX code inside your form:
+It's important to understand that while the form helpers like [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField) are called by [`formFor`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor), you can still use HSX there. So you can just add any kind of HSX code inside your form:
 
 ```haskell
 renderForm :: Post -> Html
@@ -136,7 +134,7 @@ Inside the HSX block of a form, you have access to the special `?formContext` va
 
 ## Customizing Inputs
 
-The return values of the form control helpers are usually a value of type [FormField](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:FormField). The `FormField` value is automatically rendered as HTML when used inside an HSX expression. Before this rendering happens, you can specify options to customize the rendering.
+The return values of the form control helpers are usually a value of type [FormField](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:FormField). The [`FormField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) value is automatically rendered as HTML when used inside an HSX expression. Before this rendering happens, you can specify options to customize the rendering.
 
 ### Help Texts
 
@@ -159,7 +157,7 @@ This will render like:
 
 ### Custom Field Label Text
 
-By default, the field name will be used as a label text. The camel case field name will be made more human-readable of course, so `contactName` will turn to `Contact Name`, etc. Sometimes you want to change this auto-generated input label to something custom. Use `fieldLabel` for that, like this:
+By default, the field name will be used as a label text. The camel case field name will be made more human-readable of course, so `contactName` will turn to `Contact Name`, etc. Sometimes you want to change this auto-generated input label to something custom. Use [`fieldLabel`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) for that, like this:
 
 ```haskell
 {(textField #title) { fieldLabel = "Post Title"} }
@@ -176,7 +174,7 @@ This will render like:
 
 ### Custom CSS Classes
 
-You can add custom CSS classes to the input and label for better styling. Set `fieldClass` for adding a class to the input element and `labelClass` for the label element:
+You can add custom CSS classes to the input and label for better styling. Set [`fieldClass`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) for adding a class to the input element and [`labelClass`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) for the label element:
 
 ```haskell
 {(textField #title) { fieldClass="title-input", labelClass = "title-label" } }
@@ -398,7 +396,7 @@ This will render like:
 
 #### Don't render `<label>`
 
-You can specify `disableLabel` to stop the label element from being generated:
+You can specify [`disableLabel`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) to stop the label element from being generated:
 
 ```haskell
 {(textField #title) { disableLabel = True }
@@ -420,7 +418,7 @@ Will render as:
 
 #### Don't render `<div class="form-group">`
 
-You can specify `disableGroup` to stop the outer `<div class="form-group">` element from being generated:
+You can specify [`disableGroup`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) to stop the outer `<div class="form-group">` element from being generated:
 
 ```haskell
 {(textField #title) { disableGroup = True }
@@ -441,17 +439,17 @@ Will render as:
 
 #### Don't show validation error message
 
-You can specify `disableValidationResult` to stop the validation error message being shown when the validation failed:
+You can specify [`disableValidationResult`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) to stop the validation error message being shown when the validation failed:
 
 ```haskell
 {(textField #title) { disableValidationResult = True }
 ```
 
-This works out of the box for most Haskell data types. When you are working with a custom data type, e.g. a custom enum value, you need to add a `InputValue MyDataType` implementation. We will cover this later in this Guide.
+This works out of the box for most Haskell data types. When you are working with a custom data type, e.g. a custom enum value, you need to add a [`InputValue MyDataType`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:InputValue) implementation. We will cover this later in this Guide.
 
 ### Standalone Validation Errors
 
-If you're using a custom widget for a form field, you might still want to show IHP's validation errors. Use `validationResult #someField` to render a standalone validation error:
+If you're using a custom widget for a form field, you might still want to show IHP's validation errors. Use [`validationResult #someField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:validationResult) to render a standalone validation error:
 
 ```haskell
 formFor user [hsx|
@@ -466,17 +464,17 @@ formFor user [hsx|
 |]
 ```
 
-The `{validationResult #email}` will render like this when the validation failed:
+The [`{validationResult #email}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:validationResult) will render like this when the validation failed:
 
 ```html
 <div class="invalid-feedback">is not a valid email</div>
 ```
 
-If there's no validation failure on the given field, the `validationResult` will not render anything.
+If there's no validation failure on the given field, the [`validationResult`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:validationResult) will not render anything.
 
 #### Standalone Validation Errors Without Styling
 
-If you need more control over the styling of your validation error, you can use `validationResultMaybe #someField`. This function will return `Just "some error"` when there's a validation failure on that field or `Nothing` if the field passed validation.
+If you need more control over the styling of your validation error, you can use [`validationResultMaybe #someField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:validationResultMaybe). This function will return `Just "some error"` when there's a validation failure on that field or `Nothing` if the field passed validation.
 
 You can use this to write custom error messages in your form:
 
@@ -516,7 +514,7 @@ action NewInviteAction = do
 
 Select inputs require you to pass a list of possible values to select.
 
-You can use the `selectField` helper for select inputs:
+You can use the [`selectField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:selectField) helper for select inputs:
 
 ```haskell
 formFor project [hsx|
@@ -526,7 +524,7 @@ formFor project [hsx|
 
 In the example above the variable `users` contains all the possible option values for the select.
 
-You also need to define a instance `CanSelect User`:
+You also need to define a instance [`CanSelect User`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect):
 
 ```haskell
 instance CanSelect User where
@@ -562,7 +560,7 @@ If you want a certain value to be preselected, set the value in the controller. 
 
 ### Select Inputs with Nullable Value
 
-Sometimes we want to allow the user to specifically make a choice of missing/none. To have our user-dropdown from the previous example allow this we need to adjust the `CanSelect` instance.
+Sometimes we want to allow the user to specifically make a choice of missing/none. To have our user-dropdown from the previous example allow this we need to adjust the [`CanSelect`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect) instance.
 
 ```haskell
 instance CanSelect (Maybe User) where
@@ -591,7 +589,7 @@ Given an enum like this:
 CREATE TYPE CONTENT_TYPE AS ENUM ('video', 'article', 'audio');
 ```
 
-We need to define a `CanSelect ContentType` like this:
+We need to define a [`CanSelect ContentType`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect) like this:
 
 ```haskell
 instance CanSelect ContentType where
@@ -604,7 +602,7 @@ instance CanSelect ContentType where
     -- You can also use the following shortcut: selectLabel = tshow
 ```
 
-The helper function `allEnumValues @ContentType` can then be used in your 
+The helper function [`allEnumValues @ContentType`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:allEnumValues) can then be used in your 
 view to generate the list of select fields:
 
 ```haskell
@@ -631,7 +629,7 @@ formFor subscription [hsx|
         -- Quick reminder: [1..10] is just a shortcut for [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] in haskell :)
 ```
 
-You also need a `CanSelect` instance like this:
+You also need a [`CanSelect`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect) instance like this:
 
 
 ```haskell
@@ -645,9 +643,9 @@ instance CanSelect Int where
 
 ### Custom Form Action / Form URLs
 
-The URL where the form is going to be submitted to is specified in HTML using the form's `action` attribute. When using `formFor` the `action` attribute is automatically set to the expected path.
+The URL where the form is going to be submitted to is specified in HTML using the form's `action` attribute. When using [`formFor`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor) the `action` attribute is automatically set to the expected path.
 
-E.g. given the below `formFor` code, the `action` is set to `/CreatePost` or `/UpdatePost`:
+E.g. given the below [`formFor`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor) code, the `action` is set to `/CreatePost` or `/UpdatePost`:
 
 ```haskell
 renderForm :: Post -> Html
@@ -658,21 +656,21 @@ renderForm post = formFor post [hsx|
 |]
 ```
 
-To override the auto-generated `action` attribute use the `formFor'` function:
+To override the auto-generated `action` attribute use the [`formFor'`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor-39-) function:
 
 ```haskell
 renderForm :: Post -> Html
 renderForm post = formFor' post "/my-custom-endpoint" [hsx||]
 ```
 
-If you pass an action to that, you need to wrap it with `pathTo`:
+If you pass an action to that, you need to wrap it with [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo):
 
 ```haskell
 renderForm :: Post -> Html
 renderForm post = formFor' post (pathTo CreateDraftAction) [hsx||]
 ```
 
-If you want to combine this with other customizations, you can also specify a custom path using `formForWithOptions`:
+If you want to combine this with other customizations, you can also specify a custom path using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions):
 
 ```haskell
 renderForm :: Post -> Html
@@ -694,7 +692,7 @@ By default forms have the CSS class `new-form` or `edit-form`, depending on if t
 <form class="edit-form">
 ```
 
-You can override the form class using `formForWithOptions`:
+You can override the form class using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions):
 
 ```haskell
 renderForm :: Post -> Html
@@ -712,7 +710,7 @@ The generated HTML will look like this:
 <form class="custom-form-class">
 ```
 
-If you want to append your own classes while keeping the default `new-form` and `edit-form` classes, use `modify`:
+If you want to append your own classes while keeping the default `new-form` and `edit-form` classes, use [`modify`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:modify):
 
 ```haskell
 options :: FormContext Post -> FormContext Post
@@ -723,7 +721,7 @@ options formContext =
 
 ### Custom Form Id
 
-By default forms don't have an id. You can set a `<form id="">` attribute using `formForWithOptions`:
+By default forms don't have an id. You can set a `<form id="">` attribute using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions):
 
 ```haskell
 renderForm :: Post -> Html
@@ -743,7 +741,7 @@ The generated HTML will look like this:
 
 ### Custom Form Attributes
 
-You can specifiy custom HTML attributes using `formForWithOptions`.
+You can specifiy custom HTML attributes using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions).
 
 ```haskell
 renderForm :: Post -> Html
@@ -770,7 +768,7 @@ Your form will be submitted using AJAX and TurboLinks instead of browser-based f
 
 Sometimes this behavior is problematic. For example when the successful form submissions redirects to page that starts a Single Page App. Usually you want to have a clean page refresh here to avoid troubles with the JavaScript.
 
-Set `disableJavascriptSubmission` to `True` to use normal browser-based form submission:
+Set [`disableJavascriptSubmission`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormContext) to `True` to use normal browser-based form submission:
 
 ```haskell
 renderForm :: Post -> Html
@@ -782,7 +780,7 @@ options formContext =
     |> set #disableJavascriptSubmission True
 ```
 
-There's also a shortcut called `formForWithoutJavascript` for this:
+There's also a shortcut called [`formForWithoutJavascript`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithoutJavascript) for this:
 
 ```haskell
 renderForm :: Post -> Html
@@ -823,7 +821,7 @@ An action that can deal with an arbitrary amount of fields can look like this:
             (invalidPosts, validPosts) -> render NewView { posts }
 ```
 
-The `NewView` needs to be changed as well to deal with an arbitrary amount of posts. For these cases we cannot use `formFor`, but we'll handle the job of `formFor` manually:
+The `NewView` needs to be changed as well to deal with an arbitrary amount of posts. For these cases we cannot use `formFor`, but we'll handle the job of [`formFor`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor) manually:
 
 ```haskell
 module Web.View.Posts.New where

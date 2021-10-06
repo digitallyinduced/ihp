@@ -10,7 +10,7 @@ IHP has first class support for WebSockets.
 
 **When you only want to use WebSockets to update the UI:** Check out [Auto Refresh](https://ihp.digitallyinduced.com/Guide/auto-refresh.html). The Auto Refresh API provides a high-level approach for pushing HTML/UI updates from the server-side build on top of WebSockets.
 
-The entry points for your WebSocket servers are similiar to the typical IHP controllers, and are also stored in the `Web/Controller/` directory. Similiar to normal IHP controllers, the WebSocket servers are also added to the `FrontController` later on.
+The entry points for your WebSocket servers are similiar to the typical IHP controllers, and are also stored in the `Web/Controller/` directory. Similiar to normal IHP controllers, the WebSocket servers are also added to the [`FrontController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:FrontController) later on.
 
 ## Creating a WebSocket Controlller
 
@@ -59,7 +59,7 @@ instance FrontController WebApplication where
         ]
 ```
 
-As you can see, the WebSocket controller is using `webSocketApp` instead of the usual `parseRoute` function.
+As you can see, the WebSocket controller is using [`webSocketApp`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketApp) instead of the usual [`parseRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseRoute) function.
 
 Our `HelloWorldController` can now be accessed at `ws://localhost:8000/HelloWorldController`.
 
@@ -105,7 +105,7 @@ instance WSApp HelloWorldController where
         sendTextData ("Hello " <> name <> "!")
 ```
 
-The `receiveData` function is used to read data sent by the `JS` side of our code. The `receiveData` function waits until the client is sending us some data before it continues running the `run` function.
+The [`receiveData`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveData) function is used to read data sent by the `JS` side of our code. The [`receiveData`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveData) function waits until the client is sending us some data before it continues running the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function.
 
 On the JS side we now need to send our name like this:
 
@@ -122,11 +122,11 @@ helloWorldController.onmessage = function (event) {
 };
 ```
 
-Once the connection is ready, this will ask for the users name and will then send it over the wire. On the server the call of `receiveData` will then return the name we entered and the server will send back the greeting.
+Once the connection is ready, this will ask for the users name and will then send it over the wire. On the server the call of [`receiveData`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveData) will then return the name we entered and the server will send back the greeting.
 
 ### Receiving Other Data Types
 
-The `receiveData` function can also deal with other types such as `Int` or `UUID`. You can use it like that: 
+The [`receiveData`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveData) function can also deal with other types such as `Int` or `UUID`. You can use it like that: 
 
 ```haskell
 myInt  :: Int  <- receiveData
@@ -150,7 +150,7 @@ data HelloWorldController
 
 The `WaitForName` now reflects the state before the names has been entered, and the `NameEntered { name = ".." }` keeps track of the entered name.
 
-We need to update the controlller to reflect our new data structure. First we need to make `WaitForName` the start state. For that we need to update the `initialState` in `Web/Controller/HelloWorld.hs`:
+We need to update the controlller to reflect our new data structure. First we need to make `WaitForName` the start state. For that we need to update the [`initialState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:initialState) in `Web/Controller/HelloWorld.hs`:
 
 ```haskell
     initialState = WaitForName
@@ -167,9 +167,9 @@ Next we're going to update our `run` function to update the state after it got t
         sendTextData ("Hello " <> name <> "!")
 ```
 
-The `setState NameEntered { name }` changes the state from `WaitForName` to `NameEntered`.
+The [`setState NameEntered { name }`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:setState) changes the state from `WaitForName` to `NameEntered`.
 
-To do something when the connection is closed, we're using the `onClose` lifecycle event:
+To do something when the connection is closed, we're using the [`onClose`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:onClose) lifecycle event:
 
 ```haskell
 module Web.Controller.HelloWorld where
@@ -193,18 +193,18 @@ instance WSApp HelloWorldController where
                 putStrLn message
 ```
 
-You can see that we can access the state using `state <- getState`.
+You can see that we can access the state using [`state <- getState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:getState).
 
 Now whenever the connection is closed, it will print out the message inside the terminal where the IHP server is running.
 
-**Good to know:** The connection is automatically closed when the `run` function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a `forever receiveDataMessage` to the end of the `run`.
+**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a [`forever receiveDataMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveDataMessage) to the end of the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run).
 
-As you've seen above the primitive state operations are `setState` and `getState`. Using these two operations together with a good data structure is a very powerful way to manage your stateful WebSocket connections.
+As you've seen above the primitive state operations are [`setState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:setState) and [`getState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:getState). Using these two operations together with a good data structure is a very powerful way to manage your stateful WebSocket connections.
 
 
 ## Accessing the current user
 
-When the user is logged in, you can use the normal auth functions like `currentUser` inside the WebSocket controller as well:
+When the user is logged in, you can use the normal auth functions like [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser) inside the WebSocket controller as well:
 
 ```haskell
 module Web.Controller.HelloWorld where
@@ -221,7 +221,7 @@ instance WSApp HelloWorldController where
 
 ### Receiving Custom Data Types
 
-You can write a custom decoder for `receiveData` by writing an instance of `WebSocketsData` for your data type. Here's an example for how the `UUID` decoder is implemented:
+You can write a custom decoder for [`receiveData`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveData) by writing an instance of `WebSocketsData` for your data type. Here's an example for how the `UUID` decoder is implemented:
 
 ```haskell
 import qualified Network.WebSockets as WS
@@ -253,9 +253,9 @@ In this example the WebSocket server will be available at `/my-ws`.
 
 ### Ping
 
-By default the server will ping the browser every 30 seconds to make sure that the connection is still alive. You can run custom code whenever the ping has finished by overriding the `onPing` function.
+By default the server will ping the browser every 30 seconds to make sure that the connection is still alive. You can run custom code whenever the ping has finished by overriding the [`onPing`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:onPing) function.
 
-Here's an example of how `AutoRefresh` uses `onPing` to keep Auto Refresh Sessions from being closed:
+Here's an example of how [`AutoRefresh`](/auto-refresh.html) uses [`onPing`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:onPing) to keep Auto Refresh Sessions from being closed:
 
 ```haskell
     onPing = do

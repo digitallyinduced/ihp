@@ -57,9 +57,9 @@ In the view we can just access the comments like this:
 
 The `post |> get #comments` returns a list of the comments belonging to the post.
 
-The type of `post` is `Include "comments" Post` instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
+The type of `post` is [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
 
-It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as `Include "comments" (Include "tags" Post)` or with the more convinient way as `Include' ["comments", "tags"] Post`.
+It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as [`Include "comments" (Include "tags" Post)`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) or with the more convinient way as [`Include' ["comments", "tags"] Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include-39-).
 
 Note that for the above example, it is expected that the query will change as-well:
 
@@ -73,7 +73,7 @@ post <- fetch postId
 
 ### Order by
 
-When we want to order the relationship in a certain way, we can just apply our commonly used `orderBy` function:
+When we want to order the relationship in a certain way, we can just apply our commonly used [`orderBy`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:orderBy) function:
 
 ```haskell
 let postId :: Id Post = ...
@@ -83,7 +83,7 @@ post <- fetch postId
     >>= fetchRelated #comments
 ```
 
-This works because the `comments` field of a `Post` is just a `QueryBuilder` before we call `fetchRelated`.
+This works because the `comments` field of a `Post` is just a [`QueryBuilder`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#t:QueryBuilder) before we call [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated).
 
 This query builder is equivalent to:
 
@@ -91,19 +91,19 @@ This query builder is equivalent to:
 query @Comment |> filterWhere (#postId, get #id post)
 ```
 
-The call to `>>= pure . modify #comments (orderByDesc #createdAt)` just appends a `|> orderByDesc #createdAt` like this:
+The call to `>>= pure . modify #comments (orderByDesc #createdAt)` just appends a [`|> orderByDesc #createdAt`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:orderByDesc) like this:
 
 ```haskell
 query @Comment |> filterWhere (#postId, get #id post) |> orderByDesc #createdAt
 ```
 
-Then the `fetchRelated` basically just executes this query builder and puts the result back into the `comments` field of the `post` record.
+Then the [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) basically just executes this query builder and puts the result back into the `comments` field of the `post` record.
 
 ### Multiple Records
 
 #### Fetching all Posts with their Comments (One-to-many)
 
-When we want to fetch all the comments for a list of posts, we can use `collectionFetchRelated`:
+When we want to fetch all the comments for a list of posts, we can use [`collectionFetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:collectionFetchRelated):
 
 ```haskell
 posts <- query @Post
@@ -111,7 +111,7 @@ posts <- query @Post
     >>= collectionFetchRelated #comments
 ```
 
-This will query all posts with all their comments. The type of `posts` is `[Include "comments" Post]`.
+This will query all posts with all their comments. The type of `posts` is [`[Include "comments" Post]`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include).
 
 The above Haskell code will trigger the following two SQL queries to be executed:
 
@@ -152,7 +152,7 @@ comments <- query @Comment
     >>= collectionFetchRelated #postId
 ```
 
-This will query all comments and their respective posts. The type of `comments` is `[Include "postId" Comment]`.
+This will query all comments and their respective posts. The type of `comments` is [`[Include "postId" Comment]`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include).
 
 The Haskell code will trigger the following two SQL queries:
 
@@ -182,7 +182,7 @@ renderComment comment = [hsx|
 
 ### Order With Multiple Records
 
-If you want to sort the results after fetching multiple records with `collectionFetchRelated`
+If you want to sort the results after fetching multiple records with [`collectionFetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:collectionFetchRelated)
 
 ```haskell
 posts <-
@@ -194,7 +194,7 @@ posts <-
 
 ## Belongs To Relationships
 
-Given a specific comment, we can fetch the post this comment belongs to. Like other relationships this is also using `fetchRelated`:
+Given a specific comment, we can fetch the post this comment belongs to. Like other relationships this is also using [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated):
 
 ```haskell
 let comment :: Id Comment = ...
@@ -220,7 +220,7 @@ In the view we can just access the comments like this:
 |]
 ```
 
-The type of `comment` is `Include "postId" Comment` instead of the usual `Comment`. This way the state of a fetched nested resource is tracked at the type level.
+The type of `comment` is [`Include "postId" Comment`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) instead of the usual `Comment`. This way the state of a fetched nested resource is tracked at the type level.
 
 ## Delete Behavior
 
@@ -251,11 +251,11 @@ query @Posts
         |> filterWhereJoinedTable @Department (#number, 5)
 ```
 
-`innerJoin` is used to join the `users` table (for type `User`) to the primary table `posts` (for type `Posts`) on the columns `posts.author_id` and `users.id`. Type checks ascertain that both tables actually have the pertinent columns.
+[`innerJoin`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:innerJoin) is used to join the `users` table (for type `User`) to the primary table `posts` (for type `Posts`) on the columns `posts.author_id` and `users.id`. Type checks ascertain that both tables actually have the pertinent columns.
 
-The function `innerJoinThirdTable` is used to join a third table on a column of some previously joined table. In the example, the table is `departments` and it is joined on `departments.id = users.department_id`. Again, the type system ascertains that the columns actually exist on the pertinent tables. It is furthermore ascertained that the table associated with the second type `User` has been joined before.
+The function [`innerJoinThirdTable`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:innerJoinThirdTable) is used to join a third table on a column of some previously joined table. In the example, the table is `departments` and it is joined on `departments.id = users.department_id`. Again, the type system ascertains that the columns actually exist on the pertinent tables. It is furthermore ascertained that the table associated with the second type `User` has been joined before.
 
-To add `WHERE` clauses involving a joined table, there is a family of functions of functions named like the ordinary filter functions, but suffixed with "JoinedTable". Where the normal filter functions use columns from the primary table, the tabel that the JoinedTable-functions operate on is specified by the type they are called with. In the example, the `filterWhereJoinedTable` filters all rows where `department.number` equals 5.
+To add `WHERE` clauses involving a joined table, there is a family of functions of functions named like the ordinary filter functions, but suffixed with "JoinedTable". Where the normal filter functions use columns from the primary table, the tabel that the JoinedTable-functions operate on is specified by the type they are called with. In the example, the [`filterWhereJoinedTable`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:filterWhereJoinedTable) filters all rows where `department.number` equals 5.
 
 ### Many-to-many relationships and labeled results
 

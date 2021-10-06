@@ -10,9 +10,9 @@ IHP views are usually represented as HTML, but can also be represented as JSON o
 
 The HTML templating is implemented on top of the well-known blaze-html Haskell library. To quickly build HTML views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to Haskell code at compile-time.
 
-The controller provides the view with a key-value map called `ControllerContext`. The `ControllerContext` provides the view information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current HTTP request, logged-in user, flash messages, the layout, etc..
+The controller provides the view with a key-value map called [`ControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ControllerContext). The [`ControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ControllerContext) provides the view information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current HTTP request, logged-in user, flash messages, the layout, etc..
 
-Usually, a view consists of a data structure and a `View` instance. E.g. like this:
+Usually, a view consists of a data structure and a [`View`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#t:View) instance. E.g. like this:
 
 ```haskell
 data ExampleView = ExampleView { optionA :: Text, optionB :: Bool }
@@ -56,7 +56,7 @@ module Web.View.Layout (defaultLayout, appLayout) where
 
 ### Using a layout inside a single view
 
-To use the layout inside a view, call `setLayout` from the `beforeRender`:
+To use the layout inside a view, call [`setLayout`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Layout.html#v:setLayout) from the [`beforeRender`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:beforeRender):
 
 ```haskell
 instance View MyView where
@@ -66,7 +66,7 @@ instance View MyView where
 
 ### Using a layout for a complete controller
 
-When all views of a controller use a custom layout place the `setLayout` call in the `beforeAction` of the controller:
+When all views of a controller use a custom layout place the [`setLayout`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Layout.html#v:setLayout) call in the [`beforeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:beforeAction) of the controller:
 
 ```haskell
 instance Controller MyController where
@@ -79,7 +79,7 @@ instance Controller MyController where
 
 ### Changing the default layout
 
-You can change the default layout of your application by updating `initContext` in `Web.FrontController`.
+You can change the default layout of your application by updating [`initContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:initContext) in `Web.FrontController`.
 
 ```haskell
 instance InitControllerContext WebApplication where
@@ -89,7 +89,7 @@ instance InitControllerContext WebApplication where
 
 ### Disabling the Layout for a View
 
-You can disable the layout for a specific view by overriding the `beforeRender` function like this:
+You can disable the layout for a specific view by overriding the [`beforeRender`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:beforeRender) function like this:
 
 ```haskell
 instance View MyView where
@@ -139,7 +139,7 @@ initCompanyContext =
         Nothing -> pure ()
 ```
 
-The `initContext` is called on every request, just before the action is executed. The `initCompanyContext` fetches the current user's company and then calls `putContext company` to store it inside the controller context.
+The [`initContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:initContext) is called on every request, just before the action is executed. The `initCompanyContext` fetches the current user's company and then calls [`putContext company`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:putContext) to store it inside the controller context.
 
 Next we'll read the company from the `Layout.hs`
 
@@ -166,9 +166,9 @@ company :: (?context :: ControllerContext) => Company
 company = fromFrozenContext
 ```
 
-Here the company is read by using the `fromFrozenContext` function.
+Here the company is read by using the [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) function.
 
-You might wonder: How does `fromFrozenContext` know that I want the company? The context is a key-value map, where the key's are the type of the object. Using the `company :: Company` type annotation the `fromFrozenContext` knows we want to read the value with the key `Company`.
+You might wonder: How does [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) know that I want the company? The context is a key-value map, where the key's are the type of the object. Using the `company :: Company` type annotation the [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) knows we want to read the value with the key `Company`.
 
 Now the `company` variable can be used to read the current user's company across the layout and also in all views (you need to add `company` to the export list of the Layout module for that). If the `company` value is used somewhere during rendering while the user is not logged it will raise a runtime error.
 
@@ -176,7 +176,7 @@ Now the `company` variable can be used to read the current user's company across
 
 ### Accessing the Request
 
-Use `theRequest` to access the current [WAI request](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html).
+Use [`theRequest`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:theRequest) to access the current [WAI request](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html).
 
 ### Highlighting the current active link
 
@@ -222,7 +222,7 @@ By default, a message `Are you sure you want to delete this?` is shown as a simp
 
 #### Setting the Page Title
 
-You can override the default page title by calling `setTitle` inside the `beforeRender` function of your view:
+You can override the default page title by calling [`setTitle`](https://ihp.digitallyinduced.com/api-docs/IHP-PageHead-ControllerFunctions.html#v:setTitle) inside the [`beforeRender`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:beforeRender) function of your view:
 
 ```haskell
 instance View MyView where
@@ -232,7 +232,7 @@ instance View MyView where
     -- ...
 ```
 
-You can also call `setTitle` from the controller action if needed:
+You can also call [`setTitle`](https://ihp.digitallyinduced.com/api-docs/IHP-PageHead-ControllerFunctions.html#v:setTitle) from the controller action if needed:
 
 ```haskell
 module Web.Controller.Posts where
@@ -247,7 +247,7 @@ instance Controller PostsController where
         render ShowView { .. }
 ```
 
-If the page title is not changed as expected, make sure that your `Layout.hs` is using `pageTitleDefault`:
+If the page title is not changed as expected, make sure that your `Layout.hs` is using [`pageTitleDefault`](https://ihp.digitallyinduced.com/api-docs/IHP-PageHead-ViewFunctions.html#v:pageTitleOrDefault):
 
 ```html
 WRONG:
@@ -280,7 +280,7 @@ To dynamically manage meta tags like `<meta property="og:description" content="d
 </head>
 ```
 
-You can set the values for these meta tags from the `beforeRender` function within your view:
+You can set the values for these meta tags from the [`beforeRender`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:beforeRender) function within your view:
 
 
 ```haskell
@@ -348,7 +348,7 @@ document.addEventListener('ihp:unload', () => {
 
 ## JSON
 
-Views that are rendered by calling the `render` function can also respond with JSON.
+Views that are rendered by calling the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function can also respond with JSON.
 
 Let's say we have a normal HTML view that renders all posts for our blog app:
 
@@ -377,7 +377,7 @@ instance View IndexView where
     |]
 ```
 
-We can add a JSON output for all blog posts by adding a `json` function to this:
+We can add a JSON output for all blog posts by adding a [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function to this:
 
 ```haskell
 import Data.Aeson -- <--- Add this import at the top of the file
@@ -390,9 +390,9 @@ instance View IndexView where
     json IndexView { .. } = toJSON posts -- <---- The new json render function
 ```
 
-In the above code, our `json` function has access to all arguments passed to the view. Here we call `toJSON`, which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
+In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON), which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
 
-Additionally we need to define a `ToJSON` instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
+Additionally we need to define a [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
 
 ```haskell
 instance ToJSON Post where
@@ -460,7 +460,7 @@ When you open the `PostsAction` at `/Posts` in your browser you will still get t
 
 #### JavaScript
 
-From JavaScript you can get the JSON using `fetch`:
+From JavaScript you can get the JSON using [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch):
 
 ```javascript
 const response = await fetch('http://localhost:8000/Posts', {
@@ -471,7 +471,7 @@ const json = await response.json();
 
 #### curl
 
-You can use `curl` to check out the new JSON response from the terminal:
+You can use [`curl`](https://curl.se/) to check out the new JSON response from the terminal:
 
 ```bash
 curl http://localhost:8000/Posts -H 'Accept: application/json'
@@ -481,7 +481,7 @@ curl http://localhost:8000/Posts -H 'Accept: application/json'
 
 ### Advanced: Rendering JSON directly from actions
 
-When you are building an API and your action is only responding with JSON (so no HTML is expected), you can respond with your JSON directly from the controller using `renderJson`:
+When you are building an API and your action is only responding with JSON (so no HTML is expected), you can respond with your JSON directly from the controller using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson):
 
 ```haskell
 instance Controller PostsController where
@@ -498,6 +498,6 @@ instance ToJSON Post where
         ]
 ```
 
-In this example, no content negotiation takes place as the `renderJson` is used instead of the normal `render` function.
+In this example, no content negotiation takes place as the [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) is used instead of the normal `render` function.
 
-The `ToJSON` instances have to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend not using `renderJson` most times and instead stick with a separate view file as described in the section above. Using `renderJson` makes sense only when the controller is very small or you already have a predefined `ToJSON` instance which is not defined in your controller.
+The [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instances have to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend not using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) most times and instead stick with a separate view file as described in the section above. Using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) makes sense only when the controller is very small or you already have a predefined [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which is not defined in your controller.

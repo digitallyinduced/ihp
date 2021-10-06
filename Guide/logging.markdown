@@ -15,14 +15,14 @@ If you need to know exact ordering it's recommended you rely on the timestamp.
 IHP logging uses log levels to determine which messages should be printed.
 This way, you can log messages to help in development without flooding production logs.
 
-The available log levels are `debug`, `info`, `warn`, `error`, `fatal`, and `unknown`.
+The available log levels are [`debug`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:debug), [`info`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:info), [`warn`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:warn), [`error`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:error), [`fatal`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:fatal), and [`unknown`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:unknown).
 In development, the default log level is debug. In production, the default log level is info.
 Log messages will only be output if their log level is greater than or equal to the logger's configured log level.
 
 ### Sending messages
 
 In any controller or model code, you can log a message at a given log level by simply calling
-`Log.debug`, `Log.info`, or any of the other available log levels.
+[`Log.debug`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:debug), [`Log.info`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:info), or any of the other available log levels.
 
 Example:
 ```haskell
@@ -51,7 +51,7 @@ import qualified IHP.Log as Log
 import IHP.Log.Types
 ```
 
-Using the `newLogger` function, create a logger with the desired options. For example, here is a logger that formats
+Using the [`newLogger`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:newLogger) function, create a logger with the desired options. For example, here is a logger that formats
 logs with a timestamp at the `Debug` log level:
 
 ```haskell
@@ -62,7 +62,7 @@ logger <- liftIO $ newLogger def {
 option logger
 ```
 
-The available configuration options can be found in the `LoggerSettings` record.
+The available configuration options can be found in the [`LoggerSettings`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LoggerSettings) record.
 
 ```haskell
 data LoggerSettings = LoggerSettings {
@@ -75,7 +75,7 @@ data LoggerSettings = LoggerSettings {
 
 #### Configuring log level
 
-Set `level` to one of the available constructors for the `LogLevel` type:
+Set [`level`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LoggerSettings) to one of the available constructors for the [`LogLevel`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LogLevel) type:
 
 ```haskell
 data LogLevel
@@ -91,13 +91,13 @@ data LogLevel
 
 IHP ships with four available log formats.
 
-- `defaultFormatter` simply prints the log message with a newline.
+- [`defaultFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:defaultFormatter) simply prints the log message with a newline.
   - `Server started`
-- `withTimeFormatter` prepends a timestamp.
+- [`withTimeFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:withTimeFormatter) prepends a timestamp.
   - `[28-Jan-2021 10:07:58] Server started`
-- `withLevelFormatter` prepends the message's log level
+- [`withLevelFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:withLevelFormatter) prepends the message's log level
   - `[INFO] Server started`
-- `withTimeAndLevelFormatter` prepends both a timestamp and log level.
+- [`withTimeAndLevelFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:withTimeAndLevelFormatter) prepends both a timestamp and log level.
   - `[INFO] [28-Jan-2021 10:07:58] Server started`
 
 You can also define your own formatter. Since a LogFormatter is just a type alias:
@@ -142,9 +142,9 @@ data LogDestination
 ##### Logging to a file
 
 When logging to a file, it is common to rotate the file logged to in order to prevent
-the log file from getting too big. IHP allows for this in three ways, through the `RotateSettings` record.
+the log file from getting too big. IHP allows for this in three ways, through the [`RotateSettings`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) record.
 
-- `NoRotate` never rotates the file, meaning the log file can become arbitrarily large.
+- [`NoRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) never rotates the file, meaning the log file can become arbitrarily large.
   Use with caution. The following example will log all messages to a file at `Log/production.log`.
 
 ```haskell
@@ -153,7 +153,7 @@ newLogger def {
 }
 ```
 
-- `SizeRotate` rotates the file after reaching a specified size (in bytes).
+- [`SizeRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) rotates the file after reaching a specified size (in bytes).
   The following example will log all messages to a file at `Log/production.log`,
   and rotate the file once it reaches 4 megabytes in size. It will
   keep 7 log files before overwriting the first file.
@@ -164,7 +164,7 @@ newLogger def {
 }
 ```
 
-- `TimedRotate` rotates the file based on a time format string and a function which compares two times formatted by said format string. It also passes the rotated log's file path to a function, which can be used to compress old logs as in this example which rotates once per day:
+- [`TimedRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) rotates the file based on a time format string and a function which compares two times formatted by said format string. It also passes the rotated log's file path to a function, which can be used to compress old logs as in this example which rotates once per day:
 
 ```haskell
 let
@@ -184,7 +184,7 @@ in
 
 #### Configuring timestamp format
 
-`timeFormat` expects a time format string as defined [here](https://man7.org/linux/man-pages/man3/strptime.3.html).
+[`timeFormat`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:TimeFormat) expects a time format string as defined [here](https://man7.org/linux/man-pages/man3/strptime.3.html).
 
 Example:
 

@@ -18,7 +18,7 @@ Auto Refresh offers a way to re-render views of your application when the underl
 
 It's good to have a general understanding of how IHP Auto Refresh works.
 
-Auto Refresh first has to be activated for an action by calling `autoRefresh`. Once activated the framework will automatically track all tables your action is using e.g. in `SELECT * FROM ...` queries. Once the action sends a response IHP will start watching for any kind of `INSERT`, `UPDATE` or `DELETE` statement to all the tables used by your action.
+Auto Refresh first has to be activated for an action by calling [`autoRefresh`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:autoRefresh). Once activated the framework will automatically track all tables your action is using e.g. in `SELECT * FROM ...` queries. Once the action sends a response IHP will start watching for any kind of `INSERT`, `UPDATE` or `DELETE` statement to all the tables used by your action.
 
 When the page is rendered a small JavaScript function will connect back to the IHP server using a WebSocket connection.
 
@@ -37,7 +37,7 @@ action ShowProjectAction { projectId } = do
     render ShowView { .. }
 ```
 
-To enable auto refresh we have to add `autoRefresh` in front of the `do`:
+To enable auto refresh we have to add [`autoRefresh`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:autoRefresh) in front of the `do`:
 
 ```haskell
 action ShowProjectAction { projectId } = autoRefresh do
@@ -106,7 +106,7 @@ action StatsAction = autoRefresh do
     pure StatsView { ..}
 ```
 
-When using this custom query with `sqlQuery`, Auto Refresh is not aware that we're reading from the `companies` table. In this case we need to help out Auto Refresh by calling `trackTableRead`:
+When using this custom query with [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery), Auto Refresh is not aware that we're reading from the `companies` table. In this case we need to help out Auto Refresh by calling [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead):
 
 
 ```haskell
@@ -118,4 +118,4 @@ action StatsAction = autoRefresh do
     pure StatsView { ..}
 ```
 
-The `trackTableRead` marks the table as accessed for Auto Refresh and leads to the table being watched.
+The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead) marks the table as accessed for Auto Refresh and leads to the table being watched.
