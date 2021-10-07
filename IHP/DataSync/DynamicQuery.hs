@@ -42,17 +42,9 @@ data DynamicSQLQuery = DynamicSQLQuery
     } deriving (Show, Eq)
 
 data SelectedColumns
-    = SelectAll -- | SELECT * FROM table
-    | SelectSpecific [Text] -- | SELECT a, b, c FROM table
+    = SelectAll -- ^ SELECT * FROM table
+    | SelectSpecific [Text] -- ^ SELECT a, b, c FROM table
     deriving (Show, Eq)
-
-
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Join)
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
-$(deriveFromJSON defaultOptions 'SelectAll)
-$(deriveFromJSON defaultOptions 'DynamicSQLQuery)
 
 instance FromJSON ByteString where
     parseJSON (String v) = pure $ cs v
@@ -110,3 +102,11 @@ transformColumnNamesToFieldNames (Object hashMap) =
         |> map (\(key, value) -> (columnNameToFieldName key, value))
         |> HashMap.fromList
         |> Object
+
+
+$(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
+$(deriveFromJSON defaultOptions 'QueryBuilder.Join)
+$(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
+$(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
+$(deriveFromJSON defaultOptions 'SelectAll)
+$(deriveFromJSON defaultOptions 'DynamicSQLQuery)
