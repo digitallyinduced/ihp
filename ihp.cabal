@@ -266,6 +266,7 @@ library
         , IHP.DataSync.Types
         , IHP.DataSync.RowLevelSecurity
         , IHP.DataSync.DynamicQuery
+        , IHP.DataSync.DynamicQueryCompiler
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
         , IHP.DataSync.REST.Types
