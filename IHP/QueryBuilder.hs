@@ -37,6 +37,8 @@ module IHP.QueryBuilder
 , filterWhereILikeJoinedTable
 , filterWhereMatchesJoinedTable
 , filterWhereIMatchesJoinedTable
+, filterWherePast
+, filterWhereFuture
 , labelResults
 , EqOrIsOperator
 , filterWhereSql
@@ -745,6 +747,49 @@ filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryB
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIMatchesJoinedTable #-}
+
+
+-- | Filter all rows by whether a field is in the past, determined by comparing 'NOW()' to the field's value.
+--
+-- Opposite of 'filterWhereFuture'
+--
+-- __Example:__ Fetch all posts scheduled for the past.
+--
+-- > publicPosts <- query @Post
+-- >     |> filterWherePast #scheduledAt
+-- >     |> fetch
+-- > -- SELECT * FROM posts WHERE scheduled_at <= NOW()
+filterWherePast
+    :: ( KnownSymbol table
+       , KnownSymbol name
+       , ToField value
+       , HasField name (GetModelByTableName table) value
+       , HasQueryBuilder queryBuilderProvider joinRegister
+       )
+    => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
+filterWherePast name = filterWhereSql (name, "<= NOW()")
+{-# INLINE filterWherePast #-}
+
+-- | Filter all rows by whether a field is in the future, determined by comparing 'NOW()' to the field's value.
+--
+-- Opposite of 'filterWherePast'
+--
+-- __Example:__ Fetch all posts scheduled for the future.
+--
+-- > hiddenPosts <- query @Post
+-- >     |> filterWhereFuture #scheduledAt
+-- >     |> fetch
+-- > -- SELECT * FROM posts WHERE scheduled_at > NOW()
+filterWhereFuture
+    :: ( KnownSymbol table
+       , KnownSymbol name
+       , ToField value
+       , HasField name (GetModelByTableName table) value
+       , HasQueryBuilder queryBuilderProvider joinRegister
+       )
+    => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereFuture name = filterWhereSql (name, "> NOW()")
+{-# INLINE filterWhereFuture #-}
 
 
 -- | Allows to add a custom raw sql where condition
