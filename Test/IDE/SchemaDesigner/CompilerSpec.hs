@@ -10,7 +10,7 @@ import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
-import Test.IDE.SchemaDesigner.ParserSpec (col)
+import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
 
 tests = do
     describe "The Schema.sql Compiler" do
@@ -509,3 +509,8 @@ tests = do
                         )
                     }
             compileSql [policy] `shouldBe` sql
+
+        it "should use parentheses where needed" do
+            -- https://github.com/digitallyinduced/ihp/issues/1087
+            let inputSql = cs [plain|ALTER TABLE listings ADD CONSTRAINT source CHECK ((NOT (user_id IS NOT NULL AND agent_id IS NOT NULL)) AND (user_id IS NOT NULL OR agent_id IS NOT NULL));\n|]
+            compileSql [parseSql inputSql] `shouldBe` inputSql
