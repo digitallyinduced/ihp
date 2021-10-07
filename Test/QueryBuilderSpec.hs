@@ -219,6 +219,20 @@ tests = do
                      |> filterWhereILikeJoinedTable @User (#name, "%" <> searchTerm <> "%")
                 (toSQL theQuery `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE ?", [Escape "%louis%"]))
         
+        describe "filterWherePast" do
+            it "should produce a SQL with the correct WHERE condition" do
+                let theQuery = query @Post
+                        |> filterWherePast #createdAt
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain "<= NOW()"])
+  
+        describe "filterWhereFuture" do
+            it "should produce a SQL with the correct WHERE condition" do
+                let theQuery = query @Post
+                        |> filterWhereFuture #createdAt
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain "> NOW()"])
+
         describe "filterWhereSql" do
             it "should produce a SQL with a WHERE condition" do
                 let theValues :: [Text] = ["first", "second"]
