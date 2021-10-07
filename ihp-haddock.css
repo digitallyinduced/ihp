@@ -81,9 +81,16 @@ body {
 #module-header .caption {
     border-bottom: 0;
     font-weight: 800;
-    font-size: 2rem;
     margin-top: 0;
     margin-bottom: 0;
+
+    font-size: 1rem;
+}
+
+@media (min-width: 768px) {
+    #module-header .caption {
+        font-size: 2rem;
+    }
 }
 
 #interface > h1 {
