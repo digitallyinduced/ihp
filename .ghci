@@ -32,6 +32,7 @@
 :set -XBlockArguments
 :set -XMultiWayIf
 :set -XFunctionalDependencies
+:set -XTemplateHaskell
 :set -fbyte-code
 :set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
