@@ -193,7 +193,7 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript Config.config run" >> $@
 
-build/bin/RunJobs: build/RunJobs.hs ## Builds an unopimited binary for running the job workers
+build/bin/RunJobs: build/RunJobs.hs ## Builds an unoptimized binary for running the job workers
 	mkdir -p build/bin
 	ghc -O0 -main-is 'RunJobs.main' ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer # We use object files by build/bin/RunUnoptimizedProdServer here to speed up compilation during deployments
 
