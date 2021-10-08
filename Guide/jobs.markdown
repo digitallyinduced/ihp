@@ -163,6 +163,20 @@ instance FrontController WebApplication where
 
 This will mount a jobs dashboard under `/jobs/`.
 
+If you would like to link to Jobs page you could add for example on `Layout.hs`
+
+```haskell
+import IHP.Job.Dashboard
+
+navbar :: Html
+navbar = [hsx|
+    <nav>
+        <!-- ... -->
+        <a href={ListJobsAction}>Jobs</a>
+    </nav>
+|]
+```
+
 ### Authentication
 
 The second type parameter to [`JobsDashboardController`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Types.html#t:JobsDashboardController) is a type that defines how users should be authenticated when visiting any of the jobs pages.
