@@ -358,7 +358,7 @@ Access them from the `meta :: MetaBag` attribute like this:
 ```haskell
 record
     |> get #meta
-    |> #annotations
+    |> get #annotations
 ```
 
 This returns a `[(Text, Text)]`, e.g. `[("name", "This field cannot be empty")]`.
