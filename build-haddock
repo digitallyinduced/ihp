@@ -42,6 +42,7 @@ haddock --html -t "IHP Api Reference" --hyperlinked-source --built-in-themes --q
     --optghc="-XFunctionalDependencies" \
     --optghc="-XDefaultSignatures" \
     --optghc="-XStandaloneDeriving" \
+    --optghc="-XTemplateHaskell" \
     --optghc="-package-env -"
 
 cd haddock-build
