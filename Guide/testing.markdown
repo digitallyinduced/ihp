@@ -8,7 +8,7 @@ This section provides some guidelines for testing your IHP applications.
 
 ## Setup
 
-Start by creating a new module for your tests (perhaps for an individual controller, something like `test/Web/Controller/SomeControllerSpec.hs`), then import the IHP testing mock framework and [Hspec](http://hspec.github.io/) (a Haskell testing library). You will also need to import your project's `Main` module (this is usually where a project's `InitControllerContext` instance is defined). Your imports will likely look something like this:
+Start by creating a new module for your tests (perhaps for an individual controller, something like `test/Web/Controller/SomeControllerSpec.hs`), then import the IHP testing mock framework and [Hspec](http://hspec.github.io/) (a Haskell testing library). You will also need to import your project's `Main` module (this is usually where a project's [`InitControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:InitControllerContext) instance is defined). Your imports will likely look something like this:
 
 ```haskell
 module ExampleSpec where
@@ -26,7 +26,7 @@ import           Main ()
 ```
 
 ## Writing a test module
-The `IHP.Test.Mocking` module has functions to mock `ModelContext`, `RequestContext` and `ApplicationContext`. These contexts are created with the `mockContext` function, which requires a `ConfigBuilder` and an IHP application as inputs. This function should be called before the tests start:
+The `IHP.Test.Mocking` module has functions to mock [`ModelContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:ModelContext), [`RequestContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-RequestContext.html#t:RequestContext) and [`ApplicationContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ApplicationContext.html#t:ApplicationContext). These contexts are created with the [`mockContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Test-Mocking.html#v:mockContext) function, which requires a [`ConfigBuilder`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#t:ConfigBuilder) and an IHP application as inputs. This function should be called before the tests start:
 
 ```haskell
 -- a function like this probably already exists in your Config module:
@@ -38,7 +38,7 @@ spec = beforeAll (makeConfig >>= mockContext WebApplication) do
   ...
 ```
 
-In order to execute database queries and run controller actions, the implicit context paramaters must be bound in the testing environment using `withContext`. Here is an example test to check there are no users in the database:
+In order to execute database queries and run controller actions, the implicit context parameters must be bound in the testing environment using [`withContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Test-Mocking.html#v:withContext). Here is an example test to check there are no users in the database:
 
 ```haskell
   describe "User controller" $ do
@@ -64,7 +64,7 @@ It is also possible to check the HTTP status of a controller response and respon
       mockActionStatus CreateUserAction `shouldReturn` status200
 ```
 
-## Runing a test
+## Running a test
 To execute a single test spec, load the test module into GHCI and run `hspec spec` (make sure your database server is running).
 
 ## Next steps

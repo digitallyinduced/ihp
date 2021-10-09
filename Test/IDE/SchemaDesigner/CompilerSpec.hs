@@ -10,7 +10,7 @@ import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
-import Test.IDE.SchemaDesigner.ParserSpec (col)
+import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
 
 tests = do
     describe "The Schema.sql Compiler" do
@@ -438,6 +438,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -449,6 +451,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -482,3 +486,31 @@ tests = do
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     }
             compileSql [index] `shouldBe` sql
+
+        it "should compile 'ENABLE ROW LEVEL SECURITY' statements" do
+            let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
+            let statements = [EnableRowLevelSecurity { tableName = "tasks" }]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE POLICY' statements" do
+            let sql = "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());\n"
+            let policy = CreatePolicy
+                    { name = "Users can manage their tasks"
+                    , tableName = "tasks"
+                    , using = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    , check = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    }
+            compileSql [policy] `shouldBe` sql
+
+        it "should use parentheses where needed" do
+            -- https://github.com/digitallyinduced/ihp/issues/1087
+            let inputSql = cs [plain|ALTER TABLE listings ADD CONSTRAINT source CHECK ((NOT (user_id IS NOT NULL AND agent_id IS NOT NULL)) AND (user_id IS NOT NULL OR agent_id IS NOT NULL));\n|]
+            compileSql [parseSql inputSql] `shouldBe` inputSql

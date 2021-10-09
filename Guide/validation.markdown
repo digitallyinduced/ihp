@@ -53,7 +53,7 @@ Now let's add some validation.
 
 ### Adding Validation Logic
 
-To make sure that the `title` and `body` are not empty, we can `validateField ... nonEmpty` like this:
+To make sure that the `title` and `body` are not empty, we can [`validateField ... nonEmpty`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:validateField) like this:
 
 ```haskell
     action CreatePostAction = do
@@ -84,41 +84,39 @@ record
 
 Here is a list of the most common validators:
 
-```haskell
--- works with Text fields
-|> validateField #name nonEmpty
-|> validateField #email isEmail
-|> validateField #phoneNumber isPhoneNumber
+Works with Text fields:
+- [`|> validateField #name nonEmpty`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:nonEmpty)
+- [`|> validateField #email isEmail`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:isEmail)
+- [`|> validateField #phoneNumber isPhoneNumber`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:isPhoneNumber)
 
--- works with ints
-|> validateField #rating (isInRange (1, 10))
-```
+Works with ints:
+- [`|> validateField #rating (isInRange (1, 10))`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:isInRange)
 
 You can find [the full list of built-in validators in the API Documentation](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html).
 
 ### Fill Validation
 
-When using `fill`, like `|> fill @'["title", "body"]`, any error parsing the input is also added as a validation error.
+When using [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill), like `|> fill @'["title", "body"]`, any error parsing the input is also added as a validation error.
 
-E.g. when `fill` fills in an integer attribute, but the string `"hello"` is submitted, an error will be added to the record and the record is not valid anymore. The record attribute will then keep its old value (before applying `fill`) and later re-render in the error case of `ifValid`. This applies to all arguments read via `fill`. It's very helpful when dealing with strings expected in a certain format, like date times.
+E.g. when [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill) fills in an integer attribute, but the string `"hello"` is submitted, an error will be added to the record and the record is not valid anymore. The record attribute will then keep its old value (before applying [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill)) and later re-render in the error case of [`ifValid`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:ifValid). This applies to all arguments read via [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill). It's very helpful when dealing with strings expected in a certain format, like date times.
 
 As IHP is never putting raw strings into the records, without previously parsing them, it does not provide validators like Rails's `:only_integer`.
 
 ### Rendering Errors
 
-When a post with an empty title is now submitted to this action, an error message will be written into the record. The call to `|> ifValid` will see that there is an error, and then run the `Left post -> render NewView { post } `, which displays the form to the user again. The form will be rendered, and errors will automatically pop up next to the form field.
+When a post with an empty title is now submitted to this action, an error message will be written into the record. The call to [`|> ifValid`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:ifValid) will see that there is an error, and then run the `Left post -> render NewView { post } `, which displays the form to the user again. The form will be rendered, and errors will automatically pop up next to the form field.
 
-The default form helpers like `{textField #title}` automatically render the error message below the field. Here is how this looks:
+The default form helpers like [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField) automatically render the error message below the field. Here is how this looks:
 
 ![Validation Error Message Below Title Input](images/first-project/title_non_empty.png)
 
 ### Validating An Email Is Unique
 
-For example, when dealing with users, you usually want to make sure that an email is only used once for a single user. You can use `|> validateIsUnique #email` to validate that an email is unique for a given record.
+For example, when dealing with users, you usually want to make sure that an email is only used once for a single user. You can use [`|> validateIsUnique #email`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique) to validate that an email is unique for a given record.
 
 This function queries the database and checks whether there exists a record with the same email value. The function ignores the current entity of course.
 
-This function does IO, so any further arrows have to be `>>=`, like this:
+This function does IO, so any further arrows have to be [`>>=`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:-62--62--61-), like this:
 
 ```haskell
 action CreateUserAction = do
@@ -135,7 +133,7 @@ action CreateUserAction = do
 
 #### Case Insensitive Uniqueness
 
-Usually emails like `someone@example.com` and `Someone@example.com` belong to the same person. You can use `validateIsUniqueCaseInsensitive` to ignore the case when checking for uniqueness:
+Usually emails like `someone@example.com` and `Someone@example.com` belong to the same person. You can use [`validateIsUniqueCaseInsensitive`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUniqueCaseInsensitive) to ignore the case when checking for uniqueness:
 
 
 ```haskell
@@ -205,7 +203,7 @@ user |> validateField #age isAge`
 
 ### Checking If A Record Is Valid
 
-Use `ifValid` to check for validity of a record:
+Use [`ifValid`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:ifValid) to check for validity of a record:
 
 ```haskell
 post |> ifValid \case
@@ -229,7 +227,7 @@ putStrLn message
 
 ### Customizing Error Messages
 
-#### Use `withCustomErrorMessage` to customize the error message when validation failed:
+#### Use [`withCustomErrorMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:withCustomErrorMessage) to customize the error message when validation failed:
 
 ```haskell
 user
@@ -237,9 +235,9 @@ user
     |> validateField #firstname (nonEmpty |> withCustomErrorMessage "Please enter your firstname")
 ```
 
-In this example, when the `nonEmpty` adds an error to the user, the message `Please enter your firstname` will be used instead of the default `This field cannot be empty`.
+In this example, when the [`nonEmpty`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:nonEmpty) adds an error to the user, the message `Please enter your firstname` will be used instead of the default `This field cannot be empty`.
 
-#### Use `withCustomErrorMessageIO` to customize the error message when using IO functions:
+#### Use [`withCustomErrorMessageIO`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:withCustomErrorMessageIO) to customize the error message when using IO functions:
 
 ```haskell
 user
@@ -250,13 +248,13 @@ user
         Right user -> ...
 ```
 
-In this example, when the `validateIsUnique` function adds an error to the user, the message `Email Has Already Been Used` will be used instead of the default `This is already in use`.
+In this example, when the [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique) function adds an error to the user, the message `Email Has Already Been Used` will be used instead of the default `This is already in use`.
 
 ## Internals
 
 IHP's validation is built with a few small operations.
 
-### `validateField`
+### [`validateField`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:validateField)
 
 The primary operation is `validateField #field validationFunction record`.
 
@@ -266,7 +264,7 @@ This function does the following thing:
 2. Apply the `validationFunction` to the field value
 3. When the validator returns errors, store the errors inside the `meta` attribute of the record.
 
-The `validateField` function expects the `record` to have a field `meta :: MetaBag`. This `meta` field is used to store validation errors.
+The [`validateField`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:validateField) function expects the `record` to have a field `meta :: MetaBag`. This `meta` field is used to store validation errors.
 
 Let's say we have an example data type `Post`:
 
@@ -274,7 +272,7 @@ Let's say we have an example data type `Post`:
 data Post = Post { title :: Text, meta :: MetaBag }
 ```
 
-A call to `validateField` will result in the following:
+A call to [`validateField`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:validateField) will result in the following:
 
 ```haskell
 let post = Post { title = "" , meta = def } -- def stands for default :)
@@ -292,7 +290,7 @@ post |> validateField #title nonEmpty
 -- }
 ```
 
-As you can see, the errors are tracked inside the `MetaBag`. When you apply another `validateField` to the record, the errors will be appended to the `annotations` list.
+As you can see, the errors are tracked inside the `MetaBag`. When you apply another [`validateField`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:validateField) to the record, the errors will be appended to the `annotations` list.
 
 ### Validation Functions
 
@@ -306,7 +304,7 @@ isColor text | ("#" `isPrefixOf` text) && (length text == 7) = Success
 isColor text = Failure "is not a valid color"
 ```
 
-Calling `isColor "#ffffff"` will return `Success`. Calling `isColor "something bad"` will result in `Failure "is not a valid color"`.
+Calling [`isColor "#ffffff"`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:isColor) will return `Success`. Calling [`isColor "something bad"`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:isColor) will result in `Failure "is not a valid color"`.
 
 It might be useful to take a look at the definition of some more validation functions to see how it works. [You can find them in the API Docs](https://ihp.digitallyinduced.com/api-docs/src/IHP.ValidationSupport.ValidateField.html#isColor).
 
@@ -325,7 +323,7 @@ This record now has a validation error attached to its title.
 
 #### Attaching Errors with HTML
 
-If you try to use HTML code within `attachFailure`, the HTML code will be escaped and not rendered as expected:
+If you try to use HTML code within [`attachFailure`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-Types.html#v:attachFailure), the HTML code will be escaped and not rendered as expected:
 
 ```haskell
 post
@@ -333,7 +331,7 @@ post
     -- Link will not be clickable as the HTML is escaped
 ```
 
-Use `attachFailureHtml` instead:
+Use [`attachFailureHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-Types.html#v:attachFailureHtml) instead:
 
 ```haskell
 post
@@ -343,7 +341,7 @@ post
 
 ### Retrieving The First Error Message For A Field
 
-You can also access an error for a specific field using `getValidationFailure`:
+You can also access an error for a specific field using [`getValidationFailure`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-Types.html#v:getValidationFailure):
 
 ```haskell
 post
@@ -360,7 +358,7 @@ Access them from the `meta :: MetaBag` attribute like this:
 ```haskell
 record
     |> get #meta
-    |> #annotations
+    |> get #annotations
 ```
 
 This returns a `[(Text, Text)]`, e.g. `[("name", "This field cannot be empty")]`.

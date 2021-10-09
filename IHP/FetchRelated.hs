@@ -178,6 +178,31 @@ instance (relatedModel ~ GetModelByTableName relatedTable, Table relatedModel) =
                 pure (updateField @relatedField result model)
         mapM fetchRelated models
 
+-- Fetches a related record
+--
+-- Given a specific post, we can fetch the post and all its comments like this:
+--
+-- > let postId :: Id Post = ...
+-- > 
+-- > post <- fetch postId
+-- >     >>= fetchRelated #comments
+--
+-- This Haskell code will trigger the following SQL queries to be executed:
+--
+-- > SELECT posts.* FROM posts WHERE id = ?  LIMIT 1
+-- > SELECT comments.* FROM comments WHERE post_id = ?
+--
+-- In the view we can just access the comments like this:
+--
+-- > [hsx|
+-- >     <h1>{get #title post}</h1>
+-- >     <h2>Comments:</h2>
+-- >     {post |> get #comments}
+-- > |]
+--
+-- The @post |> get #comments@ returns a list of the comments belonging to the post.
+-- The type of post is @Include "comments"@ Post instead of the usual @Post@. This way the state of a fetched nested resource is tracked at the type level.
+--
 fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
         UpdateField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),

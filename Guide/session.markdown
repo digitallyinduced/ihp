@@ -16,18 +16,18 @@ The session works by storing the data inside a cryptographically signed and encr
 
 ### Writing
 
-In your controller action, use `setSession` to store a value:
+In your controller action, use [`setSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:setSession) to store a value:
 
 ```haskell
 action SessionExampleAction = do
     setSession "userEmail" "hi@digitallyinduced.com"
 ```
 
-Right now, `setSession` only accepts `Text` values. Other types like `Int` have to be converted to `Text` using `tshow theIntValue`.
+Right now, [`setSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:setSession) only accepts `Text` values. Other types like `Int` have to be converted to `Text` using [`tshow theIntValue`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:tshow).
 
 ### Reading
 
-You can use `getSession` to retrieve a value:
+You can use [`getSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:getSession) to retrieve a value:
 
 ```haskell
 action SessionExampleAction = do
@@ -36,7 +36,7 @@ action SessionExampleAction = do
 
 `userEmail` is set to `Just "hi@digitallyinduced.com"` when the value has been set before. Otherwise, it will be `Nothing`.
 
-For convenience you can use `getSessionInt` to retrieve the value as a `Maybe Int`, and `getSessionUUID` to retrieve the value as a `Maybe UUID`:
+For convenience you can use [`getSessionInt`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:getSessionInt) to retrieve the value as a `Maybe Int`, and [`getSessionUUID`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:getSessionUUID) to retrieve the value as a `Maybe UUID`:
 
 ```haskell
 action SessionExampleAction = do
@@ -46,7 +46,7 @@ action SessionExampleAction = do
 
 ### Deleting
 
-Use `deleteSession` to remove a value from the session:
+Use [`deleteSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:deleteSession) to remove a value from the session:
 
 ```haskell
 action LogoutAction = do
@@ -63,7 +63,7 @@ In the following view you can see a success flash message `Post created`:
 
 ### Setting a Message
 
-Use `setSuccessMessage` to set a success message:
+Use [`setSuccessMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ControllerFunctions.html#v:setSuccessMessage) to set a success message:
 
 ```haskell
 action CreatePostAction = do
@@ -72,7 +72,7 @@ action CreatePostAction = do
     redirectTo ShowPostAction { .. }
 ```
 
-Use `setErrorMessage` to set a failure message:
+Use [`setErrorMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ControllerFunctions.html#v:setErrorMessage) to set a failure message:
 
 ```haskell
 action CreatePostAction = do
@@ -87,9 +87,9 @@ In both cases, the messages are stored inside the session. The message value is 
 
 ### Rendering a Message
 
-You have to make sure that `{renderFlashMessages}` is displayed somewhere in your layout or view, otherwise, the flash message is not visible.
+You have to make sure that [`{renderFlashMessages}`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ViewFunctions.html#v:renderFlashMessages) is displayed somewhere in your layout or view, otherwise, the flash message is not visible.
 
-Here is an example of a layout calling `renderFlashMessages`:
+Here is an example of a layout calling [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ViewFunctions.html#v:renderFlashMessages):
 
 ```haskell
 defaultLayout :: Html -> Html
@@ -111,7 +111,7 @@ The rendered HTML looks like this:
 <div class="alert alert-danger">{errorMessage}</div>
 ```
 
-To display the Flash Messages in a custom way, you can always access them using `let flashMessages :: [FlashMessage] = fromFrozenContext` in your views. This returns a list of `FlashMessage`. You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ViewFunctions.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
+To display the Flash Messages in a custom way, you can always access them using `let flashMessages :: [FlashMessage] = fromFrozenContext` in your views. This returns a list of [`FlashMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-Types.html#t:FlashMessage). You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ViewFunctions.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
 
 ## Session Cookie
 

@@ -217,3 +217,41 @@ body {
 .data-rows-table [data-fieldname$="id"] { font-size: 8px }
 .data-rows-table [data-fieldname="created_at"] { font-size: 8px }
 .data-rows-table [data-fieldname="password_hash"] { font-size: 8px }
+
+#nav-help {
+    margin-top: auto;
+}
+
+.email-support a {
+    color:  rgba(13, 99, 120, 0.8);
+}
+
+.popover {
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+}
+
+.popover-header {
+    background-color: rgba(2, 19, 23, 0.04);
+}
+
+.btn-primary {
+    background-color:  hsla(192, 81%, 26%, 1);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+    font-weight: 500;
+    border-radius: 8px;
+}
+
+.btn-primary:hover {
+    background-color: hsla(192, 81%, 26%, 0.8);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+}
+
+.btn-primary:not(:disabled):not(.disabled).active, .btn-primary:not(:disabled):not(.disabled):active, .show>.btn-primary.dropdown-toggle {
+    background-color: hsla(192, 81%, 26%, 0.8);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+}
+
+.btn-primary:focus {
+    background-color:  hsla(192, 81%, 36%, 1);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+}

@@ -57,7 +57,7 @@ parseDDL :: Parser [Statement]
 parseDDL = manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> createPolicy <|> alterTable <|> comment
     space
     pure s
 
@@ -115,10 +115,7 @@ createEnumType = do
     char ';'
     pure CreateEnumType { name, values }
 
-addConstraint = do
-    lexeme "ALTER"
-    lexeme "TABLE"
-    tableName <- identifier
+addConstraint tableName = do
     lexeme "ADD"
     lexeme "CONSTRAINT"
     constraintName <- identifier
@@ -210,6 +207,7 @@ sqlType = choice $ map optionalArray
         , jsonb
         , inet
         , tsvector
+        , trigger
         , customType
         ]
             where
@@ -344,6 +342,10 @@ sqlType = choice $ map optionalArray
                     arrayType <- typeParser;
                     (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
 
+                trigger = do
+                    try (symbol' "TRIGGER")
+                    pure PTrigger
+
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
@@ -442,15 +444,15 @@ createFunction = do
     functionName <- identifier
     lexeme "()"
     lexeme "RETURNS"
-    lexeme "TRIGGER"
+    returns <- sqlType
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
     space
-    lexeme "language"
-    lexeme "plpgsql"
+    lexeme "language" <|> lexeme "LANGUAGE"
+    language <- symbol "plpgsql" <|> symbol "SQL"
     char ';'
-    pure CreateFunction { functionName, functionBody, orReplace }
+    pure CreateFunction { functionName, functionBody, orReplace, returns, language }
 
 -- | Triggers are not currently used by IHP, therefore they're implemented using UnknownStatement
 -- This avoid errors when having custom triggers in Schema.sql
@@ -460,6 +462,39 @@ createTrigger = do
     raw <- cs <$> someTill (anySingle) (char ';')
     pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
 
+alterTable = do
+    lexeme "ALTER"
+    lexeme "TABLE"
+    tableName <- identifier
+    addConstraint tableName <|> enableRowLevelSecurity tableName
+
+enableRowLevelSecurity tableName = do
+    lexeme "ENABLE"
+    lexeme "ROW"
+    lexeme "LEVEL"
+    lexeme "SECURITY"
+    char ';'
+    pure EnableRowLevelSecurity { tableName }
+
+createPolicy = do
+    lexeme "CREATE"
+    lexeme "POLICY"
+    name <- identifier
+    lexeme "ON"
+    tableName <- identifier
+
+    using <- optional do
+        lexeme "USING"
+        expression
+
+    check <- optional do
+        lexeme "WITH"
+        lexeme "CHECK"
+        expression
+
+    char ';'
+
+    pure CreatePolicy { name, tableName, using, check }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

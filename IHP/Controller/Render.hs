@@ -3,7 +3,7 @@ module IHP.Controller.Render where
 import ClassyPrelude
 import Network.Wai (responseLBS, responseBuilder, responseFile)
 import qualified Network.Wai
-import Network.HTTP.Types (status200, status406)
+import Network.HTTP.Types (Status, status200, status406)
 import Network.HTTP.Types.Header
 import IHP.ModelSupport
 import qualified Data.ByteString.Lazy
@@ -73,13 +73,18 @@ renderFile filePath contentType = respondAndExit $ responseFile status200 [(hCon
 {-# INLINABLE renderFile #-}
 
 renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
-renderJson json = respondAndExit $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
+renderJson json = renderJsonWithStatusCode status200 json
 {-# INLINABLE renderJson #-}
+
+renderJsonWithStatusCode :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => Status -> json -> IO ()
+renderJsonWithStatusCode statusCode json = respondAndExit $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
+{-# INLINABLE renderJsonWithStatusCode #-}
 
 renderXml :: (?context :: ControllerContext) => LByteString -> IO ()
 renderXml xml = respondAndExit $ responseLBS status200 [(hContentType, "application/xml")] xml
 {-# INLINABLE renderXml #-}
 
+-- | Use 'setHeader' intead
 renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINABLE renderJson' #-}

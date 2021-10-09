@@ -45,6 +45,7 @@ import qualified IHP.Log as Log
 import Data.Dynamic
 import Data.Scientific
 import GHC.Stack
+import qualified Numeric
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -110,10 +111,10 @@ instance InputValue Integer where
     inputValue = tshow
 
 instance InputValue Double where
-    inputValue = tshow
+    inputValue double = cs (Numeric.showFFloat Nothing double "")
 
 instance InputValue Float where
-    inputValue = tshow
+    inputValue float = cs (Numeric.showFFloat Nothing float "")
 
 instance InputValue Bool where
     inputValue True = "on"
@@ -608,7 +609,7 @@ data Violation
 
 -- | Every IHP database record has a magic @meta@ field which keeps a @MetaBag@ inside. This data structure is used e.g. to keep track of the validation errors that happend.
 data MetaBag = MetaBag
-    { annotations            :: ![(Text, Violation)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", "cannot be empty") ]@
+    { annotations            :: ![(Text, Violation)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", TextViolation "cannot be empty") ]@
     , touchedFields          :: ![Text] -- ^ Whenever a 'set' is callled on a field, it will be marked as touched. Only touched fields are saved to the database when you call 'updateRecord'
     , originalDatabaseRecord :: Maybe Dynamic -- ^ When the record has been fetched from the database, we save the initial database record here. This is used by 'didChange' to check if a field value is different from the initial database value.
     } deriving (Show)

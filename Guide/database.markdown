@@ -88,7 +88,7 @@ When dumping the database into the `Fixtures.sql` first and then rebuilding the 
 
 ### Model Context
 
-In a pure functional programming language like Haskell, we need to pass the database connection to all functions which need to access the database. We use an implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The `ModelContext` data structure is basically just a wrapper around the actual database connection.
+In a pure functional programming language like Haskell, we need to pass the database connection to all functions which need to access the database. We use an implicit parameter `?modelContext :: ModelContext` to pass around the database connection without always specifying it. The [`ModelContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:ModelContext) data structure is basically just a wrapper around the actual database connection.
 
 An implicit parameter is a parameter which is automatically passed to certain functions, it just needs to be available in the current scope.
 
@@ -134,7 +134,7 @@ In the Schema Designer, you can take a look at the generated Haskell code by rig
 
 ### Querying Records
 
-You can retrieve all records of a table using `query`
+You can retrieve all records of a table using [`query`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:query)
 
 ```haskell
 do
@@ -147,7 +147,7 @@ This will run a `SELECT * FROM users` query and put a list of `User` structures.
 
 ### Fetching a single record
 
-When you have the id of a record, you can also use `fetch` to get it from the database:
+When you have the id of a record, you can also use [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) to get it from the database:
 
 ```haskell
 do
@@ -158,11 +158,11 @@ do
 
 This will run the SQL query `SELECT * FROM users WHERE id = ... LIMIT 1`.
 
-`fetch` knows a single entity will be returned for the id, so instead of a list of users, a single user will be returned. In case the entity is not found, an exception is thrown. Use `fetchOrNothing` to get `Nothing` instead of an exception when no result is found
+[`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) knows a single entity will be returned for the id, so instead of a list of users, a single user will be returned. In case the entity is not found, an exception is thrown. Use [`fetchOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchOneOrNothing) to get `Nothing` instead of an exception when no result is found
 
 ### Fetching a list of ids
 
-When have you a list of ids of a single record type, you can also just `fetch` them:
+When have you a list of ids of a single record type, you can also just [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) them:
 
 ```haskell
 do
@@ -196,7 +196,7 @@ action ShowTask { taskId } = do
             Nothing -> pure Nothing
 ```
 
-This contains a lot of boilerplate for wrapping and unwrapping the `Maybe` value. Therefore you can just call `fetchOneOrNothing` directly on the `Maybe (Id User)` value:
+This contains a lot of boilerplate for wrapping and unwrapping the [`Maybe`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) value. Therefore you can just call [`fetchOneOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchOneOrNothing) directly on the `Maybe (Id User)` value:
 
 ```haskell
 action ShowTask { taskId } = do
@@ -206,7 +206,7 @@ action ShowTask { taskId } = do
 
 ### Fetching `n` records (LIMIT)
 
-Use `limit` to query only up to `n` records from a table:
+Use [`limit`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:limit) to query only up to `n` records from a table:
 
 ```haskell
 do
@@ -218,7 +218,7 @@ do
 
 This will run a `SELECT * FROM users ORDER BY firstname LIMIT 10` query and will return the first 10 users ordered by their `firstname`.
 
-When you are only interested in the first result you can also use `fetchOne` as a shortcut for `|> limit 1`:
+When you are only interested in the first result you can also use [`fetchOne`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchOne) as a shortcut for [`|> limit 1`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:limit):
 
 ```haskell
 do
@@ -229,7 +229,7 @@ do
 
 ### Skipping `n` records (OFFSET)
 
-Use `offset` to skip `n` records from a table:
+Use [`offset`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:offset) to skip `n` records from a table:
 
 ```haskell
 do
@@ -239,11 +239,11 @@ do
         |> fetch
 ```
 
-This is most often used together with `limit` to implement paging.
+This is most often used together with [`limit`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:limit) to implement paging.
 
 ### Counting records (COUNT queries)
 
-You can use `fetchCount` instead of `fetch` to get the count of records matching the query:
+You can use [`fetchCount`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchCount) instead of [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) to get the count of records matching the query:
 
 ```haskell
 do
@@ -256,7 +256,7 @@ do
 
 ### Fetching distinct records
 
-Use `distinct` to fetch distinct records.
+Use [`distinct`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinct) to fetch distinct records.
 
 ```haskell
 do
@@ -265,7 +265,7 @@ do
         |> fetch
 ```
 
-Or `distinctOn #tableField` to fetch distinct records based on the `#tableField` value.
+Or [`distinctOn #tableField`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinctOn) to fetch distinct records based on the `#tableField` value.
 
 ```haskell
 do
@@ -278,7 +278,7 @@ do
 
 The IHP query builder is designed to be able to easily express many basic sql queries. When your application is growing you will typically hit a point where a complex SQL query cannot be easily expressed with the IHP query builder. In that case it's recommended to use handwritten SQL to access your data.
 
-Use the function `sqlQuery` to run a raw SQL query:
+Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) to run a raw SQL query:
 
 ```haskell
 do
@@ -294,7 +294,7 @@ do
 
 ### Scalar Results
 
-The `sqlQuery` function always returns a list of rows as the result. When the result of your query is a single value (such as an integer or string) use `sqlQueryScalar`:
+The [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) function always returns a list of rows as the result. When the result of your query is a single value (such as an integer or string) use [`sqlQueryScalar`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQueryScalar):
 
 ```haskell
 do
@@ -433,13 +433,13 @@ query =
     |]
 ```
 
-`Row` is the data type used to hold the result of the query. The use of `trackTableRead` enables the query to play nicely with Auto Refresh.
+`Row` is the data type used to hold the result of the query. The use of [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead) enables the query to play nicely with Auto Refresh.
 
 ## Create
 
 ### Creating a single record
 
-To insert a record into the database, call `newRecord` to get an empty record value:
+To insert a record into the database, call [`newRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:Record) to get an empty record value:
 
 ```haskell
 do
@@ -447,9 +447,9 @@ do
     -- user = User { id = 0000-0000-0000-0000, firstname = "", lastname = "" }
 ```
 
-The `newRecord` function does not insert the record, it just returns a new empty data structure we can fill with values and then insert into the database.
+The [`newRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:Record) function does not insert the record, it just returns a new empty data structure we can fill with values and then insert into the database.
 
-We can use `set` to fill in attributes:
+We can use [`set`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:set) to fill in attributes:
 
 ```haskell
 do
@@ -460,7 +460,7 @@ do
     -- user = User { id = 0000-0000-0000-0000, firstname = "Max", lastname = "Mustermann" }
 ```
 
-We use `createRecord` to insert the above record into the `users` table:
+We use [`createRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:set) to insert the above record into the `users` table:
 
 ```haskell
 do
@@ -488,7 +488,7 @@ do
 
 ### Creating many records
 
-You can use `createMany` to insert multiple records with a single `INSERT` statement:
+You can use [`createMany`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createMany) to insert multiple records with a single `INSERT` statement:
 
 ```haskell
 do
@@ -505,7 +505,7 @@ INSERT INTO users (id, firstname, lastname)
 
 ## Update
 
-The function `updateRecord` runs an `UPDATE` query for a specific record:
+The function [`updateRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:CanUpdate) runs an `UPDATE` query for a specific record:
 
 ```haskell
 do
@@ -527,7 +527,7 @@ The `UPDATE` query will only update columns that have been changed using `|> set
 
 ### Deleting a single record
 
-Use `deleteRecord` to run a simple `DELETE` query:
+Use [`deleteRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecord) to run a simple `DELETE` query:
 
 ```haskell
 do
@@ -543,7 +543,7 @@ DELETE FROM users WHERE id = "cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7"
 
 ### Deleting many records
 
-Use `deleteRecords` to run a `DELETE` query for multiple records:
+Use [`deleteRecords`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecords) to run a `DELETE` query for multiple records:
 
 ```haskell
 do
@@ -559,7 +559,7 @@ DELETE FROM users WHERE id IN (...)
 
 ### Deleting all records
 
-Use `deleteAll` to run a `DELETE` query for all rows in a table:
+Use [`deleteAll`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteAll) to run a `DELETE` query for all rows in a table:
 
 ```haskell
 do
@@ -629,7 +629,7 @@ You can use `fill` even with custom enums:
                     redirectTo PostsAction
 ```
 
-In your views, use `inputValue` to get a textual representation for your enum which works with `fill`:
+In your views, use [`inputValue`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:InputValue) to get a textual representation for your enum which works with [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill):
 
 ```html
 [hsx|
@@ -728,7 +728,7 @@ IHP currently has support for the following postgres column types:
 
 ## Transactions
 
-You can use the `withTransaction` function to wrap your database operations in a postgres database transaction:
+You can use the [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function to wrap your database operations in a postgres database transaction:
 
 ```haskell
 withTransaction do
@@ -746,11 +746,11 @@ withTransaction do
 In this example, when the creation of the User fails, the creation of the company will be rolled back. So that no
 incomplete data is left in the database when there's an error.
 
-The `withTransaction` function will automatically commit after it succesfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
+The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it succesfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
 
 ### Common Pitfalls
 
-Keep in mind that some IHP functions like `redirectTo` or `render` throw a `ResponseException`. So code like below will not work as expected:
+Keep in mind that some IHP functions like [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) or [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) throw a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException). So code like below will not work as expected:
 
 ```haskell
 action CreateUserAction = do
@@ -759,7 +759,7 @@ action CreateUserAction = do
         redirectTo NewSessionAction
 ```
 
-The `redirectTo` throws a `ResponseException` and will cause a rollback. This code should be structured like this:
+The [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) throws a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException) and will cause a rollback. This code should be structured like this:
 
 ```haskell
 action CreateUserAction = do

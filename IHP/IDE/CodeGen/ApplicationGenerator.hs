@@ -60,6 +60,7 @@ generateGenericApplication applicationName =
                 <> "import Application.Helper.Controller\n"
                 <> "import IHP.ControllerPrelude\n"
                 <> "import Generated.Types\n"
+                <> "import " <> applicationName <> ".Routes\n"
 
             viewLayoutHs =
                 "module " <> applicationName <> ".View.Layout (defaultLayout, Html) where\n"

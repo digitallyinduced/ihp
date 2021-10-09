@@ -264,9 +264,10 @@ submitButton :: forall model id. (?formContext :: FormContext model, HasField "m
 submitButton =
     let
         modelName = IHP.ModelSupport.getModelName @model
+        buttonText = modelName |> humanize -- We do this to turn 'Create ProjectTask' into 'Create Project Task'
         isNew = IHP.ModelSupport.isNew (model ?formContext)
     in SubmitButton
-    { label = cs $ (if isNew then "Create " else "Save ") <> modelName
+    { label = cs $ (if isNew then "Create " else "Save ") <> buttonText
     , buttonClass = mempty
     , cssFramework = get #cssFramework ?formContext
     }

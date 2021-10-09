@@ -28,7 +28,9 @@ compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> 
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement Comment { content } = "-- " <> content
 compileStatement CreateIndex { indexName, unique, tableName, expressions, whereClause } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
-compileStatement CreateFunction { functionName, functionBody, orReplace } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$" <> functionBody <> "$$ language plpgsql;"
+compileStatement CreateFunction { functionName, functionBody, orReplace, returns, language } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS " <> compilePostgresType returns <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
+compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> tableName <> " ENABLE ROW LEVEL SECURITY;"
+compileStatement CreatePolicy { name, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
@@ -76,20 +78,34 @@ compileDefaultValue value = "DEFAULT " <> compileExpression value
 compileExpression :: Expression -> Text
 compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
-compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
+compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
 compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
-compileExpression (EqExpression a b) = compileExpression a <> " = " <> compileExpression b
-compileExpression (IsExpression a b) = compileExpression a <> " IS " <> compileExpression b
-compileExpression (NotExpression a) = "NOT " <> compileExpression a
-compileExpression (AndExpression a b) = compileExpression a <> " AND " <> compileExpression b
-compileExpression (OrExpression a b) = "(" <> compileExpression a <> ") OR (" <> compileExpression b <> ")"
-compileExpression (LessThanExpression a b) = compileExpression a <> " < " <> compileExpression b
-compileExpression (LessThanOrEqualToExpression a b) = compileExpression a <> " <= " <> compileExpression b
-compileExpression (GreaterThanExpression a b) = compileExpression a <> " > " <> compileExpression b
-compileExpression (GreaterThanOrEqualToExpression a b) = compileExpression a <> " >= " <> compileExpression b
+compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a <> " = " <> compileExpressionWithOptionalParenthese b
+compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a <> " IS " <> compileExpressionWithOptionalParenthese b
+compileExpression (NotExpression a) = "NOT " <> compileExpressionWithOptionalParenthese a
+compileExpression (AndExpression a b) = compileExpressionWithOptionalParenthese a <> " AND " <> compileExpressionWithOptionalParenthese b
+compileExpression (OrExpression a b) = compileExpressionWithOptionalParenthese a <> " OR " <> compileExpressionWithOptionalParenthese b
+compileExpression (LessThanExpression a b) = compileExpressionWithOptionalParenthese a <> " < " <> compileExpressionWithOptionalParenthese b
+compileExpression (LessThanOrEqualToExpression a b) = compileExpressionWithOptionalParenthese a <> " <= " <> compileExpressionWithOptionalParenthese b
+compileExpression (GreaterThanExpression a b) = compileExpressionWithOptionalParenthese a <> " > " <> compileExpressionWithOptionalParenthese b
+compileExpression (GreaterThanOrEqualToExpression a b) = compileExpressionWithOptionalParenthese a <> " >= " <> compileExpressionWithOptionalParenthese b
 compileExpression (DoubleExpression double) = tshow double
 compileExpression (IntExpression integer) = tshow integer
 compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
+
+compileExpressionWithOptionalParenthese :: Expression -> Text
+compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(IsExpression a (NotExpression b)) = compileExpression a <> " IS " <> compileExpression (NotExpression b) -- 'IS (NOT NULL)' => 'IS NOT NULL'
+compileExpressionWithOptionalParenthese expr@(IsExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(EqExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(AndExpression a@(AndExpression {}) b ) = "(" <> compileExpression a <> " AND " <> compileExpressionWithOptionalParenthese b <> ")" -- '(a AND b) AND c' => 'a AND b AND C'
+compileExpressionWithOptionalParenthese expr@(AndExpression a b@(AndExpression {}) ) = "(" <> compileExpressionWithOptionalParenthese a <> " AND " <> compileExpression b <> ")" -- 'a AND (b AND c)' => 'a AND b AND C'
+--compileExpressionWithOptionalParenthese expr@(OrExpression a@(IsExpression {}) b ) = compileExpressionWithOptionalParenthese a <> " OR " <> compileExpressionWithOptionalParenthese b -- '(a IS NULL) OR b' => 'A IS NULL OR b'
+compileExpressionWithOptionalParenthese expr@(CallExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(TextExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(IntExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(DoubleExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
@@ -123,6 +139,7 @@ compilePostgresType PJSONB = "JSONB"
 compilePostgresType PInet = "INET"
 compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
+compilePostgresType PTrigger = "TRIGGER"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: Text -> Text

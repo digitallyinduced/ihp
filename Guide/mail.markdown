@@ -79,7 +79,7 @@ Last we need to change the email text a little bit. The mail supports HSX so thi
 
 ## Sending Mails
 
-From inside a controller or script, an email can be sent by using `sendMail`:
+From inside a controller or script, an email can be sent by using [`sendMail`](https://ihp.digitallyinduced.com/api-docs/IHP-Mail.html#v:sendMail):
 
 ```haskell
 action MyAction = do
@@ -146,7 +146,7 @@ config = do
 
 ## Email Attachments
 
-You can add file attachments by adding a `attachments` statement:
+You can add file attachments by adding a [`attachments`](https://ihp.digitallyinduced.com/api-docs/IHP-Mail.html#v:attachments) statement:
 
 ```haskell
 module Web.Mail.Users.Confirmation where

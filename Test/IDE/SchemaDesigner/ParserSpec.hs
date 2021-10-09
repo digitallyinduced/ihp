@@ -444,6 +444,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
         it "should parse a CREATE FUNCTION ..() RETURNS TRIGGER .." do
@@ -451,6 +453,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
         it "should parse unsupported SQL as a unknown statement" do
@@ -488,6 +492,24 @@ tests = do
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     }
 
+        it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
+            parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
+
+        it "should parse 'CREATE POLICY' statements" do
+            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe` CreatePolicy
+                    { name = "Users can manage their tasks"
+                    , tableName = "tasks"
+                    , using = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    , check = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    }
 
 col :: Column
 col = Column
