@@ -288,8 +288,8 @@ do
     result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (IN [id]))
     
     -- Get a lists of posts with their Comment count 
-    let itemIds = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
-    commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In itemIds))    
+    let postIds = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
+    commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))    
 ```
 
 You might need to specify the expected result type, as type inference might not be able to guess it.
