@@ -284,7 +284,7 @@ Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-Mode
 do
     result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
     
-    -- Query with for WHERE id IN
+    -- Query with WHERE id IN
     result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (IN [id]))
     
     -- Get a lists of posts with their Comment count 
@@ -299,7 +299,7 @@ do
     result :: [Project] <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
 ```
 
-If you would like to have your dynamically build your query with an argument you could:
+If you would like to have your query dynamically built with an argument you could:
 
 ```haskell
 import qualified Database.PostgreSQL.Simple as PG
