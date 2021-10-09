@@ -38,7 +38,7 @@ spec = beforeAll (makeConfig >>= mockContext WebApplication) do
   ...
 ```
 
-In order to execute database queries and run controller actions, the implicit context paramaters must be bound in the testing environment using [`withContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Test-Mocking.html#v:withContext). Here is an example test to check there are no users in the database:
+In order to execute database queries and run controller actions, the implicit context parameters must be bound in the testing environment using [`withContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Test-Mocking.html#v:withContext). Here is an example test to check there are no users in the database:
 
 ```haskell
   describe "User controller" $ do
