@@ -137,6 +137,14 @@ common shared-properties
             -O0
             -threaded
             +RTS -A256m -n4m -H512m -qg -N -RTS
+            
+            -Wredundant-constraints
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -144,6 +152,14 @@ common shared-properties
             -haddock
             -O1
             -threaded
+            
+            -Wredundant-constraints
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
 
 library
     import: shared-properties
