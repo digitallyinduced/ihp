@@ -48,7 +48,7 @@ jobs:
           echo "\$file_contents = file_get_contents('./default.nix');" >> replace.php
           echo '$new_content = preg_replace("/builtins.fetchGit \{.+?\}/s", "$argv[1]", $file_contents);' >> replace.php
           echo '$new_content_with_ref = preg_replace("/refs\/tags\/v\d+.\d+.\d+/", "master", $new_content);' >> replace.php
-          echo '$new_content_with_ref = str_replace("p.ihp", "p.ihp wreq mmark mmark-ext strip-ansi-escape stripe-signature stripe-concepts http-conduit units units-defs haskell-to-elm aeson-casing ihp-zip ihp-sentry ihp-oauth-google ihp-oauth-github minio-hs", $new_content_with_ref);' >> replace.php
+          echo '$new_content_with_ref = str_replace("p.ihp", "p.ihp wreq mmark mmark-ext strip-ansi-escape stripe-signature stripe-concepts http-conduit units units-defs haskell-to-elm aeson-casing ihp-zip ihp-sentry ihp-oauth-google ihp-oauth-github minio-hs ihp-stripe", $new_content_with_ref);' >> replace.php
           echo "file_put_contents('./default.nix', \$new_content_with_ref);" >> replace.php
           echo "?>" >> replace.php
           php replace.php "builtins.fetchTarball \"$TARBALL_URL\""

@@ -1,0 +1,66 @@
+cabal-version:       2.2
+name:                ihp-stripe
+version:             0.0.1
+synopsis:            ihp-stripe
+description:         IHP Stripe Integration
+license:             NONE
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+build-type:          Simple
+
+library
+    build-depends:
+        ihp
+        , aeson
+        , base
+        , transformers
+        , typerep-map
+        , uri-encode
+        , wreq
+        , lens
+        , strip-ansi-escape
+        , stripe-signature
+        , stripe-concepts
+        , time
+        , containers
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.Stripe.Actions
+        , IHP.Stripe.Config
+        , IHP.Stripe.Request
+        , IHP.Stripe.Routes
+        , IHP.Stripe.Types
+        , IHP.Stripe.Webhook
