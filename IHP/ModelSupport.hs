@@ -448,7 +448,6 @@ class
     --
 
     tableName :: Text
-    default tableName :: forall record. (KnownSymbol (GetTableName record)) => Text
     tableName = symbolToText @(GetTableName record)
     {-# INLINE tableName #-}
 
@@ -460,7 +459,6 @@ class
     -- "users"
     --
     tableNameByteString :: ByteString
-    default tableNameByteString :: forall record. (KnownSymbol (GetTableName record)) => ByteString
     tableNameByteString = symbolToByteString @(GetTableName record)
     {-# INLINE tableNameByteString #-}
 
@@ -486,6 +484,8 @@ class
     -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
     --
     primaryKeyCondition :: record -> [(Text, PG.Action)]
+    default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
+    primaryKeyCondition record = [("id", toField (get #id record))]
 
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
