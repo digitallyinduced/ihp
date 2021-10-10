@@ -17,7 +17,7 @@ import           Test.Hspec
 import           IHP.Test.Mocking
 import           IHP.FrameworkConfig (ConfigBuilder(..))
 import           IHP.Prelude
-import           IHP.QueryBuilder (fetch, query)
+import           IHP.QueryBuilder (query)
 
 import           Web.Types
 import           Web.Routes
@@ -74,15 +74,15 @@ For more details on how to structure test suites see the [Hspec manual](http://h
 The following is a complete example of the above code:
 
 ```haskell
-module ExampleSpec where
+module Web.Controller.ExampleSpec where
 
 import           Network.HTTP.Types.Status (status200)
 
 import           Test.Hspec
-import           IHP.Test.Controller.Mocking
+import           IHP.Test.Mocking
 import           IHP.FrameworkConfig (ConfigBuilder(..))
 import           IHP.Prelude
-import           IHP.QueryBuilder (fetch, query)
+import           IHP.QueryBuilder (query)
 
 import           Web.Types
 import           Web.Routes
@@ -90,8 +90,8 @@ import           Generated.Types
 import           Main ()
 
 -- a function like this probably already exists in your Config module:
-makeConfig :: IO ConfigBuilder
-makeConfig = ...
+-- makeConfig :: IO ConfigBuilder
+-- makeConfig = ...
 
 spec :: Spec
 spec = beforeAll (makeConfig >>= mockContext WebApplication) do
