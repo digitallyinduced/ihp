@@ -707,13 +707,13 @@ runApp routes notFoundAction = do
         Right action -> action
 {-# INLINABLE runApp #-}
 
-frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> [Parser (IO ResponseReceived)] -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp :: forall app. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> [Parser (IO ResponseReceived)] -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application additionalControllers notFoundAction = runApp (choice (map (\r -> r <* endOfInput) allControllers)) notFoundAction
     where
         allControllers = (let ?application = application in controllers) <> additionalControllers
 {-# INLINABLE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
+mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
 {-# INLINABLE mountFrontController #-}
 

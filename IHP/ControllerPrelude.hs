@@ -83,4 +83,4 @@ import IHP.FileStorage.Preprocessor.ImageMagick
 
 import IHP.Pagination.ControllerFunctions
 import IHP.HSX.QQ (hsx)
-import IHP.HSX.ToHtml
+import IHP.HSX.ToHtml ()

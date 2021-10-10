@@ -7,11 +7,10 @@ import IHP.Fetch (Fetchable, fetchOneOrNothing)
 import IHP.ModelSupport (Table)
 import IHP.ValidationSupport.Types
 
-validateCanView :: forall field user model validationState fieldValue validationStateValue fetchedModel. (
+validateCanView :: forall field user model validationState fieldValue fetchedModel. (
         ?model :: model
         , ?modelContext :: ModelContext
         , PG.FromRow fetchedModel
-        , KnownSymbol (GetTableName fetchedModel)
         , KnownSymbol field
         , HasField field model fieldValue
         , Fetchable fieldValue fetchedModel
@@ -38,7 +37,7 @@ validateCanView field user = do
 --
 -- Therefore we have to handle this special of `Maybe TeamId` with the following type class.
 class ValidateCanView' id model where
-    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model, Table model) => Proxy model -> user -> id -> IO ValidatorResult
+    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, PG.FromRow model, Table model) => Proxy model -> user -> id -> IO ValidatorResult
 
 -- Maybe someId
 instance {-# OVERLAPS #-} (ValidateCanView' id' model, Fetchable id' model, Table model) => ValidateCanView' (Maybe id') model where
@@ -47,7 +46,7 @@ instance {-# OVERLAPS #-} (ValidateCanView' id' model, Fetchable id' model, Tabl
 
 -- Catch all
 instance {-# OVERLAPPABLE #-} ValidateCanView' any model where
-    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, KnownSymbol (GetTableName model), PG.FromRow model, Table model) => Proxy model -> user -> id -> IO ValidatorResult
+    doValidateCanView :: (?modelContext :: ModelContext, CanView user model, Fetchable id model, PG.FromRow model, Table model) => Proxy model -> user -> id -> IO ValidatorResult
     doValidateCanView model user id = do
         fetchedModel <- liftIO (fetchOneOrNothing id)
         canView' <- maybe (pure False) (\fetchedModel -> canView fetchedModel user) fetchedModel

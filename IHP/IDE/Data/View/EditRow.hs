@@ -2,7 +2,6 @@ module IHP.IDE.Data.View.EditRow where
 
 import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 import Data.Maybe

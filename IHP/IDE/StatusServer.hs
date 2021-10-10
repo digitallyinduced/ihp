@@ -14,8 +14,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.Types
 import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Routes
-import ClassyPrelude (catch, forever)
+import IHP.IDE.ToolServer.Routes ()
 import qualified Network.URI as URI
 import qualified Control.Exception as Exception
 
@@ -97,7 +96,7 @@ notifyBrowserOnApplicationOutput StatusServerPaused { serverRef, clients, standa
     pure ()
 notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
 
-notifyOutput :: (?context :: Context) => (IORef [ByteString], IORef [ByteString]) -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
+notifyOutput :: (IORef [ByteString], IORef [ByteString]) -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
 notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
     clients <- readIORef stateRef
 

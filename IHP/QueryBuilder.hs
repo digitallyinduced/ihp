@@ -50,8 +50,6 @@ module IHP.QueryBuilder
 , buildQuery
 , SQLQuery (..)
 , OrderByClause (..)
-, OrderByDirection (..)
-, Condition (..)
 , innerJoin
 , innerJoinThirdTable
 , HasQueryBuilder

@@ -13,7 +13,6 @@ import IHP.Prelude
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.Notification as PG
-import Control.Concurrent.Async
 import IHP.ModelSupport
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.

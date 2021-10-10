@@ -4,7 +4,7 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compilePostgresType, compileExpression)
+import IHP.IDE.SchemaDesigner.Compiler (compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List

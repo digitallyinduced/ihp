@@ -8,7 +8,6 @@ module IHP.AutoRefresh.Types where
 import IHP.Prelude
 import IHP.Controller.RequestContext
 import Control.Concurrent.MVar (MVar)
-import Control.Concurrent.Async
 
 data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshSession = AutoRefreshSession

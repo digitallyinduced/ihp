@@ -149,7 +149,7 @@ isActivePathOrSub route =
 -- True
 --
 -- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller context. (?context :: ControllerContext, Typeable controller) => Bool
+isActiveController :: forall controller. (?context :: ControllerContext, Typeable controller) => Bool
 isActiveController =
     let
         (ActionType actionType) = fromFrozenContext @ActionType

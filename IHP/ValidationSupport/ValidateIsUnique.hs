@@ -28,7 +28,7 @@ import IHP.Fetch
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-validateIsUnique :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+validateIsUnique :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -69,7 +69,7 @@ validateIsUnique fieldProxy model = validateIsUniqueCaseAware fieldProxy model T
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-validateIsUniqueCaseInsensitive :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -92,7 +92,7 @@ validateIsUniqueCaseInsensitive fieldProxy model = validateIsUniqueCaseAware fie
 {-# INLINE validateIsUniqueCaseInsensitive #-}
 
 -- | Internal helper for 'validateIsUnique' and 'validateIsUniqueCaseInsensitive'
-validateIsUniqueCaseAware :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+validateIsUniqueCaseAware :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -138,7 +138,7 @@ validateIsUniqueCaseAware fieldProxy model caseSensitive = do
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-withCustomErrorMessageIO :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+withCustomErrorMessageIO :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel

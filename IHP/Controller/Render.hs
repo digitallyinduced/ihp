@@ -52,7 +52,7 @@ respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 {-# INLINABLE respondSvg #-}
 
-renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
+renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO Html
 renderHtml !view = do
     let ?view = view
     initFlashMessages
@@ -68,7 +68,7 @@ renderHtml !view = do
     pure boundHtml
 {-# INLINABLE renderHtml #-}
 
-renderFile :: (?context :: ControllerContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
+renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 {-# INLINABLE renderFile #-}
 
@@ -111,7 +111,7 @@ data PolymorphicRender
 -- `
 -- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
 {-# INLINABLE renderPolymorphic #-}
-renderPolymorphic :: forall viewContext jsonType htmlType. (?context :: ControllerContext) => PolymorphicRender -> IO ()
+renderPolymorphic :: (?context :: ControllerContext) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
     let headers = Network.Wai.requestHeaders request
     let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
@@ -132,7 +132,7 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 
 
 {-# INLINABLE render #-}
-render :: forall view controller. (ViewSupport.View view, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO ()
+render :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = Just $ (renderHtml view) >>= respondHtml

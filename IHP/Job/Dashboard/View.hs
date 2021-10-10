@@ -11,11 +11,6 @@ import IHP.Prelude
 import IHP.ViewPrelude (JobStatus(..), ControllerContext, Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
 import qualified Data.List as List
 import IHP.Job.Dashboard.Types
-import IHP.ModelSupport
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import IHP.Job.Dashboard.Utils
 import qualified IHP.Log as Log
 

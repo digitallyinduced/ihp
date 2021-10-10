@@ -30,7 +30,6 @@ import IHP.IDE.Logs.Controller ()
 import IHP.IDE.CodeGen.Controller ()
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.Controller as Helper
-import Control.Concurrent.Async
 import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
 import System.Info
