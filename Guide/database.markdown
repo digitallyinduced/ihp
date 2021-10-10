@@ -308,12 +308,9 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 do  
     -- Get all Projects
     let table :: Text = "projects"
-    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]
-    
-    -- A Count query
-    (PG.Only totalRecords : _)  <- sqlQuery "SELECT COUNT(*) FROM projects" ()
+    -- Use PG.Identifier to prevent SQL injection
+    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]    
 ```
-
 
 ### Scalar Results
 
