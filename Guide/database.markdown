@@ -285,10 +285,10 @@ do
     result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
     
     -- Query with WHERE id IN
-    result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (IN [id]))
+    result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (In [id]))
     
     -- Get a lists of posts with their Comment count 
-    let postIds = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
+    let postIds :: [Id Post] = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
     commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))    
 ```
 
@@ -308,9 +308,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 do  
     -- Get all Projects
     let table :: Text = "projects"
-    let query = PG.Query $ cs $ "SELECT * FROM " ++ table
-
-    result :: [Project] <- sqlQuery query ()   
+    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]
     
     -- A Count query
     (PG.Only totalRecords : _)  <- sqlQuery "SELECT COUNT(*) FROM projects" ()
