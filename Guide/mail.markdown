@@ -111,6 +111,31 @@ config = do
         }
 ```
 
+### Local (For Deubgging)
+
+A convinient way to see sent mails is to use a local mail testing such as [MailHog](https://github.com/mailhog/MailHog). This service will catch all outgoing emails, and show there HTML to you - which is handy while developing. 
+
+1. Make sure `sendmail` is locally installed and configured.
+2. Install MailHog
+3. Enter the followning Config.
+4. Start MailHog and open the link at http://0.0.0.0:8025/
+5. Send an email via your application, and see it in MailHog
+
+
+```haskell
+-- Add this import
+import IHP.Mail
+
+config :: ConfigBuilder
+config = do
+    -- other options here, then add:
+    option $ SMTP
+        { host = "127.0.1.1"
+        , port = 1025
+        , credentials = Nothing
+        }
+```
+
 ### SendGrid
 
 ```haskell
