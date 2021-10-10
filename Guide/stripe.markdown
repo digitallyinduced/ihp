@@ -14,7 +14,7 @@ This guide asumes you've read through the basics of the stripe documentation to 
 
 ## Setup
 
-### Install ihp-sentry in your IHP app
+### Install ihp-stripe in your IHP app
 
 Add `ihp-stripe` to the `haskellDeps` in your `default.nix`:
 
