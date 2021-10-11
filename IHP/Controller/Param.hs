@@ -120,6 +120,37 @@ paramList name =
     |> DeepSeq.force
 {-# INLINABLE paramList #-}
 
+-- | Similiar to 'paramOrNothing' but works with multiple params. This is useful when submitting multiple
+-- input fields with the same name, and some may be empty.
+--
+-- Given a query like (not the `ingredients` in the middle that has no value):
+--
+-- > ingredients=milk&ingredients&ingredients=egg
+--
+-- This will return:
+--
+-- >>> paramList @Text "ingredients"
+-- [Just "milk", Nothing, Just "egg"]
+--
+-- When no parameter with the name is given, an empty list is returned:
+--
+-- >>> paramList @Text "not_given_in_url"
+-- []
+--
+--
+paramListOrNothing :: forall valueType. (?context :: ControllerContext, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [Maybe valueType]
+paramListOrNothing name =
+    allParams
+    |> filter (\(paramName, paramValue) -> paramName == name)
+    |> mapMaybe (\(paramName, paramValue) -> paramValue)
+    |> map (readParameter @valueType)
+    |> map (\value -> case value of
+            Left _ -> Nothing
+            Right val -> Just val
+        )
+    |> DeepSeq.force
+{-# INLINABLE paramListOrNothing #-}
+
 paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 
 -- | Thrown when a parameter is missing when calling 'param "myParam"' or related functions
@@ -214,7 +245,7 @@ paramOrNothing !name =
 
 -- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid
 paramOrError :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Either ParamException paramType
-paramOrError !name = 
+paramOrError !name =
     let
         RequestContext { requestBody } = ?context |> get #requestContext
     in case requestBody of
