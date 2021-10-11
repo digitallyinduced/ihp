@@ -58,6 +58,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {deploy}
         {docu}
 
+        {getPro}
         {help}
         <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
     </div>
@@ -116,6 +117,18 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                     If you're using <a href="https://ihp.digitallyinduced.com/Pricing" target="_blank">IHP Business</a>, you can also <a href="mailto:support@digitallyinduced.com">reach out to the digitally induced email support</a>.
                 </p>
             </div>
+        |]
+
+        getPro :: Html
+        getPro = [hsx|
+            <a
+                href="https://ihp.digitallyinduced.com/Pricing?source=ide"
+                class="nav-item text-center"
+                target="_blank"
+                id="nav-upgrade"
+            >
+                Upgrade to <br /> IHP Pro
+            </a>
         |]
 
         appNavItem :: Text -> Html
