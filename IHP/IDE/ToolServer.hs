@@ -40,6 +40,8 @@ import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
+import qualified IHP.Version as Version
+import qualified IHP.Assets.Types as Assets
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -138,3 +140,5 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
         putContext webControllers
         putContext (AppUrl appUrl)
         setLayout Layout.toolServerLayout
+
+        putContext (Assets.AssetVersion Version.ihpVersion)

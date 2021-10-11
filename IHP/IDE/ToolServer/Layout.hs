@@ -14,32 +14,32 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
     <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
-    <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
-    <link rel="stylesheet" href="/IDE/schema-designer.css"/>
-    <link rel="stylesheet" href="/vendor/select2.min.css"/>
+    <link rel="stylesheet" href={assetPath "/vendor/bootstrap.min.css"}/>
+    <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
+    <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
-    <script src="/vendor/morphdom-umd.min.js"></script>
-    <script src="/vendor/jquery-3.6.0.min.js"></script>
-    <script src="/vendor/timeago.js"></script>
-    <script src="/vendor/popper.min.js"></script>
-    <script src="/vendor/bootstrap.min.js"></script>
+    <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+    <script src={assetPath "/vendor/jquery-3.6.0.min.js"}></script>
+    <script src={assetPath "/vendor/timeago.js"}></script>
+    <script src={assetPath "/vendor/popper.min.js"}></script>
+    <script src={assetPath "/vendor/bootstrap.min.js"}></script>
     
 
-    <script src="/vendor/turbolinks.js"></script>
-    <script src="/vendor/morphdom-umd.min.js"></script>
-    <script src="/vendor/turbolinksMorphdom.js"></script>
-    <script src="/vendor/turbolinksInstantClick.js"></script>
+    <script src={assetPath "/vendor/turbolinks.js"}></script>
+    <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+    <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
+    <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
     
 
-    <script src="/helpers.js"></script>
-    <script src="/IDE/contextmenu.js"></script>
+    <script src={assetPath "/helpers.js"}></script>
+    <script src={assetPath "/IDE/contextmenu.js"}></script>
 
-    <script src="/vendor/select2.min.js"></script>
-    <script src="/vendor/src-min/ace.js"></script>
-    <script src="/vendor/src-min/ext-language_tools.js"></script>
-    <script src="/IDE/ihp-schemadesigner.js"></script>
-    <script src="/IDE/ihp-codegen.js"></script>
-    <script src="/IDE/ihp-help.js"></script>
+    <script src={assetPath "/vendor/select2.min.js"}></script>
+    <script src={assetPath "/vendor/src-min/ace.js"}></script>
+    <script src={assetPath "/vendor/src-min/ext-language_tools.js"}></script>
+    <script src={assetPath "/IDE/ihp-schemadesigner.js"}></script>
+    <script src={assetPath "/IDE/ihp-codegen.js"}></script>
+    <script src={assetPath "/IDE/ihp-help.js"}></script>
 
 
     <title>IHP IDE</title>
