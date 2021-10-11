@@ -59,7 +59,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {docu}
 
         {help}
-        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank" title={"IHP Version: " <> Version.ihpVersion}>©<br />digitally induced GmbH</a>
+        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
     </div>
     <div id="content">
         {inner}
@@ -105,6 +105,12 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                 <a class="btn btn-light border btn-block mb-1" href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">
                     → StackOverflow
                 </a>
+
+                <p class="text-muted text-center">
+                    <small>
+                        IHP Version: {Version.ihpVersion}
+                    </small>
+                </p>
 
                 <p class="text-muted email-support">
                     If you're using <a href="https://ihp.digitallyinduced.com/Pricing" target="_blank">IHP Business</a>, you can also <a href="mailto:support@digitallyinduced.com">reach out to the digitally induced email support</a>.
