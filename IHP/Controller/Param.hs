@@ -123,7 +123,7 @@ paramList name =
 -- | Similiar to 'paramOrNothing' but works with multiple params. This is useful when submitting multiple
 -- input fields with the same name, and some may be empty.
 --
--- Given a query like (not the `ingredients` in the middle that has no value):
+-- Given a query like (note the `ingredients` in the middle that has no value):
 --
 -- > ingredients=milk&ingredients&ingredients=egg
 --
