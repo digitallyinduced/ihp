@@ -129,12 +129,12 @@ paramList name =
 --
 -- This will return:
 --
--- >>> paramList @Text "ingredients"
+-- >>> paramListOrNothing @Text "ingredients"
 -- [Just "milk", Nothing, Just "egg"]
 --
 -- When no parameter with the name is given, an empty list is returned:
 --
--- >>> paramList @Text "not_given_in_url"
+-- >>> paramListOrNothing @Text "not_given_in_url"
 -- []
 --
 --
