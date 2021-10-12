@@ -54,7 +54,7 @@ stringLiteral :: Parser String
 stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
-parseDDL = manyTill statement eof
+parseDDL = space >> manyTill statement eof
 
 statement = do
     s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> createPolicy <|> alterTable <|> comment

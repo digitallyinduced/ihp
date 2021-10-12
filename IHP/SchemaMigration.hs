@@ -14,6 +14,7 @@ import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import IHP.Log.Types
+import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
 
 data Migration = Migration
     { revision :: Int
@@ -131,5 +132,12 @@ createMigration description = do
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
     Directory.createDirectoryIfMissing False "Application/Migration"
-    Text.writeFile ("Application/Migration/" <> cs migrationFile) "-- Write your SQL migration code in here\n"
+
+    let migrationPath = "Application/Migration/" <> cs migrationFile
+    Text.writeFile migrationPath "-- Write your SQL migration code in here\n"
+
+    -- Add changes from Application/Migration/unmigrated-changes.sql
+    unmigratedChanges <- MigrationChangeTracker.takeUnmigratedChanges
+    Text.appendFile migrationPath unmigratedChanges
+
     pure Migration { .. }
