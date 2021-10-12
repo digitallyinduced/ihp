@@ -151,7 +151,7 @@ Either add the package to your project's `default.nix` as well, or change the se
 
 ### Type errors in `build/Generated/Types.hs`
 
-The errors comes from changes to the Schema Compiler, so `build/Generated/Types.hs` is outdated. The error only happens when we have backwards compatibility breaks in some of the interfaces, which doesn't happen very often. If you do get them you should execute from `IHP` directory
+The errors comes from changes to the Schema Compiler, so `build/Generated/Types.hs` is outdated. The error only happens when we have backwards compatibility breaks in some of the interfaces, which doesn't happen very often. If you do get them you should execute from your appication's root directory (not the `IHP` directory)
 
 ```
 nix-shell
