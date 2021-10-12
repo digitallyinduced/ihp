@@ -80,10 +80,6 @@ instance IsEmpty UUID.UUID where
     isEmpty uuid = UUID.nil == uuid
     {-# INLINE isEmpty #-}
 
-instance IsEmpty Int where
-    isEmpty _ = False
-    {-# INLINE isEmpty #-}
-
 ifOrEmpty :: (Monoid a) => Bool -> a -> a
 ifOrEmpty bool a = if bool then a else mempty
 {-# INLINE ifOrEmpty #-}

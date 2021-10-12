@@ -138,15 +138,15 @@ paramList name =
 -- []
 --
 --
-paramListOrNothing :: forall valueType. (?context :: ControllerContext, DeepSeq.NFData valueType, ParamReader valueType, IsEmpty valueType) => ByteString -> [Maybe valueType]
+paramListOrNothing :: forall valueType. (?context :: ControllerContext, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [Maybe valueType]
 paramListOrNothing name =
     allParams
     |> filter (\(paramName, paramValue) -> paramName == name)
     |> mapMaybe (\(paramName, paramValue) -> paramValue)
-    |> map (readParameter @valueType)
+    |> map (\paramValue -> if paramValue == "" then Left "Empty ByteString" else readParameter @valueType paramValue)
     |> map (\value -> case value of
             Left _ -> Nothing
-            Right val -> if isEmpty val then Nothing else Just val
+            Right val -> Just val
         )
     |> DeepSeq.force
 {-# INLINABLE paramListOrNothing #-}
