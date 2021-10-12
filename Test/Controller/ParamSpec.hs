@@ -88,7 +88,7 @@ tests = do
         describe "paramListOrNothing" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", ""), ("ingredients", "egg")]
-                (paramListOrNothing @Text "ingredients") `shouldBe` [Just "milk", Nothing, Just "egg"]
+                (paramListOrNothing @Text "ingredients") `shouldBe` [Just "milk", Just "", Just "egg"]
 
             it "should not fail on invalid input" do
                 let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
