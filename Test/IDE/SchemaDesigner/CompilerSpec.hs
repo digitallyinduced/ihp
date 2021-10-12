@@ -310,7 +310,7 @@ tests = do
                             }
                         , Column
                             { name = "d"
-                            , columnType = (PVaryingN 10)
+                            , columnType = (PVaryingN (Just 10))
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False

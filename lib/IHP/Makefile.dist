@@ -125,7 +125,7 @@ db: Application/Schema.sql Application/Fixtures.sql ## Creates a new database wi
 
 dumpdb: dump_db ## Saves the current database state into the Fixtures.sql
 dump_db: ## Saves the current database state into the Fixtures.sql
-	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
+	pg_dump -a --inserts --column-inserts --disable-triggers -h $PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
 
 build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
 	mkdir -p build/Generated

@@ -19,9 +19,12 @@ tests = do
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+        
+        it "should parse an CREATE EXTENSION with schema suffix" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
 
         it "should parse a line comment" do
-            parseSql "-- Comment value" `shouldBe` Comment { content = "Comment value" }
+            parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
 
         it "should parse a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
@@ -333,7 +336,7 @@ tests = do
                         [ col { name = "a", columnType = PNumeric Nothing Nothing}
                         , col { name = "b", columnType = (PNumeric (Just 1) Nothing) }
                         , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
-                        , col { name = "d", columnType = (PVaryingN 10) }
+                        , col { name = "d", columnType = (PVaryingN (Just 10)) }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
@@ -456,6 +459,23 @@ tests = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     }
+        it "should parse CREATE FUNCTION statements that are outputted by pg_dump" do
+            let sql = cs [plain|
+CREATE FUNCTION public.notify_did_change_projects() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$BEGIN
+    PERFORM pg_notify('did_change_projects', '');
+    RETURN new;END;
+$$;
+            |]
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "notify_did_change_projects"
+                    , functionBody = "BEGIN\n    PERFORM pg_notify('did_change_projects', '');\n    RETURN new;END;\n"
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    }
+
 
         it "should parse unsupported SQL as a unknown statement" do
             let sql = "CREATE TABLE a(); CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y(); CREATE TABLE b();"
@@ -511,6 +531,64 @@ tests = do
                         )
                     }
 
+        it "should parse 'SET' statements" do
+            parseSql "SET statement_timeout = 0;" `shouldBe` Set { name = "statement_timeout", value = IntExpression 0 }
+            parseSql "SET client_encoding = 'UTF8';" `shouldBe` Set { name = "client_encoding", value = TextExpression "UTF8" }
+
+        it "should parse 'SELECT' statements" do
+            parseSql "SELECT pg_catalog.set_config('search_path', '', false);" `shouldBe` SelectStatement { query = "pg_catalog.set_config('search_path', '', false)" }
+        it "should parse 'COMMENT' statements" do
+            parseSql "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)';" `shouldBe` Comment { content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'" }
+
+        it "should parse a column with a default value that has a qualified function call" do
+            let sql = cs [plain|
+                CREATE TABLE a(id UUID DEFAULT public.uuid_generate_v4() NOT NULL);
+            |]
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            parseSql sql `shouldBe` statement
+
+
+        it "should parse character varying type casts" do
+            let sql = cs [plain|
+                CREATE TABLE a (
+                    a character varying(510) DEFAULT NULL::character varying
+                );
+            |]
+            let statement = StatementCreateTable CreateTable
+                    { name = "a"
+                    , columns = [ Column
+                            {name = "a"
+                            , columnType = PVaryingN (Just 510)
+                            , defaultValue = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
+                            , notNull = False
+                            , isUnique = False
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            parseSql sql `shouldBe` statement
+        
+        it "should parse empty binary strings" do
+            let sql = cs [plain|
+                CREATE TABLE a (
+                    a bytea DEFAULT '\\x'::bytea NOT NULL
+                );
+            |]
+            let statement = StatementCreateTable CreateTable
+                    { name = "a"
+                    , columns = [ Column
+                            {name = "a"
+                            , columnType = PBinary
+                            , defaultValue = Just (TypeCastExpression (TextExpression "") PBinary)
+                            , notNull = True
+                            , isUnique = False
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            parseSql sql `shouldBe` statement
 col :: Column
 col = Column
     { name = ""

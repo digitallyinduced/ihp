@@ -123,13 +123,3 @@ pathToMigration fileName = case revision of
 
 migrationPath :: Migration -> Text
 migrationPath Migration { migrationFile } = "Application/Migration/" <> migrationFile
-
--- | Generates a new migration @.sql@ file in @Application/Migration@
-createMigration :: Text -> IO Migration
-createMigration description = do
-    revision <- round <$> POSIX.getPOSIXTime
-    let slug = NameSupport.toSlug description
-    let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
-    Directory.createDirectoryIfMissing False "Application/Migration"
-    Text.writeFile ("Application/Migration/" <> cs migrationFile) "-- Write your SQL migration code in here\n"
-    pure Migration { .. }

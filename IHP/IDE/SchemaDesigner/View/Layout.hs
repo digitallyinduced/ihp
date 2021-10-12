@@ -323,7 +323,7 @@ findForeignKey statements tableName columnName =
 findPrimaryKey :: [Statement] -> Text -> Maybe [Text]
 findPrimaryKey statements tableName = do
     (StatementCreateTable createTable) <- find (isCreateTable tableName) statements
-    pure . primaryKeyColumnNames $ primaryKeyConstraint createTable
+    pure . primaryKeyColumnNames $ get #primaryKeyConstraint createTable
     where
       isCreateTable tableName (StatementCreateTable CreateTable { name }) = name == tableName
       isCreateTable _ _ = False

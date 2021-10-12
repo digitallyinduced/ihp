@@ -149,7 +149,7 @@ compileStatementPreview statements statement = let ?schema = Schema statements i
 
 compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
 compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
-    case primaryKeyConstraint table of
+    case get #primaryKeyConstraint table of
         -- Skip generation of tables with no primary keys
         PrimaryKeyConstraint [] -> ""
         _ -> compileData table
@@ -482,7 +482,7 @@ instance FromRow #{modelName} where
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
-        isPrimaryKey name = name `elem` primaryKeyColumnNames (primaryKeyConstraint table)
+        isPrimaryKey name = name `elem` primaryKeyColumnNames (get #primaryKeyConstraint table)
         isColumn name = name `elem` columnNames
         isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
