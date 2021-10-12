@@ -55,6 +55,7 @@ renderStatus job = case get #status job of
     JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Failed</span>|]
     JobStatusSucceeded -> [hsx|<span class="badge badge-success">Succeeded</span>|]
     JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Retry</span>|]
+    JobStatusTimedOut -> [hsx|<span class="badge badge-danger" >Timed Out</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------
 
