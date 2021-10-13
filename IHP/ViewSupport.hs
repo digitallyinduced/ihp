@@ -66,7 +66,7 @@ class View theView where
 
     -- | Renders the view to a JSON
     json :: theView -> JSON.Value
-    json = error "Not implemented"
+    json = error "Json View for this route is not implemented"
 
 -- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@
