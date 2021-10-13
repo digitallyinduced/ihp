@@ -518,6 +518,10 @@ tests = do
         
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
+
+        it "should parse 'CREATE SEQUENCE ..' statements" do
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
+
 col :: Column
 col = Column
     { name = ""

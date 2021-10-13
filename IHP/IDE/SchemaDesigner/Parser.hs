@@ -57,7 +57,7 @@ parseDDL :: Parser [Statement]
 parseDDL = space >> manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> createPolicy <|> alterTable <|> dropTable <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> createSequence <|> alterTable <|> dropTable <|> comment
     space
     pure s
 
@@ -520,6 +520,13 @@ dropTable = do
     tableName <- identifier
     char ';'
     pure DropTable { tableName }
+
+createSequence = do
+    lexeme "CREATE"
+    lexeme "SEQUENCE"
+    name <- identifier
+    char ';'
+    pure CreateSequence { name }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

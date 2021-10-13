@@ -524,3 +524,8 @@ tests = do
             let sql = "DROP TABLE tasks;\n"
             let statements = [ DropTable { tableName = "tasks" } ]
             compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE SEQUENCE ..' statements" do
+            let sql = "CREATE SEQUENCE a;\n"
+            let statements = [ CreateSequence { name = "a" } ]
+            compileSql statements `shouldBe` sql

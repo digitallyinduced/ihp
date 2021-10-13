@@ -34,6 +34,8 @@ data Statement
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
     | CreatePolicy { name :: Text, tableName :: Text, using :: Maybe Expression, check :: Maybe Expression }
+    -- CREATE SEQUENCE name;
+    | CreateSequence { name :: Text }
     deriving (Eq, Show)
 
 data CreateTable
