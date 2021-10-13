@@ -42,17 +42,9 @@ data AddColumnOptions = AddColumnOptions
     , primaryKey :: !Bool
     }
 addColumn :: AddColumnOptions -> Schema -> Schema
-addColumn AddColumnOptions { .. } = 
+addColumn options@(AddColumnOptions { .. }) = 
     let
-        column = Column
-            { name = columnName
-            , columnType = arrayifytype isArray columnType
-            , defaultValue = defaultValue
-            , notNull = (not allowNull)
-            , isUnique = isUnique
-            }
-
-
+        column = newColumn options
         addColumnToTable :: Text -> Column -> Bool -> Statement -> Statement
         addColumnToTable tableName (column@Column { name = columnName }) isPrimaryKey (StatementCreateTable table@CreateTable { name, columns, primaryKeyConstraint = PrimaryKeyConstraint pks})
             | name == tableName =
@@ -64,21 +56,52 @@ addColumn AddColumnOptions { .. } =
         addColumnToTable tableName column isPrimaryKey statement = statement
 
         addTableOp :: Schema -> Schema = map (addColumnToTable tableName column primaryKey)
+
+        foreignKeyConstraint = newForeignKeyConstraint tableName columnName (fromJust referenceTable)
+        foreignKeyIndex = newForeignKeyIndex tableName columnName
     in
         if isReference then
-            let
-                constraintName = tableName <> "_ref_" <> columnName
-                onDelete = NoAction
-                addForeignKeyConstraintToSchema = addForeignKeyConstraint tableName columnName constraintName (fromJust referenceTable) onDelete
-
-                indexName = tableName <> "_" <> columnName <> "_index"
-                columnNames = [columnName]
-                addTableIndexToSchema = addTableIndex indexName False tableName columnNames
-            in
-                addForeignKeyConstraintToSchema . addTableIndexToSchema . addTableOp
+            \statements -> statements
+            |> addTableOp
+            |> appendStatement foreignKeyIndex
+            |> appendStatement foreignKeyConstraint
         else
             addTableOp
 
+newColumn :: AddColumnOptions -> Column
+newColumn AddColumnOptions { .. } = Column
+    { name = columnName
+    , columnType = arrayifytype isArray columnType
+    , defaultValue = defaultValue
+    , notNull = (not allowNull)
+    , isUnique = isUnique
+    }
+
+newForeignKeyConstraint :: Text -> Text -> Text -> Statement
+newForeignKeyConstraint tableName columnName referenceTable =
+    AddConstraint
+    { tableName
+    , constraintName = tableName <> "_ref_" <> columnName
+    , constraint = ForeignKeyConstraint
+        { columnName = columnName
+        , referenceTable = referenceTable
+        , referenceColumn = "id"
+        , onDelete = (Just NoAction)
+        }
+    }
+
+newForeignKeyIndex :: Text -> Text -> Statement
+newForeignKeyIndex tableName columnName =
+    CreateIndex
+    { indexName = tableName <> "_" <> columnName <> "_index"
+    , unique = False
+    , tableName
+    , expressions = [VarExpression columnName]
+    , whereClause = Nothing
+    }
+
+appendStatement :: Statement -> [Statement] -> [Statement]
+appendStatement statement statements = statements <> [statement]
 
 arrayifytype :: Bool -> PostgresType -> PostgresType
 arrayifytype False   (PArray coltype) = coltype

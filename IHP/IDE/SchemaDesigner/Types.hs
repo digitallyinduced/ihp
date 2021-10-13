@@ -17,6 +17,12 @@ data Statement
     | CreateExtension { name :: Text, ifNotExists :: Bool }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName ADD COLUMN column;
+    | AddColumn { tableName :: Text, column :: Column }
+    -- | ALTER TABLE tableName DROP COLUMN columnName;
+    | DropColumn { tableName :: Text, columnName :: Text }
+    -- | DROP TABLE tableName;
+    | DropTable { tableName :: Text }
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));

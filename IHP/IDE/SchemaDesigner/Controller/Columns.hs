@@ -117,6 +117,9 @@ instance Controller ColumnsController where
         let indicesToDelete = findIndicesReferencingColumn statements (tableName, columnName)
         forEach indicesToDelete \CreateIndex { indexName } -> updateSchema (deleteTableIndex indexName)
         updateSchema (map (deleteColumnInTable tableName columnId))
+
+        MigrationChangeTracker.deleteColumn tableName columnName
+        
         redirectTo ShowTableAction { .. }
 
     action ToggleColumnUniqueAction { .. } = do

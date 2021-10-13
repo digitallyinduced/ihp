@@ -510,7 +510,14 @@ tests = do
                             (CallExpression "ihp_user_id" [])
                         )
                     }
+        it "should parse 'ALTER TABLE .. ADD COLUMN' statements" do
+            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = Column { name ="b", columnType = PInt, defaultValue = Nothing, notNull = True, isUnique = False}}
 
+        it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
+            parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
+        
+        it "should parse 'DROP TABLE ..' statements" do
+            parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
 col :: Column
 col = Column
     { name = ""

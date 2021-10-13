@@ -77,6 +77,7 @@ instance Controller TablesController where
         let tableName = param "tableName"
         updateSchema (deleteTable tableId)
         updateSchema (deleteForeignKeyConstraints tableName)
+        MigrationChangeTracker.deleteTable tableName
         redirectTo TablesAction
 
 
