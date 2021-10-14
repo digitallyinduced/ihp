@@ -97,17 +97,18 @@ setupWithContext action context = withContext action context >> pure context
 -- | Runs a controller action in a mock environment
 mockAction :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO Response
 mockAction controller = do
-  responseRef <- newIORef Nothing
-  let oldRespond = ?context |> respond
-  let customRespond response = do
-      writeIORef responseRef (Just response)
-      oldRespond response
-  let requestContextWithOverridenRespond = ?context { respond = customRespond }
-  let ?requestContext = requestContextWithOverridenRespond
-  runActionWithNewContext controller
-  readIORef responseRef >>= \case
-    Just response -> pure response
-    Nothing -> error "mockAction: The action did not render a response"
+    responseRef <- newIORef Nothing
+    let oldRespond = ?context |> respond
+    let customRespond response = do
+            writeIORef responseRef (Just response)
+            oldRespond response
+    let requestContextWithOverridenRespond = ?context { respond = customRespond }
+    let ?requestContext = requestContextWithOverridenRespond
+    runActionWithNewContext controller
+    maybeResponse <- readIORef responseRef
+    case maybeResponse of
+        Just response -> pure response
+        Nothing -> error "mockAction: The action did not render a response"
 
 -- | Get contents of response
 mockActionResponse :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO LBS.ByteString
