@@ -16,6 +16,8 @@ import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
+import IHP.DataSync.DynamicQueryCompiler
+import qualified Data.Text as Text
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -135,6 +137,44 @@ instance (
             sqlQuery "SELECT * FROM ? WHERE id = ?" (PG.Identifier table, id)
 
         renderJson (head result)
+
+    -- GET /api/:table
+    -- GET /api/:table?orderBy=createdAt
+    -- GET /api/:table?fields=id,title
+    action ListRecordsAction { table } = do
+        ensureRLSEnabled table
+
+        let (theQuery, theParams) = compileQuery (buildDynamicQueryFromRequest table)
+        result :: [[Field]] <- withRLS (sqlQuery theQuery theParams)
+
+        renderJson result
+
+buildDynamicQueryFromRequest table = DynamicSQLQuery
+    { table
+    , selectedColumns = paramOrDefault SelectAll "fields"
+    , whereCondition = Nothing
+    , orderByClause = paramList "orderBy"
+    , limitClause = Nothing
+    , offsetClause = Nothing
+    }
+
+instance ParamReader SelectedColumns where
+    readParameter byteString = pure $
+        byteString
+            |> cs
+            |> Text.split (\char -> char == ',')
+            |> SelectSpecific
+
+instance ParamReader OrderByClause where
+    readParameter byteString = case ByteString.split ',' byteString of
+            [orderByColumn, order] -> do
+                orderByDirection <- parseOrder order
+                pure OrderByClause { orderByColumn, orderByDirection }
+            [orderByColumn] -> pure OrderByClause { orderByColumn, orderByDirection = Asc }
+        where
+            parseOrder "asc" = Right Asc
+            parseOrder "desc" = Right Desc
+            parseOrder otherwise = Left ("Invalid order " <> cs otherwise)
 
 instance ToJSON PG.SqlError where
     toJSON PG.SqlError { sqlState, sqlErrorMsg, sqlErrorDetail, sqlErrorHint } = object
