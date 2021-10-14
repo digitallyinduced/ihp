@@ -127,6 +127,15 @@ instance (
 
         renderJson True
 
+    -- GET /api/:table/:id
+    action ShowRecordAction { table, id } = do
+        ensureRLSEnabled table
+
+        result :: [[Field]] <- withRLS do
+            sqlQuery "SELECT * FROM ? WHERE id = ?" (PG.Identifier table, id)
+
+        renderJson (head result)
+
 instance ToJSON PG.SqlError where
     toJSON PG.SqlError { sqlState, sqlErrorMsg, sqlErrorDetail, sqlErrorHint } = object
                 [ "state" .= ((cs sqlState) :: Text)

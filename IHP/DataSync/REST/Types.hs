@@ -6,4 +6,5 @@ data ApiController
     = CreateRecordAction { table :: Text } -- ^ POST /api/books
     | UpdateRecordAction { table :: Text, id :: UUID }
     | DeleteRecordAction { table :: Text, id :: UUID }
+    | ShowRecordAction { table :: Text, id :: UUID } -- ^ GET /api/books/9ba0ffbc-bfc1-4d7d-8152-30a6648806f7
     deriving (Eq, Show, Data)
