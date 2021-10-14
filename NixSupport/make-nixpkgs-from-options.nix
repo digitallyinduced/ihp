@@ -3,11 +3,11 @@
 # the project
 { ihp
 , haskellPackagesDir
-, dontCheckPackages ? ["mmark" "mmark-ext" "hls-brittany-plugin" "hls-haddock-comments-plugin" "hls-class-plugin"]
-, doJailbreakPackages ? ["haskell-to-elm" "wide-word"]
+, dontCheckPackages ? ["mmark" "mmark-ext"]
+, doJailbreakPackages ? ["haskell-to-elm"]
 , dontHaddockPackages ? []
-, nixPkgsRev ? "d50679e56e4a3311155eb97dcaa55db52b2c2d5a"
-, nixPkgsSha256 ? "1bwqkk2gfpzas82fiili33kbnrayc1dy86x5sisb9bd2grvrx86c"
+, nixPkgsRev ? "51bcdc4cdaac48535dabf0ad4642a66774c609ed"
+, nixPkgsSha256 ? "0zpf159nlpla6qgxfgb2m3c2v09fz8jilc21zwymm59qrq6hxscm"
 , compiler ? "ghc8107"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
