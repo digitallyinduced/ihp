@@ -59,6 +59,7 @@
 , wai-cors
 , lens
 , random
+, async-pool
 }:
 mkDerivation {
   pname = "ihp";
@@ -124,6 +125,7 @@ mkDerivation {
     wai-cors
     lens
     random
+    async-pool
   ];
   license = lib.licenses.mit;
   postInstall = ''
