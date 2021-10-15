@@ -20,9 +20,8 @@ import qualified IHP.ApplicationContext                    as ApplicationContext
 import           IHP.ApplicationContext                    (ApplicationContext (..))
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
 import qualified IHP.Controller.Context                    as Context
-import           IHP.FlashMessages.ControllerFunctions     (initFlashMessages)
 import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
-import           IHP.ControllerSupport                     (InitControllerContext, Controller, ResponseException(..), initContext,action)
+import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
 import           IHP.ModelSupport                          (createModelContext)
@@ -96,24 +95,27 @@ setupWithContext :: (ContextParameters application => IO a) -> MockContext appli
 setupWithContext action context = withContext action context >> pure context
 
 -- | Runs a controller action in a mock environment
-mockAction :: forall application controller. (Controller controller, ContextParameters application) => controller -> IO Response
+mockAction :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO Response
 mockAction controller = do
-  let ?modelContext = ApplicationContext.modelContext ?applicationContext
-  let ?requestContext = ?context
-  controllerContext <- Context.newControllerContext
-  let ?context = controllerContext
-  initContext @application
-  let ?theAction = controller
-  initFlashMessages
-  let doRunAction = action controller >> error "no ResponseException given"
-  doRunAction `catch` \(ResponseException response) -> pure response
+    responseRef <- newIORef Nothing
+    let oldRespond = ?context |> respond
+    let customRespond response = do
+            writeIORef responseRef (Just response)
+            oldRespond response
+    let requestContextWithOverridenRespond = ?context { respond = customRespond }
+    let ?requestContext = requestContextWithOverridenRespond
+    runActionWithNewContext controller
+    maybeResponse <- readIORef responseRef
+    case maybeResponse of
+        Just response -> pure response
+        Nothing -> error "mockAction: The action did not render a response"
 
 -- | Get contents of response
-mockActionResponse :: forall application controller. (Controller controller, ContextParameters application) => controller -> IO LBS.ByteString
+mockActionResponse :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO LBS.ByteString
 mockActionResponse = (responseBody =<<) . mockAction
 
 -- | Get HTTP status of the controller
-mockActionStatus :: forall application controller. (Controller controller, ContextParameters application) => controller -> IO HTTP.Status
+mockActionStatus :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO HTTP.Status
 mockActionStatus = fmap responseStatus . mockAction
 
 -- | Add params to the request context, run the action
