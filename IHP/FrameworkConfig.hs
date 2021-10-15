@@ -65,6 +65,9 @@ newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> So
 -- | Typically "http://localhost:8001", Url where the IDE is running
 newtype IdeBaseUrl = IdeBaseUrl Text
 
+-- | Postgres role to be used for making queries with Row level security enabled
+newtype RLSAuthenticatedRole = RLSAuthenticatedRole Text
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -148,6 +151,9 @@ ihpDefaultConfig = do
         ihpIdeBaseUrl <- fromMaybe "http://localhost:8001" <$> liftIO (Environment.lookupEnv "IHP_IDE_BASEURL")
         option (IdeBaseUrl (cs ihpIdeBaseUrl))
 
+    rlsAuthenticatedRole <- fromMaybe "ihp_authenticated" <$> liftIO (Environment.lookupEnv "IHP_RLS_AUTHENTICATED_ROLE")
+    option $ RLSAuthenticatedRole (cs rlsAuthenticatedRole)
+
 
 {-# INLINABLE ihpDefaultConfig #-}
 
@@ -184,6 +190,7 @@ buildFrameworkConfig appConfig = do
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
+            (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
 
             appConfig <- State.get
 
@@ -327,6 +334,9 @@ data FrameworkConfig = FrameworkConfig
     -- >
     , parseRequestBodyOptions :: WaiParse.ParseRequestBodyOptions
     , ideBaseUrl :: Text
+
+    -- | See IHP.DataSync.Role
+    , rlsAuthenticatedRole :: Text
 }
 
 class ConfigProvider a where
