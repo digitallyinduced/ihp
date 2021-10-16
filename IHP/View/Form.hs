@@ -255,7 +255,7 @@ buildForm formContext inner =
 -- > <form method="POST" action="/CreatePost" id="" class="new-form">
 -- >     <button class="btn btn-primary create-button">Create Post</button>
 -- > </form>
-submitButton :: forall model id. (?formContext :: FormContext model, HasField "meta" model MetaBag, KnownSymbol (GetModelName model)) => SubmitButton
+submitButton :: forall model. (?formContext :: FormContext model, HasField "meta" model MetaBag, KnownSymbol (GetModelName model)) => SubmitButton
 submitButton =
     let
         modelName = IHP.ModelSupport.getModelName @model
