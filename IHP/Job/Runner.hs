@@ -31,6 +31,7 @@ runJobWorkers jobWorkers = do
     let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context}
 
     threadId <- Concurrent.myThreadId
+    jobWorkersLoops <- Concurrent.newEmptyMVar
     exitSignalsCount <- newIORef 0
     let catchHandler = do
             exitSignalsCount' <- readIORef exitSignalsCount
@@ -50,6 +51,9 @@ runJobWorkers jobWorkers = do
                 else if exitSignalsCount' == 1 then do
                         putStrLn "Canceling all running jobs. CTRL+C again to force exit"
                         forEach allJobs' Pool.cancel
+
+                        loops <- Concurrent.readMVar jobWorkersLoops
+                        forEach loops Async.cancel
                         Concurrent.throwTo threadId Exit.ExitSuccess
                 else Concurrent.throwTo threadId Exit.ExitSuccess
 
@@ -57,9 +61,12 @@ runJobWorkers jobWorkers = do
     Signals.installHandler Signals.sigINT (Signals.Catch catchHandler) Nothing
     Signals.installHandler Signals.sigTERM (Signals.Catch catchHandler) Nothing
 
-    jobWorkers
+    listenAndRuns <- jobWorkers
         |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
-        >>= Async.waitAnyCancel
+
+    Concurrent.putMVar jobWorkersLoops listenAndRuns
+
+    Async.waitAnyCancel listenAndRuns
 
     pure ()
 
@@ -108,33 +115,38 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig
     let ?modelContext = modelContext
 
-    Pool.withTaskGroup (maxConcurrency @job) \taskGroup -> do
-        -- This loop schedules all jobs that are in the queue.
-        -- It will be initally be called when first starting up this job worker
-        -- and after that it will be called when something has been inserted into the queue (or changed to retry)
-        let startLoop = do
-                asyncJob <- Pool.async taskGroup do
-                    Exception.mask $ \restore -> do
-                        maybeJob <- Queue.fetchNextJob @job workerId
-                        case maybeJob of
-                            Just job -> do
-                                putStrLn ("Starting job: " <> tshow job)
-                                let ?job = job
-                                let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                                resultOrException <- Exception.try (Timeout.timeout timeout $ restore (perform job))
-                                case resultOrException of
-                                    Left exception -> Queue.jobDidFail job exception
-                                    Right Nothing -> Queue.jobDidTimeout job
-                                    Right (Just _) -> Queue.jobDidSucceed job
+    -- TOOD: now that we have maxConcurrency a better approach would be to
+    -- put all jobs in a MVar and then start maxConcurrency asyncs taking jobs from there
+    async do
+        Pool.withTaskGroup (maxConcurrency @job) \taskGroup -> do
+            -- This loop schedules all jobs that are in the queue.
+            -- It will be initally be called when first starting up this job worker
+            -- and after that it will be called when something has been inserted into the queue (or changed to retry)
+            let startLoop = do
+                    putStrLn "STARTING ASYNC JOB"
+                    asyncJob <- Pool.async taskGroup do
+                        Exception.mask $ \restore -> do
+                            maybeJob <- Queue.fetchNextJob @job workerId
+                            case maybeJob of
+                                Just job -> do
+                                    putStrLn ("Starting job: " <> tshow job)
+                                    let ?job = job
+                                    let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
+                                    resultOrException <- Exception.try (Timeout.timeout timeout $ restore (perform job))
+                                    case resultOrException of
+                                        Left exception -> Queue.jobDidFail job exception
+                                        Right Nothing -> Queue.jobDidTimeout job
+                                        Right (Just _) -> Queue.jobDidSucceed job
 
-                                startLoop
-                            Nothing -> pure ()
-                modifyIORef allJobs (asyncJob:)
+                                    startLoop
+                                Nothing -> pure ()
+                    modifyIORef allJobs (asyncJob:)
 
-        -- Start all jobs in the queue
-        startLoop
+            -- Start all jobs in the queue
+            startLoop
 
-        -- Start a job when a new job is added to the table or when it's set to retry
-        watcher <- Queue.watchForJob (tableName @job) (queuePollInterval @job) startLoop
-        
-        pure watcher
+            -- Start a job when a new job is added to the table or when it's set to retry
+            watcher <- Queue.watchForJob (tableName @job) (queuePollInterval @job) startLoop
+            
+            -- Keep the task group alive until the outer async is killed
+            forever (Concurrent.threadDelay maxBound)
