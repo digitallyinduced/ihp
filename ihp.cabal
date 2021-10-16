@@ -242,6 +242,7 @@ library
         , IHP.LibDir
         , IHP.Telemetry
         , IHP.Test.Mocking
+        , IHP.Test.Database
         , IHP.Version
         , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
