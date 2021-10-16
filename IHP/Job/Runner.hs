@@ -18,6 +18,7 @@ import qualified Control.Concurrent.Async as Async
 import qualified System.Posix.Signals as Signals
 import qualified System.Exit as Exit
 import qualified System.Timeout as Timeout
+import qualified Control.Concurrent.Async.Pool as Pool
 
 runJobWorkers :: [JobWorker] -> Script
 runJobWorkers jobWorkers = do
@@ -36,7 +37,7 @@ runJobWorkers jobWorkers = do
             modifyIORef exitSignalsCount ((+) 1)
             allJobs' <- readIORef allJobs
             allJobsCompleted <- allJobs'
-                    |> mapM Async.poll
+                    |> mapM Pool.poll
                     >>= pure . filter isNothing
                     >>= pure . null
             if allJobsCompleted
@@ -44,11 +45,11 @@ runJobWorkers jobWorkers = do
                 else if exitSignalsCount' == 0
                     then do
                         putStrLn "Waiting for jobs to complete. CTRL+C again to force exit"
-                        forEach allJobs' Async.wait
+                        forEach allJobs' Pool.wait
                         Concurrent.throwTo threadId Exit.ExitSuccess
                 else if exitSignalsCount' == 1 then do
                         putStrLn "Canceling all running jobs. CTRL+C again to force exit"
-                        forEach allJobs' Async.cancel
+                        forEach allJobs' Pool.cancel
                         Concurrent.throwTo threadId Exit.ExitSuccess
                 else Concurrent.throwTo threadId Exit.ExitSuccess
 
@@ -107,32 +108,33 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig
     let ?modelContext = modelContext
 
-    -- This loop schedules all jobs that are in the queue.
-    -- It will be initally be called when first starting up this job worker
-    -- and after that it will be called when something has been inserted into the queue (or changed to retry)
-    let startLoop = do
-            asyncJob <- Async.async do
-                Exception.mask $ \restore -> do
-                    maybeJob <- Queue.fetchNextJob @job workerId
-                    case maybeJob of
-                        Just job -> do
-                            putStrLn ("Starting job: " <> tshow job)
-                            let ?job = job
-                            let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                            resultOrException <- Exception.try (Timeout.timeout timeout $ restore (perform job))
-                            case resultOrException of
-                                Left exception -> Queue.jobDidFail job exception
-                                Right Nothing -> Queue.jobDidTimeout job
-                                Right (Just _) -> Queue.jobDidSucceed job
+    Pool.withTaskGroup (maxConcurrency @job) \taskGroup -> do
+        -- This loop schedules all jobs that are in the queue.
+        -- It will be initally be called when first starting up this job worker
+        -- and after that it will be called when something has been inserted into the queue (or changed to retry)
+        let startLoop = do
+                asyncJob <- Pool.async taskGroup do
+                    Exception.mask $ \restore -> do
+                        maybeJob <- Queue.fetchNextJob @job workerId
+                        case maybeJob of
+                            Just job -> do
+                                putStrLn ("Starting job: " <> tshow job)
+                                let ?job = job
+                                let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
+                                resultOrException <- Exception.try (Timeout.timeout timeout $ restore (perform job))
+                                case resultOrException of
+                                    Left exception -> Queue.jobDidFail job exception
+                                    Right Nothing -> Queue.jobDidTimeout job
+                                    Right (Just _) -> Queue.jobDidSucceed job
 
-                            startLoop
-                        Nothing -> pure ()
-            modifyIORef allJobs (asyncJob:)
+                                startLoop
+                            Nothing -> pure ()
+                modifyIORef allJobs (asyncJob:)
 
-    -- Start all jobs in the queue
-    startLoop
+        -- Start all jobs in the queue
+        startLoop
 
-    -- Start a job when a new job is added to the table or when it's set to retry
-    watcher <- Queue.watchForJob (tableName @job) (queuePollInterval @job) startLoop
-
-    pure watcher
+        -- Start a job when a new job is added to the table or when it's set to retry
+        watcher <- Queue.watchForJob (tableName @job) (queuePollInterval @job) startLoop
+        
+        pure watcher

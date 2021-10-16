@@ -11,6 +11,7 @@ where
 import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified Control.Concurrent.Async as Async
+import qualified Control.Concurrent.Async.Pool as Pool
 
 class Job job where
     perform :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => job -> IO ()
@@ -28,14 +29,22 @@ class Job job where
     queuePollInterval :: Int
     queuePollInterval = 60 * 1000000
 
+    -- | How many jobs of this type can be executed at the same time
+    --
+    -- This limit only applies to the running haskell process. If you run @N@ multiple
+    -- independent processes of the job runner, the limit will be @N * maxConcurrency@
+    maxConcurrency :: Int
+    maxConcurrency = 16
+
 class Worker application where
     workers :: application -> [JobWorker]
 
 data JobWorkerArgs = JobWorkerArgs
-    { allJobs :: IORef [Async.Async ()]
+    { allJobs :: IORef [Pool.Async ()]
     , workerId :: UUID
     , modelContext :: ModelContext
-    , frameworkConfig :: FrameworkConfig }
+    , frameworkConfig :: FrameworkConfig
+    }
 
 newtype JobWorker = JobWorker (JobWorkerArgs -> IO (Async.Async ()))
 
