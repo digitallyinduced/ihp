@@ -12,3 +12,6 @@ haddock-build
 ProjectGenerator/result
 dist-newstyle
 .vscode
+
+# Ignore IHP lib.
+IHP
