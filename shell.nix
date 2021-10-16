@@ -61,6 +61,7 @@ let
         temporary
         wai-cors
         random
+        async-pool
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli
