@@ -27,23 +27,28 @@ import qualified IHP.FrameworkConfig                       as FrameworkConfig
 import           IHP.ModelSupport                          (createModelContext)
 import           IHP.Prelude
 import           IHP.Log.Types
+import qualified IHP.Test.Database as Database
+import Test.Hspec
+import qualified Data.Text as Text
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
-data MockContext application = InitControllerContext application => MockContext {
-    modelContext :: ModelContext
-  , requestContext :: RequestContext
-  , applicationContext :: ApplicationContext
-  , application :: application
-  }
+data MockContext application = InitControllerContext application => MockContext
+    { modelContext :: ModelContext
+    , requestContext :: RequestContext
+    , applicationContext :: ApplicationContext
+    , application :: application
+    }
 
 -- | Create contexts that can be used for mocking
-mockContext :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
-mockContext application configBuilder = do
+withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
+withIHPApp application configBuilder hspecAction = do
    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   databaseConnection <- connectPostgreSQL databaseUrl
+   
+   testDatabase <- Database.createTestDatabase databaseUrl
+
    logger <- newLogger def { level = Warn } -- don't log queries
-   modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
+   modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (get #url testDatabase) logger
 
    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
    session <- Vault.newKey
@@ -53,11 +58,13 @@ mockContext application configBuilder = do
    let requestContext = RequestContext
          { request = defaultRequest {vault = sessionVault}
          , requestBody = FormBody [] []
-         , respond = \resp -> pure ResponseReceived
+         , respond = undefined
          , vault = session
          , frameworkConfig = frameworkConfig }
 
-   pure MockContext{..}
+   hspecAction MockContext { .. }
+
+   Database.deleteDatabase databaseUrl testDatabase
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
@@ -95,20 +102,23 @@ setupWithContext :: (ContextParameters application => IO a) -> MockContext appli
 setupWithContext action context = withContext action context >> pure context
 
 -- | Runs a controller action in a mock environment
-mockAction :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO Response
-mockAction controller = do
+callAction :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO Response
+callAction controller = do
     responseRef <- newIORef Nothing
-    let oldRespond = ?context |> respond
     let customRespond response = do
             writeIORef responseRef (Just response)
-            oldRespond response
+            pure ResponseReceived
     let requestContextWithOverridenRespond = ?context { respond = customRespond }
-    let ?requestContext = requestContextWithOverridenRespond
+    let ?context = requestContextWithOverridenRespond
     runActionWithNewContext controller
     maybeResponse <- readIORef responseRef
     case maybeResponse of
         Just response -> pure response
         Nothing -> error "mockAction: The action did not render a response"
+
+-- | mockAction has been renamed to callAction
+mockAction :: _ => _
+mockAction = callAction
 
 -- | Get contents of response
 mockActionResponse :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO LBS.ByteString
@@ -124,9 +134,6 @@ withParams ps action context = withContext action context'
   where
     context' = context{requestContext=(requestContext context){requestBody=FormBody ps []}}
 
-headers :: IO Response -> IO ResponseHeaders
-headers = fmap responseHeaders
-
 responseBody :: Response -> IO LBS.ByteString
 responseBody res =
   let (status,headers,body) = responseToStream res in
@@ -134,3 +141,12 @@ responseBody res =
     content <- newIORef mempty
     f (\chunk -> modifyIORef' content (<> chunk)) (return ())
     toLazyByteString <$> readIORef content
+
+
+responseBodyShouldContain :: Response -> Text -> IO ()
+responseBodyShouldContain response includedText = do
+    body :: Text <- cs <$> responseBody response
+    body `shouldSatisfy` (includedText `Text.isInfixOf`)
+
+responseStatusShouldBe :: Response -> HTTP.Status -> IO ()
+responseStatusShouldBe response status = responseStatus response `shouldBe` status
