@@ -9,6 +9,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified System.Process as Process
 import qualified Data.Text as Text
+import qualified Data.ByteString as ByteString
 
 
 data TestDatabase = TestDatabase
@@ -36,8 +37,6 @@ createTestDatabase databaseUrl = do
 
     importSql newUrl "Application/Schema.sql"
 
-    putStrLn $ "Created database " <> databaseName
-
     pure TestDatabase { name = databaseName, url = newUrl }
 
 -- | Given the master connection url and the open test database, this will clean up the test database
@@ -56,5 +55,10 @@ deleteDatabase masterDatabaseUrl testDatabase = do
     PG.execute connection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier (get #name testDatabase)]
     pure ()
 
-importSql url file = Process.callCommand ("psql \"" <> cs url <> "\" < " <> file)
+importSql url file = do
+    schemaSql <- ByteString.readFile file
+
+    connection <- PG.connectPostgreSQL url
+    PG.execute connection (PG.Query schemaSql) ()
+    PG.close connection
 
