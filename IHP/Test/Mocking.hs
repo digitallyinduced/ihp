@@ -30,6 +30,10 @@ import           IHP.Log.Types
 import qualified IHP.Test.Database as Database
 import Test.Hspec
 import qualified Data.Text as Text
+import qualified Network.Wai as Wai
+import qualified IHP.Controller.Session as Session
+import qualified IHP.LoginSupport.Helper.Controller as Session
+import qualified Network.Wai.Session
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -150,3 +154,50 @@ responseBodyShouldContain response includedText = do
 
 responseStatusShouldBe :: Response -> HTTP.Status -> IO ()
 responseStatusShouldBe response status = responseStatus response `shouldBe` status
+
+-- | Set's the current user for the application
+--
+-- Example:
+--
+-- > user <- newRecord @User
+-- >     |> set #email "marc@digitallyinduced.com"
+-- >     |> createRecord
+-- > 
+-- > response <- withUser user do
+-- >     callAction CreatePostAction
+--
+-- In this example the 'currentUser' will refer to the newly
+-- created user during the execution of CreatePostAction
+--
+-- Internally this function overrides the session cookie passed to
+-- the application.
+--
+withUser :: forall user application userId result.
+    ( ?mocking :: MockContext application
+    , ?applicationContext :: ApplicationContext
+    , ?context :: RequestContext
+    , Session.SessionValue userId
+    , HasField "id" user userId
+    , KnownSymbol (GetModelName user)
+    ) => user -> ((?context :: RequestContext) => IO result) -> IO result
+withUser user callback =
+        let ?context = newContext
+        in callback
+    where
+        newContext = ?context { request = newRequest }
+        newRequest = request { Wai.vault = newVault }
+        
+        newSession :: Network.Wai.Session.Session IO String String
+        newSession = (lookupSession, insertSession)
+
+        lookupSession key = if key == sessionKey
+            then pure (Just sessionValue)
+            else pure Nothing
+
+        insertSession key value = pure ()
+
+        newVault = Vault.insert vaultKey newSession (Wai.vault request)
+        RequestContext { request, vault = vaultKey } = get #requestContext ?mocking
+        
+        sessionValue = cs $ Session.toSessionValue (get #id user)
+        sessionKey = cs (Session.sessionKey @user)
