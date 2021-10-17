@@ -102,7 +102,7 @@ A timed out job will be retried, just as if it failed. If you want to prevent th
 
 ### Concurrency
 
-Sometimes you would like to change the number of Jobs that can be processed at the same time. By default the value is set to 16. A possible use case would be changing the number to 1 in order to make sure a Job is processed one after the other. This means Jobs can be useful when there's a need for an ordered queue.
+Sometimes you would like to change the number of Jobs that can be processed at the same time. By default the value is set to 16. A possible use case would be changing the number to 1 in order to make sure Jobs are processed one after the other. This means Jobs can be useful when there's a need for an ordered queue.
 
 
 ```haskell
