@@ -58,7 +58,7 @@ withIHPApp application configBuilder hspecAction = do
    let requestContext = RequestContext
          { request = defaultRequest {vault = sessionVault}
          , requestBody = FormBody [] []
-         , respond = undefined
+         , respond = const (pure ResponseReceived)
          , vault = session
          , frameworkConfig = frameworkConfig }
 
