@@ -87,10 +87,8 @@ import Cereal.Uuid.Serialize ()
 -- | Types of possible errors as a result of
 -- requesting a value from the session storage
 data SessionError
-    -- | Session storage not found in the context of the request
-    = VaultError
     -- | Value not found in the session storage
-    | NotFoundError
+    = NotFoundError
     -- | Error occurce during parsing value
     | ParseError String
     deriving (Show, Eq)
@@ -119,12 +117,7 @@ data SessionError
 -- >     setSessionText "userEmail" "hi@digitallyinduced.com"
 setSession :: (?context :: ControllerContext, Serialize value)
            => ByteString -> value -> IO ()
-setSession name value = case vaultLookup of
-    Just (_, sessionInsert) -> sessionInsert name (Serialize.encode value)
-    Nothing -> pure ()
-    where
-        RequestContext { request, vault } = get #requestContext ?context
-        vaultLookup = Vault.lookup vault (Wai.vault request)
+setSession name value = sessionInsert name (Serialize.encode value)
 
 -- | Retrives a value from the session:
 --
@@ -158,17 +151,12 @@ getSession name = getSessionEither name >>= \case
 getSessionEither :: forall value
             . (?context :: ControllerContext, Serialize value)
            => ByteString -> IO (Either SessionError value)
-getSessionEither name = case vaultLookup of
-    Just (sessionLookup, _) -> sessionLookup name >>= \case
+getSessionEither name = sessionLookup name >>= \case
         Nothing -> pure $ Left NotFoundError
         Just "" -> pure $ Left NotFoundError
         Just stringValue -> case Serialize.decode stringValue of
             Left error -> pure . Left $ ParseError error
             Right value -> pure $ Right value
-    Nothing -> pure $ Left VaultError
-    where
-        RequestContext { request, vault } = get #requestContext ?context
-        vaultLookup = Vault.lookup vault (Wai.vault request)
 
 -- | Remove session values ​​from storage:
 --
@@ -433,3 +421,17 @@ getSessionEitherRecordId = getSessionEither @(Id record)
 instance (Serialize (PrimaryKey table)) => Serialize (Id' table) where
     put (Id value) = Serialize.put value
     get = Id <$> Serialize.get
+
+sessionInsert :: (?context :: ControllerContext) => ByteString -> ByteString -> IO ()
+sessionInsert = snd sessionVault
+
+sessionLookup :: (?context :: ControllerContext) => ByteString -> IO (Maybe ByteString)
+sessionLookup = fst sessionVault
+
+sessionVault :: (?context :: ControllerContext) => (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
+sessionVault = case vaultLookup of
+        Just session -> session
+        Nothing -> error "sessionInsert: The session vault is missing in the request"
+    where
+        RequestContext { request, vault } = get #requestContext ?context
+        vaultLookup = Vault.lookup vault (Wai.vault request)
