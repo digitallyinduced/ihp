@@ -111,3 +111,36 @@ spec = beforeAll (makeConfig >>= mockContext WebApplication) do
       hs <- headers (mockAction NewUserAction)
       lookup "Location" hs `shouldNotBe` Nothing
 ```
+
+
+## Setting the Current User During Testing
+
+Use `withUser` to call an action with a specific user during testing:
+
+```haskell
+tests :: Spec
+tests = aroundAll (withIHPApp WebApplication config) do
+        describe "PostsController" $ do
+            it "creates a new post" $ withParams [("title", "Post title"), ("body", "Body of post")] do
+                -- Create a user for our test case
+                user <- newRecord @User
+                    |> set #email "marc@digitallyinduced.com"
+                    |> createRecord
+                
+                -- Log into the user and then call CreatePostAction
+                response <- withUser user do
+                    callAction CreatePostAction
+                
+                let (Just location) = (lookup "Location" (responseHeaders response))
+                location `shouldBe` "http://localhost:8000/Posts"
+
+                -- Only one post should exist
+                count <- query @Post |> fetchCount
+                count `shouldBe` 1
+
+                -- Fetch the new post
+                post <- query @Post |> fetchOne
+
+                (get #title post) `shouldBe` "Post title"
+                (get #body post) `shouldBe` "Body of post"
+```
