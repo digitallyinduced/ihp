@@ -62,9 +62,10 @@ A benefit of jobs compared to just running scripts is info about the jobs is sto
 
 ### Configuring jobs
 
-Every job has two options you can configure:
+Every job has a few options you can configure:
 - maximum number of attempts
 - timeout
+- maximum number of concurrent processing
 
 #### Attempts
 
@@ -97,6 +98,21 @@ instance Job EmailCustomersJob where
 ```
 
 A timed out job will be retried, just as if it failed. If you want to prevent that, set its [`maxAttempts`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Types.html#v:maxAttempts) to `0`, as shown above.
+
+
+### Concurrency
+
+Sometimes you would like to change the number of Jobs that can be processed at the same time. By default the value is set to 16. A possible use case would be changing the number to 1 in order to make sure a Job is processed one after the other. This means Jobs can be useful when there's a need for an ordered queue.
+
+
+```haskell
+instance Job EmailCustomersJob where
+    perform EmailCustomersJob { .. } = do
+      -- ...
+
+    maxConcurrency = 1
+```
+
 
 ### Scheduling jobs with cron
 
