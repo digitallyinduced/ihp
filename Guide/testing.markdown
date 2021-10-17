@@ -36,7 +36,7 @@ main = hspec do
     Test.Controller.PostsSpec.tests
 ```
 4. Add a new spec file for your controller.
-```
+```haskell
 # Test/Controller/PostsSpec.hs
 module Test.Controller.PostsSpec where
 
