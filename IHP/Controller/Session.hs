@@ -15,11 +15,8 @@ The cookie @max-age@ is set to 30 days by default. To protect against CSRF, the 
 -}
 module IHP.Controller.Session
   (
-  -- * Session Value
-    SessionValue (..)
-
   -- * Session Error
-  , SessionError (..)
+  SessionError (..)
 
   -- * Interacting with session store
   , setSession
@@ -82,108 +79,10 @@ import qualified Data.Text.Read as Read
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
-
--- | Provides functions for converting values between custom
--- representations and text to store.
---
--- Instead of manually writing your SessionValue instance,
--- there are option for default implementation for types with
--- FromJSON and ToJSON instances.
---
--- __Example:__
---
--- @
--- {-\# LANGUAGE DeriveGeneric \#-}
---
--- import GHC.Generics
--- import Data.Aeson
---
--- data Coord = Coord { x :: Int, y :: Int } deriving Generic
---
--- instance FromJSON Coord
--- instance ToJSON Coord
--- instance SessionValue Coord
--- @
---
--- __Example:__ with deriving strategies
---
--- @
--- {-\# LANGUAGE DeriveGeneric \#-}
--- {-\# LANGUAGE DeriveAnyClass \#-}
--- {-\# LANGUAGE DerivingStrategies \#-}
---
--- import GHC.Generics
--- import Data.Aeson
---
--- data Point = Point { x :: Int, y :: Int }
---     deriving stock Generic
---     deriving anyclass (ToJSON, FromJSON, SessionValue)
--- @
-class SessionValue value where
-    -- | Convert 'value' to 'Text'.
-    toSessionValue :: value -> Text
-
-    -- | Parse 'Text' to @value@. Return 'Right' @value@ if parsing succssed
-    -- or 'Left' @errorMessage@ if parsing failed.
-    fromSessionValue :: Text -> Either Text value
-
-    default toSessionValue
-      :: (Aeson.ToJSON value) => value -> Text
-    toSessionValue = cs . Aeson.encode
-
-    default fromSessionValue
-      :: (Aeson.FromJSON value) => Text -> Either Text value
-    fromSessionValue = Bifunctor.first wrap . Aeson.eitherDecode @value . cs
-        where
-            wrap err = "SessionValue JSON error: " <> cs err
-
-instance SessionValue Text where
-    toSessionValue = id
-    fromSessionValue = Right
-
-instance SessionValue String where
-    toSessionValue = cs
-    fromSessionValue = Right . cs
-
-instance SessionValue ByteString where
-    toSessionValue = cs
-    fromSessionValue = Right . cs
-
-instance SessionValue Int where
-    toSessionValue = show
-    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.decimal
-        where
-            wrap err = "SessionValue Int error: " <> cs err
-
-instance SessionValue Integer where
-    toSessionValue = show
-    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.decimal
-        where
-            wrap err = "SessionValue Integer error: " <> cs err
-
-instance SessionValue Double where
-    toSessionValue = show
-    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.double
-        where
-            wrap err = "SessionValue Double error: " <> cs err
-
-instance SessionValue Float where
-    toSessionValue = show
-    fromSessionValue = Bifunctor.first wrap . checkAllInput Read.rational
-        where
-            wrap err = "SessionValue Float error: " <> cs err
-
-instance SessionValue UUID where
-    toSessionValue = UUID.toText
-    fromSessionValue = maybe wrap Right . UUID.fromText
-        where
-            wrap = Left "SessionValue UUID parse error"
-
-instance SessionValue (PrimaryKey record) => SessionValue (Id' record) where
-    toSessionValue (Id value) = toSessionValue value
-    fromSessionValue = Bifunctor.bimap wrap Id . fromSessionValue
-        where
-            wrap err = "SessionValue Id error: " <> cs err
+import qualified Data.Serialize as Serialize
+import Data.Serialize (Serialize)
+import Data.Serialize.Text ()
+import Cereal.Uuid.Serialize ()
 
 -- | Types of possible errors as a result of
 -- requesting a value from the session storage
@@ -193,7 +92,7 @@ data SessionError
     -- | Value not found in the session storage
     | NotFoundError
     -- | Error occurce during parsing value
-    | ParseError Text
+    | ParseError String
     deriving (Show, Eq)
 
 -- | Stores a value inside the session:
@@ -218,16 +117,14 @@ data SessionError
 --
 -- > action LogoutAction = do
 -- >     setSessionText "userEmail" "hi@digitallyinduced.com"
-setSession :: (?context :: ControllerContext, SessionValue value)
-           => Text -> value -> IO ()
+setSession :: (?context :: ControllerContext, Serialize value)
+           => ByteString -> value -> IO ()
 setSession name value = case vaultLookup of
-    Just (_, sessionInsert) -> sessionInsert stringName stringValue
+    Just (_, sessionInsert) -> sessionInsert name (Serialize.encode value)
     Nothing -> pure ()
     where
         RequestContext { request, vault } = get #requestContext ?context
         vaultLookup = Vault.lookup vault (Wai.vault request)
-        stringValue = cs $ toSessionValue value
-        stringName = cs name
 
 -- | Retrives a value from the session:
 --
@@ -240,19 +137,11 @@ setSession name value = case vaultLookup of
 -- when the value has been set before. Otherwise, it will be 'Nothing'.
 -- If an error occurs while getting the value, the result will be 'Nothing'.
 getSession :: forall value
-            . (?context :: ControllerContext, SessionValue value)
-           => Text -> IO (Maybe value)
-getSession name = case vaultLookup of
-    Just (sessionLookup, _) -> sessionLookup (cs name) >>= \case
-        Nothing -> pure Nothing
-        Just "" -> pure Nothing
-        Just stringValue -> case fromSessionValue (cs stringValue) of
-            Left _ -> pure Nothing
-            Right value -> pure $ Just value
-    Nothing -> pure Nothing
-    where
-        RequestContext { request, vault } = get #requestContext ?context
-        vaultLookup = Vault.lookup vault (Wai.vault request)
+            . (?context :: ControllerContext, Serialize value)
+           => ByteString -> IO (Maybe value)
+getSession name = getSessionEither name >>= \case
+    Left _ -> pure Nothing
+    Right result -> pure (Just result)
 
 -- | Retrives a value from the session:
 --
@@ -267,13 +156,13 @@ getSession name = case vaultLookup of
 -- >         Left NotFoundError -> ...
 -- >         Left VaultError -> ...
 getSessionEither :: forall value
-            . (?context :: ControllerContext, SessionValue value)
-           => Text -> IO (Either SessionError value)
+            . (?context :: ControllerContext, Serialize value)
+           => ByteString -> IO (Either SessionError value)
 getSessionEither name = case vaultLookup of
-    Just (sessionLookup, _) -> sessionLookup (cs name) >>= \case
+    Just (sessionLookup, _) -> sessionLookup name >>= \case
         Nothing -> pure $ Left NotFoundError
         Just "" -> pure $ Left NotFoundError
-        Just stringValue -> case fromSessionValue (cs stringValue) of
+        Just stringValue -> case Serialize.decode stringValue of
             Left error -> pure . Left $ ParseError error
             Right value -> pure $ Right value
     Nothing -> pure $ Left VaultError
@@ -296,7 +185,7 @@ getSessionEither name = case vaultLookup of
 -- >
 -- > deleteSession "userId"
 -- > userId <- getSession @Int "userId" -- Returns: Nothing
-deleteSession :: (?context :: ControllerContext) => Text -> IO ()
+deleteSession :: (?context :: ControllerContext) => ByteString -> IO ()
 deleteSession name = setSession name ("" :: Text)
 
 -- | Returns a value from the session, and deletes it after retrieving:
@@ -304,8 +193,8 @@ deleteSession name = setSession name ("" :: Text)
 -- > action SessionExampleAction = do
 -- >     notification <- getSessionAndClear @Text "notification"
 getSessionAndClear :: forall value
-                    . (?context :: ControllerContext, SessionValue value)
-                   => Text -> IO (Maybe value)
+                    . (?context :: ControllerContext, Serialize value)
+                   => ByteString -> IO (Maybe value)
 getSessionAndClear name = do
     value <- getSession @value name
     when (isJust value) (deleteSession name)
@@ -325,9 +214,9 @@ getSessionAndClear name = do
 -- >         Left VaultError -> ...
 getSessionAndClearEither :: forall value
                           . ( ?context :: ControllerContext
-                            , SessionValue value
+                            , Serialize value
                             )
-                         => Text -> IO (Either SessionError value)
+                         => ByteString -> IO (Either SessionError value)
 getSessionAndClearEither name = do
     value <- getSessionEither @value name
     when (isRight value) (deleteSession name)
@@ -337,7 +226,7 @@ getSessionAndClearEither name = do
 --
 -- > action SessionExampleAction = do
 -- >     setSessionInt "counter" 1
-setSessionInt :: (?context :: ControllerContext) => Text -> Int -> IO ()
+setSessionInt :: (?context :: ControllerContext) => ByteString -> Int -> IO ()
 setSessionInt name value = setSession @Int name value
 
 -- | Stores an 'Integer' value inside the session:
@@ -345,7 +234,7 @@ setSessionInt name value = setSession @Int name value
 -- > action SessionExampleAction = do
 -- >     setSessionInteger "counter" 1
 setSessionInteger :: (?context :: ControllerContext)
-                  => Text -> Integer -> IO ()
+                  => ByteString -> Integer -> IO ()
 setSessionInteger name value = setSession @Integer name value
 
 -- | Stores a 'Double' value inside the session:
@@ -353,21 +242,21 @@ setSessionInteger name value = setSession @Integer name value
 -- > action SessionExampleAction = do
 -- >     setSessionDouble "double" 1.234
 setSessionDouble :: (?context :: ControllerContext)
-                 => Text -> Double -> IO ()
+                 => ByteString -> Double -> IO ()
 setSessionDouble name value = setSession @Double name value
 
 -- | Stores a 'Float' value inside the session:
 --
 -- > action SessionExampleAction = do
 -- >     setSessionDouble "float" 1.234
-setSessionFloat :: (?context :: ControllerContext) => Text -> Float -> IO ()
+setSessionFloat :: (?context :: ControllerContext) => ByteString -> Float -> IO ()
 setSessionFloat name value = setSession @Float name value
 
 -- | Stores a 'Text' value inside the session:
 --
 -- > action SessionExampleAction = do
 -- >     setSessionText "userEmail" "hi@digitallyinduced.com"
-setSessionText :: (?context :: ControllerContext) => Text -> Text -> IO ()
+setSessionText :: (?context :: ControllerContext) => ByteString -> Text -> IO ()
 setSessionText name value = setSession @Text name value
 
 -- | Stores a 'String' value inside the session:
@@ -375,7 +264,7 @@ setSessionText name value = setSession @Text name value
 -- > action SessionExampleAction = do
 -- >     setSessionString "userEmail" "hi@digitallyinduced.com"
 setSessionString :: (?context :: ControllerContext)
-                 => Text -> String -> IO ()
+                 => ByteString -> String -> IO ()
 setSessionString name value = setSession @String name value
 
 -- | Stores a 'ByteString' value inside the session:
@@ -383,21 +272,21 @@ setSessionString name value = setSession @String name value
 -- > action SessionExampleAction = do
 -- >     setSessionBS "userEmail" "hi@digitallyinduced.com"
 setSessionBS :: (?context :: ControllerContext)
-             => Text -> ByteString -> IO ()
+             => ByteString -> ByteString -> IO ()
 setSessionBS name value = setSession @ByteString name value
 
 -- | Stores a 'UUID' value inside the session:
 --
 -- > action SessionExampleAction = do
 -- >     setSessionUUID "userUUID" "a020ba17-a94e-453f-9414-c54aa30caa54"
-setSessionUUID :: (?context :: ControllerContext) => Text -> UUID -> IO ()
+setSessionUUID :: (?context :: ControllerContext) => ByteString -> UUID -> IO ()
 setSessionUUID name value = setSession @UUID name value
 
 -- | Retrives a value from the session, and parses it as an 'Int':
 --
 -- > action SessionExampleAction = do
 -- >     counter <- getSessionInt "counter"
-getSessionInt :: (?context :: ControllerContext) => Text -> IO (Maybe Int)
+getSessionInt :: (?context :: ControllerContext) => ByteString -> IO (Maybe Int)
 getSessionInt = getSession @Int
 
 -- | Retrives a value from the session, and parses it as an 'Integer':
@@ -405,7 +294,7 @@ getSessionInt = getSession @Int
 -- > action SessionExampleAction = do
 -- >     counter <- getSessionInteger "counter"
 getSessionInteger :: (?context :: ControllerContext)
-                  => Text -> IO (Maybe Integer)
+                  => ByteString -> IO (Maybe Integer)
 getSessionInteger = getSession @Integer
 
 -- | Retrives a value from the session, and parses it as an 'Double':
@@ -413,7 +302,7 @@ getSessionInteger = getSession @Integer
 -- > action SessionExampleAction = do
 -- >     vDouble <- getSessionDouble "double"
 getSessionDouble :: (?context :: ControllerContext)
-                 => Text -> IO (Maybe Double)
+                 => ByteString -> IO (Maybe Double)
 getSessionDouble = getSession @Double
 
 -- | Retrives a value from the session, and parses it as an 'Float':
@@ -421,14 +310,14 @@ getSessionDouble = getSession @Double
 -- > action SessionExampleAction = do
 -- >     vFloat <- getSessionFloat "float"
 getSessionFloat :: (?context :: ControllerContext)
-                => Text -> IO (Maybe Float)
+                => ByteString -> IO (Maybe Float)
 getSessionFloat = getSession @Float
 
 -- | Retrives a value from the session, and parses it as an 'Text':
 --
 -- > action SessionExampleAction = do
 -- >     userEmail <- getSessionText "userEmail"
-getSessionText :: (?context :: ControllerContext) => Text -> IO (Maybe Text)
+getSessionText :: (?context :: ControllerContext) => ByteString -> IO (Maybe Text)
 getSessionText = getSession @Text
 
 -- | Retrives a value from the session, and parses it as an 'String':
@@ -436,7 +325,7 @@ getSessionText = getSession @Text
 -- > action SessionExampleAction = do
 -- >     userEmail <- getSessionString "userEmail"
 getSessionString :: (?context :: ControllerContext)
-                 => Text -> IO (Maybe String)
+                 => ByteString -> IO (Maybe String)
 getSessionString = getSession @String
 
 -- | Retrives a value from the session, and parses it as an 'ByteString':
@@ -444,14 +333,14 @@ getSessionString = getSession @String
 -- > action SessionExampleAction = do
 -- >     userEmail <- getSessionBS "userEmail"
 getSessionBS :: (?context :: ControllerContext)
-             => Text -> IO (Maybe ByteString)
+             => ByteString -> IO (Maybe ByteString)
 getSessionBS = getSession @ByteString
 
 -- | Retrives a value from the session, and parses it as an 'UUID':
 --
 -- > action SessionExampleAction = do
 -- >     userId <- getSessionUUID "userId"
-getSessionUUID :: (?context :: ControllerContext) => Text -> IO (Maybe UUID)
+getSessionUUID :: (?context :: ControllerContext) => ByteString -> IO (Maybe UUID)
 getSessionUUID = getSession @UUID
 
 -- | Retrives e.g. an @Id User@ or @Id Project@ from the session:
@@ -460,9 +349,9 @@ getSessionUUID = getSession @UUID
 -- >     userId <- getSessionRecordId @User "userId"
 getSessionRecordId :: forall record
                     . ( ?context :: ControllerContext
-                      , SessionValue (PrimaryKey (GetTableName record))
+                      , Serialize (PrimaryKey (GetTableName record))
                       )
-                   => Text -> IO (Maybe (Id record))
+                   => ByteString -> IO (Maybe (Id record))
 getSessionRecordId = getSession @(Id record)
 
 -- | Retrives a value from the session, and parses it as an 'Int':
@@ -470,7 +359,7 @@ getSessionRecordId = getSession @(Id record)
 -- > action SessionExampleAction = do
 -- >     counter <- getSessionEitherInt "counter"
 getSessionEitherInt :: (?context :: ControllerContext)
-                    => Text -> IO (Either SessionError Int)
+                    => ByteString -> IO (Either SessionError Int)
 getSessionEitherInt = getSessionEither @Int
 
 -- | Retrives a value from the session, and parses it as an 'Integer':
@@ -478,7 +367,7 @@ getSessionEitherInt = getSessionEither @Int
 -- > action SessionExampleAction = do
 -- >     counter <- getSessionEitherInteger "counter"
 getSessionEitherInteger :: (?context :: ControllerContext)
-                        => Text -> IO (Either SessionError Integer)
+                        => ByteString -> IO (Either SessionError Integer)
 getSessionEitherInteger = getSessionEither @Integer
 
 -- | Retrives a value from the session, and parses it as an 'Double':
@@ -486,7 +375,7 @@ getSessionEitherInteger = getSessionEither @Integer
 -- > action SessionExampleAction = do
 -- >     vDouble <- getSessionEitherDouble "double"
 getSessionEitherDouble :: (?context :: ControllerContext)
-                       => Text -> IO (Either SessionError Double)
+                       => ByteString -> IO (Either SessionError Double)
 getSessionEitherDouble = getSessionEither @Double
 
 -- | Retrives a value from the session, and parses it as an 'Float':
@@ -494,7 +383,7 @@ getSessionEitherDouble = getSessionEither @Double
 -- > action SessionExampleAction = do
 -- >     vFloat <- getSessionEitherFloat "float"
 getSessionEitherFloat :: (?context :: ControllerContext)
-                      => Text -> IO (Either SessionError Float)
+                      => ByteString -> IO (Either SessionError Float)
 getSessionEitherFloat = getSessionEither @Float
 
 -- | Retrives a value from the session, and parses it as an 'Text':
@@ -502,7 +391,7 @@ getSessionEitherFloat = getSessionEither @Float
 -- > action SessionExampleAction = do
 -- >     userEmail <- getSessionEitherText "userEmail"
 getSessionEitherText :: (?context :: ControllerContext)
-                     => Text -> IO (Either SessionError Text)
+                     => ByteString -> IO (Either SessionError Text)
 getSessionEitherText = getSessionEither @Text
 
 -- | Retrives a value from the session, and parses it as an 'String':
@@ -510,7 +399,7 @@ getSessionEitherText = getSessionEither @Text
 -- > action SessionExampleAction = do
 -- >     userEmail <- getSessionEitherString "userEmail"
 getSessionEitherString :: (?context :: ControllerContext)
-                       => Text -> IO (Either SessionError String)
+                       => ByteString -> IO (Either SessionError String)
 getSessionEitherString = getSessionEither @String
 
 -- | Retrives a value from the session, and parses it as an 'ByteString':
@@ -518,7 +407,7 @@ getSessionEitherString = getSessionEither @String
 -- > action SessionExampleAction = do
 -- >     userEmail <- getSessionEitherBS "userEmail"
 getSessionEitherBS :: (?context :: ControllerContext)
-                   => Text -> IO (Either SessionError ByteString)
+                   => ByteString -> IO (Either SessionError ByteString)
 getSessionEitherBS = getSessionEither @ByteString
 
 -- | Retrives a value from the session, and parses it as an 'UUID':
@@ -526,7 +415,7 @@ getSessionEitherBS = getSessionEither @ByteString
 -- > action SessionExampleAction = do
 -- >     userId <- getSessionEitherUUID "userId"
 getSessionEitherUUID :: (?context :: ControllerContext)
-                     => Text -> IO (Either SessionError UUID)
+                     => ByteString -> IO (Either SessionError UUID)
 getSessionEitherUUID = getSessionEither @UUID
 
 -- | Retrives e.g. an @Id User@ or @Id Project@ from the session:
@@ -535,16 +424,12 @@ getSessionEitherUUID = getSessionEither @UUID
 -- >     userId :: <- getSessionEitherRecordId @User "userId"
 getSessionEitherRecordId :: forall record
                           . ( ?context :: ControllerContext
-                            , SessionValue (PrimaryKey (GetTableName record))
+                            , Serialize (PrimaryKey (GetTableName record))
                             )
-                         => Text -> IO (Either SessionError (Id record))
+                         => ByteString -> IO (Either SessionError (Id record))
 getSessionEitherRecordId = getSessionEither @(Id record)
 
--- | Internal helper function for parsing numeric values
--- for an input starting with numbers but containing text afterwards
-checkAllInput :: forall value . Num value
-              => Read.Reader value -> Text -> Either Text value
-checkAllInput reader input = case Read.signed reader input of
-    Right (value, "") -> Right value
-    Right (value, rest) -> Left "input contains non digit chars"
-    Left _ -> Left "input contains non digit chars"
+
+instance (Serialize (PrimaryKey table)) => Serialize (Id' table) where
+    put (Id value) = Serialize.put value
+    get = Id <$> Serialize.get

@@ -64,10 +64,10 @@ getAndClearFlashMessages = do
         _ -> pure ()
     pure $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])
 
-successMessageKey :: Text
+successMessageKey :: ByteString
 successMessageKey = "flashSuccessMessage"
 
-errorMessageKey :: Text
+errorMessageKey :: ByteString
 errorMessageKey = "flashErrorMessage"
 
 initFlashMessages :: (?context :: ControllerContext) => IO ()

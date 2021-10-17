@@ -34,6 +34,7 @@ import qualified Network.Wai as Wai
 import qualified IHP.Controller.Session as Session
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
+import qualified Data.Serialize as Serialize
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -176,7 +177,7 @@ withUser :: forall user application userId result.
     ( ?mocking :: MockContext application
     , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
-    , Session.SessionValue userId
+    , Serialize.Serialize userId
     , HasField "id" user userId
     , KnownSymbol (GetModelName user)
     ) => user -> ((?context :: RequestContext) => IO result) -> IO result
@@ -187,7 +188,7 @@ withUser user callback =
         newContext = ?context { request = newRequest }
         newRequest = request { Wai.vault = newVault }
         
-        newSession :: Network.Wai.Session.Session IO String String
+        newSession :: Network.Wai.Session.Session IO ByteString ByteString
         newSession = (lookupSession, insertSession)
 
         lookupSession key = if key == sessionKey
@@ -199,5 +200,5 @@ withUser user callback =
         newVault = Vault.insert vaultKey newSession (Wai.vault request)
         RequestContext { request, vault = vaultKey } = get #requestContext ?mocking
         
-        sessionValue = cs $ Session.toSessionValue (get #id user)
+        sessionValue = Serialize.encode (get #id user)
         sessionKey = cs (Session.sessionKey @user)
