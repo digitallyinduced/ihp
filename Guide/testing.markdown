@@ -1,12 +1,41 @@
 # Testing
 
-This section provides some guidelines for testing your IHP applications.
+This section provides some guidelines for testing your IHP applications. It is highley recommended to write a test for your Controller and Views to assert the logic, and reach better code quality.
 
 ```toc
 
 ```
 
 ## Setup
+
+The following setup and tests can be viewed in the [Blog example](https://github.com/digitallyinduced/ihp-blog-example-app).
+
+1. Add `hspec` in `default.nix`
+```nix
+        haskellDeps = p: with p; [
+            cabal-install
+            # ...
+            p.ihp
+            hspec
+        ];
+```
+2. Rebuild enviorement with `make -B .envrc`
+3. Creata a new `Test/Main.hs` module. Here you will import all your test specs.
+
+```haskell
+# Test/Main.hs
+module Main where
+
+import Test.Hspec
+import IHP.Prelude
+
+import Test.Controller.PostsSpec
+
+main :: IO ()
+main = hspec do
+    Test.Controller.PostsSpec.tests
+```
+4. Add a new spec file for your controller.
 
 Start by creating a new module for your tests (perhaps for an individual controller, something like `test/Web/Controller/SomeControllerSpec.hs`), then import the IHP testing mock framework and [Hspec](http://hspec.github.io/) (a Haskell testing library). You will also need to import your project's `Main` module (this is usually where a project's [`InitControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:InitControllerContext) instance is defined). Your imports will likely look something like this:
 
@@ -126,11 +155,11 @@ tests = aroundAll (withIHPApp WebApplication config) do
                 user <- newRecord @User
                     |> set #email "marc@digitallyinduced.com"
                     |> createRecord
-                
+
                 -- Log into the user and then call CreatePostAction
                 response <- withUser user do
                     callAction CreatePostAction
-                
+
                 let (Just location) = (lookup "Location" (responseHeaders response))
                 location `shouldBe` "http://localhost:8000/Posts"
 
