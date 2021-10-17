@@ -289,7 +289,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
     buildQueryHelper NewQueryBuilder { columns } =
         let tableName = symbolToByteString @table
         in SQLQuery
-            {     queryIndex = trace (Prelude.show $ getQueryIndex queryBuilderProvider) getQueryIndex queryBuilderProvider 
+            {     queryIndex = getQueryIndex queryBuilderProvider 
                 , selectFrom = tableName
                 , distinctClause = Nothing
                 , distinctOnClause = Nothing
