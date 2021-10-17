@@ -99,6 +99,7 @@ common shared-properties
             , lens
             , random
             , async-pool
+            , hspec
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

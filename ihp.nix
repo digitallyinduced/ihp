@@ -60,6 +60,7 @@
 , lens
 , random
 , async-pool
+, hspec
 }:
 mkDerivation {
   pname = "ihp";
@@ -126,6 +127,7 @@ mkDerivation {
     lens
     random
     async-pool
+    hspec
   ];
   license = lib.licenses.mit;
   postInstall = ''
