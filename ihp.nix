@@ -61,6 +61,8 @@
 , random
 , async-pool
 , hspec
+, cereal-text
+, cereal-uuid
 }:
 mkDerivation {
   pname = "ihp";
@@ -128,6 +130,8 @@ mkDerivation {
     random
     async-pool
     hspec
+    cereal-text
+    cereal-uuid
   ];
   license = lib.licenses.mit;
   postInstall = ''

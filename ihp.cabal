@@ -100,6 +100,9 @@ common shared-properties
             , random
             , async-pool
             , hspec
+            , cereal
+            , cereal-text
+            , cereal-uuid
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
