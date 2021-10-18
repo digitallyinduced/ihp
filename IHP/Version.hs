@@ -17,4 +17,4 @@ ihpVersion :: Text
 ihpVersion = cs $! showVersion Paths_ihp.version
 
 ihpEdition :: Edition
-ihpEdition = Basic
+ihpEdition = Pro
