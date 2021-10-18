@@ -132,7 +132,7 @@ getSessionEither name = sessionLookup name >>= \case
 -- > deleteSession "userId"
 -- > userId <- getSession @Int "userId" -- Returns: Nothing
 deleteSession :: (?context :: ControllerContext) => ByteString -> IO ()
-deleteSession name = setSession name ("" :: ByteString)
+deleteSession name = sessionInsert name ""
 
 -- | Returns a value from the session, and deletes it after retrieving:
 --
