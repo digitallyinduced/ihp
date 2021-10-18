@@ -1,10 +1,8 @@
 module IHP.IDE.ToolServer.Layout where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Routes
-import IHP.Environment
+import IHP.IDE.ToolServer.Routes ()
 import qualified IHP.Version as Version
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -16,32 +14,32 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
     <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
-    <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
-    <link rel="stylesheet" href="/IDE/schema-designer.css"/>
-    <link rel="stylesheet" href="/vendor/select2.min.css"/>
+    <link rel="stylesheet" href={assetPath "/vendor/bootstrap.min.css"}/>
+    <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
+    <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
-    <script src="/vendor/morphdom-umd.min.js"></script>
-    <script src="/vendor/jquery-3.6.0.min.js"></script>
-    <script src="/vendor/timeago.js"></script>
-    <script src="/vendor/popper.min.js"></script>
-    <script src="/vendor/bootstrap.min.js"></script>
+    <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+    <script src={assetPath "/vendor/jquery-3.6.0.min.js"}></script>
+    <script src={assetPath "/vendor/timeago.js"}></script>
+    <script src={assetPath "/vendor/popper.min.js"}></script>
+    <script src={assetPath "/vendor/bootstrap.min.js"}></script>
     
 
-    <script src="/vendor/turbolinks.js"></script>
-    <script src="/vendor/morphdom-umd.min.js"></script>
-    <script src="/vendor/turbolinksMorphdom.js"></script>
-    <script src="/vendor/turbolinksInstantClick.js"></script>
+    <script src={assetPath "/vendor/turbolinks.js"}></script>
+    <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+    <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
+    <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
     
 
-    <script src="/helpers.js"></script>
-    <script src="/IDE/contextmenu.js"></script>
+    <script src={assetPath "/helpers.js"}></script>
+    <script src={assetPath "/IDE/contextmenu.js"}></script>
 
-    <script src="/vendor/select2.min.js"></script>
-    <script src="/vendor/src-min/ace.js"></script>
-    <script src="/vendor/src-min/ext-language_tools.js"></script>
-    <script src="/IDE/ihp-schemadesigner.js"></script>
-    <script src="/IDE/ihp-codegen.js"></script>
-    <script src="/IDE/ihp-help.js"></script>
+    <script src={assetPath "/vendor/select2.min.js"}></script>
+    <script src={assetPath "/vendor/src-min/ace.js"}></script>
+    <script src={assetPath "/vendor/src-min/ext-language_tools.js"}></script>
+    <script src={assetPath "/IDE/ihp-schemadesigner.js"}></script>
+    <script src={assetPath "/IDE/ihp-codegen.js"}></script>
+    <script src={assetPath "/IDE/ihp-help.js"}></script>
 
 
     <title>IHP IDE</title>
@@ -49,7 +47,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <body class="d-flex h-100 flex-row">
     <div id="nav">
         <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
-        <div id="ihp-plan">IHP</div>
+        <div id="ihp-plan">{ihpEditionTitle}</div>
         {apps}
         {schema}
         {data_}
@@ -60,8 +58,9 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {deploy}
         {docu}
 
+        {when isBasicEdition getPro}
         {help}
-        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank" title={"IHP Version: " <> Version.ihpVersion}>©<br />digitally induced GmbH</a>
+        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
     </div>
     <div id="content">
         {inner}
@@ -108,11 +107,35 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                     → StackOverflow
                 </a>
 
+                <p class="text-muted text-center">
+                    <small>
+                        IHP Version: {Version.ihpVersion}
+                    </small>
+                </p>
+
                 <p class="text-muted email-support">
                     If you're using <a href="https://ihp.digitallyinduced.com/Pricing" target="_blank">IHP Business</a>, you can also <a href="mailto:support@digitallyinduced.com">reach out to the digitally induced email support</a>.
                 </p>
             </div>
         |]
+
+        getPro :: Html
+        getPro = [hsx|
+            <a
+                href="https://ihp.digitallyinduced.com/Pricing?source=ide"
+                class="nav-item text-center"
+                target="_blank"
+                id="nav-upgrade"
+            >
+                Upgrade to <br /> IHP Pro
+            </a>
+        |]
+
+        ihpEditionTitle = case Version.ihpEdition of
+            Version.Basic -> [hsx|IHP|]
+            Version.Pro -> [hsx|IHP Pro|]
+            Version.Business -> [hsx|IHP <br />Business|]
+            Version.Enterprise -> [hsx|IHP <br />Enterprise|]
 
         appNavItem :: Text -> Html
         appNavItem "Web" = navItem "APP" fileIcon (appUrl <> "/") False
@@ -165,3 +188,5 @@ cogsIcon = preEscapedToHtml [plain|<svg viewBox="0 0 2048 1792" xmlns="http://ww
 
 -- | https://github.com/Rush/Font-Awesome-SVG-PNG/blob/master/black/svg/question-circle.svg
 helpIcon  = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#FFF"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>|]
+
+isBasicEdition = Version.ihpEdition == Version.Basic

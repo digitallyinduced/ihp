@@ -119,3 +119,45 @@ export IHP_IDE_BASEURL=http://some-other-host:8001 # SchemaDesigner etc., Defaul
 ```
 
 Next time you use the dev server via `./start` all links will use the right `IHP_BASEURL` instead of using `localhost:8000`;
+
+### Hoogle
+
+To quickly look up function type signatures you can use the built-in hoogle server.
+
+To install it:
+1. Open `default.nix`
+2. Add `withHoogle = true;` to the `haskellEnv` block, like this:
+```nix
+let
+    ihp = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/ihp.git";
+        ref = "refs/tags/v0.14.0";
+    };
+    haskellEnv = import "${ihp}/NixSupport/default.nix" {
+        ihp = ihp;
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            wai
+            text
+            hlint
+            p.ihp
+        ];
+        otherDeps = p: with p; [
+            # Native dependencies, e.g. imagemagick
+        ];
+        projectPath = ./.;
+
+        withHoogle = true; # <-------
+    };
+in
+    haskellEnv
+```
+
+Run `nix-shell --run 'make -B .envrc'` to remake your dev env.
+
+After that you can use the following command to start hoogle at `localhost:8080`:
+
+```bash
+hoogle server --local -p 8080
+```

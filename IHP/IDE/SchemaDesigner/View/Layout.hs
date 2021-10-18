@@ -1,10 +1,10 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, findForeignKey, findTableIndex) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, databaseControls, findForeignKey, findTableIndex) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compilePostgresType, compileExpression)
+import IHP.IDE.SchemaDesigner.Compiler (compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
@@ -341,11 +341,6 @@ replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of
    (before, _:after) -> before ++ (e: after)
    (a, b) -> a ++ b
-
-getDefaultValue :: Text -> Text -> Maybe Expression
-getDefaultValue columnType value = case Megaparsec.runParser Parser.expression "" value of
-        Left _ -> Nothing
-        Right expression -> Just expression
 
 -- | https://github.com/postgres/pgadmin4/blob/master/web/pgadmin/browser/server_groups/servers/databases/schemas/tables/static/img/table.svg
 tableIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="24" height="24"><defs><style>.cls-table-1{fill:#f2f2f2;}.cls-table-2{fill:#2195e7;}.cls-table-3{fill:none;stroke:#c1cbd5;stroke-linejoin:round;}.cls-table-3,.cls-table-4{stroke-width:0.75px;}.cls-table-4{fill:#def4fd;stroke:#2195e7;stroke-miterlimit:1;}</style></defs><title>table</title><g id="_2" data-name="2"><rect class="cls-table-1" x="2.92" y="3.65" width="10.15" height="8.71" rx="0.53" ry="0.53"/><path class="cls-table-2" d="M12.55,4a.15.15,0,0,1,.15.15v7.66a.15.15,0,0,1-.15.15H3.45a.15.15,0,0,1-.15-.15V4.17A.15.15,0,0,1,3.45,4h9.1m0-.75H3.45a.9.9,0,0,0-.9.9v7.66a.9.9,0,0,0,.9.9h9.1a.9.9,0,0,0,.9-.9V4.17a.9.9,0,0,0-.9-.9Z"/><line class="cls-table-3" x1="3.32" y1="9.43" x2="12.69" y2="9.43"/><line class="cls-table-3" x1="8.01" y1="7.09" x2="8" y2="11.97"/><line class="cls-table-4" x1="8.01" y1="4.03" x2="8" y2="6.58"/><line class="cls-table-4" x1="12.68" y1="6.74" x2="3.32" y2="6.74"/></g></svg>|]

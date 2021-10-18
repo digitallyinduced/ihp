@@ -13,9 +13,7 @@ module IHP.IDE.ToolServer.Helper.Controller
 
 import IHP.Prelude
 import IHP.ControllerSupport
-import IHP.ModelSupport
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
 import qualified IHP.IDE.PortConfig as PortConfig
 import IHP.IDE.Types
 import qualified Network.Socket as Socket

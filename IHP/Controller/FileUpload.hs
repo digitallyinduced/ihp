@@ -143,7 +143,7 @@ data ImageUploadOptions = ImageUploadOptions {
 -- >             redirectTo EditUserAction { .. }
 --
 -- The uploaded image path is now stored in #pictureUrl.
-uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadImageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -193,7 +193,7 @@ uploadImageWithOptions options _ user =
 -- >             user <- user |> updateRecord
 -- >             redirectTo EditUserAction { .. }
 --
-uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadImageFile :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName

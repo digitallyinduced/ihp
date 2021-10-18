@@ -2,6 +2,86 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.15.0 from Beta 0.14.0
+1. **Switch IHP version**
+
+    - **IHP Basic**
+
+        Open `default.nix` and change the git commit in line 4 to the following:
+
+        ```diff
+        -ref = "refs/tags/v0.14.0";
+        +ref = "refs/tags/v0.15.0";
+        ```
+
+        Please continue the upgrade instructions and don't run any 'make' commands yet.
+
+    - **IHP Pro & IHP Business**
+
+        Visit https://ihp.digitallyinduced.com/SwitchToPro and copy the latest v0.15 URL into your `default.nix`.
+2. **Patch `Config/nix/nixpkgs-config.nix`**
+    
+    Open `Config/nix/nixpkgs-config.nix` and replace it with this:
+
+    ```diff
+    # See https://ihp.digitallyinduced.com/Guide/package-management.html
+    { ihp, additionalNixpkgsOptions, ... }:
+    import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+        ihp = ihp;
+        haskellPackagesDir = ./haskell-packages/.;
+        additionalNixpkgsOptions = additionalNixpkgsOptions;
+    }
+    ```
+
+    **Did you run a recent master version of IHP?**
+
+    Please also apply this patch if you have been using a recent master version of IHP. The `additionalNixpkgsOptions` is likely missing in your file.
+
+3. **Remake Env**
+
+    Run the following commands:
+
+    ```bash
+    make clean
+    nix-shell -j auto --cores 0 --run 'make -B .envrc'
+    make -B build/ihp-lib
+    ```
+
+    Now you can start your project as usual with `./start`.
+
+4. **.gitignore**
+
+    Add the following lines to your `.gitignore` file:
+
+    ```
+    Application/Migration/unmigrated-changes.sql
+    # Ignore locally checked out IHP version
+    IHP
+    ```
+
+5. **`./start` script**
+
+    Open the project's `start` script and append the following after `set -e` in line 4:
+
+    ```bash
+    # On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
+    #
+    # The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
+    # and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
+    # and will close the remaining lazy bytestring handles.
+    if [[ $OSTYPE == 'darwin'* ]]; then
+        ulimit -n 4096
+    fi
+    ```
+
+    The file should now look like this: https://github.com/digitallyinduced/ihp-boilerplate/blob/62754efc0b7f8c82f36d0bbdf84e68418fc571c7/start
+
+6. **Session Cookies**
+
+    With IHP v0.15 we've switched the encoding of session cookies from a textual encoding to a binary encoding. IHP v0.15 will ignore the old session format.
+
+    After switching v0.15 your users will be logged out and need to log in again.
+
 # Upgrade to Beta 0.14.0 from Beta 0.13.1
 
 ## Switch IHP version

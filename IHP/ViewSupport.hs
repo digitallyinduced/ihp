@@ -66,7 +66,7 @@ class View theView where
 
     -- | Renders the view to a JSON
     json :: theView -> JSON.Value
-    json = error "Not implemented"
+    json = error "Json View for this route is not implemented"
 
 -- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@
@@ -149,7 +149,7 @@ isActivePathOrSub route =
 -- True
 --
 -- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller context. (?context :: ControllerContext, Typeable controller) => Bool
+isActiveController :: forall controller. (?context :: ControllerContext, Typeable controller) => Bool
 isActiveController =
     let
         (ActionType actionType) = fromFrozenContext @ActionType

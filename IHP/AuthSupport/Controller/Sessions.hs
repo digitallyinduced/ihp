@@ -48,7 +48,7 @@ newSessionAction = do
 -- After 10 failed attempts, the user is locked for an hours. See 'maxFailedLoginAttemps' to customize this.
 --
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
-createSessionAction :: forall record action passwordField.
+createSessionAction :: forall record action.
     (?theAction :: action
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext

@@ -21,10 +21,17 @@ instance CanRoute ApiController where
 
                 method <- getMethod
                 case method of
-                    PATCH -> pure UpdateRecordAction { table, id }
+                    PATCH  -> pure UpdateRecordAction { table, id }
+                    GET    -> pure ShowRecordAction { table, id }
                     DELETE -> pure DeleteRecordAction { table, id }
 
-        updateOrDeleteRecordAction <|> createRecordAction
+            listRecordsAction = do
+                endOfInput
+                method <- getMethod
+                case method of
+                    GET -> pure ListRecordsAction { table }
+
+        updateOrDeleteRecordAction <|> createRecordAction <|> listRecordsAction
 
 instance HasPath ApiController where
     pathTo CreateRecordAction { table } = "/api/" <> table

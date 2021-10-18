@@ -4,6 +4,7 @@ import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.Layout
+import IHP.IDE.ToolServer.Routes
 
 data ShowDatabaseView = ShowDatabaseView {
         tableNames :: [Text]

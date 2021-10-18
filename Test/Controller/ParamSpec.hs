@@ -85,6 +85,19 @@ tests = do
                 let ?context = createControllerContextWithParams []
                 (paramList @Int "numbers") `shouldBe` []
 
+        describe "paramListOrNothing" do
+            it "should parse valid input" do
+                let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", ""), ("ingredients", "egg")]
+                (paramListOrNothing @Text "ingredients") `shouldBe` [Just "milk", Nothing, Just "egg"]
+
+            it "should not fail on invalid input" do
+                let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
+                (paramListOrNothing @Int "numbers") `shouldBe` [Just 1, Nothing]
+
+            it "should deal with empty input" do
+                let ?context = createControllerContextWithParams []
+                (paramListOrNothing @Int "numbers") `shouldBe` []
+
         describe "hasParam" do
             it "returns True if param given" do
                 let ?context = createControllerContextWithParams [("a", "test")]
@@ -357,46 +370,46 @@ tests = do
         describe "fill" do
             it "should fill provided values if valid" do
                 let ?context = createControllerContextWithParams [("boolField", "on"), ("colorField", "Red")]
-                
+
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
-                
+
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
-            
+
             it "should not touch fields if a field is missing" do
                 let ?context = createControllerContextWithParams [("colorField", "Red")]
-                
+
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Red, meta = def { touchedFields = ["colorField"] } }
-                
+
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
 
             it "should add validation errors if the parsing fails" do
                 let ?context = createControllerContextWithParams [("colorField", "invalid color")]
-                
+
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def { annotations = [("colorField", TextViolation "Invalid value")] } }
-                
+
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
-            
+
             it "should deal with json values" do
                 let ?context = createControllerContextWithJson "{\"colorField\":\"Red\",\"boolField\":true}"
-                
+
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
-                
+
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
-            
+
             it "should deal with empty json values" do
                 let ?context = createControllerContextWithJson "{}"
-                
+
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                
+
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
 

@@ -218,7 +218,7 @@ body {
 .data-rows-table [data-fieldname="created_at"] { font-size: 8px }
 .data-rows-table [data-fieldname="password_hash"] { font-size: 8px }
 
-#nav-help {
+#nav-upgrade {
     margin-top: auto;
 }
 

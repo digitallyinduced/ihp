@@ -2,7 +2,6 @@ module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..)) wh
 
 import IHP.Prelude
 import qualified Data.Text as Text
-import IHP.ViewSupport
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types

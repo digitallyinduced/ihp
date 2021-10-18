@@ -4,18 +4,17 @@ import IHP.Prelude
 import qualified Network.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
 import IHP.IDE.Types
-import IHP.HaskellSupport
 import qualified Control.Exception as Exception
 import qualified Data.UUID.V4 as UUID
 import qualified Data.Map as Map
 
-notifyHaskellChange :: (?context :: Context) => LiveReloadNotificationServerState -> IO ()
+notifyHaskellChange :: LiveReloadNotificationServerState -> IO ()
 notifyHaskellChange = broadcast "reload"
 
-notifyAssetChange :: (?context :: Context) => LiveReloadNotificationServerState -> IO ()
+notifyAssetChange :: LiveReloadNotificationServerState -> IO ()
 notifyAssetChange = broadcast "reload_assets"
 
-broadcast :: (?context :: Context) => ByteString -> LiveReloadNotificationServerState -> IO ()
+broadcast :: ByteString -> LiveReloadNotificationServerState -> IO ()
 broadcast message LiveReloadNotificationServerState { clients } = do
     clients' <- readIORef clients
     

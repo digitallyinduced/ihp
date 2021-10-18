@@ -50,8 +50,6 @@ module IHP.QueryBuilder
 , buildQuery
 , SQLQuery (..)
 , OrderByClause (..)
-, OrderByDirection (..)
-, Condition (..)
 , innerJoin
 , innerJoinThirdTable
 , HasQueryBuilder
@@ -77,6 +75,7 @@ import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
 import Debug.Trace
+import qualified GHC.Generics
 
 class DefaultScope table where
     defaultScope :: QueryBuilder table -> QueryBuilder table
@@ -138,7 +137,7 @@ data OrderByClause =
     OrderByClause
     { orderByColumn :: !ByteString
     , orderByDirection :: !OrderByDirection }
-    deriving (Show, Eq)
+    deriving (Show, Eq, GHC.Generics.Generic, DeepSeq.NFData)
 
 -- Types implementing a type level list to record joined tables. EmptyModelList and ConsModelList correspond to the data constructors [] and :. NoJoins is like the empty List but cannot be extended.
 data NoJoins
@@ -215,7 +214,7 @@ instance KnownSymbol table => ToHtml (QueryBuilder table) where
 data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString }
     deriving (Show, Eq)
 
-data OrderByDirection = Asc | Desc deriving (Eq, Show)
+data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, DeepSeq.NFData)
 data SQLQuery = SQLQuery
     { queryIndex :: !(Maybe ByteString)
     , selectFrom :: !ByteString
@@ -290,7 +289,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
     buildQueryHelper NewQueryBuilder { columns } =
         let tableName = symbolToByteString @table
         in SQLQuery
-            {     queryIndex = trace (Prelude.show $ getQueryIndex queryBuilderProvider) getQueryIndex queryBuilderProvider 
+            {     queryIndex = getQueryIndex queryBuilderProvider 
                 , selectFrom = tableName
                 , distinctClause = Nothing
                 , distinctOnClause = Nothing

@@ -2,8 +2,6 @@ module IHP.IDE.SchemaDesigner.View.Tables.Index where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data IndexView = IndexView

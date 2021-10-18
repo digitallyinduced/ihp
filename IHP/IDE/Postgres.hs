@@ -7,7 +7,6 @@ import qualified System.Directory as Directory
 import qualified Data.ByteString.Char8 as ByteString
 import GHC.IO.Handle
 
-import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 
 startPostgres :: (?context :: Context) => IO ManagedProcess

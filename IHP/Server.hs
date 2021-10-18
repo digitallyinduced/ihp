@@ -125,7 +125,7 @@ initStaticMiddleware FrameworkConfig { environment } = do
                     , ("Vary", "Accept-Encoding")
                     ]
 
-initSessionMiddleware :: Vault.Key (Session IO String String) -> FrameworkConfig -> IO Middleware
+initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> FrameworkConfig -> IO Middleware
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
     let path = "Config/client_session_key.aes"
 

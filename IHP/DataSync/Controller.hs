@@ -8,13 +8,9 @@ import qualified Data.Aeson as Aeson
 
 import Data.Aeson.TH
 import Data.Aeson
-import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.FromRow as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent.MVar as MVar

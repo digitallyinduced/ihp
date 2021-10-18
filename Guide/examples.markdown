@@ -6,6 +6,21 @@
 
 Check out these example apps to gain real-world knowledge on how IHP apps are built.
 
+**💬 IHP Chat: Basic slack-like chat application**
+
+- [Source Code on GitHub](https://github.com/digitallyinduced/ihp-chat-example-app)
+- [Live Demo on IHP Cloud](https://ihpchatexampleapp.ihpapp.com) Log in with `demo@digitallyinduced.com` / `demo`
+- [Develop this project on GitPod](https://gitpod.io/#https://github.com/digitallyinduced/ihp-chat-example-app)
+
+[![IHP Chat App](https://github.com/digitallyinduced/ihp-chat-example-app/raw/master/static/screenshot.png)](https://ihpchatexampleapp.ihpapp.com)
+
+
+**🗞️ IHP Blog: A simple markdown-based blog application**
+
+This project is contains the blog of the "Your First Project" guide.
+
+- [Source Code on GitHub](https://github.com/digitallyinduced/ihp-blog-example-app)
+
 ## Community Apps
 
 Here are some open-source IHP apps created by the community:

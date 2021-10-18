@@ -1,12 +1,10 @@
 module IHP.IDE.CodeGen.View.Generators where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.IDE.CodeGen.Types
 import qualified Data.Text as Text
-import IHP.IDE.SchemaDesigner.View.Layout
 
 data GeneratorsView = GeneratorsView
 

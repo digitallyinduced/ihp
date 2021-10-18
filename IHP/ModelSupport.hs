@@ -189,7 +189,7 @@ type FieldName = ByteString
 -- >>> book <- query @Book |> fetchOne
 -- >>> isNew book
 -- False
-isNew :: forall model id. (HasField "meta" model MetaBag) => model -> Bool
+isNew :: forall model. (HasField "meta" model MetaBag) => model -> Bool
 isNew model = model
         |> get #meta
         |> get #originalDatabaseRecord
@@ -448,7 +448,6 @@ class
     --
 
     tableName :: Text
-    default tableName :: forall model. (KnownSymbol (GetTableName record)) => Text
     tableName = symbolToText @(GetTableName record)
     {-# INLINE tableName #-}
 
@@ -460,7 +459,6 @@ class
     -- "users"
     --
     tableNameByteString :: ByteString
-    default tableNameByteString :: forall model. (KnownSymbol (GetTableName record)) => ByteString
     tableNameByteString = symbolToByteString @(GetTableName record)
     {-# INLINE tableNameByteString #-}
 
@@ -486,6 +484,8 @@ class
     -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
     --
     primaryKeyCondition :: record -> [(Text, PG.Action)]
+    default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
+    primaryKeyCondition record = [("id", toField (get #id record))]
 
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
@@ -503,7 +503,7 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model id. (?modelContext :: ModelContext, Table model) => model -> IO ()
+deleteRecord :: forall model. (?modelContext :: ModelContext, Table model) => model -> IO ()
 deleteRecord model = do
     let condition = primaryKeyCondition model
     let whereConditions = condition |> map (\(field, _) -> field <> " = ?") |> intercalate " AND "
@@ -532,7 +532,7 @@ deleteRecordById id = do
 -- >>> let projects :: [Project] = ...
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
-deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, record ~ GetModelById id, ToField id) => [record] -> IO ()
+deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [record] -> IO ()
 deleteRecords records = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = PG.Only (PG.In (ids records))

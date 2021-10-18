@@ -119,7 +119,6 @@ instance (
 instance (
         Eq (PrimaryKey tableName)
         , ToField (PrimaryKey tableName)
-        , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , Table relatedModel

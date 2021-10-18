@@ -59,7 +59,7 @@ type Validator valueType = valueType -> ValidatorResult
 -- >         Right project -> do
 -- >             putStrLn "Project is valid. Saving to database."
 -- >             createRecord project
-validateField :: forall field fieldValue validator model. (
+validateField :: forall field fieldValue model. (
         KnownSymbol field
         , HasField field model fieldValue
         , HasField "meta" model MetaBag

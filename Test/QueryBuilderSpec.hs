@@ -74,6 +74,7 @@ type instance GetModelByTableName "favorite_title" = FavoriteTitle
 
 instance Table FavoriteTitle where
     columnNames = ["title", "likes"]
+    primaryKeyCondition _ = []
 
 tests = do
     describe "QueryBuilder" do

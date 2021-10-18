@@ -1,3 +1,4 @@
+#!/bin/sh
 make print-ghc-options GHC_RTS_FLAGS='' | tr ' ' '\n' > "$HIE_BIOS_OUTPUT"
 echo "$HIE_BIOS_ARG" >> "$HIE_BIOS_OUTPUT"
 find . -name '*.hs' >> "$HIE_BIOS_OUTPUT"

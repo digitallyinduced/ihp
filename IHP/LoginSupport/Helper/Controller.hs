@@ -86,12 +86,12 @@ login user = Session.setSession (sessionKey @user) (tshow (get #id user))
 
 -- Log's out an entity
 {-# INLINABLE logout #-}
-logout :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
+logout :: forall user. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user)) => user -> IO ()
 logout user = Session.setSession (sessionKey @user) ("" :: Text)
 
 {-# INLINABLE sessionKey #-}
-sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Text
-sessionKey = "login." <> ModelSupport.getModelName @user
+sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => ByteString
+sessionKey = "login." <> cs (ModelSupport.getModelName @user)
 
 redirectToLoginWithMessage :: (?context :: ControllerContext) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do

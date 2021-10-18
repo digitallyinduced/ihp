@@ -3,7 +3,7 @@ let
         ihp = ./.;
         haskellPackagesDir = ./NixSupport/haskell-packages;
     };
-    ghc = pkgs.haskell.packages.ghc8104;
+    ghc = pkgs.haskell.packages.ghc8107;
     haskellDeps = ghc.ghcWithPackages (p: with p; [
         # Copied from ihp.nix
         base
@@ -61,6 +61,9 @@ let
         temporary
         wai-cors
         random
+        async-pool
+        cereal-text
+        cereal-uuid
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

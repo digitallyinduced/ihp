@@ -8,12 +8,10 @@ import IHP.Prelude
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.Notification as PG
-import Control.Concurrent.Async
 import IHP.ModelSupport
 import Data.String.Interpolate.IsString (i)
 import Data.Aeson
 import Data.Aeson.TH
-import qualified Data.Text as Text
 import qualified Control.Concurrent.MVar as MVar
 import IHP.DataSync.DynamicQuery (transformColumnNamesToFieldNames)
 import qualified IHP.DataSync.RowLevelSecurity as RLS

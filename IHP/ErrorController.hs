@@ -36,7 +36,6 @@ import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import qualified System.Directory as Directory
 import IHP.ApplicationContext
-import qualified System.Environment as Env
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -314,7 +313,7 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in production mode of the app. The exception is handled by calling 'handleNotFound'
-recordNotFoundExceptionHandlerProd :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerProd exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->

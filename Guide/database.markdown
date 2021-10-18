@@ -283,6 +283,13 @@ Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-Mode
 ```haskell
 do
     result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+    
+    -- Query with WHERE id IN
+    result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (In [id]))
+    
+    -- Get a lists of posts with their Comment count 
+    let postIds :: [Id Post] = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
+    commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))    
 ```
 
 You might need to specify the expected result type, as type inference might not be able to guess it.
@@ -290,6 +297,19 @@ You might need to specify the expected result type, as type inference might not 
 ```haskell
 do
     result :: [Project] <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+```
+
+If you would like to have your query dynamically built with an argument you could:
+
+```haskell
+import qualified Database.PostgreSQL.Simple as PG
+import qualified Database.PostgreSQL.Simple.Types as PG
+
+do  
+    -- Get all Projects
+    let table :: Text = "projects"
+    -- Use PG.Identifier to prevent SQL injection
+    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]    
 ```
 
 ### Scalar Results
