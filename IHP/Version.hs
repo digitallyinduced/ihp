@@ -9,7 +9,7 @@ import IHP.Prelude
 import qualified Paths_ihp
 import Data.Version (showVersion)
 
-data Edition = Basic | Pro | Business
+data Edition = Basic | Pro | Business | Enterprise
     deriving (Eq, Show)
 
 -- | Returns the git commit hash of https://github.com/digitallyinduced/ihp at which this IHP version was built

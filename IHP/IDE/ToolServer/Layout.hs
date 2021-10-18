@@ -47,7 +47,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <body class="d-flex h-100 flex-row">
     <div id="nav">
         <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
-        <div id="ihp-plan">IHP</div>
+        <div id="ihp-plan">{ihpEditionTitle}</div>
         {apps}
         {schema}
         {data_}
@@ -130,6 +130,12 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                 Upgrade to <br /> IHP Pro
             </a>
         |]
+
+        ihpEditionTitle = case Version.ihpEdition of
+            Version.Basic -> [hsx|IHP|]
+            Version.Pro -> [hsx|IHP Pro|]
+            Version.Business -> [hsx|IHP <br />Business|]
+            Version.Enterprise -> [hsx|IHP <br />Enterprise|]
 
         appNavItem :: Text -> Html
         appNavItem "Web" = navItem "APP" fileIcon (appUrl <> "/") False
