@@ -111,6 +111,33 @@ if ! [ -x "$(command -v direnv)" ]; then
 	done
 fi
 
+DIRENV_SETUP=0;
+case "${SHELL##*/}" in
+zsh )
+    if grep direnv "$HOME/.zshrc" 2>&1 >/dev/null; then
+        DIRENV_SETUP=1;
+    fi;
+    ;;
+bash )
+    if grep direnv "$HOME/.bashrc" 2>&1 >/dev/null; then
+        DIRENV_SETUP=1;
+    fi;
+    ;;
+default )
+    echo "\e[1mUnable to check if direnv is setup correctly (unrecognised shell).\e[0m";
+    ;;
+esac
+if [ $DIRENV_SETUP = 0 ]; then
+	echo -e "\e[1mDirenv shell hook doesn't seem correct.\e[0m"
+	echo -e "Direnv needs to be hooked into your shell. Please follow the steps below:"
+	echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
+	echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
+	echo "Other shells: See https://direnv.net/#README"
+	echo -e "This could be a false negative if you use a more complex shell profile"
+    echo ""
+fi
+
+
 if ! [ -x "$(command -v cachix)" ]; then
 	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
 	echo -e "IHP uses cachix as a binary cache."
