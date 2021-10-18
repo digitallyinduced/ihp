@@ -1,6 +1,6 @@
 # Testing
 
-This section provides some guidelines for testing your IHP applications. It is highley recommended to write a test for your Controller and Views to assert the logic, and reach better code quality.
+This section provides some guidelines for testing your IHP applications. It is highly recommended to write a test for your Controller and Views to assert the logic, and reach better code quality.
 
 ```toc
 
@@ -20,7 +20,7 @@ The following setup and tests can be viewed in the [Blog example](https://github
         ];
 ```
 2. Rebuild enviorement with `make -B .envrc`
-3. Creata a new `Test/Main.hs` module. Here you will import all your test specs.
+3. Create a new `Test/Main.hs` module. Here you will import all your test specs.
 
 ```haskell
 # Test/Main.hs
