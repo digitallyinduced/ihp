@@ -171,7 +171,7 @@ initAssetVersion = do
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
 findOption = fromMaybe (error optionNotFoundErrorMessage) <$> findOptionOrNothing @option
     where
-        optionNotFoundErrorMessage = "Could not find " <> show (Typeable.typeOf (undefined :: option))
+        optionNotFoundErrorMessage = "findOption: Could not find " <> show (Typeable.typeOf (undefined :: option))
 {-# INLINABLE findOption #-}
 
 findOptionOrNothing :: forall option. Typeable option => State.StateT TMap.TMap IO (Maybe option)
@@ -361,7 +361,7 @@ data FrameworkConfig = FrameworkConfig
     -- If IHP cannot figure out an asset version, it will fallback to the static
     -- string @"dev"@.
     --
-    , assetVersion :: Text
+    , assetVersion :: !Text
 }
 
 class ConfigProvider a where

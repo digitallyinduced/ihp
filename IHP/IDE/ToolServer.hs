@@ -61,6 +61,7 @@ startToolServer' port isDebugMode = do
     frameworkConfig <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
         Config.option $ Config.AppPort port
+        Config.option $ Config.AssetVersion Version.ihpVersion
 
         ihpIdeBaseUrlEnvVar <- liftIO (Env.lookupEnv "IHP_IDE_BASEURL")
         case ihpIdeBaseUrlEnvVar of
