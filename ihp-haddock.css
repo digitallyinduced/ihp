@@ -37,8 +37,6 @@ a[href]:hover {
     color: #073642;
 }
 
-#content > #module-list:first-child { display: none }
-
 .collapser:before, .expander:before, .noexpander:before {
     color: currentColor;
 }
