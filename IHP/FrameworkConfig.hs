@@ -68,6 +68,8 @@ newtype IdeBaseUrl = IdeBaseUrl Text
 -- | Postgres role to be used for making queries with Row level security enabled
 newtype RLSAuthenticatedRole = RLSAuthenticatedRole Text
 
+newtype AssetVersion = AssetVersion Text
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -154,8 +156,17 @@ ihpDefaultConfig = do
     rlsAuthenticatedRole <- fromMaybe "ihp_authenticated" <$> liftIO (Environment.lookupEnv "IHP_RLS_AUTHENTICATED_ROLE")
     option $ RLSAuthenticatedRole (cs rlsAuthenticatedRole)
 
-
 {-# INLINABLE ihpDefaultConfig #-}
+
+initAssetVersion :: ConfigBuilder
+initAssetVersion = do
+    ihpCloudContainerId <- fmap cs <$> liftIO (Environment.lookupEnv "IHP_CLOUD_CONTAINER_ID")
+    ihpAssetVersion <- fmap cs <$> liftIO (Environment.lookupEnv "IHP_ASSET_VERSION")
+    let assetVersion = [ ihpCloudContainerId, ihpAssetVersion]
+            |> catMaybes
+            |> head
+            |> fromMaybe "dev"
+    option (AssetVersion assetVersion)
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
 findOption = fromMaybe (error optionNotFoundErrorMessage) <$> findOptionOrNothing @option
@@ -191,6 +202,7 @@ buildFrameworkConfig appConfig = do
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
+            (AssetVersion assetVersion) <- findOption @AssetVersion
 
             appConfig <- State.get
 
@@ -337,6 +349,19 @@ data FrameworkConfig = FrameworkConfig
 
     -- | See IHP.DataSync.Role
     , rlsAuthenticatedRole :: Text
+
+    -- | The asset version is used for cache busting
+    --
+    -- On IHP Cloud IHP automatically uses the @IHP_CLOUD_CONTAINER_ID@ env variable
+    -- as the asset version. So when running there, you don't need to do anything.
+    --
+    -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
+    -- env variable with e.g. the git commit hash of the production build.
+    --
+    -- If IHP cannot figure out an asset version, it will fallback to the static
+    -- string @"dev"@.
+    --
+    , assetVersion :: Text
 }
 
 class ConfigProvider a where

@@ -265,7 +265,6 @@ library
         , IHP.PageHead.Types
         , IHP.PageHead.ViewFunctions
         , IHP.Assets.Types
-        , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
         -- Server Side Component Modules
         , IHP.ServerSideComponent.Types
