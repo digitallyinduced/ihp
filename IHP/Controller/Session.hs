@@ -147,9 +147,13 @@ getSessionAndClear name = do
     pure value
 {-# INLINABLE getSessionAndClear #-}
 
-instance (Serialize (PrimaryKey table)) => Serialize (Id' table) where
-    put (Id value) = Serialize.put value
-    get = Id <$> Serialize.get
+instance (Serialize (PrimaryKey table), PrimaryKey table ~ UUID) => Serialize (Id' table) where
+    put (Id value) = Serialize.put (UUID.toASCIIBytes value)
+    get = do
+        maybeUUID <- UUID.fromASCIIBytes <$> Serialize.get
+        case maybeUUID of
+            Nothing -> fail "Failed to parse UUID"
+            Just uuid -> pure (Id uuid)
 
 sessionInsert :: (?context :: ControllerContext) => ByteString -> ByteString -> IO ()
 sessionInsert = snd sessionVault
