@@ -156,6 +156,8 @@ ihpDefaultConfig = do
     rlsAuthenticatedRole <- fromMaybe "ihp_authenticated" <$> liftIO (Environment.lookupEnv "IHP_RLS_AUTHENTICATED_ROLE")
     option $ RLSAuthenticatedRole (cs rlsAuthenticatedRole)
 
+    initAssetVersion
+
 {-# INLINABLE ihpDefaultConfig #-}
 
 initAssetVersion :: ConfigBuilder
