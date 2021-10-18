@@ -89,26 +89,70 @@ if ! [ -x "$(command -v direnv)" ]; then
 		exit 1
 		;;
 	esac
-	echo -e "\e[1mDirenv needs to be hooked into your shell. Please follow the steps below:\e[0m"
-	echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
-	echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
-	echo "Other shells: See https://direnv.net/#README"
-	echo -e "\e[1mHave you hooked direnv into your shell? [y/n] \e[0m"
-	while true; do
-		read -r -n1 choice
+	echo -e "\e[1mDirenv needs to be hooked into your shell.\e[0m"
+
+	DIRENV_HOOK_ADDED=0
+	if [ "${SHELL##*/}" == "bash" ] || [ "${SHELL##*/}" == "zsh" ]; then
+		echo -e "\e[1mWould you like to attempt to do this automatically? [y/n] \e[0m"
+		while true; do
+			read -r -n1 choice
+			echo ""
+			case "$choice" in
+			y | Y)
+				echo "Great!"
+				case "${SHELL##*/}" in
+				zsh )
+					echo "Adding hook to ~/.zshrc...";
+					echo 'eval "$(direnv hook bash)"' >> $HOME/.zshrc
+					DIRENV_HOOK_ADDED=1
+					;;
+				bash )
+					echo "Adding hook to ~/.bashrc...";
+					echo 'eval "$(direnv hook bash)"' >> $HOME/.bashrc
+					DIRENV_HOOK_ADDED=1
+					;;
+				default )
+					echo "\e[31mError: Unrecognised shell[0m";
+					;;
+				esac
+
+				break
+				;;
+			n | N)
+				break
+				;;
+			*) echo -e "\e[1mWould you like to attempt to do this automatically? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m" ;;
+			esac
+		done
+	else
+		echo -e "\e[31mCouldn't detect what shell you're using.\e[0m"
+	fi
+
+	if [ $DIRENV_HOOK_ADDED = 0 ]; then
 		echo ""
-		case "$choice" in
-		y | Y)
-			echo "Great!"
-			break
-			;;
-		n | N)
-			echo -e "\e[1m\e[33mHook direnv into your shell after this script has finished.\e[0m"
-			break
-			;;
-		*) echo -e "\e[1mHave you hooked direnv into your shell? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m" ;;
-		esac
-	done
+		echo "Please add the hook manually."
+		echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
+		echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
+		echo "Other shells: See https://direnv.net/#README"
+		echo -e "\e[1mHave you hooked direnv into your shell? [y/n] \e[0m"
+		while true; do
+			read -r -n1 choice
+			echo ""
+			case "$choice" in
+			y | Y)
+				echo "Great!"
+				break
+				;;
+			n | N)
+				echo -e "\e[1m\e[33mHook direnv into your shell after this script has finished.\e[0m"
+				break
+				;;
+			*) echo -e "\e[1mHave you hooked direnv into your shell? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m" ;;
+			esac
+		done
+		DIRENV_HOOK_ADDED=1
+	fi
+
 fi
 
 DIRENV_SETUP=0;
@@ -127,7 +171,7 @@ default )
     echo "\e[1mUnable to check if direnv is setup correctly (unrecognised shell).\e[0m";
     ;;
 esac
-if [ $DIRENV_SETUP = 0 ]; then
+if [ $DIRENV_SETUP = 0 ] && [ DIRENV_HOOK_ADDED != 1 ]; then
 	echo -e "\e[1mDirenv shell hook doesn't seem correct.\e[0m"
 	echo -e "Direnv needs to be hooked into your shell. Please follow the steps below:"
 	echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
