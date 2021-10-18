@@ -6,15 +6,29 @@
 
 ## Introduction
 
+Haskell data structures and types are generated automatically based on your database schema.
+
 IHP provides a few basic functions to access the database. On top of Postgres SQL, we try to provide a thin layer to make it easy to do all the common tasks your web application usually does.
 
 The only supported database platform is Postgres. Focusing on Postgres allows us to better integrate advanced Postgres-specific solutions into your application.
 
 In development, you do not need to set up anything to use Postgres. The built-in development server automatically starts a Postgres instance to work with your application. The built-in development Postgres server is only listening on a Unix socket and is not available via TCP.
 
+### Connecting to DB via Terminal
+
 When the development server is running, you can connect to it via `postgresql:///app?host=YOUR_PROJECT_DIRECTORY/build/db` with your favorite database tool. When inside the project directory you can also use `make psql` to open a Postgres REPL connected to the development database (named `app`), or start `psql` by pointing at the local sockets file `psql --host=/PATH/TO/PROJECT/DIRECTORY/build/db app`. The web interface of the development server also has a GUI-based database editor (like phpmyadmin) at [http://localhost:8001/ShowDatabase](http://localhost:8001/ShowDatabase).
 
-Haskell data structures and types are generated automatically based on your database schema.
+### Connecting to DB via UI
+
+When the development server is running, you can use your favorite UI tool (e.g. [TablePlus](https://tableplus.com/)) that allows connecting to Postgress. To do that you would need the following credentials:
+
+Database Host: This is the application root + "/build/db". Use this command on terminal form the root of you app and copy the output.
+```
+echo `pwd`/build/db
+```
+
+Database username: This is the current user you run the terminal with. Run `whoami` command to get that name.
+Database name: `app`
 
 ### Schema.sql
 
@@ -283,13 +297,13 @@ Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-Mode
 ```haskell
 do
     result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
-    
+
     -- Query with WHERE id IN
     result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (In [id]))
-    
-    -- Get a lists of posts with their Comment count 
+
+    -- Get a lists of posts with their Comment count
     let postIds :: [Id Post] = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
-    commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))    
+    commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))
 ```
 
 You might need to specify the expected result type, as type inference might not be able to guess it.
@@ -305,11 +319,11 @@ If you would like to have your query dynamically built with an argument you coul
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 
-do  
+do
     -- Get all Projects
     let table :: Text = "projects"
     -- Use PG.Identifier to prevent SQL injection
-    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]    
+    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]
 ```
 
 ### Scalar Results
@@ -439,7 +453,7 @@ query =
                 send_message_actions on (send_message_actions.to_id = phone_contacts.phone_number_id)
             left join
                 action_run_states on (
-                    action_run_states.id = send_message_actions.action_run_state_id 
+                    action_run_states.id = send_message_actions.action_run_state_id
                     and (action_run_states.state = 'not_started' or action_run_states.state = 'suspended')
                 )
         where
