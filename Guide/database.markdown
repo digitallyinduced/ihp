@@ -22,7 +22,7 @@ When the development server is running, you can connect to it via `postgresql://
 
 When the development server is running, you can use your favorite UI tool (e.g. [TablePlus](https://tableplus.com/)) that allows connecting to Postgress. To do that you would need the following credentials:
 
-Database Host: This is the application root + "/build/db". Use this command on terminal form the root of you app and copy the output.
+Database Host: This is the application root + "/build/db". Use this command on terminal form the root of you app and copy the output:
 ```
 echo `pwd`/build/db
 ```
