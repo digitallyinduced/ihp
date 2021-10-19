@@ -6,9 +6,7 @@
 
 ## Introduction
 
-Haskell data structures and types are generated automatically based on your database schema.
-
-IHP provides a few basic functions to access the database. On top of Postgres SQL, we try to provide a thin layer to make it easy to do all the common tasks your web application usually does.
+IHP provides a few basic functions to access the database. On top of Postgres SQL, we try to provide a thin layer to make it easy to do all the common tasks your web application usually does. Haskell data structures and types are generated automatically based on your database schema.
 
 The only supported database platform is Postgres. Focusing on Postgres allows us to better integrate advanced Postgres-specific solutions into your application.
 
