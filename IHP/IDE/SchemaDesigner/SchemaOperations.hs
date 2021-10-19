@@ -131,4 +131,10 @@ addEnum enumName statements = a <> enum <> b
         findInsertionIndex (x:xs) !i = i
         findInsertionIndex [] !i = i
 
+addValueToEnum :: Text -> Text -> Schema -> Schema
+addValueToEnum enumName enumValueName statements = map addValueToEnum' statements
+    where
+        addValueToEnum' (table@CreateEnumType { name, values }) | name == enumName =
+            table { values = values <> [enumValueName] }
+        addValueToEnum' statement = statement
 

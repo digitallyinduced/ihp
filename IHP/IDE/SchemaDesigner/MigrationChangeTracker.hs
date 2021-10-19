@@ -97,6 +97,12 @@ doesTableExists tableName statements =
     |> null
     |> not
 
+addEnum :: Text -> IO ()
+addEnum enumName = withUnmigratedChanges $ SchemaOperations.addEnum enumName
+
+addValueToEnum :: Text -> Text -> IO ()
+addValueToEnum enumName enumValueName = withUnmigratedChanges $ SchemaOperations.addValueToEnum enumName enumValueName
+
 ensureMigrationDirectory :: IO ()
 ensureMigrationDirectory = Directory.createDirectoryIfMissing False "Application/Migration"
 
