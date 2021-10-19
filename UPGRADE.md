@@ -18,7 +18,7 @@ After updating your project, please consult the segments from your current relea
 
     - **IHP Pro & IHP Business**
 
-        Visit https://ihp.digitallyinduced.com/SwitchToPro and copy the latest v0.15 URL into your `default.nix`.
+        Visit https://ihp.digitallyinduced.com/Builds and copy the latest v0.15 URL into your `default.nix`.
 2. **Patch `Config/nix/nixpkgs-config.nix`**
     
     Open `Config/nix/nixpkgs-config.nix` and replace it with this:
