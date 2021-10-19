@@ -44,7 +44,7 @@ After updating your project, please consult the segments from your current relea
     ```bash
     make clean
     nix-shell -j auto --cores 0 --run 'make -B .envrc'
-    make -B build/ihp-lib
+    nix-shell --run 'make -B build/ihp-lib'
     ```
 
     Now you can start your project as usual with `./start`.
