@@ -419,7 +419,7 @@ identifier = do
     pure i
 
 comment = do
-    lexeme "--" <?> "Line comment"
+    (char '-' >> char '-') <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
 

@@ -21,7 +21,10 @@ tests = do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
 
         it "should parse a line comment" do
-            parseSql "-- Comment value" `shouldBe` Comment { content = "Comment value" }
+            parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
+        
+        it "should parse an empty comment" do
+            parseSqlStatements "--\n--" `shouldBe` [ Comment { content = "" }, Comment { content = "" } ]
 
         it "should parse a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (

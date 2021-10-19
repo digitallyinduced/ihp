@@ -54,7 +54,6 @@ After updating your project, please consult the segments from your current relea
     Add the following lines to your `.gitignore` file:
 
     ```
-    Application/Migration/unmigrated-changes.sql
     # Ignore locally checked out IHP version
     IHP
     ```
