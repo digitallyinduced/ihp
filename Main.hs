@@ -22,6 +22,16 @@ instance FrontController RootApplication where
 instance Controller DemoController where
     action DemoAction = renderPlain "Hello World!"
 
+-- @todo: Without this I got an error
+--     * No instance for (Worker RootApplication)
+--        arising from a use of `IHP.Server.run'
+--     * In the expression: IHP.Server.run config
+--       In an equation for `main': main = IHP.Server.run config
+--    |
+-- 31 | main = IHP.Server.run config
+instance Worker RootApplication where
+  workers _ = []
+
 config :: ConfigBuilder
 config = do
     option Development

@@ -37,6 +37,7 @@ instance Default CSSFramework where
                 , styledFormGroupClass
                 , styledValidationResult
                 , styledValidationResultClass
+                , styledPagination
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -154,6 +155,8 @@ instance Default CSSFramework where
             styledFormFieldHelp _ FormField { helpText } = [hsx|<p>{helpText}</p>|]
 
             styledSubmitButtonClass = ""
+
+            styledPagination _ _ = mempty
 
 bootstrap :: CSSFramework
 bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }

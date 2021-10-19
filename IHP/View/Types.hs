@@ -21,6 +21,9 @@ import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
 import IHP.ModelSupport (Violation)
 
+-- @todo: Move PaginationView to IHP.Pagination.Types?
+import IHP.Pagination.Types
+
 
 type HtmlWithContext context = (?context :: context) => Blaze.Html
 
@@ -97,6 +100,16 @@ data InputType
     | FileInput
 
 
+-- | Options for customizing the render of a pagination
+data PaginationView =
+    PaginationView
+    { cssFramework :: !CSSFramework
+    , pagination :: Pagination -> Blaze.Html -- The main function to be called, but below
+                                             -- could be changed to customize smaller parts.
+    , liPrevious :: Pagination -> Blaze.Html -- <li> of previous item
+    , liNext :: Pagination -> Blaze.Html -- <li> of next item
+    }
+
 -- | Render functions to render with bootstrap etc.
 --
 -- We call this functions with the cssFramework passed to have late binding (like from OOP languages)
@@ -121,4 +134,6 @@ data CSSFramework = CSSFramework
     , styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
     -- | Class name for container of validation error message
     , styledValidationResultClass :: Text
+    -- | Renders a pager
+    , styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
     }
