@@ -10,7 +10,7 @@ import qualified Data.UUID as UUID
 import qualified System.Process as Process
 import qualified Data.Text as Text
 import qualified Data.ByteString as ByteString
-
+import qualified IHP.LibDir as LibDir
 
 data TestDatabase = TestDatabase
     { name :: Text
@@ -35,6 +35,8 @@ createTestDatabase databaseUrl = do
             |> Text.replace "postgresql:///app" ("postgresql:///" <> databaseName)
             |> cs
 
+    libDir <- LibDir.findLibDirectory
+    importSql newUrl (cs libDir <> "/IHPSchema.sql")
     importSql newUrl "Application/Schema.sql"
 
     pure TestDatabase { name = databaseName, url = newUrl }
