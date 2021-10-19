@@ -17,6 +17,8 @@ import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!), (!?))
 import qualified Text.Blaze.Html5.Attributes as A
 import IHP.ModelSupport
+import IHP.Pagination.Helpers
+
 
 -- | Provides an unstyled CSSFramework
 --
@@ -156,7 +158,25 @@ instance Default CSSFramework where
 
             styledSubmitButtonClass = ""
 
-            styledPagination _ _ = mempty
+            styledPagination cssFramework paginationView =
+                [hsx| <div></div>|]
+                where
+                    pagination = paginationView |> get #pagination
+                    pageUrl = paginationView |> get #pageUrl
+                    currentPage = paginationView |> get #currentPage
+                    nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+                    prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+
+                    liPrevious :: Blaze.Html
+                    liPrevious = [hsx|
+                        <li class={prevClass}>
+                            <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                                <span class="sr-only">Previous</span>
+                            </a>
+                    </li>
+                    |]
+
 
 bootstrap :: CSSFramework
 bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }
