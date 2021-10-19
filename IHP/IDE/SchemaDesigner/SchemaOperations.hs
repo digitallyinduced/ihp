@@ -8,6 +8,7 @@ module IHP.IDE.SchemaDesigner.SchemaOperations where
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
 import Data.Maybe (fromJust)
+import qualified Data.List as List
 
 -- | A Schema.sql basically is just a list of sql DDL statements
 type Schema = [Statement]
@@ -115,7 +116,19 @@ addForeignKeyConstraint tableName columnName constraintName referenceTable onDel
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
 addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames, whereClause = Nothing }]
 
+-- | An enum is added after all existing enum statements, but right before @CREATE TABLE@ statements
 addEnum :: Text -> Schema -> Schema
-addEnum enumName statements = statements <> [CreateEnumType { name = enumName, values = []}]
+addEnum enumName statements = a <> enum <> b
+    where
+        enum = [CreateEnumType { name = enumName, values = []}]
+        (a, b) = List.splitAt insertionIndex statements
+        
+        insertionIndex = findInsertionIndex statements 0
+
+        -- Finds the index after comments and existing enum types, just before the CREATE TABLE statements
+        findInsertionIndex ((Comment{}):xs) !i = findInsertionIndex xs (i + 1)
+        findInsertionIndex ((CreateEnumType{}):xs) !i = findInsertionIndex xs (i + 1)
+        findInsertionIndex (x:xs) !i = i
+        findInsertionIndex [] !i = i
 
 
