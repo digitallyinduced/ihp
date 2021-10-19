@@ -18,8 +18,10 @@ import IHP.Controller.Param (paramOrNothing)
 import IHP.View.Classes
 import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
-import IHP.ViewSupport (theRequest)
+import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
+import IHP.View.Types (PaginationView(..), styledPagination)
+import IHP.View.CSSFramework
 
 
 -- | Render a navigation for your pagination. This is to be used in your view whenever
@@ -55,6 +57,13 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
         </div>
     |]
         where
+            paginationView = PaginationView
+                { cssFramework = theCSSFramework
+                , pagination = pagination
+                }
+
+            renderedHtml = styledPagination theCSSFramework paginationView
+
             maxItemsGenerator = let
                 oneOption :: Int -> Html
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
@@ -197,7 +206,7 @@ setQueryValue name value queryString =
                     )
         Nothing -> queryString <> [(name, Just value)]
 
--- | Removes a query item, specificed by the name
+-- | Removes a query item, specified by the name
 --
 -- >>> removeQueryItem "filter" [("filter", Just "test")]
 -- []

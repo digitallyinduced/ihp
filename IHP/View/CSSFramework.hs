@@ -161,7 +161,16 @@ instance Default CSSFramework where
 
             styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
             styledPagination _ paginationView =
-                [hsx| <div></div>|]
+                [hsx| <div>
+                    {liPrevious}
+
+                    <div></div>
+
+                    {liNext}
+
+
+
+                </div>|]
                 where
                     pagination@Pagination {currentPage} = get #pagination paginationView
                     prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
