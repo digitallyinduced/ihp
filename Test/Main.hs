@@ -21,6 +21,7 @@ import qualified Test.IDE.SchemaDesigner.ParserSpec
 import qualified Test.IDE.SchemaDesigner.Controller.EnumValuesSpec
 import qualified Test.IDE.SchemaDesigner.Controller.HelperSpec
 import qualified Test.IDE.SchemaDesigner.Controller.ValidationSpec
+import qualified Test.IDE.SchemaDesigner.SchemaOperationsSpec
 import qualified Test.ValidationSupport.ValidateFieldSpec
 import qualified Test.IDE.CodeGeneration.ControllerGenerator
 import qualified Test.IDE.CodeGeneration.ViewGenerator
@@ -75,3 +76,4 @@ main = hspec do
     Test.Postgres.TSVector.tests
     Test.FileStorage.MimeTypesSpec.tests
     Test.DataSync.DynamicQueryCompiler.tests
+    Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests

@@ -114,3 +114,8 @@ addForeignKeyConstraint tableName columnName constraintName referenceTable onDel
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
 addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames, whereClause = Nothing }]
+
+addEnum :: Text -> Schema -> Schema
+addEnum enumName statements = statements <> [CreateEnumType { name = enumName, values = []}]
+
+
