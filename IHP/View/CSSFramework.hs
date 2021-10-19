@@ -18,6 +18,7 @@ import Text.Blaze.Html5 ((!), (!?))
 import qualified Text.Blaze.Html5.Attributes as A
 import IHP.ModelSupport
 import IHP.Pagination.Helpers
+import IHP.Pagination.Types
 
 
 -- | Provides an unstyled CSSFramework
@@ -158,23 +159,32 @@ instance Default CSSFramework where
 
             styledSubmitButtonClass = ""
 
-            styledPagination cssFramework paginationView =
+            styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+            styledPagination _ paginationView =
                 [hsx| <div></div>|]
                 where
-                    pagination = paginationView |> get #pagination
-                    pageUrl = paginationView |> get #pageUrl
-                    currentPage = paginationView |> get #currentPage
-                    nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+                    pagination@Pagination {currentPage} = get #pagination paginationView
                     prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+                    nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
 
+                    -- @todo: Re-add href={pageUrl $ currentPage - 1}
                     liPrevious :: Blaze.Html
                     liPrevious = [hsx|
                         <li class={prevClass}>
-                            <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
+                            <a class="page-link" aria-label="Previous">
                                 <span aria-hidden="true">&laquo;</span>
                                 <span class="sr-only">Previous</span>
                             </a>
-                    </li>
+                        </li>
+                    |]
+
+                    liNext = [hsx|
+                        <li class={nextClass}>
+                            <a class="page-link" aria-label="Previous">
+                                <span aria-hidden="true">&raquo;</span>
+                                <span class="sr-only">Next</span>
+                            </a>
+                        </li>
                     |]
 
 

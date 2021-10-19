@@ -105,15 +105,7 @@ data InputType
 data PaginationView =
     PaginationView
     { cssFramework :: !CSSFramework
-    , pagination :: Pagination -> Blaze.Html -- The main function to be called, but below
-                                             -- could be changed to customize smaller parts.
-
-    , pageUrl :: ByteString
-    , currentPage :: Int
-    , liPreviousClass :: Pagination -> Text
-    , liNextClass :: Pagination -> Text
-    , liPrevious :: Pagination -> Blaze.Html -- <li> of previous item
-    , liNext :: Pagination -> Blaze.Html -- <li> of next item
+    , pagination :: !Pagination
     }
 
 -- | Render functions to render with bootstrap etc.
