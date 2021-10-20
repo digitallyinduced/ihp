@@ -106,6 +106,8 @@ data PaginationView =
     PaginationView
     { cssFramework :: !CSSFramework
     , pagination :: !Pagination
+    , previousPageUrl :: !ByteString
+    , nextPageUrl :: !ByteString
     }
 
 -- | Render functions to render with bootstrap etc.

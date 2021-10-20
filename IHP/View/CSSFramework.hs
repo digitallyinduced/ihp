@@ -173,14 +173,15 @@ instance Default CSSFramework where
                 </div>|]
                 where
                     pagination@Pagination {currentPage} = get #pagination paginationView
+                    previousPageUrl = get #previousPageUrl paginationView
+                    nextPageUrl = get #nextPageUrl paginationView
                     prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
                     nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
 
-                    -- @todo: Re-add href={pageUrl $ currentPage - 1}
                     liPrevious :: Blaze.Html
                     liPrevious = [hsx|
                         <li class={prevClass}>
-                            <a class="page-link" aria-label="Previous">
+                            <a class="page-link" href={previousPageUrl} aria-label="Previous">
                                 <span aria-hidden="true">&laquo;</span>
                                 <span class="sr-only">Previous</span>
                             </a>
@@ -189,7 +190,7 @@ instance Default CSSFramework where
 
                     liNext = [hsx|
                         <li class={nextClass}>
-                            <a class="page-link" aria-label="Previous">
+                            <a class="page-link" href={nextPageUrl} aria-label="Previous">
                                 <span aria-hidden="true">&raquo;</span>
                                 <span class="sr-only">Next</span>
                             </a>
