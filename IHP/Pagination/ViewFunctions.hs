@@ -60,9 +60,11 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
                 , pagination = pagination
+                , previousPageUrl = pageUrl $ currentPage - 1
+                , nextPageUrl = pageUrl $ currentPage + 1
                 }
 
-            renderedHtml = styledPagination theCSSFramework paginationView
+            renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
 
             maxItemsGenerator = let
                 oneOption :: Int -> Html
