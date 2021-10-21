@@ -41,6 +41,8 @@ instance Default CSSFramework where
                 , styledValidationResult
                 , styledValidationResultClass
                 , styledPagination
+                , styledPaginationPageLink
+                , styledPaginationDotDot
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -197,6 +199,11 @@ instance Default CSSFramework where
                         </li>
                     |]
 
+            styledPaginationPageLink :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
+            styledPaginationPageLink _ _ _ = mempty
+
+            styledPaginationDotDot :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
+            styledPaginationDotDot _ _ _ = mempty
 
 bootstrap :: CSSFramework
 bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }

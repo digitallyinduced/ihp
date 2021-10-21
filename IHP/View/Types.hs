@@ -136,4 +136,8 @@ data CSSFramework = CSSFramework
     , styledValidationResultClass :: Text
     -- | Renders a pager
     , styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+    -- | Render the pagination links
+    , styledPaginationPageLink :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
+    -- | Render the dots between pagination numbers (e.g. 5 6 ... 7 8)
+    , styledPaginationDotDot :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
     }

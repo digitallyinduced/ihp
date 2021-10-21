@@ -20,7 +20,7 @@ import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
-import IHP.View.Types (PaginationView(..), styledPagination)
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot)
 import IHP.View.CSSFramework
 
 
@@ -75,13 +75,24 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
             nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
             prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
 
+            -- renderItem pg =
+            --    case pg of
+            --        Page n ->
+            --            [hsx|<li class={linkClass n}><a class="page-link" href={pageUrl n}>{show n}</a></li>|]
+            --        DotDot n ->
+            --             [hsx|<li class="page-item"><a class="page-link" href={pageUrl n}>…</a></li>|]
+
+            -- @todo:
+            -- linkClass n = classes ["page-item", ("active", n == currentPage)]
+
             renderItem pg =
                 case pg of
                     Page n ->
-                        [hsx|<li class={linkClass n}><a class="page-link" href={pageUrl n}>{show n}</a></li>|]
+                        styledPaginationPageLink theCSSFramework theCSSFramework paginationView (pageUrl n) n
                     DotDot n ->
-                        [hsx|<li class="page-item"><a class="page-link" href={pageUrl n}>…</a></li>|]
-            linkClass n = classes ["page-item", ("active", n == currentPage)]
+                        styledPaginationDotDot theCSSFramework theCSSFramework paginationView (pageUrl n) n
+
+
 
             pageUrl n = path <> Query.renderQuery True newQueryString
                 where
