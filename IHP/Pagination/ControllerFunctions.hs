@@ -88,8 +88,13 @@ paginateWithOptions :: forall controller table queryBuilderProvider joinRegister
     -> queryBuilderProvider table
     -> IO (queryBuilderProvider table, Pagination)
 paginateWithOptions options query =
-    let page = paramOrDefault @Int 1 "page"
-        pageSize = paramOrDefault @Int (maxItems options) "maxItems"
+    let
+        -- Page and page size shouldn't be lower than 1.
+        page = max 1 $ paramOrDefault @Int 1 "page"
+        -- We limit the page size to a maximum of 200, to prevent users from
+        -- passing in query params with a value that could overload the
+        -- database (e.g. maxItems=100000)
+        pageSize = min (max 1 $ paramOrDefault @Int (maxItems options) "maxItems") 200
     in do
         count <- query
             |> fetchCount
@@ -102,10 +107,8 @@ paginateWithOptions options query =
                 }
 
         let results = query
-                -- We limit the page size to a maximum of 200, to prevent users from
-                -- passing in query params with a value that could overload the
-                -- database (e.g. maxItems=100000)
-                |> limit (min pageSize 200)
+
+                |> limit pageSize
                 |> offset ((page - 1) * pageSize)
 
         pure
