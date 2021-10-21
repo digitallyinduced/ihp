@@ -40,7 +40,7 @@ Install Tailwind via NPM as usual:
 
 ```bash
 npm init
-npm add tailwindcss postcss autoprefixer @tailwindcss/forms
+npm add tailwindcss postcss autoprefixer
 ```
 
 This will create `package.json` and `package-lock.json`. Make sure to commit both files to your git repository.
@@ -68,9 +68,7 @@ module.exports = {
     variants: {
         extend: {},
     },
-    plugins: [
-        require('@tailwindcss/forms'),
-    ],
+    plugins: [],
 };
 ```
 
