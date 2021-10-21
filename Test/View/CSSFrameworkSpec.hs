@@ -13,6 +13,7 @@ import IHP.Controller.Session
 import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H
 import IHP.ModelSupport
+import IHP.Pagination.Types
 
 tests = do
     describe "CSS Framework" do
@@ -164,5 +165,18 @@ tests = do
                 it "should render with custom placeholder" do
                     let select = baseSelect { placeholder = "Pick something" }
                     styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option><option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select></div>"
+
+            describe "pagination" do
+                let basePagination = Pagination
+                        {
+                            pageSize = 3
+                        ,   totalItems = 10
+                        ,   currentPage = 1
+                        ,   window = 3
+                        }
+                it "should render previous link" do
+                    let pagination = basePagination
+                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"sr-only\">Previous</span></a></li>"
+
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
