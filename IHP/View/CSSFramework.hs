@@ -171,9 +171,9 @@ instance Default CSSFramework where
                 <div class="d-flex justify-content-md-center">
                     <nav aria-label="Page Navigator" class="mr-2">
                         <ul class="pagination">
-                            {get #liPrevious paginationView}
+                            {get #linkPrevious paginationView}
                             {get #pageDotDotItems paginationView}
-                            {get #liNext paginationView}
+                            {get #linkNext paginationView}
                         </ul>
                     </nav>
 

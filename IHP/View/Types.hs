@@ -106,17 +106,17 @@ data PaginationView =
     PaginationView
     { cssFramework :: !CSSFramework
     , pagination :: !Pagination
-    -- Previous page <li>
-    , liPrevious :: !Blaze.Html
-    -- Next page <li>
-    , liNext :: !Blaze.Html
+    -- Previous page link
+    , linkPrevious :: !Blaze.Html
+    -- Next page link
+    , linkNext :: !Blaze.Html
     -- The page and dot dot as rendered by `styledPaginationPageLink` and `styledPaginationDotDot`.
     , pageDotDotItems :: !Blaze.Html
     -- Selector changing the number of allowed items per page.
     , itemsPerPageSelector :: !Blaze.Html
     }
 
--- | Render functions to render with bootstrap etc.
+-- | Render functions to render with Bootstrap, Tailwind CSS etc.
 --
 -- We call this functions with the cssFramework passed to have late binding (like from OOP languages)
 data CSSFramework = CSSFramework

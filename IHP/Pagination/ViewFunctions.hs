@@ -32,18 +32,18 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
                 , pagination = pagination
-                , liPrevious = liPrevious
-                , liNext = liNext
+                , linkPrevious = linkPrevious
+                , linkNext = linkNext
                 , pageDotDotItems = pageDotDotItems
                 , itemsPerPageSelector = itemsPerPageSelector
                 }
 
             renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
 
-            liPrevious =
+            linkPrevious =
                 styledPaginationLiPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)
 
-            liNext =
+            linkNext =
                 styledPaginationLiNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
 
             itemsPerPageSelector =
