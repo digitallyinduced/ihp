@@ -406,6 +406,9 @@ with a 404:
 
 ```haskell
 import qualified Data.ByteString.Lazy as LBS
+import Network.HTTP.Types.Header (hContentType)
+import Network.HTTP.Types (status404)
+import Network.Wai (responseLBS)
 
 customNotFoundResponse :: (?context :: ControllerContext) => IO () 
 customNotFoundResponse = do
