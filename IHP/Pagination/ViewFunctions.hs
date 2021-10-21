@@ -68,6 +68,9 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
                     queryString = Wai.queryString theRequest
                     newQueryString = queryString
                         |> setQueryValue "maxItems" (cs $ tshow n)
+                        -- If we change the number of items, we should jump back to the first page
+                        -- so we are not out of the items bound.
+                        |> setQueryValue "page" (cs $ show 1)
 
             maybeFilter queryString =
                 case paramOrNothing @Text "filter" of
