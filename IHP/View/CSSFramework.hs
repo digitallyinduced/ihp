@@ -171,30 +171,22 @@ instance Default CSSFramework where
                 <div class="d-flex justify-content-md-center">
                     <nav aria-label="Page Navigator" class="mr-2">
                         <ul class="pagination">
-                            {liPrevious}
-                            {pageDotDotItems}
-                            {liNext}
+                            {get #liPrevious paginationView}
+                            {get #pageDotDotItems paginationView}
+                            {get #liNext paginationView}
                         </ul>
                     </nav>
 
                     <div class="form-row">
                         <div class="col-auto mr-2">
                             <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                                {itemsPerPageSelector}
+                                {get #itemsPerPageSelector paginationView}
                             </select>
                         </div>
                     </div>
 
                 </div>
                 |]
-                where
-                    pagination@Pagination {currentPage} = get #pagination paginationView
-                    liPrevious = get #liPrevious paginationView
-                    liNext = get #liNext paginationView
-                    pageDotDotItems = get #pageDotDotItems paginationView
-                    itemsPerPageSelector = get #itemsPerPageSelector paginationView
-
-
 
             styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
             styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
