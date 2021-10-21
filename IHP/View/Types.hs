@@ -21,8 +21,6 @@ import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
 import IHP.ModelSupport (Violation)
-
--- @todo: Move PaginationView to IHP.Pagination.Types?
 import IHP.Pagination.Types
 
 
@@ -106,7 +104,7 @@ data PaginationView =
     { cssFramework :: !CSSFramework
     , pagination :: !Pagination
     -- Function used to get the page URL.
-    , pageUrl :: (Int -> ByteString)
+    , pageUrl :: Int -> ByteString
     -- Previous page link.
     , linkPrevious :: !Blaze.Html
     -- Next page link.
