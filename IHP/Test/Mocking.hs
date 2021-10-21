@@ -35,6 +35,7 @@ import qualified IHP.Controller.Session as Session
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
+import qualified Control.Exception as Exception
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -48,28 +49,30 @@ data MockContext application = InitControllerContext application => MockContext
 -- | Create contexts that can be used for mocking
 withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
 withIHPApp application configBuilder hspecAction = do
-   frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
+    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
+
+    logger <- newLogger def { level = Warn } -- don't log queries
+
+    let initTestDatabase = Database.createTestDatabase databaseUrl
+    let cleanupTestDatabase testDatabase = Database.deleteDatabase databaseUrl testDatabase
+
+    Exception.bracket initTestDatabase cleanupTestDatabase \testDatabase -> do
+        modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (get #url testDatabase) logger
+
+        autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
+        session <- Vault.newKey
+        let sessionVault = Vault.insert session mempty Vault.empty
+        let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig }
+
+        let requestContext = RequestContext
+             { request = defaultRequest {vault = sessionVault}
+             , requestBody = FormBody [] []
+             , respond = const (pure ResponseReceived)
+             , vault = session
+             , frameworkConfig = frameworkConfig }
+
+        (hspecAction MockContext { .. })
    
-   testDatabase <- Database.createTestDatabase databaseUrl
-
-   logger <- newLogger def { level = Warn } -- don't log queries
-   modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (get #url testDatabase) logger
-
-   autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
-   session <- Vault.newKey
-   let sessionVault = Vault.insert session mempty Vault.empty
-   let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig }
-
-   let requestContext = RequestContext
-         { request = defaultRequest {vault = sessionVault}
-         , requestBody = FormBody [] []
-         , respond = const (pure ResponseReceived)
-         , vault = session
-         , frameworkConfig = frameworkConfig }
-
-   hspecAction MockContext { .. }
-
-   Database.deleteDatabase databaseUrl testDatabase
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
