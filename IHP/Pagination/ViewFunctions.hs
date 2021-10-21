@@ -32,6 +32,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
                 , pagination = pagination
+                , pageUrl = pageUrl
                 , linkPrevious = linkPrevious
                 , linkNext = linkNext
                 , pageDotDotItems = pageDotDotItems

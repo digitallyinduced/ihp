@@ -101,14 +101,15 @@ data InputType
     | FileInput
 
 
--- | Options for customizing the render of a pagination
 data PaginationView =
     PaginationView
     { cssFramework :: !CSSFramework
     , pagination :: !Pagination
-    -- Previous page link
+    -- Function used to get the page URL.
+    , pageUrl :: (Int -> ByteString)
+    -- Previous page link.
     , linkPrevious :: !Blaze.Html
-    -- Next page link
+    -- Next page link.
     , linkNext :: !Blaze.Html
     -- The page and dot dot as rendered by `styledPaginationPageLink` and `styledPaginationDotDot`.
     , pageDotDotItems :: !Blaze.Html
