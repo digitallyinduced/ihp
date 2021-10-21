@@ -14,6 +14,7 @@ import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H
 import IHP.ModelSupport
 import IHP.Pagination.Types
+import qualified IHP.ControllerPrelude as Text
 
 tests = do
     describe "CSS Framework" do
@@ -193,6 +194,21 @@ tests = do
                 it "should render items per page selector" do
                     let pagination = basePagination
                     stylePaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
+
+                it "should render the wrapping pagination" do
+                    let pagination = basePagination
+                    let paginationView = PaginationView
+                            { cssFramework = cssFramework
+                            , pagination = pagination
+                            , pageUrl = const ""
+                            , linkPrevious = mempty
+                            , linkNext = mempty
+                            , pageDotDotItems = mempty
+                            , itemsPerPageSelector = mempty
+                            }
+
+                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
 
 
