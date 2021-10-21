@@ -200,10 +200,22 @@ instance Default CSSFramework where
                     |]
 
             styledPaginationPageLink :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
-            styledPaginationPageLink _ _ _ = mempty
+            styledPaginationPageLink _ paginationView pageUrl pageNumber =
+                let
+                    pagination@Pagination {currentPage} = get #pagination paginationView
+                    linkClass = classes ["page-item", ("active", pageNumber == currentPage)]
+                in
+                    [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
+
 
             styledPaginationDotDot :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
-            styledPaginationDotDot _ _ _ = mempty
+            styledPaginationDotDot _ paginationView pageUrl pageNumber =
+                let
+                    pagination@Pagination {currentPage} = get #pagination paginationView
+                in
+                    [hsx|<li class="page-item"><a class="page-link" href={pageUrl}>…</a></li>|]
+
+
 
 bootstrap :: CSSFramework
 bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }
