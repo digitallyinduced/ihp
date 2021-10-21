@@ -27,39 +27,7 @@ import IHP.View.CSSFramework
 -- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
-renderPagination pagination@Pagination {currentPage, window, pageSize} =
-    [hsx|
-        <div class="d-flex justify-content-md-center">
-            <nav aria-label="Page Navigator" class="mr-2">
-                <ul class="pagination">
-                    <li class={prevClass}>
-                        <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
-                            <span aria-hidden="true">&laquo;</span>
-                            <span class="sr-only">Previous</span>
-                        </a>
-                    </li>
-                    {pageDotDotItems}
-                    <li class={nextClass}>
-                        <a class="page-link" href={pageUrl $ currentPage + 1} aria-label="Previous">
-                            <span aria-hidden="true">&raquo;</span>
-                            <span class="sr-only">Next</span>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <div class="form-row">
-                <div class="col-auto mr-2">
-                    <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                        {itemsPerPageSelector}
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <div>
-            {renderedHtml}
-        </div>
-    |]
+renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {renderedHtml} |]
         where
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
@@ -75,9 +43,6 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
             itemsPerPageSelector =
                 stylePaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
 
-            nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
-            prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
-
             pageDotDotItems = [hsx|{forEach (processedPages pages) pageDotDotItem}|]
 
             pageDotDotItem pg =
@@ -86,8 +51,6 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                         styledPaginationPageLink theCSSFramework theCSSFramework pagination (pageUrl n) n
                     DotDot n ->
                         styledPaginationDotDot theCSSFramework theCSSFramework pagination (pageUrl n) n
-
-
 
             pageUrl n = path <> Query.renderQuery True newQueryString
                 where

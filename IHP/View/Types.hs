@@ -145,5 +145,7 @@ data CSSFramework = CSSFramework
     -- | Render the dots between pagination numbers (e.g. 5 6 ... 7 8)
     , styledPaginationDotDot :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
     -- | Render the items per page selector for pagination.
+    -- Note the (Int -> ByteString), we are passing the pageUrl function, so anyone that would like to override
+    -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
     , stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
     }
