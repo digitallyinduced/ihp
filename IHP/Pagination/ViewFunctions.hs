@@ -20,7 +20,7 @@ import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
-import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector, styledPaginationLiPrevious, styledPaginationLiNext)
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
 import IHP.View.CSSFramework
 
 
@@ -41,10 +41,10 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
             renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
 
             linkPrevious =
-                styledPaginationLiPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)
+                styledPaginationLinkPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)
 
             linkNext =
-                styledPaginationLiNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
+                styledPaginationLinkNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
 
             itemsPerPageSelector =
                 stylePaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
@@ -56,7 +56,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
                     Page n ->
                         styledPaginationPageLink theCSSFramework theCSSFramework pagination (pageUrl n) n
                     DotDot n ->
-                        styledPaginationDotDot theCSSFramework theCSSFramework pagination (pageUrl n) n
+                        styledPaginationDotDot theCSSFramework theCSSFramework pagination
 
             pageUrl n = path <> Query.renderQuery True newQueryString
                 where

@@ -19,6 +19,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 import IHP.ModelSupport
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
+import IHP.View.Types (PaginationView(linkPrevious))
 
 
 -- | Provides an unstyled CSSFramework
@@ -44,8 +45,8 @@ instance Default CSSFramework where
                 , styledPaginationPageLink
                 , styledPaginationDotDot
                 , stylePaginationItemsPerPageSelector
-                , styledPaginationLiPrevious
-                , styledPaginationLiNext
+                , styledPaginationLinkPrevious
+                , styledPaginationLinkNext
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -196,9 +197,9 @@ instance Default CSSFramework where
                     [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
 
 
-            styledPaginationDotDot :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
-            styledPaginationDotDot _ pagination@Pagination {currentPage} pageUrl pageNumber =
-                [hsx|<li class="page-item"><a class="page-link" href={pageUrl}>…</a></li>|]
+            styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
+            styledPaginationDotDot _ _ =
+                [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
 
             stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
             stylePaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
@@ -208,8 +209,8 @@ instance Default CSSFramework where
                 in
                     [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
-            styledPaginationLiPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
-            styledPaginationLiPrevious _ pagination@Pagination {currentPage} pageUrl =
+            styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+            styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
                 let
                     prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
                 in
@@ -222,14 +223,14 @@ instance Default CSSFramework where
                         </li>
                     |]
 
-            styledPaginationLiNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
-            styledPaginationLiNext _ pagination@Pagination {currentPage} pageUrl =
+            styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+            styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
                 let
                     nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
                 in
                     [hsx|
                         <li class={nextClass}>
-                            <a class="page-link" href={pageUrl} aria-label="Previous">
+                            <a class="page-link" href={pageUrl} aria-label="Next">
                                 <span aria-hidden="true">&raquo;</span>
                                 <span class="sr-only">Next</span>
                             </a>
@@ -274,8 +275,8 @@ tailwind = def
     , styledInputInvalidClass
     , styledValidationResultClass
     , styledPagination
-    , styledPaginationLiPrevious
-    , styledPaginationLiNext
+    , styledPaginationLinkPrevious
+    , styledPaginationLinkNext
     , styledPaginationPageLink
     , styledPaginationDotDot
     , stylePaginationItemsPerPageSelector
@@ -297,19 +298,112 @@ tailwind = def
         styledValidationResultClass = "text-red-500 text-xs italic"
 
         styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
-        styledPagination _ _ = mempty
+        styledPagination _ paginationView = [hsx|
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {get #linkPrevious paginationView}
+                    {get #linkNext paginationView}
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div class="text-sm text-gray-700">
+                        <!-- @todo: Would be nice to keep to not have to duplicate onchange  -->
+                        <select id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                            {get #itemsPerPageSelector paginationView}
+                        </select>
+                    </div>
+                    <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <span class="sr-only">Previous</span>
+                        <!-- Heroicon name: solid/chevron-left -->
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        </a>
 
-        styledPaginationLiPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
-        styledPaginationLiPrevious _ _ _ = mempty
+                        {get #pageDotDotItems paginationView}
 
-        styledPaginationLiNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
-        styledPaginationLiNext _ _ _ = mempty
+                        <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <span class="sr-only">Next</span>
+                        <!-- Heroicon name: solid/chevron-right -->
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        </a>
+                    </nav>
+                    </div>
+                </div>
+                </div>
+        |]
+
+        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
+            let
+                prevClass = classes
+                    [ "relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                    , ("disabled", not $ hasPreviousPage pagination)
+                    ]
+            in
+                [hsx|
+                    <a href={pageUrl} class={prevClass}>
+                        <span class="sr-only">Previous</span>
+                        <!-- Heroicon name: solid/chevron-left -->
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                |]
+
+        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
+            let
+                nextClass = classes
+                    [ "relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                    , ("disabled", not $ hasNextPage pagination)
+                    ]
+            in
+                [hsx|
+                    <a href={pageUrl} class={nextClass}>
+                        <span class="sr-only">Next</span>
+                        <!-- Heroicon name: solid/chevron-right -->
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
+
+                |]
 
         styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
-        styledPaginationPageLink _ _ _ _ = mempty
+        styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
+            let
+                linkClass = classes
+                    [ "relative inline-flex items-center px-4 py-2 border text-sm font-medium"
+                    -- Current page
+                    , ("z-10 bg-indigo-50 border-indigo-500 text-indigo-600", pageNumber == currentPage)
+                    -- Not current page
+                    , ("bg-white border-gray-300 text-gray-500 hover:bg-gray-50", pageNumber /= currentPage)
+                    ]
+            in
+                [hsx|
+                    <a href={pageUrl} aria-current={pageNumber == currentPage} class={linkClass}>
+                        {show pageNumber}
+                    </a>
+                |]
 
-        styledPaginationDotDot :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
-        styledPaginationDotDot _ _ _ _ = mempty
+
+        styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
+        styledPaginationDotDot _ _ =
+            [hsx|
+                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                    ...
+                </span>
+        |]
+
 
         stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-        stylePaginationItemsPerPageSelector _ _ _ = mempty
+        stylePaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
+            let
+                oneOption :: Int -> Blaze.Html
+                oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
+            in
+                [hsx|{forEach [10,20,50,100,200] oneOption}|]

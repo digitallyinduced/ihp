@@ -143,13 +143,13 @@ data CSSFramework = CSSFramework
     -- | Renders a the entire pager, with all its elements.
     , styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
     -- | The pagination's previous link
-    , styledPaginationLiPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+    , styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
     -- | The pagination's next link
-    , styledPaginationLiNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+    , styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
     -- | Render the pagination links
     , styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
     -- | Render the dots between pagination numbers (e.g. 5 6 ... 7 8)
-    , styledPaginationDotDot :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+    , styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
     -- | Render the items per page selector for pagination.
     -- Note the (Int -> ByteString), we are passing the pageUrl function, so anyone that would like to override
     -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
