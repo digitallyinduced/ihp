@@ -106,8 +106,10 @@ data PaginationView =
     PaginationView
     { cssFramework :: !CSSFramework
     , pagination :: !Pagination
-    , previousPageUrl :: !ByteString
-    , nextPageUrl :: !ByteString
+    -- Previous page <li>
+    , liPrevious :: !Blaze.Html
+    -- Next page <li>
+    , liNext :: !Blaze.Html
     -- The page and dot dot as rendered by `styledPaginationPageLink` and `styledPaginationDotDot`.
     , pageDotDotItems :: !Blaze.Html
     -- Selector changing the number of allowed items per page.
@@ -138,8 +140,12 @@ data CSSFramework = CSSFramework
     , styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
     -- | Class name for container of validation error message
     , styledValidationResultClass :: Text
-    -- | Renders a pager
+    -- | Renders a the entire pager, with all its elements.
     , styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+    -- | The pagination's previous link
+    , styledPaginationLiPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+    -- | The pagination's next link
+    , styledPaginationLiNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
     -- | Render the pagination links
     , styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
     -- | Render the dots between pagination numbers (e.g. 5 6 ... 7 8)

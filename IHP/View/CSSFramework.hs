@@ -44,6 +44,8 @@ instance Default CSSFramework where
                 , styledPaginationPageLink
                 , styledPaginationDotDot
                 , stylePaginationItemsPerPageSelector
+                , styledPaginationLiPrevious
+                , styledPaginationLiNext
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -187,31 +189,12 @@ instance Default CSSFramework where
                 |]
                 where
                     pagination@Pagination {currentPage} = get #pagination paginationView
-                    previousPageUrl = get #previousPageUrl paginationView
-                    nextPageUrl = get #nextPageUrl paginationView
-                    prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
-                    nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+                    liPrevious = get #liPrevious paginationView
+                    liNext = get #liNext paginationView
                     pageDotDotItems = get #pageDotDotItems paginationView
                     itemsPerPageSelector = get #itemsPerPageSelector paginationView
 
-                    liPrevious :: Blaze.Html
-                    liPrevious = [hsx|
-                        <li class={prevClass}>
-                            <a class="page-link" href={previousPageUrl} aria-label="Previous">
-                                <span aria-hidden="true">&laquo;</span>
-                                <span class="sr-only">Previous</span>
-                            </a>
-                        </li>
-                    |]
 
-                    liNext = [hsx|
-                        <li class={nextClass}>
-                            <a class="page-link" href={nextPageUrl} aria-label="Previous">
-                                <span aria-hidden="true">&raquo;</span>
-                                <span class="sr-only">Next</span>
-                            </a>
-                        </li>
-                    |]
 
             styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
             styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
@@ -233,6 +216,33 @@ instance Default CSSFramework where
                 in
                     [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
+            styledPaginationLiPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+            styledPaginationLiPrevious _ pagination@Pagination {currentPage} pageUrl =
+                let
+                    prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+                in
+                    [hsx|
+                        <li class={prevClass}>
+                            <a class="page-link" href={pageUrl} aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                                <span class="sr-only">Previous</span>
+                            </a>
+                        </li>
+                    |]
+
+            styledPaginationLiNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+            styledPaginationLiNext _ pagination@Pagination {currentPage} pageUrl =
+                let
+                    nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+                in
+                    [hsx|
+                        <li class={nextClass}>
+                            <a class="page-link" href={pageUrl} aria-label="Previous">
+                                <span aria-hidden="true">&raquo;</span>
+                                <span class="sr-only">Next</span>
+                            </a>
+                        </li>
+                    |]
 
 
 bootstrap :: CSSFramework

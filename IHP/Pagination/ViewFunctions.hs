@@ -20,7 +20,7 @@ import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
-import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector)
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector, styledPaginationLiPrevious, styledPaginationLiNext)
 import IHP.View.CSSFramework
 
 
@@ -32,13 +32,19 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
                 , pagination = pagination
-                , previousPageUrl = pageUrl $ currentPage - 1
-                , nextPageUrl = pageUrl $ currentPage + 1
+                , liPrevious = liPrevious
+                , liNext = liNext
                 , pageDotDotItems = pageDotDotItems
                 , itemsPerPageSelector = itemsPerPageSelector
                 }
 
             renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
+
+            liPrevious =
+                styledPaginationLiPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)
+
+            liNext =
+                styledPaginationLiNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
 
             itemsPerPageSelector =
                 stylePaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
