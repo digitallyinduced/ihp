@@ -110,6 +110,8 @@ data PaginationView =
     , nextPageUrl :: !ByteString
     -- The page and dot dot as rendered by `styledPaginationPageLink` and `styledPaginationDotDot`.
     , pageDotDotItems :: !Blaze.Html
+    -- Selector changing the number of allowed items per page.
+    , itemsPerPageSelector :: !Blaze.Html
     }
 
 -- | Render functions to render with bootstrap etc.
@@ -142,4 +144,6 @@ data CSSFramework = CSSFramework
     , styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
     -- | Render the dots between pagination numbers (e.g. 5 6 ... 7 8)
     , styledPaginationDotDot :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+    -- | Render the items per page selector for pagination.
+    , stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
     }

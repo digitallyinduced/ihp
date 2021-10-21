@@ -20,7 +20,7 @@ import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
-import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot)
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector)
 import IHP.View.CSSFramework
 
 
@@ -50,7 +50,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
             <div class="form-row">
                 <div class="col-auto mr-2">
                     <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                        {maxItemsGenerator}
+                        {itemsPerPageSelector}
                     </select>
                 </div>
             </div>
@@ -67,15 +67,13 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 , previousPageUrl = pageUrl $ currentPage - 1
                 , nextPageUrl = pageUrl $ currentPage + 1
                 , pageDotDotItems = pageDotDotItems
+                , itemsPerPageSelector = itemsPerPageSelector
                 }
 
             renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
 
-            maxItemsGenerator = let
-                oneOption :: Int -> Html
-                oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
-                in
-                    [hsx|{forEach [10,20,50,100,200] oneOption}|]
+            itemsPerPageSelector =
+                stylePaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
 
             nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
             prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
