@@ -339,7 +339,7 @@ tailwind = def
                     <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                         <div class="text-sm text-gray-700">
                             <!-- @todo: Would be nice to keep to not have to duplicate onchange  -->
-                            <select id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                            <select class="px-4 py-3" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
                                 {get #itemsPerPageSelector paginationView}
                             </select>
                         </div>
