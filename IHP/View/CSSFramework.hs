@@ -238,7 +238,15 @@ instance Default CSSFramework where
 
 
 bootstrap :: CSSFramework
-bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }
+bootstrap = def
+    { styledFlashMessage
+    , styledSubmitButtonClass
+    , styledFormGroupClass
+    , styledFormFieldHelp
+    , styledInputClass
+    , styledInputInvalidClass
+    , styledValidationResultClass
+    }
     where
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
         styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
@@ -257,7 +265,21 @@ bootstrap = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupCl
         styledSubmitButtonClass = "btn btn-primary"
 
 tailwind :: CSSFramework
-tailwind = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupClass, styledFormFieldHelp, styledInputClass, styledInputInvalidClass, styledValidationResultClass }
+tailwind = def
+    { styledFlashMessage
+    , styledSubmitButtonClass
+    , styledFormGroupClass
+    , styledFormFieldHelp
+    , styledInputClass
+    , styledInputInvalidClass
+    , styledValidationResultClass
+    , styledPagination
+    , styledPaginationLiPrevious
+    , styledPaginationLiNext
+    , styledPaginationPageLink
+    , styledPaginationDotDot
+    , stylePaginationItemsPerPageSelector
+    }
     where
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-green-100 border border-green-500 text-green-900 px-4 py-3 rounded relative">{message}</div>|]
         styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">{message}</div>|]
@@ -273,3 +295,21 @@ tailwind = def { styledFlashMessage, styledSubmitButtonClass, styledFormGroupCla
         styledFormGroupClass = "flex flex-wrap -mx-3 mb-6"
 
         styledValidationResultClass = "text-red-500 text-xs italic"
+
+        styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+        styledPagination _ _ = mempty
+
+        styledPaginationLiPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLiPrevious _ _ _ = mempty
+
+        styledPaginationLiNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLiNext _ _ _ = mempty
+
+        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+        styledPaginationPageLink _ _ _ _ = mempty
+
+        styledPaginationDotDot :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+        styledPaginationDotDot _ _ _ _ = mempty
+
+        stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+        stylePaginationItemsPerPageSelector _ _ _ = mempty
