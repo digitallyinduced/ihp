@@ -213,10 +213,11 @@ instance Default CSSFramework where
             styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
                 let
                     prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+                    url = if hasPreviousPage pagination then pageUrl else "#"
                 in
                     [hsx|
                         <li class={prevClass}>
-                            <a class="page-link" href={pageUrl} aria-label="Previous">
+                            <a class="page-link" href={url} aria-label="Previous">
                                 <span aria-hidden="true">&laquo;</span>
                                 <span class="sr-only">Previous</span>
                             </a>
@@ -227,10 +228,11 @@ instance Default CSSFramework where
             styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
                 let
                     nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+                    url = if hasNextPage pagination then pageUrl else "#"
                 in
                     [hsx|
                         <li class={nextClass}>
-                            <a class="page-link" href={pageUrl} aria-label="Next">
+                            <a class="page-link" href={url} aria-label="Next">
                                 <span aria-hidden="true">&raquo;</span>
                                 <span class="sr-only">Next</span>
                             </a>
@@ -347,7 +349,6 @@ tailwind = def
                         <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
                             {get #linkPrevious paginationView}
 
-
                             {get #pageDotDotItems paginationView}
 
                             {get #linkNext paginationView}
@@ -364,9 +365,12 @@ tailwind = def
                     [ "relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
                     , ("disabled", not $ hasPreviousPage pagination)
                     ]
+
+                url = if hasPreviousPage pagination then pageUrl else "#"
+
             in
                 [hsx|
-                    <a href={pageUrl} class={prevClass}>
+                    <a href={url} class={prevClass}>
                         <span class="sr-only">Previous</span>
                         <!-- Heroicon name: solid/chevron-left -->
                         <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -382,9 +386,11 @@ tailwind = def
                     [ "relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
                     , ("disabled", not $ hasNextPage pagination)
                     ]
+
+                url = if hasNextPage pagination then pageUrl else "#"
             in
                 [hsx|
-                    <a href={pageUrl} class={nextClass}>
+                    <a href={url} class={nextClass}>
                         <span class="sr-only">Next</span>
                         <!-- Heroicon name: solid/chevron-right -->
                         <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
