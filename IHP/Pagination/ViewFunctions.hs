@@ -38,7 +38,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                             <span class="sr-only">Previous</span>
                         </a>
                     </li>
-                    {renderItems}
+                    {pageDotDotItems}
                     <li class={nextClass}>
                         <a class="page-link" href={pageUrl $ currentPage + 1} aria-label="Previous">
                             <span aria-hidden="true">&raquo;</span>
@@ -55,6 +55,10 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 </div>
             </div>
         </div>
+
+        <div>
+            {renderedHtml}
+        </div>
     |]
         where
             paginationView = PaginationView
@@ -62,6 +66,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 , pagination = pagination
                 , previousPageUrl = pageUrl $ currentPage - 1
                 , nextPageUrl = pageUrl $ currentPage + 1
+                , pageDotDotItems = pageDotDotItems
                 }
 
             renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
@@ -75,22 +80,14 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
             nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
             prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
 
-            -- renderItem pg =
-            --    case pg of
-            --        Page n ->
-            --            [hsx|<li class={linkClass n}><a class="page-link" href={pageUrl n}>{show n}</a></li>|]
-            --        DotDot n ->
-            --             [hsx|<li class="page-item"><a class="page-link" href={pageUrl n}>…</a></li>|]
+            pageDotDotItems = [hsx|{forEach (processedPages pages) pageDotDotItem}|]
 
-            -- @todo:
-            -- linkClass n = classes ["page-item", ("active", n == currentPage)]
-
-            renderItem pg =
+            pageDotDotItem pg =
                 case pg of
                     Page n ->
-                        styledPaginationPageLink theCSSFramework theCSSFramework paginationView (pageUrl n) n
+                        styledPaginationPageLink theCSSFramework theCSSFramework pagination (pageUrl n) n
                     DotDot n ->
-                        styledPaginationDotDot theCSSFramework theCSSFramework paginationView (pageUrl n) n
+                        styledPaginationDotDot theCSSFramework theCSSFramework pagination (pageUrl n) n
 
 
 
@@ -121,8 +118,6 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 case paramOrNothing @Int "maxItems" of
                     Nothing -> queryString
                     Just m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
-
-            renderItems = [hsx|{forEach (processedPages pages) renderItem}|]
 
             processedPages (pg0:pg1:rest) =
                 if pg1 == pg0 + 1 then

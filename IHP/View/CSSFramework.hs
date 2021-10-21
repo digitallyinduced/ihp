@@ -163,22 +163,28 @@ instance Default CSSFramework where
 
             styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
             styledPagination _ paginationView =
-                [hsx| <div>
-                    {liPrevious}
+                [hsx|
 
-                    <div></div>
+                <div class="d-flex justify-content-md-center">
+                    <nav aria-label="Page Navigator" class="mr-2">
+                        <ul class="pagination">
+                            {liPrevious}
+                            {pageDotDotItems}
+                            {liNext}
+                        </ul>
+                    </nav>
 
-                    {liNext}
 
-
-
-                </div>|]
+                </div>
+                |]
                 where
                     pagination@Pagination {currentPage} = get #pagination paginationView
                     previousPageUrl = get #previousPageUrl paginationView
                     nextPageUrl = get #nextPageUrl paginationView
                     prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
                     nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+                    pageDotDotItems = get #pageDotDotItems paginationView
+
 
                     liPrevious :: Blaze.Html
                     liPrevious = [hsx|
@@ -199,21 +205,17 @@ instance Default CSSFramework where
                         </li>
                     |]
 
-            styledPaginationPageLink :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
-            styledPaginationPageLink _ paginationView pageUrl pageNumber =
+            styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+            styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
                 let
-                    pagination@Pagination {currentPage} = get #pagination paginationView
                     linkClass = classes ["page-item", ("active", pageNumber == currentPage)]
                 in
                     [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
 
 
-            styledPaginationDotDot :: CSSFramework -> PaginationView -> ByteString -> Int -> Blaze.Html
-            styledPaginationDotDot _ paginationView pageUrl pageNumber =
-                let
-                    pagination@Pagination {currentPage} = get #pagination paginationView
-                in
-                    [hsx|<li class="page-item"><a class="page-link" href={pageUrl}>…</a></li>|]
+            styledPaginationDotDot :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+            styledPaginationDotDot _ pagination@Pagination {currentPage} pageUrl pageNumber =
+                [hsx|<li class="page-item"><a class="page-link" href={pageUrl}>…</a></li>|]
 
 
 
