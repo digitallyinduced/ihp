@@ -13,6 +13,8 @@ import IHP.Controller.Session
 import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H
 import IHP.ModelSupport
+import IHP.Pagination.Types
+import qualified IHP.ControllerPrelude as Text
 
 tests = do
     describe "CSS Framework" do
@@ -164,5 +166,50 @@ tests = do
                 it "should render with custom placeholder" do
                     let select = baseSelect { placeholder = "Pick something" }
                     styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option><option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select></div>"
+
+            describe "pagination" do
+                let basePagination = Pagination
+                        {
+                            pageSize = 3
+                        ,   totalItems = 12
+                        ,   currentPage = 2
+                        ,   window = 3
+                        }
+                it "should render previous link" do
+                    let pagination = basePagination
+                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"sr-only\">Previous</span></a></li>"
+
+                it "should render previous link disabled on the first page" do
+                    let pagination = basePagination { currentPage = 1}
+                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"sr-only\">Previous</span></a></li>"
+
+                it "should render next link" do
+                    let pagination = basePagination
+                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"sr-only\">Next</span></a></li>"
+
+                it "should render next link disabled on the last page" do
+                    let pagination = basePagination { currentPage = 4}
+                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"sr-only\">Next</span></a></li>"
+
+                it "should render items per page selector" do
+                    let pagination = basePagination
+                    stylePaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
+
+                it "should render the wrapping pagination" do
+                    let pagination = basePagination
+                    let paginationView = PaginationView
+                            { cssFramework = cssFramework
+                            , pagination = pagination
+                            , pageUrl = const ""
+                            , linkPrevious = mempty
+                            , linkNext = mempty
+                            , pageDotDotItems = mempty
+                            , itemsPerPageSelector = mempty
+                            }
+
+                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
+
+
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
