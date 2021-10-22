@@ -61,6 +61,16 @@ sendWithMailServer IHP.Mail.Types.SMTP { .. } mail
     | otherwise = SMTP.sendMailWithLogin' host port (fst creds) (snd creds) mail
     where creds = fromJust credentials
 
+sendWithMailServer IHP.Mail.Types.SMTPS { .. } mail
+    | isNothing credentials = SMTP.sendMailTLS' host port mail
+    | otherwise = SMTP.sendMailWithLoginTLS' host port (fst creds) (snd creds) mail
+    where creds = fromJust credentials
+
+sendWithMailServer IHP.Mail.Types.SMTP_STARTTLS { .. } mail
+    | isNothing credentials = SMTP.sendMailSTARTTLS' host port mail
+    | otherwise = SMTP.sendMailWithLoginSTARTTLS' host port (fst creds) (snd creds) mail
+    where creds = fromJust credentials
+
 sendWithMailServer Sendmail mail = do
     message <- renderMail' mail
     sendmail message
@@ -68,7 +78,7 @@ sendWithMailServer Sendmail mail = do
 class BuildMail mail where
     -- | You can use @?mail@ to make this dynamic based on the given entity
     subject :: (?mail :: mail) => Text
-    
+
     -- | The email receiver
     --
     -- __Example:__

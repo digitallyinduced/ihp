@@ -10,7 +10,7 @@ module IHP.Mail.Types
 where
 
 import IHP.Prelude
-import Network.Socket (PortNumber) 
+import Network.Socket (PortNumber)
 
 -- | Configuration for a mailer used by IHP
 data MailServer =
@@ -24,8 +24,18 @@ data MailServer =
     -- | Uses SendGrid for sending emails
     | SendGrid { apiKey :: Text
                , category :: Maybe Text }
-    -- | Uses a generic SMTP for sending emails
+    -- | Uses a generic unencrypted SMTP server for sending emails
     | SMTP { host :: String
+           , port :: PortNumber
+           -- (Username,Password) combination
+           , credentials :: Maybe (String, String)}
+    -- | Uses a generic SMTPS server (SMTP with TLS) for sending emails
+    | SMTPS { host :: String
+           , port :: PortNumber
+           -- (Username,Password) combination
+           , credentials :: Maybe (String, String)}
+    -- | Uses a generic SMTP server with STARTTLS for sending emails
+    | SMTP_STARTTLS { host :: String
            , port :: PortNumber
            -- (Username,Password) combination
            , credentials :: Maybe (String, String)}
