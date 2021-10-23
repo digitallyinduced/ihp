@@ -34,6 +34,10 @@ in
           fi
 
           make -B build/bin/RunUnoptimizedProdServer
+
+          if find -type d -iwholename \*/Job|grep .; then
+            make build/bin/RunJobs;
+          fi;
         '';
         installPhase = ''
           mkdir -p "$out"
@@ -41,6 +45,10 @@ in
 
           mv build/bin/RunUnoptimizedProdServer $out/bin/RunUnoptimizedProdServer
           makeWrapper $out/bin/RunUnoptimizedProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION "$(cat build/asset_version)" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+
+          if [ -f build/bin/RunJobs ]; then
+            mv build/bin/RunJobs $out/bin/RunJobs;
+          fi;
 
           mkdir -p "$out/lib/build"
           cp -R "${ihp}/lib/IHP" "$out/lib/build/ihp-lib"
