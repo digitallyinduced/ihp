@@ -25,7 +25,7 @@ data RequestContext = RequestContext
     { request :: Request
     , respond :: Respond
     , requestBody :: RequestBody
-    , vault :: (Vault.Key (Session IO String String))
+    , vault :: (Vault.Key (Session IO ByteString ByteString))
     , frameworkConfig :: FrameworkConfig
     }
 

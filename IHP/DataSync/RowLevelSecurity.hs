@@ -9,7 +9,8 @@ where
 import IHP.ControllerPrelude
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
-
+import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified IHP.DataSync.Role as Role
 
 import Network.HTTP.Types (status400)
 
@@ -30,7 +31,7 @@ withRLS callback = withTransaction inner
         inner :: (?modelContext :: ModelContext) => IO result
         inner = do
             let maybeUserId :: Maybe userId = get #id <$> currentUserOrNothing
-            sqlExec "SET LOCAL ROLE api" ()
+            sqlExec "SET LOCAL ROLE ?" [PG.Identifier Role.authenticatedRole]
             sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only maybeUserId)
             callback
 

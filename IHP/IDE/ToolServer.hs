@@ -41,7 +41,6 @@ import IHP.Controller.Layout
 import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
-import qualified IHP.Assets.Types as Assets
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -62,6 +61,7 @@ startToolServer' port isDebugMode = do
     frameworkConfig <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
         Config.option $ Config.AppPort port
+        Config.option $ Config.AssetVersion Version.ihpVersion
 
         ihpIdeBaseUrlEnvVar <- liftIO (Env.lookupEnv "IHP_IDE_BASEURL")
         case ihpIdeBaseUrlEnvVar of
@@ -140,5 +140,3 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
         putContext webControllers
         putContext (AppUrl appUrl)
         setLayout Layout.toolServerLayout
-
-        putContext (Assets.AssetVersion Version.ihpVersion)

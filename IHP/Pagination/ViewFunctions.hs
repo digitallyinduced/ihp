@@ -18,60 +18,46 @@ import IHP.Controller.Param (paramOrNothing)
 import IHP.View.Classes
 import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
-import IHP.ViewSupport (theRequest)
+import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
+import IHP.View.CSSFramework
 
 
--- | Render a navigation for your pagination. This is to be used in your view whenever 
+-- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
-renderPagination pagination@Pagination {currentPage, window, pageSize} =
-    [hsx|
-        <div class="d-flex justify-content-md-center">
-            <nav aria-label="Page Navigator" class="mr-2">
-                <ul class="pagination">
-                    <li class={prevClass}>
-                        <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
-                            <span aria-hidden="true">&laquo;</span>
-                            <span class="sr-only">Previous</span>
-                        </a>
-                    </li>
-                    {renderItems}
-                    <li class={nextClass}>
-                        <a class="page-link" href={pageUrl $ currentPage + 1} aria-label="Previous">
-                            <span aria-hidden="true">&raquo;</span>
-                            <span class="sr-only">Next</span>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <div class="form-row">
-                <div class="col-auto mr-2">
-                    <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                        {maxItemsGenerator}
-                    </select>
-                </div>
-            </div>
-        </div>
-
-    |]
+renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {renderedHtml} |]
         where
-            maxItemsGenerator = let
-                oneOption :: Int -> Html
-                oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
-                in
-                    [hsx|{forEach [10,20,50,100,200] oneOption}|]
-            
-            nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
-            prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+            paginationView = PaginationView
+                { cssFramework = theCSSFramework
+                , pagination = pagination
+                , pageUrl = pageUrl
+                , linkPrevious = linkPrevious
+                , linkNext = linkNext
+                , pageDotDotItems = pageDotDotItems
+                , itemsPerPageSelector = itemsPerPageSelector
+                }
 
-            renderItem pg =
+            renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
+
+            linkPrevious =
+                styledPaginationLinkPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)
+
+            linkNext =
+                styledPaginationLinkNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
+
+            itemsPerPageSelector =
+                stylePaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
+
+            pageDotDotItems = [hsx|{forEach (processedPages pages) pageDotDotItem}|]
+
+            pageDotDotItem pg =
                 case pg of
                     Page n ->
-                        [hsx|<li class={linkClass n}><a class="page-link" href={pageUrl n}>{show n}</a></li>|]
+                        styledPaginationPageLink theCSSFramework theCSSFramework pagination (pageUrl n) n
                     DotDot n ->
-                        [hsx|<li class="page-item"><a class="page-link" href={pageUrl n}>…</a></li>|]
-            linkClass n = classes ["page-item", ("active", n == currentPage)]
+                        styledPaginationDotDot theCSSFramework theCSSFramework pagination
 
             pageUrl n = path <> Query.renderQuery True newQueryString
                 where
@@ -89,6 +75,9 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     queryString = Wai.queryString theRequest
                     newQueryString = queryString
                         |> setQueryValue "maxItems" (cs $ tshow n)
+                        -- If we change the number of items, we should jump back to the first page
+                        -- so we are not out of the items bound.
+                        |> setQueryValue "page" (cs $ show 1)
 
             maybeFilter queryString =
                 case paramOrNothing @Text "filter" of
@@ -100,8 +89,6 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 case paramOrNothing @Int "maxItems" of
                     Nothing -> queryString
                     Just m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
-
-            renderItems = [hsx|{forEach (processedPages pages) renderItem}|]
 
             processedPages (pg0:pg1:rest) =
                 if pg1 == pg0 + 1 then
@@ -198,7 +185,7 @@ setQueryValue name value queryString =
                     )
         Nothing -> queryString <> [(name, Just value)]
 
--- | Removes a query item, specificed by the name
+-- | Removes a query item, specified by the name
 --
 -- >>> removeQueryItem "filter" [("filter", Just "test")]
 -- []

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             0.14.0
+version:             0.15.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             NONE
@@ -98,6 +98,11 @@ common shared-properties
             , wai-cors
             , lens
             , random
+            , async-pool
+            , hspec
+            , cereal
+            , cereal-text
+            , cereal-uuid
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -241,6 +246,7 @@ library
         , IHP.LibDir
         , IHP.Telemetry
         , IHP.Test.Mocking
+        , IHP.Test.Database
         , IHP.Version
         , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
@@ -259,7 +265,6 @@ library
         , IHP.PageHead.Types
         , IHP.PageHead.ViewFunctions
         , IHP.Assets.Types
-        , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
         -- Server Side Component Modules
         , IHP.ServerSideComponent.Types
@@ -288,6 +293,7 @@ library
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
+        , IHP.DataSync.Role
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns

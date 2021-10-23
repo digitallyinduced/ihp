@@ -21,7 +21,10 @@ tests = do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
         it "should compile a line comment" do
-            compileSql [Comment { content = "Comment value" }] `shouldBe` "-- Comment value\n"
+            compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
+        
+        it "should compile a empty line comments" do
+            compileSql [Comment { content = "" }, Comment { content = "" }] `shouldBe` "--\n--\n"
 
         it "should compile a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (

@@ -25,6 +25,6 @@ initAuthentication :: forall user normalizedModel.
         , KnownSymbol (GetModelName user)
     ) => IO ()
 initAuthentication = do
-    user <- getSessionRecordId @user (sessionKey @user)
+    user <- getSession @(Id user) (sessionKey @user)
             >>= fetchOneOrNothing
     putContext user

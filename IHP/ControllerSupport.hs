@@ -51,7 +51,6 @@ import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
-import qualified IHP.Assets.ControllerFunctions as Assets
 
 type Action' = IO ResponseReceived
 
@@ -90,7 +89,6 @@ runActionWithNewContext controller = do
     let ?context = controllerContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
-    Assets.initAssetVersion
 
     try (initContext @application) >>= \case
         Left exception -> do
