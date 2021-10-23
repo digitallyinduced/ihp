@@ -37,7 +37,7 @@ in
           makeWrapper $out/bin/RunUnoptimizedProdServer $out/bin/RunProdServer --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
           mkdir -p "$out/lib/build"
-          cp -R "${ihp}/lib" "$out/lib/build/ihp-lib"
+          cp -R "${ihp}/lib/IHP" "$out/lib/build/ihp-lib"
           mv static "$out/lib/static"
         '';
         dontFixup = true;
