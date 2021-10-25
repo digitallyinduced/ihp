@@ -111,12 +111,16 @@ setupWithContext action context = withContext action context >> pure context
 
 -- | Runs a controller action in a mock environment
 callAction :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO Response
-callAction controller = do
+callAction controller = callActionWithParams controller []
+
+-- | Runs a controller action in a mock environment
+callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
+callActionWithParams controller params = do
     responseRef <- newIORef Nothing
     let customRespond response = do
             writeIORef responseRef (Just response)
             pure ResponseReceived
-    let requestContextWithOverridenRespond = ?context { respond = customRespond }
+    let requestContextWithOverridenRespond = ?context { respond = customRespond, requestBody = FormBody params [] }
     let ?context = requestContextWithOverridenRespond
     runActionWithNewContext controller
     maybeResponse <- readIORef responseRef
