@@ -2,7 +2,6 @@ module IHP.FrameworkConfig where
 
 import IHP.Prelude
 import ClassyPrelude (readMay)
-import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
 import qualified Data.Text as Text
