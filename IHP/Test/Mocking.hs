@@ -114,6 +114,10 @@ callAction :: forall application controller. (Controller controller, ContextPara
 callAction controller = callActionWithParams controller []
 
 -- | Runs a controller action in a mock environment
+--
+-- >>> callActionWithParams CreatePostAction [("title", "Hello World"), ("body", "lorem ipsum")|
+-- Response { .. }
+--
 callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
 callActionWithParams controller params = do
     responseRef <- newIORef Nothing
