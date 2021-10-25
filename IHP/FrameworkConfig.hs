@@ -85,7 +85,8 @@ option value = State.modify (\map -> if TMap.member @option map then map else TM
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
-    option Development
+    ihpEnvironment <- maybe Development parseIHPEnv <$> liftIO (Environment.lookupEnv "IHP_ENV")
+    option ihpEnvironment
     option $ AppHostname "localhost"
 
     port <- liftIO defaultAppPort
@@ -159,6 +160,10 @@ ihpDefaultConfig = do
     initAssetVersion
 
 {-# INLINABLE ihpDefaultConfig #-}
+
+parseIHPEnv "Production"  = Production
+parseIHPEnv "Development" = Development
+parseIHPEnv otherwise     = error "Invalid IHP_ENV. Should be set to 'Development' or 'Production'"
 
 initAssetVersion :: ConfigBuilder
 initAssetVersion = do
