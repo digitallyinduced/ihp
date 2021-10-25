@@ -24,7 +24,7 @@ import           IHP.Controller.RequestContext             (RequestBody (..), Re
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext)
+import           IHP.ModelSupport                          (createModelContext, Id')
 import           IHP.Prelude
 import           IHP.Log.Types
 import qualified IHP.Test.Database as Database
@@ -207,3 +207,31 @@ withUser user callback =
         
         sessionValue = Serialize.encode (get #id user)
         sessionKey = cs (Session.sessionKey @user)
+
+-- | Turns a record id into a value that can be used with 'callActionWithParams'
+--
+-- __Example:__
+--
+-- Let's say you have a test like this:
+--
+-- >  let libraryOpeningId = cs $ show $ get #id libraryOpening
+-- >
+-- >  let params =
+-- >          [ ("studentIdentifier", "1234")
+-- >          , ("libraryOpeningId", libraryOpeningId)
+-- >          ]
+--
+-- You can replace the @cs $ show $@ with a cleaner 'idToParam':
+--
+--
+-- >  let libraryOpeningId = idToParam (get #id libraryOpening)
+-- >
+-- >  let params =
+-- >          [ ("studentIdentifier", "1234")
+-- >          , ("libraryOpeningId", libraryOpeningId)
+-- >          ]
+--
+idToParam :: forall table. (Show (Id' table)) => Id' table -> ByteString
+idToParam id = id
+    |> tshow
+    |> cs
