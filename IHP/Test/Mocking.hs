@@ -214,22 +214,16 @@ withUser user callback =
 --
 -- Let's say you have a test like this:
 --
--- >  let libraryOpeningId = cs $ show $ get #id libraryOpening
+-- >  let postId = cs $ show $ get #id post
 -- >
--- >  let params =
--- >          [ ("studentIdentifier", "1234")
--- >          , ("libraryOpeningId", libraryOpeningId)
--- >          ]
+-- >  let params = [ ("postId", postId) ]
 --
 -- You can replace the @cs $ show $@ with a cleaner 'idToParam':
 --
 --
--- >  let libraryOpeningId = idToParam (get #id libraryOpening)
+-- >  let postId = idToParam (get #id libraryOpening)
 -- >
--- >  let params =
--- >          [ ("studentIdentifier", "1234")
--- >          , ("libraryOpeningId", libraryOpeningId)
--- >          ]
+-- >  let params = [ ("postId", postId) ]
 --
 idToParam :: forall table. (Show (Id' table)) => Id' table -> ByteString
 idToParam id = id
