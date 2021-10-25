@@ -27,12 +27,6 @@ in
           ln -s "${ihp}/lib/IHP" build/ihp-lib
           ln -s "${ihp}/lib" IHP/lib # Avoid the Makefile calling 'which RunDevServer'
 
-          if [ -d ".git" ]; then
-            git rev-parse --short HEAD > build/asset_version
-          else
-            echo "v1" > build/asset_version
-          fi
-
           make -B build/bin/RunUnoptimizedProdServer
 
           if find -type d -iwholename \*/Job|grep .; then
@@ -44,10 +38,12 @@ in
           mkdir -p $out/bin
 
           mv build/bin/RunUnoptimizedProdServer $out/bin/RunUnoptimizedProdServer
-          makeWrapper $out/bin/RunUnoptimizedProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION "$(cat build/asset_version)" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+          INPUT_HASH="$((basename $out) | cut -d - -f 1)"
+          makeWrapper $out/bin/RunUnoptimizedProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
           if [ -f build/bin/RunJobs ]; then
-            mv build/bin/RunJobs $out/bin/RunJobs;
+            mv build/bin/RunJobs $out/bin/RunJobsWithoutDeps;
+            makeWrapper $out/bin/RunJobsWithoutDeps $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
           fi;
 
           mkdir -p "$out/lib/build"
@@ -55,11 +51,7 @@ in
           mv static "$out/lib/static"
         '';
         dontFixup = true;
-        src = projectPath;
-        buildInputs = builtins.concatLists [
-          [allHaskellPackages]
-          allNativePackages
-          [ pkgs.gitMinimal ] # Needed to get the current git commit for setting the IHP_ASSET_VERSION
-        ];
+        src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] projectPath;
+        buildInputs = builtins.concatLists [ [allHaskellPackages] allNativePackages ];
         shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
     }
