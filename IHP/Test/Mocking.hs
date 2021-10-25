@@ -144,12 +144,6 @@ mockActionResponse = (responseBody =<<) . mockAction
 mockActionStatus :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO HTTP.Status
 mockActionStatus = fmap responseStatus . mockAction
 
--- | Add params to the request context, run the action
-withParams :: [Param] -> (ContextParameters application => IO a) -> MockContext application -> IO a
-withParams ps action context = withContext action context'
-  where
-    context' = context{requestContext=(requestContext context){requestBody=FormBody ps []}}
-
 responseBody :: Response -> IO LBS.ByteString
 responseBody res =
   let (status,headers,body) = responseToStream res in
