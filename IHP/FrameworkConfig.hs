@@ -342,7 +342,7 @@ data FrameworkConfig = FrameworkConfig
     -- >     option Development
     -- >     option (AppHostname "localhost")
     -- >     
-    -- >     redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
+    -- >     redisUrl <- env "REDIS_URL"
     -- >     option (RedisUrl redisUrl)
     --
     -- This redis url can be access from all IHP entrypoints using the ?applicationContext that is in scope:
