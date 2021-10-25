@@ -71,7 +71,7 @@ tests = aroundAll (withIHPApp WebApplication config) do
             it "calling NewPostAction will render a new form" $ withContext do
                 mockActionStatus NewPostAction `shouldReturn` status200
 
-            it "creates a new post" do
+            it "creates a new post" $ withContext do
                 response <- callActionWithParams CreatePostAction [("title", "Post title"), ("body", "Body of post")]
 
                 let (Just location) = (lookup "Location" (responseHeaders response))
@@ -136,7 +136,7 @@ Use `withUser` to call an action with a specific user during testing:
 tests :: Spec
 tests = aroundAll (withIHPApp WebApplication config) do
         describe "PostsController" $ do
-            it "creates a new post" do
+            it "creates a new post" $ withContext do
                 -- Create a user for our test case
                 user <- newRecord @User
                     |> set #email "marc@digitallyinduced.com"
