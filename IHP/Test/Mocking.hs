@@ -137,7 +137,7 @@ callActionWithParams controller params = do
 --
 -- __Example:__
 --
--- Let's say you have a Job called @JobPost@ that would like to process as part of a test.
+-- Let's say you have a Job called @JobPost@ that you would like to process as part of a test.
 --
 -- >  let postJob <- fetch ...
 -- >
