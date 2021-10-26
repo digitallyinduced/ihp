@@ -13,17 +13,21 @@ import IHP.HSX.QQ (hsx)
 
 
 import IHP.View.Classes
-import IHP.View.Types (styleBreadcrumbsItem)
+import IHP.View.Types (BreadcrumbsView(..), styleBreadcrumbs, styleBreadcrumbsItem)
 import IHP.View.CSSFramework
 import IHP.ViewSupport (theCSSFramework)
 
 -- | Render breadcrumbs.
-renderBreadcrumbs :: (?context::ControllerContext) => [ BreadcrumbsItem ] -> Html
-renderBreadcrumbs breadcrumbsItems = [hsx|
-    {forEach breadcrumbsItems (renderBreadcrumb breadcrumbsItems)}
-|]
+renderBreadcrumbs :: (?context::ControllerContext) => [BreadcrumbsItem] -> Html
+renderBreadcrumbs breadcrumbsItems = [hsx| {renderedHtml} |]
+        where
+            breadcrumbsView = BreadcrumbsView
+                { cssFramework = theCSSFramework
+                , breadcrumbsItems = breadcrumbsItemsRendered
+                }
+
+            renderedHtml = styleBreadcrumbs theCSSFramework theCSSFramework breadcrumbsItems breadcrumbsView
+
+            breadcrumbsItemsRendered =  [hsx|{forEach breadcrumbsItems (styleBreadcrumbsItem theCSSFramework theCSSFramework breadcrumbsItems)}|]
 
 
-renderBreadcrumb :: (?context::ControllerContext) => [ BreadcrumbsItem ] -> BreadcrumbsItem -> Html
-renderBreadcrumb breadcrumbsItems breadcrumbsItem =
-    styleBreadcrumbsItem theCSSFramework theCSSFramework breadcrumbsItems breadcrumbsItem

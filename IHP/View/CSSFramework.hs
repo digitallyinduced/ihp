@@ -48,6 +48,7 @@ instance Default CSSFramework where
                 , stylePaginationItemsPerPageSelector
                 , styledPaginationLinkPrevious
                 , styledPaginationLinkNext
+                , styleBreadcrumbs
                 , styleBreadcrumbsItem
             }
         where
@@ -241,11 +242,26 @@ instance Default CSSFramework where
                         </li>
                     |]
 
+            styleBreadcrumbs :: CSSFramework -> [BreadcrumbsItem]-> BreadcrumbsView -> Blaze.Html
+            styleBreadcrumbs _ _ breadcrumbsView = [hsx|
+                <nav>
+                    <ol class="breadcrumb">
+                        {get #breadcrumbsItems breadcrumbsView}
+
+                    </ol>
+                </nav>
+            |]
+
+
             styleBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
-            styleBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem@BreadcrumbsItem {label, url} =
+            styleBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem@BreadcrumbsItem {label, url, isActive} =
+                let
+                    breadcrumbsClasses = classes ["breadcrumb-item", ("active", isActive)]
+                in
                 case url of
-                    Nothing ->  [hsx|{label}|]
-                    Just url -> [hsx|<a href={url}>{label}</a>|]
+                    Nothing ->  [hsx|<li class={breadcrumbsClasses}>{label}</li>|]
+                    Just url -> [hsx|<li class={breadcrumbsClasses}><a href={url}>{label}</a></li>|]
+
 
 
 bootstrap :: CSSFramework

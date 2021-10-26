@@ -11,6 +11,7 @@ module IHP.View.Types
 , FormContext (..)
 , InputType (..)
 , CSSFramework (..)
+, BreadcrumbsView(..)
 , PaginationView(..)
 , HtmlWithContext
 , Layout
@@ -100,6 +101,12 @@ data InputType
     | FileInput
 
 
+data BreadcrumbsView =
+    BreadcrumbsView
+    { cssFramework :: !CSSFramework
+    , breadcrumbsItems :: !Blaze.Html
+    }
+
 data PaginationView =
     PaginationView
     { cssFramework :: !CSSFramework
@@ -154,6 +161,8 @@ data CSSFramework = CSSFramework
     -- Note the (Int -> ByteString), we are passing the pageUrl function, so anyone that would like to override
     -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
     , stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+    -- | Renders an entire breadcrumbs element.
+    , styleBreadcrumbs :: CSSFramework -> [BreadcrumbsItem]-> BreadcrumbsView -> Blaze.Html
     -- | Render a single breadcrumbs item. We pass the entire list of breadcrumbs, in case an item may change based on that list.
-    , styleBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
+    , styleBreadcrumbsItem :: CSSFramework -> [BreadcrumbsItem]-> BreadcrumbsItem -> Blaze.Html
     }
