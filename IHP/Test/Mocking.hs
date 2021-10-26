@@ -24,7 +24,7 @@ import           IHP.Controller.RequestContext             (RequestBody (..), Re
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext)
+import           IHP.ModelSupport                          (createModelContext, Id')
 import           IHP.Prelude
 import           IHP.Log.Types
 import qualified IHP.Test.Database as Database
@@ -111,12 +111,20 @@ setupWithContext action context = withContext action context >> pure context
 
 -- | Runs a controller action in a mock environment
 callAction :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO Response
-callAction controller = do
+callAction controller = callActionWithParams controller []
+
+-- | Runs a controller action in a mock environment
+--
+-- >>> callActionWithParams CreatePostAction [("title", "Hello World"), ("body", "lorem ipsum")|
+-- Response { .. }
+--
+callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
+callActionWithParams controller params = do
     responseRef <- newIORef Nothing
     let customRespond response = do
             writeIORef responseRef (Just response)
             pure ResponseReceived
-    let requestContextWithOverridenRespond = ?context { respond = customRespond }
+    let requestContextWithOverridenRespond = ?context { respond = customRespond, requestBody = FormBody params [] }
     let ?context = requestContextWithOverridenRespond
     runActionWithNewContext controller
     maybeResponse <- readIORef responseRef
@@ -135,12 +143,6 @@ mockActionResponse = (responseBody =<<) . mockAction
 -- | Get HTTP status of the controller
 mockActionStatus :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO HTTP.Status
 mockActionStatus = fmap responseStatus . mockAction
-
--- | Add params to the request context, run the action
-withParams :: [Param] -> (ContextParameters application => IO a) -> MockContext application -> IO a
-withParams ps action context = withContext action context'
-  where
-    context' = context{requestContext=(requestContext context){requestBody=FormBody ps []}}
 
 responseBody :: Response -> IO LBS.ByteString
 responseBody res =
@@ -205,3 +207,25 @@ withUser user callback =
         
         sessionValue = Serialize.encode (get #id user)
         sessionKey = cs (Session.sessionKey @user)
+
+-- | Turns a record id into a value that can be used with 'callActionWithParams'
+--
+-- __Example:__
+--
+-- Let's say you have a test like this:
+--
+-- >  let postId = cs $ show $ get #id post
+-- >
+-- >  let params = [ ("postId", postId) ]
+--
+-- You can replace the @cs $ show $@ with a cleaner 'idToParam':
+--
+--
+-- >  let postId = idToParam (get #id libraryOpening)
+-- >
+-- >  let params = [ ("postId", postId) ]
+--
+idToParam :: forall table. (Show (Id' table)) => Id' table -> ByteString
+idToParam id = id
+    |> tshow
+    |> cs
