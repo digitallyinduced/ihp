@@ -212,19 +212,30 @@ tests = do
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
             describe "breadcrumbs" do
-                let baseBreadcrumbs =
-                    [   BreadcrumbsItem
-                            {
-                                label = [hsx|First item|]
-                            ,   url = Nothing
-                            }
-                    ]
+                let baseBreadcrumbsItem = BreadcrumbsItem
+                        { label = [hsx|First item|]
+                        , url = Nothing
+                        , isActive = False
+                        }
+                let baseBreadcrumbs = [breadcrumbsItem]
 
-                it "should render breadcrumbs" do
+                it "should render a breadcrumbs item with no link" do
+                    let breadcrumbsItem = baseBreadcrumbsItem
                     let breadcrumbs = baseBreadcrumbs
-                    stylePaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
 
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldBe` ""
 
+                it "should render a breadcrumbs item with link" do
+                    let breadcrumbsItem = baseBreadcrumbsItem {url = "https://example.com"}
+                    let breadcrumbs = baseBreadcrumbs
+
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldBe` ""
+
+                it "should render a breadcrumbs item marked as active" do
+                    let breadcrumbsItem = baseBreadcrumbsItem {isActive = True}
+                    let breadcrumbs = baseBreadcrumbs
+
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldBe` ""
 
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
