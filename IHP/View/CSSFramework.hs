@@ -47,6 +47,8 @@ instance Default CSSFramework where
                 , stylePaginationItemsPerPageSelector
                 , styledPaginationLinkPrevious
                 , styledPaginationLinkNext
+                , styleHomepageBreadcrumbsItem
+                , styleBreadcrumbsItem
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -238,6 +240,12 @@ instance Default CSSFramework where
                             </a>
                         </li>
                     |]
+
+            styleHomepageBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> Blaze.Html
+            styleHomepageBreadcrumbsItem _ breadcrumbsItems = mempty
+
+            styleBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
+            styleBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem = mempty
 
 
 bootstrap :: CSSFramework

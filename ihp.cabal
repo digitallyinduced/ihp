@@ -142,7 +142,7 @@ common shared-properties
             -O0
             -threaded
             +RTS -A256m -n4m -H512m -qg -N -RTS
-            
+
             -Wredundant-constraints
             -Wunused-imports
             -Wunused-foralls
@@ -157,7 +157,7 @@ common shared-properties
             -haddock
             -O1
             -threaded
-            
+
             -Wredundant-constraints
             -Wunused-imports
             -Wunused-foralls
@@ -274,6 +274,8 @@ library
         , IHP.ServerSideComponent.Controller.ComponentsController
         , IHP.ServerSideComponent.HtmlDiff
         , IHP.ServerSideComponent.HtmlParser
+        , IHP.Breadcrumbs.Types
+        , IHP.Breadcrumbs.ViewFunctions
         , IHP.FileStorage.Types
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config
