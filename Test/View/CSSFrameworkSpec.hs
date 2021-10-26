@@ -214,7 +214,7 @@ tests = do
 
             describe "breadcrumbs" do
                 let baseBreadcrumbsItem = BreadcrumbsItem
-                        { label = [hsx|First item|]
+                        { label = "First item"
                         , url = Nothing
                         , isActive = False
                         }
@@ -224,19 +224,19 @@ tests = do
                     let breadcrumbsItem = baseBreadcrumbsItem
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` ""
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
 
                 it "should render a breadcrumbs item with link" do
                     let breadcrumbsItem = baseBreadcrumbsItem {url = "https://example.com"}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` ""
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
 
                 it "should render a breadcrumbs item marked as active" do
                     let breadcrumbsItem = baseBreadcrumbsItem {isActive = True}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` ""
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
 
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
