@@ -133,6 +133,26 @@ callActionWithParams controller params = do
         Just response -> pure response
         Nothing -> error "mockAction: The action did not render a response"
 
+-- | Run a Job in a mock environment
+--
+-- __Example:__
+--
+-- Let's say you have a Job called `JobPost` that would like to process as part of a test.
+--
+-- >  let postJob <- fetch ...
+-- >
+-- >  callJob postJob
+--
+-- Note that `callJob` doesn't set the Job status that is initially set `JobStatusNotStarted`, as that is
+-- done by the Job queue (see `jobDidSucceed` for example).
+--
+callJob :: forall application job. (ContextParameters application, Typeable application, Job job) => job -> IO ()
+callJob job = do
+    let frameworkConfig = getFrameworkConfig ?context
+    let ?context = frameworkConfig
+    perform job
+
+
 -- | mockAction has been renamed to callAction
 mockAction :: _ => _
 mockAction = callAction
@@ -230,10 +250,3 @@ idToParam :: forall table. (Show (Id' table)) => Id' table -> ByteString
 idToParam id = id
     |> tshow
     |> cs
-
-
-callJob :: forall application job. (ContextParameters application, Typeable application, Job job) => job -> IO ()
-callJob job = do
-    let frameworkConfig = getFrameworkConfig ?context
-    let ?context = frameworkConfig
-    perform job
