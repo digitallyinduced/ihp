@@ -224,19 +224,19 @@ tests = do
                     let breadcrumbsItem = baseBreadcrumbsItem
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldBe` ""
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` ""
 
                 it "should render a breadcrumbs item with link" do
                     let breadcrumbsItem = baseBreadcrumbsItem {url = "https://example.com"}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldBe` ""
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` ""
 
                 it "should render a breadcrumbs item marked as active" do
                     let breadcrumbsItem = baseBreadcrumbsItem {isActive = True}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldBe` ""
+                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` ""
 
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
