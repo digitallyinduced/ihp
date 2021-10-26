@@ -17,6 +17,7 @@ import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!), (!?))
 import qualified Text.Blaze.Html5.Attributes as A
 import IHP.ModelSupport
+import IHP.Breadcrumbs.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import IHP.View.Types (PaginationView(linkPrevious, pagination))
@@ -47,7 +48,6 @@ instance Default CSSFramework where
                 , stylePaginationItemsPerPageSelector
                 , styledPaginationLinkPrevious
                 , styledPaginationLinkNext
-                , styleHomepageBreadcrumbsItem
                 , styleBreadcrumbsItem
             }
         where
@@ -241,11 +241,11 @@ instance Default CSSFramework where
                         </li>
                     |]
 
-            styleHomepageBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> Blaze.Html
-            styleHomepageBreadcrumbsItem _ breadcrumbsItems = mempty
-
             styleBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
-            styleBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem = mempty
+            styleBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem@BreadcrumbsItem {label, url} =
+                case url of
+                    Nothing ->  [hsx|{label}|]
+                    Just url -> [hsx|<a href={url}>{label}</a>|]
 
 
 bootstrap :: CSSFramework

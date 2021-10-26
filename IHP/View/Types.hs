@@ -154,8 +154,6 @@ data CSSFramework = CSSFramework
     -- Note the (Int -> ByteString), we are passing the pageUrl function, so anyone that would like to override
     -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
     , stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-    -- | Render the optional first breadcrumb, which leads to the homepage.
-    , styleHomepageBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> Blaze.Html
-    -- | Render a breadcumbs item. We pass the entire list of breadcrumbs, in case an item may change based on that list.
+    -- | Render a single breadcrumbs item. We pass the entire list of breadcrumbs, in case an item may change based on that list.
     , styleBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
     }
