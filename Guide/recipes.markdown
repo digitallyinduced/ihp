@@ -349,7 +349,7 @@ config = do
     option Development
     option (AppHostname "localhost")
     
-    redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
+    redisUrl <- env "REDIS_URL"
     option (RedisUrl redisUrl)
 ```
 
