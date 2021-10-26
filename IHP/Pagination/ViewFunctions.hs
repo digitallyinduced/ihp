@@ -20,7 +20,7 @@ import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
-import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, styledPaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
 import IHP.View.CSSFramework
 
 
@@ -48,7 +48,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
                 styledPaginationLinkNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
 
             itemsPerPageSelector =
-                stylePaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
+                styledPaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
 
             pageDotDotItems = [hsx|{forEach (processedPages pages) pageDotDotItem}|]
 

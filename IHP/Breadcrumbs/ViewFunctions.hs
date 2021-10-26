@@ -11,10 +11,7 @@ import IHP.ControllerSupport
 import Text.Blaze.Html (Html)
 import IHP.HSX.QQ (hsx)
 
-
-import IHP.View.Classes
-import IHP.View.Types (BreadcrumbsView(..), styleBreadcrumbs, styleBreadcrumbsItem)
-import IHP.View.CSSFramework
+import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumbs, styledBreadcrumbsItem)
 import IHP.ViewSupport (theCSSFramework)
 
 -- | Render breadcrumbs.
@@ -26,8 +23,8 @@ renderBreadcrumbs breadcrumbsItems = [hsx| {renderedHtml} |]
                 , breadcrumbsItems = breadcrumbsItemsRendered
                 }
 
-            renderedHtml = styleBreadcrumbs theCSSFramework theCSSFramework breadcrumbsItems breadcrumbsView
+            renderedHtml = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbsItems breadcrumbsView
 
-            breadcrumbsItemsRendered =  [hsx|{forEach breadcrumbsItems (styleBreadcrumbsItem theCSSFramework theCSSFramework breadcrumbsItems)}|]
+            breadcrumbsItemsRendered =  [hsx|{forEach breadcrumbsItems (styledBreadcrumbsItem theCSSFramework theCSSFramework breadcrumbsItems)}|]
 
 

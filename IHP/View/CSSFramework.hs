@@ -45,11 +45,11 @@ instance Default CSSFramework where
                 , styledPagination
                 , styledPaginationPageLink
                 , styledPaginationDotDot
-                , stylePaginationItemsPerPageSelector
+                , styledPaginationItemsPerPageSelector
                 , styledPaginationLinkPrevious
                 , styledPaginationLinkNext
-                , styleBreadcrumbs
-                , styleBreadcrumbsItem
+                , styledBreadcrumbs
+                , styledBreadcrumbsItem
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -204,8 +204,8 @@ instance Default CSSFramework where
             styledPaginationDotDot _ _ =
                 [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
 
-            stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-            stylePaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
+            styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+            styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
                 let
                     oneOption :: Int -> Blaze.Html
                     oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
@@ -242,8 +242,8 @@ instance Default CSSFramework where
                         </li>
                     |]
 
-            styleBreadcrumbs :: CSSFramework -> [BreadcrumbsItem]-> BreadcrumbsView -> Blaze.Html
-            styleBreadcrumbs _ _ breadcrumbsView = [hsx|
+            styledBreadcrumbs :: CSSFramework -> [BreadcrumbsItem]-> BreadcrumbsView -> Blaze.Html
+            styledBreadcrumbs _ _ breadcrumbsView = [hsx|
                 <nav>
                     <ol class="breadcrumb">
                         {get #breadcrumbsItems breadcrumbsView}
@@ -253,8 +253,8 @@ instance Default CSSFramework where
             |]
 
 
-            styleBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
-            styleBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem@BreadcrumbsItem {label, url, isActive} =
+            styledBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
+            styledBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem@BreadcrumbsItem {label, url, isActive} =
                 let
                     breadcrumbsClasses = classes ["breadcrumb-item", ("active", isActive)]
                 in
@@ -305,7 +305,7 @@ tailwind = def
     , styledPaginationLinkNext
     , styledPaginationPageLink
     , styledPaginationDotDot
-    , stylePaginationItemsPerPageSelector
+    , styledPaginationItemsPerPageSelector
     }
     where
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-green-100 border border-green-500 text-green-900 px-4 py-3 rounded relative">{message}</div>|]
@@ -450,8 +450,8 @@ tailwind = def
         |]
 
 
-        stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-        stylePaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
+        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+        styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
             let
                 oneOption :: Int -> Blaze.Html
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]

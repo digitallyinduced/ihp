@@ -195,7 +195,7 @@ tests = do
 
                 it "should render items per page selector" do
                     let pagination = basePagination
-                    stylePaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
+                    styledPaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
 
                 it "should render the wrapping pagination" do
                     let pagination = basePagination
@@ -224,19 +224,29 @@ tests = do
                     let breadcrumbsItem = baseBreadcrumbsItem
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
+                    styledBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
 
                 it "should render a breadcrumbs item with link" do
                     let breadcrumbsItem = baseBreadcrumbsItem {url = "https://example.com"}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
+                    styledBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
 
                 it "should render a breadcrumbs item marked as active" do
                     let breadcrumbsItem = baseBreadcrumbsItem {isActive = True}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styleBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
+                    styledBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
+
+                it "should render the wrapping breadcrumbs" do
+                    let breadcrumbs = baseBreadcrumbs
+                    let breadcrumbsView = BreadcrumbsView
+                            { cssFramework =  cssFramework
+                            , breadcrumbsItems = mempty
+                            }
+
+                    styledBreadcrumbs cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
+
 
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
