@@ -218,7 +218,7 @@ tests = do
                         , url = Nothing
                         , isActive = False
                         }
-                let baseBreadcrumbs = [breadcrumbsItem]
+                let baseBreadcrumbs = [baseBreadcrumbsItem]
 
                 it "should render a breadcrumbs item with no link" do
                     let breadcrumbsItem = baseBreadcrumbsItem
