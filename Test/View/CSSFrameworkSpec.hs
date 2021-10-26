@@ -247,6 +247,10 @@ tests = do
 
                     styledBreadcrumbs cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
 
+                it "should support show of BreadcrumbsItem" do
+                    let breadcrumbsItem = baseBreadcrumbsItem
+                    show breadcrumbsItem `shouldBe` "{ label = \"First item\" , url = Nothing, isActive = False }"
+
 
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml

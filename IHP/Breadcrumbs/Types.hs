@@ -14,13 +14,7 @@ data BreadcrumbsItem =
 
 -- Html doesn't have a Show instance, so we define it manually and use 'renderHtml' for that.
 instance Show BreadcrumbsItem where
-    show breadcrumbsItem =
-        [plain|
-            { label = "#{label}"
-            , url = #{url}
-            , isActive = #{isActive}
-            }
-        |]
+    show breadcrumbsItem = [plain|{ label = "#{label}" , url = #{url}, isActive = #{isActive} }|]
         where
             label = renderHtml $ get #label breadcrumbsItem
             url = ClassyPrelude.show $ get #url breadcrumbsItem
