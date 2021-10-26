@@ -249,7 +249,7 @@ tests = do
 
                 it "should support show of BreadcrumbsItem" do
                     let breadcrumbsItem = baseBreadcrumbsItem
-                    show breadcrumbsItem `shouldBe` "{ label = \"First item\" , url = Nothing, isActive = False }"
+                    show breadcrumbsItem `shouldBe` "{ label = \"First item\", url = Nothing, isActive = False }"
 
 
 
