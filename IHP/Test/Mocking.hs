@@ -144,7 +144,7 @@ callActionWithParams controller params = do
 -- >  callJob postJob
 --
 -- Note that 'callJob' doesn't set the Job status that is initially set 'IHP.Job.Types.JobStatusNotStarted', as that is
--- done by the Job queue (see `jobDidSucceed` for example).
+-- done by the Job queue (see 'IHP.Job.Queue.jobDidSucceed` for example).
 --
 callJob :: forall application job. (ContextParameters application, Typeable application, Job job) => job -> IO ()
 callJob job = do
