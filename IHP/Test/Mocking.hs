@@ -137,13 +137,13 @@ callActionWithParams controller params = do
 --
 -- __Example:__
 --
--- Let's say you have a Job called `JobPost` that would like to process as part of a test.
+-- Let's say you have a Job called @JobPost@ that would like to process as part of a test.
 --
 -- >  let postJob <- fetch ...
 -- >
 -- >  callJob postJob
 --
--- Note that `callJob` doesn't set the Job status that is initially set `JobStatusNotStarted`, as that is
+-- Note that 'callJob' doesn't set the Job status that is initially set 'IHP.Job.Types.JobStatusNotStarted', as that is
 -- done by the Job queue (see `jobDidSucceed` for example).
 --
 callJob :: forall application job. (ContextParameters application, Typeable application, Job job) => job -> IO ()
