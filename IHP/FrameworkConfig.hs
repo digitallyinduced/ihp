@@ -86,10 +86,13 @@ option !value = State.modify (\map -> if TMap.member @option map then map else T
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
-    option <$> envOrDefault "IHP_ENV" Development
+    ihpEnv <- envOrDefault "IHP_ENV" Development
+    option ihpEnv
+
     option $ AppHostname "localhost"
 
-    option <$> envOrDefault "PORT" defaultPort
+    port :: AppPort <- envOrDefault "PORT" (AppPort defaultPort)
+    option port
 
     option $ ExceptionTracker Warp.defaultOnException
 
