@@ -126,7 +126,7 @@ buildPlan' schema config =
             |]
                 where
                     formFields =
-                        intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields))
+                        intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)
 
 
             newView = [trimming|
@@ -136,7 +136,7 @@ buildPlan' schema config =
 
                 instance View NewView where
                     html NewView { .. } = [hsx|
-                        ${breadcrumbs}
+                        {breadcrumbs}
                         <h1>New ${singularName}</h1>
                         {renderForm ${singularVariableName}}
 
@@ -161,7 +161,7 @@ buildPlan' schema config =
 
                 instance View EditView where
                     html EditView { .. } = [hsx|
-                        ${breadcrumbs}
+                        {breadcrumbs}
                         <h1>Edit ${singularName}</h1>
                         {renderForm ${singularVariableName}}
 
