@@ -12,8 +12,11 @@ a[href]:hover {
 }
 
 #package-header {
-    background-color: hsla(192, 81%, 5%, 0.04);
+    background-color: hsl(180deg 4% 95%);
     border-bottom: 5px solid transparent;
+    position: sticky;
+    top: 0;
+    z-index: 10000;
 }
 
 #package-header > .caption {
