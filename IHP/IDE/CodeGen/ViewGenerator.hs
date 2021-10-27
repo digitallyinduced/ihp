@@ -90,8 +90,8 @@ buildPlan' schema config =
                         ${qqClose}
                             where
                                 breadcrumbs = renderBreadcrumbs
-                                                [ BreadcrumbsItem { label = ${pluralizedName}, url = Just $ pathTo ${indexAction}, isActive = False }
-                                                , BreadcrumbsItem { label = nameWithSuffix, url = Nothing , isActive = True}
+                                                [ BreadcrumbsItem { label = "${pluralizedName}", url = Just $ pathTo ${indexAction}, isActive = False }
+                                                , BreadcrumbsItem { label = "${nameWithSuffix}", url = Nothing , isActive = True}
                                                 ]
             |]
                 where
@@ -112,7 +112,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumbs = renderBreadcrumbs
-                                            [ BreadcrumbsItem { label = ${pluralName}, url = Just $ pathTo ${indexAction}, isActive = False }
+                                            [ BreadcrumbsItem { label = "${pluralName}", url = Just $ pathTo ${indexAction}, isActive = False }
                                             , BreadcrumbsItem { label = [hsx|Show ${singularName}${qqClose}, url = Nothing , isActive = True}
                                             ]
             |]
@@ -144,7 +144,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumbs = renderBreadcrumbs
-                                [ BreadcrumbsItem { label = ${pluralName}, url = Just $ pathTo ${indexAction}, isActive = False }
+                                [ BreadcrumbsItem { label = "${pluralName}", url = Just $ pathTo ${indexAction}, isActive = False }
                                 , BreadcrumbsItem { label = [hsx|New ${singularName}${qqClose}, url = Nothing , isActive = True}
                                 ]
 
@@ -164,7 +164,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumbs = renderBreadcrumbs
-                                [ BreadcrumbsItem { label = ${pluralName}, url = Just $ pathTo ${indexAction}, isActive = False }
+                                [ BreadcrumbsItem { label = "${pluralName}", url = Just $ pathTo ${indexAction}, isActive = False }
                                 , BreadcrumbsItem { label = [hsx|Edit ${singularName}${qqClose}, url = Nothing , isActive = True}
                                 ]
 
@@ -196,7 +196,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumbs = renderBreadcrumbs
-                                [ BreadcrumbsItem { label = ${pluralName}, url =  Just $ pathTo ${indexAction} , isActive = True}
+                                [ BreadcrumbsItem { label = "${pluralName}", url =  Just $ pathTo ${indexAction} , isActive = True}
                                 ]
 
                     render${singularName} :: ${singularName} -> Html
