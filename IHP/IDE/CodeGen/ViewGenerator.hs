@@ -69,9 +69,14 @@ buildPlan' schema config =
             qqClose = "|]"
 
             viewHeader = [text|
-                module ${qualifiedViewModuleName config nameWithoutSuffix} where
-                import ${get #applicationName config}.View.Prelude
+                module ${moduleName} where
+                import ${applicationName}.View.Prelude
             |]
+                where
+                    moduleName = qualifiedViewModuleName config nameWithoutSuffix
+                    applicationName = get #applicationName config
+
+
 
             genericView = [text|
                 ${viewHeader}
@@ -81,13 +86,15 @@ buildPlan' schema config =
                     html ${nameWithSuffix} { .. } = [hsx|
                     <nav>
                         <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href={${indexAction}}>${pluralize name}</a></li>
+                            <li class="breadcrumb-item"><a href={${indexAction}}>${pluralizedName}</a></li>
                             <li class="breadcrumb-item active">${nameWithSuffix}</li>
                         </ol>
                     </nav>
                     <h1>${nameWithSuffix}</h1>
                 ${qqClose}
             |]
+                where
+                    pluralizedName = pluralize name
 
 
             showView =
