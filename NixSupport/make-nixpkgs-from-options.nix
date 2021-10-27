@@ -3,8 +3,8 @@
 # the project
 { ihp
 , haskellPackagesDir
-, dontCheckPackages ? ["mmark" "mmark-ext"]
-, doJailbreakPackages ? ["haskell-to-elm"]
+, dontCheckPackages ? []
+, doJailbreakPackages ? []
 , dontHaddockPackages ? []
 , nixPkgsRev ? "cbfe4a42f6eef54d96f491679fc0dd609efb49cb"
 , nixPkgsSha256 ? "1wn7g2s39ffk0065pvh694xxawhmpv1mnnv9lpcp0k91pfl0cjql"
