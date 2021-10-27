@@ -306,6 +306,8 @@ tailwind = def
     , styledPaginationPageLink
     , styledPaginationDotDot
     , styledPaginationItemsPerPageSelector
+    , styledBreadcrumbs
+    , styledBreadcrumbItem
     }
     where
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-green-100 border border-green-500 text-green-900 px-4 py-3 rounded relative">{message}</div>|]
@@ -457,3 +459,41 @@ tailwind = def
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
             in
                 [hsx|{forEach [10,20,50,100,200] oneOption}|]
+
+
+        styledBreadcrumbs :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+        styledBreadcrumbs _ _ breadcrumbsView = [hsx|
+            <nav class="breadcrumbs bg-gray-50 px-6 py-4 mb-6" aria-label="Breadcrumb">
+                <ol class="flex items-center space-x-2" role="list">
+                    {get #breadcrumbItems breadcrumbsView}
+                </ol>
+            </nav>
+        |]
+
+
+        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Blaze.Html
+        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url, isActive} =
+            let
+                breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-400 items-center", ("active", isActive)]
+
+                -- Show chevron if item isn't the active one (i.e. the last one).
+                chevronRight = when (not isActive) [hsx|
+                <!-- heroicons.com chevron-right -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                |]
+            in
+            case url of
+                Nothing ->  [hsx|
+                    <li class={breadcrumbsClasses}>
+                        {label}
+                        {chevronRight}
+                    </li>
+                |]
+                Just url -> [hsx|
+                    <li class={breadcrumbsClasses}>
+                        <a class="hover:text-gray-500" href={url}>{label}</a>
+                        {chevronRight}
+                    </li>
+                    |]
