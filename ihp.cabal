@@ -103,6 +103,7 @@ common shared-properties
             , cereal
             , cereal-text
             , cereal-uuid
+            , neat-interpolation
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

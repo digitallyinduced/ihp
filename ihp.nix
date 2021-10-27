@@ -63,6 +63,7 @@
 , hspec
 , cereal-text
 , cereal-uuid
+, neat-interpolation
 }:
 mkDerivation {
   pname = "ihp";
@@ -132,6 +133,7 @@ mkDerivation {
     hspec
     cereal-text
     cereal-uuid
+    neat-interpolation
   ];
   license = lib.licenses.mit;
   postInstall = ''
