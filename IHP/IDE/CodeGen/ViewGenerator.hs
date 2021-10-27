@@ -146,7 +146,7 @@ buildPlan' schema config =
                                 , BreadcrumbsItem { label = [hsx|New {singularName}${qqClose}, url = Nothing , isActive = True}
                                 ]
 
-                        ${renderForm}
+                ${renderForm}
             |]
 
             editView = [trimming|
@@ -166,7 +166,7 @@ buildPlan' schema config =
                                 , BreadcrumbsItem { label = [hsx|Edit {singularName}${qqClose}, url = Nothing , isActive = True}
                                 ]
 
-                    ${renderForm}
+                ${renderForm}
             |]
 
             indexView = [trimming|
