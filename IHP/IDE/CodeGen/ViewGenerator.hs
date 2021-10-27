@@ -139,9 +139,6 @@ buildPlan' schema config =
                         {breadcrumbs}
                         <h1>New ${singularName}</h1>
                         {renderForm ${singularVariableName}}
-
-                        ${renderForm}
-
                     ${qqClose}
                         where
                             breadcrumbs = renderBreadcrumbs
@@ -149,10 +146,8 @@ buildPlan' schema config =
                                 , BreadcrumbsItem { label = [hsx|New {singularName}${qqClose}, url = Nothing , isActive = True}
                                 ]
 
+                        ${renderForm}
             |]
-
-
-
 
             editView = [trimming|
                 ${viewHeader}
@@ -164,15 +159,14 @@ buildPlan' schema config =
                         {breadcrumbs}
                         <h1>Edit ${singularName}</h1>
                         {renderForm ${singularVariableName}}
-
-                    ${renderForm}
-
                     ${qqClose}
                         where
                             breadcrumbs = renderBreadcrumbs
                                 [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }
                                 , BreadcrumbsItem { label = [hsx|Edit {singularName}${qqClose}, url = Nothing , isActive = True}
                                 ]
+
+                    ${renderForm}
             |]
 
             indexView = [trimming|
@@ -197,6 +191,11 @@ buildPlan' schema config =
                             </table>
                             ${renderPagination}
                         </div>
+                    ${qqClose}
+                        where
+                            breadcrumbs = renderBreadcrumbs
+                                [ BreadcrumbsItem { label = pluralName, url =  Just $ pathTo indexAction , isActive = True}
+                                ]
 
                     render${singularName} :: ${singularName} -> Html
                     render${singularName} ${singularVariableName} = [hsx|
@@ -206,12 +205,6 @@ buildPlan' schema config =
                             <td><a href={Edit${singularName}Action (get #id ${singularVariableName})} class="text-muted">Edit</a></td>
                             <td><a href={Delete${singularName}Action (get #id ${singularVariableName})} class="js-delete text-muted">Delete</a></td>
                         </tr>
-                ${qqClose}
-                    where
-                        breadcrumbs = renderBreadcrumbs
-                            [ BreadcrumbsItem { label = pluralName, url =  Just $ pathTo indexAction , isActive = True}
-                            ]
-
             |]
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
