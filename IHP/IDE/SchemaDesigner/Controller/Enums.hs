@@ -12,6 +12,9 @@ import IHP.IDE.SchemaDesigner.View.Layout (replace, schemaDesignerLayout)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
+import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
+import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
+
 instance Controller EnumsController where
     beforeAction = setLayout schemaDesignerLayout
 
@@ -33,7 +36,8 @@ instance Controller EnumsController where
                 setErrorMessage message
                 redirectTo TablesAction
             Success -> do
-                updateSchema (addEnum enumName)
+                updateSchema $ SchemaOperations.addEnum enumName
+                MigrationChangeTracker.addEnum enumName
                 redirectTo ShowEnumAction { .. }
 
     action EditEnumAction { .. } = do
@@ -62,9 +66,6 @@ instance Controller EnumsController where
 
 updateEnum :: Int -> Text -> [Statement] -> [Statement]
 updateEnum enumId enumName list = replace enumId CreateEnumType { name = enumName, values = (get #values (list !! enumId))} list
-
-addEnum :: Text -> [Statement] -> [Statement]
-addEnum enumName list = list <> [CreateEnumType { name = enumName, values = []}]
 
 deleteEnum :: Int -> [Statement] -> [Statement]
 deleteEnum tableId list = delete (list !! tableId) list

@@ -197,7 +197,16 @@ You can see that we can access the state using [`state <- getState`](https://ihp
 
 Now whenever the connection is closed, it will print out the message inside the terminal where the IHP server is running.
 
-**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a [`forever receiveDataMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveDataMessage) to the end of the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run).
+**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a `forever` to the the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run):
+
+```haskell
+run = do
+    -- Loops until the connection is closed
+    forever do
+        name <- receiveData @Text
+        setState NameEntered { name }
+        sendTextData ("Hello " <> name <> "!")
+```
 
 As you've seen above the primitive state operations are [`setState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:setState) and [`getState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:getState). Using these two operations together with a good data structure is a very powerful way to manage your stateful WebSocket connections.
 

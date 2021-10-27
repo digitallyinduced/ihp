@@ -349,7 +349,7 @@ config = do
     option Development
     option (AppHostname "localhost")
     
-    redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
+    redisUrl <- env "REDIS_URL"
     option (RedisUrl redisUrl)
 ```
 
@@ -406,8 +406,11 @@ with a 404:
 
 ```haskell
 import qualified Data.ByteString.Lazy as LBS
+import Network.HTTP.Types.Header (hContentType)
+import Network.HTTP.Types (status404)
+import Network.Wai (responseLBS)
 
-customNotFoundResponse :: IO ()
+customNotFoundResponse :: (?context :: ControllerContext) => IO () 
 customNotFoundResponse = do
 page <- LBS.readFile "static/404.html"
 respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page

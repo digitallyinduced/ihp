@@ -2,7 +2,6 @@ module IHP.FrameworkConfig where
 
 import IHP.Prelude
 import ClassyPrelude (readMay)
-import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
 import qualified Data.Text as Text
@@ -20,6 +19,8 @@ import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
+import qualified System.Posix.Env.ByteString as Posix
+import Data.String.Interpolate.IsString (i)
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -80,16 +81,18 @@ newtype AssetVersion = AssetVersion Text
 --
 -- This code will return 'Production' as the second call to 'option' is ignored to not override the existing option.
 option :: forall option. Typeable option => option -> State.StateT TMap.TMap IO ()
-option value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
+option !value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
 {-# INLINABLE option #-}
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
-    option Development
+    ihpEnv <- envOrDefault "IHP_ENV" Development
+    option ihpEnv
+
     option $ AppHostname "localhost"
 
-    port <- liftIO defaultAppPort
-    option $ AppPort port
+    port :: AppPort <- envOrDefault "PORT" (AppPort defaultPort)
+    option port
 
     option $ ExceptionTracker Warp.defaultOnException
 
@@ -99,13 +102,7 @@ ihpDefaultConfig = do
     option defaultLogger
     logger <- findOption @Logger
 
-    requestLoggerIpAddrSource <-
-        liftIO (Environment.lookupEnv "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE")
-        >>= \case
-            Just "FromHeader" -> pure RequestLogger.FromHeader
-            Just "FromSocket" -> pure RequestLogger.FromSocket
-            Nothing           -> pure RequestLogger.FromSocket
-            _                 -> error "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE set to invalid value. Expected FromHeader or FromSocket"
+    requestLoggerIpAddrSource <- envOrDefault "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE" RequestLogger.FromSocket
 
     reqLoggerMiddleware <- liftIO $
             case environment of
@@ -128,16 +125,16 @@ ihpDefaultConfig = do
     option $ DatabaseUrl databaseUrl
     option $ DBPoolIdleTime $
             case environment of
-            Development -> 2
-            Production -> 60
+                Development -> 2
+                Production -> 60
     option $ DBPoolMaxConnections 20
 
     (AppPort port) <- findOption @AppPort
 
     -- The IHP_BASEURL env var can override the hardcoded base url in Config.hs
-    ihpBaseUrlEnvVar <- liftIO (Environment.lookupEnv "IHP_BASEURL")
+    ihpBaseUrlEnvVar <- envOrNothing "IHP_BASEURL"
     case ihpBaseUrlEnvVar of 
-        Just baseUrl -> option (BaseUrl (cs baseUrl))
+        Just baseUrl -> option (BaseUrl baseUrl)
         Nothing -> do
             (AppHostname appHostname) <- findOption @AppHostname
             option $ BaseUrl ("http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else ""))
@@ -150,20 +147,91 @@ ihpDefaultConfig = do
     option bootstrap
 
     when (environment == Development) do
-        ihpIdeBaseUrl <- fromMaybe "http://localhost:8001" <$> liftIO (Environment.lookupEnv "IHP_IDE_BASEURL")
-        option (IdeBaseUrl (cs ihpIdeBaseUrl))
+        ihpIdeBaseUrl <- envOrDefault "IHP_IDE_BASEURL" "http://localhost:8001"
+        option (IdeBaseUrl ihpIdeBaseUrl)
 
-    rlsAuthenticatedRole <- fromMaybe "ihp_authenticated" <$> liftIO (Environment.lookupEnv "IHP_RLS_AUTHENTICATED_ROLE")
-    option $ RLSAuthenticatedRole (cs rlsAuthenticatedRole)
+    rlsAuthenticatedRole <- envOrDefault "IHP_RLS_AUTHENTICATED_ROLE" "ihp_authenticated"
+    option $ RLSAuthenticatedRole rlsAuthenticatedRole
 
     initAssetVersion
 
 {-# INLINABLE ihpDefaultConfig #-}
 
+
+-- | Returns a env variable. The raw string
+-- value is parsed before returning it. So the return value type depends on what
+-- you expect (e.g. can be Text, Int some custom type).
+--
+-- When the parameter is missing or cannot be parsed, an error is raised and
+-- the app startup is aborted. Use 'envOrDefault' when you want to get a
+-- default value instead of an error, or 'paramOrNothing' to get @Nothing@
+-- when the env variable is missing.
+--
+-- You can define a custom env variable parser by defining a 'EnvVarReader' instance.
+--
+-- __Example:__ Accessing a env var PORT.
+--
+-- Let's say an env var PORT is set to 1337
+--
+-- > export PORT=1337
+--
+-- We can read @PORT@ like this:
+--
+-- > port <- env @Int "PORT"
+--
+-- __Example:__ Missing env vars
+--
+-- Let's say the @PORT@ env var is not defined. In that case we'll get an
+-- error when trying to access it:
+--
+-- >>> port <- env @Int "PORT"
+-- "Env var 'PORT' not set, but it's required for the app to run"
+--
+env :: forall result monad. (MonadIO monad) => EnvVarReader result => ByteString -> monad result
+env name = envOrDefault name (error [i|Env var '#{name}' not set, but it's required for the app to run|])
+
+envOrDefault :: (MonadIO monad) => EnvVarReader result => ByteString -> result -> monad result
+envOrDefault name defaultValue = fromMaybe defaultValue <$> envOrNothing name
+
+envOrNothing :: (MonadIO monad) => EnvVarReader result => ByteString -> monad (Maybe result)
+envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
+    where
+        parseString string = case envStringToValue string of
+            Left errorMessage -> error [i|Env var '#{name}' is invalid: #{errorMessage}|]
+            Right value -> value
+
+class EnvVarReader valueType where
+    envStringToValue :: ByteString -> Either Text valueType
+
+instance EnvVarReader Environment where
+    envStringToValue "Production"  = Right Production
+    envStringToValue "Development" = Right Development
+    envStringToValue otherwise     = Left "Should be set to 'Development' or 'Production'"
+
+instance EnvVarReader Int where
+    envStringToValue string = case textToInt (cs string) of
+        Just integer -> Right integer
+        Nothing -> Left [i|Expected integer, got #{string}|]
+
+instance EnvVarReader Text where
+    envStringToValue string = Right (cs string)
+
+instance EnvVarReader ByteString where
+    envStringToValue string = Right string
+
+instance EnvVarReader AppPort where
+    envStringToValue string = AppPort <$> envStringToValue string
+
+instance EnvVarReader RequestLogger.IPAddrSource where
+    envStringToValue "FromHeader" = Right RequestLogger.FromHeader
+    envStringToValue "FromSocket" = Right RequestLogger.FromSocket
+    envStringToValue otherwise    = Left "Expected 'FromHeader' or 'FromSocket'"
+
+
 initAssetVersion :: ConfigBuilder
 initAssetVersion = do
-    ihpCloudContainerId <- fmap cs <$> liftIO (Environment.lookupEnv "IHP_CLOUD_CONTAINER_ID")
-    ihpAssetVersion <- fmap cs <$> liftIO (Environment.lookupEnv "IHP_ASSET_VERSION")
+    ihpCloudContainerId <- envOrNothing "IHP_CLOUD_CONTAINER_ID"
+    ihpAssetVersion <- envOrNothing "IHP_ASSET_VERSION"
     let assetVersion = [ ihpCloudContainerId, ihpAssetVersion]
             |> catMaybes
             |> head
@@ -277,7 +345,7 @@ data FrameworkConfig = FrameworkConfig
     -- >     option Development
     -- >     option (AppHostname "localhost")
     -- >     
-    -- >     redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
+    -- >     redisUrl <- env "REDIS_URL"
     -- >     option (RedisUrl redisUrl)
     --
     -- This redis url can be access from all IHP entrypoints using the ?applicationContext that is in scope:
@@ -401,18 +469,11 @@ data RootApplication = RootApplication deriving (Eq, Show)
 defaultPort :: Int
 defaultPort = 8000
 
-defaultAppPort :: IO Int
-defaultAppPort = do
-    portStr <- Environment.lookupEnv "PORT"
-    case portStr of
-        Just portStr -> pure $ fromMaybe (error "PORT: Invalid value") (readMay portStr)
-        Nothing -> pure defaultPort
-
 defaultDatabaseUrl :: IO ByteString
 defaultDatabaseUrl = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
-    (Environment.lookupEnv "DATABASE_URL") >>= (pure . maybe defaultDatabaseUrl cs )
+    envOrDefault "DATABASE_URL" defaultDatabaseUrl
 
 defaultLoggerForEnv :: Environment -> IO Logger
 defaultLoggerForEnv = \case

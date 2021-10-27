@@ -224,3 +224,6 @@ ghci:
 
 # https://github.com/digitallyinduced/ihp/issues/776
 console: ghci ## Start IHP console, alias for 'make ghci'
+
+prepare-optimized-nix-build: ## Sets the 'enabled = true' flags in default.nix, so that a 'nix-build' makes optimized binaries
+	sed -i '' 's/haskellDeps/optimized = true;\n        haskellDeps/g' default.nix

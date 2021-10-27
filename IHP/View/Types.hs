@@ -11,6 +11,7 @@ module IHP.View.Types
 , FormContext (..)
 , InputType (..)
 , CSSFramework (..)
+, PaginationView(..)
 , HtmlWithContext
 , Layout
 )
@@ -20,6 +21,7 @@ import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
 import IHP.ModelSupport (Violation)
+import IHP.Pagination.Types
 
 
 type HtmlWithContext context = (?context :: context) => Blaze.Html
@@ -97,7 +99,23 @@ data InputType
     | FileInput
 
 
--- | Render functions to render with bootstrap etc.
+data PaginationView =
+    PaginationView
+    { cssFramework :: !CSSFramework
+    , pagination :: !Pagination
+    -- Function used to get the page URL.
+    , pageUrl :: Int -> ByteString
+    -- Previous page link.
+    , linkPrevious :: !Blaze.Html
+    -- Next page link.
+    , linkNext :: !Blaze.Html
+    -- The page and dot dot as rendered by `styledPaginationPageLink` and `styledPaginationDotDot`.
+    , pageDotDotItems :: !Blaze.Html
+    -- Selector changing the number of allowed items per page.
+    , itemsPerPageSelector :: !Blaze.Html
+    }
+
+-- | Render functions to render with Bootstrap, Tailwind CSS etc.
 --
 -- We call this functions with the cssFramework passed to have late binding (like from OOP languages)
 data CSSFramework = CSSFramework
@@ -121,4 +139,18 @@ data CSSFramework = CSSFramework
     , styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
     -- | Class name for container of validation error message
     , styledValidationResultClass :: Text
+    -- | Renders a the entire pager, with all its elements.
+    , styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+    -- | The pagination's previous link
+    , styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+    -- | The pagination's next link
+    , styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+    -- | Render the pagination links
+    , styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+    -- | Render the dots between pagination numbers (e.g. 5 6 ... 7 8)
+    , styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
+    -- | Render the items per page selector for pagination.
+    -- Note the (Int -> ByteString), we are passing the pageUrl function, so anyone that would like to override
+    -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
+    , stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
     }
