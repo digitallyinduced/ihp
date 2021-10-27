@@ -12,7 +12,7 @@ jobs:
     - uses: actions/checkout@v2.3.4
     - uses: cachix/install-nix-action@v12
       with:
-        nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/51bcdc4cdaac48535dabf0ad4642a66774c609ed.tar.gz
+        nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/cbfe4a42f6eef54d96f491679fc0dd609efb49cb.tar.gz
     - uses: cachix/cachix-action@v8
       with:
         name: digitallyinduced
