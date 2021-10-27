@@ -66,9 +66,10 @@ buildPlan' schema config =
                     |> head
                     |> fromMaybe []
 
+            -- when using the trimming quasiquoter we can't have another |] closure, like for the one we use with hsx.
             qqClose = "|]"
 
-            viewHeader = [text|
+            viewHeader = [trimming|
                 module ${moduleName} where
                 import ${applicationName}.View.Prelude
             |]
@@ -78,40 +79,45 @@ buildPlan' schema config =
 
 
 
-            genericView = [text|
+            genericView = [trimming|
                 ${viewHeader}
                 data ${nameWithSuffix} = {$nameWithSuffix}
 
                 instance View ${nameWithSuffix} where
                     html ${nameWithSuffix} { .. } = [hsx|
-                    <nav>
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href={${indexAction}}>${pluralizedName}</a></li>
-                            <li class="breadcrumb-item active">${nameWithSuffix}</li>
-                        </ol>
-                    </nav>
-                    <h1>${nameWithSuffix}</h1>
-                ${qqClose}
+                        <nav>
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href={${indexAction}}>${pluralizedName}</a></li>
+                                <li class="breadcrumb-item active">${nameWithSuffix}</li>
+                            </ol>
+                        </nav>
+                        <h1>${nameWithSuffix}</h1>
+                    ${qqClose}
             |]
                 where
                     pluralizedName = pluralize name
 
 
-            showView =
-                viewHeader
-                <> "data ShowView = ShowView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
-                <> "\n"
-                <> "instance View ShowView where\n"
-                <> "    html ShowView { .. } = [hsx|\n"
-                <> "        <nav>\n"
-                <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
-                <> "                <li class=\"breadcrumb-item active\">Show " <> singularName <> "</li>\n"
-                <> "            </ol>\n"
-                <> "        </nav>\n"
-                <> "        <h1>Show " <> singularName <> "</h1>\n"
-                <> "        <p>{" <> singularVariableName <> "}</p>\n"
-                 <> "    |]\n"
+            showView = [trimming|
+                ${viewHeader}
+
+                data ShowView = ShowView { ${singularVariableName} :: ${singularName} }
+
+                instance View ShowView where
+                    html ShowView { .. } = [hsx|
+                        {breadcrumbs}
+                        <h1>Show ${singularName}</h1>
+                        <p>{${singularVariableName}}</p>
+
+                        ${qqClose}
+                            where
+                                breadcrumbs = renderBreadcrumbs
+                                                [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }
+                                                , BreadcrumbsItem { label = [hsx|Show ${singularName}|], url = Nothing , isActive = True}
+                                                ]
+            |]
+
+
 
             newView =
                 viewHeader
