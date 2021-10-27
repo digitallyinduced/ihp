@@ -199,15 +199,15 @@ buildPlan' schema config =
                                 [ BreadcrumbsItem { label = "${pluralName}", url =  Just $ pathTo ${indexAction} , isActive = True}
                                 ]
 
-                    render${singularName} :: ${singularName} -> Html
-                    render${singularName} ${singularVariableName} = [hsx|
-                        <tr>
-                            <td>{${singularVariableName}}</td>
-                            <td><a href={Show${singularName}Action (get #id ${singularVariableName})}>Show</a></td>
-                            <td><a href={Edit${singularName}Action (get #id ${singularVariableName})} class="text-muted">Edit</a></td>
-                            <td><a href={Delete${singularName}Action (get #id ${singularVariableName})} class="js-delete text-muted">Delete</a></td>
-                        </tr>
-                    ${qqClose}
+                render${singularName} :: ${singularName} -> Html
+                render${singularName} ${singularVariableName} = [hsx|
+                    <tr>
+                        <td>{${singularVariableName}}</td>
+                        <td><a href={Show${singularName}Action (get #id ${singularVariableName})}>Show</a></td>
+                        <td><a href={Edit${singularName}Action (get #id ${singularVariableName})} class="text-muted">Edit</a></td>
+                        <td><a href={Delete${singularName}Action (get #id ${singularVariableName})} class="js-delete text-muted">Delete</a></td>
+                    </tr>
+                ${qqClose}
             |]
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
