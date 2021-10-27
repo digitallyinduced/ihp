@@ -208,6 +208,10 @@ buildPlan' schema config =
                                 ${renderPagination}
                             </div>
                     ${qqClose}
+                        where
+                            breadcrumbs = renderBreadcrumbs
+                                [ BreadcrumbsItem { label = pluralName, url =  Just $ pathTo indexAction , isActive = True}
+                                ]
 
                     render${singularName} :: ${singularName} -> Html
                     render${singularName} ${singularVariableName} = [hsx|
@@ -223,6 +227,7 @@ buildPlan' schema config =
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
                     renderPagination = if paginationEnabled then "{renderPagination pagination}" else ""
+
 
 
 
