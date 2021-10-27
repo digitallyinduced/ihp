@@ -213,43 +213,43 @@ tests = do
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
             describe "breadcrumbs" do
-                let baseBreadcrumbsItem = BreadcrumbsItem
+                let baseBreadcrumbItem = BreadcrumbItem
                         { label = "First item"
                         , url = Nothing
                         , isActive = False
                         }
-                let baseBreadcrumbs = [baseBreadcrumbsItem]
+                let baseBreadcrumbs = [baseBreadcrumbItem]
 
                 it "should render a breadcrumbs item with no link" do
-                    let breadcrumbsItem = baseBreadcrumbsItem
+                    let breadcrumbItem = baseBreadcrumbItem
                     let breadcrumbs = baseBreadcrumbs
 
-                    styledBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
 
                 it "should render a breadcrumbs item with link" do
-                    let breadcrumbsItem = baseBreadcrumbsItem {url = "https://example.com"}
+                    let breadcrumbItem = baseBreadcrumbItem {url = "https://example.com"}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styledBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
 
                 it "should render a breadcrumbs item marked as active" do
-                    let breadcrumbsItem = baseBreadcrumbsItem {isActive = True}
+                    let breadcrumbItem = baseBreadcrumbItem {isActive = True}
                     let breadcrumbs = baseBreadcrumbs
 
-                    styledBreadcrumbsItem cssFramework cssFramework breadcrumbs breadcrumbsItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
 
                 it "should render the wrapping breadcrumbs" do
                     let breadcrumbs = baseBreadcrumbs
                     let breadcrumbsView = BreadcrumbsView
                             { cssFramework =  cssFramework
-                            , breadcrumbsItems = mempty
+                            , breadcrumbItems = mempty
                             }
 
                     styledBreadcrumbs cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
 
-                it "should support show of BreadcrumbsItem" do
-                    let breadcrumbsItem = baseBreadcrumbsItem
-                    show breadcrumbsItem `shouldBe` "{ label = \"First item\", url = Nothing, isActive = False }"
+                it "should support show of BreadcrumbItem" do
+                    let breadcrumbItem = baseBreadcrumbItem
+                    show breadcrumbItem `shouldBe` "{ label = \"First item\", url = Nothing, isActive = False }"
 
 
 

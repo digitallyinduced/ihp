@@ -11,20 +11,20 @@ import IHP.ControllerSupport
 import Text.Blaze.Html (Html)
 import IHP.HSX.QQ (hsx)
 
-import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumbs, styledBreadcrumbsItem)
+import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumbs, styledBreadcrumbItem)
 import IHP.ViewSupport (theCSSFramework)
 
 -- | Render breadcrumbs.
-renderBreadcrumbs :: (?context::ControllerContext) => [BreadcrumbsItem] -> Html
-renderBreadcrumbs breadcrumbsItems = [hsx| {renderedHtml} |]
+renderBreadcrumbs :: (?context::ControllerContext) => [BreadcrumbItem] -> Html
+renderBreadcrumbs breadcrumbItems = [hsx| {renderedHtml} |]
         where
             breadcrumbsView = BreadcrumbsView
                 { cssFramework = theCSSFramework
-                , breadcrumbsItems = breadcrumbsItemsRendered
+                , breadcrumbItems = breadcrumbItemsRendered
                 }
 
-            renderedHtml = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbsItems breadcrumbsView
+            renderedHtml = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
 
-            breadcrumbsItemsRendered =  [hsx|{forEach breadcrumbsItems (styledBreadcrumbsItem theCSSFramework theCSSFramework breadcrumbsItems)}|]
+            breadcrumbItemsRendered =  [hsx|{forEach breadcrumbItems (styledBreadcrumbItem theCSSFramework theCSSFramework breadcrumbItems)}|]
 
 

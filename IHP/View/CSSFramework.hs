@@ -49,7 +49,7 @@ instance Default CSSFramework where
                 , styledPaginationLinkPrevious
                 , styledPaginationLinkNext
                 , styledBreadcrumbs
-                , styledBreadcrumbsItem
+                , styledBreadcrumbItem
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -242,19 +242,19 @@ instance Default CSSFramework where
                         </li>
                     |]
 
-            styledBreadcrumbs :: CSSFramework -> [BreadcrumbsItem]-> BreadcrumbsView -> Blaze.Html
+            styledBreadcrumbs :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
             styledBreadcrumbs _ _ breadcrumbsView = [hsx|
                 <nav>
                     <ol class="breadcrumb">
-                        {get #breadcrumbsItems breadcrumbsView}
+                        {get #breadcrumbItems breadcrumbsView}
 
                     </ol>
                 </nav>
             |]
 
 
-            styledBreadcrumbsItem :: CSSFramework -> [ BreadcrumbsItem ]-> BreadcrumbsItem -> Blaze.Html
-            styledBreadcrumbsItem _ breadcrumbsItems breadcrumbsItem@BreadcrumbsItem {label, url, isActive} =
+            styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Blaze.Html
+            styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url, isActive} =
                 let
                     breadcrumbsClasses = classes ["breadcrumb-item", ("active", isActive)]
                 in
