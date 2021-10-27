@@ -5,6 +5,7 @@ import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
+import NeatInterpolation
 
 data ViewConfig = ViewConfig
     { controllerName :: Text
@@ -66,26 +67,27 @@ buildPlan' schema config =
                     |> fromMaybe []
 
 
-            viewHeader =
-                ""
-                <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
-                <> "import " <> get #applicationName config <> ".View.Prelude\n"
-                <> "\n"
+            viewHeader = [text|
+                module ${qualifiedViewModuleName config nameWithoutSuffix} where
+                import ${get #applicationName config}.View.Prelude
+            |]
 
-            genericView =
-                viewHeader
-                <> "data " <> nameWithSuffix <> " = " <> nameWithSuffix <> "\n"
-                <> "\n"
-                <> "instance View " <> nameWithSuffix <> " where\n"
-                <> "    html " <> nameWithSuffix <> " { .. } = [hsx|\n"
-                <> "        <nav>\n"
-                <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralize name <> "</a></li>\n"
-                <> "                <li class=\"breadcrumb-item active\">" <> nameWithSuffix <> "</li>\n"
-                <> "            </ol>\n"
-                <> "        </nav>\n"
-                <> "        <h1>" <> nameWithSuffix <> "</h1>\n"
-                <> "    |]\n"
+            genericView = [text|
+                ${viewHeader}
+                data ${nameWithSuffix} = {$nameWithSuffix}
+
+                instance View ${nameWithSuffix} where
+                    html ${nameWithSuffix} { .. } = [hsx|
+                    <nav>
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href={${indexAction}}>${pluralize name}</a></li>
+                            <li class="breadcrumb-item active">${nameWithSuffix}</li>
+                        </ol>
+                    </nav>
+                    <h1>${nameWithSuffix}</h1>
+                |]
+            |]
+
 
             showView =
                 viewHeader
