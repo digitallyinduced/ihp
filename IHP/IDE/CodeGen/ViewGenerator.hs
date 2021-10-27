@@ -107,12 +107,12 @@ buildPlan' schema config =
                         <h1>Show ${singularName}</h1>
                         <p>{${singularVariableName}}</p>
 
-                        ${qqClose}
-                            where
-                                breadcrumbs = renderBreadcrumbs
-                                                [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }
-                                                , BreadcrumbsItem { label = [hsx|Show {singularName}${qqClose}, url = Nothing , isActive = True}
-                                                ]
+                    ${qqClose}
+                        where
+                            breadcrumbs = renderBreadcrumbs
+                                            [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }
+                                            , BreadcrumbsItem { label = [hsx|Show {singularName}${qqClose}, url = Nothing , isActive = True}
+                                            ]
             |]
 
             -- The form that will appear in New and Edit pages.
@@ -178,7 +178,6 @@ buildPlan' schema config =
             indexView = [trimming|
                 ${viewHeader}
 
-
                 data IndexView = IndexView { ${pluralVariableName} :: [ ${singularName} ] ${importPagination} }
 
                 instance View IndexView where
@@ -198,11 +197,6 @@ buildPlan' schema config =
                             </table>
                             ${renderPagination}
                         </div>
-                    ${qqClose}
-                        where
-                            breadcrumbs = renderBreadcrumbs
-                                [ BreadcrumbsItem { label = pluralName, url =  Just $ pathTo indexAction , isActive = True}
-                                ]
 
                     render${singularName} :: ${singularName} -> Html
                     render${singularName} ${singularVariableName} = [hsx|
@@ -218,6 +212,11 @@ buildPlan' schema config =
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
                     renderPagination = if paginationEnabled then "{renderPagination pagination}" else ""
+
+                    breadcrumbs = renderBreadcrumbs
+                        [ BreadcrumbsItem { label = pluralName, url =  Just $ pathTo indexAction , isActive = True}
+                        ]
+
 
 
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
