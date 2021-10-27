@@ -22,11 +22,12 @@ import qualified IHP.AutoRefresh.Types                     as AutoRefresh
 import qualified IHP.Controller.Context                    as Context
 import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
-import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
+import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..), getFrameworkConfig)
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
 import           IHP.ModelSupport                          (createModelContext, Id')
 import           IHP.Prelude
 import           IHP.Log.Types
+import           IHP.Job.Types
 import qualified IHP.Test.Database as Database
 import Test.Hspec
 import qualified Data.Text as Text
@@ -72,7 +73,7 @@ withIHPApp application configBuilder hspecAction = do
              , frameworkConfig = frameworkConfig }
 
         (hspecAction MockContext { .. })
-   
+
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
@@ -132,6 +133,26 @@ callActionWithParams controller params = do
         Just response -> pure response
         Nothing -> error "mockAction: The action did not render a response"
 
+-- | Run a Job in a mock environment
+--
+-- __Example:__
+--
+-- Let's say you have a Job called @JobPost@ that you would like to process as part of a test.
+--
+-- >  let postJob <- fetch ...
+-- >
+-- >  callJob postJob
+--
+-- Note that 'callJob' doesn't set the Job status that is initially set 'IHP.Job.Types.JobStatusNotStarted', as that is
+-- done by the Job queue (see 'IHP.Job.Queue.jobDidSucceed' for example).
+--
+callJob :: forall application job. (ContextParameters application, Typeable application, Job job) => job -> IO ()
+callJob job = do
+    let frameworkConfig = getFrameworkConfig ?context
+    let ?context = frameworkConfig
+    perform job
+
+
 -- | mockAction has been renamed to callAction
 mockAction :: _ => _
 mockAction = callAction
@@ -168,7 +189,7 @@ responseStatusShouldBe response status = responseStatus response `shouldBe` stat
 -- > user <- newRecord @User
 -- >     |> set #email "marc@digitallyinduced.com"
 -- >     |> createRecord
--- > 
+-- >
 -- > response <- withUser user do
 -- >     callAction CreatePostAction
 --
@@ -192,7 +213,7 @@ withUser user callback =
     where
         newContext = ?context { request = newRequest }
         newRequest = request { Wai.vault = newVault }
-        
+
         newSession :: Network.Wai.Session.Session IO ByteString ByteString
         newSession = (lookupSession, insertSession)
 
@@ -204,7 +225,7 @@ withUser user callback =
 
         newVault = Vault.insert vaultKey newSession (Wai.vault request)
         RequestContext { request, vault = vaultKey } = get #requestContext ?mocking
-        
+
         sessionValue = Serialize.encode (get #id user)
         sessionKey = cs (Session.sessionKey @user)
 
