@@ -85,17 +85,15 @@ buildPlan' schema config =
 
                 instance View ${nameWithSuffix} where
                     html ${nameWithSuffix} { .. } = [hsx|
-                        <nav>
-                            <ol class="breadcrumb">
-                                <li class="breadcrumb-item"><a href={${indexAction}}>${pluralizedName}</a></li>
-                                <li class="breadcrumb-item active">${nameWithSuffix}</li>
-                            </ol>
-                        </nav>
+                        {breadcrumbs}
                         <h1>${nameWithSuffix}</h1>
-                    ${qqClose}
+                        ${qqClose}
+                            where
+                                breadcrumbs = renderBreadcrumbs
+                                                [ BreadcrumbsItem { label = pluralize name, url = Just $ pathTo indexAction, isActive = False }
+                                                , BreadcrumbsItem { label = nameWithSuffix, url = Nothing , isActive = True}
+                                                ]
             |]
-                where
-                    pluralizedName = pluralize name
 
 
             showView = [trimming|
@@ -113,95 +111,121 @@ buildPlan' schema config =
                             where
                                 breadcrumbs = renderBreadcrumbs
                                                 [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }
-                                                , BreadcrumbsItem { label = [hsx|Show ${singularName}|], url = Nothing , isActive = True}
+                                                , BreadcrumbsItem { label = [hsx|Show {singularName}${qqClose}, url = Nothing , isActive = True}
                                                 ]
+            |]
+
+            -- The form that will appear in New and Edit pages.
+            renderForm = [trimming|
+                renderForm :: ${singularName} -> Html
+                renderForm ${singularVariableName} = formFor ${singularVariableName} [hsx|
+                    ${formFields}
+                    {submitButton}
+
+                ${qqClose}
+            |]
+                where
+                    formFields =
+                        intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields))
+
+
+            newView = [trimming|
+                ${viewHeader}
+
+                data NewView = NewView { ${singularVariableName} :: ${singularName} }
+
+                instance View NewView where
+                    html NewView { .. } = [hsx|
+                        ${breadcrumbs}
+                        <h1>New ${singularName}</h1>
+                        {renderForm ${singularVariableName}}
+
+                        ${renderForm}
+
+                    ${qqClose}
+                        where
+                            breadcrumbs = renderBreadcrumbs
+                                [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }
+                                , BreadcrumbsItem { label = [hsx|New {singularName}${qqClose}, url = Nothing , isActive = True}
+                                ]
+
             |]
 
 
 
-            newView =
-                viewHeader
-                <> "data NewView = NewView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
-                <> "\n"
-                <> "instance View NewView where\n"
-                <> "    html NewView { .. } = [hsx|\n"
-                <> "        <nav>\n"
-                <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
-                <> "                <li class=\"breadcrumb-item active\">New " <> singularName <> "</li>\n"
-                <> "            </ol>\n"
-                <> "        </nav>\n"
-                <> "        <h1>New " <> singularName <> "</h1>\n"
-                <> "        {renderForm " <> singularVariableName <> "}\n"
-                <> "    |]\n"
-                <> "\n"
-                <> "renderForm :: " <> singularName <> " -> Html\n"
-                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
-                <> (intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)) <> "\n"
-                <> "    {submitButton}\n"
-                <> "|]\n"
 
-            editView =
-                viewHeader
-                <> "data EditView = EditView { " <> singularVariableName <> " :: " <> singularName <> " }\n"
-                <> "\n"
-                <> "instance View EditView where\n"
-                <> "    html EditView { .. } = [hsx|\n"
-                <> "        <nav>\n"
-                <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
-                <> "                <li class=\"breadcrumb-item active\">Edit " <> singularName <> "</li>\n"
-                <> "            </ol>\n"
-                <> "        </nav>\n"
-                <> "        <h1>Edit " <> singularName <> "</h1>\n"
-                <> "        {renderForm " <> singularVariableName <> "}\n"
-                <> "    |]\n"
-                <> "\n"
-                <> "renderForm :: " <> singularName <> " -> Html\n"
-                <> "renderForm " <> singularVariableName <> " = formFor " <> singularVariableName <> " [hsx|\n"
-                <> (intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)) <> "\n"
-                <> "    {submitButton}\n"
-                <> "|]\n"
+            editView = [trimming|
+                ${viewHeader}
 
-            indexView =
-                viewHeader
-                <> "data IndexView = IndexView { " <> pluralVariableName <> " :: [" <> singularName <> "]" <> (if paginationEnabled then ", pagination :: Pagination" else "") <> " }\n"
-                <> "\n"
-                <> "instance View IndexView where\n"
-                <> "    html IndexView { .. } = [hsx|\n"
+                data EditView = EditView { ${singularVariableName} :: ${singularName} }
+
+                instance View EditView where
+                    html EditView { .. } = [hsx|
+                        ${breadcrumbs}
+                        <h1>Edit ${singularName}</h1>
+                        {renderForm ${singularVariableName}}
+
+                    ${renderForm}
+
+                    ${qqClose}
+                        where
+                            breadcrumbs = renderBreadcrumbs
+                                [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }
+                                , BreadcrumbsItem { label = [hsx|Edit {singularName}${qqClose}, url = Nothing , isActive = True}
+                                ]
+            |]
+
+
+
+
+
+            indexView = [trimming|
+                ${viewHeader}
+
+
+                data IndexView = IndexView { ${pluralVariableName} :: [ ${singularName} ] ${importPagination} }
+
+                instance View IndexView where
+                    html IndexView { .. } = [hsx|
                 <> "        <nav>\n"
                 <> "            <ol class=\"breadcrumb\">\n"
                 <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
                 <> "            </ol>\n"
                 <> "        </nav>\n"
-                <> "        <h1>" <> nameWithoutSuffix <> " <a href={pathTo New" <> singularName <> "Action} class=\"btn btn-primary ml-4\">+ New</a></h1>\n"
-                <> "        <div class=\"table-responsive\">\n"
-                <> "            <table class=\"table\">\n"
-                <> "                <thead>\n"
-                <> "                    <tr>\n"
-                <> "                        <th>" <> singularName <> "</th>\n"
-                <> "                        <th></th>\n"
-                <> "                        <th></th>\n"
-                <> "                        <th></th>\n"
-                <> "                    </tr>\n"
-                <> "                </thead>\n"
-                <> "                <tbody>{forEach " <> pluralVariableName <> " render" <> singularName <> "}</tbody>\n"
-                <> "            </table>\n"
-                <> (if paginationEnabled
-                        then "            {renderPagination pagination}\n"
-                        else "")
-                <> "        </div>\n"
-                <> "    |]\n"
-                <> "\n\n"
-                <> "render" <> singularName <> " :: " <> singularName <> " -> Html\n"
-                <> "render" <> singularName <> " " <> singularVariableName <> " = [hsx|\n"
-                <> "    <tr>\n"
-                <> "        <td>{" <> singularVariableName <> "}</td>\n"
-                <> "        <td><a href={Show" <> singularName <> "Action (get #id " <> singularVariableName <> ")}>Show</a></td>\n"
-                <> "        <td><a href={Edit" <> singularName <> "Action (get #id " <> singularVariableName <> ")} class=\"text-muted\">Edit</a></td>\n"
-                <> "        <td><a href={Delete" <> singularName <> "Action (get #id " <> singularVariableName <> ")} class=\"js-delete text-muted\">Delete</a></td>\n"
-                <> "    </tr>\n"
-                <> "|]\n"
+                            <h1>${nameWithoutSuffix}<a href={pathTo New${singularName}Action} class="btn btn-primary ml-4">+ New</a></h1>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>${singularName}</th>
+                                            <th></th>
+                                            <th></th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>{forEach ${pluralVariableName} render${singularName}}</tbody>
+                                </table>
+                                ${renderPagination}
+                            </div>
+                    ${qqClose}
+
+                    render${singularName} :: ${singularName} -> Html
+                    render${singularName} ${singularVariableName} = [hsx|
+                        <tr>
+                            <td>{${singularVariableName}}</td>
+                            <td><a href={Show${singularName}Action (get #id ${singularVariableName})}>Show</a></td>
+                            <td><a href={Edit${singularName}Action (get #id ${singularVariableName})} class="text-muted">Edit</a></td>
+                            <td><a href={Delete${singularName}Action (get #id ${singularVariableName})} class="js-delete text-muted">Delete</a></td>
+                        </tr>
+                ${qqClose}
+
+            |]
+                where
+                    importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
+                    renderPagination = if paginationEnabled then "{renderPagination pagination}" else ""
+
+
+
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
         in
             [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
