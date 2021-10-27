@@ -207,15 +207,15 @@ buildPlan' schema config =
                             <td><a href={Delete${singularName}Action (get #id ${singularVariableName})} class="js-delete text-muted">Delete</a></td>
                         </tr>
                 ${qqClose}
+                    where
+                        breadcrumbs = renderBreadcrumbs
+                            [ BreadcrumbsItem { label = pluralName, url =  Just $ pathTo indexAction , isActive = True}
+                            ]
 
             |]
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
                     renderPagination = if paginationEnabled then "{renderPagination pagination}" else ""
-
-                    breadcrumbs = renderBreadcrumbs
-                        [ BreadcrumbsItem { label = pluralName, url =  Just $ pathTo indexAction , isActive = True}
-                        ]
 
 
 
