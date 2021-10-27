@@ -66,6 +66,7 @@ buildPlan' schema config =
                     |> head
                     |> fromMaybe []
 
+            qqClose = "|]"
 
             viewHeader = [text|
                 module ${qualifiedViewModuleName config nameWithoutSuffix} where
@@ -85,7 +86,7 @@ buildPlan' schema config =
                         </ol>
                     </nav>
                     <h1>${nameWithSuffix}</h1>
-                |]
+                ${qqClose}
             |]
 
 
