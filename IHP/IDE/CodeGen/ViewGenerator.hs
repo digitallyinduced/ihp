@@ -175,10 +175,6 @@ buildPlan' schema config =
                                 ]
             |]
 
-
-
-
-
             indexView = [trimming|
                 ${viewHeader}
 
@@ -187,26 +183,21 @@ buildPlan' schema config =
 
                 instance View IndexView where
                     html IndexView { .. } = [hsx|
-                <> "        <nav>\n"
-                <> "            <ol class=\"breadcrumb\">\n"
-                <> "                <li class=\"breadcrumb-item active\"><a href={" <> indexAction <> "}>" <> pluralName <> "</a></li>\n"
-                <> "            </ol>\n"
-                <> "        </nav>\n"
-                            <h1>${nameWithoutSuffix}<a href={pathTo New${singularName}Action} class="btn btn-primary ml-4">+ New</a></h1>
-                            <div class="table-responsive">
-                                <table class="table">
-                                    <thead>
-                                        <tr>
-                                            <th>${singularName}</th>
-                                            <th></th>
-                                            <th></th>
-                                            <th></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>{forEach ${pluralVariableName} render${singularName}}</tbody>
-                                </table>
-                                ${renderPagination}
-                            </div>
+                        <h1>${nameWithoutSuffix}<a href={pathTo New${singularName}Action} class="btn btn-primary ml-4">+ New</a></h1>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>${singularName}</th>
+                                        <th></th>
+                                        <th></th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>{forEach ${pluralVariableName} render${singularName}}</tbody>
+                            </table>
+                            ${renderPagination}
+                        </div>
                     ${qqClose}
                         where
                             breadcrumbs = renderBreadcrumbs
@@ -227,8 +218,6 @@ buildPlan' schema config =
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
                     renderPagination = if paginationEnabled then "{renderPagination pagination}" else ""
-
-
 
 
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
