@@ -42,11 +42,12 @@ tests = do
             let config = ViewGenerator.ViewConfig { .. }
             let builtPlan = ViewGenerator.buildPlan' schema config
 
-            builtPlan `shouldBe` [
-                  EnsureDirectory {directory = "Web/View/Pages"}
-                , CreateFile {filePath = "Web/View/Pages/Edit.hs", fileContent = "module Web.View.Pages.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { page :: Page }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        {breadcrumbs}\n        <h1>Edit Page</h1>\n        {renderForm page}\n\n    renderForm :: Page -> Html\n    renderForm page = formFor page [hsx|\n        \n        {submitButton}\n    \n    |]\n\n    |]\n        where\n            breadcrumbs = renderBreadcrumbs\n                [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }\n                , BreadcrumbsItem { label = [hsx|Edit {singularName}|], url = Nothing , isActive = True}\n                ]"}
+            builtPlan `shouldBe`
+                [ EnsureDirectory {directory = "Web/View/Pages"}
+                , CreateFile {filePath = "Web/View/Pages/Edit.hs", fileContent = "module Web.View.Pages.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { page :: Page }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        {breadcrumbs}\n        <h1>Edit Page</h1>\n        {renderForm page}\n    |]\n        where\n            breadcrumbs = renderBreadcrumbs\n                [ BreadcrumbsItem { label = \"Pages\", url = Just $ pathTo PagesAction, isActive = False }\n                , BreadcrumbsItem { label = [hsx|Edit Page|], url = Nothing , isActive = True}\n                ]\n\nrenderForm :: Page -> Html\nrenderForm page = formFor page [hsx|\n    \n    {submitButton}\n\n|]"}
                 , AddImport {filePath = "Web/Controller/Pages.hs", fileContent = "import Web.View.Pages.Edit"}
                 ]
+
 
         it "should build a view with name \"Edit\"" do
             let viewName = "Edit"
@@ -58,9 +59,9 @@ tests = do
             let config = ViewGenerator.ViewConfig { .. }
             let builtPlan = ViewGenerator.buildPlan' schema config
 
-            builtPlan `shouldBe` [
-                  EnsureDirectory {directory = "Web/View/Pages"}
-                , CreateFile {filePath = "Web/View/Pages/Edit.hs", fileContent = "module Web.View.Pages.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { page :: Page }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        {breadcrumbs}\n        <h1>Edit Page</h1>\n        {renderForm page}\n\n    renderForm :: Page -> Html\n    renderForm page = formFor page [hsx|\n        \n        {submitButton}\n    \n    |]\n\n    |]\n        where\n            breadcrumbs = renderBreadcrumbs\n                [ BreadcrumbsItem { label = pluralName, url = Just $ pathTo indexAction, isActive = False }\n                , BreadcrumbsItem { label = [hsx|Edit {singularName}|], url = Nothing , isActive = True}\n                ]"}
+            builtPlan `shouldBe`
+                [ EnsureDirectory {directory = "Web/View/Pages"}
+                , CreateFile {filePath = "Web/View/Pages/Edit.hs", fileContent = "module Web.View.Pages.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { page :: Page }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        {breadcrumbs}\n        <h1>Edit Page</h1>\n        {renderForm page}\n    |]\n        where\n            breadcrumbs = renderBreadcrumbs\n                [ BreadcrumbsItem { label = \"Pages\", url = Just $ pathTo PagesAction, isActive = False }\n                , BreadcrumbsItem { label = [hsx|Edit Page|], url = Nothing , isActive = True}\n                ]\n\nrenderForm :: Page -> Html\nrenderForm page = formFor page [hsx|\n    \n    {submitButton}\n\n|]"}
                 , AddImport {filePath = "Web/Controller/Pages.hs", fileContent = "import Web.View.Pages.Edit"}
                 ]
 
@@ -76,6 +77,6 @@ tests = do
 
             builtPlan `shouldBe` [
                   EnsureDirectory {directory = "Web/View/Pages"}
-                , CreateFile {filePath = "Web/View/Pages/Test.hs", fileContent = "module Web.View.Pages.Test where\nimport Web.View.Prelude\ndata TestView = {TestView}\n\ninstance View TestView where\n    html TestView { .. } = [hsx|\n        {breadcrumbs}\n        <h1>TestView</h1>\n        |]\n            where\n                breadcrumbs = renderBreadcrumbs\n                                [ BreadcrumbsItem { label = pluralize name, url = Just $ pathTo indexAction, isActive = False }\n                                , BreadcrumbsItem { label = nameWithSuffix, url = Nothing , isActive = True}\n                                ]"}
+                , CreateFile {filePath = "Web/View/Pages/Test.hs", fileContent = "module Web.View.Pages.Test where\nimport Web.View.Prelude\ndata TestView = {TestView}\n\ninstance View TestView where\n    html TestView { .. } = [hsx|\n        {breadcrumbs}\n        <h1>TestView</h1>\n        |]\n            where\n                breadcrumbs = renderBreadcrumbs\n                                [ BreadcrumbsItem { label = \"Tests\", url = Just $ pathTo PagesAction, isActive = False }\n                                , BreadcrumbsItem { label = \"TestView\", url = Nothing , isActive = True}\n                                ]"}
                 , AddImport {filePath = "Web/Controller/Pages.hs", fileContent = "import Web.View.Pages.Test"}
                 ]
