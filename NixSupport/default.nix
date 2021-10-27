@@ -38,8 +38,16 @@ in
 
           make ${appBinary}
 
+          # Build job runner if there are any jobs
           if find -type d -iwholename \*/Job|grep .; then
             make ${jobsBinary};
+          fi;
+
+          # Build all scripts if there are any
+          mkdir -p Application/Script
+          SCRIPT_TARGETS=`find Application/Script -type f -iwholename '*.hs' -not -name 'Prelude.hs' -exec basename {} .hs ';' | sed 's#^#build/bin/Script/#' | tr "\n" " "`
+          if [[ ! -z "$SCRIPT_TARGETS" ]]; then
+            make $SCRIPT_TARGETS;
           fi;
         '';
         installPhase = ''
@@ -50,10 +58,18 @@ in
           INPUT_HASH="$((basename $out) | cut -d - -f 1)"
           makeWrapper $out/bin/RunProdServerWithoutOptions $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
+          # Copy job runner binary to bin/ if we built it
           if [ -f ${jobsBinary} ]; then
             mv ${jobsBinary} $out/bin/RunJobsWithoutOptions;
             makeWrapper $out/bin/RunJobsWithoutOptions $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
           fi;
+
+          # Copy IHP Script binaries to bin/
+          SCRIPT_BINARIES=`find build/bin/Script/ -type f -exec basename {} ';'`
+          for SCRIPT_BINARY in "$SCRIPT_BINARIES"
+          do
+            mv "build/bin/Script/$SCRIPT_BINARY" "$out/bin/$SCRIPT_BINARY";
+          done
 
           mkdir -p "$out/lib/build"
           cp -R "${ihp}/lib/IHP" "$out/lib/build/ihp-lib"
