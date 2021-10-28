@@ -27,7 +27,7 @@ import IHP.View.CSSFramework
 -- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
-renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {renderedHtml} |]
+renderPagination pagination@Pagination {currentPage, window, pageSize} = styledPagination theCSSFramework theCSSFramework paginationView
         where
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
@@ -38,8 +38,6 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
                 , pageDotDotItems = pageDotDotItems
                 , itemsPerPageSelector = itemsPerPageSelector
                 }
-
-            renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
 
             linkPrevious =
                 styledPaginationLinkPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)

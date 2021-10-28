@@ -13,18 +13,25 @@ import IHP.HSX.QQ (hsx)
 
 import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumbs, styledBreadcrumbItem)
 import IHP.ViewSupport (theCSSFramework)
+import IHP.ControllerPrelude
 
 -- | Render breadcrumbs.
 renderBreadcrumbs :: (?context::ControllerContext) => [BreadcrumbItem] -> Html
-renderBreadcrumbs breadcrumbItems = [hsx| {renderedHtml} |]
+renderBreadcrumbs breadcrumbItems = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
         where
             breadcrumbsView = BreadcrumbsView
                 { cssFramework = theCSSFramework
                 , breadcrumbItems = breadcrumbItemsRendered
                 }
 
-            renderedHtml = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
-
             breadcrumbItemsRendered =  [hsx|{forEach breadcrumbItems (styledBreadcrumbItem theCSSFramework theCSSFramework breadcrumbItems)}|]
 
 
+breadcrumbWithLink :: (Show controller, AutoRoute controller) => Html -> controller -> BreadcrumbItem
+breadcrumbWithLink label route =
+    BreadcrumbItem { label = label, url = Just $ pathTo route }
+
+
+breadcrumbWithoutLink :: Html -> BreadcrumbItem
+breadcrumbWithoutLink label =
+        BreadcrumbItem { label = label, url = Nothing }
