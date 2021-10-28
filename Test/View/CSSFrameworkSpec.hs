@@ -214,28 +214,28 @@ tests = do
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
             describe "breadcrumbs" do
-                it "should render a breadcrumbs item with no link" do
+                it "should render a breadcrumb item with no link" do
                     let breadcrumbItem = breadcrumbWithoutLink "First item"
                     let breadcrumbs = [breadcrumbItem]
 
-                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
 
-                it "should render a breadcrumbs item with external link" do
+                it "should render a breadcrumb item with external link" do
                     let breadcrumbItem = breadcrumbWithExternalLink "First item" "https://example.com"
                     let breadcrumbs = [breadcrumbItem]
 
-                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\"><a href=\"https://example.com\">First item</a></li>"
 
-                it "should render a last breadcrumbs item as active" do
+                it "should render a last breadcrumb item as active" do
                     let breadcrumbItem = breadcrumbWithoutLink "Last item"
                     let breadcrumbs =
                             [ breadcrumbWithoutLink "First item"
                             , breadcrumbItem
                             ]
 
-                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">Last item</li>"
 
-                it "should render the wrapping breadcrumbs" do
+                it "should render the wrapping breadcrumb" do
                     let breadcrumbItem = breadcrumbWithoutLink "First item"
                     let breadcrumbs = [breadcrumbItem]
                     let breadcrumbsView = BreadcrumbsView
@@ -247,7 +247,7 @@ tests = do
 
                 it "should support show of BreadcrumbItem" do
                     let breadcrumbItem = breadcrumbWithoutLink "First item"
-                    show breadcrumbItem `shouldBe` "{ label = \"First item\", url = Nothing, isActive = False }"
+                    show breadcrumbItem `shouldBe` "{ label = \"First item\", url = Nothing }"
 
 
 
