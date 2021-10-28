@@ -90,8 +90,8 @@ buildPlan' schema config =
                         ${qqClose}
                             where
                                 breadcrumb = renderBreadcrumb
-                                                [ breadcrumbWithLink ${pluralizedName} ${indexAction}
-                                                , breadcrumbWithoutLink ${nameWithSuffix}
+                                                [ breadcrumbWithLink "${pluralizedName}" ${indexAction}
+                                                , breadcrumbWithoutLink "${nameWithSuffix}"
                                                 ]
             |]
                 where
@@ -112,7 +112,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumb = renderBreadcrumb
-                                            [ breadcrumbWithLink ${pluralName} ${indexAction}
+                                            [ breadcrumbWithLink "${pluralName}" ${indexAction}
                                             , breadcrumbWithoutLink [hsx|Show ${singularName}${qqClose}
                                             ]
             |]
@@ -144,7 +144,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumb = renderBreadcrumb
-                                [ breadcrumbWithLink ${pluralName} ${indexAction}
+                                [ breadcrumbWithLink "${pluralName}" ${indexAction}
                                 , breadcrumbWithoutLink [hsx|New ${singularName}${qqClose}
                                 ]
 
@@ -164,7 +164,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumb = renderBreadcrumb
-                                [ breadcrumbWithLink ${pluralName} ${indexAction}
+                                [ breadcrumbWithLink "${pluralName}" ${indexAction}
                                 , breadcrumbWithoutLink [hsx|New ${singularName}${qqClose}
                                 ]
 
@@ -198,7 +198,7 @@ buildPlan' schema config =
                     ${qqClose}
                         where
                             breadcrumb = renderBreadcrumb
-                                [ breadcrumbWithLink ${pluralName} ${indexAction}
+                                [ breadcrumbWithLink "${pluralName}" ${indexAction}
                                 ]
 
                 render${singularName} :: ${singularName} -> Html
