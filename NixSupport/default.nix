@@ -65,11 +65,11 @@ in
           fi;
 
           # Copy IHP Script binaries to bin/
-          SCRIPT_BINARIES=`find build/bin/Script/ -type f -exec basename {} ';'`
-          for SCRIPT_BINARY in "$SCRIPT_BINARIES"
-          do
-            mv "build/bin/Script/$SCRIPT_BINARY" "$out/bin/$SCRIPT_BINARY";
-          done
+          find build/bin/Script/ -type f -print0 |
+            while read -d $'\0' script; do
+              script_basename=$(basename "$script")
+              mv "build/bin/Script/$script_basename" "$out/bin/$script_basename";
+            done
 
           mkdir -p "$out/lib/build"
           cp -R "${ihp}/lib/IHP" "$out/lib/build/ihp-lib"
