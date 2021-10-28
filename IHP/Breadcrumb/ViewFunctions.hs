@@ -1,6 +1,6 @@
 module IHP.Breadcrumb.ViewFunctions (
     module IHP.Breadcrumb.Types,
-    renderBreadcrumbs,
+    renderBreadcrumb,
 ) where
 
 import IHP.Prelude
@@ -15,9 +15,8 @@ import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumbs, styledBreadcrumbI
 import IHP.ViewSupport (theCSSFramework)
 import IHP.ControllerPrelude
 
--- | Render breadcrumbs.
-renderBreadcrumbs :: (?context::ControllerContext) => [BreadcrumbItem] -> Html
-renderBreadcrumbs breadcrumbItems = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
+renderBreadcrumb :: (?context::ControllerContext) => [BreadcrumbItem] -> Html
+renderBreadcrumb breadcrumbItems = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
         where
             breadcrumbsView = BreadcrumbsView
                 { cssFramework = theCSSFramework

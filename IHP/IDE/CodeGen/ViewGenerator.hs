@@ -85,11 +85,11 @@ buildPlan' schema config =
 
                 instance View ${nameWithSuffix} where
                     html ${nameWithSuffix} { .. } = [hsx|
-                        {breadcrumbs}
+                        {breadcrumb}
                         <h1>${nameWithSuffix}</h1>
                         ${qqClose}
                             where
-                                breadcrumbs = renderBreadcrumbs
+                                breadcrumb = renderBreadcrumb
                                                 [ breadcrumbWithLink ${pluralizedName} ${indexAction}
                                                 , breadcrumbWithoutLink ${nameWithSuffix}
                                                 ]
@@ -105,13 +105,13 @@ buildPlan' schema config =
 
                 instance View ShowView where
                     html ShowView { .. } = [hsx|
-                        {breadcrumbs}
+                        {breadcrumb}
                         <h1>Show ${singularName}</h1>
                         <p>{${singularVariableName}}</p>
 
                     ${qqClose}
                         where
-                            breadcrumbs = renderBreadcrumbs
+                            breadcrumb = renderBreadcrumb
                                             [ breadcrumbWithLink ${pluralName} ${indexAction}
                                             , breadcrumbWithoutLink [hsx|Show ${singularName}${qqClose}
                                             ]
@@ -138,12 +138,12 @@ buildPlan' schema config =
 
                 instance View NewView where
                     html NewView { .. } = [hsx|
-                        {breadcrumbs}
+                        {breadcrumb}
                         <h1>New ${singularName}</h1>
                         {renderForm ${singularVariableName}}
                     ${qqClose}
                         where
-                            breadcrumbs = renderBreadcrumbs
+                            breadcrumb = renderBreadcrumb
                                 [ breadcrumbWithLink ${pluralName} ${indexAction}
                                 , breadcrumbWithoutLink [hsx|New ${singularName}${qqClose}
                                 ]
@@ -158,12 +158,12 @@ buildPlan' schema config =
 
                 instance View EditView where
                     html EditView { .. } = [hsx|
-                        {breadcrumbs}
+                        {breadcrumb}
                         <h1>Edit ${singularName}</h1>
                         {renderForm ${singularVariableName}}
                     ${qqClose}
                         where
-                            breadcrumbs = renderBreadcrumbs
+                            breadcrumb = renderBreadcrumb
                                 [ breadcrumbWithLink ${pluralName} ${indexAction}
                                 , breadcrumbWithoutLink [hsx|New ${singularName}${qqClose}
                                 ]
@@ -178,6 +178,8 @@ buildPlan' schema config =
 
                 instance View IndexView where
                     html IndexView { .. } = [hsx|
+                        {breadcrumb}
+
                         <h1>${nameWithoutSuffix}<a href={pathTo New${singularName}Action} class="btn btn-primary ml-4">+ New</a></h1>
                         <div class="table-responsive">
                             <table class="table">
@@ -195,7 +197,7 @@ buildPlan' schema config =
                         </div>
                     ${qqClose}
                         where
-                            breadcrumbs = renderBreadcrumbs
+                            breadcrumb = renderBreadcrumb
                                 [ breadcrumbWithLink ${pluralName} ${indexAction}
                                 ]
 
