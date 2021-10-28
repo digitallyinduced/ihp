@@ -128,7 +128,7 @@ buildPlan' schema config =
             |]
                 where
                     formFields =
-                        intercalate "\n" (map (\field -> "    {(textField #" <> field <> ")}") modelFields)
+                        intercalate "\n" (map (\field -> "{(textField #" <> field <> ")}") modelFields)
 
 
             newView = [trimming|
