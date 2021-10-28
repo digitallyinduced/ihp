@@ -22,7 +22,7 @@ import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
 import IHP.ModelSupport (Violation)
-import IHP.Breadcrumbs.Types
+import IHP.Breadcrumb.Types
 import IHP.Pagination.Types
 
 

@@ -1,10 +1,10 @@
-module IHP.Breadcrumbs.ViewFunctions (
-    module IHP.Breadcrumbs.Types,
+module IHP.Breadcrumb.ViewFunctions (
+    module IHP.Breadcrumb.Types,
     renderBreadcrumbs,
 ) where
 
 import IHP.Prelude
-import IHP.Breadcrumbs.Types
+import IHP.Breadcrumb.Types
 
 import IHP.ControllerSupport
 

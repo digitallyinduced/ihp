@@ -1,4 +1,4 @@
-module IHP.Breadcrumbs.Types where
+module IHP.Breadcrumb.Types where
 
 import IHP.Prelude
 import Text.Blaze.Html (Html)

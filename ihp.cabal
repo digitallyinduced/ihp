@@ -275,8 +275,8 @@ library
         , IHP.ServerSideComponent.Controller.ComponentsController
         , IHP.ServerSideComponent.HtmlDiff
         , IHP.ServerSideComponent.HtmlParser
-        , IHP.Breadcrumbs.Types
-        , IHP.Breadcrumbs.ViewFunctions
+        , IHP.Breadcrumb.Types
+        , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config

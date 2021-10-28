@@ -17,7 +17,7 @@ import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!), (!?))
 import qualified Text.Blaze.Html5.Attributes as A
 import IHP.ModelSupport
-import IHP.Breadcrumbs.Types
+import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import IHP.View.Types (PaginationView(linkPrevious, pagination))
@@ -463,7 +463,7 @@ tailwind = def
 
         styledBreadcrumbs :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
         styledBreadcrumbs _ _ breadcrumbsView = [hsx|
-            <nav class="breadcrumbs bg-gray-50 px-6 py-4 mb-6" aria-label="Breadcrumb">
+            <nav class="breadcrumbs bg-white my-4" aria-label="Breadcrumb">
                 <ol class="flex items-center space-x-2" role="list">
                     {get #breadcrumbItems breadcrumbsView}
                 </ol>
@@ -474,12 +474,12 @@ tailwind = def
         styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Blaze.Html
         styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url, isActive} =
             let
-                breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-400 items-center", ("active", isActive)]
+                breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-600 items-center", ("active", isActive)]
 
                 -- Show chevron if item isn't the active one (i.e. the last one).
                 chevronRight = when (not isActive) [hsx|
                 <!-- heroicons.com chevron-right -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
                 |]
@@ -493,7 +493,7 @@ tailwind = def
                 |]
                 Just url -> [hsx|
                     <li class={breadcrumbsClasses}>
-                        <a class="hover:text-gray-500" href={url}>{label}</a>
+                        <a class="hover:text-gray-700" href={url}>{label}</a>
                         {chevronRight}
                     </li>
                     |]

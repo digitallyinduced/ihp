@@ -14,7 +14,7 @@ import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H
 import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
-import IHP.Breadcrumbs.Types
+import IHP.Breadcrumb.Types
 import IHP.Pagination.Types
 import qualified IHP.ControllerPrelude as Text
 
