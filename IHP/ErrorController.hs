@@ -8,6 +8,7 @@ module IHP.ErrorController
 , handleNoResponseReturned
 , handleNotFound
 , handleRouterException
+, buildNotFoundResponse
 ) where
 
 import IHP.Prelude hiding (displayException)
@@ -55,16 +56,19 @@ handleNoResponseReturned controller = do
 -- | Renders a 404 not found response. If a static/404.html exists, that is rendered instead of the IHP not found page
 handleNotFound :: (?context :: RequestContext) => IO ResponseReceived
 handleNotFound = do
-    hasCustomNotFound <- Directory.doesFileExist "static/404.html"
-    response <- if hasCustomNotFound
-            then customNotFoundResponse
-            else pure defaultNotFoundResponse
-
+    response <- buildNotFoundResponse
     let RequestContext { respond } = ?context
     respond response
 
+buildNotFoundResponse :: forall context. (?context :: context, ConfigProvider context) => IO Response
+buildNotFoundResponse = do
+    hasCustomNotFound <- Directory.doesFileExist "static/404.html"
+    if hasCustomNotFound
+        then customNotFoundResponse
+        else pure defaultNotFoundResponse
+
 -- | The default IHP 404 not found page
-defaultNotFoundResponse :: (?context :: RequestContext) => Response
+defaultNotFoundResponse :: forall context. (?context :: context, ConfigProvider context) => Response
 defaultNotFoundResponse = do
     let errorMessage = [hsx|Router failed to find an action to handle this request.|]
     let title = H.text "Action Not Found"

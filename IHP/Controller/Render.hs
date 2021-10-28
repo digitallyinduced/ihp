@@ -20,6 +20,7 @@ import IHP.Controller.Layout
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
+import qualified IHP.ErrorController as ErrorController
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
@@ -89,9 +90,19 @@ renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINABLE renderJson' #-}
 
+-- | Render's a generic not found page
+--
+-- This can be useful e.g. when an entity cannot be found:
+--
+-- > action ExampleAction = do
+-- >     renderNotFound
+--
+-- You can override the default not found error page by creating a new file at @static/404.html@. Then IHP will render that HTML file instead of displaying the default IHP not found page.
+--
 renderNotFound :: (?context :: ControllerContext) => IO ()
-renderNotFound = renderPlain "Not Found"
-{-# INLINABLE renderNotFound #-}
+renderNotFound = do
+    response <- ErrorController.buildNotFoundResponse
+    respondAndExit response
 
 data PolymorphicRender
     = PolymorphicRender
