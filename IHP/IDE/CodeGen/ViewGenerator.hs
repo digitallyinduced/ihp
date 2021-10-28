@@ -165,7 +165,7 @@ buildPlan' schema config =
                         where
                             breadcrumb = renderBreadcrumb
                                 [ breadcrumbWithLink "${pluralName}" ${indexAction}
-                                , breadcrumbWithoutLink [hsx|New ${singularName}${qqClose}
+                                , breadcrumbWithoutLink [hsx|Edit ${singularName}${qqClose}
                                 ]
 
                 ${renderForm}
