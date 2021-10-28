@@ -2,6 +2,7 @@ module IHP.Breadcrumb.ViewFunctions (
     module IHP.Breadcrumb.Types,
     renderBreadcrumb,
     breadcrumbWithLink,
+    breadcrumbWithExternalLink,
     breadcrumbWithoutLink,
 ) where
 
@@ -29,7 +30,12 @@ renderBreadcrumb breadcrumbItems = styledBreadcrumbs theCSSFramework theCSSFrame
 
 breadcrumbWithLink :: (Show controller, AutoRoute controller) => Html -> controller -> BreadcrumbItem
 breadcrumbWithLink label route =
-    BreadcrumbItem { label = label, url = Just $ pathTo route }
+    breadcrumbWithExternalLink label (pathTo route)
+
+breadcrumbWithExternalLink :: Html -> Text -> BreadcrumbItem
+breadcrumbWithExternalLink label url =
+    BreadcrumbItem { label = label, url = Just url }
+
 
 
 breadcrumbWithoutLink :: Html -> BreadcrumbItem

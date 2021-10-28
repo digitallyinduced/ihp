@@ -15,7 +15,7 @@ import qualified Text.Blaze.Html5 as H
 import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
 import IHP.Breadcrumb.Types
-import IHP.Breadcrumb.ViewFunctions (breadcrumbWithLink, breadcrumbWithoutLink)
+import IHP.Breadcrumb.ViewFunctions (breadcrumbWithLink, breadcrumbWithExternalLink, breadcrumbWithoutLink)
 import IHP.Pagination.Types
 import qualified IHP.Prelude as Text ( isInfixOf )
 
@@ -214,19 +214,17 @@ tests = do
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
             describe "breadcrumbs" do
-
                 it "should render a breadcrumbs item with no link" do
                     let breadcrumbItem = breadcrumbWithoutLink "First item"
                     let breadcrumbs = [breadcrumbItem]
 
                     styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
 
-                -- it "should render a breadcrumbs item with link" do
-                --     let breadcrumbItem = breadcrumbWithLink "First item"
-                --     let breadcrumbs = [breadcrumbItem]
+                it "should render a breadcrumbs item with external link" do
+                    let breadcrumbItem = breadcrumbWithExternalLink "First item" "https://example.com"
+                    let breadcrumbs = [breadcrumbItem]
 
-
-                --     styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item\"><a href=\"https://example.com\">First item</a></li>"
 
                 it "should render a last breadcrumbs item as active" do
                     let breadcrumbItem = breadcrumbWithoutLink "Last item"
