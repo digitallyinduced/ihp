@@ -49,7 +49,7 @@ instance Default CSSFramework where
                 , styledPaginationItemsPerPageSelector
                 , styledPaginationLinkPrevious
                 , styledPaginationLinkNext
-                , styledBreadcrumbs
+                , styledBreadcrumb
                 , styledBreadcrumbItem
             }
         where
@@ -243,8 +243,8 @@ instance Default CSSFramework where
                         </li>
                     |]
 
-            styledBreadcrumbs :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
-            styledBreadcrumbs _ _ breadcrumbsView = [hsx|
+            styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+            styledBreadcrumb _ _ breadcrumbsView = [hsx|
                 <nav>
                     <ol class="breadcrumb">
                         {get #breadcrumbItems breadcrumbsView}
@@ -309,7 +309,7 @@ tailwind = def
     , styledPaginationPageLink
     , styledPaginationDotDot
     , styledPaginationItemsPerPageSelector
-    , styledBreadcrumbs
+    , styledBreadcrumb
     , styledBreadcrumbItem
     }
     where
@@ -464,8 +464,8 @@ tailwind = def
                 [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
 
-        styledBreadcrumbs :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
-        styledBreadcrumbs _ _ breadcrumbsView = [hsx|
+        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+        styledBreadcrumb _ _ breadcrumbsView = [hsx|
             <nav class="breadcrumbs bg-white my-4" aria-label="Breadcrumb">
                 <ol class="flex items-center space-x-2" role="list">
                     {get #breadcrumbItems breadcrumbsView}

@@ -243,7 +243,7 @@ tests = do
                             , breadcrumbItems = mempty
                             }
 
-                    styledBreadcrumbs cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
+                    styledBreadcrumb cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
 
                 it "should support show of BreadcrumbItem" do
                     let breadcrumbItem = breadcrumbWithoutLink "First item"

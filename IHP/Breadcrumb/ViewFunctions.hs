@@ -13,12 +13,12 @@ import IHP.ControllerSupport
 
 import Text.Blaze.Html (Html)
 
-import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumbs, styledBreadcrumbItem)
+import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumb, styledBreadcrumbItem)
 import IHP.ViewSupport (theCSSFramework)
 import IHP.ControllerPrelude
 
 renderBreadcrumb :: (?context::ControllerContext) => [BreadcrumbItem] -> Html
-renderBreadcrumb breadcrumbItems = styledBreadcrumbs theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
+renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
         where
             breadcrumbsView = BreadcrumbsView
                 { cssFramework = theCSSFramework
