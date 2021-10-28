@@ -65,6 +65,7 @@ in
           fi;
 
           # Copy IHP Script binaries to bin/
+          mkdir -p build/bin/Script
           find build/bin/Script/ -type f -print0 |
             while read -d $'\0' script; do
               script_basename=$(basename "$script")
