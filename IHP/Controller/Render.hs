@@ -112,15 +112,15 @@ data PolymorphicRender
 
 -- | Can be used to render different responses for html, json, etc. requests based on `Accept` header
 -- Example:
--- `
--- show :: Action
--- show = do
---     renderPolymorphic polymorphicRender {
---         html = renderHtml [hsx|<div>Hello World</div>|]
---         json = renderJson True
---     }
--- `
--- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
+-- 
+-- > show :: Action
+-- > show = do
+-- >     renderPolymorphic polymorphicRender {
+-- >         html = renderHtml [hsx|<div>Hello World</div>|]
+-- >         json = renderJson True
+-- >     }
+--
+-- This will render @Hello World@ for normal browser requests and @true@ when requested via an ajax request
 {-# INLINABLE renderPolymorphic #-}
 renderPolymorphic :: (?context :: ControllerContext) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
