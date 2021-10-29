@@ -77,4 +77,4 @@ search.css: search/node_modules
 	./search/node_modules/.bin/esbuild search/node_modules/@docsearch/css/dist/style.css --minify-whitespace --outfile=search.css
 
 guide.tar.gz: all
-	tar -czvf guide.tar.gz $(HTML_FILES) bootstrap.css instantclick.js search.js search.css
+	tar -czvf guide.tar.gz *.html *.css *.js images/* images/*/*
