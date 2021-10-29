@@ -83,7 +83,8 @@ watchForJob tableName pollInterval handleJob = do
     poller <- pollForJob tableName pollInterval handleJob
 
     -- When the watcher is stopped, we also want to stop the poller
-    Async.link2Only (const True) watcher poller
+    Async.link watcher
+    Async.link poller
 
     pure watcher
 

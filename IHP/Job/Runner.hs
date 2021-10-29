@@ -21,7 +21,13 @@ import qualified System.Timeout as Timeout
 import qualified Control.Concurrent.Async.Pool as Pool
 
 runJobWorkers :: [JobWorker] -> Script
-runJobWorkers jobWorkers = do
+runJobWorkers jobWorkers = runJobWorkersWithExitHandler jobWorkers waitExitHandler
+
+runJobWorkersKillOnExit :: [JobWorker] -> Script
+runJobWorkersKillOnExit jobWorkers = runJobWorkersWithExitHandler jobWorkers stopExitHandler
+
+runJobWorkersWithExitHandler :: [JobWorker] -> (JobWorkerArgs -> IO () -> IO ()) -> Script
+runJobWorkersWithExitHandler jobWorkers withExitHandler = do
     workerId <- UUID.nextRandom
     allJobs <- newIORef []
     let oneSecond = 1000000
@@ -30,8 +36,16 @@ runJobWorkers jobWorkers = do
 
     let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context}
 
+    withExitHandler jobWorkerArgs do
+        listenAndRuns <- jobWorkers
+            |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
+
+        forEach listenAndRuns Async.link
+
+        pure ()
+
+waitExitHandler JobWorkerArgs { .. } main = do
     threadId <- Concurrent.myThreadId
-    jobWorkersLoops <- Concurrent.newEmptyMVar
     exitSignalsCount <- newIORef 0
     let catchHandler = do
             exitSignalsCount' <- readIORef exitSignalsCount
@@ -52,8 +66,6 @@ runJobWorkers jobWorkers = do
                         putStrLn "Canceling all running jobs. CTRL+C again to force exit"
                         forEach allJobs' Pool.cancel
 
-                        loops <- Concurrent.readMVar jobWorkersLoops
-                        forEach loops Async.cancel
                         Concurrent.throwTo threadId Exit.ExitSuccess
                 else Concurrent.throwTo threadId Exit.ExitSuccess
 
@@ -61,15 +73,12 @@ runJobWorkers jobWorkers = do
     Signals.installHandler Signals.sigINT (Signals.Catch catchHandler) Nothing
     Signals.installHandler Signals.sigTERM (Signals.Catch catchHandler) Nothing
 
-    listenAndRuns <- jobWorkers
-        |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
-
-    Concurrent.putMVar jobWorkersLoops listenAndRuns
-
-    Async.waitAnyCancel listenAndRuns
+    main
 
     pure ()
 
+
+stopExitHandler JobWorkerArgs { .. } main = main
 
 worker :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
@@ -132,7 +141,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
                                     putStrLn ("Starting job: " <> tshow job)
                                     let ?job = job
                                     let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                                    resultOrException <- Exception.try (Timeout.timeout timeout $ restore (perform job))
+                                    resultOrException <- Exception.try (Timeout.timeout timeout (restore (perform job)))
                                     case resultOrException of
                                         Left exception -> Queue.jobDidFail job exception
                                         Right Nothing -> Queue.jobDidTimeout job
@@ -140,6 +149,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
                                     startLoop
                                 Nothing -> pure ()
+                    Pool.link asyncJob
                     modifyIORef allJobs (asyncJob:)
 
             -- Start all jobs in the queue
