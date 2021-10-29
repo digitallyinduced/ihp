@@ -116,8 +116,56 @@ data PaginationView =
     }
 
 -- | Render functions to render with Bootstrap, Tailwind CSS etc.
+-- We call this functions with the cssFramework passed to have late binding (like from OOP languages).
+-- Here's an explanation breaking it down, step by step
 --
--- We call this functions with the cssFramework passed to have late binding (like from OOP languages)
+-- > renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
+--
+-- Can also be written using get:
+--
+-- > renderedHtml = (get #styledPagination theCSSFramework) theCSSFramework paginationView
+--
+-- That's important to understand here. We get a 'styledPagination' function using 'get #styledPagination theCSSFramework'.
+-- Next, we apply 'theCSSFramework' to that function. We do that so because the 'styledPagination' function internally
+-- might want to call other functions of the CSSFramework type. But we might want to override some functions of the CSSFramework.
+--
+-- Here's an example of how it would look if we don't pass this a second time, and it's shortcomings.
+-- Let's assume 'styledPagination' is calling a 'styledButton':
+--
+-- > data CSSFramework = CSSFramework { styledPagination :: Html, styledButton :: Html }
+-- >
+-- > bootstrapCSS = CSSFramework { styledPagination, styledButton }
+-- >    where
+-- >        styledPagination = [hsx|<div>{styledButton}</div>|]
+-- >        styledButton = [hsx|<button style="color: red">button</button>|]]
+-- >
+-- > myPage = [hsx|{styledPagination bootstrapCSS}|]
+--
+-- So far all seems fine. But now let's say we would like to override the button styling, and change the button to green instead of red:
+--
+-- > customCSS = bootstrapCSS { styledButton = [hsx|<button style="color: green">button</button>|]]  }
+-- >
+-- > myPage = [hsx|{styledPagination customCSS}|]
+--
+-- Now, when we render the 'myPage' we will get '<div><button style="color: red">button</button></div>' (a red button, while our customCSS specified it should be green).
+--
+-- Our way to fix this is to "late-bind" the calls, by manually passing around a CSSFramework. Here we added that second 'CSSFramework' to all functions. 
+-- Notice how 'styledPagination' is getting the correct 'styledButton' by calling 'get #styledButton cssFramework':
+--
+-- > data CSSFramework = CSSFramework { styledPagination :: CSSFramework -> Html, styledButton :: CSSFramework -> Html }
+-- >
+-- > bootstrapCSS = CSSFramework { styledPagination, styledButton }
+-- >    where
+-- >        styledPagination cssFramework = [hsx|<div>{get #styledButton cssFramework}</div>|]
+-- >        styledButton cssFramework = [hsx|<button style="color: red">button</button>|]]
+-- >
+-- > myPage = [hsx|{styledPagination bootstrapCSS bootstrapCSS}|]
+-- 
+-- Now, with this second 'CSSFramework' in place we can customize it again:
+-- 
+-- > customCSS = bootstrapCSS { styledButton = \cssFramework -> [hsx|<button style="color: green">button</button>|]]  }
+-- > 
+-- > myPage = [hsx|{styledPagination customCSS customCSS}|]
 data CSSFramework = CSSFramework
     { styledFlashMessage :: CSSFramework -> FlashMessage -> Blaze.Html
     , styledFlashMessages :: CSSFramework -> [FlashMessage] -> Blaze.Html
