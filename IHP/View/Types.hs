@@ -101,11 +101,7 @@ data InputType
     | FileInput
 
 
-data BreadcrumbsView =
-    BreadcrumbsView
-    { cssFramework :: !CSSFramework
-    , breadcrumbItems :: !Blaze.Html
-    }
+data BreadcrumbsView = BreadcrumbsView { breadcrumbItems :: !Blaze.Html }
 
 data PaginationView =
     PaginationView
@@ -162,7 +158,7 @@ data CSSFramework = CSSFramework
     -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
     , styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
     -- | Renders an entire breadcrumbs element.
-    , styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+    , styledBreadcrumb :: CSSFramework -> [BreadcrumbItem] -> BreadcrumbsView -> Blaze.Html
     -- | Render a single breadcrumb item. We pass the entire list of breadcrumbs, in case an item may change based on that list.
     -- The 'Bool' indicates if item is the last one.
     , styledBreadcrumbItem :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbItem -> Bool -> Blaze.Html

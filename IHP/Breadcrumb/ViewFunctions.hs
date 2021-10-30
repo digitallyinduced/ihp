@@ -21,13 +21,12 @@ renderBreadcrumb :: (?context :: ControllerContext) => [BreadcrumbItem] -> Html
 renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
         where
             breadcrumbsView = BreadcrumbsView
-                { cssFramework = theCSSFramework
-                , breadcrumbItems = forEachWithIndex breadcrumbItems (\(index, breadcrumbItem) ->
+                { breadcrumbItems = forEachWithIndex breadcrumbItems (\(index, breadcrumbItem) ->
                     let
                         isLast = index == length breadcrumbItems
                     in
                     styledBreadcrumbItem theCSSFramework theCSSFramework breadcrumbItems breadcrumbItem isLast
-                )
+                    )
                 }
 
 
