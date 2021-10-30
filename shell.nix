@@ -3,7 +3,7 @@ let
         ihp = ./.;
         haskellPackagesDir = ./NixSupport/haskell-packages;
     };
-    ghc = pkgs.haskell.packages.ghc8107;
+    ghc = pkgs.haskell.packages.ghc921;
     haskellDeps = ghc.ghcWithPackages (p: with p; [
         # Copied from ihp.nix
         base
@@ -42,7 +42,6 @@ let
         http-media
         cookie
         process
-        newtype-generics
         unix
         fsnotify
         countable-inflections

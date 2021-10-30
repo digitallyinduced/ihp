@@ -3,12 +3,12 @@
 # the project
 { ihp
 , haskellPackagesDir
-, dontCheckPackages ? ["mmark" "mmark-ext"]
-, doJailbreakPackages ? []
+, dontCheckPackages ? ["mmark" "mmark-ext" "cabal-doctest" "blaze-markup" "mutable-containers" "mime-mail" "network-byte-order" "pointed" "ghc-lib" "ghc-api-compat"]
+, doJailbreakPackages ? ["blaze-markup" "cabal-doctest" "postgresql-libpq" "protolude" "postgresql-simple" "vault" "websockets" "unliftio" "iproute" "blaze-markup" "czipwith" "vector-instances" "ghc-api-compat" "ghc-trace-events"]
 , dontHaddockPackages ? []
-, nixPkgsRev ? "e29cb6cb57fd0fe293d4678c4010d5e26928c5f3"
-, nixPkgsSha256 ? "0zx2r24m4hzmvxf9ca5vffv8p1ir3ysg46xyqnh1gzvzj06v4cb8"
-, compiler ? "ghc8107"
+, nixPkgsRev ? "dbfe42bc77c7d782beb2609e5219809eae2f7fb9"
+, nixPkgsSha256 ? "0im78bhf512q1dr0ha9jy6zczqawscv6kmnb0iis20wl61skl66c"
+, compiler ? "ghc921"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:
