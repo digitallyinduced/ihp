@@ -2,6 +2,8 @@ name: Binary Build
 on:
   push:
     branches: '*'
+  pull_request:
+    branches: [master] # This allows us to test PRs without always needing to build locally. It's secure as all first time contributors first need to be approved for running GitHub actions
 jobs:
   build:
     strategy:
