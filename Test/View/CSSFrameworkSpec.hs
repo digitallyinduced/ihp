@@ -15,7 +15,7 @@ import qualified Text.Blaze.Html5 as H
 import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
 import IHP.Breadcrumb.Types
-import IHP.Breadcrumb.ViewFunctions (breadcrumbWithLink, breadcrumbWithExternalLink, breadcrumbWithoutLink)
+import IHP.Breadcrumb.ViewFunctions (breadcrumbLink, breadcrumbLinkExternal, breadcrumbText)
 import IHP.Pagination.Types
 import qualified IHP.Prelude as Text ( isInfixOf )
 
@@ -215,28 +215,28 @@ tests = do
 
             describe "breadcrumbs" do
                 it "should render a breadcrumb item with no link" do
-                    let breadcrumbItem = breadcrumbWithoutLink "First item"
+                    let breadcrumbItem = breadcrumbText "First item"
                     let breadcrumbs = [breadcrumbItem]
 
                     styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
 
                 it "should render a breadcrumb item with external link" do
-                    let breadcrumbItem = breadcrumbWithExternalLink "First item" "https://example.com"
+                    let breadcrumbItem = breadcrumbLinkExternal "First item" "https://example.com"
                     let breadcrumbs = [breadcrumbItem]
 
                     styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\"><a href=\"https://example.com\">First item</a></li>"
 
                 it "should render a last breadcrumb item as active" do
-                    let breadcrumbItem = breadcrumbWithoutLink "Last item"
+                    let breadcrumbItem = breadcrumbText "Last item"
                     let breadcrumbs =
-                            [ breadcrumbWithoutLink "First item"
+                            [ breadcrumbText "First item"
                             , breadcrumbItem
                             ]
 
                     styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">Last item</li>"
 
                 it "should render the wrapping breadcrumb" do
-                    let breadcrumbItem = breadcrumbWithoutLink "First item"
+                    let breadcrumbItem = breadcrumbText "First item"
                     let breadcrumbs = [breadcrumbItem]
                     let breadcrumbsView = BreadcrumbsView
                             { cssFramework =  cssFramework
@@ -246,7 +246,7 @@ tests = do
                     styledBreadcrumb cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
 
                 it "should support show of BreadcrumbItem" do
-                    let breadcrumbItem = breadcrumbWithoutLink "First item"
+                    let breadcrumbItem = breadcrumbText "First item"
                     show breadcrumbItem `shouldBe` "{ label = \"First item\", url = Nothing }"
 
 

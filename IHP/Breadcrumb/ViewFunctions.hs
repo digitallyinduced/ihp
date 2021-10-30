@@ -1,9 +1,9 @@
 module IHP.Breadcrumb.ViewFunctions (
     module IHP.Breadcrumb.Types,
     renderBreadcrumb,
-    breadcrumbWithLink,
-    breadcrumbWithExternalLink,
-    breadcrumbWithoutLink,
+    breadcrumbLink,
+    breadcrumbLinkExternal,
+    breadcrumbText,
 ) where
 
 import IHP.Prelude
@@ -31,16 +31,16 @@ renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramew
                 }
 
 
-breadcrumbWithLink :: (Show controller, AutoRoute controller) => Html -> controller -> BreadcrumbItem
-breadcrumbWithLink label route =
-    breadcrumbWithExternalLink label (pathTo route)
+breadcrumbLink :: (Show controller, AutoRoute controller) => Html -> controller -> BreadcrumbItem
+breadcrumbLink label route =
+    breadcrumbLinkExternal label (pathTo route)
 
-breadcrumbWithExternalLink :: Html -> Text -> BreadcrumbItem
-breadcrumbWithExternalLink label url =
+breadcrumbLinkExternal :: Html -> Text -> BreadcrumbItem
+breadcrumbLinkExternal label url =
     BreadcrumbItem { label = label, url = Just url }
 
 
 
-breadcrumbWithoutLink :: Html -> BreadcrumbItem
-breadcrumbWithoutLink label =
+breadcrumbText :: Html -> BreadcrumbItem
+breadcrumbText label =
         BreadcrumbItem { label = label, url = Nothing }
