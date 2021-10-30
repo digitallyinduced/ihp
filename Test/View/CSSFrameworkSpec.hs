@@ -218,30 +218,24 @@ tests = do
                     let breadcrumbItem = breadcrumbText "First item"
                     let breadcrumbs = [breadcrumbItem]
 
-                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem True `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
 
                 it "should render a breadcrumb item with external link" do
                     let breadcrumbItem = breadcrumbLinkExternal "First item" "https://example.com"
                     let breadcrumbs = [breadcrumbItem]
 
-                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\"><a href=\"https://example.com\">First item</a></li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem True `shouldRenderTo` "<li class=\"breadcrumb-item active\"><a href=\"https://example.com\">First item</a></li>"
 
-                it "should render a last breadcrumb item as active" do
-                    let breadcrumbItem = breadcrumbText "Last item"
-                    let breadcrumbs =
-                            [ breadcrumbText "First item"
-                            , breadcrumbItem
-                            ]
+                it "should render a breadcrumb item as non-active" do
+                    let breadcrumbItem = breadcrumbText "First item"
+                    let breadcrumbs = [breadcrumbItem]
 
-                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem `shouldRenderTo` "<li class=\"breadcrumb-item active\">Last item</li>"
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem False `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
 
                 it "should render the wrapping breadcrumb" do
                     let breadcrumbItem = breadcrumbText "First item"
                     let breadcrumbs = [breadcrumbItem]
-                    let breadcrumbsView = BreadcrumbsView
-                            { cssFramework =  cssFramework
-                            , breadcrumbItems = mempty
-                            }
+                    let breadcrumbsView = BreadcrumbsView { breadcrumbItems = mempty }
 
                     styledBreadcrumb cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
 
