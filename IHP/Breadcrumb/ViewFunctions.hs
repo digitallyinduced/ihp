@@ -17,15 +17,18 @@ import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumb, styledBreadcrumbIt
 import IHP.ViewSupport (theCSSFramework)
 import IHP.ControllerPrelude
 
-renderBreadcrumb :: (?context::ControllerContext) => [BreadcrumbItem] -> Html
+renderBreadcrumb :: (?context :: ControllerContext) => [BreadcrumbItem] -> Html
 renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
         where
             breadcrumbsView = BreadcrumbsView
                 { cssFramework = theCSSFramework
-                , breadcrumbItems = breadcrumbItemsRendered
+                , breadcrumbItems = forEachWithIndex breadcrumbItems (\(index, breadcrumbItem) ->
+                    let
+                        isLast = index == length breadcrumbItems
+                    in
+                    styledBreadcrumbItem theCSSFramework theCSSFramework breadcrumbItems breadcrumbItem isLast
+                )
                 }
-
-            breadcrumbItemsRendered =  [hsx|{forEach breadcrumbItems (styledBreadcrumbItem theCSSFramework theCSSFramework breadcrumbItems)}|]
 
 
 breadcrumbWithLink :: (Show controller, AutoRoute controller) => Html -> controller -> BreadcrumbItem

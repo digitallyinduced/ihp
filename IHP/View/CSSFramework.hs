@@ -254,12 +254,10 @@ instance Default CSSFramework where
             |]
 
 
-            styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Blaze.Html
-            styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url} =
+            styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+            styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url} isLast =
                 let
-                    lastItemLabel = breadcrumbItems |> last |> maybe mempty (get #label)
-                    isLastItem = renderHtml lastItemLabel == renderHtml label
-                    breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLastItem)]
+                    breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
                 in
                 case url of
                     Nothing ->  [hsx|<li class={breadcrumbsClasses}>{label}</li>|]
@@ -474,15 +472,13 @@ tailwind = def
         |]
 
 
-        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Blaze.Html
-        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url} =
+        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url} isLast =
             let
-                lastItemLabel = breadcrumbItems |> last |> maybe mempty (get #label)
-                isLastItem = renderHtml lastItemLabel == renderHtml label
-                breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-600 items-center", ("active", isLastItem)]
+                breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-600 items-center", ("active", isLast)]
 
                 -- Show chevron if item isn't the active one (i.e. the last one).
-                chevronRight = unless isLastItem [hsx|
+                chevronRight = unless isLast [hsx|
                 <!-- heroicons.com chevron-right -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />

@@ -164,5 +164,6 @@ data CSSFramework = CSSFramework
     -- | Renders an entire breadcrumbs element.
     , styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
     -- | Render a single breadcrumb item. We pass the entire list of breadcrumbs, in case an item may change based on that list.
-    , styledBreadcrumbItem :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbItem -> Blaze.Html
+    -- The 'Bool' indicates if item is the last one.
+    , styledBreadcrumbItem :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbItem -> Bool -> Blaze.Html
     }
