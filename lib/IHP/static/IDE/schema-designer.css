@@ -99,6 +99,7 @@
 .column-selector .column td:first-child {
     color: black;
     font-size: 14px;
+    padding-left: 8px;
 }
 
 .column-selector .column td {
@@ -168,4 +169,8 @@
 
 #schema-designer-viewer {
     margin-bottom: 200px; /* Make sure the context menu has a bit of space, see https://github.com/digitallyinduced/ihp/issues/895 */
+}
+
+.index .index-name {
+    padding-left: 8px;
 }
