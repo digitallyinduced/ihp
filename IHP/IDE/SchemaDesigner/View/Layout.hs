@@ -111,6 +111,8 @@ renderColumnSelector tableName columns statements = [hsx|
         </table>
     </section>
 
+    {auth}
+
     <section>
         {columnIndexes}
     </section>
@@ -131,6 +133,16 @@ renderColumnSelector tableName columns statements = [hsx|
                     </table>
                 |]
                 Nothing -> [hsx||]
+
+        auth :: Html
+        auth = [hsx|
+            <section>
+                <h5>Policies</h5>
+                <table class="table table-hover table-sm">
+                    {renderPolicies tableName statements}
+                </table>
+            </section>
+        |]
 
 -- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
 
@@ -190,6 +202,44 @@ renderColumnIndexes tableName statements = forEach (findTableIndexes statements 
                     |> map compileExpression
                     |> intercalate ", "
 
+
+
+renderPolicies :: Text -> [Statement] -> Html
+renderPolicies tableName statements = forEach tablePolicies renderPolicy
+    where
+        tablePolicies :: [Statement]
+        tablePolicies = statements
+                |> filter \case
+                    CreatePolicy { tableName = policyTable } -> policyTable == tableName
+                    otherwise -> False
+
+        renderPolicy policy = [hsx|
+            <tr class="policy">
+                <td class="policy-name">{get #name policy}</td>
+                {renderExpressions policy}
+            </tr>
+        |]
+
+        renderExpressions policy = case (get #using policy, get #check policy) of
+                (Just using, Just check) | using == check ->
+                    [hsx|
+                        <td class="policy-expression">
+                            <small>read & write if</small>
+                            {compileExpression using}
+                        </td>
+                    |]
+                (Just using, Just check) ->
+                    [hsx|
+                        <td class="policy-expression">
+                            <small>read if</small>
+                            {compileExpression using}
+                        </td>
+                        <td class="policy-expression">
+                            <small>write if</small>
+                            {compileExpression check}
+                        </td>
+                    |]
+
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
 renderEnumSelector enumName values = [hsx|
 <div class="col-8 column-selector" oncontextmenu="showContextMenu('context-menu-value-root')">
@@ -248,6 +298,8 @@ renderObjectSelector statements activeObjectName = [hsx|
         <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
             <div class="d-flex">
                 {tableIcon} {name}
+
+                {when rlsEnabled rlsIcon}
             </div>
         </a>
         <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
@@ -270,6 +322,23 @@ renderObjectSelector statements activeObjectName = [hsx|
                 openControllerLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
                 controllerDoesNotExist = not $ (ucfirst name) `elem` webControllers
                 (WebControllers webControllers) = fromFrozenContext @WebControllers
+
+                rlsEnabled = statements
+                        |> map snd
+                        |> find \case
+                            EnableRowLevelSecurity { tableName = rlsTable } -> rlsTable == name
+                            otherwise                                       -> False
+                        |> isJust
+
+                rlsIcon = [hsx|
+                        <span
+                            class="rls-enabled"
+                            data-toggle="tooltip"
+                            data-placement="right"
+                            data-html="true"
+                            title="Row Level Security enabled"
+                            >{shieldIcon}</span>
+                        |]
 
         renderObject CreateEnumType { name } id = [hsx|
         <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
@@ -368,3 +437,6 @@ functionIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" v
 
 -- | https://github.com/postgres/pgadmin4/blob/master/web/pgadmin/misc/static/explain/img/ex_unknown.svg
 unknownIcon = preEscapedToHtml [plain|<svg id="_1" data-name="1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><style>.cls-unknown-1{fill:#1cafe4;}</style></defs><title>unknown</title><path class="cls-unknown-1" d="M23.34,13.2a14.76,14.76,0,0,1,8.16-2.14,17.57,17.57,0,0,1,10.56,3q4.2,3,4.2,9a10.18,10.18,0,0,1-1.82,6.16,21,21,0,0,1-4.09,3.88l-2,1.55a6,6,0,0,0-2.16,3A12.5,12.5,0,0,0,35.83,41H28.2a22.11,22.11,0,0,1,.9-6.57,11.57,11.57,0,0,1,3.76-4.18l2-1.6A7.17,7.17,0,0,0,36.53,27a5.67,5.67,0,0,0,1.12-3.4,6.58,6.58,0,0,0-1.25-3.9q-1.25-1.76-4.56-1.76t-4.62,2.17a8.34,8.34,0,0,0-1.36,4.5H17.74Q18.08,16.55,23.34,13.2ZM28,44.81h8.41v8.13H28Z"/></svg>|]
+
+-- | https://fonts.google.com/icons?icon.query=shield
+shieldIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 24 24" height="1rem" viewBox="0 0 24 24" width="1rem" fill="currentColor"><g><rect fill="none" height="24" width="24"/></g><g><path d="M12,2L4,5v6.09c0,5.05,3.41,9.76,8,10.91c4.59-1.15,8-5.86,8-10.91V5L12,2z M18,11.09c0,4-2.55,7.7-6,8.83 c-3.45-1.13-6-4.82-6-8.83v-4.7l6-2.25l6,2.25V11.09z"/></g></svg>|]

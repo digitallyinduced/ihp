@@ -171,6 +171,19 @@
     margin-bottom: 200px; /* Make sure the context menu has a bit of space, see https://github.com/digitallyinduced/ihp/issues/895 */
 }
 
-.index .index-name {
+.index .index-name, .policy .policy-name {
     padding-left: 8px;
+}
+
+.policy-expression small {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1;
+    color:  rgb(128, 128, 128);
+}
+
+.rls-enabled {
+    margin-left: auto;
+    padding-right: 10px;
 }
