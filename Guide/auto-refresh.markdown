@@ -47,6 +47,25 @@ That's it. When you open your browser dev tools, you will see that a WebSocket c
 
 ## Advanced Auto Refresh
 
+### Auto Refresh Only for Specific Tables
+
+By default IHP tracks all the tables in an action with Auto Refresh enabled.
+
+In scenarios where you're processing a lot of data for a view, but only a small portion needs Auto Refresh, you can enable Auto Refresh only for the specific tables:
+
+```haskell
+action MyAction = do -- <-- We don't enable auto refresh at the action start in this case
+
+    -- This part is not tracked by auto refresh, as `autoRefresh` wasn't called yet
+    -- Therefore we can do our "expensive" operations here
+    expensiveModels <- query @Expensive |> fetch
+
+    autoRefresh do
+        -- Inside this block auto refresh is active and all queries here are tracked
+        cheap <- query @Cheap |> fetch
+        render MyView { expensiveModels, cheap }
+```
+
 ### Custom SQL Queries with Auto Refresh
 
 Auto Refresh automatically tracks all tables your action is using by hooking itself into the Query Builder and `fetch` functions.
