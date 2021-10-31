@@ -27,8 +27,6 @@ Whenever an `INSERT`, `UPDATE` or `DELETE` happens to the tables used by your ac
 
 ### Using Auto Refresh
 
-**If your project was created before 08.01.2021, check the Enable Auto Refresh section below**
-
 Let's say we have a `ShowProjectAction` like this:
 
 ```haskell
@@ -46,50 +44,6 @@ action ShowProjectAction { projectId } = autoRefresh do
 ```
 
 That's it. When you open your browser dev tools, you will see that a WebSocket connection has been started when opening the page. When we update the project from a different browser tab, we will see that the page instantly updates to reflect our changes.
-
-
-### Enable Auto Refresh: If Project Created Before 08.01.2021
-
-**This step is only required if your project was generated before 08.01.2021. Projects created after this date have auto refresh enabled by default.**
-
-#### FrontController
-
-First you need to add it to your `Web/FrontController.hs`:
-
-```haskell
-module Web.FrontController where
-
-import IHP.AutoRefresh -- <------ ADD THIS IMPORT
-
-instance InitControllerContext WebApplication where
-    initContext = do
-        setLayout defaultLayout
-        initAutoRefresh -- <----- ADD THIS LINE
-```
-
-#### Layout
-
-Next we need to add a new meta tag to our layout in `Web/View/Layout.hs`:
-
-```haskell
-metaTags :: Html
-metaTags = [hsx|
-    <meta charset="utf-8"/>
-
-    ...
-
-    {autoRefreshMeta} <------ ADD THIS
-|]
-```
-
-Additionally you need to include the `/ihp-auto-refresh.js` in your `Web/View/Layout.hs`:
-
-```haskell
-scripts = [hsx|
-        ...
-        <script src="/ihp-auto-refresh.js"></script> <------ ADD THIS
-    |]
-```
 
 ## Advanced Auto Refresh
 
