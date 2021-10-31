@@ -113,7 +113,7 @@ buildPlan' schema config =
                         where
                             breadcrumb = renderBreadcrumb
                                             [ breadcrumbLink "${pluralName}" ${indexAction}
-                                            , breadcrumbText "Show ${singularName}""
+                                            , breadcrumbText "Show ${singularName}"
                                             ]
             |]
 
