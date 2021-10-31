@@ -215,10 +215,16 @@ renderPolicies tableName statements = forEach tablePolicies renderPolicy
 
         renderPolicy policy = [hsx|
             <tr class="policy">
-                <td class="policy-name">{get #name policy}</td>
+                <td class="policy-name">
+                    <a href={EditPolicyAction tableName policyName} class="text-body nounderline">
+                        {get #name policy}
+                    </a>
+                </td>
                 {renderExpressions policy}
             </tr>
         |]
+            where
+                policyName = get #name policy
 
         renderExpressions policy = case (get #using policy, get #check policy) of
                 (Just using, Just check) | using == check ->
@@ -228,15 +234,15 @@ renderPolicies tableName statements = forEach tablePolicies renderPolicy
                             {compileExpression using}
                         </td>
                     |]
-                (Just using, Just check) ->
+                (using, check) ->
                     [hsx|
                         <td class="policy-expression">
                             <small>read if</small>
-                            {compileExpression using}
+                            {maybe "" compileExpression using}
                         </td>
                         <td class="policy-expression">
                             <small>write if</small>
-                            {compileExpression check}
+                            {maybe "" compileExpression check}
                         </td>
                     |]
 

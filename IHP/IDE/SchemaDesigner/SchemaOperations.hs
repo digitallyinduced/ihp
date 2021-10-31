@@ -138,3 +138,18 @@ addValueToEnum enumName enumValueName statements = map addValueToEnum' statement
             table { values = values <> [enumValueName] }
         addValueToEnum' statement = statement
 
+data UpdatePolicyOptions = UpdatePolicyOptions
+    { currentName :: !Text -- ^ Current name of the policy
+    , tableName :: !Text -- ^ Table of the policy
+    , name :: !Text -- ^ New name of the policy
+    , using :: !(Maybe Expression)
+    , check :: !(Maybe Expression)
+    }
+
+updatePolicy :: UpdatePolicyOptions -> Schema -> Schema
+updatePolicy UpdatePolicyOptions { .. } statements =
+        statements
+        |> map updatePolicy'
+    where
+        updatePolicy' policy@CreatePolicy { name = pName, tableName = pTable } | pName == currentName && pTable == tableName = CreatePolicy { tableName, name, using, check }
+        updatePolicy' otherwise                                                                                              = otherwise

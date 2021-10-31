@@ -39,6 +39,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src={assetPath "/vendor/src-min/ext-language_tools.js"}></script>
     <script src={assetPath "/IDE/ihp-schemadesigner.js"}></script>
     <script src={assetPath "/IDE/ihp-codegen.js"}></script>
+    <script src={assetPath "/IDE/ihp-policy.js"}></script>
     <script src={assetPath "/IDE/ihp-help.js"}></script>
 
 

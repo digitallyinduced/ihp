@@ -187,3 +187,8 @@
     margin-left: auto;
     padding-right: 10px;
 }
+
+.edit-policy .ace_editor {
+    min-height: 80px;
+    border-radius: 3px;
+}
