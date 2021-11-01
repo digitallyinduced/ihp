@@ -11,6 +11,7 @@ module IHP.View.Types
 , FormContext (..)
 , InputType (..)
 , CSSFramework (..)
+, BreadcrumbsView(..)
 , PaginationView(..)
 , HtmlWithContext
 , Layout
@@ -21,6 +22,7 @@ import IHP.Prelude hiding (div)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.FlashMessages.Types
 import IHP.ModelSupport (Violation)
+import IHP.Breadcrumb.Types
 import IHP.Pagination.Types
 
 
@@ -98,6 +100,8 @@ data InputType
     | SelectInput { options :: ![(Text, Text)] }
     | FileInput
 
+
+data BreadcrumbsView = BreadcrumbsView { breadcrumbItems :: !Blaze.Html }
 
 data PaginationView =
     PaginationView
@@ -200,5 +204,10 @@ data CSSFramework = CSSFramework
     -- | Render the items per page selector for pagination.
     -- Note the (Int -> ByteString), we are passing the pageUrl function, so anyone that would like to override
     -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
-    , stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+    , styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+    -- | Renders an entire breadcrumbs element.
+    , styledBreadcrumb :: CSSFramework -> [BreadcrumbItem] -> BreadcrumbsView -> Blaze.Html
+    -- | Render a single breadcrumb item. We pass the entire list of breadcrumbs, in case an item may change based on that list.
+    -- The 'Bool' indicates if item is the last one.
+    , styledBreadcrumbItem :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbItem -> Bool -> Blaze.Html
     }

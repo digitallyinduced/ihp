@@ -20,14 +20,14 @@ import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
-import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, stylePaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, styledPaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
 import IHP.View.CSSFramework
 
 
 -- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
-renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {renderedHtml} |]
+renderPagination pagination@Pagination {currentPage, window, pageSize} = styledPagination theCSSFramework theCSSFramework paginationView
         where
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
@@ -39,8 +39,6 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
                 , itemsPerPageSelector = itemsPerPageSelector
                 }
 
-            renderedHtml = styledPagination theCSSFramework theCSSFramework paginationView
-
             linkPrevious =
                 styledPaginationLinkPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)
 
@@ -48,7 +46,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} = [hsx| {
                 styledPaginationLinkNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
 
             itemsPerPageSelector =
-                stylePaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
+                styledPaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
 
             pageDotDotItems = [hsx|{forEach (processedPages pages) pageDotDotItem}|]
 
