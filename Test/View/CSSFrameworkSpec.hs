@@ -241,10 +241,9 @@ tests = do
                 it "should render the wrapping breadcrumb and last item as active" do
                     let breadcrumbs = [breadcrumbText "First item", breadcrumbText "Last item"]
 
-                    -- Mock a Controller context.
-                    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
-                                option cssFramework
-                    let ?context = createControllerContextWithCSSFramework frameworkConfig cssFramework
+                    --
+                    context <- createControllerContextWithCSSFramework cssFramework
+                    let ?context = context
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -256,9 +255,13 @@ tests = do
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
 
-createControllerContextWithCSSFramework frameworkConfig cssFramework =
-    let
-        requestBody = FormBody { params = [], files = [] }
-        request = Wai.defaultRequest
-        requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = frameworkConfig }
-    in FrozenControllerContext { requestContext, customFields = TypeMap.empty }
+{-| Mock a Controller context with CSSFramework.
+-}
+createControllerContextWithCSSFramework :: Typeable option => option -> IO ControllerContext
+createControllerContextWithCSSFramework cssFramework = do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
+                option cssFramework
+    let requestBody = FormBody { params = [], files = [] }
+    let request = Wai.defaultRequest
+    let requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = frameworkConfig }
+    pure FrozenControllerContext { requestContext, customFields = TypeMap.empty }
