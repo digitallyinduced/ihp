@@ -23,7 +23,7 @@ renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramew
             breadcrumbsView = BreadcrumbsView
                 { breadcrumbItems = forEachWithIndex breadcrumbItems (\(index, breadcrumbItem) ->
                     let
-                        isLast = index == length breadcrumbItems
+                        isLast = index == length breadcrumbItems - 1
                     in
                     styledBreadcrumbItem theCSSFramework theCSSFramework breadcrumbItems breadcrumbItem isLast
                     )

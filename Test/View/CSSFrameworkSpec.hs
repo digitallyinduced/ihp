@@ -6,6 +6,10 @@ module Test.View.CSSFrameworkSpec where
 
 import Test.Hspec
 import IHP.Prelude
+import IHP.Controller.Context
+import IHP.FrameworkConfig as FrameworkConfig
+import Control.Exception
+import IHP.Controller.RequestContext
 import IHP.View.Types
 import IHP.View.CSSFramework
 import IHP.FlashMessages.Types
@@ -15,9 +19,11 @@ import qualified Text.Blaze.Html5 as H
 import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
 import IHP.Breadcrumb.Types
-import IHP.Breadcrumb.ViewFunctions (breadcrumbLink, breadcrumbLinkExternal, breadcrumbText)
+import IHP.Breadcrumb.ViewFunctions (breadcrumbLink, breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
-import qualified IHP.Prelude as Text ( isInfixOf )
+import qualified IHP.Prelude as Text (isInfixOf)
+import qualified Data.TMap as TypeMap
+import qualified Network.Wai as Wai
 
 tests = do
     describe "CSS Framework" do
@@ -232,12 +238,15 @@ tests = do
 
                     styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem False `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
 
-                it "should render the wrapping breadcrumb" do
-                    let breadcrumbItem = breadcrumbText "First item"
-                    let breadcrumbs = [breadcrumbItem]
-                    let breadcrumbsView = BreadcrumbsView { breadcrumbItems = mempty }
+                it "should render the wrapping breadcrumb and last item as active" do
+                    let breadcrumbs = [breadcrumbText "First item", breadcrumbText "Last item"]
 
-                    styledBreadcrumb cssFramework cssFramework breadcrumbs breadcrumbsView `shouldRenderTo` "<nav><ol class=\"breadcrumb\"></ol></nav>"
+                    -- Mock a Controller context.
+                    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
+                                option cssFramework
+                    let ?context = createControllerContextWithCSSFramework frameworkConfig cssFramework
+
+                    renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
                 it "should support show of BreadcrumbItem" do
                     let breadcrumbItem = breadcrumbText "First item"
@@ -246,3 +255,10 @@ tests = do
 
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
+
+createControllerContextWithCSSFramework frameworkConfig cssFramework =
+    let
+        requestBody = FormBody { params = [], files = [] }
+        request = Wai.defaultRequest
+        requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = frameworkConfig }
+    in FrozenControllerContext { requestContext, customFields = TypeMap.empty }
