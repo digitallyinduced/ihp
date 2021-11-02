@@ -255,13 +255,13 @@ instance Default CSSFramework where
 
 
             styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
-            styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url} isLast =
+            styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
                 let
                     breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
                 in
                 case url of
-                    Nothing ->  [hsx|<li class={breadcrumbsClasses}>{label}</li>|]
-                    Just url -> [hsx|<li class={breadcrumbsClasses}><a href={url}>{label}</a></li>|]
+                    Nothing ->  [hsx|<li class={breadcrumbsClasses}>{breadcrumbLabel}</li>|]
+                    Just url -> [hsx|<li class={breadcrumbsClasses}><a href={url}>{breadcrumbLabel}</a></li>|]
 
 
 
@@ -473,7 +473,7 @@ tailwind = def
 
 
         styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
-        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {label, url} isLast =
+        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
             let
                 breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-600 items-center", ("active", isLast)]
 
@@ -488,13 +488,13 @@ tailwind = def
             case url of
                 Nothing ->  [hsx|
                     <li class={breadcrumbsClasses}>
-                        {label}
+                        {breadcrumbLabel}
                         {chevronRight}
                     </li>
                 |]
                 Just url -> [hsx|
                     <li class={breadcrumbsClasses}>
-                        <a class="hover:text-gray-700" href={url}>{label}</a>
+                        <a class="hover:text-gray-700" href={url}>{breadcrumbLabel}</a>
                         {chevronRight}
                     </li>
                     |]
