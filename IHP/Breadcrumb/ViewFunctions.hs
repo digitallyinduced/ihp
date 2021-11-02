@@ -36,10 +36,10 @@ breadcrumbLink label route =
 
 breadcrumbLinkExternal :: Html -> Text -> BreadcrumbItem
 breadcrumbLinkExternal label url =
-    BreadcrumbItem { label = label, url = Just url }
+    BreadcrumbItem { breadcrumbLabel = label, url = Just url }
 
 
 
 breadcrumbText :: Html -> BreadcrumbItem
 breadcrumbText label =
-        BreadcrumbItem { label = label, url = Nothing }
+        BreadcrumbItem { breadcrumbLabel = label, url = Nothing }
