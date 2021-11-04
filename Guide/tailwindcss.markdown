@@ -240,7 +240,7 @@ customTailwind = def
     , styledPaginationLinkNext
     , styledPaginationPageLink
     , styledPaginationDotDot
-    , stylePaginationItemsPerPageSelector
+    , styledPaginationItemsPerPageSelector
     }
     where
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-green-100 border border-green-500 text-green-900 px-4 py-3 rounded relative">{message}</div>|]
@@ -385,13 +385,13 @@ customTailwind = def
         |]
 
 
-        stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-        stylePaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
+        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+        styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
             let
                 oneOption :: Int -> Blaze.Html
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
             in
-                [hsx|{forEach [10,20,50,100,200] oneOption}|] 
+                [hsx|{forEach [10,20,50,100,200] oneOption}|]
 ```
 
 Now JIT will recognize those classes and not purge them.
