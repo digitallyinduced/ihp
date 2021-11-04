@@ -8,7 +8,7 @@
 
 Yes, while bootstrap is the default CSS framework in IHP, you can use IHP together with TailwindCSS (TW in short). This guide will help you set up the latest Tailwind version in your IHP project. We will be leveraging the TW's [JIT](https://tailwindcss.com/docs/just-in-time-mode) mode.
 
-We will also have PostCSS added as part of the installation. PostCSS is used for nesting CSS, minifying, striping out comments, etc. 
+We will also have PostCSS added as part of the installation. PostCSS is used for nesting CSS, minifying, striping out comments, etc.
 
 ## Installing
 
@@ -19,10 +19,10 @@ First, we need to add NodeJS to our project. **You should also follow this step 
 For that open your projects `default.nix` and add `nodejs` and `entr` to `otherDeps`:
 
 ```nix
-        otherDeps = p: with p; [
-            # Native dependencies, e.g. imagemagick
-            nodejs
-        ];
+otherDeps = p: with p; [
+    # Native dependencies, e.g. imagemagick
+    nodejs
+];
 ```
 
 Now you need to rebuild your local development environment:
@@ -39,7 +39,7 @@ Install Tailwind along with PostCSS and some handy libraries via NPM:
 
 ```bash
 npm init
-npm add tailwindcss postcss postcss-cli postcss-import postcss-nested postcss-preset-env postcss-scss postcss-strip-inline-comments cssnano autoprefixer @tailwindcss/forms
+npm add tailwindcss@latest postcss@latest autoprefixer@latest @tailwindcss/forms
 ```
 
 This will create `package.json` and `package-lock.json`. Make sure to commit both files to your git repository.
@@ -77,73 +77,22 @@ module.exports = {
     plugins: [
         require('@tailwindcss/forms'),
     ],
-}; 
+};
 ```
 
-Next is creating a PostCSS configuration file at `tailwind/postcss.config.js`
-
-```javascript
-module.exports = {
-    syntax: 'postcss-scss',
-    plugins: [
-      require('postcss-import'),
-      require('postcss-strip-inline-comments'),
-      require('postcss-nested'),
-      require('tailwindcss'),
-      require('postcss-preset-env')({ stage: 1, features: { 'focus-within-pseudo-class': false } }),
-      require('cssnano')({ preset: 'default' }),
-    ],
-  };
-```
-
-We also need a CSS entry point for Tailwind. Create a new file at `tailwind/app.pcss`. Note that `pcss` is the extension for PostCSS.
+We also need a CSS entry point for Tailwind. Create a new file at `tailwind/app.css`.
 
 ```css
-@import "tailwindcss/base";
-@import "tailwindcss/components";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-// Import any other files with your custom CSS.
-@import "components.pcss";
-
-// Must be the last import.
-@import "tailwindcss/utilities"; 
-```
-
-Finally, let's add a custom `pcss` file at `tailwind/components.pcss` demonstrating some of the customization we could do on our site:
-
-```css
-@layer base {
-    h1 {
-      @apply text-3xl;
-    }
-    h2 {
-      @apply text-2xl;
-    }
-
-    h3 {
-        @apply text-xl;
-    }
-}
-
-
-
-// Add you CSS or import other post-css files.
 @layer components {
-    .btn {
-        @apply px-4 py-2 bg-blue-600 text-white rounded;
-    }
+  .btn {
+    @apply px-4 py-2 bg-blue-600 text-white rounded;
+  }
 }
-
-// You can also nest CSS like in SCSS
-/*
-.foo {
-    .bar {
-        @apply text-white;
-    }
-}
-*/ 
 ```
-
 
 ### Adding the build step
 
@@ -151,7 +100,7 @@ We need to add a new build command for starting a tailwind build process to our 
 
 ```makefile
 tailwind-dev:
-    cd tailwind && npx postcss ./app.pcss --output=../static/app.css --watch --verbose
+	cd tailwind && npx tailwindcss -i ./app.css -o ../static/app.css --watch
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -162,7 +111,7 @@ For production builds, we also need a new make target:
 
 ```makefile
 static/app.css:
-    cd tailwind && npx postcss ./app.pcss --output=../static/app.css --verbose
+	cd tailwind && NODE_ENV=production npx tailwindcss -i ./app.css -o ../static/app.css --minify
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -228,7 +177,7 @@ import IHP.Pagination.Types
 import IHP.View.Types (PaginationView(linkPrevious, pagination))
 
 
--- Copying the contents of 'tailwind'
+-- Copying the contents of 'tailwind' function
 customTailwind :: CSSFramework
 customTailwind = def
     { styledFlashMessage
@@ -285,5 +234,3 @@ make static/prod.css
 `Make` will automatically detect that `static/app.css` is missing and will run `make static/app.css` to produce that missing file. This will then trigger the tailwind production build.
 
 This means you don't need to make any changes to your existing deployment process or your IHP Cloud settings.
-
-**If your IHP project has been created before 26.11.2020:** Make sure that the line `include ${IHP}/Makefile.dist` inside your `Makefile` is the last line of the file. It will most likely be somewhere at the top. If it's not the last line, the production CSS will not be generated.
