@@ -21,7 +21,9 @@ import qualified System.Timeout as Timeout
 import qualified Control.Concurrent.Async.Pool as Pool
 
 runJobWorkers :: [JobWorker] -> Script
-runJobWorkers jobWorkers = runJobWorkersWithExitHandler jobWorkers waitExitHandler
+runJobWorkers jobWorkers = do
+    runJobWorkersWithExitHandler jobWorkers waitExitHandler
+    forever (Concurrent.threadDelay maxBound)
 
 runJobWorkersKillOnExit :: [JobWorker] -> Script
 runJobWorkersKillOnExit jobWorkers = runJobWorkersWithExitHandler jobWorkers stopExitHandler
