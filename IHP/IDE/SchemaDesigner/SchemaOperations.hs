@@ -153,3 +153,29 @@ updatePolicy UpdatePolicyOptions { .. } statements =
     where
         updatePolicy' policy@CreatePolicy { name = pName, tableName = pTable } | pName == currentName && pTable == tableName = CreatePolicy { tableName, name, using, check }
         updatePolicy' otherwise                                                                                              = otherwise
+
+data AddPolicyOptions = AddPolicyOptions
+    { tableName :: !Text
+    , name :: !Text
+    , using :: !(Maybe Expression)
+    , check :: !(Maybe Expression)
+    }
+
+addPolicy :: AddPolicyOptions -> Schema -> Schema
+addPolicy AddPolicyOptions { .. } statements = statements <> createPolicyStatement
+    where
+        createPolicyStatement = [ CreatePolicy { tableName, name, using, check } ]
+
+data DeletePolicyOptions = DeletePolicyOptions
+    { tableName :: !Text
+    , policyName :: !Text
+    }
+
+deletePolicy :: DeletePolicyOptions -> Schema -> Schema
+deletePolicy DeletePolicyOptions { .. } statements =
+        statements
+        |> filter (not . isSelectedPolicy)
+    where
+        isSelectedPolicy :: Statement -> Bool
+        isSelectedPolicy policy@CreatePolicy { name = pName, tableName = pTable } = pName == policyName && pTable == tableName
+        isSelectedPolicy otherwise                                                = False

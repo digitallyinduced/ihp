@@ -119,6 +119,7 @@ renderColumnSelector tableName columns statements = [hsx|
 </div>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id="context-menu-column-root">
     <a href={NewColumnAction tableName}>Add Column</a>
+    <a href={NewPolicyAction tableName}>Add Policy</a>
 </div>
 |]
     where
@@ -215,16 +216,23 @@ renderPolicies tableName statements = forEach tablePolicies renderPolicy
 
         renderPolicy policy = [hsx|
             <tr class="policy">
-                <td class="policy-name">
+                <td class="policy-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>
                     <a href={EditPolicyAction tableName policyName} class="text-body nounderline">
                         {get #name policy}
                     </a>
                 </td>
                 {renderExpressions policy}
             </tr>
+            <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
+                <a href={EditPolicyAction tableName policyName}>Edit Policy</a>
+                <a href={DeletePolicyAction tableName policyName} class="js-delete">Delete Policy</a>
+                <div></div>
+                <a href={NewPolicyAction tableName}>Add Policy</a>
+            </div>
         |]
             where
                 policyName = get #name policy
+                contextMenuId = "policy-" <> toSlug policyName
 
         renderExpressions policy = case (get #using policy, get #check policy) of
                 (Just using, Just check) | using == check ->
