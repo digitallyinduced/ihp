@@ -203,7 +203,7 @@ JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 
 Right now, your IHP app will still be rendered with some bootstrap CSS class names. We can switch this to use tailwind classes. Since our configuration uses the JIT mode, it means we would need to copy the `tailwind` CSSFramework from IHP core files, into our custom theme. Otherwise, any css defined by IHP itself will not be caught by Tailwind before purging and keeping only the used CSS classes. This might seem weird initially, having to copy/paste; however, we think it is the best compromise since it's very likely you would like to change the default classes and get your site a unique view.
 
-Create a file at `Web/View/CustomCSSFramework.hs`  and copy the `import`s and `tailwind` function from [IHP/View/CSSFramework.hs](https://github.com/digitallyinduced/ihp/blob/master/IHP/View/CSSFramework.hs):
+Create a file at `Web/View/CustomCSSFramework.hs`  and copy the `import`s and the contents of the `tailwind` function from [IHP/View/CSSFramework.hs](https://github.com/digitallyinduced/ihp/blob/master/IHP/View/CSSFramework.hs):
 
 ```haskell
 module Web.View.CustomCSSFramework (customTailwind) where
