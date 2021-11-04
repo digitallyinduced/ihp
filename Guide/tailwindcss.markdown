@@ -151,7 +151,7 @@ We need to add a new build command for starting a tailwind build process to our 
 
 ```makefile
 tailwind-dev:
-			cd tailwind && npx postcss ./app.pcss --output=../static/app.css --watch --verbose
+    cd tailwind && npx postcss ./app.pcss --output=../static/app.css --watch --verbose
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -162,7 +162,7 @@ For production builds, we also need a new make target:
 
 ```makefile
 static/app.css:
-	cd tailwind && npx postcss ./app.pcss --output=../static/app.css --verbose
+    cd tailwind && npx postcss ./app.pcss --output=../static/app.css --verbose
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
