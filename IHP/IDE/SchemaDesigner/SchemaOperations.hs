@@ -179,3 +179,33 @@ deletePolicy DeletePolicyOptions { .. } statements =
         isSelectedPolicy :: Statement -> Bool
         isSelectedPolicy policy@CreatePolicy { name = pName, tableName = pTable } = pName == policyName && pTable == tableName
         isSelectedPolicy otherwise                                                = False
+
+enableRowLevelSecurity :: Text -> Schema -> Schema
+enableRowLevelSecurity tableName schema =
+    let
+        rlsEnabled = schema
+                |> find \case
+                    EnableRowLevelSecurity { tableName = rlsTable } -> rlsTable == tableName
+                    otherwise                                       -> False
+                |> isJust
+    in if rlsEnabled
+        then schema
+        else schema <> [ EnableRowLevelSecurity { tableName } ]
+
+disableRowLevelSecurity :: Text -> Schema -> Schema
+disableRowLevelSecurity tableName schema = schema
+        |> filter \case
+            EnableRowLevelSecurity { tableName = rlsTable } -> rlsTable /= tableName
+            otherwise                                       -> True
+
+disableRowLevelSecurityIfNoPolicies :: Text -> Schema -> Schema
+disableRowLevelSecurityIfNoPolicies tableName schema =
+    let
+        tableHasPolicies = schema
+                |> find \case
+                    CreatePolicy { tableName = policyTable } -> policyTable == tableName
+                    otherwise                                -> False
+                |> isJust
+    in if tableHasPolicies
+        then schema
+        else disableRowLevelSecurity tableName schema

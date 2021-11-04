@@ -59,17 +59,22 @@ instance Controller PoliciesController where
         statements <- readSchema
         let tableName = param "tableName"
         
-        updateSchema $ SchemaOperations.addPolicy SchemaOperations.AddPolicyOptions
+        let addPolicy = SchemaOperations.addPolicy SchemaOperations.AddPolicyOptions
                 { tableName = tableName
                 , name = param "policyName"
                 , using = param "using"
                 , check = param "check"
                 }
+        let enableRLS = SchemaOperations.enableRowLevelSecurity tableName
+
+        updateSchema (enableRLS . addPolicy)
 
         redirectTo ShowTableAction { .. }
 
     action DeletePolicyAction { tableName, policyName } = do
-        updateSchema $ SchemaOperations.deletePolicy SchemaOperations.DeletePolicyOptions { tableName, policyName }
+        let deletePolicy = SchemaOperations.deletePolicy SchemaOperations.DeletePolicyOptions { tableName, policyName }
+        let disableRLSIfNoPolicies = SchemaOperations.disableRowLevelSecurityIfNoPolicies tableName
+        updateSchema (disableRLSIfNoPolicies . deletePolicy)
 
         redirectTo ShowTableAction { .. }
 

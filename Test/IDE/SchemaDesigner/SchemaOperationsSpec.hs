@@ -37,3 +37,47 @@ tests = do
                 let expectedSchema = [comment, enumA, enumB, tableA]
 
                 (SchemaOperations.addEnum "enumB" inputSchema) `shouldBe` expectedSchema
+
+        describe "enableRowLevelSecurity" do
+            it "should enable row level security if not enabled yet" do
+                let inputSchema = [tableA]
+                let expectedSchema = [tableA, EnableRowLevelSecurity { tableName = "a"} ]
+
+                (SchemaOperations.enableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
+            
+            it "should not do anything if already enabled" do
+                let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"} ]
+                let expectedSchema = [tableA, EnableRowLevelSecurity { tableName = "a"} ]
+
+                (SchemaOperations.enableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
+        
+        describe "disableRowLevelSecurity" do
+            it "should disable row level security if enabled" do
+                let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}]
+                let expectedSchema = [tableA]
+
+                (SchemaOperations.disableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
+            
+            it "should not do anything if the row level security is not enabled" do
+                let inputSchema = [tableA]
+                let expectedSchema = [tableA]
+
+                (SchemaOperations.disableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
+        
+        describe "disableRowLevelSecurityIfNoPolicies" do
+            it "should disable row level security if there's no policy" do
+                let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}]
+                let expectedSchema = [tableA]
+
+                (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` expectedSchema
+            
+            it "should not do anything if the row level security is not enabled" do
+                let inputSchema = [tableA]
+
+                (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
+            
+            it "should not do anything if there's a policy" do
+                let policy = CreatePolicy { tableName = "a", name = "p", check = Nothing, using = Nothing }
+                let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}, policy]
+
+                (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
