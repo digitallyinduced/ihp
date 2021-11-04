@@ -154,8 +154,6 @@ cleanupAllSubscriptions = do
             pure ()
         _ -> pure ()
 
-sendJSON payload = sendTextData (Aeson.encode payload)
-
 
 queryFieldNamesToColumnNames :: SQLQuery -> SQLQuery
 queryFieldNamesToColumnNames sqlQuery = sqlQuery
