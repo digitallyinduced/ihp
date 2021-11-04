@@ -38,7 +38,8 @@ After that, you have `node` and `npm` available in your project.
 Install Tailwind along with PostCSS and some handy libraries via NPM:
 
 ```bash
-npm initnpm add tailwindcss postcss postcss-cli postcss-import postcss-nested postcss-preset-env postcss-scss postcss-strip-inline-comments cssnano autoprefixer @tailwindcss/forms
+npm init
+npm add tailwindcss postcss postcss-cli postcss-import postcss-nested postcss-preset-env postcss-scss postcss-strip-inline-comments cssnano autoprefixer @tailwindcss/forms
 ```
 
 This will create `package.json` and `package-lock.json`. Make sure to commit both files to your git repository.
