@@ -288,7 +288,7 @@ getInstanceDecl instanceName full =
         findInstanceDecl (line:rest)
             | ("instance " <> instanceName) `isPrefixOf` line = line : rest
             | otherwise = findInstanceDecl rest
-        findInstnaceDecl [] = error "didn't find instance declaration of " <> instanceName
+        findInstanceDecl [] = error ("didn't find instance declaration of " <> instanceName)
 
         takeInstanceDecl (line:rest)
             | isEmpty line = []
