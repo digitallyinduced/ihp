@@ -22,7 +22,7 @@ data Attribute = Attribute
     } deriving (Eq, Show)
 
 data Node = Node { tagName :: !Text, attributes :: ![Attribute], children :: ![Node], startOffset :: Int, endOffset :: Int }
-    | TextNode { textContent :: !Text }
+    | TextNode { textContent :: !Text } -- ^ Note: doesn't unescape chars like &lt;
     | PreEscapedTextNode { textContent :: !Text } -- ^ Used in @script@ or @style@ bodies
     | Children { children :: ![Node] }
     | CommentNode { comment :: !Text }

@@ -47,6 +47,8 @@ HTML_FILES+= oauth.html
 HTML_FILES+= ihp-pro.html
 HTML_FILES+= examples.html
 HTML_FILES+= stripe.html
+HTML_FILES+= realtime-spas.html
+HTML_FILES+= config.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js search.js search.css
 
@@ -75,3 +77,6 @@ search.js: search/node_modules
 
 search.css: search/node_modules
 	./search/node_modules/.bin/esbuild search/node_modules/@docsearch/css/dist/style.css --minify-whitespace --outfile=search.css
+
+guide.tar.gz: all
+	tar -czvf guide.tar.gz *.html *.css *.js images/* images/*/*

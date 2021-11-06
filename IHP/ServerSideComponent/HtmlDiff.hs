@@ -73,7 +73,7 @@ diffNodes' path Children { children = oldChildren } Children { children = newChi
             patchElements (new:nextNewNode:newRest) (old:oldRest) !index | (not $ new `isNodeEqIgnoringPosition` old) && (old `isNodeEqIgnoringPosition` nextNewNode) = [ CreateNode { html = nodeOuterHtml new ?newHtml, path = (index:path) } ] <> (patchElements (newRest) (oldRest) (index + 2)) -- [A, C <old>] -> [A, B <new>, C <nextNewNode>]
             patchElements (new:newRest) (old:nextOld:oldRest) !index | (not $ new `isNodeEqIgnoringPosition` old) && (new `isNodeEqIgnoringPosition` nextOld) = [ DeleteNode { node = old, path = (index:path) } ] <> (patchElements (newRest) (oldRest) (index + 1)) -- [A, B <old>, C <nextOldNode> ] -> [A, C <new>]
             patchElements (new:newRest) (old:oldRest) !index = (diffNodes' (index:path) old new) <> (patchElements newRest oldRest (index + 1))
-            patchElements (new:newRest) oldRest !index = [ CreateNode { html = nodeOuterHtml new ?newHtml, path = (index:path) } ] <> (patchElements newRest oldRest (index + 1))
+            patchElements (new:newRest) [] !index = [ CreateNode { html = nodeOuterHtml new ?newHtml, path = (index:path) } ] <> (patchElements newRest [] (index + 1))
             patchElements [] (old:oldRest) !index = [ DeleteNode { node = old, path = (index:path) } ] <> (patchElements [] oldRest (index + 1))
             patchElements [] [] _ = []
         in
@@ -108,10 +108,19 @@ diffAttributes old new = addOrUpdateAttributes <> deleteAttributes
         matchAttribute :: [Attribute] -> Attribute -> Maybe Attribute
         matchAttribute attributes Attribute { attributeName } = find (\Attribute { attributeName = attributeName' } -> attributeName == attributeName' ) attributes
 
+-- | Grabs the entire HTML string corresponding to the node boundaries.
+--
+-- Node boundaries are only stored for 'Node'. Other nodes ('TextNode', etc) don't store start/end offset, so we render
+-- them by ourselves.
 nodeOuterHtml :: Node -> Text -> Text
 nodeOuterHtml Node { startOffset, endOffset } html = html
         |> Text.drop startOffset
         |> Text.take (endOffset - startOffset)
+-- Assuming chars are already escaped, because that's what HSX produces
+nodeOuterHtml TextNode { textContent } _ = textContent
+nodeOuterHtml PreEscapedTextNode { textContent } _ = textContent
+nodeOuterHtml Children { children } html = mconcat $ map (`nodeOuterHtml` html) children
+nodeOuterHtml CommentNode { comment } _ = "<!--" <> comment <> "-->"
 
 isNodeEqIgnoringPosition :: Node -> Node -> Bool
 isNodeEqIgnoringPosition a@(Node {}) b@(Node {}) = (a { startOffset = 0, endOffset = 0 }) == (b { startOffset = 0, endOffset = 0 })

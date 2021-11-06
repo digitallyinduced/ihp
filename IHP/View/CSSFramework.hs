@@ -8,6 +8,7 @@ module IHP.View.CSSFramework where
 import IHP.Prelude
 import IHP.FlashMessages.Types
 import qualified Text.Blaze.Html5 as Blaze
+import Text.Blaze.Html.Renderer.Text (renderHtml)
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml ()
 import IHP.View.Types
@@ -17,6 +18,7 @@ import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!), (!?))
 import qualified Text.Blaze.Html5.Attributes as A
 import IHP.ModelSupport
+import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import IHP.View.Types (PaginationView(linkPrevious, pagination))
@@ -44,9 +46,11 @@ instance Default CSSFramework where
                 , styledPagination
                 , styledPaginationPageLink
                 , styledPaginationDotDot
-                , stylePaginationItemsPerPageSelector
+                , styledPaginationItemsPerPageSelector
                 , styledPaginationLinkPrevious
                 , styledPaginationLinkNext
+                , styledBreadcrumb
+                , styledBreadcrumbItem
             }
         where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
@@ -201,8 +205,8 @@ instance Default CSSFramework where
             styledPaginationDotDot _ _ =
                 [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
 
-            stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-            stylePaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
+            styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+            styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
                 let
                     oneOption :: Int -> Blaze.Html
                     oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
@@ -238,6 +242,27 @@ instance Default CSSFramework where
                             </a>
                         </li>
                     |]
+
+            styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+            styledBreadcrumb _ _ breadcrumbsView = [hsx|
+                <nav>
+                    <ol class="breadcrumb">
+                        {get #breadcrumbItems breadcrumbsView}
+
+                    </ol>
+                </nav>
+            |]
+
+
+            styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+            styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
+                let
+                    breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
+                in
+                case url of
+                    Nothing ->  [hsx|<li class={breadcrumbsClasses}>{breadcrumbLabel}</li>|]
+                    Just url -> [hsx|<li class={breadcrumbsClasses}><a href={url}>{breadcrumbLabel}</a></li>|]
+
 
 
 bootstrap :: CSSFramework
@@ -281,7 +306,9 @@ tailwind = def
     , styledPaginationLinkNext
     , styledPaginationPageLink
     , styledPaginationDotDot
-    , stylePaginationItemsPerPageSelector
+    , styledPaginationItemsPerPageSelector
+    , styledBreadcrumb
+    , styledBreadcrumbItem
     }
     where
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="bg-green-100 border border-green-500 text-green-900 px-4 py-3 rounded relative">{message}</div>|]
@@ -426,10 +453,48 @@ tailwind = def
         |]
 
 
-        stylePaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-        stylePaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
+        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+        styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
             let
                 oneOption :: Int -> Blaze.Html
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
             in
                 [hsx|{forEach [10,20,50,100,200] oneOption}|]
+
+
+        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+        styledBreadcrumb _ _ breadcrumbsView = [hsx|
+            <nav class="breadcrumbs bg-white my-4" aria-label="Breadcrumb">
+                <ol class="flex items-center space-x-2" role="list">
+                    {get #breadcrumbItems breadcrumbsView}
+                </ol>
+            </nav>
+        |]
+
+
+        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
+            let
+                breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-600 items-center", ("active", isLast)]
+
+                -- Show chevron if item isn't the active one (i.e. the last one).
+                chevronRight = unless isLast [hsx|
+                <!-- heroicons.com chevron-right -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                |]
+            in
+            case url of
+                Nothing ->  [hsx|
+                    <li class={breadcrumbsClasses}>
+                        {breadcrumbLabel}
+                        {chevronRight}
+                    </li>
+                |]
+                Just url -> [hsx|
+                    <li class={breadcrumbsClasses}>
+                        <a class="hover:text-gray-700" href={url}>{breadcrumbLabel}</a>
+                        {chevronRight}
+                    </li>
+                    |]

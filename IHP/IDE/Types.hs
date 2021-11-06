@@ -46,10 +46,10 @@ data Action =
     | AssetChanged
     | HaskellFileChanged
     | SchemaChanged
-    | UpdateStatusServerState StatusServerState
-    | UpdateLiveReloadNotificationServerState LiveReloadNotificationServerState
-    | UpdateFileWatcherState FileWatcherState
-    | UpdateToolServerState ToolServerState
+    | UpdateStatusServerState !StatusServerState
+    | UpdateLiveReloadNotificationServerState !LiveReloadNotificationServerState
+    | UpdateFileWatcherState !FileWatcherState
+    | UpdateToolServerState !ToolServerState
     | PauseApp
     deriving (Show)
 

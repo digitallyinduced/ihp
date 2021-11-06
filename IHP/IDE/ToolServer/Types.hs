@@ -38,6 +38,14 @@ data ColumnsController
     | DeleteForeignKeyAction { constraintName :: Text, tableName :: Text }
     deriving (Eq, Show, Data)
 
+data PoliciesController
+    = NewPolicyAction { tableName :: Text }
+    | CreatePolicyAction
+    | EditPolicyAction { tableName :: Text, policyName :: Text }
+    | UpdatePolicyAction
+    | DeletePolicyAction { tableName :: Text, policyName :: Text }
+    deriving (Eq, Show, Data)
+
 data EnumsController
     = ShowEnumAction { enumName :: Text }
     | NewEnumAction

@@ -171,6 +171,8 @@ $ docker run \
 
 ##### `IHP_ASSET_VERSION`
 
+**As of IHP v0.16 this env variable is automatically set to a unqiue build hash.**
+
 If you use [`assetPath` helpers](assets.html) in your app, specifiy the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
 
 
@@ -471,3 +473,22 @@ config = do
 Now sentry is set up.
 
 **When running on IHP Cloud:** You also need to update the `Config.hs` inside your IHP Cloud project settings.
+
+## Building with Nix
+
+You can use `nix-build` to make a full build of your IHP app:
+
+```
+# Optional, if you skip this the binary will not be optimized by GHC
+make prepare-optimized-nix-build
+
+# The actual build process
+nix-build
+```
+
+This will build a nix package that contains the following binaries:
+- `RunProdServer`, the binary to start web server
+- `RunJobs`, if you're using the IHP job queue, this binary will be the entrypoint for the workers
+- a binary for each script in `Application/Script`, e.g. `Welcome` for `Application/Script/Welcome.hs`
+
+The build contains an automatic hash for the `IHP_ASSET_VERSION` env variable, so cache busting should work out of the box.

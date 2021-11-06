@@ -38,6 +38,23 @@ createAuthenticatedRole role = do
     -- Therefore we can disallow direct connection with NOLOGIN
     sqlExec "CREATE ROLE ? NOLOGIN" [PG.Identifier role]
 
+    -- From SO https://stackoverflow.com/a/17355059/14144232
+    --
+    -- GRANTs on different objects are separate. GRANTing on a database doesn't GRANT rights to the schema within. Similiarly, GRANTing on a schema doesn't grant rights on the tables within.
+    -- 
+    -- If you have rights to SELECT from a table, but not the right to see it in the schema that contains it then you can't access the table.
+    -- 
+    -- The rights tests are done in order:
+    -- 
+    -- Do you have `USAGE` on the schema? 
+    --     No:  Reject access. 
+    --     Yes: Do you also have the appropriate rights on the table? 
+    --         No:  Reject access. 
+    --         Yes: Check column privileges.
+
+    -- The role should have access to all existing tables in our schema
+    sqlExec "GRANT USAGE ON SCHEMA public TO ?" [PG.Identifier role]
+    
     -- The role should have access to all existing tables in our schema
     sqlExec "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ?" [PG.Identifier role]
 

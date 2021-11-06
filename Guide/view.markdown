@@ -218,6 +218,32 @@ By default, a message `Are you sure you want to delete this?` is shown as a simp
 <a href={DeleteToolAction (get #id tool)} class="js-delete js-delete-no-confirm">Delete Tool</a>
 ```
 
+### Breadcrumbs
+
+When using the code generator for a new Controller or View, we get Breadcrumbs pre-configured. You can change them, with three helper functions. All those functions can get a simple text for the label (e.g. `"Posts"`) or even HTML opening the door the using SVG or font icons.
+
+Here are a few common examples:
+
+* `breadcrumbLink "Posts" PostsAction` - Show "Posts" label with link to the Posts index page.
+* `breadcrumbLink [hsx|<i class="fas fa-home"></i>|] HomepageAction` - Using HTML to show a "Home" fonts-awesome icon.
+* `breadcrumbText "Show Post"` - Showing text or HTML, without a link. Normally that would be for the last breadcrumb.
+* `breadcrumbLinkExternal "Back to Portal" "https://example.com"` - Breadcrumb link to an external site.
+
+```
+instance View ShowView where
+    html ShowView { .. } = [hsx|
+        {breadcrumb}
+        <h1>Show Post</h1>
+        <p>{post}</p>
+
+    |]
+        where
+            breadcrumb = renderBreadcrumb
+                            [ breadcrumbLink "Posts" PostsAction
+                            , breadcrumbText "Show Post"
+                            ]
+```
+
 ### SEO
 
 #### Setting the Page Title
@@ -334,7 +360,7 @@ Preloading with InstantClick on hover will only happen with links that
 We provide two custom events
 
 -   `ihp:load` that will trigger when `DOMContentLoaded` or `turbolinks:load`
--   `ihp:load` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
+-   `ihp:unload` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
 
 ```javascript
 document.addEventListener('ihp:load', () => {
