@@ -23,6 +23,7 @@ import qualified IHP.FrameworkConfig as Config
 import IHP.IDE.SchemaDesigner.Controller.EnumValues ()
 import IHP.IDE.SchemaDesigner.Controller.Enums ()
 import IHP.IDE.SchemaDesigner.Controller.Columns ()
+import IHP.IDE.SchemaDesigner.Controller.Policies ()
 import IHP.IDE.SchemaDesigner.Controller.Schema ()
 import IHP.IDE.SchemaDesigner.Controller.Tables ()
 import IHP.IDE.Data.Controller ()
@@ -120,6 +121,7 @@ instance FrontController ToolServerApplication where
         [ parseRoute @SchemaController
         , parseRoute @TablesController
         , parseRoute @ColumnsController
+        , parseRoute @PoliciesController
         , parseRoute @EnumsController
         , parseRoute @EnumValuesController
         , parseRoute @LogsController
