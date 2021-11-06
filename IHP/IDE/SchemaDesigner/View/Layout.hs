@@ -136,14 +136,7 @@ renderColumnSelector tableName columns statements = [hsx|
                 Nothing -> [hsx||]
 
         auth :: Html
-        auth = [hsx|
-            <section>
-                <h5>Policies</h5>
-                <table class="table table-hover table-sm">
-                    {renderPolicies tableName statements}
-                </table>
-            </section>
-        |]
+        auth = renderPolicies tableName statements
 
 -- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
 
@@ -206,8 +199,16 @@ renderColumnIndexes tableName statements = forEach (findTableIndexes statements 
 
 
 renderPolicies :: Text -> [Statement] -> Html
-renderPolicies tableName statements = forEach tablePolicies renderPolicy
+renderPolicies tableName statements = whenNonEmpty tablePolicies policiesTable
     where
+        policiesTable = [hsx|
+            <section>
+                <h5>Policies</h5>
+                <table class="table table-hover table-sm">
+                    {forEach tablePolicies renderPolicy}
+                </table>
+            </section>
+        |]
         tablePolicies :: [Statement]
         tablePolicies = statements
                 |> filter \case
