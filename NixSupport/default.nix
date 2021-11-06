@@ -36,6 +36,15 @@ in
           ln -s "${ihp}/lib/IHP" build/ihp-lib
           ln -s "${ihp}/lib" IHP/lib # Avoid the Makefile calling 'which RunDevServer'
 
+          # When npm install is executed by the project's makefile it will fail with:
+          #
+          #     EACCES: permission denied, mkdir '/homeless-shelter'
+          #
+          # To avoid this error we use /tmp as our home directory for the build
+          #
+          # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
+          export HOME=/tmp
+
           make ${appBinary}
 
           # Build job runner if there are any jobs
