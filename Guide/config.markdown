@@ -108,7 +108,7 @@ module Config where
 
 config :: ConfigBuilder
 config = do
-    redisUrl :: Maybe text <- envOrNothing "REDIS_URL"
+    redisUrl :: Maybe Text <- envOrNothing "REDIS_URL"
 ```
 
 ### Custom Parser
