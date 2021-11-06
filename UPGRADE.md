@@ -2,6 +2,61 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+
+# Upgrade to Beta 0.16.0 from Beta 0.15.0
+1. **Switch IHP version**
+
+    - **IHP Basic**
+
+        Open `default.nix` and change the git commit in line 4 to the following:
+
+        ```diff
+        -ref = "refs/tags/v0.15.0";
+        +ref = "refs/tags/v0.16.0";
+        ```
+
+    - **IHP Pro & IHP Business**
+
+        Visit https://ihp.digitallyinduced.com/Builds and copy the latest v0.16 URL into your `default.nix`.
+
+2. **Remake Env**
+
+    Run the following commands:
+
+    ```bash
+    nix-shell --run 'make -B .envrc'
+    nix-shell --run 'make -B build/ihp-lib'
+    ```
+
+    Now you can start your project as usual with `./start`.
+
+3. **Tests**
+
+    If your app has Hspec tests, you will need to follow this step. If your app has no Hspec tess, you can skip this.
+
+    The `withParams` test helper has been replaced with `callActionWithParams`.
+
+    Test code like this:
+
+    ```haskell
+            it "creates a new post" $ withParams [("title", "Post title"), ("body", "Body of post")] do
+                response <- callAction CreatePostAction
+
+                let (Just location) = (lookup "Location" (responseHeaders response))
+                location `shouldBe` "http://localhost:8000/Posts"
+    ```
+
+    needs to be changed to this:
+
+    ```haskell
+            it "creates a new post" $ withContext do -- <-- `withContext` here, otherwise it will not work
+                response <- callActionWithParams CreatePostAction [("title", "Post title"), ("body", "Body of post")] -- <-- `callAction` turns into `callActionWithParams`
+
+                let (Just location) = (lookup "Location" (responseHeaders response))
+                location `shouldBe` "http://localhost:8000/Posts"
+    ```
+    
+
 # Upgrade to Beta 0.15.0 from Beta 0.14.0
 1. **Switch IHP version**
 

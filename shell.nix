@@ -64,11 +64,11 @@ let
         async-pool
         cereal-text
         cereal-uuid
+        neat-interpolation
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli
         hspec
-        neat-interpolation
     ]);
 in
     pkgs.stdenv.mkDerivation {

@@ -6,15 +6,24 @@ module Test.View.CSSFrameworkSpec where
 
 import Test.Hspec
 import IHP.Prelude
+import IHP.Controller.Context
+import IHP.FrameworkConfig as FrameworkConfig
+import Control.Exception
+import IHP.Controller.RequestContext
 import IHP.View.Types
 import IHP.View.CSSFramework
 import IHP.FlashMessages.Types
 import IHP.Controller.Session
 import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H
+import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
+import IHP.Breadcrumb.Types
+import IHP.Breadcrumb.ViewFunctions (breadcrumbLink, breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
-import qualified IHP.ControllerPrelude as Text
+import qualified IHP.Prelude as Text (isInfixOf)
+import qualified Data.TMap as TypeMap
+import qualified Network.Wai as Wai
 
 tests = do
     describe "CSS Framework" do
@@ -193,7 +202,7 @@ tests = do
 
                 it "should render items per page selector" do
                     let pagination = basePagination
-                    stylePaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
+                    styledPaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
 
                 it "should render the wrapping pagination" do
                     let pagination = basePagination
@@ -210,6 +219,49 @@ tests = do
                     let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
+            describe "breadcrumbs" do
+                it "should render a breadcrumb item with no link" do
+                    let breadcrumbItem = breadcrumbText "First item"
+                    let breadcrumbs = [breadcrumbItem]
+
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem True `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
+
+                it "should render a breadcrumb item with external link" do
+                    let breadcrumbItem = breadcrumbLinkExternal "First item" "https://example.com"
+                    let breadcrumbs = [breadcrumbItem]
+
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem True `shouldRenderTo` "<li class=\"breadcrumb-item active\"><a href=\"https://example.com\">First item</a></li>"
+
+                it "should render a breadcrumb item as non-active" do
+                    let breadcrumbItem = breadcrumbText "First item"
+                    let breadcrumbs = [breadcrumbItem]
+
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem False `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
+
+                it "should render the wrapping breadcrumb and last item as active" do
+                    let breadcrumbs = [breadcrumbText "First item", breadcrumbText "Last item"]
+
+                    --
+                    context <- createControllerContextWithCSSFramework cssFramework
+                    let ?context = context
+
+                    renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
+
+                it "should support show of BreadcrumbItem" do
+                    let breadcrumbItem = breadcrumbText "First item"
+                    show breadcrumbItem `shouldBe` "{ breadcrumbLabel = \"First item\", url = Nothing }"
+
 
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
+
+{-| Mock a Controller context with CSSFramework.
+-}
+createControllerContextWithCSSFramework :: Typeable option => option -> IO ControllerContext
+createControllerContextWithCSSFramework cssFramework = do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
+                option cssFramework
+    let requestBody = FormBody { params = [], files = [] }
+    let request = Wai.defaultRequest
+    let requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = frameworkConfig }
+    pure FrozenControllerContext { requestContext, customFields = TypeMap.empty }

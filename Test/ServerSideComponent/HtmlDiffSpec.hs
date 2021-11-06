@@ -55,6 +55,16 @@ tests = do
                     let expected = [UpdatePreEscapedTextNode { textContent = "alert(2)", path = [] }]
                     result `shouldBe` expected
 
+                it "should insert text and comment nodes (#1192)" do
+                    let a = Node {tagName = "span", attributes = [], children = [], startOffset = 0, endOffset = 0}
+                    let b = Node {tagName = "span", attributes = [], children = [TextNode {textContent = "string"}, CommentNode {comment = "test"}], startOffset = 0, endOffset = 0}
+                    let result = diffNodes a b
+                    let expected = 
+                            [ CreateNode {html = "string", path = [0]}
+                            , CreateNode {html = "<!--test-->", path = [1]}
+                            ]
+                    result `shouldBe` expected
+
                 it "should replace nodes if the tag name is different" do
                     let a = Node { tagName = "a", attributes = [Attribute { attributeName = "href", attributeValue = "#" }], children = [ TextNode { textContent = "hello" } ], startOffset = 0, endOffset = 0 }
                     let b = Node { tagName = "div", attributes = [Attribute { attributeName = "class", attributeValue = "d-block" }], children = [], startOffset = 0, endOffset = 0 }

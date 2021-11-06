@@ -63,10 +63,11 @@
 , hspec
 , cereal-text
 , cereal-uuid
+, neat-interpolation
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v0.15.0";
+  version = "v0.16.0";
   src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
@@ -132,6 +133,7 @@ mkDerivation {
     hspec
     cereal-text
     cereal-uuid
+    neat-interpolation
   ];
   license = lib.licenses.mit;
   postInstall = ''
