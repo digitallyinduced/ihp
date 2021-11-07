@@ -24,8 +24,8 @@ tests = do
                         }
 
                 compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ??"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.Plain ""]
+                        ( "SELECT ? FROM ?"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts"]
                         )
             
             it "compile a select query with order by" do

@@ -27,7 +27,7 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
                 <> orderByArgs
 
         (orderBySql, orderByArgs) = case orderByClause of
-                [] -> ("?", [PG.Plain ""])
+                [] -> ("", [])
                 orderByClauses ->
                     ( PG.Query $ cs $ " ORDER BY " <> (intercalate ", " (map (const "? ?") orderByClauses))
                     , orderByClauses
