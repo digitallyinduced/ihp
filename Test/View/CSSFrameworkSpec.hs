@@ -178,11 +178,10 @@ tests = do
 
             describe "pagination" do
                 let basePagination = Pagination
-                        {
-                            pageSize = 3
-                        ,   totalItems = 12
-                        ,   currentPage = 2
-                        ,   window = 3
+                        { pageSize = 3
+                        , totalItems = 12
+                        , currentPage = 2
+                        , window = 3
                         }
                 it "should render previous link" do
                     let pagination = basePagination
@@ -218,6 +217,26 @@ tests = do
 
                     let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
+
+                it "should not render the pagination if there aren't enough elements" do
+                    let pagination = Pagination
+                            { pageSize = 10
+                            , totalItems = 5
+                            , currentPage = 1
+                            , window = 3
+                            }
+                    let paginationView = PaginationView
+                            { cssFramework = cssFramework
+                            , pagination = pagination
+                            , pageUrl = const ""
+                            , linkPrevious = mempty
+                            , linkNext = mempty
+                            , pageDotDotItems = mempty
+                            , itemsPerPageSelector = mempty
+                            }
+
+                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    render `shouldBe` mempty
 
             describe "breadcrumbs" do
                 it "should render a breadcrumb item with no link" do
