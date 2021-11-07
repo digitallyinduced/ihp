@@ -170,28 +170,29 @@ instance Default CSSFramework where
             styledSubmitButtonClass = ""
 
             styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
-            styledPagination _ paginationView =
-                [hsx|
+            styledPagination _ paginationView@PaginationView {pagination, linkPrevious, linkNext, pageDotDotItems, itemsPerPageSelector} =
+                when (showPagination pagination)
+                    [hsx|
 
-                <div class="d-flex justify-content-md-center">
-                    <nav aria-label="Page Navigator" class="mr-2">
-                        <ul class="pagination">
-                            {get #linkPrevious paginationView}
-                            {get #pageDotDotItems paginationView}
-                            {get #linkNext paginationView}
-                        </ul>
-                    </nav>
+                    <div class="d-flex justify-content-md-center">
+                        <nav aria-label="Page Navigator" class="mr-2">
+                            <ul class="pagination">
+                                {linkPrevious}
+                                {pageDotDotItems}
+                                {linkNext}
+                            </ul>
+                        </nav>
 
-                    <div class="form-row">
-                        <div class="col-auto mr-2">
-                            <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                                {get #itemsPerPageSelector paginationView}
-                            </select>
+                        <div class="form-row">
+                            <div class="col-auto mr-2">
+                                <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                                    {itemsPerPageSelector}
+                                </select>
+                            </div>
                         </div>
-                    </div>
 
-                </div>
-                |]
+                    </div>
+                    |]
 
             styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
             styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
@@ -328,61 +329,64 @@ tailwind = def
 
         styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
         styledPagination _ paginationView@PaginationView {pageUrl, pagination} =
-            let
-                currentPage = get #currentPage pagination
+            if showPagination pagination then
+                let
+                    currentPage = get #currentPage pagination
 
-                previousPageUrl = if hasPreviousPage pagination then pageUrl $ currentPage - 1 else "#"
-                nextPageUrl = if hasNextPage pagination then pageUrl $ currentPage + 1 else "#"
+                    previousPageUrl = if hasPreviousPage pagination then pageUrl $ currentPage - 1 else "#"
+                    nextPageUrl = if hasNextPage pagination then pageUrl $ currentPage + 1 else "#"
 
-                defaultClass = "relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                previousClass = classes
-                    [ defaultClass
-                    , ("disabled", not $ hasPreviousPage pagination)
-                    ]
-                nextClass = classes
-                    [ defaultClass
-                    , ("disabled", not $ hasNextPage pagination)
-                    ]
+                    defaultClass = "relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    previousClass = classes
+                        [ defaultClass
+                        , ("disabled", not $ hasPreviousPage pagination)
+                        ]
+                    nextClass = classes
+                        [ defaultClass
+                        , ("disabled", not $ hasNextPage pagination)
+                        ]
 
-                previousMobileOnly =
-                    [hsx|
-                        <a href={previousPageUrl} class={previousClass}>
-                            Previous
-                        </a>
-                    |]
+                    previousMobileOnly =
+                        [hsx|
+                            <a href={previousPageUrl} class={previousClass}>
+                                Previous
+                            </a>
+                        |]
 
-                nextMobileOnly =
-                    [hsx|
-                        <a href={nextPageUrl} class={nextClass}>
-                            Next
-                        </a>
-                    |]
+                    nextMobileOnly =
+                        [hsx|
+                            <a href={nextPageUrl} class={nextClass}>
+                                Next
+                            </a>
+                        |]
 
-            in
-            [hsx|
-                <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                    <div class="flex-1 flex justify-between sm:hidden">
-                        {previousMobileOnly}
-                        {nextMobileOnly}
-                    </div>
-                    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                        <div class="text-sm text-gray-700">
-                            <select class="px-4 py-3" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                                {get #itemsPerPageSelector paginationView}
-                            </select>
+                in
+                [hsx|
+                    <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                        <div class="flex-1 flex justify-between sm:hidden">
+                            {previousMobileOnly}
+                            {nextMobileOnly}
                         </div>
-                        <div>
-                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                            {get #linkPrevious paginationView}
+                        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                            <div class="text-sm text-gray-700">
+                                <select class="px-4 py-3" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                                    {get #itemsPerPageSelector paginationView}
+                                </select>
+                            </div>
+                            <div>
+                            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                {get #linkPrevious paginationView}
 
-                            {get #pageDotDotItems paginationView}
+                                {get #pageDotDotItems paginationView}
 
-                            {get #linkNext paginationView}
-                        </nav>
+                                {get #linkNext paginationView}
+                            </nav>
+                            </div>
                         </div>
                     </div>
-                </div>
-            |]
+                |]
+            else
+                mempty
 
         styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
         styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
@@ -498,3 +502,11 @@ tailwind = def
                         {chevronRight}
                     </li>
                     |]
+
+
+{-| Determine if a Pagination needs to be shown.
+    If there is only a single page, we shouldn't show a pager.
+-}
+showPagination :: Pagination -> Bool
+showPagination pagination@Pagination {currentPage} =
+    currentPage /= 1 || hasNextPage pagination || hasPreviousPage pagination
