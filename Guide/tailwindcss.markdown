@@ -215,12 +215,6 @@ Once everything is installed, you can start your tailwind build by calling:
 make tailwind-dev
 ```
 
-You should have this process running next to your terminal that runs `./start`. Alternatively, you could add this to the `start` file like so:
-
-```bash
-make tailwind-dev & RunDevServer
-```
-
 Whenever you change any CSS file in `tailwind/` it will automatically rebuild your styles and write it to `static/app.css`.
 
 ## Building for production
