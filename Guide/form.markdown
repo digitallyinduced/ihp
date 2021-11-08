@@ -340,8 +340,8 @@ import qualified Text.Blaze.Html5.Attributes as A
 -- On click, open an alert.
 {(textField #title) { fieldInput = (\fieldInput -> H.input ! A.onclick "alert(1)") } }
 
--- Add HTML5 'min' attribute to a number input.
-{(numberField #someval) { fieldInput = (\fieldInput -> H.input ! A.min "1") } }
+-- Add HTML5 'min' and 'max' attributes to a number input.
+{(numberField #someval) { fieldInput = (\fieldInput -> H.input ! A.min "1" ! A.max "100") } }
 ```
 
 This will render like:
@@ -355,6 +355,17 @@ This will render like:
         name="title"
         placeholder=""
         id="post_title"
+        class="form-control"
+    />
+</div>
+
+<div class="form-group" id="form-group-someval">
+    <label class="" for="someval">Someval</label>
+    <input
+        type="number"
+        name="someval"
+        min="1"
+        max="100"
         class="form-control"
     />
 </div>
