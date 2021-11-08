@@ -358,6 +358,17 @@ This will render like:
         class="form-control"
     />
 </div>
+
+<div class="form-group" id="form-group-someval">
+    <label class="" for="someval">Someval</label>
+    <input
+        type="number"
+        name="someval"
+        min="1"
+        max="100"
+        class="form-control"
+    />
+</div>
 ```
 
 Using the `fieldInput`, which is passed as an argument, you can access the other options of the form. Don't set the `class` attribute on your custom field input, as this will break rendering.
