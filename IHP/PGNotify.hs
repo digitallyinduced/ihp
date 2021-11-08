@@ -47,7 +47,9 @@ watchInsertOrUpdateTable tableName onInsertOrUpdate = do
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 createNotificationTrigger :: ByteString -> ByteString
-createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+createNotificationTrigger tableName = ""
+        <> "BEGIN;\n"
+        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
         <> "BEGIN\n"
         <> "    PERFORM pg_notify('" <> eventName tableName <> "', '');\n"
         <> "    RETURN new;"
@@ -56,6 +58,7 @@ createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionN
         <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
         <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
         <> "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "COMMIT;\n"
     where
         functionName = "notify_did_change_" <> tableName
         insertTriggerName = "did_insert_" <> tableName

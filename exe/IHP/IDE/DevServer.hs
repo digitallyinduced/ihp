@@ -64,7 +64,21 @@ main = do
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state (UpdatePostgresState postgresState) = pure state { postgresState }
+handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) = 
+    case postgresState of
+        PostgresStarted {} -> do
+            -- If the app is already running before the postgres started up correctly,
+            -- we need to trigger a restart, otherwise e.g. background jobs will not start correctly
+            newAppGHCIState <- case appGHCIState of
+                RunningAppGHCI { .. } -> do
+                    sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
+                    sendGhciCommand process ":r"
+                    pure AppGHCILoading { .. }
+                otherwise -> pure otherwise
+
+
+            pure state { appGHCIState = newAppGHCIState, postgresState }
+        otherwise -> pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
 handleAction state (UpdateToolServerState toolServerState) = pure state { toolServerState }
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }

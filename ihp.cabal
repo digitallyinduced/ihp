@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             0.15.0
+version:             0.16.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             NONE
@@ -306,6 +306,7 @@ library
         , IHP.IDE.SchemaDesigner.Controller.Schema
         , IHP.IDE.SchemaDesigner.Controller.Tables
         , IHP.IDE.SchemaDesigner.Controller.Validation
+        , IHP.IDE.SchemaDesigner.Controller.Policies
         , IHP.IDE.SchemaDesigner.View.Columns.Edit
         , IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
         , IHP.IDE.SchemaDesigner.View.Columns.New
@@ -324,6 +325,8 @@ library
         , IHP.IDE.SchemaDesigner.View.Tables.Index
         , IHP.IDE.SchemaDesigner.View.Tables.New
         , IHP.IDE.SchemaDesigner.View.Tables.Show
+        , IHP.IDE.SchemaDesigner.View.Policies.New
+        , IHP.IDE.SchemaDesigner.View.Policies.Edit
         , IHP.IDE.SchemaDesigner.SchemaOperations
         , IHP.IDE.SchemaDesigner.MigrationChangeTracker
         , IHP.IDE.Data.Controller

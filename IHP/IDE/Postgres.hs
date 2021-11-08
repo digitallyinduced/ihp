@@ -8,6 +8,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import GHC.IO.Handle
 
 import qualified IHP.Log as Log
+import qualified IHP.LibDir as LibDir
 
 startPostgres :: (?context :: Context) => IO ManagedProcess
 startPostgres = do
@@ -90,7 +91,10 @@ initDatabase = do
 
     waitUntilReady process do
         Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
+
+        ihpLib <- LibDir.findLibDirectory
         let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < " <> file)
+        importSql (cs ihpLib <> "/IHPSchema.sql")
         importSql "Application/Schema.sql"
         importSql "Application/Fixtures.sql"
 

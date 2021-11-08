@@ -138,3 +138,111 @@ addValueToEnum enumName enumValueName statements = map addValueToEnum' statement
             table { values = values <> [enumValueName] }
         addValueToEnum' statement = statement
 
+data UpdatePolicyOptions = UpdatePolicyOptions
+    { currentName :: !Text -- ^ Current name of the policy
+    , tableName :: !Text -- ^ Table of the policy
+    , name :: !Text -- ^ New name of the policy
+    , using :: !(Maybe Expression)
+    , check :: !(Maybe Expression)
+    }
+
+updatePolicy :: UpdatePolicyOptions -> Schema -> Schema
+updatePolicy UpdatePolicyOptions { .. } statements =
+        statements
+        |> map updatePolicy'
+    where
+        updatePolicy' policy@CreatePolicy { name = pName, tableName = pTable } | pName == currentName && pTable == tableName = CreatePolicy { tableName, name, using, check }
+        updatePolicy' otherwise                                                                                              = otherwise
+
+data AddPolicyOptions = AddPolicyOptions
+    { tableName :: !Text
+    , name :: !Text
+    , using :: !(Maybe Expression)
+    , check :: !(Maybe Expression)
+    }
+
+addPolicy :: AddPolicyOptions -> Schema -> Schema
+addPolicy AddPolicyOptions { .. } statements = statements <> createPolicyStatement
+    where
+        createPolicyStatement = [ CreatePolicy { tableName, name, using, check } ]
+
+data DeletePolicyOptions = DeletePolicyOptions
+    { tableName :: !Text
+    , policyName :: !Text
+    }
+
+deletePolicy :: DeletePolicyOptions -> Schema -> Schema
+deletePolicy DeletePolicyOptions { .. } statements =
+        statements
+        |> filter (not . isSelectedPolicy)
+    where
+        isSelectedPolicy :: Statement -> Bool
+        isSelectedPolicy policy@CreatePolicy { name = pName, tableName = pTable } = pName == policyName && pTable == tableName
+        isSelectedPolicy otherwise                                                = False
+
+enableRowLevelSecurity :: Text -> Schema -> Schema
+enableRowLevelSecurity tableName schema =
+    let
+        rlsEnabled = schema
+                |> find \case
+                    EnableRowLevelSecurity { tableName = rlsTable } -> rlsTable == tableName
+                    otherwise                                       -> False
+                |> isJust
+    in if rlsEnabled
+        then schema
+        else schema <> [ EnableRowLevelSecurity { tableName } ]
+
+disableRowLevelSecurity :: Text -> Schema -> Schema
+disableRowLevelSecurity tableName schema = schema
+        |> filter \case
+            EnableRowLevelSecurity { tableName = rlsTable } -> rlsTable /= tableName
+            otherwise                                       -> True
+
+disableRowLevelSecurityIfNoPolicies :: Text -> Schema -> Schema
+disableRowLevelSecurityIfNoPolicies tableName schema =
+    let
+        tableHasPolicies = schema
+                |> find \case
+                    CreatePolicy { tableName = policyTable } -> policyTable == tableName
+                    otherwise                                -> False
+                |> isJust
+    in if tableHasPolicies
+        then schema
+        else disableRowLevelSecurity tableName schema
+
+
+-- | Checks if there exists a @user_id@ column, and returns a policy based on that.
+-- If there's no @user_id@ field on the table it will return an empty policy
+--
+-- TODO: In the future this function should follow foreign keys to find the shortest path to a user_id.
+-- E.g. when having a schema post_meta_tags (no user_id column) <-> posts (has a user_id) <-> users:
+--
+-- >                                                 post_id
+-- >                            posts_meta_infos ────────────────►  posts
+-- >                                                                 │
+-- >                                                                 │
+-- >                                                                 │
+-- >                                                                 │
+-- >                                                                 │
+-- >                                                                 │ user_id
+-- >                                                                 │
+-- >                                                                 │
+-- >                                                                 │
+-- >                                                                 │
+-- >                                          users  ◄───────────────┘
+--
+suggestPolicy :: Statement -> Statement
+suggestPolicy (StatementCreateTable CreateTable { name = tableName, columns })
+    | isJust (find isUserIdColumn columns)  = CreatePolicy
+        { name = "Users can manage their " <> tableName
+        , tableName
+        , using = Just compareUserId
+        , check = Just compareUserId
+        }
+    where
+        compareUserId = EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])
+suggestPolicy (StatementCreateTable CreateTable { name = tableName }) = CreatePolicy { name = "", tableName, using = Nothing, check = Nothing }
+
+isUserIdColumn :: Column -> Bool
+isUserIdColumn Column { name = "user_id" } = True
+isUserIdColumn otherwise                   = False
