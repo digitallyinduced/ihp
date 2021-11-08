@@ -24,6 +24,7 @@ import IHP.Pagination.Types
 import qualified IHP.Prelude as Text (isInfixOf)
 import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
+import IHP.Pagination.ViewFunctions (renderPagination)
 
 tests = do
     describe "CSS Framework" do
@@ -219,6 +220,20 @@ tests = do
                     let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
+                it "should not render the pagination if there aren't enough elements" do
+                    let pagination = Pagination
+                            { pageSize = 10
+                            , totalItems = 5
+                            , currentPage = 1
+                            , window = 3
+                            }
+
+                    context <- createControllerContextWithCSSFramework cssFramework
+                    let ?context = context
+
+                    renderPagination pagination `shouldRenderTo` mempty
+
+
             describe "breadcrumbs" do
                 it "should render a breadcrumb item with no link" do
                     let breadcrumbItem = breadcrumbText "First item"
@@ -241,7 +256,6 @@ tests = do
                 it "should render the wrapping breadcrumb and last item as active" do
                     let breadcrumbs = [breadcrumbText "First item", breadcrumbText "Last item"]
 
-                    --
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
 
