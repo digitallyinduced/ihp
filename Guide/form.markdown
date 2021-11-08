@@ -337,7 +337,11 @@ import qualified Text.Blaze.Html5.Attributes as A
 ```
 
 ```haskell
+-- On click, open an alert.
 {(textField #title) { fieldInput = (\fieldInput -> H.input ! A.onclick "alert(1)") } }
+
+-- Add HTML5 'min' attribute to a number input.
+{(numberField #someval) { fieldInput = (\fieldInput -> H.input ! A.min "1") } }
 ```
 
 This will render like:
