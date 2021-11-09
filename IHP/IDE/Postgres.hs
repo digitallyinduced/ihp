@@ -29,7 +29,8 @@ startPostgres = do
     standardOutput <- redirectHandleToVariable outputHandle
     errorOutput <- redirectHandleToVariable errorHandle
 
-    dispatch (UpdatePostgresState (PostgresStarted { .. }))
+    waitUntilReady process do
+        dispatch (UpdatePostgresState (PostgresStarted { .. }))
 
     pure process
 
