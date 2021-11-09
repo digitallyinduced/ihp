@@ -12,7 +12,7 @@ We will also have PostCSS added as part of the installation. PostCSS is used for
 
 ## Installing
 
-### [NodeJS]
+### NodeJS
 
 First, we need to add NodeJS to our project. **You should also follow this step if you have NodeJS already installed on your system.** Installing the NodeJS version via nix allows all people working on your project to get the same NodeJS version as you're using.
 
