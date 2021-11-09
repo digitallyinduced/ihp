@@ -220,6 +220,21 @@ tests = do
                     let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
+                it "should render the pagination if there are enough elements" do
+                    let pagination = Pagination
+                            { pageSize = 5
+                            , totalItems = 15
+                            , currentPage = 1
+                            , window = 3
+                            }
+
+                    context <- createControllerContextWithCSSFramework cssFramework
+                    let ?context = context
+
+                    let render = Blaze.renderMarkup $ renderPagination pagination
+                    Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
+
+
                 it "should not render the pagination if there aren't enough elements" do
                     let pagination = Pagination
                             { pageSize = 10
