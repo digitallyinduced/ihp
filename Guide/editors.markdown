@@ -24,6 +24,16 @@ To make file paths clickable inside the web browser (e.g. when a type error happ
 export IHP_EDITOR="code --goto"
 ```
 
+
+### VSCode + Haskell Language Server Troubleshooting
+
+#### "Couldn't figure out what GHC version the project is using"
+
+If you get an error `Couldn't figure out what GHC version the project is using` in Visual Studio Code make sure that the Nix Env Selector plugin was started correctly:
+1. Open the project in VS Code
+2. Click `View` -> `Command Palette` -> `Nix-Env: Select Environment` -> `default.nix`
+3. This will restart VS Code. After that Haskell Language Server should be working.
+
 ### VSCode on Windows with Windows Subsystem for Linux
 
 It is important to not access the files within the WSL from Windows itself (however, the other way around is ok). You can seamlessly (including auto-save) work on your projects within WSL from VS Code in Windows by adding the [`Remote WSL`](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) extension from Microsoft.
@@ -86,7 +96,7 @@ Provided you already have CoC setup, just run `:CocConfig` and add the following
 }
 ```
 
-## Notes on `haskell-language-server`
+## Haskell Language Server
 
 Because haskell-language-server is tightly coupled to the GHC version it comes pre-bundled with IHP. In case you also have a local install of haskell-language-server you need to make sure that the one provided by IHP is used. Usually, this is done automatically when your editor is picking up the `.envrc` file.
 
