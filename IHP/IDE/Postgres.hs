@@ -5,6 +5,7 @@ import IHP.Prelude
 import qualified System.Process as Process
 import qualified System.Directory as Directory
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Builder as ByteString
 import GHC.IO.Handle
 
 import qualified IHP.Log as Log
@@ -26,10 +27,30 @@ startPostgres = do
 
 
     let ManagedProcess { outputHandle, errorHandle } = process
-    standardOutput <- redirectHandleToVariable outputHandle
-    errorOutput <- redirectHandleToVariable errorHandle
 
-    dispatch (UpdatePostgresState (PostgresStarted { .. }))
+    let isDebugMode = ?context |> get #isDebugMode
+
+    let handleOutdatedDatabase line =
+            -- Always log fatal errors to the output:
+            -- 2021-09-04 12:18:08.888 CEST [55794] FATAL:  database files are incompatible with server
+            --
+            -- If we're in debug mode, log all output
+            if "FATAL" `ByteString.isInfixOf` line
+                then if "database files are incompatible with server" `ByteString.isInfixOf` line
+                    then Log.error ("The current database state has been created with a different postgres server. Likely you just upgraded the IHP version. Delete your local dev database with 'rm -rf build/db'. You can use 'make dumpdb' to save your database state to Fixtures.sql, otherwise all changes in your local db will be lost. After that run './start' again." :: Text)
+                    else Log.error line
+                else when isDebugMode (Log.debug line)
+
+    let handleDatabaseReady onReady line = when ("database system is ready to accept connections" `ByteString.isInfixOf` line) onReady
+
+
+    standardOutput <- newIORef mempty
+    errorOutput <- newIORef mempty
+
+    let databaseIsReady = dispatch (UpdatePostgresState (PostgresStarted { .. }))
+
+    redirectHandleToVariable standardOutput outputHandle handleOutdatedDatabase
+    redirectHandleToVariable errorOutput errorHandle (handleOutdatedDatabase >> handleDatabaseReady databaseIsReady)
 
     pure process
 
@@ -37,25 +58,12 @@ stopPostgres :: PostgresState -> IO ()
 stopPostgres PostgresStarted { .. } = cleanupManagedProcess process
 stopPostgres _ = pure ()
 
-redirectHandleToVariable :: (?context :: Context) => Handle -> IO (IORef ByteString)
-redirectHandleToVariable handle = do
-    let isDebugMode = ?context |> get #isDebugMode
-
-    ref <- newIORef ""
+redirectHandleToVariable :: IORef ByteString.Builder -> Handle -> (ByteString -> IO ()) -> IO (Async ())
+redirectHandleToVariable !ref !handle !onLine = do
     async $ forever $ do
         line <- ByteString.hGetLine handle
-
-        -- Always log fatal errors to the output:
-        -- 2021-09-04 12:18:08.888 CEST [55794] FATAL:  database files are incompatible with server
-        --
-        -- If we're in debug mode, log all output
-        if "FATAL" `ByteString.isInfixOf` line
-            then if "database files are incompatible with server" `ByteString.isInfixOf` line
-                then Log.error ("The current database state has been created with a different postgres server. Likely you just upgraded the IHP version. Delete your local dev database with 'rm -rf build/db'. You can use 'make dumpdb' to save your database state to Fixtures.sql, otherwise all changes in your local db will be lost. After that run './start' again." :: Text)
-                else Log.error line
-            else when isDebugMode (Log.debug line)
-        modifyIORef ref (\log -> log <> "\n" <> line)
-    pure ref
+        onLine line
+        modifyIORef ref (\log -> log <> "\n" <> ByteString.byteString line)
 
 ensureNoOtherPostgresIsRunning :: IO ()
 ensureNoOtherPostgresIsRunning = do

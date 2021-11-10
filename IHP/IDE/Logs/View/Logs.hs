@@ -4,7 +4,7 @@ import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout ()
 
-data LogsView = LogsView { standardOutput :: ByteString, errorOutput :: ByteString }
+data LogsView = LogsView { standardOutput :: LByteString, errorOutput :: LByteString }
 
 instance View LogsView where
     html LogsView { .. } = [hsx|
