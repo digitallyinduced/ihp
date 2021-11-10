@@ -5,6 +5,7 @@ import IHP.Prelude
 import qualified System.Process as Process
 import qualified System.Directory as Directory
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Builder as ByteString
 import GHC.IO.Handle
 
 import qualified IHP.Log as Log
@@ -43,8 +44,8 @@ startPostgres = do
     let handleDatabaseReady onReady line = when ("database system is ready to accept connections" `ByteString.isInfixOf` line) onReady
 
 
-    standardOutput <- newIORef ""
-    errorOutput <- newIORef ""
+    standardOutput <- newIORef mempty
+    errorOutput <- newIORef mempty
 
     let databaseIsReady = dispatch (UpdatePostgresState (PostgresStarted { .. }))
 
@@ -57,12 +58,12 @@ stopPostgres :: PostgresState -> IO ()
 stopPostgres PostgresStarted { .. } = cleanupManagedProcess process
 stopPostgres _ = pure ()
 
-redirectHandleToVariable :: IORef ByteString -> Handle -> (ByteString -> IO ()) -> IO (Async ())
+redirectHandleToVariable :: IORef ByteString.Builder -> Handle -> (ByteString -> IO ()) -> IO (Async ())
 redirectHandleToVariable !ref !handle !onLine = do
     async $ forever $ do
         line <- ByteString.hGetLine handle
         onLine line
-        modifyIORef ref (\log -> log <> "\n" <> line)
+        modifyIORef ref (\log -> log <> "\n" <> ByteString.byteString line)
 
 ensureNoOtherPostgresIsRunning :: IO ()
 ensureNoOtherPostgresIsRunning = do
