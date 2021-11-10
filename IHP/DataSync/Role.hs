@@ -31,6 +31,7 @@ ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context, ?
 ensureAuthenticatedRoleExists = do
     roleExists <- doesRoleExists authenticatedRole
     unless roleExists (createAuthenticatedRole authenticatedRole)
+    grantPermissions authenticatedRole
 
 createAuthenticatedRole :: (?modelContext :: ModelContext) => Text -> IO ()
 createAuthenticatedRole role = do
@@ -38,6 +39,11 @@ createAuthenticatedRole role = do
     -- Therefore we can disallow direct connection with NOLOGIN
     sqlExec "CREATE ROLE ? NOLOGIN" [PG.Identifier role]
 
+
+    pure ()
+
+grantPermissions :: (?modelContext :: ModelContext) => Text -> IO ()
+grantPermissions role = do
     -- From SO https://stackoverflow.com/a/17355059/14144232
     --
     -- GRANTs on different objects are separate. GRANTing on a database doesn't GRANT rights to the schema within. Similiarly, GRANTing on a schema doesn't grant rights on the tables within.
