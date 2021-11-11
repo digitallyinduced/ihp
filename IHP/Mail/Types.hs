@@ -6,6 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Mail.Types
 ( MailServer (..)
 , MailAttachment (..)
+, SMTPEncryption (..)
 )
 where
 
@@ -13,6 +14,8 @@ import IHP.Prelude
 import Network.Socket (PortNumber)
 
 -- | Configuration for a mailer used by IHP
+data SMTPEncryption = Unencrypted | TLS | STARTTLS
+
 data MailServer =
     -- | Uses AWS SES for sending emails
     SES { accessKey :: ByteString
@@ -24,21 +27,12 @@ data MailServer =
     -- | Uses SendGrid for sending emails
     | SendGrid { apiKey :: Text
                , category :: Maybe Text }
-    -- | Uses a generic unencrypted SMTP server for sending emails
+    -- | Uses a generic SMTP server for sending emails
     | SMTP { host :: String
            , port :: PortNumber
            -- (Username,Password) combination
-           , credentials :: Maybe (String, String)}
-    -- | Uses a generic SMTPS server (SMTP with TLS) for sending emails
-    | SMTPS { host :: String
-           , port :: PortNumber
-           -- (Username,Password) combination
-           , credentials :: Maybe (String, String)}
-    -- | Uses a generic SMTP server with STARTTLS for sending emails
-    | SMTP_STARTTLS { host :: String
-           , port :: PortNumber
-           -- (Username,Password) combination
-           , credentials :: Maybe (String, String)}
+           , credentials :: Maybe (String, String)
+           , encryption :: SMTPEncryption }
 
 data MailAttachment = MailAttachment
     { name :: Text -- ^ File name of an attachment
