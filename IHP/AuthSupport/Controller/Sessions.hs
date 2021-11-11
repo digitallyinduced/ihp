@@ -48,7 +48,7 @@ newSessionAction = do
 -- After 10 failed attempts, the user is locked for an hours. See 'maxFailedLoginAttemps' to customize this.
 --
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
-createSessionAction :: forall record action passwordField.
+createSessionAction :: forall record action.
     (?theAction :: action
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
@@ -64,6 +64,7 @@ createSessionAction :: forall record action passwordField.
     , CanUpdate record
     , Show (PrimaryKey (GetTableName record))
     , record ~ GetModelByTableName (GetTableName record)
+    , Table record
     ) => IO ()
 createSessionAction = do
     usersQueryBuilder
@@ -175,6 +176,6 @@ class ( Typeable record
     --
     -- > usersQueryBuilder = query @User |> filterWhere (#isGuest, False)
     --
-    usersQueryBuilder :: (GetModelByTableName (GetTableName record) ~ record) => QueryBuilder (GetTableName record)
+    usersQueryBuilder :: (GetModelByTableName (GetTableName record) ~ record, Table record) => QueryBuilder (GetTableName record)
     usersQueryBuilder = query @record
     {-# INLINE usersQueryBuilder #-}

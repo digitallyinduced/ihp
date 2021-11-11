@@ -1,7 +1,6 @@
 module IHP.IDE.CodeGen.ScriptGenerator (buildPlan) where
 
 import IHP.Prelude
-import IHP.ViewSupport
 import IHP.IDE.CodeGen.Types
 
 buildPlan :: Text -> Either Text [GeneratorAction]

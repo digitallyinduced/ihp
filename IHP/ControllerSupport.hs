@@ -25,6 +25,7 @@ module IHP.ControllerSupport
 , setHeader
 , addResponseHeaders
 , addResponseHeadersFromContext
+, getAppConfig
 ) where
 
 import ClassyPrelude
@@ -51,7 +52,8 @@ import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
-import qualified IHP.Assets.ControllerFunctions as Assets
+import qualified Data.Typeable as Typeable
+import qualified Data.TMap as TypeMap
 
 type Action' = IO ResponseReceived
 
@@ -90,7 +92,6 @@ runActionWithNewContext controller = do
     let ?context = controllerContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
-    Assets.initAssetVersion
 
     try (initContext @application) >>= \case
         Left exception -> do
@@ -257,3 +258,36 @@ respondAndExit response = do
     responseWithHeaders <- addResponseHeadersFromContext response
     Exception.throwIO (ResponseException responseWithHeaders)
 {-# INLINE respondAndExit #-}
+
+-- | Returns a custom config parameter
+--
+-- >>> getAppConfig @StripePublicKey
+-- StripePublicKey "pk_test_..."
+--
+-- Example:
+--
+-- First you need to define a custom config parameter in Config.hs:
+--
+-- > -- Config/Config.hs
+-- > newtype StripePublicKey = StripePublicKey Text
+-- >
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     -- ...
+-- >     stripePublicKey <- StripePublicKey <$> env @Text "STRIPE_PUBLIC_KEY"
+-- >     option stripePublicKey
+-- 
+-- Then you can access it using 'getAppConfig':
+--
+-- > action MyAction = do
+-- >     let (StripePublicKey stripePublicKey) = getAppConfig @StripePublicKey
+-- > 
+-- >     putStrLn ("Stripe public key: " <> stripePublicKey)
+--
+getAppConfig :: forall configParameter. (?context :: ControllerContext, Typeable configParameter) => configParameter
+getAppConfig = ?context
+        |> get #requestContext
+        |> get #frameworkConfig
+        |> get #appConfig
+        |> TypeMap.lookup @configParameter
+        |> fromMaybe (error ("Could not find " <> (show (Typeable.typeRep (Typeable.Proxy @configParameter))) <>" in config"))

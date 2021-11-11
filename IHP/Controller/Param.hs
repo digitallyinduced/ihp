@@ -120,6 +120,37 @@ paramList name =
     |> DeepSeq.force
 {-# INLINABLE paramList #-}
 
+-- | Similiar to 'paramOrNothing' but works with multiple params. This is useful when submitting multiple
+-- input fields with the same name, and some may be empty.
+--
+-- Given a query like (note the `ingredients` in the middle that has no value):
+--
+-- > ingredients=milk&ingredients&ingredients=egg
+--
+-- This will return:
+--
+-- >>> paramListOrNothing @Text "ingredients"
+-- [Just "milk", Nothing, Just "egg"]
+--
+-- When no parameter with the name is given, an empty list is returned:
+--
+-- >>> paramListOrNothing @Text "not_given_in_url"
+-- []
+--
+--
+paramListOrNothing :: forall valueType. (?context :: ControllerContext, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [Maybe valueType]
+paramListOrNothing name =
+    allParams
+    |> filter (\(paramName, paramValue) -> paramName == name)
+    |> mapMaybe (\(paramName, paramValue) -> paramValue)
+    |> map (\paramValue -> if paramValue == "" then Left "Empty ByteString" else readParameter @valueType paramValue)
+    |> map (\value -> case value of
+            Left _ -> Nothing
+            Right val -> Just val
+        )
+    |> DeepSeq.force
+{-# INLINABLE paramListOrNothing #-}
+
 paramParserErrorMessage name = "param: Parameter '" <> cs name <> "' is invalid"
 
 -- | Thrown when a parameter is missing when calling 'param "myParam"' or related functions
@@ -214,7 +245,7 @@ paramOrNothing !name =
 
 -- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid
 paramOrError :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Either ParamException paramType
-paramOrError !name = 
+paramOrError !name =
     let
         RequestContext { requestBody } = ?context |> get #requestContext
     in case requestBody of
@@ -228,6 +259,7 @@ paramOrError !name =
                     Just value -> case readParameterJSON @paramType value of
                         Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
                         Right value -> Right value
+                    Nothing -> Left ParamNotFoundException { name }
                 _ -> Left ParamNotFoundException { name }
 {-# INLINABLE paramOrError #-}
 
@@ -559,23 +591,21 @@ instance (FillParams rest record
     ) => FillParams (fieldName:rest) record where
     fill !record = do
         let name :: ByteString = cs $! (symbolVal (Proxy @fieldName))
-        case paramOrNothing name of
-            Just !paramValue ->
-                case readParameter paramValue of
-                    Left !error -> fill @rest (attachFailure (Proxy @fieldName) (cs error) record)
-                    Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
-            Nothing -> fill @rest record
+        case paramOrError name of
+            Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
+            Left ParamCouldNotBeParsedException { parserError } -> fill @rest (attachFailure (Proxy @fieldName) (cs parserError) record)
+            Left ParamNotFoundException {} -> fill @rest record
     {-# INLINABLE fill #-}
 
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
 ifValid branch model = branch ((if null annotations then Right else Left) model)
     where
-        annotations :: [(Text, Text)]
+        annotations :: [(Text, ModelSupport.Violation)]
         annotations = getField @"annotations" meta
         meta :: ModelSupport.MetaBag
         meta = getField @"meta" model
 
-ifNew :: forall record id. (?context :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, HasField "meta" record MetaBag) => (record -> record) -> record -> record
+ifNew :: forall record. (?context :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, HasField "meta" record MetaBag) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
 
 

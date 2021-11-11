@@ -54,10 +54,10 @@ stringLiteral :: Parser String
 stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
-parseDDL = manyTill statement eof
+parseDDL = space >> manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> createEnumType <|> addConstraint <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> createSequence <|> alterTable <|> dropTable <|> comment
     space
     pure s
 
@@ -81,7 +81,7 @@ createTable = do
     -- Process columns (tagged if they're primary key) and table constraints
     -- together, as they can be in any order
     (taggedColumns, allConstraints) <- between (char '(' >> space) (char ')' >> space) do
-        columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> column)) `sepBy` (char ',' >> space)
+        columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> parseColumn)) `sepBy` (char ',' >> space)
         pure (lefts columnsAndConstraints, rights columnsAndConstraints)
 
     char ';'
@@ -115,11 +115,7 @@ createEnumType = do
     char ';'
     pure CreateEnumType { name, values }
 
-addConstraint = do
-    lexeme "ALTER"
-    lexeme "TABLE"
-    tableName <- identifier
-    lexeme "ADD"
+addConstraint tableName = do
     lexeme "CONSTRAINT"
     constraintName <- identifier
     constraint <- parseTableConstraint >>= \case
@@ -171,7 +167,8 @@ parseOnDelete = choice
         , (lexeme "CASCADE" >> pure Cascade)
         ]
 
-column = do
+parseColumn :: Parser (Bool, Column)
+parseColumn = do
     name <- identifier
     columnType <- sqlType
     space
@@ -210,6 +207,7 @@ sqlType = choice $ map optionalArray
         , jsonb
         , inet
         , tsvector
+        , trigger
         , customType
         ]
             where
@@ -344,6 +342,10 @@ sqlType = choice $ map optionalArray
                     arrayType <- typeParser;
                     (try do symbol' "[]"; pure $ PArray arrayType) <|> pure arrayType
 
+                trigger = do
+                    try (symbol' "TRIGGER")
+                    pure PTrigger
+
                 customType = do
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
@@ -417,7 +419,7 @@ identifier = do
     pure i
 
 comment = do
-    lexeme "--" <?> "Line comment"
+    (char '-' >> char '-') <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
     pure Comment { content }
 
@@ -442,15 +444,15 @@ createFunction = do
     functionName <- identifier
     lexeme "()"
     lexeme "RETURNS"
-    lexeme "TRIGGER"
+    returns <- sqlType
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
     space
-    lexeme "language"
-    lexeme "plpgsql"
+    lexeme "language" <|> lexeme "LANGUAGE"
+    language <- symbol "plpgsql" <|> symbol "SQL"
     char ';'
-    pure CreateFunction { functionName, functionBody, orReplace }
+    pure CreateFunction { functionName, functionBody, orReplace, returns, language }
 
 -- | Triggers are not currently used by IHP, therefore they're implemented using UnknownStatement
 -- This avoid errors when having custom triggers in Schema.sql
@@ -460,6 +462,71 @@ createTrigger = do
     raw <- cs <$> someTill (anySingle) (char ';')
     pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
 
+alterTable = do
+    lexeme "ALTER"
+    lexeme "TABLE"
+    tableName <- identifier
+    let add = do
+            lexeme "ADD"
+            addConstraint tableName <|> addColumn tableName 
+    let drop = do
+            lexeme "DROP"
+            dropColumn tableName
+    enableRowLevelSecurity tableName <|> add <|> drop
+
+enableRowLevelSecurity tableName = do
+    lexeme "ENABLE"
+    lexeme "ROW"
+    lexeme "LEVEL"
+    lexeme "SECURITY"
+    char ';'
+    pure EnableRowLevelSecurity { tableName }
+
+createPolicy = do
+    lexeme "CREATE"
+    lexeme "POLICY"
+    name <- identifier
+    lexeme "ON"
+    tableName <- identifier
+
+    using <- optional do
+        lexeme "USING"
+        expression
+
+    check <- optional do
+        lexeme "WITH"
+        lexeme "CHECK"
+        expression
+
+    char ';'
+
+    pure CreatePolicy { name, tableName, using, check }
+
+addColumn tableName = do
+    lexeme "COLUMN"
+    (_, column) <- parseColumn
+    char ';'
+    pure AddColumn { tableName, column }
+
+dropColumn tableName = do
+    lexeme "COLUMN"
+    columnName <- identifier
+    char ';'
+    pure DropColumn { tableName, columnName }
+
+dropTable = do
+    lexeme "DROP"
+    lexeme "TABLE"
+    tableName <- identifier
+    char ';'
+    pure DropTable { tableName }
+
+createSequence = do
+    lexeme "CREATE"
+    lexeme "SEQUENCE"
+    name <- identifier
+    char ';'
+    pure CreateSequence { name }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

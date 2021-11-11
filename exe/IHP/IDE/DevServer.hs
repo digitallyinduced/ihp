@@ -64,7 +64,18 @@ main = do
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state (UpdatePostgresState postgresState) = pure state { postgresState }
+handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) = 
+    case postgresState of
+        PostgresStarted {} -> do
+            -- If the app is already running before the postgres started up correctly,
+            -- we need to trigger a restart, otherwise e.g. background jobs will not start correctly
+            case appGHCIState of
+                AppGHCIModulesLoaded { .. } -> do
+                    sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
+                    sendGhciCommand process ":r"
+                    pure state { appGHCIState = AppGHCILoading { .. }, postgresState }
+                otherwise -> pure state { postgresState }
+        otherwise -> pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
 handleAction state (UpdateToolServerState toolServerState) = pure state { toolServerState }
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
@@ -79,14 +90,21 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
         AppGHCILoading { .. } -> do
             let appGHCIState' = AppGHCIModulesLoaded { .. }
 
-            stopStatusServer statusServerState
-            startLoadedApp appGHCIState
+            case postgresState of
+                PostgresStarted {} -> do
+                    stopStatusServer statusServerState
+                    startLoadedApp appGHCIState
 
-            let statusServerState' = case statusServerState of
-                    StatusServerStarted { .. } -> StatusServerPaused { .. }
-                    _ -> statusServerState
 
-            pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
+                    let statusServerState' = case statusServerState of
+                            StatusServerStarted { .. } -> StatusServerPaused { .. }
+                            _ -> statusServerState
+
+                    pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
+                _ -> do
+                    when (get #isDebugMode ?context) (Log.debug ("AppModulesLoaded but db not in PostgresStarted state, therefore not starting app yet" :: Text))
+                    pure state { appGHCIState = appGHCIState' }
+
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
         AppGHCIModulesLoaded { } -> do

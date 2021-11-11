@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             0.14.0
+version:             0.16.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             NONE
@@ -98,6 +98,12 @@ common shared-properties
             , wai-cors
             , lens
             , random
+            , async-pool
+            , hspec
+            , cereal
+            , cereal-text
+            , cereal-uuid
+            , neat-interpolation
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -137,6 +143,14 @@ common shared-properties
             -O0
             -threaded
             +RTS -A256m -n4m -H512m -qg -N -RTS
+
+            -Wredundant-constraints
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -144,6 +158,14 @@ common shared-properties
             -haddock
             -O1
             -threaded
+
+            -Wredundant-constraints
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
 
 library
     import: shared-properties
@@ -225,6 +247,7 @@ library
         , IHP.LibDir
         , IHP.Telemetry
         , IHP.Test.Mocking
+        , IHP.Test.Database
         , IHP.Version
         , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
@@ -239,11 +262,10 @@ library
         , IHP.Job.Dashboard.Auth
         , IHP.Job.Dashboard.View
         , IHP.Job.Dashboard.Utils
-        , IHP.PageTitle.ControllerFunctions
-        , IHP.PageTitle.Types
-        , IHP.PageTitle.ViewFunctions
+        , IHP.PageHead.ControllerFunctions
+        , IHP.PageHead.Types
+        , IHP.PageHead.ViewFunctions
         , IHP.Assets.Types
-        , IHP.Assets.ControllerFunctions
         , IHP.Assets.ViewFunctions
         -- Server Side Component Modules
         , IHP.ServerSideComponent.Types
@@ -253,6 +275,8 @@ library
         , IHP.ServerSideComponent.Controller.ComponentsController
         , IHP.ServerSideComponent.HtmlDiff
         , IHP.ServerSideComponent.HtmlParser
+        , IHP.Breadcrumb.Types
+        , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config
@@ -262,6 +286,17 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
+        -- DataSync
+        , IHP.DataSync.Types
+        , IHP.DataSync.RowLevelSecurity
+        , IHP.DataSync.DynamicQuery
+        , IHP.DataSync.DynamicQueryCompiler
+        , IHP.DataSync.ChangeNotifications
+        , IHP.DataSync.Controller
+        , IHP.DataSync.REST.Types
+        , IHP.DataSync.REST.Routes
+        , IHP.DataSync.REST.Controller
+        , IHP.DataSync.Role
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
@@ -271,6 +306,7 @@ library
         , IHP.IDE.SchemaDesigner.Controller.Schema
         , IHP.IDE.SchemaDesigner.Controller.Tables
         , IHP.IDE.SchemaDesigner.Controller.Validation
+        , IHP.IDE.SchemaDesigner.Controller.Policies
         , IHP.IDE.SchemaDesigner.View.Columns.Edit
         , IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
         , IHP.IDE.SchemaDesigner.View.Columns.New
@@ -289,6 +325,10 @@ library
         , IHP.IDE.SchemaDesigner.View.Tables.Index
         , IHP.IDE.SchemaDesigner.View.Tables.New
         , IHP.IDE.SchemaDesigner.View.Tables.Show
+        , IHP.IDE.SchemaDesigner.View.Policies.New
+        , IHP.IDE.SchemaDesigner.View.Policies.Edit
+        , IHP.IDE.SchemaDesigner.SchemaOperations
+        , IHP.IDE.SchemaDesigner.MigrationChangeTracker
         , IHP.IDE.Data.Controller
         , IHP.IDE.Data.View.EditRow
         , IHP.IDE.Data.View.EditValue

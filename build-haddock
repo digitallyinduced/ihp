@@ -7,7 +7,7 @@
 
 mkdir -p haddock-build
 
-haddock --html --hyperlinked-source --built-in-themes --quickjump -o haddock-build \
+haddock --html -t "IHP Api Reference" --hyperlinked-source --built-in-themes --quickjump -o haddock-build \
     $(find IHP -regex '.+\.hs' -not \( -regex '.+GenericController.hs' \) -not \( -regex '.+CLI/.+.hs' \) | xargs) \
     --optghc="-i." \
     --optghc="-XOverloadedStrings" \
@@ -42,5 +42,17 @@ haddock --html --hyperlinked-source --built-in-themes --quickjump -o haddock-bui
     --optghc="-XFunctionalDependencies" \
     --optghc="-XDefaultSignatures" \
     --optghc="-XStandaloneDeriving" \
+    --optghc="-XTemplateHaskell" \
     --optghc="-package-env -"
 
+cd haddock-build
+
+# Add favicon
+find . -type f \( -iname "*.html" \) -exec sed -i 's#<head>#<head><link rel="shortcut icon" type="image\/x-icon" href="https:\/\/ihp.digitallyinduced.com\/ihp-logo.svg"\/>#g' '{}' +
+
+# Add ihp-haddock.css
+cp ../ihp-haddock.css ihp-haddock.css
+find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
+
+# Link title to index
+find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +

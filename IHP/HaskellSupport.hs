@@ -185,7 +185,7 @@ setJust name value record = setField @name (Just value) record
 {-# INLINE setJust #-}
 
 
-modify :: forall model name value updateFunction. (KnownSymbol name, Record.HasField name model value, SetField name model value) => Proxy name -> (value -> value) -> model -> model
+modify :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value) => Proxy name -> (value -> value) -> model -> model
 modify _ updateFunction model = let value = Record.getField @name model in setField @name (updateFunction value) model
 {-# INLINE modify #-}
 

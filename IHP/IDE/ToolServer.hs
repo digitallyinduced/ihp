@@ -23,6 +23,7 @@ import qualified IHP.FrameworkConfig as Config
 import IHP.IDE.SchemaDesigner.Controller.EnumValues ()
 import IHP.IDE.SchemaDesigner.Controller.Enums ()
 import IHP.IDE.SchemaDesigner.Controller.Columns ()
+import IHP.IDE.SchemaDesigner.Controller.Policies ()
 import IHP.IDE.SchemaDesigner.Controller.Schema ()
 import IHP.IDE.SchemaDesigner.Controller.Tables ()
 import IHP.IDE.Data.Controller ()
@@ -30,7 +31,6 @@ import IHP.IDE.Logs.Controller ()
 import IHP.IDE.CodeGen.Controller ()
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.Controller as Helper
-import Control.Concurrent.Async
 import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
 import System.Info
@@ -41,6 +41,7 @@ import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
+import qualified IHP.Version as Version
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -61,6 +62,7 @@ startToolServer' port isDebugMode = do
     frameworkConfig <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
         Config.option $ Config.AppPort port
+        Config.option $ Config.AssetVersion Version.ihpVersion
 
         ihpIdeBaseUrlEnvVar <- liftIO (Env.lookupEnv "IHP_IDE_BASEURL")
         case ihpIdeBaseUrlEnvVar of
@@ -119,6 +121,7 @@ instance FrontController ToolServerApplication where
         [ parseRoute @SchemaController
         , parseRoute @TablesController
         , parseRoute @ColumnsController
+        , parseRoute @PoliciesController
         , parseRoute @EnumsController
         , parseRoute @EnumValuesController
         , parseRoute @LogsController

@@ -29,7 +29,10 @@ import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
+import qualified Control.Exception as Exception
 
+import qualified System.Environment as Env
+import qualified System.Directory as Directory
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -67,7 +70,10 @@ withBackgroundWorkers frameworkConfig app = do
     let jobWorkers = Job.workers RootApplication
     let isDevelopment = get #environment frameworkConfig == Env.Development
     if isDevelopment && not (isEmpty jobWorkers)
-            then Async.withAsync (let ?context = frameworkConfig in Job.runJobWorkers jobWorkers) (\_ -> app)
+            then do
+                workerAsync <- async (let ?context = frameworkConfig in Job.runJobWorkersKillOnExit jobWorkers)
+                Async.link workerAsync
+                app
             else app
 
 -- | Returns a middleware that returns files stored in the app's @static/@ directory and IHP's own @static/@  directory
@@ -123,9 +129,16 @@ initStaticMiddleware FrameworkConfig { environment } = do
                     , ("Vary", "Accept-Encoding")
                     ]
 
-initSessionMiddleware :: Vault.Key (Session IO String String) -> FrameworkConfig -> IO Middleware
+initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> FrameworkConfig -> IO Middleware
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    let path = "Config/client_session_key.aes"
+
+    hasSessionSecretEnvVar <- isJust <$> Env.lookupEnv "IHP_SESSION_SECRET"
+    doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
+    store <- clientsessionStore <$>
+            if hasSessionSecretEnvVar || not doesConfigDirectoryExist
+                then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
+                else ClientSession.getKey path
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
     pure sessionMiddleware
 

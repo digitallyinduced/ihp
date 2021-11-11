@@ -29,9 +29,9 @@ When your CSS or JS looks broken, take a look at the next section `CSS & JS Bund
 
 ### DB Migrations
 
-Currently, IHP has no standard way of doing migrations. Therefore currently you need to manually migrate your IHP Cloud database after deploying.
+[Database Migrations](database-migrations.html) are automatically executed during the deployment on IHP Cloud.
 
-Open the project in IHP Cloud, click `Settings`, then click `Database`. There you can find the database credentials for the Postgres DB that is running for your application. Connect to your database and manually apply the migrations.
+If you need to make manual changes to your database schema, you can of course also do this: Open the project in IHP Cloud, click `Settings`, then click `Database`. There you can find the database credentials for the Postgres DB that is running for your application. Connect to your database and manually apply the migrations.
 
 ### Changing the domain
 
@@ -46,9 +46,172 @@ After that go to `Settings`, click `Domain` and enter your domain name.
 When you change your domain to a custom domain we are automatically getting an SSL certificate from
 LetsEncrypt for you so please make sure to set the CNAME record a few minutes before changing the domain inside your project.
 
-## Deploying manually
+## Deploying with Docker
 
-You can build and deploy your IHP app yourself.
+Deploying IHP with docker is a good choice for a professional production setup.
+
+IHP has a first party CLI tool called `ihp-app-to-docker-image` to create Docker images out of your app. This tool is available [with IHP Pro and IHP Business](ihp-pro.html). If you're not on IHP Pro yet, now is a good time to try it out. By switching to Pro, you're supporting the sustainable development of IHP.
+
+### Creating a Docker Image
+
+Assuming your project is using IHP Pro or IHP Business, you can use the `ihp-app-to-docker-image` tool to make a docker image:
+
+```bash
+$ ihp-app-to-docker-image
+
+...
+✅ The docker image is at 'docker.tar.gz'
+```
+
+The command needs to be called from inside the application directory.
+
+This tool will compile your app and output an docker image at `docker.tar.gz`. The docker image is typically around 85MB in size. If your application has many dependencies declated in the `default.nix` it could also be larger.
+
+On macOS the `ihp-app-to-docker-image` tool requires Docker to be up and running. On linux you use the tool without having docker installed.
+
+You can load the `docker.tar.gz` into your running docker instance using `docker load`:
+
+```bash
+$ docker load < docker.tar.gz
+
+8e8f0ea2cd55: Loading layer [==================================================>]  87.73MB/87.73MB
+Loaded image: app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+Running `docker images` you can now see that the image is available:
+
+```bash
+$ docker images
+
+REPOSITORY     TAG                                IMAGE ID       CREATED         SIZE
+app            g13rks9fb4ik8hnqip2s3ngqq4nq14zw   ffc01de1ec7e   51 years ago    86.6MB
+```
+
+The `CREATED` timestamp is showing `51 years ago` as the image is built using nix. For having a totally reproducable build, the timestamp is set to `Jan 1970, 00:00 UTC`.
+
+### Starting the App Container
+
+#### First Steps
+
+You can start your app container like this:
+
+```bash
+$ docker run -p 8000:8000 app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+Now open `http://localhost:8000/` and see that your app is running. It will likely show an error that IHP is unable to connect to the app DB. This will be fixed in the next section.
+
+The app image has to be the fully qualified `app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw` form, so this will not work:
+
+```bash
+$ docker run -p 8000:8000 app
+
+Unable to find image 'app:latest' locally
+```
+
+#### Connecting the DB
+
+You need to connect a postgres database to get your app working.
+
+It's recommended to use a managed database service like AWS RDS to run your postgres. For a quick-and-dirty setup you can also use docker to run a database:
+
+```bash
+$ docker run --name app-db -e POSTGRES_PASSWORD=mysecretpassword -d postgres
+
+# Import the Schema.sql
+$ docker exec -i app-db psql -U postgres -d postgres < Application/Schema.sql
+CREATE EXTENSION
+CREATE TABLE
+...
+
+# Import the Fixtures.sql
+$ docker exec -i app-db psql -U postgres -d postgres < Application/Fixtures.sql
+ALTER TABLE
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+...
+
+```
+
+You can configure the database your app connects to using the `DATABASE_URL` env variable:
+
+```bash
+$ docker run \
+    -p 8000:8000 \
+    -e 'DATABASE_URL=postgresql://postgres:mysecretpassword@the-hostname/postgres' \
+    app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+#### Recommended Env Variables
+
+##### `IHP_SESSION_SECRET`
+
+In production setup's you want to configure the `IHP_SESSION_SECRET` env variable. It's a private key used to encrypt your session state. If it's not specified, a new one will generated on each container start. This means that all your users will have to re-login on each container start.
+
+**Note on `Config/client_session_key.aes`:** The `IHP_SESSION_SECRET` env variable is an alternative for placing a `Config/client_session_key.aes` inside the container. It has been added in recent IHP versions only.
+
+When you start an app container without specifying the `IHP_SESSION_SECRET`, the app will output the randomly generated one. So you can get a new secret key by starting a new container and copying the value:
+
+```bash
+$ docker run -it app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp
+Server started
+```
+
+There we can copy the `IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp` value and use it as our secret:
+
+```bash
+$ docker run \
+    -p 8000:8000 \
+    -e 'IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp' \
+    -e 'DATABASE_URL=postgresql://postgres:mysecretpassword@the-hostname/postgres' \
+    app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+##### `IHP_ASSET_VERSION`
+
+**As of IHP v0.16 this env variable is automatically set to a unqiue build hash.**
+
+If you use [`assetPath` helpers](assets.html) in your app, specifiy the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
+
+
+```bash
+$ docker run \
+    -p 8000:8000 \
+    -e 'IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp' \
+    -e 'DATABASE_URL=postgresql://postgres:mysecretpassword@the-hostname/postgres' \
+    -e 'IHP_ASSET_VERSION=af5f389ef7a64a04c9fa275111e4739c0d4a78d0' \
+    app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+##### `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE`
+
+If the app is running behind a load balancer, set the environment variable `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader` to tell IHP to use the `X-Real-IP` or `X-Forwarded-For` header for detecting the client IP.
+
+
+```bash
+$ docker run \
+    -e 'IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader' \
+    app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+##### `IHP_BASEURL`
+
+Without specifying this env var, the app will always use `http://localhost:8000/` in absolute URLs it's generating (e.g. when redirecting or sending out emails).
+
+It's therefore important to set it to the external user-facing web addresss. E.g. if your IHP app is available at `https://example.com/`, the variable should be set to that:
+
+
+```bash
+$ docker run \
+    -e 'IHP_BASEURL=https://example.com' \
+    app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+## Deploying on Bare Metal
+
+You can build and deploy your IHP app on your own server without external deployment tools.
 
 Make sure that the infrastructure you pick to build your IHP app has enough memory. Otherwise, the build might fail because GHC is very memory hungry. You can also set up a swap file to work around this.
 
@@ -210,7 +373,7 @@ CSS_FILES += static/startpage.css # The second import of app.css
 
 We need to update the `Layout.hs` to only load `prod.css` and `prod.js` when running in production. 
 
-For that we use `isDevelopment` and `isProduction` to conditionally load different files. Change your `Web/View/Layout.hs` to look like this:
+For that we use [`isDevelopment`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isDevelopment) and [`isProduction`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isProduction) to conditionally load different files. Change your `Web/View/Layout.hs` to look like this:
 
 ```haskell
 stylesheets :: Html
@@ -310,3 +473,22 @@ config = do
 Now sentry is set up.
 
 **When running on IHP Cloud:** You also need to update the `Config.hs` inside your IHP Cloud project settings.
+
+## Building with Nix
+
+You can use `nix-build` to make a full build of your IHP app:
+
+```
+# Optional, if you skip this the binary will not be optimized by GHC
+make prepare-optimized-nix-build
+
+# The actual build process
+nix-build
+```
+
+This will build a nix package that contains the following binaries:
+- `RunProdServer`, the binary to start web server
+- `RunJobs`, if you're using the IHP job queue, this binary will be the entrypoint for the workers
+- a binary for each script in `Application/Script`, e.g. `Welcome` for `Application/Script/Welcome.hs`
+
+The build contains an automatic hash for the `IHP_ASSET_VERSION` env variable, so cache busting should work out of the box.

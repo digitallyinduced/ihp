@@ -194,11 +194,6 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
 
-
-                    instance () => PrimaryKeyCondition (User' ) where
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
-
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
@@ -215,6 +210,12 @@ tests = do
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0.17  def
                     instance Default (Id' "users") where def = Id def
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
                 |]
             it "should deal with integer default values for double columns" do
                 let statement = StatementCreateTable CreateTable
@@ -252,11 +253,6 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
 
-
-                    instance () => PrimaryKeyCondition (User' ) where
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
-
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
@@ -273,6 +269,12 @@ tests = do
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0  def
                     instance Default (Id' "users") where def = Id def
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
                 |]
 
 getInstanceDecl :: Text -> Text -> Text
@@ -286,7 +288,7 @@ getInstanceDecl instanceName full =
         findInstanceDecl (line:rest)
             | ("instance " <> instanceName) `isPrefixOf` line = line : rest
             | otherwise = findInstanceDecl rest
-        findInstnaceDecl [] = error "didn't find instance declaration of " <> instanceName
+        findInstanceDecl [] = error ("didn't find instance declaration of " <> instanceName)
 
         takeInstanceDecl (line:rest)
             | isEmpty line = []

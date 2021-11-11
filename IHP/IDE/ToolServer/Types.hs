@@ -1,13 +1,7 @@
 module IHP.IDE.ToolServer.Types where
 
 import IHP.Prelude
-import qualified IHP.Controller.Session as Session
-import qualified IHP.ControllerSupport as ControllerSupport
-import qualified IHP.ViewSupport as ViewSupport
-import IHP.FrameworkConfig
-import IHP.Environment
 import qualified IHP.IDE.Types as DevServer
-import IHP.FlashMessages.Types
 
 data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context }
 
@@ -42,6 +36,14 @@ data ColumnsController
     | EditForeignKeyAction { tableName :: Text, columnName :: Text, constraintName :: Text, referenceTable :: Text }
     | UpdateForeignKeyAction
     | DeleteForeignKeyAction { constraintName :: Text, tableName :: Text }
+    deriving (Eq, Show, Data)
+
+data PoliciesController
+    = NewPolicyAction { tableName :: Text }
+    | CreatePolicyAction
+    | EditPolicyAction { tableName :: Text, policyName :: Text }
+    | UpdatePolicyAction
+    | DeletePolicyAction { tableName :: Text, policyName :: Text }
     deriving (Eq, Show, Data)
 
 data EnumsController

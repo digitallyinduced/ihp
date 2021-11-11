@@ -26,9 +26,9 @@ data PostsController
     deriving (Eq, Show, Data)
 ```
 
-This defines a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The argument `postId` will later be filled with the `postId` parameter of the request URL. This is done automatically by the IHP router. IHP also requires the controller to have `Eq`, `Show` and `Data` instances. Therefore we derive them here.
+This defines a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The argument `postId` will later be filled with the `postId` parameter of the request URL. This is done automatically by the IHP router. IHP also requires the controller to have [`Eq`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Eq), [`Show`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Show) and [`Data`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Data) instances. Therefore we derive them here.
 
-After we have defined the "interface" for our controller, we need to implement the actual request handling logic. IHP expects to find this inside the `action` function of the [`Controller`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:Controller) instance. We can define this instance in `Web/Controller/Posts.hs`:
+After we have defined the "interface" for our controller, we need to implement the actual request handling logic. IHP expects to find this inside the [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:action) function of the [`Controller`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:Controller) instance. We can define this instance in `Web/Controller/Posts.hs`:
 
 ```haskell
 module Web.Controller.Posts where
@@ -39,11 +39,11 @@ instance Controller PostsController where
     action ShowPostAction { postId } = renderPlain "Hello World"
 ```
 
-This implementation for `ShowPostAction` responds with a simple plain text message. The `action` implementation is usually a big pattern match over all possible actions of a controller.
+This implementation for `ShowPostAction` responds with a simple plain text message. The [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:action) implementation is usually a big pattern match over all possible actions of a controller.
 
 ## Reading Query and Body Parameters
 
-Inside the action, you can access request parameters using the `param` function. A parameter can either be a URL parameter like `?paramName=paramValue` (_this is also called a query parameter_), or given as a form field like `<form><input name="paramName" value="paramValue"/></form>` (_in that case we're talking about a body parameter_). The `param` function will work with query and body parameters, so you don't have to worry about that (in case a query and body parameter is set with the same name, the body parameter will take priority).
+Inside the action, you can access request parameters using the [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) function. A parameter can either be a URL parameter like `?paramName=paramValue` (_this is also called a query parameter_), or given as a form field like `<form><input name="paramName" value="paramValue"/></form>` (_in that case we're talking about a body parameter_). The [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) function will work with query and body parameters, so you don't have to worry about that (in case a query and body parameter is set with the same name, the body parameter will take priority).
 
 Given a request like `GET /UsersAction?maxItems=50`, you can access the `maxItems` like this:
 
@@ -61,7 +61,7 @@ An alternative request to that action can use a form for passing the `maxItems`:
 </form>
 ```
 
-The value is automatically transformed to an `Int`. This parsing works out of the box for Ids, UUID, Bools, Timestamps, etc. Here are some more examples:
+The value is automatically transformed to an [`Int`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Int). This parsing works out of the box for [Ids](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Id), [UUID](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:UUID), [Bools](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Bool), [Timestamps](https://ihp.digitallyinduced.com/api-docs/IHP-RouterPrelude.html#t:UTCTime), etc. Here are some more examples:
 
 ```haskell
 action ExampleAction = do
@@ -74,7 +74,7 @@ action ExampleAction = do
 
 In case there is a problem parsing the request parameter, an error will be triggered.
 
-When the parameter is optional, use `paramOrDefault`:
+When the parameter is optional, use [`paramOrDefault`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrDefault):
 
 ```haskell
 action UsersAction = do
@@ -83,7 +83,7 @@ action UsersAction = do
 
 When this action is called without the `maxItems` parameter being set (or when invalid), it will fall back to the default value `50`.
 
-There is also `paramOrNothing` which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
+There is also [`paramOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrNothing) which will return [`Nothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) when the parameter is missing and [`Just theValue`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) otherwise.
 
 ### Multiple Params With Same Name (Checkboxes)
 
@@ -97,7 +97,7 @@ When working with checkboxes sometimes there are multiple values for a given par
 <input name="ingredients" type="checkbox" value="egg" /> Egg
 ```
 
-When both checkboxes for Milk and Egg are checked, the usual way of calling `param @Text "ingredients"` will only return the first ingredient `"Milk"`. To access all the checked `ingredients` use `paramList`:
+When both checkboxes for Milk and Egg are checked, the usual way of calling [`param @Text "ingredients"`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) will only return the first ingredient `"Milk"`. To access all the checked `ingredients` use [`paramList`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramList):
 
 ```haskell
 action BuildFood = do
@@ -106,7 +106,7 @@ action BuildFood = do
 
 When this action is called with both checkboxes checked `ingredients` will be set to `["milk", "egg"]`. When no checkbox is checked it will return an empty list.
 
-Similar to `param` this works out of the box for Ids, UUID, Bools, Timestamps, etc.
+Similar to [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) this works out of the box for [Ids](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Id), [UUID](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:UUID), [Bools](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Bool), [Timestamps](https://ihp.digitallyinduced.com/api-docs/IHP-RouterPrelude.html#t:UTCTime), etc.
 
 ### Passing Data from the Action to the View
 
@@ -159,26 +159,26 @@ This will render `Hello World, Unnamed!` when the `ExampleAction` is called with
 
 ### Accessing the FrameworkConfig inside Controllers and Views.
 
-The config defined in `Config/Config.hs` is available through the implicit parameter `context`, a `ConfigProvider` that is available in controllers.
+The config defined in `Config/Config.hs` is available through the implicit parameter `context`, a [`ConfigProvider`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#t:ConfigProvider) that is available in controllers.
 
-There are helpers that use this implicit parameter, e.g. `isDevelopment/isProduction`:
+There are helpers that use this implicit parameter, e.g. [`isDevelopment`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isDevelopment)/[`isProduction`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isProduction):
 
 ```haskell
 action MyAction = do
     when isDevelopment (putStrLn "Running in dev mode")
 ```
 
-or you can use the function `getFrameworkConfig` if you need to access the config yourself.
+or you can use the function [`getFrameworkConfig`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:getFrameworkConfig) if you need to access the config yourself.
 
 ### Advanced: Working with Custom Types
 
-Rarely you might want to work with a custom scalar value which is not yet supported with `param`. Define a custom `ParamReader` instance to be able to use the `param` functions with your custom value type. [For that, take a look at the existing instances of `ParamReader`.](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader)
+Rarely you might want to work with a custom scalar value which is not yet supported with [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param). Define a custom [`ParamReader`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader) instance to be able to use the [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) functions with your custom value type. [For that, take a look at the existing instances of `ParamReader`.](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader)
 
 ### Records
 
-When working with records, use `fill` instead of `param`. Fill automatically deals with validation failure when e.g. a field value needs to be an integer, but the submitted value is not numeric.
+When working with records, use [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill) instead of [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param). [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill) automatically deals with validation failure when e.g. a field value needs to be an integer, but the submitted value is not numeric.
 
-Here is an example of using `fill`:
+Here is an example of using [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill):
 
 ```haskell
 action CreatePostAction = do
@@ -195,7 +195,7 @@ action CreatePostAction = do
 
 ## Lifecycle
 
-The Controller instance provides a `beforeAction` function, which is called before the `action` function is called. Common request handling logic like authentication is often placed inside `beforeAction` to protect all actions of the controller against unprotected access.
+The Controller instance provides a [`beforeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:beforeAction) function, which is called before the [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:action) function is called. Common request handling logic like authentication is often placed inside [`beforeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:beforeAction) to protect all actions of the controller against unprotected access.
 
 Here is an example to illustrate the lifecycle:
 
@@ -221,13 +221,13 @@ instance Controller PostsController where
 
 ## Accessing the Current Action
 
-Inside the `beforeAction` and `action` you can access the current action using the special `?theAction` variable. That is useful when writing controller helpers, because the variable is passed implicitly.
+Inside the [`beforeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:beforeAction) and [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:action) you can access the current action using the special `?theAction` variable. That is useful when writing controller helpers, because the variable is passed implicitly.
 
 ## Accessing the Current Request
 
-IHP uses the Haskell WAI standard for dealing with HTTP requests and responses. You can get access to the Wai Request data structure by using `request`:
+IHP uses the Haskell WAI standard for dealing with HTTP requests and responses. You can get access to the Wai Request data structure by using [`request`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:request):
 
-Take a look at [the Wai documentation](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html) to see what you can do with the Wai `Request`:
+Take a look at [the Wai documentation](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html) to see what you can do with the Wai [`Request`](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request):
 
 ```haskell
 action ExampleAction = do
@@ -253,7 +253,7 @@ action ExampleAction = do
 
 ### Request Headers
 
-Use `getHeader` to access a request header:
+Use [`getHeader`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:getHeader) to access a request header:
 
 ```haskell
 action ExampleAction = do
@@ -266,7 +266,7 @@ to `Just "the user agent value"`.
 
 The lookup for the header in the request is case insensitive.
 
-Use `setHeader` to set a request header:
+Use [`setHeader`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:setHeader) to set a request header:
 
 ```haskell
 action ExampleAction = do
@@ -277,17 +277,17 @@ action ExampleAction = do
 
 ### Rendering Views
 
-Inside a controller, you have several ways of sending a response. The most common way is to use the `render` function with a `View` data structure, like this:
+Inside a controller, you have several ways of sending a response. The most common way is to use the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function with a [`View`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#t:View) data structure, like this:
 
 ```
 render ShowPostView { .. }
 ```
 
-The `render` function automatically picks the right response format based on the `Accept` header of the browser. It will try to send an HTML response when HTML is requested, and will also try to send a JSON response when a JSON response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the `render` function cannot fulfill the requested `Accept` formats.
+The [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function automatically picks the right response format based on the `Accept` header of the browser. It will try to send an HTML response when HTML is requested, and will also try to send a JSON response when a JSON response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function cannot fulfill the requested `Accept` formats.
 
 ### Rendering Plain Text
 
-Call `renderPlain` to send a simple plain text response:
+Call [`renderPlain`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderPlain) to send a simple plain text response:
 
 ```haskell
 action ExampleAction = do
@@ -298,18 +298,18 @@ action ExampleAction = do
 
 Usually, you want to render your HTML using a view. See `Rendering Views` for details.
 
-Sometimes you want to render HTML without using views, e.g. doing it inline in the action. Call `respondHtml` for that:
+Sometimes you want to render HTML without using views, e.g. doing it inline in the action. Call [`respondHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:respondHtml) for that:
 
 ```haskell
 action ExampleAction = do
     respondHtml [hsx|<div>Hello World</div>|]
 ```
 
-You will need to import `hsx` into your controller: `import IHP.ViewPrelude (hsx)`.
+You will need to import [`hsx`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) into your controller: [`import IHP.ViewPrelude (hsx)`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx).
 
 ### Rendering a Static File
 
-Use `renderFile path contentType` to respond with a static file:
+Use [`renderFile path contentType`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderFile) to respond with a static file:
 
 ```haskell
 action ExampleAction = do
@@ -318,7 +318,7 @@ action ExampleAction = do
 
 ### Rendering a Not Found Message
 
-Use `renderNotFound` to render a generic not found message, e.g. when an entity cannot be found:
+Use [`renderNotFound`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderNotFound) to render a generic not found message, e.g. when an entity cannot be found:
 
 ```haskell
 action ExampleAction = do
@@ -329,20 +329,20 @@ action ExampleAction = do
 
 ### Redirect to an Action
 
-Use `redirectTo` to redirect to an action:
+Use [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) to redirect to an action:
 
 ```haskell
 action ExampleAction = do
     redirectTo ShowPostAction { postId = ... }
 ```
 
-When you need to pass a custom query parameter, you cannot use the `redirectTo` function. See `Redirect to a Path` for that.
+When you need to pass a custom query parameter, you cannot use the [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) function. See `Redirect to a Path` for that.
 
-The redirect will use HTTP status code `302`. The `baseUrl` in `Config/Config.hs` will be used. In development mode, the `baseUrl` might not be specified in `Config/Config.hs`. Then it will be set to localhost by default.
+The redirect will use HTTP status code `302`. The [`baseUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#t:FrameworkConfig) in `Config/Config.hs` will be used. In development mode, the [`baseUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#t:FrameworkConfig) might not be specified in `Config/Config.hs`. Then it will be set to localhost by default.
 
 ### Redirect to a Path
 
-Use `redirectToPath` when you want to redirect to a path on the same domain:
+Use [`redirectToPath`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToPath) when you want to redirect to a path on the same domain:
 
 ```haskell
 action ExampleAction = do
@@ -358,7 +358,7 @@ action ExampleAction = do
 
 ### Redirect to a URL
 
-Use `redirectToUrl` to redirect to some external URL:
+Use [`redirectToUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToUrl) to redirect to some external URL:
 
 ```haskell
 action ExampleAction = do
@@ -377,7 +377,7 @@ action ExampleAction = do
     putStrLn "This line here is not reachable"
 ```
 
-The `putStrLn` will never be called because the `redirectTo` already stops execution.
+The [`putStrLn`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:putStrLn) will never be called because the [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) already stops execution.
 
 When you have created a [`Response`](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Response) manually, you can use [`respondAndExit`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#respondAndExit) to send your response and stop action execution.
 
@@ -393,7 +393,7 @@ Actions have access to the Request Context via the controller context:
 let requestContext = get #requestContext ?context
 ```
 
-The Request Context provides access to the Wai request as well as information like the request query and post parameters and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the `getHeader` function uses the Request Context to access the request headers.
+The Request Context provides access to the Wai request as well as information like the request query and post parameters and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the [`getHeader`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:getHeader) function uses the Request Context to access the request headers.
 
 ## File Uploads
 

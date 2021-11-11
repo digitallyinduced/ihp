@@ -3,7 +3,7 @@ let
         ihp = ./.;
         haskellPackagesDir = ./NixSupport/haskell-packages;
     };
-    ghc = pkgs.haskell.packages.ghc8104;
+    ghc = pkgs.haskell.packages.ghc8107;
     haskellDeps = ghc.ghcWithPackages (p: with p; [
         # Copied from ihp.nix
         base
@@ -61,16 +61,19 @@ let
         temporary
         wai-cors
         random
+        async-pool
+        cereal-text
+        cereal-uuid
+        neat-interpolation
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli
         hspec
-        neat-interpolation
     ]);
 in
     pkgs.stdenv.mkDerivation {
         name = "ihp-dev";
         src = ./.;
-        buildInputs = [haskellDeps pkgs.entr];
+        buildInputs = [haskellDeps pkgs.entr pkgs.nodejs];
         shellHook = "eval $(egrep ^export ${haskellDeps}/bin/ghc)";
     }

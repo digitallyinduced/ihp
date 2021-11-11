@@ -8,7 +8,7 @@
 
 IHP Server-Side Components provide a toolkit for building interactive client-side functionality without needing to write too much javascript.
 
-A Server-Side Component consist of a state object, a set of actions and a `render` function.
+A Server-Side Component consist of a state object, a set of actions and a [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:render) function.
 
 The typical lifecycle is like this:
 1. The component is rendered based as part of a view
@@ -70,17 +70,17 @@ instance Component Counter CounterController where
 instance SetField "value" Counter Int where setField value' counter = counter { value = value' }
 ```
 
-You can see that the `Counter` component has a state object with a number `data Counter = Counter { value :: !Int }`. It has two actions `IncrementCounterAction` and `SetCounterValue`. The `initialState = Counter { value = 0 }` means that the counter starts at 0.
+You can see that the `Counter` component has a state object with a number `data Counter = Counter { value :: !Int }`. It has two actions `IncrementCounterAction` and `SetCounterValue`. The [`initialState = Counter { value = 0 }`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:initialState) means that the counter starts at 0.
 
-Inside the `render` function you can see how server-side actions are triggered from the client-side:
+Inside the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:render) function you can see how server-side actions are triggered from the client-side:
 
 ```html
 <button onclick="callServerAction('IncrementCounterAction')">Plus One</button>
 ```
 
-When the `callServerAction('IncrementCounterAction')` is called, it will trigger the `action state IncrementCounterAction = do` haskell block to be called on the server.
+When the `callServerAction('IncrementCounterAction')` is called, it will trigger the [`action state IncrementCounterAction = do`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:action) haskell block to be called on the server.
 
-You can see that the `action` handler get's passed the current state and will return a new state based on the action and the current state.
+You can see that the [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:action) handler get's passed the current state and will return a new state based on the action and the current state.
 
 ### FrontController
 
@@ -93,7 +93,7 @@ import IHP.ServerSideComponent.RouterFunctions
 import Web.Component.Counter
 ```
 
-Inside the `instance FrontController WebApplication` add a `routeComponent @Counter`:
+Inside the `instance FrontController WebApplication` add a [`routeComponent @Counter`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-RouterFunctions.html#v:routeComponent):
 
 ```haskell
 
@@ -131,7 +131,7 @@ instance View WelcomeView where
             counter = component @Counter
 ```
 
-If you wonder why we're using the `where` instead of writing `{component @Counter}`: Currently the at-symbol `@` is not supported in HSX expressions.
+If you wonder why we're using the `where` instead of writing [`{component @Counter}`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-ViewFunctions.html#v:component): Currently the at-symbol `@` is not supported in HSX expressions.
 
 We also need to load the `ihp-ssc.js` from our `Layout.hs`. Open the `Web/View/Layout.hs` and add `<script src="/vendor/ihp-ssc.js"></script>` inside your `scripts` section:
 
@@ -170,9 +170,9 @@ To call the `SetSearchQuery` action with a specific `searchQuery` value, we can 
 
 ### Fetching from the Database
 
-You can use the typical IHP database operations like `query @Post` or `createRecord` from your actions.
+You can use the typical IHP database operations like [`query @Post`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:query) or [`createRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) from your actions.
 
-To fill the inital data you can use the `componentDidMount` lifecycle function:
+To fill the inital data you can use the [`componentDidMount`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) lifecycle function:
 
 ```haskell
 data PostsTable = PostsTable
@@ -197,9 +197,9 @@ instance Component PostsTable PostsTableController where
     |]
 ```
 
-The `componentDidMount` get's passed the initial state and returns a new state. It's called right after the first render once the client has wired up the WebSocket connection.
+The [`componentDidMount`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) get's passed the initial state and returns a new state. It's called right after the first render once the client has wired up the WebSocket connection.
 
-When the `posts` field is set to `Nothing` we know that the data is still being fetched. In that case we render a loading spinner inside our `render` function.
+When the `posts` field is set to `Nothing` we know that the data is still being fetched. In that case we render a loading spinner inside our [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:render) function.
 
 ### HTML Diffing & Patching
 

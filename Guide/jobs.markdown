@@ -62,13 +62,14 @@ A benefit of jobs compared to just running scripts is info about the jobs is sto
 
 ### Configuring jobs
 
-Every job has two options you can configure:
+Every job has a few options you can configure:
 - maximum number of attempts
 - timeout
+- maximum number of concurrent processing
 
 #### Attempts
 
-When a job fails, it is automatically retried up to 10 times, or until it succeeds. If you want to configure this number, you can set `maxAttempts` to a custom value, like in this example:
+When a job fails, it is automatically retried up to 10 times, or until it succeeds. If you want to configure this number, you can set [`maxAttempts`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Types.html#v:maxAttempts) to a custom value, like in this example:
 
 ```haskell
 instance Job EmailCustomersJob where
@@ -83,7 +84,7 @@ instance Job EmailCustomersJob where
 
 #### Timeout
 
-Sometimes you might want a job to stop if its runtime exceeds some threshold. For that case, there's a `timeoutInMicroseconds` option which you can set for you job. The default is no timeout. If you want your job to time out after some time, set it to a `Just Int` value, like in the following example, which causes the job to time out after one minute:
+Sometimes you might want a job to stop if its runtime exceeds some threshold. For that case, there's a [`timeoutInMicroseconds`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Types.html#v:timeoutInMicroseconds) option which you can set for you job. The default is no timeout. If you want your job to time out after some time, set it to a `Just Int` value, like in the following example, which causes the job to time out after one minute:
 
 ```haskell
 instance Job EmailCustomersJob where
@@ -96,7 +97,22 @@ instance Job EmailCustomersJob where
     timeoutInMicroseconds = Just $ 1000000 * 60
 ```
 
-A timed out job will be retried, just as if it failed. If you want to prevent that, set its `maxAttempts` to `0`, as shown above.
+A timed out job will be retried, just as if it failed. If you want to prevent that, set its [`maxAttempts`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Types.html#v:maxAttempts) to `0`, as shown above.
+
+
+### Concurrency
+
+Sometimes you would like to change the number of Jobs that can be processed at the same time. By default the value is set to 16. A possible use case would be changing the number to 1 in order to make sure Jobs are processed one after the other. This means Jobs can be useful when there's a need for an ordered queue.
+
+
+```haskell
+instance Job EmailCustomersJob where
+    perform EmailCustomersJob { .. } = do
+      -- ...
+
+    maxConcurrency = 1
+```
+
 
 ### Scheduling jobs with cron
 
@@ -146,7 +162,7 @@ type MyJobDashboard = JobsDashboardController
 
 With the empty list type `'[]`, the job dashboard will render a default dashboard for all the tables in the database ending in `_jobs`. See below for a guide on adding custom dashboards for your job types.
 
-To add the dashboard to your application, you need to add a `parseRoute` call to this type.
+To add the dashboard to your application, you need to add a [`parseRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseRoute) call to this type.
 
 ```haskell
 type MyJobDashboard = JobsDashboardController
@@ -163,15 +179,29 @@ instance FrontController WebApplication where
 
 This will mount a jobs dashboard under `/jobs/`.
 
+If you would like to link to Jobs page you could add for example on `Layout.hs`
+
+```haskell
+import IHP.Job.Dashboard
+
+navbar :: Html
+navbar = [hsx|
+    <nav>
+        <!-- ... -->
+        <a href={ListJobsAction}>Jobs</a>
+    </nav>
+|]
+```
+
 ### Authentication
 
-The second type parameter to `JobsDashboardController` is a type that defines how users should be authenticated when visiting any of the jobs pages.
+The second type parameter to [`JobsDashboardController`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Types.html#t:JobsDashboardController) is a type that defines how users should be authenticated when visiting any of the jobs pages.
 IHP provides three types for common use cases.
 - `NoAuth`: No authentication
 - `BasicAuth`: HTTP Basic Auth using environment variables
 - `BasicAuthStatic`: HTTP Basic Auth using static values
 
-To use your own authentication, create an empty type and define an instance of `AuthenticationMethod` for it. Example:
+To use your own authentication, create an empty type and define an instance of [`AuthenticationMethod`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Auth.html#t:AuthenticationMethod) for it. Example:
 
 ```haskell
 data CustomAuth
@@ -190,11 +220,11 @@ type MyJobDashboard = JobsDashboardController
 
 ### Jobs to include
 
-The third type parameter to `JobsDashboardController` is a list of job types that the dashboard will display using their custom `DisplayableJob` implementations. See the documentation for `IHP.Job.Dashboard` for details.
+The third type parameter to [`JobsDashboardController`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Types.html#t:JobsDashboardController) is a list of job types that the dashboard will display using their custom [`DisplayableJob`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard.html#t:DisplayableJob) implementations. See the documentation for [`IHP.Job.Dashboard`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard.html) for details.
 
 ### Customize views
 
-Most views in the dashboard can be customized by providing a custom implementation of `DisplayableJob` for your job type.
+Most views in the dashboard can be customized by providing a custom implementation of [`DisplayableJob`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard.html#t:DisplayableJob) for your job type.
 These methods can be overriden to allow for custom behavior:
 
 ```haskell
@@ -233,7 +263,7 @@ To add more data, define your own implementation. See the case study below for a
 
 ### TableViewable
 
-The jobs dashboard provides a `TableViewable` type class that makes it easier to customize the appearance of jobs in the dashboard.
+The jobs dashboard provides a [`TableViewable`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Types.html#t:TableViewable) type class that makes it easier to customize the appearance of jobs in the dashboard.
 The typeclass defines behavior for how the type should be rendered as a table.
 
 ```haskell
@@ -307,8 +337,8 @@ instance TableViewable (IncludeWrapper "bandId" InitialScrapeJob) where
 
 ```
 
-Note the use of `IncludeWrapper` instead of the normal `Include`. This gets around an unfortunate limitation in Haskell's type system.
-This instance is then used by a custom `DisplayableJob` instance that uses some helpers from `IHP.Job.Dashboard.View` that render the dashboard section and list pages using any `TableViewable` instance.
+Note the use of [`IncludeWrapper`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Types.html#t:IncludeWrapper) instead of the normal [`Include`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Types.html#t:IncludeWrapper). This gets around an unfortunate limitation in Haskell's type system.
+This instance is then used by a custom [`DisplayableJob`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard.html#t:DisplayableJob) instance that uses some helpers from `IHP.Job.Dashboard.View` that render the dashboard section and list pages using any [`TableViewable`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard-Types.html#t:TableViewable) instance.
 
 ```haskell
 instance DisplayableJob InitialScrapeJob where

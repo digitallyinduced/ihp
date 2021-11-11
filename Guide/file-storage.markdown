@@ -22,7 +22,7 @@ Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 import IHP.FileStorage.Config
 ```
 
-Then add a call to `initStaticDirStorage`:
+Then add a call to [`initStaticDirStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initStaticDirStorage):
 
 ```haskell
 module Config where
@@ -48,7 +48,7 @@ Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 import IHP.FileStorage.Config
 ```
 
-Then add a call to `initS3Storage`:
+Then add a call to [`initS3Storage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initS3Storage):
 
 ```haskell
 module Config where
@@ -93,7 +93,7 @@ Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 import IHP.FileStorage.Config
 ```
 
-Then add a call to `initMinioStorage`:
+Then add a call to [`initMinioStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initMinioStorage):
 
 ```haskell
 module Config where
@@ -144,7 +144,7 @@ CREATE TABLE companies (
 );
 ```
 
-You can use the `uploadToStorage` function to save a user upload to the storage:
+You can use the [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) function to save a user upload to the storage:
 
 ```haskell
 action UpdateCompanyAction { companyId } = do
@@ -159,9 +159,9 @@ action UpdateCompanyAction { companyId } = do
                 redirectTo EditCompanyAction { .. }
 ```
 
-The call to `uploadToStorage #logoUrl` will upload the file provided by the user. It will be saved as `companies/<some uuid>` on the configured storage. The the file url will be written to the `logoUrl` attribute.
+The call to [`uploadToStorage #logoUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) will upload the file provided by the user. It will be saved as `companies/<some uuid>` on the configured storage. The the file url will be written to the `logoUrl` attribute.
 
-After calling `uploadToStorage` inside a action, you typically need to use `>>=` instead of `|>`:
+After calling [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) inside a action, you typically need to use [`>>=`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:-62--62--61-) instead of [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-):
 
 ```haskell
 -- Bad, will cause a type error:
@@ -181,7 +181,7 @@ company
 
 #### Form
 
-To submit a file upload, add a `{fileField #logoUrl}` to the form that calls the action:
+To submit a file upload, add a [`{fileField #logoUrl}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) to the form that calls the action:
 
 ```haskell
 renderForm :: Company -> Html
@@ -196,7 +196,7 @@ renderForm company = formFor company [hsx|
 
 ##### Custom File Field
 
-If you need to more customization on the file field which the `fileField` helper doesn't allow, you can also use a handwritten file input:
+If you need to more customization on the file field which the [`fileField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) helper doesn't allow, you can also use a handwritten file input:
 
 ```haskell
 renderForm :: Company -> Html
@@ -214,7 +214,7 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
-It's important that `<input>` has `name="logoUrl` attribute, as that's where `uploadToStorage #logoUrl` expects to find the file.
+It's important that `<input>` has `name="logoUrl` attribute, as that's where [`uploadToStorage #logoUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) expects to find the file.
 
 ##### Inline Preview
 
@@ -244,7 +244,7 @@ renderForm company = formFor company [hsx|
 
 When dealing with images, we can use the imagemagick tool to e.g. resize the image and strip metadata:
 
-This accepts any kind of image file compatible with ImageMagick, converts it to a 512x512 PNG and strip all meta data we use `uploadToStorageWithOptions` together with `applyImageMagick`:
+This accepts any kind of image file compatible with ImageMagick, converts it to a 512x512 PNG and strip all meta data we use [`uploadToStorageWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorageWithOptions) together with [`applyImageMagick`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Preprocessor-ImageMagick.html#v:applyImageMagick):
 
 ```haskell
 action UpdateCompanyAction { companyId } = do
@@ -264,7 +264,7 @@ action UpdateCompanyAction { companyId } = do
 
 #### Installing ImageMagick
 
-The `applyImageMagick` function requires `imagemagick` to be installed. You can install it by adding `imagemagick` to the `otherDeps` of your `default.nix`:
+The [`applyImageMagick`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Preprocessor-ImageMagick.html#v:applyImageMagick) function requires `imagemagick` to be installed. You can install it by adding `imagemagick` to the `otherDeps` of your `default.nix`:
 
 ```nix
         otherDeps = p: with p; [
@@ -289,7 +289,7 @@ The browser uses the [`Content-Disposition`](https://developer.mozilla.org/en-US
 
 By default no `Content-Disposition` header is set.
 
-If you use the S3 Storage you can use the `contentDispositionAttachmentAndFileName` function to mark a file as an attachment and use its original provided file name as the downloaded file name:
+If you use the S3 Storage you can use the [`contentDispositionAttachmentAndFileName`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:contentDispositionAttachmentAndFileName) function to mark a file as an attachment and use its original provided file name as the downloaded file name:
 
 ```haskell
 let uploadAttachment = uploadToStorageWithOptions $ def
@@ -326,7 +326,7 @@ record
 
 The above methods always require a record like `company` to store the files.
 
-Use `storeFile` to save uploads without a model:
+Use [`storeFile`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFile) to save uploads without a model:
 
 ```haskell
 action UpdateLogoAction = do
@@ -337,9 +337,9 @@ action UpdateLogoAction = do
     let url = get #url storedFile
 ```
 
-This will upload the provided `<input type="file" name="logo"/>` to the `logos` directory. The `storeFile` function returns `StoredFile` structure. We use `get #url` to read the url where the file was saved to.
+This will upload the provided `<input type="file" name="logo"/>` to the `logos` directory. The [`storeFile`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFile) function returns [`StoredFile`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Types.html#t:StoredFile) structure. We use `get #url` to read the url where the file was saved to.
 
-There's also a `storeFileWithOptions` to pass additional configuration:
+There's also a [`storeFileWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFileWithOptions) to pass additional configuration:
 
 ```haskell
 let file = fileOrNothing "file"
@@ -393,7 +393,7 @@ let url :: Text = get #url signedUrl
 let expiredAt :: UTCTime = get #expiredAt signedUrl
 ```
 
-If the `StaticDirStorage` is used, a unsigned normal URL will be returned, as these files are public anyways.
+If the [`StaticDirStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Types.html#t:FileStorage) is used, a unsigned normal URL will be returned, as these files are public anyways.
 
 The signed url is valid for 7 days.
 

@@ -270,7 +270,7 @@ contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; file
 -- >                 company <- company |> updateRecord
 -- >                 redirectTo EditCompanyAction { .. }
 --
-uploadToStorageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -319,7 +319,7 @@ uploadToStorageWithOptions options field record = do
 -- >                 company <- company |> updateRecord
 -- >                 redirectTo EditCompanyAction { .. }
 --
-uploadToStorage :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadToStorage :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName

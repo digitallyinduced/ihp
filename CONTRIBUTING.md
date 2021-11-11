@@ -5,7 +5,7 @@ We are happy to merge your pull requests!
 ## Running an application against a local copy of the framework
 
 To work on the framework in your application, you need to clone this repository inside your application directory.
-If you don't have a project, first make sure you have the latest version of `ihp-new`, update it by running: `nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new`. Use `ihp-new` to create one. Make sure to run `./start` in your project once. Also make sure that [`direnv`](https://direnv.net/docs/hook.html) is set up in your shell.
+If you don't have a project, first make sure you have the latest version of `ihp-new`, update it by running: `nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new`. Use `ihp-new` to create one. Make sure to run `./start` in your project once. Also make sure that [`direnv`](https://direnv.net/docs/hook.html) is set up in your shell.
 
 ```
 # Set up a local IHP project
@@ -148,6 +148,19 @@ Perhaps a package was added to IHP recently. Start a `nix-shell` in the IHP dire
 ### Trouble adding packages to IHP
 
 Either add the package to your project's `default.nix` as well, or change the section `ihp = builtins.fetchGit ...` to `ihp = ./IHP;`in your project's `default.nix`. Then the `IHP/ihp.nix` will be used to fetch packages.
+
+### Type errors in `build/Generated/Types.hs`
+
+The errors comes from changes to the Schema Compiler, so `build/Generated/Types.hs` is outdated. The error only happens when we have backwards compatibility breaks in some of the interfaces, which doesn't happen very often. If you do get them you should execute from your appication's root directory (not the `IHP` directory)
+
+```
+nix-shell
+ghci
+:l IHP/IHP/SchemaCompiler.hs
+compile
+```
+
+After this the error should be gone, and you can go back to `:l Main`
 
 ### Reverting back to running with stock IHP library
 

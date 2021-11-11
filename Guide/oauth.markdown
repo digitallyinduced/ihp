@@ -212,7 +212,7 @@ loginWithGoogle = [hsx|
     <a id="continue-with-google" href="#" class="btn btn-primary" data-client-id="YOUR GOOGLE CLIENT ID">
         Continue with Google
     </a>
-    <form method="POST" action={CreateSessionWithGoogleAction} id="new-session-with-google-form">
+    <form method="POST" action={GoogleConnectCallbackAction} id="new-session-with-google-form">
         <input type="hidden" name="jwt" value=""/>
     </form>
     <script src="/google-login.js"></script>
@@ -383,7 +383,7 @@ import IHP.ViewPrelude
 import IHP.OAuth.Github.Types  -- <---- ADD THIS
 ```
 
-This ensures that we can write `pathTo NewSessionWithGithubAction` and similiar calls without always manually needing to add import statements.
+This ensures that we can write [`pathTo NewSessionWithGithubAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo) and similiar calls without always manually needing to add import statements.
 
 
 ### Config

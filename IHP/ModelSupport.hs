@@ -45,6 +45,7 @@ import qualified IHP.Log as Log
 import Data.Dynamic
 import Data.Scientific
 import GHC.Stack
+import qualified Numeric
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -110,10 +111,10 @@ instance InputValue Integer where
     inputValue = tshow
 
 instance InputValue Double where
-    inputValue = tshow
+    inputValue double = cs (Numeric.showFFloat Nothing double "")
 
 instance InputValue Float where
-    inputValue = tshow
+    inputValue float = cs (Numeric.showFFloat Nothing float "")
 
 instance InputValue Bool where
     inputValue True = "on"
@@ -188,7 +189,7 @@ type FieldName = ByteString
 -- >>> book <- query @Book |> fetchOne
 -- >>> isNew book
 -- False
-isNew :: forall model id. (HasField "meta" model MetaBag) => model -> Bool
+isNew :: forall model. (HasField "meta" model MetaBag) => model -> Bool
 isNew model = model
         |> get #meta
         |> get #originalDatabaseRecord
@@ -434,27 +435,57 @@ withTransactionConnection block = do
         let ?modelContext = modelContext in block
 {-# INLINABLE withTransactionConnection #-}
 
--- | Returns the table name of a given model.
---
--- __Example:__
---
--- >>> tableName @User
--- "users"
---
-tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
-tableName = symbolToText @(GetTableName model)
-{-# INLINE tableName #-}
+-- | Access meta data for a database table
+class
+    ( KnownSymbol (GetTableName record)
+    ) => Table record where
+    -- | Returns the table name of a given model.
+    --
+    -- __Example:__
+    --
+    -- >>> tableName @User
+    -- "users"
+    --
 
--- | Returns the table name of a given model as a bytestring.
---
--- __Example:__
---
--- >>> tableNameByteString @User
--- "users"
---
-tableNameByteString :: forall model. (KnownSymbol (GetTableName model)) => ByteString
-tableNameByteString = symbolToByteString @(GetTableName model)
-{-# INLINE tableNameByteString #-}
+    tableName :: Text
+    tableName = symbolToText @(GetTableName record)
+    {-# INLINE tableName #-}
+
+    -- | Returns the table name of a given model as a bytestring.
+    --
+    -- __Example:__
+    --
+    -- >>> tableNameByteString @User
+    -- "users"
+    --
+    tableNameByteString :: ByteString
+    tableNameByteString = symbolToByteString @(GetTableName record)
+    {-# INLINE tableNameByteString #-}
+
+    -- | Returns the list of column names for a given model
+    --
+    -- __Example:__
+    --
+    -- >>> columnNames @User
+    -- ["id", "email", "created_at"]
+    --
+    columnNames :: [ByteString]
+
+    -- | Returns WHERE conditions to match an entity by it's primary key
+    --
+    -- For tables with a simple primary key this returns a tuple with the id:
+    --
+    -- >>> primaryKeyCondition project
+    -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
+    --
+    -- If the table has a composite primary key, this returns multiple elements:
+    --
+    -- >>> primaryKeyCondition postTag
+    -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
+    --
+    primaryKeyCondition :: record -> [(Text, PG.Action)]
+    default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
+    primaryKeyCondition record = [("id", toField (get #id record))]
 
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
@@ -472,7 +503,7 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model id. (?modelContext :: ModelContext, KnownSymbol (GetTableName model), PrimaryKeyCondition model) => model -> IO ()
+deleteRecord :: forall model. (?modelContext :: ModelContext, Table model) => model -> IO ()
 deleteRecord model = do
     let condition = primaryKeyCondition model
     let whereConditions = condition |> map (\(field, _) -> field <> " = ?") |> intercalate " AND "
@@ -488,7 +519,7 @@ deleteRecord model = do
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => id -> IO ()
+deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, Table model, HasField "id" model id, ToField id) => id -> IO ()
 deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
@@ -501,7 +532,7 @@ deleteRecordById id = do
 -- >>> let projects :: [Project] = ...
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
-deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName record), HasField "id" record id, record ~ GetModelById id, ToField id) => [record] -> IO ()
+deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [record] -> IO ()
 deleteRecords records = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = PG.Only (PG.In (ids records))
@@ -513,7 +544,7 @@ deleteRecords records = do
 --
 -- >>> deleteAll @Project
 -- DELETE FROM projects
-deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
+deleteAll :: forall record. (?modelContext :: ModelContext, Table record) => IO ()
 deleteAll = do
     let theQuery = "DELETE FROM " <> tableName @record
     sqlExec (PG.Query . cs $! theQuery) ()
@@ -570,9 +601,15 @@ ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (getField @"id") records
 {-# INLINE ids #-}
 
+-- | The error message of a validator can be either a plain text value or a HTML formatted value
+data Violation
+    = TextViolation { message :: !Text } -- ^ Plain text validation error, like "cannot be empty"
+    | HtmlViolation { message :: !Text } -- ^ HTML formatted, already pre-escaped validation error, like "Invalid, please <a href="http://example.com">check the documentation</a>"
+    deriving (Eq, Show)
+
 -- | Every IHP database record has a magic @meta@ field which keeps a @MetaBag@ inside. This data structure is used e.g. to keep track of the validation errors that happend.
 data MetaBag = MetaBag
-    { annotations            :: ![(Text, Text)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", "cannot be empty") ]@
+    { annotations            :: ![(Text, Violation)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", TextViolation "cannot be empty") ]@
     , touchedFields          :: ![Text] -- ^ Whenever a 'set' is callled on a field, it will be marked as touched. Only touched fields are saved to the database when you call 'updateRecord'
     , originalDatabaseRecord :: Maybe Dynamic -- ^ When the record has been fetched from the database, we save the initial database record here. This is used by 'didChange' to check if a field value is different from the initial database value.
     } deriving (Show)
@@ -584,7 +621,7 @@ instance Default MetaBag where
     def = MetaBag { annotations = [], touchedFields = [], originalDatabaseRecord = Nothing }
     {-# INLINE def #-}
 
-instance SetField "annotations" MetaBag [(Text, Text)] where
+instance SetField "annotations" MetaBag [(Text, Violation)] where
     setField value meta = meta { annotations = value }
     {-# INLINE setField #-}
 
@@ -787,18 +824,3 @@ withTableReadTracker trackedSection = do
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar
     trackedSection
-
-class PrimaryKeyCondition record where
-    -- | Returns WHERE conditions to match an entity by it's primary key
-    --
-    -- For tables with a simple primary key this returns a tuple with the id:
-    --
-    -- >>> primaryKeyCondition project
-    -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
-    --
-    -- If the table has a composite primary key, this returns multiple elements:
-    --
-    -- >>> primaryKeyCondition postTag
-    -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
-    --
-    primaryKeyCondition :: record -> [(Text, PG.Action)]

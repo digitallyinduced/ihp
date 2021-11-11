@@ -37,6 +37,8 @@ module IHP.QueryBuilder
 , filterWhereILikeJoinedTable
 , filterWhereMatchesJoinedTable
 , filterWhereIMatchesJoinedTable
+, filterWherePast
+, filterWhereFuture
 , labelResults
 , EqOrIsOperator
 , filterWhereSql
@@ -48,8 +50,6 @@ module IHP.QueryBuilder
 , buildQuery
 , SQLQuery (..)
 , OrderByClause (..)
-, OrderByDirection (..)
-, Condition (..)
 , innerJoin
 , innerJoinThirdTable
 , HasQueryBuilder
@@ -58,6 +58,9 @@ module IHP.QueryBuilder
 , LabeledQueryBuilderWrapper
 , getQueryBuilder
 , NoJoins
+, Condition (..)
+, Join (..)
+, OrderByDirection (..)
 )
 where
 import qualified Prelude
@@ -72,6 +75,7 @@ import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
 import Debug.Trace
+import qualified GHC.Generics
 
 class DefaultScope table where
     defaultScope :: QueryBuilder table -> QueryBuilder table
@@ -80,9 +84,9 @@ instance {-# OVERLAPPABLE #-} DefaultScope table where
     {-# INLINE defaultScope #-}
     defaultScope queryBuilder = queryBuilder
 
-instance Default (QueryBuilder table) where
+instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
-    def = NewQueryBuilder
+    def = NewQueryBuilder { columns = columnNames @(GetModelByTableName table) }
 
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
 
@@ -133,7 +137,7 @@ data OrderByClause =
     OrderByClause
     { orderByColumn :: !ByteString
     , orderByDirection :: !OrderByDirection }
-    deriving (Show, Eq)
+    deriving (Show, Eq, GHC.Generics.Generic, DeepSeq.NFData)
 
 -- Types implementing a type level list to record joined tables. EmptyModelList and ConsModelList correspond to the data constructors [] and :. NoJoins is like the empty List but cannot be extended.
 data NoJoins
@@ -190,7 +194,7 @@ instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTa
 
 
 data QueryBuilder (table :: Symbol) =
-    NewQueryBuilder
+    NewQueryBuilder { columns :: ![ByteString] }
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
     | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !ByteString }
     | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Action), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
@@ -210,7 +214,7 @@ instance KnownSymbol table => ToHtml (QueryBuilder table) where
 data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString }
     deriving (Show, Eq)
 
-data OrderByDirection = Asc | Desc deriving (Eq, Show)
+data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, DeepSeq.NFData)
 data SQLQuery = SQLQuery
     { queryIndex :: !(Maybe ByteString)
     , selectFrom :: !ByteString
@@ -221,6 +225,7 @@ data SQLQuery = SQLQuery
     , orderByClause :: ![OrderByClause]
     , limitClause :: !(Maybe ByteString)
     , offsetClause :: !(Maybe ByteString)
+    , columns :: ![ByteString]
     } deriving (Show, Eq)
 
 -- | Needed for the 'Eq QueryBuilder' instance
@@ -273,18 +278,18 @@ instance SetField "offsetClause" SQLQuery (Maybe ByteString) where setField valu
 -- >    query @User
 -- >     |> filterWhere (#active, True)
 -- >     |> fetch
-query :: forall model table. (table ~ GetTableName model) => DefaultScope table => QueryBuilder table
-query = (defaultScope @table) NewQueryBuilder
+query :: forall model table. (table ~ GetTableName model, Table model) => DefaultScope table => QueryBuilder table
+query = (defaultScope @table) NewQueryBuilder { columns = columnNames @model }
 {-# INLINE query #-}
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
 buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
     where
-    buildQueryHelper NewQueryBuilder =
+    buildQueryHelper NewQueryBuilder { columns } =
         let tableName = symbolToByteString @table
         in SQLQuery
-            {     queryIndex = trace (Prelude.show $ getQueryIndex queryBuilderProvider) getQueryIndex queryBuilderProvider 
+            {     queryIndex = getQueryIndex queryBuilderProvider 
                 , selectFrom = tableName
                 , distinctClause = Nothing
                 , distinctOnClause = Nothing
@@ -293,6 +298,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                 , orderByClause = []
                 , limitClause = Nothing
                 , offsetClause = Nothing
+                , columns
                 }
     buildQueryHelper DistinctQueryBuilder { queryBuilder } = queryBuilder
             |> buildQueryHelper
@@ -365,7 +371,7 @@ toSQL queryBuilderProvider = toSQL' (buildQuery queryBuilderProvider)
 {-# INLINE toSQL #-}
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
-toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause } =
+toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
         (DeepSeq.force theQuery, theParams)
     where
         !theQuery =
@@ -385,8 +391,13 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
                     ]
 
         selectors :: ByteString
-        selectors = ByteString.intercalate ", " $ catMaybes [queryIndex , Just (selectFrom <> ".*")]
-
+        selectors = ByteString.intercalate ", " $ (catMaybes [queryIndex]) <> selectFromWithColumns
+            where
+                -- Generates a string like: `posts.id, posts.title, posts.body`
+                selectFromWithColumns :: [ByteString]
+                selectFromWithColumns = 
+                    columns
+                    |> map (\column -> selectFrom <> "." <> column)
         fromClause :: ByteString
         fromClause = selectFrom
 
@@ -735,6 +746,49 @@ filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryB
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIMatchesJoinedTable #-}
+
+
+-- | Filter all rows by whether a field is in the past, determined by comparing 'NOW()' to the field's value.
+--
+-- Opposite of 'filterWhereFuture'
+--
+-- __Example:__ Fetch all posts scheduled for the past.
+--
+-- > publicPosts <- query @Post
+-- >     |> filterWherePast #scheduledAt
+-- >     |> fetch
+-- > -- SELECT * FROM posts WHERE scheduled_at <= NOW()
+filterWherePast
+    :: ( KnownSymbol table
+       , KnownSymbol name
+       , ToField value
+       , HasField name (GetModelByTableName table) value
+       , HasQueryBuilder queryBuilderProvider joinRegister
+       )
+    => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
+filterWherePast name = filterWhereSql (name, "<= NOW()")
+{-# INLINE filterWherePast #-}
+
+-- | Filter all rows by whether a field is in the future, determined by comparing 'NOW()' to the field's value.
+--
+-- Opposite of 'filterWherePast'
+--
+-- __Example:__ Fetch all posts scheduled for the future.
+--
+-- > hiddenPosts <- query @Post
+-- >     |> filterWhereFuture #scheduledAt
+-- >     |> fetch
+-- > -- SELECT * FROM posts WHERE scheduled_at > NOW()
+filterWhereFuture
+    :: ( KnownSymbol table
+       , KnownSymbol name
+       , ToField value
+       , HasField name (GetModelByTableName table) value
+       , HasQueryBuilder queryBuilderProvider joinRegister
+       )
+    => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereFuture name = filterWhereSql (name, "> NOW()")
+{-# INLINE filterWhereFuture #-}
 
 
 -- | Allows to add a custom raw sql where condition

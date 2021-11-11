@@ -17,13 +17,25 @@ data Statement
     | CreateExtension { name :: Text, ifNotExists :: Bool }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName ADD COLUMN column;
+    | AddColumn { tableName :: Text, column :: Column }
+    -- | ALTER TABLE tableName DROP COLUMN columnName;
+    | DropColumn { tableName :: Text, columnName :: Text }
+    -- | DROP TABLE tableName;
+    | DropTable { tableName :: Text }
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
     | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
+    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
+    -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
+    | EnableRowLevelSecurity { tableName :: Text }
+    -- CREATE POLICY name ON tableName USING using WITH CHECK check;
+    | CreatePolicy { name :: Text, tableName :: Text, using :: Maybe Expression, check :: Maybe Expression }
+    -- CREATE SEQUENCE name;
+    | CreateSequence { name :: Text }
     deriving (Eq, Show)
 
 data CreateTable
@@ -128,5 +140,6 @@ data PostgresType
     | PInet
     | PTSVector
     | PArray PostgresType
+    | PTrigger
     | PCustomType Text
     deriving (Eq, Show)

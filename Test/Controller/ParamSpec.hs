@@ -85,6 +85,19 @@ tests = do
                 let ?context = createControllerContextWithParams []
                 (paramList @Int "numbers") `shouldBe` []
 
+        describe "paramListOrNothing" do
+            it "should parse valid input" do
+                let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", ""), ("ingredients", "egg")]
+                (paramListOrNothing @Text "ingredients") `shouldBe` [Just "milk", Nothing, Just "egg"]
+
+            it "should not fail on invalid input" do
+                let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
+                (paramListOrNothing @Int "numbers") `shouldBe` [Just 1, Nothing]
+
+            it "should deal with empty input" do
+                let ?context = createControllerContextWithParams []
+                (paramListOrNothing @Int "numbers") `shouldBe` []
+
         describe "hasParam" do
             it "returns True if param given" do
                 let ?context = createControllerContextWithParams [("a", "test")]
@@ -323,6 +336,7 @@ tests = do
                 it "should handle empty input as Nothing" do
                     (readParameter @(Maybe Int) "") `shouldBe` (Right Nothing)
                     (readParameter @(Maybe UUID) "") `shouldBe` (Right Nothing)
+                    (readParameterJSON @(Maybe Bool) "") `shouldBe` (Right Nothing)
 
                 it "should handle empty Text as Just" do
                     (readParameter @(Maybe Text) "") `shouldBe` (Right (Just ""))
@@ -353,9 +367,62 @@ tests = do
                     (readParameterJSON @Color (json "\"\"")) `shouldBe` (Left "Invalid value")
                     (readParameterJSON @Color (json "1337")) `shouldBe` (Left "enumParamReaderJSON: Invalid value, expected a string but got something else")
 
+        describe "fill" do
+            it "should fill provided values if valid" do
+                let ?context = createControllerContextWithParams [("boolField", "on"), ("colorField", "Red")]
+
+                let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
+                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
+
+                let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
+                filledRecord `shouldBe` expectedRecord
+
+            it "should not touch fields if a field is missing" do
+                let ?context = createControllerContextWithParams [("colorField", "Red")]
+
+                let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
+                let expectedRecord = FillRecord { boolField = False, colorField = Red, meta = def { touchedFields = ["colorField"] } }
+
+                let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
+                filledRecord `shouldBe` expectedRecord
+
+            it "should add validation errors if the parsing fails" do
+                let ?context = createControllerContextWithParams [("colorField", "invalid color")]
+
+                let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
+                let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def { annotations = [("colorField", TextViolation "Invalid value")] } }
+
+                let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
+                filledRecord `shouldBe` expectedRecord
+
+            it "should deal with json values" do
+                let ?context = createControllerContextWithJson "{\"colorField\":\"Red\",\"boolField\":true}"
+
+                let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
+                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
+
+                let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
+                filledRecord `shouldBe` expectedRecord
+
+            it "should deal with empty json values" do
+                let ?context = createControllerContextWithJson "{}"
+
+                let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
+                let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
+
+                let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
+                filledRecord `shouldBe` expectedRecord
+
 createControllerContextWithParams params =
         let
             requestBody = FormBody { params, files = [] }
+            request = Wai.defaultRequest
+            requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = error "frameworkConfig" }
+        in FrozenControllerContext { requestContext, customFields = TypeMap.empty }
+
+createControllerContextWithJson params =
+        let
+            requestBody = JSONBody { jsonPayload = Just (json params), rawPayload = cs params }
             request = Wai.defaultRequest
             requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = error "frameworkConfig" }
         in FrozenControllerContext { requestContext, customFields = TypeMap.empty }
@@ -370,3 +437,16 @@ instance ParamReader Color where
     readParameter = enumParamReader
     readParameterJSON = enumParamReaderJSON
 instance InputValue Color where inputValue = tshow
+
+
+data FillRecord = FillRecord { boolField :: Bool, colorField :: Color, meta :: MetaBag }
+    deriving (Show, Eq)
+
+instance SetField "boolField" FillRecord Bool where
+    setField value record = record { boolField = value } |> modify #meta (modify #touchedFields ("boolField":))
+
+instance SetField "colorField" FillRecord Color where
+    setField value record = record { colorField = value } |> modify #meta (modify #touchedFields ("colorField":))
+
+instance SetField "meta" FillRecord MetaBag where
+    setField value record = record { meta = value }

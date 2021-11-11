@@ -2,9 +2,7 @@ module IHP.IDE.Data.View.ShowQuery where
 
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 
 data ShowQueryView = ShowQueryView

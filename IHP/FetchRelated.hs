@@ -13,7 +13,7 @@ module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRe
 import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
-import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName)
+import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName, Table)
 import IHP.QueryBuilder
 import IHP.Fetch
 
@@ -71,6 +71,7 @@ instance (
         , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
+        , Table relatedModel
         ) => CollectionFetchRelated (Id' tableName) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
             ?modelContext :: ModelContext,
@@ -79,7 +80,8 @@ instance (
             Fetchable (Id' tableName) relatedModel,
             KnownSymbol (GetTableName relatedModel),
             PG.FromRow relatedModel,
-            KnownSymbol relatedField
+            KnownSymbol relatedField,
+            Table relatedModel
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
     collectionFetchRelated relatedField model = do
         relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, map (getField @relatedField) model) |> fetch
@@ -117,9 +119,9 @@ instance (
 instance (
         Eq (PrimaryKey tableName)
         , ToField (PrimaryKey tableName)
-        , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
+        , Table relatedModel
         ) => CollectionFetchRelatedOrNothing (Id' tableName) relatedModel where
     collectionFetchRelatedOrNothing :: forall model relatedField. (
             ?modelContext :: ModelContext,
@@ -158,7 +160,7 @@ instance (
 -- This will query all posts with their comments. The type of @posts@ is @[Include "comments" Post]@.
 --
 -- When fetching query builders, currently the implementation is not very efficient. E.g. given 10 Posts above, it will run 10 queries to fetch the comments. We should optimise this behavior in the future.
-instance (relatedModel ~ GetModelByTableName relatedTable) => CollectionFetchRelated (QueryBuilder relatedTable) relatedModel where
+instance (relatedModel ~ GetModelByTableName relatedTable, Table relatedModel) => CollectionFetchRelated (QueryBuilder relatedTable) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
             ?modelContext :: ModelContext,
             HasField relatedField model (QueryBuilder relatedTable),
@@ -175,13 +177,39 @@ instance (relatedModel ~ GetModelByTableName relatedTable) => CollectionFetchRel
                 pure (updateField @relatedField result model)
         mapM fetchRelated models
 
+-- Fetches a related record
+--
+-- Given a specific post, we can fetch the post and all its comments like this:
+--
+-- > let postId :: Id Post = ...
+-- > 
+-- > post <- fetch postId
+-- >     >>= fetchRelated #comments
+--
+-- This Haskell code will trigger the following SQL queries to be executed:
+--
+-- > SELECT posts.* FROM posts WHERE id = ?  LIMIT 1
+-- > SELECT comments.* FROM comments WHERE post_id = ?
+--
+-- In the view we can just access the comments like this:
+--
+-- > [hsx|
+-- >     <h1>{get #title post}</h1>
+-- >     <h2>Comments:</h2>
+-- >     {post |> get #comments}
+-- > |]
+--
+-- The @post |> get #comments@ returns a list of the comments belonging to the post.
+-- The type of post is @Include "comments"@ Post instead of the usual @Post@. This way the state of a fetched nested resource is tracked at the type level.
+--
 fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
         UpdateField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
         HasField field model fieldValue,
         PG.FromRow fetchModel,
         KnownSymbol (GetTableName fetchModel),
-        Fetchable fieldValue fetchModel
+        Fetchable fieldValue fetchModel,
+        Table fetchModel
     ) => Proxy field -> model -> IO (Include field model)
 fetchRelated relatedField model = do
     result :: FetchResult fieldValue fetchModel <- fetch ((getField @field model) :: fieldValue)
@@ -195,7 +223,8 @@ fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         HasField field model (Maybe fieldValue),
         PG.FromRow fetchModel,
         KnownSymbol (GetTableName fetchModel),
-        Fetchable fieldValue fetchModel
+        Fetchable fieldValue fetchModel,
+        Table fetchModel
     ) => Proxy field -> model -> IO (Include field model)
 fetchRelatedOrNothing relatedField model = do
     result :: Maybe (FetchResult fieldValue fetchModel) <- case getField @field model of
@@ -211,7 +240,8 @@ maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         HasField field model (Maybe fieldValue),
         PG.FromRow fetchModel,
         KnownSymbol (GetTableName fetchModel),
-        Fetchable fieldValue fetchModel
+        Fetchable fieldValue fetchModel,
+        Table fetchModel
     ) => Proxy field -> Maybe model -> IO (Maybe (Include field model))
 maybeFetchRelatedOrNothing relatedField = maybe (pure Nothing) (\q -> fetchRelatedOrNothing relatedField q >>= pure . Just)
 {-# INLINE maybeFetchRelatedOrNothing #-}

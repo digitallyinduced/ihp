@@ -8,7 +8,7 @@ import IHP.FrameworkConfig (FrameworkConfig)
 
 data ApplicationContext = ApplicationContext
     { modelContext :: !ModelContext
-    , session :: !(Vault.Key (Session IO String String))
+    , session :: !(Vault.Key (Session IO ByteString ByteString))
     , autoRefreshServer :: !(IORef AutoRefreshServer)
     , frameworkConfig :: !FrameworkConfig
     }

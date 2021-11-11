@@ -59,10 +59,15 @@
 , wai-cors
 , lens
 , random
+, async-pool
+, hspec
+, cereal-text
+, cereal-uuid
+, neat-interpolation
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v0.14.0";
+  version = "v0.16.0";
   src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
@@ -124,6 +129,11 @@ mkDerivation {
     wai-cors
     lens
     random
+    async-pool
+    hspec
+    cereal-text
+    cereal-uuid
+    neat-interpolation
   ];
   license = lib.licenses.mit;
   postInstall = ''

@@ -14,7 +14,7 @@ IHP provides support to render [Bootstrap 4 Modals](https://getbootstrap.com/doc
 
 Before we can build our modal, we have to make sure that your current application layout has modal rendering enabled.
 
-Open your `Web/View/Layout.hs` and add a `{modal}` just before the closing `</body>` tag:
+Open your `Web/View/Layout.hs` and add a [`{modal}`](https://ihp.digitallyinduced.com/api-docs/IHP-Modal-ViewFunctions.html#v:modal) just before the closing `</body>` tag:
 
 ```haskell
 defaultLayout :: Html -> Html
@@ -26,7 +26,7 @@ defaultLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 |]
 ```
 
-In case there is a `{modal}` already you can skip this step. Don't add the `{modal}` twice.
+In case there is a [`{modal}`](https://ihp.digitallyinduced.com/api-docs/IHP-Modal-ViewFunctions.html#v:modal) already you can skip this step. Don't add the [`{modal}`](https://ihp.digitallyinduced.com/api-docs/IHP-Modal-ViewFunctions.html#v:modal) twice.
 
 ## Rendering Modal Views
 
@@ -48,7 +48,7 @@ action NewProjectAction = do
     render NewView { .. }
 ```
 
-We need to call `setModal NewView { .. }` to turn the `NewView` into a modal. We also need to call `jumpToAction ProjectsAction` to render the `NewView` on top of the `ProjectsView` which is going to be rendered by the `ProjectsAction`:
+We need to call [`setModal NewView { .. }`](https://ihp.digitallyinduced.com/api-docs/IHP-Modal-ControllerFunctions.html#v:setModal) to turn the `NewView` into a modal. We also need to call [`jumpToAction ProjectsAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:jumpToAction) to render the `NewView` on top of the `ProjectsView` which is going to be rendered by the `ProjectsAction`:
 
 ```haskell
 action NewProjectAction = do
@@ -62,7 +62,7 @@ Let's take a look at `/NewPost`, it now looks like this:
 
 ![](images/modal/modal-2.png)
 
-The `NewView` is now rendered inside the `ProjectsView` (it's rendered where the `{modal}` is placed). Next, we're going to add the modal styling.
+The `NewView` is now rendered inside the `ProjectsView` (it's rendered where the [`{modal}`](https://ihp.digitallyinduced.com/api-docs/IHP-Modal-ViewFunctions.html#v:modal) is placed). Next, we're going to add the modal styling.
 
 ## Modal Styling
 
@@ -89,7 +89,7 @@ instance View NewView where
     |]
 ```
 
-We're going to use `renderModal` inside the `html NewView { .. }` definition to turn this into a bootstrap-styled Modal view:
+We're going to use [`renderModal`](https://ihp.digitallyinduced.com/api-docs/IHP-Modal-ViewFunctions.html#v:renderModal) inside the `html NewView { .. }` definition to turn this into a bootstrap-styled Modal view:
 
 ```haskell
 module Web.View.Projects.New where
@@ -112,7 +112,7 @@ After that our `/NewProject` view looks like this:
 
 ![](images/modal/modal.png)
 
-The call to `renderModal Modal { .. }` returns the HTML code for the bootstrap modal. You can think of it as a template function where `modalTitle`, `modalCloseUrl`, etc. just fill in the placeholder variables for the modal.
+The call to [`renderModal Modal { .. }`](https://ihp.digitallyinduced.com/api-docs/IHP-Modal-ViewFunctions.html#v:renderModal) returns the HTML code for the bootstrap modal. You can think of it as a template function where `modalTitle`, `modalCloseUrl`, etc. just fill in the placeholder variables for the modal.
 
 
 ## Common Issues
@@ -121,7 +121,7 @@ The call to `renderModal Modal { .. }` returns the HTML code for the bootstrap m
 
 This error comes up when you try to render a modal on top of another controllers action.
 
-To fix this error you need to add an import statement to the file where `jumpToAction` is called:
+To fix this error you need to add an import statement to the file where [`jumpToAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:jumpToAction) is called:
 
 ```haskell
 import Web.Controller.Projects () -- <----- ADD THIS LINE

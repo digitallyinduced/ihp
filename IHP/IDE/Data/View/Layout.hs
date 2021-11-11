@@ -16,9 +16,7 @@ module IHP.IDE.Data.View.Layout
     ) where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
 import qualified Data.Text as Text
 
 customQuery :: Text -> Html

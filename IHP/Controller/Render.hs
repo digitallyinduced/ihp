@@ -3,7 +3,7 @@ module IHP.Controller.Render where
 import ClassyPrelude
 import Network.Wai (responseLBS, responseBuilder, responseFile)
 import qualified Network.Wai
-import Network.HTTP.Types (status200, status406)
+import Network.HTTP.Types (Status, status200, status406)
 import Network.HTTP.Types.Header
 import IHP.ModelSupport
 import qualified Data.ByteString.Lazy
@@ -20,6 +20,7 @@ import IHP.Controller.Layout
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
+import qualified IHP.ErrorController as ErrorController
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
@@ -52,7 +53,7 @@ respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 {-# INLINABLE respondSvg #-}
 
-renderHtml :: forall viewContext view controller. (ViewSupport.View view, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO Html
+renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO Html
 renderHtml !view = do
     let ?view = view
     initFlashMessages
@@ -68,25 +69,40 @@ renderHtml !view = do
     pure boundHtml
 {-# INLINABLE renderHtml #-}
 
-renderFile :: (?context :: ControllerContext, ?modelContext :: ModelContext) => String -> ByteString -> IO ()
+renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 {-# INLINABLE renderFile #-}
 
 renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
-renderJson json = respondAndExit $ responseLBS status200 [(hContentType, "application/json")] (Data.Aeson.encode json)
+renderJson json = renderJsonWithStatusCode status200 json
 {-# INLINABLE renderJson #-}
+
+renderJsonWithStatusCode :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => Status -> json -> IO ()
+renderJsonWithStatusCode statusCode json = respondAndExit $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
+{-# INLINABLE renderJsonWithStatusCode #-}
 
 renderXml :: (?context :: ControllerContext) => LByteString -> IO ()
 renderXml xml = respondAndExit $ responseLBS status200 [(hContentType, "application/xml")] xml
 {-# INLINABLE renderXml #-}
 
+-- | Use 'setHeader' intead
 renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINABLE renderJson' #-}
 
+-- | Render's a generic not found page
+--
+-- This can be useful e.g. when an entity cannot be found:
+--
+-- > action ExampleAction = do
+-- >     renderNotFound
+--
+-- You can override the default not found error page by creating a new file at @static/404.html@. Then IHP will render that HTML file instead of displaying the default IHP not found page.
+--
 renderNotFound :: (?context :: ControllerContext) => IO ()
-renderNotFound = renderPlain "Not Found"
-{-# INLINABLE renderNotFound #-}
+renderNotFound = do
+    response <- ErrorController.buildNotFoundResponse
+    respondAndExit response
 
 data PolymorphicRender
     = PolymorphicRender
@@ -96,17 +112,17 @@ data PolymorphicRender
 
 -- | Can be used to render different responses for html, json, etc. requests based on `Accept` header
 -- Example:
--- `
--- show :: Action
--- show = do
---     renderPolymorphic polymorphicRender {
---         html = renderHtml [hsx|<div>Hello World</div>|]
---         json = renderJson True
---     }
--- `
--- This will render `Hello World` for normal browser requests and `true` when requested via an ajax request
+-- 
+-- > show :: Action
+-- > show = do
+-- >     renderPolymorphic polymorphicRender {
+-- >         html = renderHtml [hsx|<div>Hello World</div>|]
+-- >         json = renderJson True
+-- >     }
+--
+-- This will render @Hello World@ for normal browser requests and @true@ when requested via an ajax request
 {-# INLINABLE renderPolymorphic #-}
-renderPolymorphic :: forall viewContext jsonType htmlType. (?context :: ControllerContext) => PolymorphicRender -> IO ()
+renderPolymorphic :: (?context :: ControllerContext) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
     let headers = Network.Wai.requestHeaders request
     let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
@@ -127,7 +143,7 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 
 
 {-# INLINABLE render #-}
-render :: forall view controller. (ViewSupport.View view, ?context :: ControllerContext, ?modelContext :: ModelContext) => view -> IO ()
+render :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = Just $ (renderHtml view) >>= respondHtml

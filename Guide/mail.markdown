@@ -79,7 +79,7 @@ Last we need to change the email text a little bit. The mail supports HSX so thi
 
 ## Sending Mails
 
-From inside a controller or script, an email can be sent by using `sendMail`:
+From inside a controller or script, an email can be sent by using [`sendMail`](https://ihp.digitallyinduced.com/api-docs/IHP-Mail.html#v:sendMail):
 
 ```haskell
 action MyAction = do
@@ -108,6 +108,31 @@ config = do
         { host = "smtp.myisp.com"
         , port = 2525
         , credentials = Nothing -- or Just ("myusername","hunter2")
+        }
+```
+
+### Local (For Debugging)
+
+A convinient way to see sent mails is to use a local mail testing such as [MailHog](https://github.com/mailhog/MailHog). This service will catch all outgoing emails, and show their HTML to you - which is handy while developing. 
+
+1. Make sure `sendmail` is locally installed and configured.
+2. Install MailHog.
+3. Enter the following Config.
+4. Start MailHog and open the link at http://0.0.0.0:8025/
+5. Send an email via your application, and see it in MailHog.
+
+
+```haskell
+-- Add this import
+import IHP.Mail
+
+config :: ConfigBuilder
+config = do
+    -- other options here, then add:
+    option $ SMTP
+        { host = "127.0.1.1"
+        , port = 1025
+        , credentials = Nothing
         }
 ```
 
@@ -146,7 +171,7 @@ config = do
 
 ## Email Attachments
 
-You can add file attachments by adding a `attachments` statement:
+You can add file attachments by adding a [`attachments`](https://ihp.digitallyinduced.com/api-docs/IHP-Mail.html#v:attachments) statement:
 
 ```haskell
 module Web.Mail.Users.Confirmation where

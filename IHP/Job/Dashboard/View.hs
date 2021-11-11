@@ -11,11 +11,6 @@ import IHP.Prelude
 import IHP.ViewPrelude (JobStatus(..), ControllerContext, Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
 import qualified Data.List as List
 import IHP.Job.Dashboard.Types
-import IHP.ModelSupport
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import IHP.Job.Dashboard.Utils
 import qualified IHP.Log as Log
 
@@ -60,6 +55,7 @@ renderStatus job = case get #status job of
     JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Failed</span>|]
     JobStatusSucceeded -> [hsx|<span class="badge badge-success">Succeeded</span>|]
     JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Retry</span>|]
+    JobStatusTimedOut -> [hsx|<span class="badge badge-danger" >Timed Out</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------
 
@@ -155,7 +151,7 @@ renderBaseJobTableRow job = [hsx|
             <td>{renderStatus job}</td>
             <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
             <td>
-                <form action={CreateJobAction (get #table job)} method="POST">
+                <form action={RetryJobAction (get #table job) (get #id job)} method="POST">
                     <button type="submit" style={retryButtonStyle} class="btn btn-link text-secondary">Retry</button>
                 </form>
             </td>

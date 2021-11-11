@@ -18,7 +18,7 @@ Auto Refresh offers a way to re-render views of your application when the underl
 
 It's good to have a general understanding of how IHP Auto Refresh works.
 
-Auto Refresh first has to be activated for an action by calling `autoRefresh`. Once activated the framework will automatically track all tables your action is using e.g. in `SELECT * FROM ...` queries. Once the action sends a response IHP will start watching for any kind of `INSERT`, `UPDATE` or `DELETE` statement to all the tables used by your action.
+Auto Refresh first has to be activated for an action by calling [`autoRefresh`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:autoRefresh). Once activated the framework will automatically track all tables your action is using e.g. in `SELECT * FROM ...` queries. Once the action sends a response IHP will start watching for any kind of `INSERT`, `UPDATE` or `DELETE` statement to all the tables used by your action.
 
 When the page is rendered a small JavaScript function will connect back to the IHP server using a WebSocket connection.
 
@@ -26,8 +26,6 @@ Whenever an `INSERT`, `UPDATE` or `DELETE` happens to the tables used by your ac
 
 
 ### Using Auto Refresh
-
-**If your project was created before 08.01.2021, check the Enable Auto Refresh section below**
 
 Let's say we have a `ShowProjectAction` like this:
 
@@ -37,7 +35,7 @@ action ShowProjectAction { projectId } = do
     render ShowView { .. }
 ```
 
-To enable auto refresh we have to add `autoRefresh` in front of the `do`:
+To enable auto refresh we have to add [`autoRefresh`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:autoRefresh) in front of the `do`:
 
 ```haskell
 action ShowProjectAction { projectId } = autoRefresh do
@@ -47,51 +45,26 @@ action ShowProjectAction { projectId } = autoRefresh do
 
 That's it. When you open your browser dev tools, you will see that a WebSocket connection has been started when opening the page. When we update the project from a different browser tab, we will see that the page instantly updates to reflect our changes.
 
-
-### Enable Auto Refresh: If Project Created Before 08.01.2021
-
-**This step is only required if your project was generated before 08.01.2021. Projects created after this date have auto refresh enabled by default.**
-
-#### FrontController
-
-First you need to add it to your `Web/FrontController.hs`:
-
-```haskell
-module Web.FrontController where
-
-import IHP.AutoRefresh -- <------ ADD THIS IMPORT
-
-instance InitControllerContext WebApplication where
-    initContext = do
-        setLayout defaultLayout
-        initAutoRefresh -- <----- ADD THIS LINE
-```
-
-#### Layout
-
-Next we need to add a new meta tag to our layout in `Web/View/Layout.hs`:
-
-```haskell
-metaTags :: Html
-metaTags = [hsx|
-    <meta charset="utf-8"/>
-
-    ...
-
-    {autoRefreshMeta} <------ ADD THIS
-|]
-```
-
-Additionally you need to include the `/ihp-auto-refresh.js` in your `Web/View/Layout.hs`:
-
-```haskell
-scripts = [hsx|
-        ...
-        <script src="/ihp-auto-refresh.js"></script> <------ ADD THIS
-    |]
-```
-
 ## Advanced Auto Refresh
+
+### Auto Refresh Only for Specific Tables
+
+By default IHP tracks all the tables in an action with Auto Refresh enabled.
+
+In scenarios where you're processing a lot of data for a view, but only a small portion needs Auto Refresh, you can enable Auto Refresh only for the specific tables:
+
+```haskell
+action MyAction = do -- <-- We don't enable auto refresh at the action start in this case
+
+    -- This part is not tracked by auto refresh, as `autoRefresh` wasn't called yet
+    -- Therefore we can do our "expensive" operations here
+    expensiveModels <- query @Expensive |> fetch
+
+    autoRefresh do
+        -- Inside this block auto refresh is active and all queries here are tracked
+        cheap <- query @Cheap |> fetch
+        render MyView { expensiveModels, cheap }
+```
 
 ### Custom SQL Queries with Auto Refresh
 
@@ -106,7 +79,7 @@ action StatsAction = autoRefresh do
     pure StatsView { ..}
 ```
 
-When using this custom query with `sqlQuery`, Auto Refresh is not aware that we're reading from the `companies` table. In this case we need to help out Auto Refresh by calling `trackTableRead`:
+When using this custom query with [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery), Auto Refresh is not aware that we're reading from the `companies` table. In this case we need to help out Auto Refresh by calling [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead):
 
 
 ```haskell
@@ -118,4 +91,4 @@ action StatsAction = autoRefresh do
     pure StatsView { ..}
 ```
 
-The `trackTableRead` marks the table as accessed for Auto Refresh and leads to the table being watched.
+The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead) marks the table as accessed for Auto Refresh and leads to the table being watched.

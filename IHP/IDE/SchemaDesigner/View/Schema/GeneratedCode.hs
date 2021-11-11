@@ -3,7 +3,6 @@ module IHP.IDE.SchemaDesigner.View.Schema.GeneratedCode where
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data GeneratedCodeView = GeneratedCodeView

@@ -84,12 +84,14 @@ data JobsDashboardController authType (jobs :: [*])
     | ViewJobAction { jobTableName :: Text, jobId :: UUID }
     | CreateJobAction { jobTableName :: Text }
     | DeleteJobAction { jobTableName :: Text, jobId :: UUID }
+    | RetryJobAction { jobTableName :: Text, jobId :: UUID }
 
     -- These actions are used for interal routing. Parameters are extracted dynamically in the action based on types
     | ListJobAction'
     | ViewJobAction'
     | CreateJobAction'
     | DeleteJobAction'
+    | RetryJobAction'
     deriving (Show, Eq, Data)
 
 
@@ -99,6 +101,7 @@ instance HasPath (JobsDashboardController authType jobs) where
     pathTo ViewJobAction   { .. } = "/jobs/ViewJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
     pathTo CreateJobAction { .. } = "/jobs/CreateJob?tableName=" <> jobTableName
     pathTo DeleteJobAction { .. } = "/jobs/DeleteJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
+    pathTo RetryJobAction  { .. } = "/jobs/RetryJob?tableName=" <> jobTableName <> "&id=" <> tshow jobId
     pathTo _ = error "pathTo for internal JobsDashboard functions not supported. Use non-backtick action and pass necessary parameters to use pathTo."
 
 instance CanRoute (JobsDashboardController authType jobs) where
@@ -110,4 +113,5 @@ instance CanRoute (JobsDashboardController authType jobs) where
         <|> (string "/jobs/ViewJob" <* endOfInput >> pure ViewJobAction')
         <|> (string "/jobs/CreateJob" <* endOfInput >> pure CreateJobAction')
         <|> (string "/jobs/DeleteJob" <* endOfInput >> pure DeleteJobAction')
+        <|> (string "/jobs/RetryJob" <* endOfInput >> pure RetryJobAction')
 

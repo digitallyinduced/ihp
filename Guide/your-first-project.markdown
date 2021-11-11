@@ -72,9 +72,9 @@ Start the development server by running the following in the `blog` directory:
 Your application is starting now. The development server will automatically launch the built-in IDE.
 The server can be stopped by pressing CTRL+C.
 
-By default, your app is available at `http://localhost:8000` and your development tooling is at `http://localhost:8001`.
+By default, your app is available at [`http://localhost:8000`](http://localhost:8000) and your development tooling is at [`http://localhost:8001`](http://localhost:8001).
 
-The development server automatically picks other ports when they are already in use by some other server. For example, it would pick `http://localhost:8001` and `http://localhost:8002` if port 8000 is used.
+The development server automatically picks other ports when they are already in use by some other server. For example, it would pick [`http://localhost:8001`](http://localhost:8001) and [`http://localhost:8002`](http://localhost:8002) if port 8000 is used.
 
 In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a WebSocket server to power live reloads on file saves inside your app.
 
@@ -83,7 +83,7 @@ The very first time you start this might take a while, and in rare cases may eve
 
 ### Hello Haskell World
 
-Open http://localhost:8000 and you will see this:
+Open [`http://localhost:8000`](http://localhost:8000) and you will see this:
 
 ![It's working screen](images/first-project/its-working.png)
 
@@ -220,7 +220,7 @@ The preview will show you all the files which are going to be created or modifie
 
 ![](images/first-project/code_gen_3_posts.png)
 
-After the files have been created as in the preview, your controller is ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Created, Read, Update, Delete) actions going.
+After the files have been created as in the preview, your controller is ready to be used. Open your browser at [http://localhost:8000/Posts](http://localhost:8000/Posts) to try out the new controller. The generator did all the initial work we need to get our usual [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) (Create, Read, Update, Delete) actions going.
 
 Here's how the new `/Posts` page looks like:
 
@@ -282,11 +282,11 @@ In the header we just see some imports. Controllers always import a special `Web
 instance Controller PostsController where
 ```
 
-The controller logic is specified by implementing an instance of the `Controller` type-class.
+The controller logic is specified by implementing an instance of the [`Controller`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:Controller) type-class.
 
 #### Index Action
 
-This is where the interesting part begins. As we will see below, the controller implementation is just an `action` function, pattern matching over our `data PostsController` structure we defined in `Web/Types.hs`.
+This is where the interesting part begins. As we will see below, the controller implementation is just an [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:action) function, pattern matching over our `data PostsController` structure we defined in `Web/Types.hs`.
 
 ```haskell
     action PostsAction = do
@@ -304,7 +304,7 @@ This is the index action. It's called when opening `/Posts`. First, it fetches a
         render NewView { .. }
 ```
 
-This is our endpoint for `/NewPost`. It just creates an empty new post and then passes it to the `NewView`. The `newRecord` is giving us an empty `Post` model. It's equivalent to manually writing `Post { id = Default, title = "", body = "" }`.
+This is our endpoint for `/NewPost`. It just creates an empty new post and then passes it to the `NewView`. The [`newRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:newRecord) is giving us an empty `Post` model. It's equivalent to manually writing `Post { id = Default, title = "", body = "" }`.
 
 #### Show Action
 
@@ -314,7 +314,7 @@ This is our endpoint for `/NewPost`. It just creates an empty new post and then 
         render ShowView { .. }
 ```
 
-This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get the post id of the given request. Then we just call `fetch` on that `postId` which gives us the specific `Post` record. Finally, we just pass that post to the view.
+This is our show action at `/ShowPost?postId=postId`. Here we pattern match on the `postId` field of `ShowPostAction` to get the post id of the given request. Then we just call [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) on that `postId` which gives us the specific `Post` record. Finally, we just pass that post to the view.
 
 #### Edit Action
 
@@ -343,13 +343,13 @@ Our `/EditPost?postId=postId` action. It's pretty much the same as in the `actio
 
 This action deals with update requests for a specific post. As usual, we pattern match on the `postId` and fetch it.
 
-The interesting part is `buildPost`. It is a helper function defined later in the controller: `buildPost = fill @["title", "body"]`. The `fill` call inside `buildPost` reads the `title` and `body` attributes from the browser request and fills them into the `post` record. The `buildPost` is also the place for validation logic.
+The interesting part is `buildPost`. It is a helper function defined later in the controller: `buildPost = fill @["title", "body"]`. The [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill) call inside `buildPost` reads the `title` and `body` attributes from the browser request and fills them into the `post` record. The `buildPost` is also the place for validation logic.
 
 `ifValid` returns `Either Post Post`. `Left post` means that e.g. the `title` or `body` did not pass validation. `Right post` means that all parameters could be set on `post` without any errors.
 
 In the error case (`Left post ->`) we just re-render the `EditView`. The `EditView` then tells the user about validation errors.
 
-In the success case (`Right post ->`) we save the updated post to the database (with `updateRecord`). Then we set a success message and redirect the user back to the edit view.
+In the success case (`Right post ->`) we save the updated post to the database (with [`updateRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:updateRecord)). Then we set a success message and redirect the user back to the edit view.
 
 #### Create Action
 
@@ -368,7 +368,7 @@ In the success case (`Right post ->`) we save the updated post to the database (
 
 Our create action, dealing with `POST /CreatePost` requests.
 
-It's pretty much like the update action. When the validation succeeded, it saves the record to the database using `createRecord`.
+It's pretty much like the update action. When the validation succeeded, it saves the record to the database using [`createRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord).
 
 #### Delete Action
 
@@ -380,7 +380,7 @@ It's pretty much like the update action. When the validation succeeded, it saves
         redirectTo PostsAction
 ```
 
-The last action is dealing with `DELETE /DeletePost?postId=postId` requests. It's pretty much like the other actions, we just call `deleteRecord` here.
+The last action is dealing with `DELETE /DeletePost?postId=postId` requests. It's pretty much like the other actions, we just call [`deleteRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecord) here.
 
 #### Routes
 
@@ -418,7 +418,7 @@ instance View ShowView where
     |]
 ```
 
-We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the `html` function is `hsx` code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the `[hsx|...|]` block is also type-checked and converted to Haskell code at compile-time.
+We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the [`html`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:html) function is [`hsx`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the [`[hsx|...|]`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) block is also type-checked and converted to Haskell code at compile-time.
 
 Now that we have a rough overview of all the parts belonging to our `Post`, it's time to do some coding ourselves.
 
@@ -548,7 +548,7 @@ In general, the workflow for making database schema changes locally is: Make cha
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
-Now we can order the posts by our new `created_at` field. Open `Web/Controller/Posts.hs` and add `orderByDesc #createdAt` like this inside the `action PostsAction`:
+Now we can order the posts by our new `created_at` field. Open `Web/Controller/Posts.hs` and add [`orderByDesc #createdAt`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:orderByDesc) like this inside the `action PostsAction`:
 
 ```haskell
 action PostsAction = do
@@ -572,7 +572,7 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
 <div>{get #body post}</div>
 ```
 
-Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The `timeAgo` helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58`), just use `dateTime` instead of `timeAgo`.
+Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The [`timeAgo`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:timeAgo) helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58`), just use [`dateTime`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:dateTime) instead of [`timeAgo`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:timeAgod).
 
 ![Schema Designer created at view](images/first-project/created_at_view.png)
 
@@ -582,7 +582,7 @@ Right now our posts can only be plain text. Let's make it more powerful by addin
 
 #### Adding a Markdown Library
 
-To deal with Markdown, instead of implementing a custom Markdown parser, let's just use an existing package. There's the excellent `mmark` package we can use.
+To deal with Markdown, instead of implementing a custom Markdown parser, let's just use an existing package. There's the excellent [`mmark`](https://hackage.haskell.org/package/mmark) package we can use.
 
 To install this package, open the `default.nix` file and append `mmark` to the `haskellDeps` list. The file will now look like this:
 
@@ -616,7 +616,7 @@ Stop the development server by pressing CTRL+C. Then update the local developmen
 
 #### Markdown Rendering
 
-Now that we have `mmark` installed, we need to integrate it into our `ShowView`. First, we need to import it: add the following line to the top of `Web/View/Posts/Show.hs`:
+Now that we have [`mmark`](https://hackage.haskell.org/package/mmark) installed, we need to integrate it into our `ShowView`. First, we need to import it: add the following line to the top of `Web/View/Posts/Show.hs`:
 
 ```haskell
 import qualified Text.MMark as MMark
@@ -630,13 +630,13 @@ Add the following to the bottom of the show view:
 renderMarkdown text = text
 ```
 
-This function now does nothing except return its input text. Our Markdown package provides two functions, `MMark.parse` and `MMark.render` to deal with the Markdown. Let's first deal with parsing:
+This function now does nothing except return its input text. Our Markdown package provides two functions, [`MMark.parse`](https://hackage.haskell.org/package/mmark-0.0.7.3/docs/Text-MMark.html#v:parse) and [`MMark.render`](https://hackage.haskell.org/package/mmark-0.0.7.3/docs/Text-MMark.html#v:render) to deal with the Markdown. Let's first deal with parsing:
 
 ```haskell
 renderMarkdown text = text |> MMark.parse ""
 ```
 
-The empty string we pass to `MMark.parse` is usually the file name of the `.markdown` file. As we don't have any Markdown file, we just pass an empty string.
+The empty string we pass to [`MMark.parse`](https://hackage.haskell.org/package/mmark-0.0.7.3/docs/Text-MMark.html#v:parse) is usually the file name of the `.markdown` file. As we don't have any Markdown file, we just pass an empty string.
 
 Now open the web app and take a look at a blog post. You will see something like this:
 
@@ -644,7 +644,7 @@ Now open the web app and take a look at a blog post. You will see something like
 Right MMark {..}
 ```
 
-This is the parsed representation of the Markdown. Of course, that's not very helpful. We also have to connect it with `MMark.render` to get HTML code for our Markdown. Replace the `renderMarkdown` with the following code:
+This is the parsed representation of the Markdown. Of course, that's not very helpful. We also have to connect it with [`MMark.render`](https://hackage.haskell.org/package/mmark-0.0.7.3/docs/Text-MMark.html#v:render) to get HTML code for our Markdown. Replace the `renderMarkdown` with the following code:
 
 ```haskell
 renderMarkdown text =
@@ -659,7 +659,7 @@ The `show` view will now show real formatted text, as we would have expected.
 
 Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a text area to support multi-line text.
 
-Open `Web/View/Posts/Edit.hs` and change `{textField #body}` to `{textareaField #body}`. We can also add a short hint that the text area supports Markdown: Replace `{textareaField #body}` with `{(textareaField #body) { helpText = "You can use Markdown here"} }`.
+Open `Web/View/Posts/Edit.hs` and change [`{textField #body}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField) to [`{textareaField #body}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textareaField). We can also add a short hint that the text area supports Markdown: Replace [`{textareaField #body}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textareaField) with [`{(textareaField #body) { helpText = "You can use Markdown here"} }`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField).
 
 ```haskell
 renderForm :: Post -> Html
@@ -690,7 +690,7 @@ isMarkdown text =
         Right _ -> Success
 ```
 
-We can use the validator by adding a new `validateField #body isMarkdown` line to the `buildPost` function:
+We can use the validator by adding a new [`validateField #body isMarkdown`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:validateField) line to the `buildPost` function:
 
 ```haskell
 buildPost post = post
@@ -946,7 +946,7 @@ Inside the `Show.hs` we need to update the type signature to tell our action wha
 data ShowView = ShowView { post :: Post }
 ```
 
-Add an `Include "comments"` like this:
+Add an [`Include "comments"`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) like this:
 
 ```haskell
 data ShowView = ShowView { post :: Include "comments" Post }
@@ -954,20 +954,20 @@ data ShowView = ShowView { post :: Include "comments" Post }
 
 This specifies that our view requires a post and should also include its comments. This will trigger a type error to be shown in the browser because our `ShowPostAction` is not passing the comments yet.
 
-To fix this, open `Web/Controller/Posts.hs` and take a look at the `ShowPostAction`. Right now we have a `fetch` call:
+To fix this, open `Web/Controller/Posts.hs` and take a look at the `ShowPostAction`. Right now we have a [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) call:
 
 ```haskell
 post <- fetch postId
 ```
 
-We need to extend our fetch to also include comments. We can use `fetchRelated` for this:
+We need to extend our fetch to also include comments. We can use [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) for this:
 
 ```haskell
 post <- fetch postId
     >>= fetchRelated #comments
 ```
 
-The type of `post` has changed from `Post` to `Include "comments" Post`. In general, when you're dealing with has-many relationships, use `Include "relatedRecords"` and `fetchRelated` to specify and fetch data according to your needs.
+The type of `post` has changed from `Post` to [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include). In general, when you're dealing with has-many relationships, use [`Include "relatedRecords"`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) and [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) to specify and fetch data according to your needs.
 
 The type error is fixed now. When opening the Show View of a post, you will see that the comments are displayed. When you take a look at the [`Logs` in the Dev tools](http://localhost:8001/AppLogs) you can see, that when opening a Post, two SQL queries will be fired:
 
@@ -1032,7 +1032,7 @@ To the following:
         render ShowView { .. }
 ```
 
-The `modify #comments (orderByDesc #createdAt)` basically just does a `|> orderByDesc #createdAt` to the query builder inside the `#comments` field. Then it just writes it back to the field. The `fetchRelated #comments` will then use the query builder stored inside `#comments` to fetch the comments, thus using the `ORDER BY` we added to the query.
+The [`modify #comments (orderByDesc #createdAt)`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:modify) basically just does a [`|> orderByDesc #createdAt`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:orderByDesc) to the query builder inside the `#comments` field. Then it just writes it back to the field. The [`fetchRelated #comments`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) will then use the query builder stored inside `#comments` to fetch the comments, thus using the `ORDER BY` we added to the query.
 
 That's it already. Taking a look at our post, we can see that the newest comment is shown first now.
 

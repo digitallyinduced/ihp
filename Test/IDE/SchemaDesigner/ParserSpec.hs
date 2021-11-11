@@ -21,7 +21,10 @@ tests = do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
 
         it "should parse a line comment" do
-            parseSql "-- Comment value" `shouldBe` Comment { content = "Comment value" }
+            parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
+        
+        it "should parse an empty comment" do
+            parseSqlStatements "--\n--" `shouldBe` [ Comment { content = "" }, Comment { content = "" } ]
 
         it "should parse a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
@@ -444,6 +447,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
         it "should parse a CREATE FUNCTION ..() RETURNS TRIGGER .." do
@@ -451,6 +456,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
         it "should parse unsupported SQL as a unknown statement" do
@@ -488,6 +495,35 @@ tests = do
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     }
 
+        it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
+            parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
+
+        it "should parse 'CREATE POLICY' statements" do
+            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe` CreatePolicy
+                    { name = "Users can manage their tasks"
+                    , tableName = "tasks"
+                    , using = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    , check = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    }
+        it "should parse 'ALTER TABLE .. ADD COLUMN' statements" do
+            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = Column { name ="b", columnType = PInt, defaultValue = Nothing, notNull = True, isUnique = False}}
+
+        it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
+            parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
+        
+        it "should parse 'DROP TABLE ..' statements" do
+            parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
+
+        it "should parse 'CREATE SEQUENCE ..' statements" do
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
 
 col :: Column
 col = Column

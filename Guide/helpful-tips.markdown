@@ -125,9 +125,9 @@ In general the `\case ...` can be expanded to `\value -> case value of ...`.
 
 [Learn more about lambda cases here.](https://typeclasses.com/ghc/lambda-case)
 
-### The Pipe operator `|>`
+### The Pipe operator [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-)
 
-In IHP code bases you find lot's of usage of the `|>` operator. We usually call it the `pipe operator`.
+In IHP code bases you find lot's of usage of the [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-) operator. We usually call it the `pipe operator`.
 
 The operator allows you to write code like this:
 

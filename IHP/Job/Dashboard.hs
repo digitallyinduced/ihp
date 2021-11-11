@@ -74,6 +74,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
     , Record job
     , Show job
     , Eq job
+    , Table job
     , Typeable job) => DisplayableJob job where
 
     -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
@@ -137,6 +138,9 @@ class JobsDashboard (jobs :: [*]) where
     -- | Deletes a job from the database.
     deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
     deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+
+    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
+    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 
 -- If no types are passed, try to get all tables dynamically and render them as BaseJobs
 instance JobsDashboard '[] where
@@ -203,6 +207,16 @@ instance JobsDashboard '[] where
         redirectTo ListJobsAction
 
         where delete id table = sqlExec (PG.Query $ cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id)
+    
+    retryJob = error "retryJob: Requested job type not in JobsDashboard Type"
+    retryJob' = do
+        let id    :: UUID = param "id"
+            table :: Text = param "tableName"
+        retryJobById table id
+        setSuccessMessage (columnNameToFieldLabel table <> " record deleted.")
+        redirectTo ListJobsAction
+
+        where retryJobById table id = sqlExec ("UPDATE ? SET status = 'job_status_retry' WHERE id = ?") (PG.Identifier table, id)
 
 
 -- | Defines the default implementation for a dashboard of a list of job types.
@@ -371,4 +385,5 @@ instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (Jobs
     action ViewJobAction'   = autoRefresh $ viewJob' @jobs True
     action CreateJobAction' = newJob' @jobs True
     action DeleteJobAction' = deleteJob' @jobs True
+    action RetryJobAction'  = retryJob' @jobs
     action _ = error "Cannot call this action directly. Call the backtick function with no parameters instead."

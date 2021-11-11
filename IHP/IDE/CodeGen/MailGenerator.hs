@@ -1,8 +1,6 @@
 module IHP.IDE.CodeGen.MailGenerator (buildPlan, buildPlan', MailConfig (..)) where
 
 import IHP.Prelude
-import IHP.HaskellSupport
-import IHP.ViewSupport
 import IHP.IDE.CodeGen.Types
 import qualified Data.Text as Text
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
