@@ -16,12 +16,12 @@ instance Controller LogsController where
         (standardOutput, errorOutput) <- case statusServerState of
                 DevServer.StatusServerNotStarted -> pure ("", "")
                 DevServer.StatusServerStarted { standardOutput, errorOutput } -> do
-                    std <- cs . ByteString.unlines <$> readIORef standardOutput
-                    err <- cs . ByteString.unlines <$> readIORef errorOutput
+                    std <- cs . ByteString.unlines . reverse <$> readIORef standardOutput
+                    err <- cs . ByteString.unlines . reverse <$> readIORef errorOutput
                     pure (std, err)
                 DevServer.StatusServerPaused { standardOutput, errorOutput } -> do
-                    std <- cs . ByteString.unlines <$> readIORef standardOutput
-                    err <- cs . ByteString.unlines <$> readIORef errorOutput
+                    std <- cs . ByteString.unlines . reverse <$> readIORef standardOutput
+                    err <- cs . ByteString.unlines . reverse <$> readIORef errorOutput
                     pure (std, err)
 
         render LogsView { .. }
@@ -32,8 +32,8 @@ instance Controller LogsController where
 
         (standardOutput, errorOutput) <- case postgresState of
                 DevServer.PostgresStarted { standardOutput, errorOutput } -> do
-                    err <- ByteString.toLazyByteString <$> readIORef errorOutput
-                    std <- ByteString.toLazyByteString <$> readIORef standardOutput
+                    err <- cs . ByteString.toLazyByteString <$> readIORef errorOutput
+                    std <- cs . ByteString.toLazyByteString <$> readIORef standardOutput
                     pure (std, err)
                 _ -> pure ("", "")
 
