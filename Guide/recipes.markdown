@@ -348,8 +348,8 @@ import Network.Wai (responseLBS)
 
 customNotFoundResponse :: (?context :: ControllerContext) => IO () 
 customNotFoundResponse = do
-page <- LBS.readFile "static/404.html"
-respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
+  page <- LBS.readFile "static/404.html"
+  respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
 ```
 
 Now you can use your `customNotFoundResponse`:
@@ -361,3 +361,44 @@ case post of
    Nothing ->  customNotFoundResponse -- Database record disappeared !!!
    Just post -> render ShowView { .. }
 ```
+
+## How to highlight the targeted element
+
+Let's say you have a page with comments, and you link to them with `<a href="#comment-<comment ID>">`.
+
+The browser will scroll to the relevant comment when you follow the link, but let's say you also want to highlight the linked comment — like GitHub does. You could use the `:target` selector, but it doesn't play well with Turbolinks.
+
+The solution is to assign your own class to the targeted element:
+
+```javascript
+// app.js
+
+$(document).on('ready turbolinks:load', function () {
+    // Highlight the #hash target
+    const prevMarkedElement = document.querySelector('.hash-target');
+    if (prevMarkedElement) {
+        prevMarkedElement.classList.remove('hash-target');
+    }
+    if (location.hash) {
+        const markedElement = document.querySelector(location.hash);
+        if (markedElement) {
+            markedElement.classList.add('hash-target');
+        }
+    }
+});
+```
+
+And then you can style `.hash-target` instead of `:target`:
+
+```css
+/* app.css */
+
+/* Highlight things linked to via #anchor in the URL */
+.hash-target {
+  box-shadow: #ffe988 0px 0px 0px 3px;
+}
+```
+
+## How to integrate a rich text editor
+
+* Tiptap (a ProseMirror based editor), as used in [windofchange.me](https://windofchange.me): <https://gist.github.com/neongreen/7dbdddae3af0c476340e0dc175552fad>

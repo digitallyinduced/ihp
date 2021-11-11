@@ -32,7 +32,7 @@ After updating your project, please consult the segments from your current relea
 
 3. **Tests**
 
-    If your app has Hspec tests, you will need to follow this step. If your app has no Hspec tess, you can skip this.
+    If your app has Hspec tests, you will need to follow this step. If your app has no Hspec tests, you can skip this.
 
     The `withParams` test helper has been replaced with `callActionWithParams`.
 

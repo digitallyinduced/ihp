@@ -11,6 +11,7 @@ import Data.String.Conversions (cs)
 import Data.UUID
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
+import qualified Data.ByteString.Builder as ByteString
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -56,7 +57,7 @@ data Action =
 data PostgresState
     = PostgresNotStarted
     | StartingPostgres
-    | PostgresStarted { process :: !ManagedProcess, standardOutput :: !(IORef ByteString), errorOutput :: !(IORef ByteString) }
+    | PostgresStarted { process :: !ManagedProcess, standardOutput :: !(IORef ByteString.Builder), errorOutput :: !(IORef ByteString.Builder) }
 
 instance Show PostgresState where
     show PostgresNotStarted = "NotStarted"

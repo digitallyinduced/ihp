@@ -26,8 +26,10 @@ import IHP.View.CSSFramework
 
 -- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
+-- If there is only one page, this will not render anything.
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
-renderPagination pagination@Pagination {currentPage, window, pageSize} = styledPagination theCSSFramework theCSSFramework paginationView
+renderPagination pagination@Pagination {currentPage, window, pageSize} =
+        when (showPagination pagination) $ styledPagination theCSSFramework theCSSFramework paginationView
         where
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
@@ -190,3 +192,10 @@ setQueryValue name value queryString =
 --
 removeQueryItem :: ByteString -> Query.Query -> Query.Query
 removeQueryItem name queryString = queryString |> filter (\(queryItemName, _) -> queryItemName /= name)
+
+{-| Determine if a Pagination needs to be shown.
+    If there is only a single page, we shouldn't show a pager.
+-}
+showPagination :: Pagination -> Bool
+showPagination pagination@Pagination {currentPage} =
+    currentPage /= 1 || hasNextPage pagination || hasPreviousPage pagination
