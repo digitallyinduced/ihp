@@ -23,6 +23,8 @@ main = do
         logger
 
     let ?modelContext = modelContext
-    migrate
+
+    minimumRevision <- envOrNothing "MINIMUM_REVISION"
+    migrate MigrateOptions { minimumRevision }
 
     logger |> cleanup

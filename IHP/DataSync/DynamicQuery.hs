@@ -25,6 +25,7 @@ data DynamicValue
     | BoolValue Bool
     | UUIDValue UUID
     | DateTimeValue UTCTime
+    | Null
 
 -- | Similiar to IHP.QueryBuilder.SQLQuery, but is designed to be accessed by external users
 --
@@ -60,6 +61,7 @@ instance {-# OVERLAPS #-} ToJSON [Field] where
             fieldValueToJSON (BoolValue value) = toJSON value
             fieldValueToJSON (UUIDValue value) = toJSON value
             fieldValueToJSON (DateTimeValue value) = toJSON value
+            fieldValueToJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
 
 instance PG.FromField Field where
     fromField field fieldValue' = do
@@ -75,6 +77,7 @@ instance PG.FromField Field where
                 <|> (BoolValue <$> PG.fromField field fieldValue')
                 <|> (UUIDValue <$> PG.fromField field fieldValue')
                 <|> (DateTimeValue <$> PG.fromField field fieldValue')
+                <|> (PG.fromField @PG.Null field fieldValue' >> pure IHP.DataSync.DynamicQuery.Null)
 
 
 -- | Returns a list of all id's in a result

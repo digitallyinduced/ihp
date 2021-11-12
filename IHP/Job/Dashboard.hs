@@ -207,13 +207,13 @@ instance JobsDashboard '[] where
         redirectTo ListJobsAction
 
         where delete id table = sqlExec (PG.Query $ cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id)
-    
+
     retryJob = error "retryJob: Requested job type not in JobsDashboard Type"
     retryJob' = do
         let id    :: UUID = param "id"
             table :: Text = param "tableName"
         retryJobById table id
-        setSuccessMessage (columnNameToFieldLabel table <> " record deleted.")
+        setSuccessMessage (columnNameToFieldLabel table <> " record marked as 'retry'.")
         redirectTo ListJobsAction
 
         where retryJobById table id = sqlExec ("UPDATE ? SET status = 'job_status_retry' WHERE id = ?") (PG.Identifier table, id)
