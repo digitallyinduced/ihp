@@ -62,3 +62,17 @@ DATABASE_URL=postgresql://... migrate
 ### Running Migrations on IHP Cloud
 
 If you use IHP Cloud the migrations will be automatically executed during the deployment. Nothing to do for you :-)
+
+
+### Skipping Old Migrations
+
+You can set the `MINIMUM_REVISION` env variable when running `migrate` to ignore migration revisions older than the specified unix timestamp:
+
+```bash
+export MINIMUM_REVISION=1000
+
+# 'Application/Migration/999-old-migration.sql' would be ignored now when running 'migrate'
+migrate
+```
+
+A good value for `MINIMUM_REVISION` is typically the unix timestamp of the time when the database was initially created.
