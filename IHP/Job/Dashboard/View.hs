@@ -212,8 +212,9 @@ renderBaseJobDetailView job = let table = get #table job in [hsx|
             <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
             <button type="submit" class="btn btn-danger">Delete</button>
         </form>
-        <form action="/jobs/CreateJob" method="POST">
+        <form action="/jobs/RetryJob" method="POST">
             <input type="hidden" id="tableName" name="tableName" value={table}>
+            <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
             <button type="submit" class="btn btn-primary">Run again</button>
         </form>
     </div>
