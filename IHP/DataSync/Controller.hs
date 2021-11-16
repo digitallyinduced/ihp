@@ -134,8 +134,11 @@ instance (
 
                         case result of
                             Left (e :: Exception.SomeException) -> do
+                                let errorMessage = case fromException e of
+                                        Just (sqlError :: PG.SqlError) -> cs (get #sqlErrorMsg sqlError)
+                                        Nothing -> cs (displayException e)
                                 Log.error (tshow e)
-                                sendJSON DataSyncError { requestId }
+                                sendJSON DataSyncError { requestId, errorMessage }
                             Right result -> pure ()
 
                     pure ()
