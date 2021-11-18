@@ -92,7 +92,7 @@ instance (
                                 -- results set
                                 isWatchingRecord <- elem id <$> readIORef watchedRecordIdsRef
                                 when isWatchingRecord do
-                                    sendJSON DidUpdate { subscriptionId, id, changeSet }
+                                    sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue changeSet }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
@@ -134,8 +134,11 @@ instance (
 
                         case result of
                             Left (e :: Exception.SomeException) -> do
+                                let errorMessage = case fromException e of
+                                        Just (sqlError :: PG.SqlError) -> cs (get #sqlErrorMsg sqlError)
+                                        Nothing -> cs (displayException e)
                                 Log.error (tshow e)
-                                sendJSON DataSyncError { requestId }
+                                sendJSON DataSyncError { requestId, errorMessage }
                             Right result -> pure ()
 
                     pure ()
@@ -154,6 +157,10 @@ cleanupAllSubscriptions = do
             pure ()
         _ -> pure ()
 
+changesToValue :: [ChangeNotifications.Change] -> Value
+changesToValue changes = object (map changeToPair changes)
+    where
+        changeToPair ChangeNotifications.Change { col, new } = (columnNameToFieldName col) .= new
 
 queryFieldNamesToColumnNames :: SQLQuery -> SQLQuery
 queryFieldNamesToColumnNames sqlQuery = sqlQuery

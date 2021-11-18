@@ -18,6 +18,7 @@ import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
 import qualified Data.Text as Text
+import qualified Data.Scientific as Scientific
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -40,8 +41,7 @@ instance (
 
                 let values = hashMap
                         |> HashMap.elems
-                        |> map \case
-                            String text -> PG.toField text
+                        |> map aesonValueToPostgresValue
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
                 
@@ -75,8 +75,7 @@ instance (
                                     Object hashMap -> hashMap
                                     otherwise -> error "Expected object"
                                 |> HashMap.elems
-                                |> map \case
-                                    String text -> PG.toField text
+                                |> map aesonValueToPostgresValue
                             )
                         
 
@@ -101,9 +100,7 @@ instance (
 
         let values = payload
                 |> HashMap.elems
-                |> map \case
-                    String text -> PG.toField text
-                    Bool value -> PG.toField value
+                |> map aesonValueToPostgresValue
 
         let keyValues = zip columns values
 
@@ -193,3 +190,11 @@ instance ToJSON PG.SqlError where
 renderErrorJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
+
+aesonValueToPostgresValue :: Value -> PG.Action
+aesonValueToPostgresValue (String text) = PG.toField text
+aesonValueToPostgresValue (Bool value) = PG.toField value
+aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger value of -- Hacky, we should make this function "Schema.sql"-aware in the future
+    Left (floating :: Double) -> PG.toField floating
+    Right (integer :: Integer) -> PG.toField integer
+aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
