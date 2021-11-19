@@ -144,7 +144,7 @@ Inside those tags using a Haskell expression will not work:
 <script>{myHaskellExpr}</script>
 ```
 
-This will just literally output the string `{myHaskellExpr}` without evaluating the Haskell expression itself. This is because javascript usually uses `{}` for object expressions like `{ a: "hello" }`. The same applies to inline CSS inside `<style>` elements.
+This will just literally output the string `{myHaskellExpr}` without evaluating the Haskell expression itself. This is because JavaScript usually uses `{}` for object expressions like `{ a: "hello" }`. The same applies to inline CSS inside `<style>` elements.
 
 So using `{haskellVariables}` inside your JavaScript like this will not work:
 

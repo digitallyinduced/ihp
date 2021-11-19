@@ -6,7 +6,7 @@
 
 ## Introduction
 
-While IHP has a strong preference for server-side rendering, specific functionality in your app might require interactivity that can only be implemented with Javascript. In these cases we recommend that you follow a hybrid approach: Implement interactive functionality as a small single page app, while keeping unrelated functionality like the login and signup still server side rendered.
+While IHP has a strong preference for server-side rendering, specific functionality in your app might require interactivity that can only be implemented with JavaScript. In these cases we recommend that you follow a hybrid approach: Implement interactive functionality as a small single page app, while keeping unrelated functionality like the login and signup still server side rendered.
 
 The hybrid approach gives you the best of both worlds: The low interactivity of a single page app where needed, while keeping the simplicity and high performance advantages of server side rendered IHP apps.
 
@@ -160,7 +160,7 @@ Now open the view in the browser. You should see `Hello from react!` on the page
 
 *The following section asumes that your app already has a login as described in the [Authentication](http://localhost:3000/authentication.html#setup) section.*
 
-IHP DataSync is an IHP API that allows your to query your app's database from within JS. Basically it provides functions like `query`, `fetchOne` or `createRecord`, which you're already familiar with from the Haskell side, but makes them available in Javascript land.
+IHP DataSync is an IHP API that allows your to query your app's database from within JS. Basically it provides functions like `query`, `fetchOne` or `createRecord`, which you're already familiar with from the Haskell side, but makes them available in JavaScript land.
 
 E.g. you could fetch all posts of a user with this DataSync call:
 
@@ -260,7 +260,7 @@ We also need to enable the DataSync controllers before we can use the APIs.
 
 DataSync comes with a couple of JS files we need to load on our page before we can use it.
 
-1. Open `Web/View/Layout.hs` and add these javascript files:
+1. Open `Web/View/Layout.hs` and add these JavaScript files:
 
     ```haskell
     scripts :: Html
