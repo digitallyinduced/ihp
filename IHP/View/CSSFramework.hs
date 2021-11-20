@@ -164,7 +164,7 @@ instance Default CSSFramework where
                                             disabled={disabled}
                                             autofocus={autofocus}
                                         >
-                                            <option placeholder={placeholder} disabled={True} selected={isValueSelected}></option>
+                                            <option placeholder={placeholder} disabled={True} selected={not isValueSelected}></option>
                                             {forEach (options fieldType) (getOption)}
                                         </select>
 
