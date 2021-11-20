@@ -94,10 +94,9 @@ instance Default CSSFramework where
 
                     renderCheckboxFormField :: FormField -> Blaze.Html
                     renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) = do
-                        formGroup elementWrapper
+                        formGroup [hsx|<div class="form-check">{elementWrapper}</div>|]
                         where
                             element = [hsx|
-                                        <div class="form-check">
                                             <input
                                                 type="checkbox"
                                                 class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
@@ -113,19 +112,13 @@ instance Default CSSFramework where
                                             {validationResult}
                                             {helpText}
 
-                                        </div>
                                     |]
 
                             elementWrapper = if disableLabel
                                 then element
                                 else [hsx|
-                                        <label
-                                            class={classes [("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]}
-                                            for={fieldInputId}
-                                        >
-
-                                        {element}
-
+                                        <label class={classes [("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]} >
+                                            {element}
                                         </label>
                                     |]
 
