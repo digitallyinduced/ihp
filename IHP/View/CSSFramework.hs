@@ -99,7 +99,7 @@ instance Default CSSFramework where
                         where
                             label = unless disableLabel [hsx|
                                                 <label
-                                                    class={if labelClass == "" then "form-check-label" else labelClass}
+                                                    class={classes [("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]}
                                                     for={fieldInputId}
                                                 >
 
@@ -115,7 +115,7 @@ instance Default CSSFramework where
                                                 type="checkbox"
                                                 class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                                                 name={fieldName}
-                                                value={fieldValue}
+                                                checked={fieldValue == "yes"}
                                                 required={required}
                                                 disabled={disabled}
                                                 autofocus={autofocus}
