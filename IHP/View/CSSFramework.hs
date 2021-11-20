@@ -94,13 +94,14 @@ instance Default CSSFramework where
 
                     renderCheckboxFormField :: FormField -> Blaze.Html
                     renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) = do
-                        formGroup [hsx|<div class="form-check">{elementWrapper}</div>|]
+                        formGroup [hsx|<div class="form-check">{element}</div>|]
                         where
-                            element = [hsx|
+                            theInput = [hsx|
                                             <input
                                                 type="checkbox"
-                                                class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                                                 name={fieldName}
+                                                class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                                                id={fieldInputId}
                                                 checked={fieldValue == "yes"}
                                                 required={required}
                                                 disabled={disabled}
@@ -108,18 +109,27 @@ instance Default CSSFramework where
                                             />
 
                                             <input type="hidden" name={fieldName} value={inputValue False} />
-                                            {fieldLabel}
-                                            {validationResult}
-                                            {helpText}
-
                                     |]
 
-                            elementWrapper = if disableLabel
-                                then element
+
+                            element = if disableLabel
+                                then [hsx|<div>
+                                            {theInput}
+                                            {validationResult}
+                                            {helpText}
+                                        </div>
+                                    |]
                                 else [hsx|
-                                        <label class={classes [("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]} >
-                                            {element}
+                                        {theInput}
+                                        <label
+                                            class={classes [("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]}
+                                            for={fieldInputId}
+                                        >
+                                            {fieldLabel}
                                         </label>
+
+                                        {validationResult}
+                                        {helpText}
                                     |]
 
 
@@ -158,13 +168,14 @@ instance Default CSSFramework where
                                         {label}
                                         <select
                                             name={fieldName}
-                                            class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                                             id={fieldInputId}
-                                            required={required}
+                                            class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                                            value={fieldValue}
                                             disabled={disabled}
+                                            required={required}
                                             autofocus={autofocus}
                                         >
-                                            <option placeholder={placeholder} disabled={True} selected={not isValueSelected}></option>
+                                            <option selected={not isValueSelected} disabled={True}>{placeholder}</option>
                                             {forEach (options fieldType) (getOption)}
                                         </select>
 
