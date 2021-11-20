@@ -108,8 +108,6 @@ instance Default CSSFramework where
 
                             element = [hsx|
                                         <div class="form-check">
-                                             {label}
-
                                             <input
                                                 type="checkbox"
                                                 class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
@@ -121,7 +119,7 @@ instance Default CSSFramework where
                                             />
 
                                             <input type="hidden" name={fieldName} value={inputValue False} />
-                                            {fieldLabel}
+                                            {label}
                                             {validationResult}
                                             {helpText}
 
