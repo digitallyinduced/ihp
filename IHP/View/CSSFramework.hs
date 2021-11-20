@@ -168,6 +168,7 @@ instance Default CSSFramework where
                                 else [hsx|<option placeholder={placeholder} disabled={True} selected={True}></option>|]
 
                             element = [hsx|
+                                        {label}
                                         <select
                                             name={fieldName}
                                             class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
