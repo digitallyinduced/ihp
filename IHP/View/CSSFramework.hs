@@ -136,7 +136,9 @@ instance Default CSSFramework where
                         where
                             label = unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
 
-                            element = [hsx| <input
+                            element = [hsx|
+                                            {label}
+                                            <input
                                                 type={inputType}
                                                 name={fieldName}
                                                 placeholder={placeholder}
