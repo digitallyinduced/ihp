@@ -22,7 +22,6 @@ import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import IHP.View.Types (PaginationView(linkPrevious, pagination))
-import Control.Lens (element)
 
 
 -- | Provides an unstyled CSSFramework
