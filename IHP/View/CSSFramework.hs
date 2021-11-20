@@ -98,19 +98,15 @@ instance Default CSSFramework where
                             (H.div ! A.class_ "form-check") do
                                 let element = if disableLabel then H.div else H.label ! A.class_ (if labelClass == "" then "form-check-label" else H.textValue labelClass)
                                 element do
-                                    let theInput = H.input
-                                            ! A.type_ "checkbox"
-                                            ! A.name fieldName
-                                            ! A.class_ (cs $ classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))])
-                                            !? (required, A.required "required")
-                                            !? (autofocus, A.autofocus "autofocus")
-                                            !? (fieldValue == "yes", A.checked "checked")
-                                            !? (disabled, A.disabled "disabled")
-                                    theInput
-                                    H.input ! A.type_ "hidden" ! A.name fieldName ! A.value (cs $ inputValue False)
-                                    Blaze.text fieldLabel
-                                    validationResult
-                                    helpText
+                                    let theInputClasses = classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]
+                                    [hsx|
+                                        <input type="checkbox" class={theInputClasses} name={fieldName} value={fieldValue} required={required} disabled={disabled} autofocus={autofocus}>
+                                        <input type="hidden" name={fieldName} value={cs $ inputValue False}>
+                                        {fieldLabel}
+                                        {validationResult}
+                                        {helpText}
+                                    |]
+
 
                     renderTextField :: Blaze.AttributeValue -> FormField -> Blaze.Html
                     renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required, autofocus }) =
