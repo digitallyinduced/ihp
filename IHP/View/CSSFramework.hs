@@ -22,6 +22,7 @@ import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import IHP.View.Types (PaginationView(linkPrevious, pagination))
+import Control.Lens (element)
 
 
 -- | Provides an unstyled CSSFramework
@@ -94,68 +95,100 @@ instance Default CSSFramework where
 
                     renderCheckboxFormField :: FormField -> Blaze.Html
                     renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) = do
-                        formGroup wrapperElement
+                        formGroup element
                         where
-                            label = if disableLabel
-                                        then mempty
-                                        else [hsx|<label
-                                                        class={if labelClass == "" then "form-check-label" else labelClass}
-                                                        for={fieldName}>{fieldLabel}
-                                                    </label>
+                            label = unless disableLabel [hsx|
+                                                <label
+                                                    class={if labelClass == "" then "form-check-label" else labelClass}
+                                                    for={fieldInputId}
+                                                >
+
+                                                    {fieldLabel}
+                                                </label>
                                             |]
 
                             element = [hsx|
-                                        <input
-                                            type="checkbox"
-                                            class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
-                                            name={fieldName}
-                                            value={fieldValue}
-                                            required={required}
-                                            disabled={disabled}
-                                            autofocus={autofocus}
-                                        >
+                                        <div class="form-check">
+                                             {label}
 
-                                        <input type="hidden" name={fieldName} value={cs $ inputValue False}>
-                                        {fieldLabel}
-                                        {validationResult}
-                                        {helpText}
+                                            <input
+                                                type="checkbox"
+                                                class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                                                name={fieldName}
+                                                value={fieldValue}
+                                                required={required}
+                                                disabled={disabled}
+                                                autofocus={autofocus}
+                                            >
+
+                                            <input type="hidden" name={fieldName} value={cs $ inputValue False}>
+                                            {fieldLabel}
+                                            {validationResult}
+                                            {helpText}
+
+                                        </div>
                                     |]
-
-                            wrapperElement = [hsx|
-                                <div class="form-check">
-                                    {label}
-                                    {element}
-                                </div>
-                            |]
 
 
                     renderTextField :: Blaze.AttributeValue -> FormField -> Blaze.Html
                     renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required, autofocus }) =
-                        formGroup do
-                            unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                            let theInput = (fieldInput formField)
-                                    ! A.type_ inputType
-                                    ! A.name fieldName
-                                    ! A.placeholder (cs placeholder)
-                                    ! A.id (cs fieldInputId)
-                                    ! A.class_ (cs $ classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))])
-                                    !? (required, A.required "required")
-                                    !? (autofocus, A.autofocus "autofocus")
-                                    !? (disabled, A.disabled "disabled")
-                            if fieldValue == "" then theInput else theInput ! A.value (cs fieldValue)
-                            validationResult
-                            helpText
+                        formGroup element
+                        where
+                            label = unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
+
+                            element = [hsx| <input
+                                                type={inputType}
+                                                name={fieldName}
+                                                placeholder={placeholder}
+                                                id={fieldInputId}
+                                                class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                                                value={fieldValue}
+                                                required={required}
+                                                disabled={disabled}
+                                                autofocus={autofocus}
+                                            >
+
+                                            {validationResult}
+                                            {helpText}
+                                    |]
+
 
                     renderSelectField :: FormField -> Blaze.Html
                     renderSelectField formField@(FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) =
-                        formGroup do
-                            unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                            H.select ! A.name fieldName ! A.id (cs fieldInputId) ! A.class_ (cs $ classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]) ! A.value (cs fieldValue) !? (disabled, A.disabled "disabled") !? (required, A.required "required") !? (autofocus, A.autofocus "autofocus") $ do
-                                let isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
-                                (if isValueSelected then Blaze.option else Blaze.option ! A.selected "selected")  ! A.disabled "disabled" $ Blaze.text placeholder
-                                forEach (options fieldType) $ \(optionLabel, optionValue) -> (let option = Blaze.option ! A.value (cs optionValue) in (if optionValue == fieldValue then option ! A.selected "selected" else option) $ cs optionLabel)
-                            validationResult
-                            helpText
+                        formGroup element
+                        where
+                            label = unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
+
+                            isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
+
+                            firstOption = if isValueSelected
+                                then [hsx|<option></option>|]
+                                else [hsx|<option placeholder={placeholder} disabled={True} selected={True}></option>|]
+
+                            element = [hsx|
+                                        <select
+                                            name={fieldName}
+                                            class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                                            id={fieldInputId}
+                                            required={required}
+                                            disabled={disabled}
+                                            autofocus={autofocus}
+                                        >
+                                            {firstOption}
+                                            {forEach (options fieldType) (getOption)
+                                            }
+                                        </select>
+
+                                        {validationResult}
+                                        {helpText}
+                                    |]
+
+                            -- Get a single option.
+                            getOption (optionLabel, optionValue) = [hsx|
+                                <option value={optionValue} selected={optionValue == fieldValue}>
+                                    {optionLabel}
+                                </option>
+                            |]
 
 
 
