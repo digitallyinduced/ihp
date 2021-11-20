@@ -183,7 +183,7 @@ instance Default CSSFramework where
                                         {helpText}
                                     |]
 
-                            isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
+                            isValueSelected = any (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
 
                             -- Get a single option.
                             getOption (optionLabel, optionValue) = [hsx|
