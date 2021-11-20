@@ -154,12 +154,6 @@ instance Default CSSFramework where
                         where
                             label = unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
 
-                            isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
-
-                            firstOption = if isValueSelected
-                                then [hsx|<option></option>|]
-                                else [hsx|<option placeholder={placeholder} disabled={True} selected={True}></option>|]
-
                             element = [hsx|
                                         {label}
                                         <select
@@ -170,14 +164,15 @@ instance Default CSSFramework where
                                             disabled={disabled}
                                             autofocus={autofocus}
                                         >
-                                            {firstOption}
-                                            {forEach (options fieldType) (getOption)
-                                            }
+                                            <option placeholder={placeholder} disabled={True} selected={isValueSelected}></option>
+                                            {forEach (options fieldType) (getOption)}
                                         </select>
 
                                         {validationResult}
                                         {helpText}
                                     |]
+
+                            isValueSelected = isJust $ find (\(optionLabel, optionValue) -> optionValue == fieldValue) (options fieldType)
 
                             -- Get a single option.
                             getOption (optionLabel, optionValue) = [hsx|
