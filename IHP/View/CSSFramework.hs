@@ -94,7 +94,7 @@ instance Default CSSFramework where
                     validationResult = unless (get #disableValidationResult formField) ((get #styledValidationResult cssFramework) cssFramework formField)
 
                     renderCheckboxFormField :: FormField -> Blaze.Html
-                    renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) = do
+                    renderCheckboxFormField formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus }) = do
                         formGroup element
                         where
                             label = unless disableLabel [hsx|
@@ -121,7 +121,7 @@ instance Default CSSFramework where
                                                 autofocus={autofocus}
                                             >
 
-                                            <input type="hidden" name={fieldName} value={cs $ inputValue False}>
+                                            <input type="hidden" name={fieldName}>
                                             {fieldLabel}
                                             {validationResult}
                                             {helpText}
@@ -130,7 +130,7 @@ instance Default CSSFramework where
                                     |]
 
 
-                    renderTextField :: Blaze.AttributeValue -> FormField -> Blaze.Html
+                    renderTextField :: Text -> FormField -> Blaze.Html
                     renderTextField inputType formField@(FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required, autofocus }) =
                         formGroup element
                         where
