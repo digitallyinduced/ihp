@@ -119,9 +119,9 @@ instance Default CSSFramework where
                                                 required={required}
                                                 disabled={disabled}
                                                 autofocus={autofocus}
-                                            >
+                                            />
 
-                                            <input type="hidden" name={fieldName}>
+                                            <input type="hidden" name={fieldName} value={inputValue False} />
                                             {fieldLabel}
                                             {validationResult}
                                             {helpText}
@@ -148,7 +148,7 @@ instance Default CSSFramework where
                                                 required={required}
                                                 disabled={disabled}
                                                 autofocus={autofocus}
-                                            >
+                                            />
 
                                             {validationResult}
                                             {helpText}
