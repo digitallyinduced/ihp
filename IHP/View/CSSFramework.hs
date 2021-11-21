@@ -395,7 +395,7 @@ tailwind = def
 
 
                 element = if disableLabel
-                    then [hsx|<div class="flex flex-row space-x-4">
+                    then [hsx|<div class="flex flex-row space-x-2">
                                 {theInput}
                                 <div class="flex flex-col space-y-2">
                                     {validationResult}
@@ -404,7 +404,7 @@ tailwind = def
                             </div>
                         |]
                     else [hsx|
-                            <div class="flex flex-row space-x-4">
+                            <div class="flex flex-row space-x-2">
                                 {theInput}
                                 <div class="flex flex-col">
                                     <label
@@ -483,7 +483,7 @@ tailwind = def
                 |]
 
 
-        styledInputClass _ FormField {} = "focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+        styledInputClass _ FormField {} = "focus:ring-blue-500 focus:border-blue-500 block w-full border-gray-300 rounded-md"
         styledInputInvalidClass _ _ = "is-invalid"
 
         styledSubmitButtonClass = "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
