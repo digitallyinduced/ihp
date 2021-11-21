@@ -42,6 +42,8 @@ data Statement
     | CreateSequence { name :: Text }
     -- ALTER TABLE tableName RENAME COLUMN from TO to;
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
+    -- ALTER TYPE enumName ADD VALUE newValue;
+    | AddValueToEnumType { enumName :: Text, newValue :: Text }
     deriving (Eq, Show)
 
 data CreateTable

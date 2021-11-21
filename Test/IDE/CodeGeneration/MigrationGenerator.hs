@@ -121,6 +121,34 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should handle new enums" do
+                let targetSchema = sql [i|
+                    CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should handle new enum values" do
+                let targetSchema = sql [i|
+                    CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+                |]
+                let actualSchema = sql [i|
+                    CREATE TYPE mood AS ENUM ('sad', 'ok');
+                |]
+                let migration = sql [i|
+                    ALTER TYPE mood ADD VALUE 'happy';
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

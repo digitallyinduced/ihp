@@ -59,7 +59,10 @@ parseDDL = optional space >> manyTill statement eof
 statement = do
     space
     let create = try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> try createSequence
-    s <- setStatement <|> create <|> alterTable <|> selectStatement <|> dropTable <|> commentStatement <|> comment
+    let alter = do
+        lexeme "ALTER"
+        alterTable <|> alterType
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> dropTable <|> commentStatement <|> comment
     space
     pure s
 
@@ -494,7 +497,6 @@ createTrigger = do
     pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
 
 alterTable = do
-    lexeme "ALTER"
     lexeme "TABLE"
     optional (lexeme "ONLY")
     tableName <- qualifiedIdentifier
@@ -508,6 +510,11 @@ alterTable = do
             lexeme "RENAME"
             renameColumn tableName
     enableRowLevelSecurity tableName <|> add <|> drop <|> rename
+
+alterType = do
+    lexeme "TYPE"
+    typeName <- qualifiedIdentifier
+    addValue typeName
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"
@@ -598,6 +605,13 @@ createSequence = do
     name <- identifier
     char ';'
     pure CreateSequence { name }
+
+addValue typeName = do
+    lexeme "ADD"
+    lexeme "VALUE"
+    newValue <- textExpr'
+    char ';'
+    pure AddValueToEnumType { enumName = typeName, newValue }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

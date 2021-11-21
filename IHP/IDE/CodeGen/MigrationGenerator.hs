@@ -57,6 +57,14 @@ diffSchemas targetSchema actualSchema =
                 actualTable = actualSchema |> find \case
                         StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } -> name == get #name table
                         otherwise                                                            -> False
+        statementToMigration statement@(CreateEnumType { name, values }) = 
+                case actualEnum of
+                    Just actualEnum -> migrateEnum statement actualEnum
+                    Nothing -> [statement]
+            where
+                actualEnum = actualSchema |> find \case
+                        CreateEnumType { name = actualName } -> name == actualName
+                        otherwise                            -> False
         statementToMigration statement = [statement]
 
 migrateTable :: Statement -> Statement -> [Statement]
@@ -94,6 +102,15 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         isMatchingDropColumn otherwise                          = False
                 applyRenameColumn (statement:rest) = statement:(applyRenameColumn rest)
                 applyRenameColumn [] = []
+
+migrateEnum :: Statement -> Statement -> [Statement]
+migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { values = actualValues } = map addValue newValues
+    where
+        newValues :: [Text]
+        newValues = targetValues \\ actualValues
+        
+        addValue :: Text -> Statement
+        addValue value = AddValueToEnumType { enumName = name, newValue = value }
 
 getAppDBSchema :: IO [Statement]
 getAppDBSchema = do
