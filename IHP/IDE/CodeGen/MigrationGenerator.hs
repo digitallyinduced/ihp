@@ -142,6 +142,7 @@ normalizeSchema statements = map normalizeStatement statements
 normalizeStatement :: Statement -> Statement
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizeTable table }
 normalizeStatement AddConstraint { tableName, constraintName, constraint } = AddConstraint { tableName, constraintName, constraint = normalizeConstraint constraint }
+normalizeStatement CreateEnumType { name, values } = CreateEnumType { name = Text.toLower name, values = map Text.toLower values }
 normalizeStatement otherwise = otherwise
 
 normalizeTable :: CreateTable -> CreateTable

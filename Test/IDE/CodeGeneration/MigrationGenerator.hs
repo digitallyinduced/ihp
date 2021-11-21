@@ -196,6 +196,17 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "should not detect changes on case differences of enums" do
+                let targetSchema = sql [i|
+                    CREATE TYPE A AS ENUM ();
+                |]
+
+                let actualSchema = sql [i|
+                    CREATE TYPE a AS ENUM ();
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (tshow parsingFailed)
