@@ -60,7 +60,7 @@ instance Default CSSFramework where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
 
             styledFormField :: CSSFramework -> FormField -> Blaze.Html
-            styledFormField cssFramework formField =
+            styledFormField cssFramework@CSSFramework {styledValidationResult} formField =
                 formGroup renderInner
                 where
                     renderInner = case get #fieldType formField of
