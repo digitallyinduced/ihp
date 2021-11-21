@@ -37,13 +37,15 @@ diffAppDatabase = do
     pure (diffSchemas targetSchema actualSchema)
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
-diffSchemas targetSchema actualSchema =
+diffSchemas targetSchema' actualSchema' =
     targetSchema
         |> removeComments -- SQL Comments are not used in the diff
         |> (\schema -> schema \\ actualSchema) -- Get rid of all statements that exist in both schemas, there's nothing we need to do to them
         |> map statementToMigration
         |> concat
     where
+        targetSchema = normalizeSchema targetSchema'
+        actualSchema = normalizeSchema actualSchema'
         removeComments = filter \case
                 Comment {} -> False
                 _          -> True
@@ -74,6 +76,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 (map createColumn createColumns <> map dropColumn dropColumns)
                     |> applyRenameColumn
             where
+
                 createColumns :: [Column]
                 createColumns = targetColumns \\ actualColumns
 
@@ -132,3 +135,52 @@ parseDumpedSql sql =
     case runParser Parser.parseDDL "pg_dump" sql of
         Left error -> Left (cs $ errorBundlePretty error)
         Right r -> Right r
+
+normalizeSchema :: [Statement] -> [Statement]
+normalizeSchema statements = map normalizeStatement statements
+
+normalizeStatement :: Statement -> Statement
+normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizeTable table }
+normalizeStatement otherwise = otherwise
+
+normalizeTable :: CreateTable -> CreateTable
+normalizeTable CreateTable { .. } = CreateTable { columns = map normalizeColumn columns, .. }
+
+normalizeColumn :: Column -> Column
+normalizeColumn Column { name, columnType, defaultValue, notNull, isUnique } = Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique }
+    where
+        normalizeName :: Text -> Text
+        normalizeName nane = Text.toLower name
+
+        normalizedDefaultValue = case defaultValue of
+            Just defaultValue -> Just (normalizeExpression defaultValue)
+            Nothing -> if notNull
+                then Nothing
+                else Just (VarExpression "null") -- pg_dump columns don't have an explicit default null value
+
+        normalizeExpression :: Expression -> Expression
+        normalizeExpression e@(TextExpression {}) = e
+        normalizeExpression (VarExpression var) = VarExpression (Text.toLower var)
+        normalizeExpression (CallExpression function args) = CallExpression (Text.toLower function) (map normalizeExpression args)
+        normalizeExpression (NotEqExpression a b) = NotEqExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (EqExpression a b) = EqExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (AndExpression a b) = AndExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (IsExpression a b) = IsExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (NotExpression a) = NotExpression (normalizeExpression a)
+        normalizeExpression (OrExpression a b) = OrExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (LessThanExpression a b) = LessThanExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
+        normalizeExpression e@(DoubleExpression {}) = e
+        normalizeExpression e@(IntExpression {}) = e
+        -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
+        -- Therefore we remove these typecasts here
+        --
+        -- 'job_status_not_started'::public.job_status => 'job_status_not_started'
+        --
+        normalizeExpression (TypeCastExpression a b) = normalizeExpression a
+
+normalizeSqlType :: PostgresType -> PostgresType
+normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType otherwise = otherwise
