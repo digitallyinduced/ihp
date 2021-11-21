@@ -19,6 +19,7 @@ import qualified System.Process as Process
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import IHP.IDE.SchemaDesigner.Types
 import Text.Megaparsec
+import IHP.IDE.SchemaDesigner.Compiler (compileSql)
 
 -- | Generates a new migration @.sql@ file in @Application/Migration@
 createMigration :: Text -> IO Migration
@@ -27,7 +28,10 @@ createMigration description = do
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
     Directory.createDirectoryIfMissing False "Application/Migration"
-    Text.writeFile ("Application/Migration/" <> cs migrationFile) "-- Write your SQL migration code in here\n"
+
+    appDiff <- diffAppDatabase
+    let migrationSql = "-- Write your SQL migration code in here\n" <> compileSql appDiff
+    Text.writeFile ("Application/Migration/" <> cs migrationFile) migrationSql
     pure Migration { .. }
 
 diffAppDatabase = do
