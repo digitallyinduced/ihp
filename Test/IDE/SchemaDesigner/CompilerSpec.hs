@@ -532,3 +532,9 @@ tests = do
             let sql = "CREATE SEQUENCE a;\n"
             let statements = [ CreateSequence { name = "a" } ]
             compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
+            let sql = "ALTER TABLE users RENAME COLUMN name TO full_name;\n"
+            let statements = [ RenameColumn { tableName = "users", from = "name", to = "full_name" } ]
+            compileSql statements `shouldBe` sql
+

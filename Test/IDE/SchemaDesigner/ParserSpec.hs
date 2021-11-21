@@ -539,6 +539,9 @@ $$;
         it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
             parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
         
+        it "should parse 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
+            parseSql "ALTER TABLE users RENAME COLUMN name TO full_name;" `shouldBe` RenameColumn { tableName = "users", from = "name", to = "full_name" }
+        
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
 

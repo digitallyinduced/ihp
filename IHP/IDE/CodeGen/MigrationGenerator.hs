@@ -62,19 +62,38 @@ diffSchemas targetSchema actualSchema =
 migrateTable :: Statement -> Statement -> [Statement]
 migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } StatementCreateTable { unsafeGetCreateTable = actualTable } = migrateTable' targetTable actualTable
     where
-        migrateTable' CreateTable { name = tableName, columns = targetColumns } CreateTable { columns = actualColumns } = map createColumn createColumns <> map dropColumn dropColumns
+        migrateTable' CreateTable { name = tableName, columns = targetColumns } CreateTable { columns = actualColumns } =
+                (map createColumn createColumns <> map dropColumn dropColumns)
+                    |> applyRenameColumn
             where
                 createColumns :: [Column]
-                createColumns = actualColumns \\ targetColumns
+                createColumns = targetColumns \\ actualColumns
 
                 dropColumns :: [Column]
-                dropColumns = targetColumns \\ actualColumns
+                dropColumns = actualColumns \\ targetColumns
 
                 createColumn :: Column -> Statement
                 createColumn column = AddColumn { tableName, column }
 
                 dropColumn :: Column -> Statement
                 dropColumn column = DropColumn { tableName, columnName = get #name column }
+
+                applyRenameColumn (s@(AddColumn { column }):statements) = case matchingDropColumn of
+                        Just matchingDropColumn -> RenameColumn { tableName, from = get #columnName matchingDropColumn, to = get #name column } : (applyRenameColumn (filter ((/=) matchingDropColumn) statements))
+                        Nothing -> s:(applyRenameColumn statements)
+                    where
+                        matchingDropColumn :: Maybe Statement
+                        matchingDropColumn = find isMatchingDropColumn statements
+
+                        isMatchingDropColumn :: Statement -> Bool
+                        isMatchingDropColumn DropColumn { columnName } = actualColumns
+                                |> find \case
+                                    Column { name } -> name == columnName
+                                    otherwise       -> False
+                                |> maybe False (\c -> (c :: Column) { name = get #name column } == column)
+                        isMatchingDropColumn otherwise                          = False
+                applyRenameColumn (statement:rest) = statement:(applyRenameColumn rest)
+                applyRenameColumn [] = []
 
 getAppDBSchema :: IO [Statement]
 getAppDBSchema = do

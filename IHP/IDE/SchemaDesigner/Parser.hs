@@ -504,7 +504,10 @@ alterTable = do
     let drop = do
             lexeme "DROP"
             dropColumn tableName
-    enableRowLevelSecurity tableName <|> add <|> drop
+    let rename = do
+            lexeme "RENAME"
+            renameColumn tableName
+    enableRowLevelSecurity tableName <|> add <|> drop <|> rename
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"
@@ -573,6 +576,14 @@ dropColumn tableName = do
     columnName <- identifier
     char ';'
     pure DropColumn { tableName, columnName }
+
+renameColumn tableName = do
+    lexeme "COLUMN"
+    from <- identifier
+    lexeme "TO"
+    to <- identifier
+    char ';'
+    pure RenameColumn { tableName, from, to }
 
 dropTable = do
     lexeme "DROP"

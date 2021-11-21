@@ -40,6 +40,8 @@ data Statement
     | SelectStatement { query :: Text }
     -- CREATE SEQUENCE name;
     | CreateSequence { name :: Text }
+    -- ALTER TABLE tableName RENAME COLUMN from TO to;
+    | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     deriving (Eq, Show)
 
 data CreateTable
