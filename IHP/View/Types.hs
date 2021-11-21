@@ -175,6 +175,10 @@ data CSSFramework = CSSFramework
     , styledFlashMessages :: CSSFramework -> [FlashMessage] -> Blaze.Html
     -- | Renders the full form field calling other functions below
     , styledFormField :: CSSFramework -> FormField -> Blaze.Html
+    , styledTextFormField :: CSSFramework -> Text -> FormField -> Blaze.Html -> Blaze.Html
+    , styledCheckboxFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+    , styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+    , styledFormGroup :: CSSFramework -> Text -> Blaze.Html -> Blaze.Html
     -- | The primary form submit button
     , styledSubmitButton :: CSSFramework -> SubmitButton -> Blaze.Html
     -- | Class for the primary form submit button
@@ -182,9 +186,9 @@ data CSSFramework = CSSFramework
     -- | Renders the help text below an input field. Used with @[hsx|{(textField #firstname) { helpText = "Your first name" } }|]@
     , styledFormFieldHelp :: CSSFramework -> FormField -> Blaze.Html
     -- | First class attached to @<input/>@ elements, e.g. @<input class="form-control"/>@
-    , styledInputClass :: FormField -> Text
+    , styledInputClass :: CSSFramework -> FormField -> Text
     -- | When the form validation failed, invalid inputs will have this class
-    , styledInputInvalidClass :: FormField -> Text
+    , styledInputInvalidClass :: CSSFramework -> FormField -> Text
     -- | Class applied to the div wrapping the label and input, e.g. @"form-group"@
     , styledFormGroupClass :: Text
     -- | Elements that containers the validation error message for a invalid form field
