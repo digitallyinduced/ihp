@@ -60,8 +60,8 @@ statement = do
     space
     let create = try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> try createSequence
     let alter = do
-        lexeme "ALTER"
-        alterTable <|> alterType
+            lexeme "ALTER"
+            alterTable <|> alterType
     s <- setStatement <|> create <|> alter <|> selectStatement <|> dropTable <|> commentStatement <|> comment
     space
     pure s
