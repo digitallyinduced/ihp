@@ -603,6 +603,68 @@ $$;
                     , constraints = []
                     }
             parseSql sql `shouldBe` statement
+        it "should parse a pg_dump header" do
+            let sql = cs [plain|
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 13.3
+-- Dumped by pg_dump version 13.3
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+
+
+            |]
+
+            let statements =
+                    [ Comment {content = ""}
+                    , Comment {content = " PostgreSQL database dump"}
+                    , Comment {content = ""}
+                    , Comment {content = " Dumped from database version 13.3"}
+                    , Comment {content = " Dumped by pg_dump version 13.3"}
+                    , Set {name = "statement_timeout", value = IntExpression 0}
+                    , Set {name = "lock_timeout", value = IntExpression 0}
+                    , Set {name = "idle_in_transaction_session_timeout", value = IntExpression 0}
+                    , Set {name = "client_encoding", value = TextExpression "UTF8"}
+                    , Set {name = "standard_conforming_strings", value = VarExpression "on"}
+                    , SelectStatement {query = "pg_catalog.set_config('search_path', '', false)"}
+                    , Set {name = "check_function_bodies", value = VarExpression "false"}
+                    , Set {name = "xmloption", value = VarExpression "content"}
+                    , Set {name = "client_min_messages", value = VarExpression "warning"}
+                    , Set {name = "row_security", value = VarExpression "off"}
+                    , Comment {content = ""}
+                    , Comment {content = " Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -"}
+                    , Comment {content = ""}
+                    , CreateExtension {name = "uuid-ossp", ifNotExists = True}
+                    , Comment {content = ""}
+                    , Comment {content = " Name: EXTENSION \"uuid-ossp\"; Type: COMMENT; Schema: -; Owner: -"}
+                    , Comment {content = ""}
+                    , Comment {content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
+                    ]
+            parseSqlStatements sql `shouldBe` statements
 col :: Column
 col = Column
     { name = ""

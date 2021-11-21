@@ -58,7 +58,8 @@ parseDDL = optional space >> manyTill statement eof
 
 statement = do
     space
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> createSequence <|> alterTable <|> setStatement <|> selectStatement <|> dropTable <|> commentStatement <|> comment
+    let create = try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> try createSequence
+    s <- setStatement <|> create <|> alterTable <|> selectStatement <|> dropTable <|> commentStatement <|> comment
     space
     pure s
 
@@ -469,7 +470,7 @@ createFunction = do
 
     language <- optional do
         lexeme "language" <|> lexeme "LANGUAGE"
-        symbol "plpgsql" <|> symbol "SQL"
+        symbol' "plpgsql" <|> symbol' "SQL"
 
     lexeme "AS"
     space
