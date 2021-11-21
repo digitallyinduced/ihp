@@ -70,7 +70,21 @@ autoRefresh runAction = do
                         Wai.ResponseBuilder status headers builder -> do
                             tables <- readIORef ?touchedTables
                             lastPing <- getCurrentTime
-                            let lastResponse = ByteString.toLazyByteString builder
+
+                            -- It's important that we evaluate the response to HNF here
+                            -- Otherwise a response `error "fail"` will break auto refresh and cause
+                            -- the action to be unreachable until the server is restarted.
+                            --
+                            -- Specifically a request like this will crash the action:
+                            --
+                            -- > curl --header 'Accept: application/json' http://localhost:8000/ShowItem?itemId=6bbe1a72-400a-421e-b26a-ff58d17af3e5
+                            --
+                            -- Let's assume that the view has no implementation for JSON responses. Then
+                            -- it will render a 'error "JSON not implemented"'. After this curl request
+                            -- all future HTML requests to the current action will fail with a 503.
+                            --
+                            lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
+
                             event <- MVar.newEmptyMVar
                             let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
                             modifyIORef autoRefreshServer (\s -> s { sessions = session:(get #sessions s) } )

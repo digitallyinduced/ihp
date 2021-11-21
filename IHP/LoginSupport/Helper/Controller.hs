@@ -74,24 +74,37 @@ ensureIsAdmin =
         Just _ -> pure ()
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy admin))
 
--- | Log's in an entity
+-- | Log's in a user
+--
 -- Examples:
--- ```
--- let user :: User = ... in login user
--- let admin :: Admin = ... in login admin
--- ```
-{-# INLINABLE login #-}
+-- 
+-- > action ExampleAction = do
+-- >     user <- query @User |> fetchOne
+-- >     login user
+-- >     
+-- >     redirectToPath "/"
+--
 login :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
 login user = Session.setSession (sessionKey @user) (tshow (get #id user))
+{-# INLINABLE login #-}
 
--- Log's out an entity
-{-# INLINABLE logout #-}
+-- | Log's out a user
+--
+-- Example:
+--
+-- > action LogoutAction = do
+-- >     let user = currentUser
+-- >     logout user
+-- >     
+-- >     redirectToPath "/"
+--
 logout :: forall user. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user)) => user -> IO ()
 logout user = Session.setSession (sessionKey @user) ("" :: Text)
+{-# INLINABLE logout #-}
 
 {-# INLINABLE sessionKey #-}
-sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Text
-sessionKey = "login." <> ModelSupport.getModelName @user
+sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => ByteString
+sessionKey = "login." <> cs (ModelSupport.getModelName @user)
 
 redirectToLoginWithMessage :: (?context :: ControllerContext) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do

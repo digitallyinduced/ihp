@@ -308,70 +308,6 @@ https://zacwood.me/posts/2020-12-29-dates-ihp/
 
 https://zacwood.me/posts/haskell-scraping-1/
 
-## Custom Configuration / Dealing with Secrets
-
-Sometimes you want to have a custom configuration flag inside your application. The simplest way is to just declare a custom variable in `Config/Config.hs` like this:
-
-```haskell
-stripePublicKey :: Text
-stripePublicKey = "..."
-```
-
-Then you can use it by importing the Config module at the call sites:
-
-```haskell
-import qualified Config
-
-action MyAction = do
-    let stripePublicKey = Config.stripePublicKey
-```
-
-## Custom Configuration with IO
-
-The easiest way to add custom configuration to IHP apps is to define a static string like this:
-
-```haskell
-stripePublicKey :: Text
-stripePublicKey = "..."
-```
-
-When this doesn't work, you can run any custom code to load your configuration and make it available application-wide.
-
-In this example we're going to provide a custom Redis connection URL to our app. We read a string from the `REDIS_URL` env variable on app startup and then access it using `?applicationContext` from inside our controller actions:
-
-Inside our `Config.hs` we need to read the `REDIS_URL` env var:
-
-```haskell
-newtype RedisUrl = RedisUrl String -- A wrapper type for our string. This is required by IHP.
-
-config :: ConfigBuilder
-config = do
-    option Development
-    option (AppHostname "localhost")
-    
-    redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
-    option (RedisUrl redisUrl)
-```
-
-From our actions, scripts and job workers we can access it like this:
-
-```haskell
-import qualified Data.TMap as TMap
-import Config -- For importing the RedisUrl data type
-
-action MyAction = do
-    let (RedisUrl connectionString) = redisUrl
-    putStrLn ("REDIS_URL = " <> cs connectionString)
-
-redisUrl :: (?context :: ControllerContext) => RedisUrl
-redisUrl = ?context
-        |> getFrameworkConfig
-        |> get #appConfig
-        |> TMap.lookup @RedisUrl
-        |> fromMaybe (error "Could not find RedisUrl in config")
-```
-
-
 
 ## How to get all values of an enum?
 
@@ -406,11 +342,14 @@ with a 404:
 
 ```haskell
 import qualified Data.ByteString.Lazy as LBS
+import Network.HTTP.Types.Header (hContentType)
+import Network.HTTP.Types (status404)
+import Network.Wai (responseLBS)
 
-customNotFoundResponse :: IO ()
+customNotFoundResponse :: (?context :: ControllerContext) => IO () 
 customNotFoundResponse = do
-page <- LBS.readFile "static/404.html"
-respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
+  page <- LBS.readFile "static/404.html"
+  respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
 ```
 
 Now you can use your `customNotFoundResponse`:
@@ -422,3 +361,44 @@ case post of
    Nothing ->  customNotFoundResponse -- Database record disappeared !!!
    Just post -> render ShowView { .. }
 ```
+
+## How to highlight the targeted element
+
+Let's say you have a page with comments, and you link to them with `<a href="#comment-<comment ID>">`.
+
+The browser will scroll to the relevant comment when you follow the link, but let's say you also want to highlight the linked comment — like GitHub does. You could use the `:target` selector, but it doesn't play well with Turbolinks.
+
+The solution is to assign your own class to the targeted element:
+
+```javascript
+// app.js
+
+$(document).on('ready turbolinks:load', function () {
+    // Highlight the #hash target
+    const prevMarkedElement = document.querySelector('.hash-target');
+    if (prevMarkedElement) {
+        prevMarkedElement.classList.remove('hash-target');
+    }
+    if (location.hash) {
+        const markedElement = document.querySelector(location.hash);
+        if (markedElement) {
+            markedElement.classList.add('hash-target');
+        }
+    }
+});
+```
+
+And then you can style `.hash-target` instead of `:target`:
+
+```css
+/* app.css */
+
+/* Highlight things linked to via #anchor in the URL */
+.hash-target {
+  box-shadow: #ffe988 0px 0px 0px 3px;
+}
+```
+
+## How to integrate a rich text editor
+
+* Tiptap (a ProseMirror based editor), as used in [windofchange.me](https://windofchange.me): <https://gist.github.com/neongreen/7dbdddae3af0c476340e0dc175552fad>

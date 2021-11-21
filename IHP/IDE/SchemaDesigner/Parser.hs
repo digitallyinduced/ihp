@@ -58,7 +58,7 @@ parseDDL = optional space >> manyTill statement eof
 
 statement = do
     space
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> createPolicy <|> alterTable <|> setStatement <|> selectStatement <|> commentStatement <|> comment
+    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> createSequence <|> alterTable <|> setStatement <|> selectStatement <|> dropTable <|> commentStatement <|> comment
     space
     pure s
 
@@ -84,7 +84,7 @@ createTable = do
     -- Process columns (tagged if they're primary key) and table constraints
     -- together, as they can be in any order
     (taggedColumns, allConstraints) <- between (char '(' >> space) (char ')' >> space) do
-        columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> column)) `sepBy` (char ',' >> space)
+        columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> parseColumn)) `sepBy` (char ',' >> space)
         pure (lefts columnsAndConstraints, rights columnsAndConstraints)
 
     char ';'
@@ -122,7 +122,6 @@ createEnumType = do
     pure CreateEnumType { name, values }
 
 addConstraint tableName = do
-    lexeme "ADD"
     lexeme "CONSTRAINT"
     constraintName <- identifier
     constraint <- parseTableConstraint >>= \case
@@ -174,7 +173,8 @@ parseOnDelete = choice
         , (lexeme "CASCADE" >> pure Cascade)
         ]
 
-column = do
+parseColumn :: Parser (Bool, Column)
+parseColumn = do
     name <- identifier
     columnType <- sqlType
     space
@@ -497,7 +497,13 @@ alterTable = do
     lexeme "TABLE"
     optional (lexeme "ONLY")
     tableName <- qualifiedIdentifier
-    addConstraint tableName <|> enableRowLevelSecurity tableName
+    let add = do
+            lexeme "ADD"
+            addConstraint tableName <|> addColumn tableName 
+    let drop = do
+            lexeme "DROP"
+            dropColumn tableName
+    enableRowLevelSecurity tableName <|> add <|> drop
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"
@@ -527,6 +533,7 @@ createPolicy = do
 
     pure CreatePolicy { name, tableName, using, check }
 
+
 setStatement = do
     lexeme "SET"
     name <- identifier
@@ -553,6 +560,32 @@ qualifiedIdentifier = do
         lexeme "public"
         char '.'
     identifier
+
+addColumn tableName = do
+    lexeme "COLUMN"
+    (_, column) <- parseColumn
+    char ';'
+    pure AddColumn { tableName, column }
+
+dropColumn tableName = do
+    lexeme "COLUMN"
+    columnName <- identifier
+    char ';'
+    pure DropColumn { tableName, columnName }
+
+dropTable = do
+    lexeme "DROP"
+    lexeme "TABLE"
+    tableName <- identifier
+    char ';'
+    pure DropTable { tableName }
+
+createSequence = do
+    lexeme "CREATE"
+    lexeme "SEQUENCE"
+    name <- identifier
+    char ';'
+    pure CreateSequence { name }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

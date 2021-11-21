@@ -151,7 +151,7 @@ renderBaseJobTableRow job = [hsx|
             <td>{renderStatus job}</td>
             <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
             <td>
-                <form action={CreateJobAction (get #table job)} method="POST">
+                <form action={RetryJobAction (get #table job) (get #id job)} method="POST">
                     <button type="submit" style={retryButtonStyle} class="btn btn-link text-secondary">Retry</button>
                 </form>
             </td>
@@ -212,8 +212,9 @@ renderBaseJobDetailView job = let table = get #table job in [hsx|
             <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
             <button type="submit" class="btn btn-danger">Delete</button>
         </form>
-        <form action="/jobs/CreateJob" method="POST">
+        <form action="/jobs/RetryJob" method="POST">
             <input type="hidden" id="tableName" name="tableName" value={table}>
+            <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
             <button type="submit" class="btn btn-primary">Run again</button>
         </form>
     </div>

@@ -188,6 +188,8 @@ After cabal2nix is installed we can use it to get a nix package definition for t
 cabal2nix cabal://google-oauth2-0.2.2
 ```
 
+(You may need to run `cabal update` first, so that your local cabal cache of Hackage is updated.)
+
 This will output a new nix package definition like this:
 
 ```nix

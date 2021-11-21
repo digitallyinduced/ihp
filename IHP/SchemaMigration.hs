@@ -14,18 +14,27 @@ import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import IHP.Log.Types
+import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
 
 data Migration = Migration
     { revision :: Int
     , migrationFile :: Text
     } deriving (Show, Eq)
 
+data MigrateOptions = MigrateOptions
+    { minimumRevision :: !(Maybe Int) -- ^ When deploying a fresh install of an existing app that has existing migrations, it might be useful to ignore older migrations as they're already part of the existing schema
+    }
+
 -- | Migrates the database schema to the latest version
-migrate :: (?modelContext :: ModelContext) => IO ()
-migrate = do
+migrate :: (?modelContext :: ModelContext) => MigrateOptions -> IO ()
+migrate options = do
     createSchemaMigrationsTable
 
-    openMigrations <- findOpenMigrations
+    let minimumRevision = options
+            |> get #minimumRevision
+            |> fromMaybe 0
+
+    openMigrations <- findOpenMigrations minimumRevision
     forEach openMigrations runMigration
 
 -- | The sql statements contained in the migration file are executed. Then the revision is inserted into the @schema_migrations@ table.
@@ -67,8 +76,8 @@ createSchemaMigrationsTable = do
         pure ()
 
 -- | Returns all migrations that haven't been executed yet. The result is sorted so that the oldest revision is first.
-findOpenMigrations :: (?modelContext :: ModelContext) => IO [Migration]
-findOpenMigrations = do
+findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]
+findOpenMigrations !minimumRevision = do
     let modelContext = ?modelContext
     let ?modelContext = modelContext { logger = (get #logger modelContext) { write = \_ -> pure ()} }
 
@@ -76,6 +85,7 @@ findOpenMigrations = do
     migrations <- findAllMigrations
     migrations
         |> filter (\Migration { revision } -> not (migratedRevisions |> includes revision))
+        |> filter (\Migration { revision } -> revision > minimumRevision)
         |> pure
 
 -- | Returns all migration revisions applied to the database schema

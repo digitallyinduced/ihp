@@ -25,6 +25,9 @@ tests = do
 
         it "should parse a line comment" do
             parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
+        
+        it "should parse an empty comment" do
+            parseSqlStatements "--\n--" `shouldBe` [ Comment { content = "" }, Comment { content = "" } ]
 
         it "should parse a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
@@ -530,6 +533,17 @@ $$;
                             (CallExpression "ihp_user_id" [])
                         )
                     }
+        it "should parse 'ALTER TABLE .. ADD COLUMN' statements" do
+            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = Column { name ="b", columnType = PInt, defaultValue = Nothing, notNull = True, isUnique = False}}
+
+        it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
+            parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
+        
+        it "should parse 'DROP TABLE ..' statements" do
+            parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
+
+        it "should parse 'CREATE SEQUENCE ..' statements" do
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
 
         it "should parse 'SET' statements" do
             parseSql "SET statement_timeout = 0;" `shouldBe` Set { name = "statement_timeout", value = IntExpression 0 }

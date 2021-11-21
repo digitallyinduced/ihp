@@ -83,7 +83,8 @@ watchForJob tableName pollInterval handleJob = do
     poller <- pollForJob tableName pollInterval handleJob
 
     -- When the watcher is stopped, we also want to stop the poller
-    Async.link2Only (const True) watcher poller
+    Async.link watcher
+    Async.link poller
 
     pure watcher
 
@@ -112,7 +113,9 @@ pollForJob tableName pollInterval handleJob = do
             Concurrent.threadDelay pollIntervalWithJitter
 
 createNotificationTrigger :: Text -> Text
-createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+createNotificationTrigger tableName = ""
+        <> "BEGIN;\n"
+        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
         <> "BEGIN\n"
         <> "    PERFORM pg_notify('" <> eventName tableName <> "', '');\n"
         <> "    RETURN new;"
@@ -120,6 +123,7 @@ createNotificationTrigger tableName = "CREATE OR REPLACE FUNCTION " <> functionN
         <> "$$ language plpgsql;"
         <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
         <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "COMMIT;"
     where
         functionName = "notify_job_queued_" <> tableName
         insertTriggerName = "did_insert_job_" <> tableName

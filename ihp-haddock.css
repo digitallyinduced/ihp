@@ -12,8 +12,11 @@ a[href]:hover {
 }
 
 #package-header {
-    background-color: hsla(192, 81%, 5%, 0.04);
+    background-color: hsl(180deg 4% 95%);
     border-bottom: 5px solid transparent;
+    position: sticky;
+    top: 0;
+    z-index: 10000;
 }
 
 #package-header > .caption {
@@ -36,8 +39,6 @@ a[href]:hover {
 .caption, h1, h2, h3, h4, h5, h6, summary {
     color: #073642;
 }
-
-#content > #module-list:first-child { display: none }
 
 .collapser:before, .expander:before, .noexpander:before {
     color: currentColor;

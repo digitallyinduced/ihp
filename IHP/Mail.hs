@@ -6,6 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Mail
 ( MailServer (..)
 , BuildMail (..)
+, SMTPEncryption ( ..)
 , sendMail
 , sendWithMailServer
 )
@@ -57,8 +58,16 @@ sendWithMailServer SendGrid { .. } mail = do
     where headers = mailHeaders mail
 
 sendWithMailServer IHP.Mail.Types.SMTP { .. } mail
-    | isNothing credentials = SMTP.sendMail' host port mail
-    | otherwise = SMTP.sendMailWithLogin' host port (fst creds) (snd creds) mail
+    | isNothing credentials =
+          case encryption of
+              Unencrypted -> SMTP.sendMail' host port mail
+              TLS -> SMTP.sendMailTLS' host port mail
+              STARTTLS -> SMTP.sendMailSTARTTLS' host port mail
+    | otherwise =
+          case encryption of
+              Unencrypted -> SMTP.sendMailWithLogin' host port (fst creds) (snd creds) mail
+              TLS -> SMTP.sendMailWithLoginTLS' host port (fst creds) (snd creds) mail
+              STARTTLS -> SMTP.sendMailWithLoginSTARTTLS' host port (fst creds) (snd creds) mail
     where creds = fromJust credentials
 
 sendWithMailServer Sendmail mail = do
@@ -68,7 +77,7 @@ sendWithMailServer Sendmail mail = do
 class BuildMail mail where
     -- | You can use @?mail@ to make this dynamic based on the given entity
     subject :: (?mail :: mail) => Text
-    
+
     -- | The email receiver
     --
     -- __Example:__

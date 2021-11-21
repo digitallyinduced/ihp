@@ -221,7 +221,7 @@ instance FrontController WebApplication where
 You should now be able to start a checkout session. For doing that we need to place a `Payment` button somewhere in your app. The recommended approach is to create a new `PricingAction` inside your `StaticController` and then have the following form there:
 
 ```html
-<form method="POST" action={CreateCheckoutSessionAction}>
+<form method="POST" action={CreateCheckoutSessionAction} data-disable-javascript-submission={True}>
     <button class="btn btn-primary">Subscribe to Plan</button>
 </form>
 ```

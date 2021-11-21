@@ -107,12 +107,7 @@ run-production: build/bin/RunProdServer build/Generated/Types.hs ## Run Producti
 	build/bin/RunProdServer
 
 postgres: ## Starts the postgresql server
-	@if [ -s build/db/state/postmaster.pid ]; then
-		echo "Postgres is already running."
-	else
-		echo "Starting postgres"
-		postgres -D build/db/state -k $$PWD/build/db -c "listen_addresses="
-	fi
+	@if [ -s build/db/state/postmaster.pid ]; then echo "Postgres is already running."; else echo "Starting postgres"; postgres -D build/db/state -k $$PWD/build/db -c "listen_addresses="; fi
 
 psql: ## Connects to the running postgresql server
 	@psql -h $$PWD/build/db -d app
@@ -224,3 +219,6 @@ ghci:
 
 # https://github.com/digitallyinduced/ihp/issues/776
 console: ghci ## Start IHP console, alias for 'make ghci'
+
+prepare-optimized-nix-build: ## Sets the 'enabled = true' flags in default.nix, so that a 'nix-build' makes optimized binaries
+	sed -i '' 's/haskellDeps/optimized = true;\n        haskellDeps/g' default.nix

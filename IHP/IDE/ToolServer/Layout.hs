@@ -39,6 +39,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src={assetPath "/vendor/src-min/ext-language_tools.js"}></script>
     <script src={assetPath "/IDE/ihp-schemadesigner.js"}></script>
     <script src={assetPath "/IDE/ihp-codegen.js"}></script>
+    <script src={assetPath "/IDE/ihp-policy.js"}></script>
     <script src={assetPath "/IDE/ihp-help.js"}></script>
 
 
@@ -47,7 +48,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <body class="d-flex h-100 flex-row">
     <div id="nav">
         <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
-        <div id="ihp-plan">IHP</div>
+        <div id="ihp-plan">{ihpEditionTitle}</div>
         {apps}
         {schema}
         {data_}
@@ -58,7 +59,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {deploy}
         {docu}
 
-        {getPro}
+        {when isBasicEdition getPro}
         {help}
         <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
     </div>
@@ -131,6 +132,12 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
             </a>
         |]
 
+        ihpEditionTitle = case Version.ihpEdition of
+            Version.Basic -> [hsx|IHP|]
+            Version.Pro -> [hsx|IHP Pro|]
+            Version.Business -> [hsx|IHP <br />Business|]
+            Version.Enterprise -> [hsx|IHP <br />Enterprise|]
+
         appNavItem :: Text -> Html
         appNavItem "Web" = navItem "APP" fileIcon (appUrl <> "/") False
         appNavItem name = navItem (toUpper name) fileIcon (appUrl <> "/" <> (toLower name) <> "/") False
@@ -182,3 +189,5 @@ cogsIcon = preEscapedToHtml [plain|<svg viewBox="0 0 2048 1792" xmlns="http://ww
 
 -- | https://github.com/Rush/Font-Awesome-SVG-PNG/blob/master/black/svg/question-circle.svg
 helpIcon  = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#FFF"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>|]
+
+isBasicEdition = Version.ihpEdition == Version.Basic

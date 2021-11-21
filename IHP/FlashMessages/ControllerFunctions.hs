@@ -54,20 +54,14 @@ clearSuccessMessage = setSession successMessageKey ("" :: Text)
 -- Then clears the flash messages so they won't be displayed again.
 getAndClearFlashMessages :: (?context :: ControllerContext) => IO [FlashMessage]
 getAndClearFlashMessages = do
-    successMessage <- getSuccessMessage
-    errorMessage <- getSession errorMessageKey
-    case successMessage of
-        Just value | value /= "" -> setSuccessMessage ""
-        _ -> pure ()
-    case errorMessage of
-        Just value | value /= "" -> setErrorMessage ""
-        _ -> pure ()
+    successMessage <- getSessionAndClear successMessageKey
+    errorMessage <- getSessionAndClear errorMessageKey
     pure $ Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])
 
-successMessageKey :: Text
+successMessageKey :: ByteString
 successMessageKey = "flashSuccessMessage"
 
-errorMessageKey :: Text
+errorMessageKey :: ByteString
 errorMessageKey = "flashErrorMessage"
 
 initFlashMessages :: (?context :: ControllerContext) => IO ()

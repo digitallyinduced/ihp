@@ -6,13 +6,25 @@ module Test.View.CSSFrameworkSpec where
 
 import Test.Hspec
 import IHP.Prelude
+import IHP.Controller.Context
+import IHP.FrameworkConfig as FrameworkConfig
+import Control.Exception
+import IHP.Controller.RequestContext
 import IHP.View.Types
 import IHP.View.CSSFramework
 import IHP.FlashMessages.Types
 import IHP.Controller.Session
 import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze.Html5 as H
+import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
+import IHP.Breadcrumb.Types
+import IHP.Breadcrumb.ViewFunctions (breadcrumbLink, breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
+import IHP.Pagination.Types
+import qualified IHP.Prelude as Text (isInfixOf)
+import qualified Data.TMap as TypeMap
+import qualified Network.Wai as Wai
+import IHP.Pagination.ViewFunctions (renderPagination)
 
 tests = do
     describe "CSS Framework" do
@@ -165,4 +177,120 @@ tests = do
                     let select = baseSelect { placeholder = "Pick something" }
                     styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option><option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select></div>"
 
+            describe "pagination" do
+                let basePagination = Pagination
+                        {
+                            pageSize = 3
+                        ,   totalItems = 12
+                        ,   currentPage = 2
+                        ,   window = 3
+                        }
+                it "should render previous link" do
+                    let pagination = basePagination
+                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"sr-only\">Previous</span></a></li>"
+
+                it "should render previous link disabled on the first page" do
+                    let pagination = basePagination { currentPage = 1}
+                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"sr-only\">Previous</span></a></li>"
+
+                it "should render next link" do
+                    let pagination = basePagination
+                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"sr-only\">Next</span></a></li>"
+
+                it "should render next link disabled on the last page" do
+                    let pagination = basePagination { currentPage = 4}
+                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"sr-only\">Next</span></a></li>"
+
+                it "should render items per page selector" do
+                    let pagination = basePagination
+                    styledPaginationItemsPerPageSelector cssFramework cssFramework pagination (\n -> cs $ "https://example.com?maxItems=" <> (show n)) `shouldRenderTo` "<option value=\"10\" data-url=\"https://example.com?maxItems=10\">10 items per page</option><option value=\"20\" data-url=\"https://example.com?maxItems=20\">20 items per page</option><option value=\"50\" data-url=\"https://example.com?maxItems=50\">50 items per page</option><option value=\"100\" data-url=\"https://example.com?maxItems=100\">100 items per page</option><option value=\"200\" data-url=\"https://example.com?maxItems=200\">200 items per page</option>"
+
+                it "should render the wrapping pagination" do
+                    let pagination = basePagination
+                    let paginationView = PaginationView
+                            { cssFramework = cssFramework
+                            , pagination = pagination
+                            , pageUrl = const ""
+                            , linkPrevious = mempty
+                            , linkNext = mempty
+                            , pageDotDotItems = mempty
+                            , itemsPerPageSelector = mempty
+                            }
+
+                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
+
+                it "should render the pagination if there are enough elements" do
+                    let pagination = Pagination
+                            { pageSize = 5
+                            , totalItems = 15
+                            , currentPage = 1
+                            , window = 3
+                            }
+
+                    context <- createControllerContextWithCSSFramework cssFramework
+                    let ?context = context
+
+                    let render = Blaze.renderMarkup $ renderPagination pagination
+                    Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
+
+
+                it "should not render the pagination if there aren't enough elements" do
+                    let pagination = Pagination
+                            { pageSize = 10
+                            , totalItems = 5
+                            , currentPage = 1
+                            , window = 3
+                            }
+
+                    context <- createControllerContextWithCSSFramework cssFramework
+                    let ?context = context
+
+                    renderPagination pagination `shouldRenderTo` mempty
+
+
+            describe "breadcrumbs" do
+                it "should render a breadcrumb item with no link" do
+                    let breadcrumbItem = breadcrumbText "First item"
+                    let breadcrumbs = [breadcrumbItem]
+
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem True `shouldRenderTo` "<li class=\"breadcrumb-item active\">First item</li>"
+
+                it "should render a breadcrumb item with external link" do
+                    let breadcrumbItem = breadcrumbLinkExternal "First item" "https://example.com"
+                    let breadcrumbs = [breadcrumbItem]
+
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem True `shouldRenderTo` "<li class=\"breadcrumb-item active\"><a href=\"https://example.com\">First item</a></li>"
+
+                it "should render a breadcrumb item as non-active" do
+                    let breadcrumbItem = breadcrumbText "First item"
+                    let breadcrumbs = [breadcrumbItem]
+
+                    styledBreadcrumbItem cssFramework cssFramework breadcrumbs breadcrumbItem False `shouldRenderTo` "<li class=\"breadcrumb-item\">First item</li>"
+
+                it "should render the wrapping breadcrumb and last item as active" do
+                    let breadcrumbs = [breadcrumbText "First item", breadcrumbText "Last item"]
+
+                    context <- createControllerContextWithCSSFramework cssFramework
+                    let ?context = context
+
+                    renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
+
+                it "should support show of BreadcrumbItem" do
+                    let breadcrumbItem = breadcrumbText "First item"
+                    show breadcrumbItem `shouldBe` "{ breadcrumbLabel = \"First item\", url = Nothing }"
+
+
+
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
+
+{-| Mock a Controller context with CSSFramework.
+-}
+createControllerContextWithCSSFramework :: Typeable option => option -> IO ControllerContext
+createControllerContextWithCSSFramework cssFramework = do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
+                option cssFramework
+    let requestBody = FormBody { params = [], files = [] }
+    let request = Wai.defaultRequest
+    let requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = frameworkConfig }
+    pure FrozenControllerContext { requestContext, customFields = TypeMap.empty }

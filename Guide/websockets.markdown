@@ -124,6 +124,33 @@ helloWorldController.onmessage = function (event) {
 
 Once the connection is ready, this will ask for the users name and will then send it over the wire. On the server the call of [`receiveData`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveData) will then return the name we entered and the server will send back the greeting.
 
+### Sending JSON
+
+There's a helper `sendJSON` to send a haskell data structure as a JSON encoded string:
+
+```haskell
+module Web.Controller.HelloWorld where
+
+import Web.Controller.Prelude
+import Data.Aeson -- Needed for JSON functions
+
+instance WSApp HelloWorldController where
+    initialState = HelloWorldController
+
+    run = do
+        name :: Text <- receiveData
+        sendJSON HelloWorldResponse { name }
+
+data HelloWorldResponse = HelloWorldResponse { name :: Text }
+
+-- Encode 'HelloWorldResponse' as { name: "<the name>" }
+-- See Aeson docs https://hackage.haskell.org/package/aeson-2.0.1.0/docs/Data-Aeson.html
+instance ToJSON HelloWorldResponse where
+    toJSON HelloWorldResponse { name } = object ["name" .= name]
+```
+
+In this example the client needs to send his name first. After that the server will send a message `{"name":"<name previously sent by client>"}` to the client.
+
 ### Receiving Other Data Types
 
 The [`receiveData`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveData) function can also deal with other types such as `Int` or `UUID`. You can use it like that: 
@@ -197,7 +224,16 @@ You can see that we can access the state using [`state <- getState`](https://ihp
 
 Now whenever the connection is closed, it will print out the message inside the terminal where the IHP server is running.
 
-**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a [`forever receiveDataMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:receiveDataMessage) to the end of the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run).
+**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a `forever` to the the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run):
+
+```haskell
+run = do
+    -- Loops until the connection is closed
+    forever do
+        name <- receiveData @Text
+        setState NameEntered { name }
+        sendTextData ("Hello " <> name <> "!")
+```
 
 As you've seen above the primitive state operations are [`setState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:setState) and [`getState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:getState). Using these two operations together with a good data structure is a very powerful way to manage your stateful WebSocket connections.
 

@@ -21,7 +21,10 @@ tests = do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
         it "should compile a line comment" do
-            compileSql [Comment { content = "Comment value" }] `shouldBe` "-- Comment value\n"
+            compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
+        
+        it "should compile a empty line comments" do
+            compileSql [Comment { content = "" }, Comment { content = "" }] `shouldBe` "--\n--\n"
 
         it "should compile a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
@@ -514,3 +517,18 @@ tests = do
             -- https://github.com/digitallyinduced/ihp/issues/1087
             let inputSql = cs [plain|ALTER TABLE listings ADD CONSTRAINT source CHECK ((NOT (user_id IS NOT NULL AND agent_id IS NOT NULL)) AND (user_id IS NOT NULL OR agent_id IS NOT NULL));\n|]
             compileSql [parseSql inputSql] `shouldBe` inputSql
+
+        it "should compile 'ALTER TABLE .. DROP COLUMN ..' statements" do
+            let sql = "ALTER TABLE tasks DROP COLUMN description;\n"
+            let statements = [ DropColumn { tableName = "tasks", columnName = "description" } ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'DROP TABLE ..' statements" do
+            let sql = "DROP TABLE tasks;\n"
+            let statements = [ DropTable { tableName = "tasks" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE SEQUENCE ..' statements" do
+            let sql = "CREATE SEQUENCE a;\n"
+            let statements = [ CreateSequence { name = "a" } ]
+            compileSql statements `shouldBe` sql

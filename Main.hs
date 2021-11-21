@@ -22,6 +22,9 @@ instance FrontController RootApplication where
 instance Controller DemoController where
     action DemoAction = renderPlain "Hello World!"
 
+instance Worker RootApplication where
+  workers _ = []
+
 config :: ConfigBuilder
 config = do
     option Development
