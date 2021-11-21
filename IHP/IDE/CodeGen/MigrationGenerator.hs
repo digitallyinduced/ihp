@@ -30,13 +30,58 @@ createMigration description = do
     Text.writeFile ("Application/Migration/" <> cs migrationFile) "-- Write your SQL migration code in here\n"
     pure Migration { .. }
 
+diffAppDatabase = do
+    (Right targetSchema) <- Parser.parseSchemaSql
+    actualSchema <- getAppDBSchema
 
-getAppDBSchema :: IO ()
+    pure (diffSchemas targetSchema actualSchema)
+
+diffSchemas :: [Statement] -> [Statement] -> [Statement]
+diffSchemas targetSchema actualSchema =
+    targetSchema
+        |> removeComments -- SQL Comments are not used in the diff
+        |> (\schema -> schema \\ actualSchema) -- Get rid of all statements that exist in both schemas, there's nothing we need to do to them
+        |> map statementToMigration
+        |> concat
+    where
+        removeComments = filter \case
+                Comment {} -> False
+                _          -> True
+
+        statementToMigration :: Statement -> [Statement]
+        statementToMigration statement@(StatementCreateTable { unsafeGetCreateTable = table }) = 
+                case actualTable of
+                    Just actualTable -> migrateTable statement actualTable
+                    Nothing -> [statement]
+            where
+                actualTable = actualSchema |> find \case
+                        StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } -> name == get #name table
+                        otherwise                                                            -> False
+        statementToMigration statement = [statement]
+
+migrateTable :: Statement -> Statement -> [Statement]
+migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } StatementCreateTable { unsafeGetCreateTable = actualTable } = migrateTable' targetTable actualTable
+    where
+        migrateTable' CreateTable { name = tableName, columns = targetColumns } CreateTable { columns = actualColumns } = map createColumn createColumns <> map dropColumn dropColumns
+            where
+                createColumns :: [Column]
+                createColumns = actualColumns \\ targetColumns
+
+                dropColumns :: [Column]
+                dropColumns = targetColumns \\ actualColumns
+
+                createColumn :: Column -> Statement
+                createColumn column = AddColumn { tableName, column }
+
+                dropColumn :: Column -> Statement
+                dropColumn column = DropColumn { tableName, columnName = get #name column }
+
+getAppDBSchema :: IO [Statement]
 getAppDBSchema = do
     sql <- dumpAppDatabaseSchema
     case parseDumpedSql sql of
         Left error -> fail (cs error)
-        Right result -> putStrLn (tshow result)
+        Right result -> pure result
 
 -- | Returns the DDL statements of the locally running dev db
 --
