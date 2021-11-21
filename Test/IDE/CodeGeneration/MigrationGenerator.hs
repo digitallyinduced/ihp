@@ -185,6 +185,17 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "should not detect unspecified on delete behaviour as a change" do
+                let targetSchema = sql [i|
+                    ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+
+                let actualSchema = sql [i|
+                    ALTER TABLE ONLY public.subscriptions ADD CONSTRAINT subscriptions_ref_user_id FOREIGN KEY (user_id) REFERENCES public.users(id);
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (tshow parsingFailed)

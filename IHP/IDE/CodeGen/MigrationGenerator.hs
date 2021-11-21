@@ -141,10 +141,15 @@ normalizeSchema statements = map normalizeStatement statements
 
 normalizeStatement :: Statement -> Statement
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizeTable table }
+normalizeStatement AddConstraint { tableName, constraintName, constraint } = AddConstraint { tableName, constraintName, constraint = normalizeConstraint constraint }
 normalizeStatement otherwise = otherwise
 
 normalizeTable :: CreateTable -> CreateTable
 normalizeTable CreateTable { .. } = CreateTable { columns = map normalizeColumn columns, .. }
+
+normalizeConstraint :: Constraint -> Constraint
+normalizeConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
+normalizeConstraint otherwise = otherwise
 
 normalizeColumn :: Column -> Column
 normalizeColumn Column { name, columnType, defaultValue, notNull, isUnique } = Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique }
