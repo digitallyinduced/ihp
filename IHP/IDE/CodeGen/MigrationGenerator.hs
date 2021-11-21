@@ -73,7 +73,7 @@ migrateTable :: Statement -> Statement -> [Statement]
 migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } StatementCreateTable { unsafeGetCreateTable = actualTable } = migrateTable' targetTable actualTable
     where
         migrateTable' CreateTable { name = tableName, columns = targetColumns } CreateTable { columns = actualColumns } =
-                (map createColumn createColumns <> map dropColumn dropColumns)
+                (map dropColumn dropColumns <> map createColumn createColumns)
                     |> applyRenameColumn
             where
 
@@ -89,20 +89,20 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 dropColumn :: Column -> Statement
                 dropColumn column = DropColumn { tableName, columnName = get #name column }
 
-                applyRenameColumn (s@(AddColumn { column }):statements) = case matchingDropColumn of
-                        Just matchingDropColumn -> RenameColumn { tableName, from = get #columnName matchingDropColumn, to = get #name column } : (applyRenameColumn (filter ((/=) matchingDropColumn) statements))
+                applyRenameColumn (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
+                        Just matchingCreateColumn -> RenameColumn { tableName, from = columnName, to = get #name (get #column matchingCreateColumn) } : (applyRenameColumn (filter ((/=) matchingCreateColumn) statements))
                         Nothing -> s:(applyRenameColumn statements)
                     where
-                        matchingDropColumn :: Maybe Statement
-                        matchingDropColumn = find isMatchingDropColumn statements
+                        matchingCreateColumn :: Maybe Statement
+                        matchingCreateColumn = find isMatchingCreateColumn statements
 
-                        isMatchingDropColumn :: Statement -> Bool
-                        isMatchingDropColumn DropColumn { columnName } = actualColumns
+                        isMatchingCreateColumn :: Statement -> Bool
+                        isMatchingCreateColumn AddColumn { column = addColumn } = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
                                     otherwise       -> False
-                                |> maybe False (\c -> (c :: Column) { name = get #name column } == column)
-                        isMatchingDropColumn otherwise                          = False
+                                |> maybe False (\c -> (c :: Column) { name = get #name addColumn } == addColumn)
+                        isMatchingCreateColumn otherwise                          = False
                 applyRenameColumn (statement:rest) = statement:(applyRenameColumn rest)
                 applyRenameColumn [] = []
 
