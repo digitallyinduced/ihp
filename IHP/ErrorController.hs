@@ -562,7 +562,6 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
                     <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
                     <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open GitHub Issue</a>
                     <a href="https://ihp.digitallyinduced.com/Slack" target="_blank">Slack</a>
-                    <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Gitter</a>
                     <a href="https://www.reddit.com/r/IHPFramework/" target="_blank">Reddit</a>
                     <a href="https://stackshare.io/ihp" target="_blank">StackShare</a>
                 </div>

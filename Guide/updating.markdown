@@ -8,7 +8,7 @@
 
 During the beta releases, there is a new release every two weeks on Friday. [You can find a list of all releases on GitHub.](https://github.com/digitallyinduced/ihp/releases).
 
-A new version is usually announced first via the [IHP Newsletter](http://eepurl.com/g51zq1) and also on Gitter and Twitter.
+A new version is usually announced first via the [IHP Newsletter](http://eepurl.com/g51zq1) and also on Twitter.
 
 IHP version numbers are assigned by the release date. For example, the version `v10072020` stands for the release of the `10.07.2020`.
 
