@@ -363,6 +363,7 @@ library
         , IHP.IDE.CodeGen.JobGenerator
         , IHP.IDE.CodeGen.View.NewJob
         , IHP.IDE.CodeGen.MailGenerator
+        , IHP.IDE.CodeGen.MigrationGenerator
         , IHP.IDE.LiveReloadNotificationServer
         , IHP.IDE.PortConfig
         , IHP.IDE.Postgres
