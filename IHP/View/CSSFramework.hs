@@ -95,8 +95,8 @@ instance Default CSSFramework where
             styledCheckboxFormField cssFramework formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus } validationResult = do
                 [hsx|<div class="form-check">{element}</div>|]
                 where
-                    inputInvalidClass = styledInputInvalidClass cssFramework formField
-                    helpText = styledFormFieldHelp cssFramework formField
+                    inputInvalidClass = (get #styledInputInvalidClass cssFramework) cssFramework formField
+                    helpText = (get #styledFormFieldHelp cssFramework) cssFramework formField
 
                     theInput = [hsx|
                                     <input
@@ -153,12 +153,15 @@ instance Default CSSFramework where
 
                     {validationResult}
                     {helpText}
-                |]
+
+
+
+              |]
                 where
                     label = unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                    inputClass = styledInputClass cssFramework formField
-                    inputInvalidClass = styledInputInvalidClass cssFramework formField
-                    helpText = styledFormFieldHelp cssFramework formField
+                    inputClass = ((get #styledInputClass cssFramework) cssFramework formField, True)
+                    inputInvalidClass = (get #styledInputInvalidClass cssFramework) cssFramework formField
+                    helpText = (get #styledFormFieldHelp cssFramework) cssFramework formField
 
 
             styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
@@ -183,9 +186,9 @@ instance Default CSSFramework where
                 |]
                 where
                     label = unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                    inputClass = styledInputClass cssFramework formField
-                    inputInvalidClass = styledInputInvalidClass cssFramework formField
-                    helpText = styledFormFieldHelp cssFramework formField
+                    inputClass = ((get #styledInputClass cssFramework) cssFramework formField, True)
+                    inputInvalidClass = (get #styledInputInvalidClass cssFramework) cssFramework formField
+                    helpText = (get #styledFormFieldHelp cssFramework) cssFramework formField
 
                     isValueSelected = any (\(_, optionValue) -> optionValue == fieldValue) (options fieldType)
 
