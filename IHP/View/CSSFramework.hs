@@ -164,7 +164,7 @@ instance Default CSSFramework where
                     helpText = styledFormFieldHelp cssFramework formField
 
             styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
-            styledSelectFormField cssFramework formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus } validationResult =
+            styledSelectFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus } validationResult =
                 [hsx|
                     {label}
                     <select
@@ -185,9 +185,9 @@ instance Default CSSFramework where
                 |]
                 where
                     label = unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                    inputClass = ((get #styledInputClass cssFramework) cssFramework formField, True)
-                    inputInvalidClass = (get #styledInputInvalidClass cssFramework) cssFramework formField
-                    helpText = (get #styledFormFieldHelp cssFramework) cssFramework formField
+                    inputClass = (styledInputClass cssFramework formField, True)
+                    inputInvalidClass = styledInputInvalidClass cssFramework formField
+                    helpText = styledFormFieldHelp cssFramework formField
 
                     isValueSelected = any (\(_, optionValue) -> optionValue == fieldValue) (options fieldType)
 
