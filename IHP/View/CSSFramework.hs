@@ -377,6 +377,7 @@ tailwind = def
                 helpText = styledFormFieldHelp cssFramework formField
 
                 theInput = [hsx|
+                            <div>
                                 <input
                                     type="checkbox"
                                     name={fieldName}
@@ -389,27 +390,34 @@ tailwind = def
                                 />
 
                                 <input type="hidden" name={fieldName} value={inputValue False} />
+                            </div>
                         |]
 
 
                 element = if disableLabel
-                    then [hsx|<div>
+                    then [hsx|<div class="flex flex-row space-x-4">
                                 {theInput}
-                                {validationResult}
-                                {helpText}
+                                <div class="flex flex-col space-y-2">
+                                    {validationResult}
+                                    {helpText}
+                                </div>
                             </div>
                         |]
                     else [hsx|
-                            {theInput}
-                            <label
-                                class={classes ["font-medium text-gray-700", ("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]}
-                                for={fieldInputId}
-                            >
-                                {fieldLabel}
-                            </label>
+                            <div class="flex flex-row space-x-4">
+                                {theInput}
+                                <div class="flex flex-col">
+                                    <label
+                                        class={classes ["font-medium text-gray-700", ("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]}
+                                        for={fieldInputId}
+                                    >
+                                        {fieldLabel}
+                                    </label>
 
-                            {validationResult}
-                            {helpText}
+                                    {validationResult}
+                                    {helpText}
+                                </div>
+                            </div>
                         |]
 
         styledTextFormField :: CSSFramework -> Text -> FormField -> Blaze.Html -> Blaze.Html
@@ -432,7 +440,7 @@ tailwind = def
                 {helpText}
             |]
             where
-                twLabelClass = "block text-sm font-medium text-gray-700" <> " " <> labelClass
+                twLabelClass = "font-medium text-gray-700" <> " " <> labelClass
                 label = unless (disableLabel || null fieldLabel) [hsx|<label class={twLabelClass} for={fieldInputId}>{fieldLabel}</label>|]
                 inputClass = (styledInputClass cssFramework formField, True)
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
@@ -459,7 +467,7 @@ tailwind = def
                 {helpText}
             |]
             where
-                twLabelClass = "block text-sm font-medium text-gray-700" <> " " <> labelClass
+                twLabelClass = "font-medium text-gray-700" <> " " <> labelClass
                 label = unless disableLabel [hsx|<label class={twLabelClass} for={fieldInputId}>{fieldLabel}</label>|]
                 inputClass = (styledInputClass cssFramework formField, True)
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
@@ -483,7 +491,7 @@ tailwind = def
         styledFormFieldHelp _ FormField { helpText = "" } = mempty
         styledFormFieldHelp _ FormField { helpText } = [hsx|<p class="text-gray-600 text-xs italic">{helpText}</p>|]
 
-        styledFormGroupClass = "flex flex-col my-6 space-y-4"
+        styledFormGroupClass = "flex flex-col my-6 space-y-2"
 
         styledValidationResultClass = "text-red-500 text-xs italic"
 
