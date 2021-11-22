@@ -34,8 +34,16 @@ data Statement
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
     | CreatePolicy { name :: Text, tableName :: Text, using :: Maybe Expression, check :: Maybe Expression }
+    -- SET name = value;
+    | Set { name :: Text, value :: Expression }
+    -- SELECT query;
+    | SelectStatement { query :: Text }
     -- CREATE SEQUENCE name;
     | CreateSequence { name :: Text }
+    -- ALTER TABLE tableName RENAME COLUMN from TO to;
+    | RenameColumn { tableName :: Text, from :: Text, to :: Text }
+    -- ALTER TYPE enumName ADD VALUE newValue;
+    | AddValueToEnumType { enumName :: Text, newValue :: Text }
     deriving (Eq, Show)
 
 data CreateTable
@@ -79,6 +87,7 @@ data Constraint
     | UniqueConstraint
         { columnNames :: [Text] }
     | CheckConstraint { checkExpression :: Expression }
+    | AlterTableAddPrimaryKey { primaryKeyConstraint :: PrimaryKeyConstraint }
     deriving (Eq, Show)
 
 data Expression =
@@ -132,7 +141,7 @@ data PostgresType
     | PBinary
     | PTime
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
-    | PVaryingN Int
+    | PVaryingN (Maybe Int)
     | PCharacterN Int
     | PSerial
     | PBigserial

@@ -27,6 +27,7 @@ import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
 import System.Directory
 import qualified IHP.SchemaMigration as SchemaMigration
+import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 
 
 instance Controller CodeGenController where
@@ -154,7 +155,7 @@ instance Controller CodeGenController where
 
     action CreateMigrationAction = do
         let description = param "description"
-        migration <- SchemaMigration.createMigration description
+        migration <- MigrationGenerator.createMigration description
         let path = SchemaMigration.migrationPath migration
         setSuccessMessage ("Migration generated: " <> path)
         openEditor path 0 0

@@ -5,6 +5,7 @@ import IHP.SchemaMigration
 import qualified System.Posix.Env.ByteString as Posix
 import qualified System.Directory as Directory
 import IHP.IDE.ToolServer.Helper.Controller (openEditor)
+import IHP.IDE.CodeGen.MigrationGenerator (createMigration)
 
 main :: IO ()
 main = do

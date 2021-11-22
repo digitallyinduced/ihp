@@ -45,6 +45,7 @@ import qualified Test.Postgres.Point
 import qualified Test.Postgres.TSVector
 import qualified Test.FileStorage.MimeTypesSpec
 import qualified Test.DataSync.DynamicQueryCompiler
+import qualified Test.IDE.CodeGeneration.MigrationGenerator
 
 main :: IO ()
 main = hspec do
@@ -77,3 +78,4 @@ main = hspec do
     Test.FileStorage.MimeTypesSpec.tests
     Test.DataSync.DynamicQueryCompiler.tests
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
+    Test.IDE.CodeGeneration.MigrationGenerator.tests
