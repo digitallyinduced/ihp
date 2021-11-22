@@ -159,13 +159,7 @@ instance Controller CodeGenController where
     action CreateMigrationAction = do
         let description = param "description"
         (revision, plan) <- MigrationGenerator.buildPlan description
-        let (Just path) = plan
-                |> find \case
-                    CreateFile {} -> True
-                    otherwise     -> False
-                |> \case
-                    Just CreateFile { filePath } -> Just filePath
-                    otherwise                    -> Nothing
+        let path = MigrationGenerator.migrationPathFromPlan plan
 
         executePlan plan
 

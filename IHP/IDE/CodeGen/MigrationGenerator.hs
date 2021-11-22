@@ -197,3 +197,15 @@ normalizeColumn Column { name, columnType, defaultValue, notNull, isUnique } = C
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
 normalizeSqlType otherwise = otherwise
+
+migrationPathFromPlan :: [GeneratorAction] -> Text
+migrationPathFromPlan plan =
+        let (Just path) = plan
+                |> find \case
+                    CreateFile {} -> True
+                    otherwise     -> False
+                |> \case
+                    Just CreateFile { filePath } -> Just filePath
+                    otherwise                    -> Nothing
+        in
+            path
