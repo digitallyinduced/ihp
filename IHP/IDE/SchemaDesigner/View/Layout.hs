@@ -11,8 +11,10 @@ import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html
 schemaDesignerLayout inner = toolServerLayout [hsx|
-<div class="container">
-    <div class="row pt-5">
+<div class="container pt-5">
+    {when hasUnmigratedChanges unmigratedChanges}
+
+    <div class="row mb-2">
         <div class="col" style="display: flex; align-self: center;">
             {visualNav}
         </div>
@@ -21,10 +23,24 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
             Application/Schema.sql
         </div>
 
-        {databaseControls}
+        <div class="col">
+        </div>
     </div>
 
     {inner}
+</div>
+|]
+    where
+        (DatabaseNeedsMigration hasUnmigratedChanges) = fromFrozenContext @DatabaseNeedsMigration
+
+unmigratedChanges :: Html
+unmigratedChanges = [hsx|
+<div class="alert alert-primary d-flex align-items-center" role="alert">
+    <div style="height: fit-content">
+        <strong>Unmigrated Changes</strong>
+        Your app database is not in sync with the Schema.sql
+    </div>
+    {databaseControls}
 </div>
 |]
 
@@ -34,24 +50,29 @@ databaseControls = [hsx|
     <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
     <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
     <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
-    <div class="btn-group btn-group-sm mb-2">
-        <button
-            type="submit"
-            form="update-db-form"
+    <div class="btn-group btn-group-sm">
+        <a
             class="btn btn-primary"
-            data-toggle="tooltip"
-            data-placement="bottom"
-            data-html="true"
-            title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
+            href={NewMigrationAction}
             onclick="checkBeforeUnload()"
-            >Update DB</button>
+            >Migrate DB →</a>
 
         <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
             <span class="sr-only">Toggle Dropdown</span>
         </button>
 
-
         <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuLink">
+            <button
+                type="submit"
+                form="update-db-form"
+                class="dropdown-item"
+                data-toggle="tooltip"
+                data-placement="left"
+                data-html="true"
+                title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
+                onclick="checkBeforeUnload()"
+                >Update DB</button>
+
             <button
                 type="submit"
                 class="dropdown-item"

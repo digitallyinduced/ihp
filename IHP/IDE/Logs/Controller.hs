@@ -49,6 +49,3 @@ instance Controller LogsController where
 
 readDevServerState :: (?context :: ControllerContext) => IO DevServer.AppState
 readDevServerState = (get #appStateRef <$> theDevServerContext) >>= readIORef
-
-theDevServerContext :: (?context :: ControllerContext) => IO DevServer.Context
-theDevServerContext = get #devServerContext <$> (fromContext @ToolServerApplication)
