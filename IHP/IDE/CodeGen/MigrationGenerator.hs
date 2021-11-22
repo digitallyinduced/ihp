@@ -20,19 +20,22 @@ import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import IHP.IDE.SchemaDesigner.Types
 import Text.Megaparsec
 import IHP.IDE.SchemaDesigner.Compiler (compileSql)
+import IHP.IDE.CodeGen.Types
 
--- | Generates a new migration @.sql@ file in @Application/Migration@
-createMigration :: Text -> IO Migration
-createMigration description = do
+buildPlan :: Text -> IO (Int, [GeneratorAction])
+buildPlan description = do
     revision <- round <$> POSIX.getPOSIXTime
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
-    Directory.createDirectoryIfMissing False "Application/Migration"
 
     appDiff <- diffAppDatabase
-    let migrationSql = "-- Write your SQL migration code in here\n" <> compileSql appDiff
-    Text.writeFile ("Application/Migration/" <> cs migrationFile) migrationSql
-    pure Migration { .. }
+    let migrationSql = if isEmpty appDiff
+        then "-- Write your SQL migration code in here\n"
+        else compileSql appDiff
+    pure (revision,
+            [ EnsureDirectory { directory = "Application/Migration" }
+            , CreateFile { filePath = "Application/Migration/" <> migrationFile, fileContent = migrationSql }
+            ])
 
 diffAppDatabase = do
     (Right targetSchema) <- Parser.parseSchemaSql
@@ -194,3 +197,15 @@ normalizeColumn Column { name, columnType, defaultValue, notNull, isUnique } = C
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
 normalizeSqlType otherwise = otherwise
+
+migrationPathFromPlan :: [GeneratorAction] -> Text
+migrationPathFromPlan plan =
+        let (Just path) = plan
+                |> find \case
+                    CreateFile {} -> True
+                    otherwise     -> False
+                |> \case
+                    Just CreateFile { filePath } -> Just filePath
+                    otherwise                    -> Nothing
+        in
+            path
