@@ -98,6 +98,9 @@ instance Default CSSFramework where
                     inputInvalidClass = styledInputInvalidClass cssFramework formField
                     helpText = styledFormFieldHelp cssFramework formField
 
+                    -- If the checkbox is checked off, the browser will not send the parameter as part of the form.
+                    -- This will then make it impossible to set a field to False using a checkbox.
+                    -- For that we add the "hidden" input type.
                     theInput = [hsx|
                                     <input
                                         type="checkbox"
