@@ -26,6 +26,7 @@ import qualified Data.Time.Clock as Clock
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 import Data.Default (def, Default (..))
+import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 
 main :: IO ()
 main = do
@@ -67,6 +68,8 @@ handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
 handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) = 
     case postgresState of
         PostgresStarted {} -> do
+            async (updateDatabaseIsOutdated state)
+            
             -- If the app is already running before the postgres started up correctly,
             -- we need to trigger a restart, otherwise e.g. background jobs will not start correctly
             case appGHCIState of
@@ -160,6 +163,8 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
 handleAction state SchemaChanged = do
     async do
         SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do Log.error (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
+
+    async (updateDatabaseIsOutdated state)
     pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
@@ -333,3 +338,17 @@ stopAppGHCI _ = pure ()
 pauseAppGHCI :: (?context :: Context) => AppGHCIState -> IO ()
 pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
 pauseAppGHCI _ = pure ()
+
+checkDatabaseIsOutdated :: IO Bool
+checkDatabaseIsOutdated = do
+    diff <- MigrationGenerator.diffAppDatabase
+    pure (not (isEmpty diff))
+
+updateDatabaseIsOutdated state = ((do
+            let databaseNeedsMigrationRef = state |> get #databaseNeedsMigration
+            databaseNeedsMigration <- checkDatabaseIsOutdated
+            writeIORef databaseNeedsMigrationRef databaseNeedsMigration
+        ) `catch` (\(exception :: SomeException) -> do
+            Log.error (tshow exception)
+            dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) })
+        ))

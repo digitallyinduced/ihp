@@ -130,11 +130,13 @@ data AppState = AppState
     , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
     , fileWatcherState :: !FileWatcherState
     , toolServerState :: !ToolServerState
+    , databaseNeedsMigration :: !(IORef Bool)
     } deriving (Show)
 
 emptyAppState :: IO AppState
 emptyAppState = do
     clients <- newIORef mempty
+    databaseNeedsMigration <- newIORef False
     pure AppState
         { postgresState = PostgresNotStarted
         , appGHCIState = AppGHCINotStarted
@@ -142,6 +144,7 @@ emptyAppState = do
         , liveReloadNotificationServerState = LiveReloadNotificationServerState { clients }
         , fileWatcherState = FileWatcherNotStarted
         , toolServerState = ToolServerNotStarted
+        , databaseNeedsMigration
         }
 
 data Context = Context
