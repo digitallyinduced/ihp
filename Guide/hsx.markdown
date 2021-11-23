@@ -121,7 +121,7 @@ in
 and it will render to:
 
 ```haskell
-<a target="blank" />
+<a target="_blank" />
 ```
 
 Using `Nothing` results in the `target` attribute not being in the output HTML:
