@@ -112,6 +112,10 @@ instance ApplyAttribute Bool where
     applyAttribute attr attr' false h = h -- html boolean attribute, like <input disabled/> will be dropped as there is no other way to specify that it's set to false
     {-# INLINE applyAttribute #-}
 
+instance ApplyAttribute attribute => ApplyAttribute (Maybe attribute) where
+    applyAttribute attr attr' (Just value) h = applyAttribute attr attr' value h
+    applyAttribute attr attr' Nothing h = h
+
 instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
     applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (cs value))
     {-# INLINE applyAttribute #-}

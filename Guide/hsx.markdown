@@ -48,7 +48,7 @@ in
     [hsx|<input type="text" value={inputValue}/>|]
 ```
 
-### Boolean Attribute Values
+#### Boolean Attribute Values
 
 HSX has special handling for Boolean values to make it easy to deal with HTML Boolean attributes like `disabled`, `readonly`, `checked`, etc.
 
@@ -102,6 +102,42 @@ the output HTML will keep the attribute and set it to `"false"`:
 
 ```html
 <form data-disable-javascript-submission="false"/>
+```
+
+#### Maybe Attribute Values / Optional Attributes
+
+HSX has special handling for Maybe values to make it easy to deal with optional attributes.
+
+You can write
+
+```haskell
+let
+    target :: Maybe Text
+    target = Just "_blank"
+in
+    [hsx|<a target={target} />|]
+```
+
+and it will render to:
+
+```haskell
+<a target="_blank" />
+```
+
+Using `Nothing` results in the `target` attribute not being in the output HTML:
+
+```haskell
+let
+    target :: Maybe Text
+    target = Nothing
+in
+    [hsx|<a target={target} />|]
+```
+
+This will render to:
+
+```haskell
+<a />
 ```
 
 ### Spread Values
