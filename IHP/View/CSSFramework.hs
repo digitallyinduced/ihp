@@ -433,7 +433,7 @@ tailwind = def
                     placeholder={placeholder}
                     id={fieldInputId}
                     class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
-                    value={fieldValue}
+                    value={maybeValue}
                     required={required}
                     disabled={disabled}
                     autofocus={autofocus}
@@ -448,6 +448,8 @@ tailwind = def
                 inputClass = (styledInputClass cssFramework formField, True)
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
                 helpText = styledFormFieldHelp cssFramework formField
+                -- If there's no value, then we want to hide the "value" attribute.
+                maybeValue = if fieldValue == "" then Nothing else Just fieldValue
 
         styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
         styledSelectFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus } validationResult =
