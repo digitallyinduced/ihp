@@ -16,7 +16,7 @@ We will also have PostCSS added as part of the installation. PostCSS is used for
 
 First, we need to add NodeJS to our project. **You should also follow this step if you have NodeJS already installed on your system.** Installing the NodeJS version via nix allows all people working on your project to get the same NodeJS version as you're using.
 
-For that open your projects `default.nix` and add `nodejs` and `entr` to `otherDeps`:
+For that open your projects `default.nix` and add `nodejs` to `otherDeps`:
 
 ```nix
 otherDeps = p: with p; [

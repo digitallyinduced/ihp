@@ -10,7 +10,7 @@ In IHP Forms are an essential way to interact with your application. Dealing wit
 
 By default forms in IHP follow the class names used by Bootstrap 4. Therefore the forms work with Bootstrap 4 out of the box. Of course, the default form generation can be customized to support other CSS frameworks.
 
-Unless javascript helpers have been deactivated, your form will be submitted using AJAX and TurboLinks instead of browser-based form submission.
+Unless JavaScript helpers have been deactivated, your form will be submitted using AJAX and TurboLinks instead of browser-based form submission.
 
 ## Simple Forms
 
@@ -910,13 +910,13 @@ IHP by default sets its session cookies using the Lax [SameSite](https://develop
 
 By default, your form will be submitted using AJAX and [TurboLinks](https://github.com/turbolinks/turbolinks) instead of browser-based form submission. It's implemented this way to support [SPA](https://en.wikipedia.org/wiki/Single-page_application)-like page transitions using TurboLinks and [morphdom](https://github.com/patrick-steele-idem/morphdom).
 
-Additionally, to integrate the form submission into TurboLinks, the javascript helpers will also disable the form submit button after the form has been submitted. Also, any flash messages inside the form are removed.
+Additionally, to integrate the form submission into TurboLinks, the JavaScript helpers will also disable the form submit button after the form has been submitted. Also, any flash messages inside the form are removed.
 
-When the IHP javascript helpers are included in a page, it will automatically hook into your form submissions. You can also call `window.submitForm(formElement)` to trigger a form submission from javascript.
+When the IHP JavaScript helpers are included in a page, it will automatically hook into your form submissions. You can also call `window.submitForm(formElement)` to trigger a form submission from JavaScript.
 
-The form helpers are designed to improve the User Experience for browsers where javascript is enabled. In case javascript is not enabled or blocked by a plugin, the form submission will still work as expected.
+The form helpers are designed to improve the User Experience for browsers where JavaScript is enabled. In case JavaScript is not enabled or blocked by a plugin, the form submission will still work as expected.
 
-You can disable the form helpers by removing the IHP javascript helpers from your layout. In `Web/View/Layout.hs` remove the following line:
+You can disable the form helpers by removing the IHP JavaScript helpers from your layout. In `Web/View/Layout.hs` remove the following line:
 
 ```html
 <script src="/helpers.js"></script>
@@ -924,7 +924,7 @@ You can disable the form helpers by removing the IHP javascript helpers from you
 
 This way no special behavior will be attached to your forms.
 
-To dig deeper into the javascript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
+To dig deeper into the JavaScript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
 
 ## Working within the Bootstrap CSS framework
 

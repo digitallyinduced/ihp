@@ -25,7 +25,7 @@ While the build is running, take a look at ["What Is Nix"](https://engineering.s
 
 In case some errors appear now or in later steps:
 - [Check out the troubleshooting section](https://ihp.digitallyinduced.com/Guide/troubleshooting.html) to get a quick solution
-- You can also [join our very active Slack community](https://ihp.digitallyinduced.com/Slack) or [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) and ask a question there. We're happy to help!
+- You can also [join our very active Slack community](https://ihp.digitallyinduced.com/Slack) and ask a question there. We're happy to help!
 
 ### Directory Structure
 
@@ -78,7 +78,7 @@ The development server automatically picks other ports when they are already in 
 
 In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a WebSocket server to power live reloads on file saves inside your app.
 
-The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again). 
+The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
 
 
 ### Hello Haskell World

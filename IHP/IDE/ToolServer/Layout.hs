@@ -151,8 +151,8 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         |]
             where
                 isExternal = "https://" `isPrefixOf` action || "http://" `isPrefixOf` action
-                target :: Text
-                target = if isExternal then "_blank" else "_self"
+                target :: Maybe Text
+                target = if isExternal then "_blank" else Nothing
 
 appUrl :: (?context :: ControllerContext) => Text
 appUrl = let (AppUrl url) = fromFrozenContext @AppUrl in url

@@ -9,6 +9,9 @@ module IHP.IDE.ToolServer.Helper.Controller
 , findWebControllers
 , findControllers
 , findApplications
+, theDevServerContext
+, clearDatabaseNeedsMigration
+, markDatabaseNeedsMigration
 ) where
 
 import IHP.Prelude
@@ -81,3 +84,19 @@ findApplications = do
         where
             removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
 
+theDevServerContext :: (?context :: ControllerContext) => IO Context
+theDevServerContext = get #devServerContext <$> (fromContext @ToolServerApplication)
+
+clearDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
+clearDatabaseNeedsMigration = do
+    context <- theDevServerContext
+    state <- readIORef (get #appStateRef context)
+    writeIORef (get #databaseNeedsMigration state) False
+    pure ()
+
+markDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
+markDatabaseNeedsMigration = do
+    context <- theDevServerContext
+    state <- readIORef (get #appStateRef context)
+    writeIORef (get #databaseNeedsMigration state) True
+    pure ()

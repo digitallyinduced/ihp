@@ -7,10 +7,6 @@
 <p align="center">
   <img alt="MIT License" src="https://img.shields.io/github/license/digitallyinduced/ihp">
 
-  <a href="https://gitter.im/digitallyinduced/ihp" target="_blank">
-    <img alt="Gitter" src="https://img.shields.io/gitter/room/digitallyinduced/ihp">
-  </a>
-
   <a href="https://twitter.com/digitallyinduce" target="_blank">
     <img src="https://img.shields.io/twitter/follow/digitallyinduce"/>
   </a>

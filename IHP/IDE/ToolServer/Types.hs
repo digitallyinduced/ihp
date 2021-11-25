@@ -132,3 +132,5 @@ newtype AppUrl = AppUrl Text
 -- | List of all controllers. Used inside e.g. the Schema Designer to decide whether to display
 -- the 'Generate Controller' option
 newtype WebControllers = WebControllers [Text]
+
+newtype DatabaseNeedsMigration = DatabaseNeedsMigration Bool

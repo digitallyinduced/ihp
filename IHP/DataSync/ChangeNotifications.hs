@@ -2,6 +2,7 @@ module IHP.DataSync.ChangeNotifications
 ( watchInsertOrUpdateTable
 , eventName
 , ChangeNotification (..)
+, Change (..)
 ) where
 
 import IHP.Prelude
@@ -17,18 +18,24 @@ import IHP.DataSync.DynamicQuery (transformColumnNamesToFieldNames)
 import qualified IHP.DataSync.RowLevelSecurity as RLS
 
 data ChangeNotification
-    = DidInsert { id :: UUID }
-    | DidUpdate { id :: UUID, changeSet :: Value }
-    | DidDelete { id :: UUID }
+    = DidInsert { id :: !UUID }
+    | DidUpdate { id :: !UUID, changeSet :: ![Change] }
+    | DidDelete { id :: !UUID }
+    deriving (Eq, Show)
+
+data Change = Change
+    { col :: !Text
+    , new :: !Value
+    } deriving (Eq, Show)
 
 -- | The table is wrapped as a TableWithRLS to ensure that the RLS has been checked before calling this
 watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO (MVar.MVar ChangeNotification, Async ())
 watchInsertOrUpdateTable table = do
     let tableName = table |> get #tableName
     let (listenStatement, listenArgs) = ("LISTEN ?", [PG.Identifier (eventName tableName)])
-    
+
     latestNotification <- MVar.newEmptyMVar
-    
+
     listener <- async do
         withDatabaseConnection \databaseConnection -> do
             PG.execute databaseConnection (PG.Query $ cs $ createNotificationFunction tableName) ()
@@ -51,22 +58,22 @@ createNotificationFunction tableName = [i|
     BEGIN;
 
     CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
-        DECLARE
-            updated_values jsonb;
         BEGIN
             CASE TG_OP
             WHEN 'UPDATE' THEN
-                SELECT jsonb_object_agg(n.key, n.value)
-                INTO updated_values
-                FROM jsonb_each(to_jsonb(OLD)) o
-                JOIN jsonb_each(to_jsonb(NEW)) n USING (key)
-                WHERE n.value IS DISTINCT FROM o.value;
-
                 PERFORM pg_notify(
                     '#{eventName tableName}',
                     json_build_object(
                       'UPDATE', NEW.id::text,
-                      'CHANGESET', updated_values
+                      'CHANGESET', (
+                            SELECT json_agg(row_to_json(t))
+                            FROM (
+                                  SELECT pre.key AS "col", post.value AS "new"
+                                  FROM jsonb_each(to_jsonb(OLD)) AS pre
+                                  CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
+                                  WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
+                            ) t
+                      )
                     )::text
                 );
             WHEN 'DELETE' THEN
@@ -117,7 +124,15 @@ instance FromJSON ChangeNotification where
             update values = do
                 id <- values .: "UPDATE"
                 changeSet <- values .: "CHANGESET"
-                pure $ DidUpdate id (transformColumnNamesToFieldNames changeSet)
+                pure $ DidUpdate id changeSet
             delete values = DidDelete <$> values .: "DELETE"
 
+
+instance FromJSON Change where
+    parseJSON = withObject "Change" $ \values -> do
+        col <- values .: "col"
+        new <- values .: "new"
+        pure Change { .. }
+
 $(deriveToJSON defaultOptions 'DidInsert)
+$(deriveToJSON defaultOptions 'Change)
