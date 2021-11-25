@@ -28,7 +28,7 @@ instance ToHtml Data.ByteString.ByteString where
     {-# INLINE toHtml #-}
     toHtml value = toHtml (cs value :: Text)
 
-instance {-# OVERLAPPABLE #-} Show a => ToHtml (Maybe a) where
+instance {-# OVERLAPPABLE #-} ToHtml a => ToHtml (Maybe a) where
     {-# INLINE toHtml #-}
     toHtml maybeValue = maybe mempty toHtml maybeValue
 
