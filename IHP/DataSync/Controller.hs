@@ -64,7 +64,7 @@ instance (
                 -- Store it in IORef as an INSERT requires us to add an id
                 watchedRecordIdsRef <- newIORef watchedRecordIds
 
-                notificationStream <- ChangeNotifications.watchInsertOrUpdateTable tableNameRLS
+                (notificationStream, pgListener) <- ChangeNotifications.watchInsertOrUpdateTable tableNameRLS
 
                 streamReader <- async do
                     forever do
@@ -100,6 +100,13 @@ instance (
                                 when isWatchingRecord do
                                     sendJSON DidDelete { subscriptionId, id }
 
+                -- The 'notificationStream' is an MVar, but that doesn't mean we can rely on the haskell runtime
+                -- to kill the async. The thread could be blocked at the 'LISTEN ..' query and then will not get killed
+                -- automatically by the MVar.
+                --
+                -- The 'streamReader' will be cleaned up by 'cleanupAllSubscriptions'. This will then automatically
+                -- also clean up the 'pgListener'.
+                link2 streamReader pgListener
                     
 
                 modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId Subscription { id = subscriptionId, tableWatcher = streamReader }))
