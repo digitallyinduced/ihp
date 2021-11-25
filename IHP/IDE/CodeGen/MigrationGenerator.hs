@@ -135,7 +135,7 @@ getAppDBSchema = do
 dumpAppDatabaseSchema :: IO Text
 dumpAppDatabaseSchema = do
     projectDir <- Directory.getCurrentDirectory
-    cs <$> Process.readProcess "pg_dump" ["-s", "--no-owner", "-h", projectDir <> "/build/db", "app"] []
+    cs <$> Process.readProcess "pg_dump" ["-s", "--no-owner", "--no-acl", "-h", projectDir <> "/build/db", "app"] []
 
 parseDumpedSql :: Text -> (Either ByteString [Statement])
 parseDumpedSql sql =
