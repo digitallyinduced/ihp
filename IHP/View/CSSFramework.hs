@@ -8,15 +8,11 @@ module IHP.View.CSSFramework where
 import IHP.Prelude
 import IHP.FlashMessages.Types
 import qualified Text.Blaze.Html5 as Blaze
-import Text.Blaze.Html.Renderer.Text (renderHtml)
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml ()
 import IHP.View.Types
 import IHP.View.Classes
 
-import qualified Text.Blaze.Html5 as H
-import Text.Blaze.Html5 ((!), (!?))
-import qualified Text.Blaze.Html5.Attributes as A
 import IHP.ModelSupport
 import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
@@ -205,7 +201,7 @@ instance Default CSSFramework where
                     className :: Text = get #styledValidationResultClass cssFramework
                     message = case violation of
                         TextViolation text -> [hsx|{text}|]
-                        HtmlViolation html -> H.preEscapedToHtml html
+                        HtmlViolation html -> Blaze.preEscapedToHtml html
                 in
                     [hsx|<div class={className}>{message}</div>|]
             styledValidationResult _ _ = mempty

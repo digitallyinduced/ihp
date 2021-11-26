@@ -62,7 +62,6 @@ let
         random
         async-pool
         cereal-text
-        cereal-uuid
         neat-interpolation
 
         # Development Specific Tools (not in ihp.nix)
