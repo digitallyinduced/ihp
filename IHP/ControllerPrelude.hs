@@ -16,7 +16,6 @@ module IHP.ControllerPrelude
     , module Data.Aeson
     , module Network.Wai.Parse
     , module IHP.RouterSupport
-    , module Control.Newtype.Generics
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
     , module IHP.Mail
@@ -56,7 +55,6 @@ import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo, fileContent)
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
-import Control.Newtype.Generics
 import IHP.Mail (sendMail)
 import Database.PostgreSQL.Simple.Types (Only (..))
 import IHP.FlashMessages.Types
