@@ -61,7 +61,6 @@
 , async-pool
 , hspec
 , cereal-text
-, cereal-uuid
 , neat-interpolation
 }:
 mkDerivation {
@@ -130,7 +129,6 @@ mkDerivation {
     async-pool
     hspec
     cereal-text
-    cereal-uuid
     neat-interpolation
   ];
   license = lib.licenses.mit;

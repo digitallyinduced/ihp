@@ -101,7 +101,6 @@ common shared-properties
             , hspec
             , cereal
             , cereal-text
-            , cereal-uuid
             , neat-interpolation
     default-extensions:
         OverloadedStrings
