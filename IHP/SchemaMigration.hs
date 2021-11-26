@@ -14,7 +14,6 @@ import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import IHP.Log.Types
-import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
 
 data Migration = Migration
     { revision :: Int

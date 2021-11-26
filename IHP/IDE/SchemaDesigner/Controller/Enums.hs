@@ -13,7 +13,6 @@ import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
-import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
 
 instance Controller EnumsController where
     beforeAction = setLayout schemaDesignerLayout
@@ -37,7 +36,6 @@ instance Controller EnumsController where
                 redirectTo TablesAction
             Success -> do
                 updateSchema $ SchemaOperations.addEnum enumName
-                MigrationChangeTracker.addEnum enumName
                 redirectTo ShowEnumAction { .. }
 
     action EditEnumAction { .. } = do

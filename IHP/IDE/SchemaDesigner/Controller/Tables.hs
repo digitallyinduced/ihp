@@ -15,7 +15,6 @@ import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 import IHP.IDE.SchemaDesigner.Controller.Columns (updateForeignKeyConstraint)
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
-import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
 
 instance Controller TablesController where
     beforeAction = setLayout schemaDesignerLayout
@@ -45,7 +44,6 @@ instance Controller TablesController where
                 redirectTo TablesAction
             Success -> do
                 updateSchema (SchemaOperations.addTable tableName)
-                MigrationChangeTracker.addTable tableName
                 redirectTo ShowTableAction { .. }
 
     action EditTableAction { .. } = do
@@ -77,7 +75,6 @@ instance Controller TablesController where
         let tableName = param "tableName"
         updateSchema (deleteTable tableId)
         updateSchema (deleteForeignKeyConstraints tableName)
-        MigrationChangeTracker.deleteTable tableName
         redirectTo TablesAction
 
 
