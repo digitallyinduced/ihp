@@ -42,7 +42,6 @@ let
         http-media
         cookie
         process
-        newtype-generics
         unix
         fsnotify
         countable-inflections

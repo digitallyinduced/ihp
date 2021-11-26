@@ -61,7 +61,6 @@ common shared-properties
             , http-media
             , cookie
             , process
-            , newtype-generics
             , typerep-map
             , basic-prelude
             , megaparsec

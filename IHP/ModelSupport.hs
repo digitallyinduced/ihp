@@ -30,7 +30,6 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
 import Data.Data
-import qualified Control.Newtype.Generics as Newtype
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -240,7 +239,7 @@ type Id model = Id' (GetTableName model)
 
 instance InputValue (PrimaryKey model') => InputValue (Id' model') where
     {-# INLINE inputValue #-}
-    inputValue = inputValue . Newtype.unpack
+    inputValue = inputValue . unpackId
 
 instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
     isEmpty (Id primaryKey) = isEmpty primaryKey
@@ -248,7 +247,7 @@ instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
 recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
     getField @"id" entity
-    |> Newtype.unpack
+    |> unpackId
     |> tshow
 {-# INLINE recordToInputValue #-}
 
@@ -260,16 +259,27 @@ instance FromField (PrimaryKey model) => FromField (Id' model) where
 
 instance ToField (PrimaryKey model) => ToField (Id' model) where
     {-# INLINE toField #-}
-    toField = toField . Newtype.unpack
+    toField = toField . unpackId
 
 instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
-    show = show . Newtype.unpack
+    show = show . unpackId
 
-instance Newtype.Newtype (Id' model) where
-    type O (Id' model) = PrimaryKey model
-    pack = Id
-    unpack (Id uuid) = uuid
+-- | Turns an @UUID@ into a @Id@ type
+--
+-- > let uuid :: UUID = "5240e79c-97ff-4a5f-8567-84112541aaba"
+-- > let userId :: Id User = packId uuid
+--
+packId :: PrimaryKey model -> Id' model
+packId uuid = Id uuid
+
+-- | Unwraps a @Id@ value into an @UUID@
+--
+-- >>> unpackId ("296e5a50-b237-4ee9-83b0-17fb1e6f208f" :: Id User)
+-- "296e5a50-b237-4ee9-83b0-17fb1e6f208f" :: UUID
+--
+unpackId :: Id' model -> PrimaryKey model
+unpackId (Id uuid) = uuid
 
 -- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
 data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
@@ -571,11 +581,6 @@ instance Default UTCTime where
 
 instance Default (PG.Binary ByteString) where
     def = PG.Binary ""
-
-instance Newtype.Newtype (PG.Binary payload) where
-    type O (PG.Binary payload) = payload
-    pack = PG.Binary
-    unpack (PG.Binary payload) = payload
 
 class Record model where
     newRecord :: model
