@@ -529,7 +529,7 @@ createPolicy = do
     lexeme "POLICY"
     name <- identifier
     lexeme "ON"
-    tableName <- identifier
+    tableName <- qualifiedIdentifier
 
     using <- optional do
         lexeme "USING"
