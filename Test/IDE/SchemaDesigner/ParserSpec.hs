@@ -677,6 +677,10 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , Comment {content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
                     ]
             parseSqlStatements sql `shouldBe` statements
+        
+        it "should parse 'DROP INDEX ..' statements" do
+            parseSql "DROP INDEX a;" `shouldBe` DropIndex { indexName = "a" }
+
 col :: Column
 col = Column
     { name = ""

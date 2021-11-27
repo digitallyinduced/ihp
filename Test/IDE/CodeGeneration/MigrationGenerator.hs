@@ -281,6 +281,17 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle deleted indexes" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE INDEX users_index ON users (user_name);
+                |]
+                let migration = sql [i|
+                    DROP INDEX users_index;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
 
 
 sql :: Text -> [Statement]

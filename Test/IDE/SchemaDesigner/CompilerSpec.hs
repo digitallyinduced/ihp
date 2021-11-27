@@ -552,3 +552,8 @@ tests = do
             let sql = "DROP TYPE colors;\n"
             let statements = [ DropEnumType { name = "colors" } ]
             compileSql statements `shouldBe` sql
+
+        it "should compile 'DROP INDEX ..;" do
+            let sql = "DROP INDEX a;\n"
+            let statements = [ DropIndex { indexName = "a" } ]
+            compileSql statements `shouldBe` sql

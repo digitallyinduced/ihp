@@ -101,6 +101,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement :: Statement -> Maybe Statement
         toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }
         toDropStatement CreateEnumType { name } = Just DropEnumType { name }
+        toDropStatement CreateIndex { indexName } = Just DropIndex { indexName }
         toDropStatement otherwise = Nothing
 
 removeComments = filter \case

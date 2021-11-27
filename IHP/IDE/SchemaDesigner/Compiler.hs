@@ -39,6 +39,7 @@ compileStatement CreatePolicy { name, tableName, using, check } = "CREATE POLICY
 compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifier name <> ";"
 compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
 compileStatement DropEnumType { name } = "DROP TYPE " <> compileIdentifier name <> ";"
+compileStatement DropIndex { indexName } = "DROP INDEX " <> compileIdentifier indexName <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
