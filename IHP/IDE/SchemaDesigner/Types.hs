@@ -13,6 +13,8 @@ data Statement
       StatementCreateTable { unsafeGetCreateTable :: CreateTable }
     -- | CREATE TYPE name AS ENUM ( values );
     | CreateEnumType { name :: Text, values :: [Text] }
+    -- | DROP TYPE name;
+    | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
     | CreateExtension { name :: Text, ifNotExists :: Bool }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;

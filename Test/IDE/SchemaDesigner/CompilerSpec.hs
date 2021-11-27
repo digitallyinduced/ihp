@@ -547,3 +547,8 @@ tests = do
             let sql = "ALTER TABLE users DROP CONSTRAINT users_full_name_key;\n"
             let statements = [ DropConstraint { tableName = "users", constraintName = "users_full_name_key" } ]
             compileSql statements `shouldBe` sql
+
+        it "should compile 'DROP TYPE ..;" do
+            let sql = "DROP TYPE colors;\n"
+            let statements = [ DropEnumType { name = "colors" } ]
+            compileSql statements `shouldBe` sql

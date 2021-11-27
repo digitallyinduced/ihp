@@ -157,6 +157,10 @@ tests = do
 
             it "should handle new enums" do
                 let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL
+                    );
                     CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
                 |]
                 let actualSchema = sql [i|
@@ -240,6 +244,33 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
+            
+            it "should handle a deleted table" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    DROP TABLE users;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should handle a deleted enum" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+                |]
+                let migration = sql [i|
+                    DROP TYPE mood;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

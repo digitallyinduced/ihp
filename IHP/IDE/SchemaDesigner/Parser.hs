@@ -62,7 +62,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> dropTable <|> commentStatement <|> comment
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> dropType <|> commentStatement <|> comment
     space
     pure s
 
@@ -608,6 +608,13 @@ dropTable = do
     tableName <- identifier
     char ';'
     pure DropTable { tableName }
+
+dropType = do
+    lexeme "DROP"
+    lexeme "TYPE"
+    name <- qualifiedIdentifier
+    char ';'
+    pure DropEnumType { name }
 
 createSequence = do
     lexeme "CREATE"

@@ -44,37 +44,68 @@ diffAppDatabase = do
     pure (diffSchemas targetSchema actualSchema)
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
-diffSchemas targetSchema' actualSchema' =
-    targetSchema
-        |> removeComments -- SQL Comments are not used in the diff
-        |> (\schema -> schema \\ actualSchema) -- Get rid of all statements that exist in both schemas, there's nothing we need to do to them
-        |> map statementToMigration
-        |> concat
+diffSchemas targetSchema' actualSchema' = (drop <> create)
+            |> patchTable
+            |> patchEnumType
     where
-        targetSchema = normalizeSchema targetSchema'
-        actualSchema = normalizeSchema actualSchema'
-        removeComments = filter \case
-                Comment {} -> False
-                _          -> True
+        create :: [Statement]
+        create = targetSchema \\ actualSchema
 
-        statementToMigration :: Statement -> [Statement]
-        statementToMigration statement@(StatementCreateTable { unsafeGetCreateTable = table }) = 
-                case actualTable of
-                    Just actualTable -> migrateTable statement actualTable
-                    Nothing -> [statement]
+        drop :: [Statement]
+        drop = (actualSchema \\ targetSchema)
+                |> mapMaybe toDropStatement
+
+        targetSchema = removeComments $ normalizeSchema targetSchema'
+        actualSchema = removeComments $ normalizeSchema actualSchema'
+
+        -- | Replaces 'DROP TABLE x; CREATE TABLE x;' DDL sequences with a more efficient 'ALTER TABLE' sequence
+        patchTable :: [Statement] -> [Statement]
+        patchTable ((s@DropTable { tableName }):statements) =
+                case createTable of
+                    Just createTable -> (migrateTable createTable actualTable) <> patchTable (delete createTable statements)
+                    Nothing -> s:(patchTable statements)
             where
-                actualTable = actualSchema |> find \case
-                        StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } -> name == get #name table
+                createTable :: Maybe Statement
+                createTable = find isCreateTableStatement statements
+
+                isCreateTableStatement :: Statement -> Bool
+                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) | get #name table == tableName = True
+                isCreateTableStatement otherwise = False
+
+                (Just actualTable) = actualSchema |> find \case
+                        StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
                         otherwise                                                            -> False
-        statementToMigration statement@(CreateEnumType { name, values }) = 
-                case actualEnum of
-                    Just actualEnum -> migrateEnum statement actualEnum
-                    Nothing -> [statement]
+        patchTable (s:rest) = s:(patchTable rest)
+        patchTable [] = []
+
+        -- | Replaces 'DROP TYPE x; CREATE TYPE x;' DDL sequences with a more efficient 'ALTER TYPE' sequence
+        patchEnumType :: [Statement] -> [Statement]
+        patchEnumType ((s@DropEnumType { name }):statements) =
+                case createEnumType of
+                    Just createEnumType -> (migrateEnum createEnumType actualEnumType) <> patchEnumType (delete createEnumType statements)
+                    Nothing -> s:(patchEnumType statements)
             where
-                actualEnum = actualSchema |> find \case
-                        CreateEnumType { name = actualName } -> name == actualName
-                        otherwise                            -> False
-        statementToMigration statement = [statement]
+                createEnumType :: Maybe Statement
+                createEnumType = find isCreateEnumTypeStatement statements
+
+                isCreateEnumTypeStatement :: Statement -> Bool
+                isCreateEnumTypeStatement CreateEnumType { name = n } = name == n
+                isCreateEnumTypeStatement otherwise                   = False
+
+                (Just actualEnumType) = actualSchema |> find \case
+                        CreateEnumType { name = enum } -> enum == name
+                        otherwise                      -> False
+        patchEnumType (s:rest) = s:(patchEnumType rest)
+        patchEnumType [] = []
+
+        toDropStatement :: Statement -> Maybe Statement
+        toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }
+        toDropStatement CreateEnumType { name } = Just DropEnumType { name }
+        toDropStatement otherwise = Nothing
+
+removeComments = filter \case
+        Comment {} -> False
+        _          -> True
 
 migrateTable :: Statement -> Statement -> [Statement]
 migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } StatementCreateTable { unsafeGetCreateTable = actualTable } = migrateTable' targetTable actualTable
