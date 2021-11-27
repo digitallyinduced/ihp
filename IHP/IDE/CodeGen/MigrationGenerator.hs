@@ -82,6 +82,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
         migrateTable' CreateTable { name = tableName, columns = targetColumns } CreateTable { columns = actualColumns } =
                 (map dropColumn dropColumns <> map createColumn createColumns)
                     |> applyRenameColumn
+                    |> applyMakeUnique
             where
 
                 createColumns :: [Column]
@@ -112,6 +113,42 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         isMatchingCreateColumn otherwise                          = False
                 applyRenameColumn (statement:rest) = statement:(applyRenameColumn rest)
                 applyRenameColumn [] = []
+
+                -- | Emits 'ALTER TABLE table ADD UNIQUE (column);'
+                --
+                -- This function substitutes the following queries:
+                --
+                -- > ALTER TABLE table DROP COLUMN column;
+                -- > ALTER TABLE table ADD COLUMN column UNIQUE;
+                --
+                -- With a more natural @ADD UNIQUE@:
+                --
+                -- > ALTER TABLE table ADD UNIQUE (column);
+                --
+                applyMakeUnique (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
+                        Just matchingCreateColumn -> updateConstraint:(applyMakeUnique (filter ((/=) matchingCreateColumn) statements))
+                        Nothing -> s:(applyMakeUnique statements)
+                    where
+                        dropColumn :: Column
+                        (Just dropColumn) = actualColumns
+                                |> find \case
+                                    Column { name } -> name == columnName
+                                    otherwise       -> False                                
+
+                        updateConstraint = if get #isUnique dropColumn
+                            then DropConstraint { tableName, constraintName = tableName <> "_" <> (get #name dropColumn) <> "_key" }
+                            else AddConstraint { tableName, constraintName = "",  constraint = UniqueConstraint { columnNames = [get #name dropColumn] } }
+
+                        matchingCreateColumn :: Maybe Statement
+                        matchingCreateColumn = case dropColumn of
+                            dropColumn -> find isMatchingCreateColumn statements
+                            otherwise  -> Nothing
+
+                        isMatchingCreateColumn :: Statement -> Bool
+                        isMatchingCreateColumn AddColumn { column = addColumn } = addColumn { isUnique = False } == dropColumn { isUnique = False }
+                        isMatchingCreateColumn otherwise                        = False
+                applyMakeUnique (statement:rest) = statement:(applyMakeUnique rest)
+                applyMakeUnique [] = []
 
 migrateEnum :: Statement -> Statement -> [Statement]
 migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { values = actualValues } = map addValue newValues

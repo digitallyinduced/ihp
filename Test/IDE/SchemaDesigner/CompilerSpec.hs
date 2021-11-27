@@ -538,3 +538,12 @@ tests = do
             let statements = [ RenameColumn { tableName = "users", from = "name", to = "full_name" } ]
             compileSql statements `shouldBe` sql
 
+        it "should compile 'ALTER TABLE .. ADD UNIQUE (..);" do
+            let sql = "ALTER TABLE users ADD UNIQUE (full_name);\n"
+            let statements = [ AddConstraint { tableName = "users", constraintName = "", constraint = UniqueConstraint { columnNames = ["full_name"] }  } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. DROP CONSTRAINT ..;" do
+            let sql = "ALTER TABLE users DROP CONSTRAINT users_full_name_key;\n"
+            let statements = [ DropConstraint { tableName = "users", constraintName = "users_full_name_key" } ]
+            compileSql statements `shouldBe` sql

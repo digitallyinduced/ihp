@@ -17,6 +17,8 @@ data Statement
     | CreateExtension { name :: Text, ifNotExists :: Bool }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
+    | DropConstraint { tableName, constraintName :: Text }
     -- | ALTER TABLE tableName ADD COLUMN column;
     | AddColumn { tableName :: Text, column :: Column }
     -- | ALTER TABLE tableName DROP COLUMN columnName;

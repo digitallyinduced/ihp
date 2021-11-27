@@ -502,10 +502,14 @@ alterTable = do
     tableName <- qualifiedIdentifier
     let add = do
             lexeme "ADD"
-            addConstraint tableName <|> addColumn tableName 
+            let addUnique = do
+                    unique <- parseUniqueConstraint
+                    char ';'
+                    pure (AddConstraint tableName "" unique)
+            addConstraint tableName <|> addColumn tableName <|> addUnique
     let drop = do
             lexeme "DROP"
-            dropColumn tableName
+            dropColumn tableName <|> dropConstraint tableName
     let rename = do
             lexeme "RENAME"
             renameColumn tableName
@@ -583,6 +587,12 @@ dropColumn tableName = do
     columnName <- identifier
     char ';'
     pure DropColumn { tableName, columnName }
+
+dropConstraint tableName = do
+    lexeme "CONSTRAINT"
+    constraintName <- identifier
+    char ';'
+    pure DropConstraint { tableName, constraintName }
 
 renameColumn tableName = do
     lexeme "COLUMN"

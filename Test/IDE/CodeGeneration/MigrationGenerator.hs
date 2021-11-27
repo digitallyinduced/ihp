@@ -120,6 +120,40 @@ tests = do
                 let migration = sql [i|ALTER TABLE users RENAME COLUMN name TO full_name;|]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle UNIQUE constraints added to columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL UNIQUE
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|ALTER TABLE users ADD UNIQUE (full_name);|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle UNIQUE constraints removed from columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL UNIQUE
+                    );
+                |]
+                let migration = sql [i|ALTER TABLE users DROP CONSTRAINT users_full_name_key;|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
             it "should handle new enums" do
                 let targetSchema = sql [i|

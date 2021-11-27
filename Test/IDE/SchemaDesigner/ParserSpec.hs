@@ -548,6 +548,9 @@ $$;
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
 
+        it "should parse 'ALTER TABLE .. DROP CONSTRAINT ..' statements" do
+            parseSql "ALTER TABLE tasks DROP CONSTRAINT tasks_title_key;" `shouldBe` DropConstraint { tableName = "tasks", constraintName = "tasks_title_key" }
+
         it "should parse 'CREATE SEQUENCE ..' statements" do
             parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
 
