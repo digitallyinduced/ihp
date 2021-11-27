@@ -271,6 +271,17 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should handle a new indexes" do
+                let targetSchema = sql [i|
+                    CREATE INDEX users_index ON users (user_name);
+                |]
+                let actualSchema = sql ""
+                let migration = sql [i|
+                    CREATE INDEX users_index ON users (user_name);
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
