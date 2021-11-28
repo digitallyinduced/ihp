@@ -689,6 +689,9 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         
         it "should parse 'ALTER TABLE .. RENAME TO ..' statements" do
             parseSql "ALTER TABLE profiles RENAME TO users;" `shouldBe` RenameTable { from = "profiles", to = "users" }
+        
+        it "should parse 'DROP POLICY .. ON ..' statements" do
+            parseSql "DROP POLICY \"Users can manage their todos\" ON todos;" `shouldBe` DropPolicy { tableName = "todos", policyName = "Users can manage their todos" }
 
 col :: Column
 col = Column

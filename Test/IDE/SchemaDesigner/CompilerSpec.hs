@@ -572,3 +572,8 @@ tests = do
             let sql = "ALTER TABLE profiles RENAME TO users;\n"
             let statements = [ RenameTable { from = "profiles", to = "users" } ]
             compileSql statements `shouldBe` sql
+        
+        it "should compile 'DROP POLICY .. ON ..;' statements" do
+            let sql = "DROP POLICY \"Users can manage their todos\" ON todos;\n"
+            let statements = [ DropPolicy { tableName = "todos", policyName = "Users can manage their todos" } ]
+            compileSql statements `shouldBe` sql
