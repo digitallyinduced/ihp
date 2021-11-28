@@ -29,15 +29,14 @@ data Change = Change
     } deriving (Eq, Show)
 
 -- | The table is wrapped as a TableWithRLS to ensure that the RLS has been checked before calling this
-watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO (MVar.MVar ChangeNotification)
+watchInsertOrUpdateTable :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO (MVar.MVar ChangeNotification, Async ())
 watchInsertOrUpdateTable table = do
     let tableName = table |> get #tableName
     let (listenStatement, listenArgs) = ("LISTEN ?", [PG.Identifier (eventName tableName)])
 
     latestNotification <- MVar.newEmptyMVar
 
-    async do
-
+    listener <- async do
         withDatabaseConnection \databaseConnection -> do
             PG.execute databaseConnection (PG.Query $ cs $ createNotificationFunction tableName) ()
 
@@ -51,7 +50,7 @@ watchInsertOrUpdateTable table = do
 
                 Nothing -> pure ()
 
-    pure latestNotification
+    pure (latestNotification, listener)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 createNotificationFunction :: Text -> Text

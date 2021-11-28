@@ -13,10 +13,14 @@ data Statement
       StatementCreateTable { unsafeGetCreateTable :: CreateTable }
     -- | CREATE TYPE name AS ENUM ( values );
     | CreateEnumType { name :: Text, values :: [Text] }
+    -- | DROP TYPE name;
+    | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
     | CreateExtension { name :: Text, ifNotExists :: Bool }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
+    | DropConstraint { tableName, constraintName :: Text }
     -- | ALTER TABLE tableName ADD COLUMN column;
     | AddColumn { tableName :: Text, column :: Column }
     -- | ALTER TABLE tableName DROP COLUMN columnName;
@@ -28,14 +32,24 @@ data Statement
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
     | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
+    -- | DROP INDEX indexName;
+    | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
     | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
     | CreatePolicy { name :: Text, tableName :: Text, using :: Maybe Expression, check :: Maybe Expression }
+    -- SET name = value;
+    | Set { name :: Text, value :: Expression }
+    -- SELECT query;
+    | SelectStatement { query :: Text }
     -- CREATE SEQUENCE name;
     | CreateSequence { name :: Text }
+    -- ALTER TABLE tableName RENAME COLUMN from TO to;
+    | RenameColumn { tableName :: Text, from :: Text, to :: Text }
+    -- ALTER TYPE enumName ADD VALUE newValue;
+    | AddValueToEnumType { enumName :: Text, newValue :: Text }
     deriving (Eq, Show)
 
 data CreateTable
@@ -79,6 +93,7 @@ data Constraint
     | UniqueConstraint
         { columnNames :: [Text] }
     | CheckConstraint { checkExpression :: Expression }
+    | AlterTableAddPrimaryKey { primaryKeyConstraint :: PrimaryKeyConstraint }
     deriving (Eq, Show)
 
 data Expression =
@@ -132,7 +147,7 @@ data PostgresType
     | PBinary
     | PTime
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
-    | PVaryingN Int
+    | PVaryingN (Maybe Int)
     | PCharacterN Int
     | PSerial
     | PBigserial

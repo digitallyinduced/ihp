@@ -313,7 +313,7 @@ tests = do
                             }
                         , Column
                             { name = "d"
-                            , columnType = (PVaryingN 10)
+                            , columnType = (PVaryingN (Just 10))
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
@@ -531,4 +531,29 @@ tests = do
         it "should compile 'CREATE SEQUENCE ..' statements" do
             let sql = "CREATE SEQUENCE a;\n"
             let statements = [ CreateSequence { name = "a" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
+            let sql = "ALTER TABLE users RENAME COLUMN name TO full_name;\n"
+            let statements = [ RenameColumn { tableName = "users", from = "name", to = "full_name" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. ADD UNIQUE (..);" do
+            let sql = "ALTER TABLE users ADD UNIQUE (full_name);\n"
+            let statements = [ AddConstraint { tableName = "users", constraintName = "", constraint = UniqueConstraint { columnNames = ["full_name"] }  } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. DROP CONSTRAINT ..;" do
+            let sql = "ALTER TABLE users DROP CONSTRAINT users_full_name_key;\n"
+            let statements = [ DropConstraint { tableName = "users", constraintName = "users_full_name_key" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'DROP TYPE ..;" do
+            let sql = "DROP TYPE colors;\n"
+            let statements = [ DropEnumType { name = "colors" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'DROP INDEX ..;" do
+            let sql = "DROP INDEX a;\n"
+            let statements = [ DropIndex { indexName = "a" } ]
             compileSql statements `shouldBe` sql

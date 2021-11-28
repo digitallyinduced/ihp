@@ -19,6 +19,8 @@ import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
+import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
+import qualified Data.ByteString.Char8 as ByteString
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -64,7 +66,7 @@ instance (
                 -- Store it in IORef as an INSERT requires us to add an id
                 watchedRecordIdsRef <- newIORef watchedRecordIds
 
-                notificationStream <- ChangeNotifications.watchInsertOrUpdateTable tableNameRLS
+                (notificationStream, pgListener) <- ChangeNotifications.watchInsertOrUpdateTable tableNameRLS
 
                 streamReader <- async do
                     forever do
@@ -100,6 +102,13 @@ instance (
                                 when isWatchingRecord do
                                     sendJSON DidDelete { subscriptionId, id }
 
+                -- The 'notificationStream' is an MVar, but that doesn't mean we can rely on the haskell runtime
+                -- to kill the async. The thread could be blocked at the 'LISTEN ..' query and then will not get killed
+                -- automatically by the MVar.
+                --
+                -- The 'streamReader' will be cleaned up by 'cleanupAllSubscriptions'. This will then automatically
+                -- also clean up the 'pgListener'.
+                link2 streamReader pgListener
                     
 
                 modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId Subscription { id = subscriptionId, tableWatcher = streamReader }))
@@ -118,6 +127,97 @@ instance (
                 modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
                 sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
+
+            handleMessage CreateRecordMessage { table, record, requestId }  = do
+                ensureRLSEnabled table
+
+                let query = "INSERT INTO ? ? VALUES ? RETURNING *"
+                let columns = record
+                        |> HashMap.keys
+                        |> map fieldNameToColumnName
+
+                let values = record
+                        |> HashMap.elems
+                        |> map aesonValueToPostgresValue
+
+                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
+                
+                result :: [[Field]] <- withRLS do
+                    sqlQuery query params
+
+                case result of
+                    [record] -> sendJSON DidCreateRecord { requestId, record }
+                    otherwise -> error "Unexpected result in CreateRecordMessage handler"
+
+                pure ()
+            
+            handleMessage CreateRecordsMessage { table, records, requestId }  = do
+                ensureRLSEnabled table
+
+                let query = "INSERT INTO ? ? ? RETURNING *"
+                let columns = records
+                        |> head
+                        |> \case
+                            Just value -> value
+                            Nothing -> error "Atleast one record is required"
+                        |> HashMap.keys
+                        |> map fieldNameToColumnName
+
+                let values = records
+                        |> map (\object ->
+                                object
+                                |> HashMap.elems
+                                |> map aesonValueToPostgresValue
+                            )
+                        
+
+                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
+
+                records :: [[Field]] <- withRLS $ sqlQuery query params
+
+                sendJSON DidCreateRecords { requestId, records }
+
+                pure ()
+
+            handleMessage UpdateRecordMessage { table, id, patch, requestId } = do
+                ensureRLSEnabled table
+
+                let columns = patch
+                        |> HashMap.keys
+                        |> map fieldNameToColumnName
+                        |> map PG.Identifier
+
+                let values = patch
+                        |> HashMap.elems
+                        |> map aesonValueToPostgresValue
+
+                let keyValues = zip columns values
+
+                let setCalls = keyValues
+                        |> map (\_ -> "? = ?")
+                        |> ByteString.intercalate ", "
+                let query = "UPDATE ? SET " <> setCalls <> " WHERE id = ? RETURNING *"
+
+                let params = [PG.toField (PG.Identifier table)]
+                        <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
+                        <> [PG.toField id]
+
+                result :: [[Field]] <- withRLS $ sqlQuery (PG.Query query) params
+                
+                case result of
+                    [record] -> sendJSON DidUpdateRecord { requestId, record }
+                    otherwise -> error "Unexpected result in CreateRecordMessage handler"
+
+                pure ()
+            
+            handleMessage DeleteRecordMessage { table, id, requestId } = do
+                ensureRLSEnabled table
+
+                withRLS do
+                    sqlExec "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
+
+                sendJSON DidDeleteRecord { requestId }
+
 
         forever do
             message <- Aeson.decode <$> receiveData @LByteString

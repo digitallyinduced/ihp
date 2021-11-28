@@ -6,6 +6,7 @@ import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.IDE.SchemaDesigner.Compiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.View.Schema.Error
+import IHP.IDE.ToolServer.Helper.Controller
 
 instance ParamReader PostgresType where
     readParameter byteString = case Megaparsec.runParser Parser.sqlType "" (cs byteString) of
@@ -40,6 +41,7 @@ updateSchema updateFn = do
     statements <- readSchema
     let statements' = updateFn statements
     SchemaCompiler.writeSchema statements'
+    markDatabaseNeedsMigration
 
 getAllObjectNames :: [Statement] -> [Text]
 getAllObjectNames = mapMaybe extractObjectName

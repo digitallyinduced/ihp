@@ -6,7 +6,7 @@
 
 ## Introduction
 
-IHP Server-Side Components provide a toolkit for building interactive client-side functionality without needing to write too much javascript.
+IHP Server-Side Components provide a toolkit for building interactive client-side functionality without needing to write too much JavaScript.
 
 A Server-Side Component consist of a state object, a set of actions and a [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:render) function.
 
@@ -219,7 +219,7 @@ After that the server will respond:
 
 So the server only responds with update instructions that transform the counter's `Current: 0 ` to `Counter: 1`.
 
-This is useful if you have many interactive elements that are controlled by javascript libraries (e.g. a. `<video>` element that is playing). As long as the HTML code of these interactive elements doesn't change on the server-side, the DOM nodes will not be touched by IHP.
+This is useful if you have many interactive elements that are controlled by JavaScript libraries (e.g. a. `<video>` element that is playing). As long as the HTML code of these interactive elements doesn't change on the server-side, the DOM nodes will not be touched by IHP.
 
 
 ### Example Components

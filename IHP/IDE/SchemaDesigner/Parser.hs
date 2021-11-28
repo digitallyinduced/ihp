@@ -54,10 +54,15 @@ stringLiteral :: Parser String
 stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
-parseDDL = space >> manyTill statement eof
+parseDDL = optional space >> manyTill statement eof
 
 statement = do
-    s <- try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> createSequence <|> alterTable <|> dropTable <|> comment
+    space
+    let create = try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> try createSequence
+    let alter = do
+            lexeme "ALTER"
+            alterTable <|> alterType
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> dropType <|> commentStatement <|> comment
     space
     pure s
 
@@ -67,16 +72,18 @@ createExtension = do
     lexeme "EXTENSION"
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
     name <- cs <$> (char '"' *> manyTill Lexer.charLiteral (char '"'))
+    optional do
+        space
+        lexeme "WITH"
+        lexeme "SCHEMA"
+        lexeme "public"
     char ';'
     pure CreateExtension { name, ifNotExists = True }
 
 createTable = do
     lexeme "CREATE"
     lexeme "TABLE"
-    optional do
-        lexeme "public"
-        char '.'
-    name <- identifier
+    name <- qualifiedIdentifier
 
     -- Process columns (tagged if they're primary key) and table constraints
     -- together, as they can be in any order
@@ -107,6 +114,9 @@ createTable = do
 createEnumType = do
     lexeme "CREATE"
     lexeme "TYPE"
+    optional do
+        lexeme "public"
+        char '.'
     name <- identifier
     lexeme "AS"
     lexeme "ENUM"
@@ -119,7 +129,7 @@ addConstraint tableName = do
     lexeme "CONSTRAINT"
     constraintName <- identifier
     constraint <- parseTableConstraint >>= \case
-      Left _ -> Prelude.fail "Cannot add new PRIMARY KEY constraint to table"
+      Left primaryKeyConstraint -> pure AlterTableAddPrimaryKey { primaryKeyConstraint }
       Right constraint -> pure constraint
     char ';'
     pure AddConstraint { tableName, constraintName, constraint }
@@ -142,7 +152,7 @@ parseForeignKeyConstraint = do
     lexeme "KEY"
     columnName <- between (char '(' >> space) (char ')' >> space) identifier
     lexeme "REFERENCES"
-    referenceTable <- identifier
+    referenceTable <- qualifiedIdentifier
     referenceColumn <- optional $ between (char '(' >> space) (char ')' >> space) identifier
     onDelete <- optional do
         lexeme "ON"
@@ -273,6 +283,10 @@ sqlType = choice $ map optionalArray
 
                 time = do
                     try (symbol' "TIME")
+                    optional do
+                        symbol' "WITHOUT"
+                        symbol' "TIME"
+                        symbol' "ZONE"
                     pure PTime
 
                 numericPS = do
@@ -297,14 +311,15 @@ sqlType = choice $ map optionalArray
                     pure (PNumeric Nothing Nothing)
 
                 varchar = do
-                    try (symbol' "CHARACTER VARYING(") <|> try (symbol' "VARCHAR(")
-                    value <- between (space) (char ')' >> space) (varExpr)
+                    try (symbol' "CHARACTER VARYING") <|> try (symbol' "VARCHAR")
+                    value <- optional $ between (char '(' >> space) (char ')' >> space) (varExpr)
                     case value of
-                        VarExpression limit -> do
+                        Just (VarExpression limit) -> do
                             let l = textToInt limit
                             case l of
                                 Nothing -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
-                                Just l -> pure (PVaryingN l)
+                                Just l -> pure (PVaryingN (Just l))
+                        Nothing -> pure (PVaryingN Nothing)
                         _ -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
 
                 character = do
@@ -347,6 +362,9 @@ sqlType = choice $ map optionalArray
                     pure PTrigger
 
                 customType = do
+                    optional do
+                        lexeme "public"
+                        char '.'
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
 
@@ -401,7 +419,7 @@ intExpr = IntExpression <$> Lexer.decimal
 
 callExpr :: Parser Expression
 callExpr = do
-    func <- identifier
+    func <- qualifiedIdentifier
     args <- between (char '(') (char ')') (expression `sepBy` char ',')
     space
     pure (CallExpression func args)
@@ -410,7 +428,11 @@ textExpr :: Parser Expression
 textExpr = TextExpression <$> textExpr'
 
 textExpr' :: Parser Text
-textExpr' = cs <$> (char '\'' *> manyTill Lexer.charLiteral (char '\''))
+textExpr' = cs <$> do
+    let emptyByteString = do
+            string "'\\x'"
+            pure ""
+    (try (char '\'' *> manyTill Lexer.charLiteral (char '\''))) <|> emptyByteString
 
 identifier :: Parser Text
 identifier = do
@@ -429,7 +451,10 @@ createIndex = do
     lexeme "INDEX"
     indexName <- identifier
     lexeme "ON"
-    tableName <- identifier
+    tableName <- qualifiedIdentifier
+    optional do
+        lexeme "USING"
+        lexeme "btree"
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     whereClause <- optional do
         lexeme "WHERE"
@@ -441,16 +466,25 @@ createFunction = do
     lexeme "CREATE"
     orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
     lexeme "FUNCTION"
-    functionName <- identifier
+    functionName <- qualifiedIdentifier
     lexeme "()"
     lexeme "RETURNS"
     returns <- sqlType
+
+    language <- optional do
+        lexeme "language" <|> lexeme "LANGUAGE"
+        symbol' "plpgsql" <|> symbol' "SQL"
+
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
     space
-    lexeme "language" <|> lexeme "LANGUAGE"
-    language <- symbol "plpgsql" <|> symbol "SQL"
+
+    language <- case language of
+        Just language -> pure language
+        Nothing -> do
+            lexeme "language" <|> lexeme "LANGUAGE"
+            symbol "plpgsql" <|> symbol "SQL"
     char ';'
     pure CreateFunction { functionName, functionBody, orReplace, returns, language }
 
@@ -463,16 +497,28 @@ createTrigger = do
     pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
 
 alterTable = do
-    lexeme "ALTER"
     lexeme "TABLE"
-    tableName <- identifier
+    optional (lexeme "ONLY")
+    tableName <- qualifiedIdentifier
     let add = do
             lexeme "ADD"
-            addConstraint tableName <|> addColumn tableName 
+            let addUnique = do
+                    unique <- parseUniqueConstraint
+                    char ';'
+                    pure (AddConstraint tableName "" unique)
+            addConstraint tableName <|> addColumn tableName <|> addUnique
     let drop = do
             lexeme "DROP"
-            dropColumn tableName
-    enableRowLevelSecurity tableName <|> add <|> drop
+            dropColumn tableName <|> dropConstraint tableName
+    let rename = do
+            lexeme "RENAME"
+            renameColumn tableName
+    enableRowLevelSecurity tableName <|> add <|> drop <|> rename
+
+alterType = do
+    lexeme "TYPE"
+    typeName <- qualifiedIdentifier
+    addValue typeName
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"
@@ -487,7 +533,7 @@ createPolicy = do
     lexeme "POLICY"
     name <- identifier
     lexeme "ON"
-    tableName <- identifier
+    tableName <- qualifiedIdentifier
 
     using <- optional do
         lexeme "USING"
@@ -502,6 +548,34 @@ createPolicy = do
 
     pure CreatePolicy { name, tableName, using, check }
 
+
+setStatement = do
+    lexeme "SET"
+    name <- identifier
+    lexeme "="
+    value <- expression
+    char ';'
+    pure Set { name, value }
+
+selectStatement = do
+    lexeme "SELECT"
+    query <- takeWhile1P (Just "SQL Query") (\c -> c /= ';')
+    char ';'
+    pure SelectStatement { query }
+
+
+commentStatement = do
+    lexeme "COMMENT"
+    content <- takeWhile1P (Just "SQL Query") (\c -> c /= ';')
+    char ';'
+    pure Comment { content }
+
+qualifiedIdentifier = do
+    optional do
+        lexeme "public"
+        char '.'
+    identifier
+
 addColumn tableName = do
     lexeme "COLUMN"
     (_, column) <- parseColumn
@@ -514,6 +588,20 @@ dropColumn tableName = do
     char ';'
     pure DropColumn { tableName, columnName }
 
+dropConstraint tableName = do
+    lexeme "CONSTRAINT"
+    constraintName <- identifier
+    char ';'
+    pure DropConstraint { tableName, constraintName }
+
+renameColumn tableName = do
+    lexeme "COLUMN"
+    from <- identifier
+    lexeme "TO"
+    to <- identifier
+    char ';'
+    pure RenameColumn { tableName, from, to }
+
 dropTable = do
     lexeme "DROP"
     lexeme "TABLE"
@@ -521,12 +609,33 @@ dropTable = do
     char ';'
     pure DropTable { tableName }
 
+dropType = do
+    lexeme "DROP"
+    lexeme "TYPE"
+    name <- qualifiedIdentifier
+    char ';'
+    pure DropEnumType { name }
+
+dropIndex = do
+    lexeme "DROP"
+    lexeme "INDEX"
+    indexName <- qualifiedIdentifier
+    char ';'
+    pure DropIndex { indexName }
+
 createSequence = do
     lexeme "CREATE"
     lexeme "SEQUENCE"
     name <- identifier
     char ';'
     pure CreateSequence { name }
+
+addValue typeName = do
+    lexeme "ADD"
+    lexeme "VALUE"
+    newValue <- textExpr'
+    char ';'
+    pure AddValueToEnumType { enumName = typeName, newValue }
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

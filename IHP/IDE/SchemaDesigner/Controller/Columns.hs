@@ -18,7 +18,6 @@ import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
-import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
 
 instance Controller ColumnsController where
     beforeAction = setLayout schemaDesignerLayout
@@ -51,7 +50,6 @@ instance Controller ColumnsController where
                         , primaryKey = param "primaryKey"
                         }
                 updateSchema $ SchemaOperations.addColumn options
-                MigrationChangeTracker.addColumn options
 
         redirectTo ShowTableAction { .. }
 
@@ -117,8 +115,6 @@ instance Controller ColumnsController where
         let indicesToDelete = findIndicesReferencingColumn statements (tableName, columnName)
         forEach indicesToDelete \CreateIndex { indexName } -> updateSchema (deleteTableIndex indexName)
         updateSchema (map (deleteColumnInTable tableName columnId))
-
-        MigrationChangeTracker.deleteColumn tableName columnName
         
         redirectTo ShowTableAction { .. }
 

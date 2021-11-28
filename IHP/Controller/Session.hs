@@ -30,17 +30,12 @@ import IHP.Prelude
 import IHP.Controller.RequestContext
 import IHP.Controller.Context
 import IHP.ModelSupport
-import Data.Either (isRight)
-import qualified Data.Aeson as Aeson
-import qualified Data.Bifunctor as Bifunctor
-import qualified Data.Text.Read as Read
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
 import qualified Data.Serialize as Serialize
 import Data.Serialize (Serialize)
 import Data.Serialize.Text ()
-import Cereal.Uuid.Serialize ()
 
 -- | Types of possible errors as a result of
 -- requesting a value from the session storage
@@ -147,7 +142,7 @@ getSessionAndClear name = do
     pure value
 {-# INLINABLE getSessionAndClear #-}
 
-instance (Serialize (PrimaryKey table), PrimaryKey table ~ UUID) => Serialize (Id' table) where
+instance (PrimaryKey table ~ UUID) => Serialize (Id' table) where
     put (Id value) = Serialize.put (UUID.toASCIIBytes value)
     get = do
         maybeUUID <- UUID.fromASCIIBytes <$> Serialize.get

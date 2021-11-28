@@ -42,7 +42,6 @@ let
         http-media
         cookie
         process
-        newtype-generics
         unix
         fsnotify
         countable-inflections
@@ -63,7 +62,6 @@ let
         random
         async-pool
         cereal-text
-        cereal-uuid
         neat-interpolation
 
         # Development Specific Tools (not in ihp.nix)

@@ -173,7 +173,7 @@ Now that Google OAuth is configured, we can already test it out.
 
 Open `http://localhost:8000/NewSessionWithGoogle` and click on the `Login with Google` button. It should open a google login dialog and then continue logging into the app.
 
-If google shows you an error message, check the javascript error console for details. A common error is that the `localhost:8000` host is not on the host whiteliste of the Google Client ID.
+If google shows you an error message, check the JavaScript error console for details. A common error is that the `localhost:8000` host is not on the host whiteliste of the Google Client ID.
 
 ### Optional: Adding the Login with Google Button
 
@@ -220,7 +220,7 @@ loginWithGoogle = [hsx|
 |]
 ```
 
-The login process uses the Google Login JS SDK and requires a little bit of javascript to work. Create a file `static/google-login.js` with this content:
+The login process uses the Google Login JS SDK and requires a little bit of JavaScript to work. Create a file `static/google-login.js` with this content:
 
 ```javascript
 function initGoogleLogin() {

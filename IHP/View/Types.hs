@@ -44,7 +44,7 @@ type Layout = Blaze.Html -> Blaze.Html
 
 data FormField = FormField
     { fieldType :: !InputType
-    , fieldName :: !Blaze.AttributeValue
+    , fieldName :: !Text
     , fieldLabel :: !Text
     , fieldValue :: !Text
     , fieldInputId :: !Text
@@ -153,7 +153,7 @@ data PaginationView =
 --
 -- Now, when we render the 'myPage' we will get '<div><button style="color: red">button</button></div>' (a red button, while our customCSS specified it should be green).
 --
--- Our way to fix this is to "late-bind" the calls, by manually passing around a CSSFramework. Here we added that second 'CSSFramework' to all functions. 
+-- Our way to fix this is to "late-bind" the calls, by manually passing around a CSSFramework. Here we added that second 'CSSFramework' to all functions.
 -- Notice how 'styledPagination' is getting the correct 'styledButton' by calling 'get #styledButton cssFramework':
 --
 -- > data CSSFramework = CSSFramework { styledPagination :: CSSFramework -> Html, styledButton :: CSSFramework -> Html }
@@ -164,17 +164,21 @@ data PaginationView =
 -- >        styledButton cssFramework = [hsx|<button style="color: red">button</button>|]]
 -- >
 -- > myPage = [hsx|{styledPagination bootstrapCSS bootstrapCSS}|]
--- 
+--
 -- Now, with this second 'CSSFramework' in place we can customize it again:
--- 
+--
 -- > customCSS = bootstrapCSS { styledButton = \cssFramework -> [hsx|<button style="color: green">button</button>|]]  }
--- > 
+-- >
 -- > myPage = [hsx|{styledPagination customCSS customCSS}|]
 data CSSFramework = CSSFramework
     { styledFlashMessage :: CSSFramework -> FlashMessage -> Blaze.Html
     , styledFlashMessages :: CSSFramework -> [FlashMessage] -> Blaze.Html
     -- | Renders the full form field calling other functions below
     , styledFormField :: CSSFramework -> FormField -> Blaze.Html
+    , styledTextFormField :: CSSFramework -> Text -> FormField -> Blaze.Html -> Blaze.Html
+    , styledCheckboxFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+    , styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+    , styledFormGroup :: CSSFramework -> Text -> Blaze.Html -> Blaze.Html
     -- | The primary form submit button
     , styledSubmitButton :: CSSFramework -> SubmitButton -> Blaze.Html
     -- | Class for the primary form submit button
@@ -182,9 +186,9 @@ data CSSFramework = CSSFramework
     -- | Renders the help text below an input field. Used with @[hsx|{(textField #firstname) { helpText = "Your first name" } }|]@
     , styledFormFieldHelp :: CSSFramework -> FormField -> Blaze.Html
     -- | First class attached to @<input/>@ elements, e.g. @<input class="form-control"/>@
-    , styledInputClass :: FormField -> Text
+    , styledInputClass :: CSSFramework -> FormField -> Text
     -- | When the form validation failed, invalid inputs will have this class
-    , styledInputInvalidClass :: FormField -> Text
+    , styledInputInvalidClass :: CSSFramework -> FormField -> Text
     -- | Class applied to the div wrapping the label and input, e.g. @"form-group"@
     , styledFormGroupClass :: Text
     -- | Elements that containers the validation error message for a invalid form field

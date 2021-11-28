@@ -42,6 +42,7 @@ import IHP.Controller.Layout
 import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
+import qualified IHP.IDE.Types
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -142,3 +143,13 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
         putContext webControllers
         putContext (AppUrl appUrl)
         setLayout Layout.toolServerLayout
+
+        databaseNeedsMigration <- readDatabaseNeedsMigration
+        putContext (DatabaseNeedsMigration databaseNeedsMigration)
+
+
+readDatabaseNeedsMigration :: (?context :: ControllerContext) => IO Bool
+readDatabaseNeedsMigration = do
+    context <- theDevServerContext
+    state <- readIORef (get #appStateRef context)
+    readIORef (get #databaseNeedsMigration state)
