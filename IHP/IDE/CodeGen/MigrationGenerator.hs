@@ -44,37 +44,97 @@ diffAppDatabase = do
     pure (diffSchemas targetSchema actualSchema)
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
-diffSchemas targetSchema' actualSchema' =
-    targetSchema
-        |> removeComments -- SQL Comments are not used in the diff
-        |> (\schema -> schema \\ actualSchema) -- Get rid of all statements that exist in both schemas, there's nothing we need to do to them
-        |> map statementToMigration
-        |> concat
+diffSchemas targetSchema' actualSchema' = (drop <> create)
+            |> patchTable
+            |> patchEnumType
+            |> applyRenameTable
     where
-        targetSchema = normalizeSchema targetSchema'
-        actualSchema = normalizeSchema actualSchema'
-        removeComments = filter \case
-                Comment {} -> False
-                _          -> True
+        create :: [Statement]
+        create = targetSchema \\ actualSchema
 
-        statementToMigration :: Statement -> [Statement]
-        statementToMigration statement@(StatementCreateTable { unsafeGetCreateTable = table }) = 
-                case actualTable of
-                    Just actualTable -> migrateTable statement actualTable
-                    Nothing -> [statement]
+        drop :: [Statement]
+        drop = (actualSchema \\ targetSchema)
+                |> mapMaybe toDropStatement
+
+        targetSchema = removeComments $ normalizeSchema targetSchema'
+        actualSchema = removeComments $ normalizeSchema actualSchema'
+
+        -- | Replaces 'DROP TABLE x; CREATE TABLE x;' DDL sequences with a more efficient 'ALTER TABLE' sequence
+        patchTable :: [Statement] -> [Statement]
+        patchTable ((s@DropTable { tableName }):statements) =
+                case createTable of
+                    Just createTable -> (migrateTable createTable actualTable) <> patchTable (delete createTable statements)
+                    Nothing -> s:(patchTable statements)
             where
-                actualTable = actualSchema |> find \case
-                        StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } -> name == get #name table
+                createTable :: Maybe Statement
+                createTable = find isCreateTableStatement statements
+
+                isCreateTableStatement :: Statement -> Bool
+                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) | get #name table == tableName = True
+                isCreateTableStatement otherwise = False
+
+                (Just actualTable) = actualSchema |> find \case
+                        StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
                         otherwise                                                            -> False
-        statementToMigration statement@(CreateEnumType { name, values }) = 
-                case actualEnum of
-                    Just actualEnum -> migrateEnum statement actualEnum
-                    Nothing -> [statement]
+        patchTable (s:rest) = s:(patchTable rest)
+        patchTable [] = []
+
+        -- | Replaces 'DROP TYPE x; CREATE TYPE x;' DDL sequences with a more efficient 'ALTER TYPE' sequence
+        patchEnumType :: [Statement] -> [Statement]
+        patchEnumType ((s@DropEnumType { name }):statements) =
+                case createEnumType of
+                    Just createEnumType -> (migrateEnum createEnumType actualEnumType) <> patchEnumType (delete createEnumType statements)
+                    Nothing -> s:(patchEnumType statements)
             where
-                actualEnum = actualSchema |> find \case
-                        CreateEnumType { name = actualName } -> name == actualName
-                        otherwise                            -> False
-        statementToMigration statement = [statement]
+                createEnumType :: Maybe Statement
+                createEnumType = find isCreateEnumTypeStatement statements
+
+                isCreateEnumTypeStatement :: Statement -> Bool
+                isCreateEnumTypeStatement CreateEnumType { name = n } = name == n
+                isCreateEnumTypeStatement otherwise                   = False
+
+                (Just actualEnumType) = actualSchema |> find \case
+                        CreateEnumType { name = enum } -> enum == name
+                        otherwise                      -> False
+        patchEnumType (s:rest) = s:(patchEnumType rest)
+        patchEnumType [] = []
+        
+        -- | Replaces 'DROP TABLE a; CREATE TABLE b;' DDL sequences with a more efficient 'ALTER TABLE a RENAME TO b' sequence if
+        -- the tables have no differences except the name.
+        applyRenameTable :: [Statement] -> [Statement]
+        applyRenameTable ((s@DropTable { tableName }):statements) =
+                case createTable of
+                    Just createTable@(StatementCreateTable { unsafeGetCreateTable = createTable' }) -> (RenameTable { from = tableName, to = get #name createTable' }):(applyRenameTable (delete createTable statements))
+                    Nothing -> s:(applyRenameTable statements)
+            where
+                createTable :: Maybe Statement
+                createTable = find isCreateTableStatement statements
+
+                isCreateTableStatement :: Statement -> Bool
+                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) = (get #name table /= get #name actualTable') && ((actualTable' :: CreateTable) { name = "" } == (table :: CreateTable) { name = "" })
+                isCreateTableStatement otherwise = False
+
+                (Just actualTable) = actualSchema |> find \case
+                        StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
+                        otherwise                                                            -> False
+                
+                actualTable' :: CreateTable
+                actualTable' = case actualTable of
+                    StatementCreateTable { unsafeGetCreateTable = table } -> table
+        applyRenameTable (s:rest) = s:(applyRenameTable rest)
+        applyRenameTable [] = []
+
+        toDropStatement :: Statement -> Maybe Statement
+        toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }
+        toDropStatement CreateEnumType { name } = Just DropEnumType { name }
+        toDropStatement CreateIndex { indexName } = Just DropIndex { indexName }
+        toDropStatement AddConstraint { tableName, constraintName } = Just DropConstraint { tableName, constraintName }
+        toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
+        toDropStatement otherwise = Nothing
+
+removeComments = filter \case
+        Comment {} -> False
+        _          -> True
 
 migrateTable :: Statement -> Statement -> [Statement]
 migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } StatementCreateTable { unsafeGetCreateTable = actualTable } = migrateTable' targetTable actualTable
@@ -82,6 +142,8 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
         migrateTable' CreateTable { name = tableName, columns = targetColumns } CreateTable { columns = actualColumns } =
                 (map dropColumn dropColumns <> map createColumn createColumns)
                     |> applyRenameColumn
+                    |> applyMakeUnique
+                    |> applyToggleNull
             where
 
                 createColumns :: [Column]
@@ -112,6 +174,79 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         isMatchingCreateColumn otherwise                          = False
                 applyRenameColumn (statement:rest) = statement:(applyRenameColumn rest)
                 applyRenameColumn [] = []
+
+                -- | Emits 'ALTER TABLE table ADD UNIQUE (column);'
+                --
+                -- This function substitutes the following queries:
+                --
+                -- > ALTER TABLE table DROP COLUMN column;
+                -- > ALTER TABLE table ADD COLUMN column UNIQUE;
+                --
+                -- With a more natural @ADD UNIQUE@:
+                --
+                -- > ALTER TABLE table ADD UNIQUE (column);
+                --
+                applyMakeUnique (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
+                        Just matchingCreateColumn -> updateConstraint:(applyMakeUnique (filter ((/=) matchingCreateColumn) statements))
+                        Nothing -> s:(applyMakeUnique statements)
+                    where
+                        dropColumn :: Column
+                        (Just dropColumn) = actualColumns
+                                |> find \case
+                                    Column { name } -> name == columnName
+                                    otherwise       -> False                                
+
+                        updateConstraint = if get #isUnique dropColumn
+                            then DropConstraint { tableName, constraintName = tableName <> "_" <> (get #name dropColumn) <> "_key" }
+                            else AddConstraint { tableName, constraintName = "",  constraint = UniqueConstraint { columnNames = [get #name dropColumn] } }
+
+                        matchingCreateColumn :: Maybe Statement
+                        matchingCreateColumn = find isMatchingCreateColumn statements
+
+                        isMatchingCreateColumn :: Statement -> Bool
+                        isMatchingCreateColumn AddColumn { column = addColumn } = addColumn { isUnique = False } == dropColumn { isUnique = False }
+                        isMatchingCreateColumn otherwise                        = False
+                applyMakeUnique (statement:rest) = statement:(applyMakeUnique rest)
+                applyMakeUnique [] = []
+                
+                -- | Emits 'ALTER TABLE table ALTER COLUMN column DROP NOT NULL'
+                --
+                -- This function substitutes the following queries:
+                --
+                -- > ALTER TABLE table DROP COLUMN column;
+                -- > ALTER TABLE table ADD COLUMN column;
+                --
+                -- With a more natural @DROP NOT NULL@:
+                --
+                -- > ALTER TABLE table ALTER COLUMN column DROP NOT NULL
+                --
+                applyToggleNull (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
+                        Just matchingCreateColumn -> updateConstraint:(applyToggleNull (filter ((/=) matchingCreateColumn) statements))
+                        Nothing -> s:(applyToggleNull statements)
+                    where
+                        dropColumn :: Column
+                        (Just dropColumn) = actualColumns
+                                |> find \case
+                                    Column { name } -> name == columnName
+                                    otherwise       -> False                                
+
+                        updateConstraint = if get #notNull dropColumn
+                            then DropNotNull { tableName, columnName = get #name dropColumn }
+                            else SetNotNull { tableName, columnName = get #name dropColumn }
+
+                        matchingCreateColumn :: Maybe Statement
+                        matchingCreateColumn = find isMatchingCreateColumn statements
+
+                        isMatchingCreateColumn :: Statement -> Bool
+                        isMatchingCreateColumn AddColumn { column = addColumn } = addColumn `eqColumnExceptNull` dropColumn
+                        isMatchingCreateColumn otherwise                        = False
+
+                        eqColumnExceptNull :: Column -> Column -> Bool
+                        eqColumnExceptNull colA colB = (normalizeCol colA) == (normalizeCol colB)
+                            where
+                                normalizeCol col = col { notNull = False, defaultValue = Just (VarExpression "null") }
+                applyToggleNull (statement:rest) = statement:(applyToggleNull rest)
+                applyToggleNull [] = []
 
 migrateEnum :: Statement -> Statement -> [Statement]
 migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { values = actualValues } = map addValue newValues

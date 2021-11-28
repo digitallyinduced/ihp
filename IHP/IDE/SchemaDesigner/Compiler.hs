@@ -25,6 +25,7 @@ compileStatement :: Statement -> Text
 compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints }) = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n);"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values |> map TextExpression |> map compileExpression) <> ");"
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
+compileStatement AddConstraint { tableName, constraintName = "", constraint = UniqueConstraint { columnNames } } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
 compileStatement DropColumn { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP COLUMN " <> compileIdentifier columnName <> ";"
@@ -36,6 +37,13 @@ compileStatement CreateFunction { functionName, functionBody, orReplace, returns
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
 compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifier name <> ";"
+compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
+compileStatement DropEnumType { name } = "DROP TYPE " <> compileIdentifier name <> ";"
+compileStatement DropIndex { indexName } = "DROP INDEX " <> compileIdentifier indexName <> ";"
+compileStatement DropNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP NOT NULL;"
+compileStatement SetNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET NOT NULL;"
+compileStatement RenameTable { from, to } = "ALTER TABLE " <> compileIdentifier from <> " RENAME TO " <> compileIdentifier to <> ";"
+compileStatement DropPolicy { tableName, policyName } =  "DROP POLICY " <> compileIdentifier policyName <> " ON " <> compileIdentifier tableName <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns

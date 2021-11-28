@@ -120,9 +120,47 @@ tests = do
                 let migration = sql [i|ALTER TABLE users RENAME COLUMN name TO full_name;|]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle UNIQUE constraints added to columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL UNIQUE
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|ALTER TABLE users ADD UNIQUE (full_name);|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle UNIQUE constraints removed from columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL UNIQUE
+                    );
+                |]
+                let migration = sql [i|ALTER TABLE users DROP CONSTRAINT users_full_name_key;|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
             it "should handle new enums" do
                 let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL
+                    );
                     CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
                 |]
                 let actualSchema = sql [i|
@@ -206,6 +244,187 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
+            
+            it "should handle a deleted table" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    DROP TABLE users;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should handle a deleted enum" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+                |]
+                let migration = sql [i|
+                    DROP TYPE mood;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should handle a new indexes" do
+                let targetSchema = sql [i|
+                    CREATE INDEX users_index ON users (user_name);
+                |]
+                let actualSchema = sql ""
+                let migration = sql [i|
+                    CREATE INDEX users_index ON users (user_name);
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle deleted indexes" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE INDEX users_index ON users (user_name);
+                |]
+                let migration = sql [i|
+                    DROP INDEX users_index;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle columns that have been made nullable" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle columns that have been made not nullable" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle table renames" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE profiles (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE profiles RENAME TO users;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should not do a rename if tables are different" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE profiles (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    DROP TABLE profiles;
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL
+                    );
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle new foreign keys" do
+                let targetSchema = sql [i|
+                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+                let actualSchema = sql ""
+                let migration = sql [i|
+                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle new foreign keys" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    ALTER TABLE ONLY public.messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES public.users(id);
+                |]
+                let migration = sql [i|
+                    ALTER TABLE messages DROP CONSTRAINT messages_ref_user_id;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle new policies" do
+                let targetSchema = sql [i|
+                    CREATE POLICY "Users can manage their todos" ON todos USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let actualSchema = sql ""
+                let migration = sql [i|
+                    CREATE POLICY "Users can manage their todos" ON todos USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            
+            it "should handle deleted policies" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE POLICY "Users can manage their todos" ON todos USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let migration = sql [i|
+                    DROP POLICY "Users can manage their todos" ON todos;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

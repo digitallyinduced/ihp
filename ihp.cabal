@@ -61,7 +61,6 @@ common shared-properties
             , http-media
             , cookie
             , process
-            , newtype-generics
             , typerep-map
             , basic-prelude
             , megaparsec
@@ -102,7 +101,6 @@ common shared-properties
             , hspec
             , cereal
             , cereal-text
-            , cereal-uuid
             , neat-interpolation
     default-extensions:
         OverloadedStrings
@@ -328,7 +326,6 @@ library
         , IHP.IDE.SchemaDesigner.View.Policies.New
         , IHP.IDE.SchemaDesigner.View.Policies.Edit
         , IHP.IDE.SchemaDesigner.SchemaOperations
-        , IHP.IDE.SchemaDesigner.MigrationChangeTracker
         , IHP.IDE.Data.Controller
         , IHP.IDE.Data.View.EditRow
         , IHP.IDE.Data.View.EditValue

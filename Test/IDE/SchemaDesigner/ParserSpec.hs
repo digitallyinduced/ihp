@@ -547,6 +547,12 @@ $$;
         
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
+        
+        it "should parse 'DROP TYPE ..' statements" do
+            parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
+
+        it "should parse 'ALTER TABLE .. DROP CONSTRAINT ..' statements" do
+            parseSql "ALTER TABLE tasks DROP CONSTRAINT tasks_title_key;" `shouldBe` DropConstraint { tableName = "tasks", constraintName = "tasks_title_key" }
 
         it "should parse 'CREATE SEQUENCE ..' statements" do
             parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
@@ -671,6 +677,22 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , Comment {content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
                     ]
             parseSqlStatements sql `shouldBe` statements
+        
+        it "should parse 'DROP INDEX ..' statements" do
+            parseSql "DROP INDEX a;" `shouldBe` DropIndex { indexName = "a" }
+        
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b DROP NOT NULL;" `shouldBe` DropNotNull { tableName = "a", columnName = "b" }
+        
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. SET NOT NULL' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b SET NOT NULL;" `shouldBe` SetNotNull { tableName = "a", columnName = "b" }
+        
+        it "should parse 'ALTER TABLE .. RENAME TO ..' statements" do
+            parseSql "ALTER TABLE profiles RENAME TO users;" `shouldBe` RenameTable { from = "profiles", to = "users" }
+        
+        it "should parse 'DROP POLICY .. ON ..' statements" do
+            parseSql "DROP POLICY \"Users can manage their todos\" ON todos;" `shouldBe` DropPolicy { tableName = "todos", policyName = "Users can manage their todos" }
+
 col :: Column
 col = Column
     { name = ""

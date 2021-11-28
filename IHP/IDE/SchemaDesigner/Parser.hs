@@ -62,7 +62,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> dropTable <|> commentStatement <|> comment
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> dropType <|> commentStatement <|> comment
     space
     pure s
 
@@ -502,19 +502,51 @@ alterTable = do
     tableName <- qualifiedIdentifier
     let add = do
             lexeme "ADD"
-            addConstraint tableName <|> addColumn tableName 
+            let addUnique = do
+                    unique <- parseUniqueConstraint
+                    char ';'
+                    pure (AddConstraint tableName "" unique)
+            addConstraint tableName <|> addColumn tableName <|> addUnique
     let drop = do
             lexeme "DROP"
-            dropColumn tableName
+            dropColumn tableName <|> dropConstraint tableName
     let rename = do
             lexeme "RENAME"
-            renameColumn tableName
-    enableRowLevelSecurity tableName <|> add <|> drop <|> rename
+            renameColumn tableName <|> renameTable tableName
+    let alter = do
+            lexeme "ALTER"
+            alterColumn tableName
+    enableRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
 
 alterType = do
     lexeme "TYPE"
     typeName <- qualifiedIdentifier
     addValue typeName
+
+-- | ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+--  ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+alterColumn tableName = do
+    lexeme "COLUMN"
+    columnName <- identifier
+
+    let dropNotNull = do
+            lexeme "DROP"
+            lexeme "NOT"
+            lexeme "NULL"
+            char ';'
+            pure DropNotNull { tableName, columnName }
+    
+    let setNotNull = do
+            lexeme "SET"
+            lexeme "NOT"
+            lexeme "NULL"
+            char ';'
+            pure SetNotNull { tableName, columnName }
+
+    dropNotNull <|> setNotNull
+    
+
+    
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"
@@ -529,7 +561,7 @@ createPolicy = do
     lexeme "POLICY"
     name <- identifier
     lexeme "ON"
-    tableName <- identifier
+    tableName <- qualifiedIdentifier
 
     using <- optional do
         lexeme "USING"
@@ -584,6 +616,12 @@ dropColumn tableName = do
     char ';'
     pure DropColumn { tableName, columnName }
 
+dropConstraint tableName = do
+    lexeme "CONSTRAINT"
+    constraintName <- identifier
+    char ';'
+    pure DropConstraint { tableName, constraintName }
+
 renameColumn tableName = do
     lexeme "COLUMN"
     from <- identifier
@@ -592,12 +630,41 @@ renameColumn tableName = do
     char ';'
     pure RenameColumn { tableName, from, to }
 
+renameTable tableName = do
+    lexeme "TO"
+    to <- identifier
+    char ';'
+    pure RenameTable { from = tableName, to }
+
 dropTable = do
     lexeme "DROP"
     lexeme "TABLE"
     tableName <- identifier
     char ';'
     pure DropTable { tableName }
+
+dropType = do
+    lexeme "DROP"
+    lexeme "TYPE"
+    name <- qualifiedIdentifier
+    char ';'
+    pure DropEnumType { name }
+
+dropIndex = do
+    lexeme "DROP"
+    lexeme "INDEX"
+    indexName <- qualifiedIdentifier
+    char ';'
+    pure DropIndex { indexName }
+
+dropPolicy = do
+    lexeme "DROP"
+    lexeme "POLICY"
+    policyName <- qualifiedIdentifier
+    lexeme "ON"
+    tableName <- qualifiedIdentifier
+    char ';'
+    pure DropPolicy { tableName, policyName }
 
 createSequence = do
     lexeme "CREATE"

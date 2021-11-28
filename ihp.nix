@@ -40,7 +40,6 @@
 , http-media
 , cookie
 , process
-, newtype-generics
 , unix
 , fsnotify
 , countable-inflections
@@ -62,7 +61,6 @@
 , async-pool
 , hspec
 , cereal-text
-, cereal-uuid
 , neat-interpolation
 }:
 mkDerivation {
@@ -109,7 +107,6 @@ mkDerivation {
     http-media
     cookie
     process
-    newtype-generics
     unix
     fsnotify
     countable-inflections
@@ -132,7 +129,6 @@ mkDerivation {
     async-pool
     hspec
     cereal-text
-    cereal-uuid
     neat-interpolation
   ];
   license = lib.licenses.mit;

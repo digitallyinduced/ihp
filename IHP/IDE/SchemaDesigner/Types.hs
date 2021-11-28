@@ -13,10 +13,14 @@ data Statement
       StatementCreateTable { unsafeGetCreateTable :: CreateTable }
     -- | CREATE TYPE name AS ENUM ( values );
     | CreateEnumType { name :: Text, values :: [Text] }
+    -- | DROP TYPE name;
+    | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
     | CreateExtension { name :: Text, ifNotExists :: Bool }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;
     | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
+    | DropConstraint { tableName, constraintName :: Text }
     -- | ALTER TABLE tableName ADD COLUMN column;
     | AddColumn { tableName :: Text, column :: Column }
     -- | ALTER TABLE tableName DROP COLUMN columnName;
@@ -28,6 +32,8 @@ data Statement
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
     | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
+    -- | DROP INDEX indexName;
+    | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
     | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
@@ -44,6 +50,14 @@ data Statement
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     -- ALTER TYPE enumName ADD VALUE newValue;
     | AddValueToEnumType { enumName :: Text, newValue :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName DROP NOT NULL;
+    | DropNotNull { tableName :: Text, columnName :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName SET NOT NULL;
+    | SetNotNull { tableName :: Text, columnName :: Text }
+    -- | ALTER TABLE from RENAME TO to;
+    | RenameTable { from :: Text, to :: Text }
+    -- | DROP POLICY policyName ON tableName;
+    | DropPolicy { tableName :: Text, policyName :: Text }
     deriving (Eq, Show)
 
 data CreateTable

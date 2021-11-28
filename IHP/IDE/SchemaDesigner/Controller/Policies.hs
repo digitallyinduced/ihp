@@ -16,7 +16,6 @@ import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
-import qualified IHP.IDE.SchemaDesigner.MigrationChangeTracker as MigrationChangeTracker
 
 instance Controller PoliciesController where
     beforeAction = setLayout schemaDesignerLayout
