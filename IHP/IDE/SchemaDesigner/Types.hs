@@ -56,6 +56,8 @@ data Statement
     | SetNotNull { tableName :: Text, columnName :: Text }
     -- | ALTER TABLE from RENAME TO to;
     | RenameTable { from :: Text, to :: Text }
+    -- | DROP POLICY policyName ON tableName;
+    | DropPolicy { tableName :: Text, policyName :: Text }
     deriving (Eq, Show)
 
 data CreateTable

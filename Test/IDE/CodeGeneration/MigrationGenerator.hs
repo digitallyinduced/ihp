@@ -401,6 +401,29 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle new policies" do
+                let targetSchema = sql [i|
+                    CREATE POLICY "Users can manage their todos" ON todos USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let actualSchema = sql ""
+                let migration = sql [i|
+                    CREATE POLICY "Users can manage their todos" ON todos USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            
+            it "should handle deleted policies" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    CREATE POLICY "Users can manage their todos" ON todos USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let migration = sql [i|
+                    DROP POLICY "Users can manage their todos" ON todos;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 
 sql :: Text -> [Statement]
