@@ -128,6 +128,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }
         toDropStatement CreateEnumType { name } = Just DropEnumType { name }
         toDropStatement CreateIndex { indexName } = Just DropIndex { indexName }
+        toDropStatement AddConstraint { tableName, constraintName } = Just DropConstraint { tableName, constraintName }
         toDropStatement otherwise = Nothing
 
 removeComments = filter \case

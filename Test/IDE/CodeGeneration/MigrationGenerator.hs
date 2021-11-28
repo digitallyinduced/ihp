@@ -379,6 +379,28 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle new foreign keys" do
+                let targetSchema = sql [i|
+                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+                let actualSchema = sql ""
+                let migration = sql [i|
+                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle new foreign keys" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|
+                    ALTER TABLE ONLY public.messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES public.users(id);
+                |]
+                let migration = sql [i|
+                    ALTER TABLE messages DROP CONSTRAINT messages_ref_user_id;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 
 sql :: Text -> [Statement]
