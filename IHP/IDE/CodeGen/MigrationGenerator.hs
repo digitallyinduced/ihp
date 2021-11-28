@@ -115,6 +115,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 (map dropColumn dropColumns <> map createColumn createColumns)
                     |> applyRenameColumn
                     |> applyMakeUnique
+                    |> applyToggleNull
             where
 
                 createColumns :: [Column]
@@ -172,15 +173,52 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                             else AddConstraint { tableName, constraintName = "",  constraint = UniqueConstraint { columnNames = [get #name dropColumn] } }
 
                         matchingCreateColumn :: Maybe Statement
-                        matchingCreateColumn = case dropColumn of
-                            dropColumn -> find isMatchingCreateColumn statements
-                            otherwise  -> Nothing
+                        matchingCreateColumn = find isMatchingCreateColumn statements
 
                         isMatchingCreateColumn :: Statement -> Bool
                         isMatchingCreateColumn AddColumn { column = addColumn } = addColumn { isUnique = False } == dropColumn { isUnique = False }
                         isMatchingCreateColumn otherwise                        = False
                 applyMakeUnique (statement:rest) = statement:(applyMakeUnique rest)
                 applyMakeUnique [] = []
+                
+                -- | Emits 'ALTER TABLE table ALTER COLUMN column DROP NOT NULL'
+                --
+                -- This function substitutes the following queries:
+                --
+                -- > ALTER TABLE table DROP COLUMN column;
+                -- > ALTER TABLE table ADD COLUMN column;
+                --
+                -- With a more natural @DROP NOT NULL@:
+                --
+                -- > ALTER TABLE table ALTER COLUMN column DROP NOT NULL
+                --
+                applyToggleNull (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
+                        Just matchingCreateColumn -> updateConstraint:(applyToggleNull (filter ((/=) matchingCreateColumn) statements))
+                        Nothing -> s:(applyToggleNull statements)
+                    where
+                        dropColumn :: Column
+                        (Just dropColumn) = actualColumns
+                                |> find \case
+                                    Column { name } -> name == columnName
+                                    otherwise       -> False                                
+
+                        updateConstraint = if get #notNull dropColumn
+                            then DropNotNull { tableName, columnName = get #name dropColumn }
+                            else SetNotNull { tableName, columnName = get #name dropColumn }
+
+                        matchingCreateColumn :: Maybe Statement
+                        matchingCreateColumn = find isMatchingCreateColumn statements
+
+                        isMatchingCreateColumn :: Statement -> Bool
+                        isMatchingCreateColumn AddColumn { column = addColumn } = addColumn `eqColumnExceptNull` dropColumn
+                        isMatchingCreateColumn otherwise                        = False
+
+                        eqColumnExceptNull :: Column -> Column -> Bool
+                        eqColumnExceptNull colA colB = (normalizeCol colA) == (normalizeCol colB)
+                            where
+                                normalizeCol col = col { notNull = False, defaultValue = Just (VarExpression "null") }
+                applyToggleNull (statement:rest) = statement:(applyToggleNull rest)
+                applyToggleNull [] = []
 
 migrateEnum :: Statement -> Statement -> [Statement]
 migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { values = actualValues } = map addValue newValues

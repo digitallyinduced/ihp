@@ -513,12 +513,40 @@ alterTable = do
     let rename = do
             lexeme "RENAME"
             renameColumn tableName
-    enableRowLevelSecurity tableName <|> add <|> drop <|> rename
+    let alter = do
+            lexeme "ALTER"
+            alterColumn tableName
+    enableRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
 
 alterType = do
     lexeme "TYPE"
     typeName <- qualifiedIdentifier
     addValue typeName
+
+-- | ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+--  ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+alterColumn tableName = do
+    lexeme "COLUMN"
+    columnName <- identifier
+
+    let dropNotNull = do
+            lexeme "DROP"
+            lexeme "NOT"
+            lexeme "NULL"
+            char ';'
+            pure DropNotNull { tableName, columnName }
+    
+    let setNotNull = do
+            lexeme "SET"
+            lexeme "NOT"
+            lexeme "NULL"
+            char ';'
+            pure SetNotNull { tableName, columnName }
+
+    dropNotNull <|> setNotNull
+    
+
+    
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"

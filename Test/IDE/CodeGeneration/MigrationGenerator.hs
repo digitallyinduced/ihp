@@ -292,6 +292,48 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle columns that have been made nullable" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should handle columns that have been made not nullable" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
 
 
 sql :: Text -> [Statement]

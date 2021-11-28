@@ -40,6 +40,8 @@ compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifi
 compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
 compileStatement DropEnumType { name } = "DROP TYPE " <> compileIdentifier name <> ";"
 compileStatement DropIndex { indexName } = "DROP INDEX " <> compileIdentifier indexName <> ";"
+compileStatement DropNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP NOT NULL;"
+compileStatement SetNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET NOT NULL;"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns

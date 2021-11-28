@@ -50,6 +50,10 @@ data Statement
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     -- ALTER TYPE enumName ADD VALUE newValue;
     | AddValueToEnumType { enumName :: Text, newValue :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName DROP NOT NULL;
+    | DropNotNull { tableName :: Text, columnName :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName SET NOT NULL;
+    | SetNotNull { tableName :: Text, columnName :: Text }
     deriving (Eq, Show)
 
 data CreateTable
