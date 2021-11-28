@@ -512,7 +512,7 @@ alterTable = do
             dropColumn tableName <|> dropConstraint tableName
     let rename = do
             lexeme "RENAME"
-            renameColumn tableName
+            renameColumn tableName <|> renameTable tableName
     let alter = do
             lexeme "ALTER"
             alterColumn tableName
@@ -629,6 +629,12 @@ renameColumn tableName = do
     to <- identifier
     char ';'
     pure RenameColumn { tableName, from, to }
+
+renameTable tableName = do
+    lexeme "TO"
+    to <- identifier
+    char ';'
+    pure RenameTable { from = tableName, to }
 
 dropTable = do
     lexeme "DROP"

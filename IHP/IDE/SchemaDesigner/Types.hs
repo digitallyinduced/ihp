@@ -54,6 +54,8 @@ data Statement
     | DropNotNull { tableName :: Text, columnName :: Text }
     -- ALTER TABLE tableName ALTER COLUMN columnName SET NOT NULL;
     | SetNotNull { tableName :: Text, columnName :: Text }
+    -- | ALTER TABLE from RENAME TO to;
+    | RenameTable { from :: Text, to :: Text }
     deriving (Eq, Show)
 
 data CreateTable

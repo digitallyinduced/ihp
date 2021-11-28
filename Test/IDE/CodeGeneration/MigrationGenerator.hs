@@ -334,6 +334,51 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should handle table renames" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE profiles (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE profiles RENAME TO users;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
+            
+            it "should not do a rename if tables are different" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE profiles (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        email TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    DROP TABLE profiles;
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL
+                    );
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
 
 
 sql :: Text -> [Statement]

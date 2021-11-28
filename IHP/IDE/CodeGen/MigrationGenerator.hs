@@ -47,6 +47,7 @@ diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchTable
             |> patchEnumType
+            |> applyRenameTable
     where
         create :: [Statement]
         create = targetSchema \\ actualSchema
@@ -97,6 +98,31 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         otherwise                      -> False
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
+        
+        -- | Replaces 'DROP TABLE a; CREATE TABLE b;' DDL sequences with a more efficient 'ALTER TABLE a RENAME TO b' sequence if
+        -- the tables have no differences except the name.
+        applyRenameTable :: [Statement] -> [Statement]
+        applyRenameTable ((s@DropTable { tableName }):statements) =
+                case createTable of
+                    Just createTable@(StatementCreateTable { unsafeGetCreateTable = createTable' }) -> (RenameTable { from = tableName, to = get #name createTable' }):(applyRenameTable (delete createTable statements))
+                    Nothing -> s:(applyRenameTable statements)
+            where
+                createTable :: Maybe Statement
+                createTable = find isCreateTableStatement statements
+
+                isCreateTableStatement :: Statement -> Bool
+                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) = (get #name table /= get #name actualTable') && ((actualTable' :: CreateTable) { name = "" } == (table :: CreateTable) { name = "" })
+                isCreateTableStatement otherwise = False
+
+                (Just actualTable) = actualSchema |> find \case
+                        StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
+                        otherwise                                                            -> False
+                
+                actualTable' :: CreateTable
+                actualTable' = case actualTable of
+                    StatementCreateTable { unsafeGetCreateTable = table } -> table
+        applyRenameTable (s:rest) = s:(applyRenameTable rest)
+        applyRenameTable [] = []
 
         toDropStatement :: Statement -> Maybe Statement
         toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }

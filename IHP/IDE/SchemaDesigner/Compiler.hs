@@ -42,6 +42,7 @@ compileStatement DropEnumType { name } = "DROP TYPE " <> compileIdentifier name 
 compileStatement DropIndex { indexName } = "DROP INDEX " <> compileIdentifier indexName <> ";"
 compileStatement DropNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP NOT NULL;"
 compileStatement SetNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET NOT NULL;"
+compileStatement RenameTable { from, to } = "ALTER TABLE " <> compileIdentifier from <> " RENAME TO " <> compileIdentifier to <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
