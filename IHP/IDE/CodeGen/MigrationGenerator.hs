@@ -363,7 +363,7 @@ migrationPathFromPlan plan =
 -- > );
 --
 normalizePrimaryKeys :: [Statement] -> [Statement]
-normalizePrimaryKeys statements = normalizePrimaryKeys' [] statements
+normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
     where
         normalizePrimaryKeys' normalizedStatements ((AddConstraint { tableName, constraintName, constraint = AlterTableAddPrimaryKey { primaryKeyConstraint } }):rest) =
             normalizePrimaryKeys'
