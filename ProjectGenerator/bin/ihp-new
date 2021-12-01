@@ -182,24 +182,6 @@ if [ $DIRENV_SETUP = 0 ] && [ DIRENV_HOOK_ADDED != 1 ]; then
 fi
 
 
-if ! [ -x "$(command -v cachix)" ]; then
-	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
-	echo -e "IHP uses cachix as a binary cache."
-	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
-	echo ""
-	echo ""
-	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
-	read -r -n1 choice
-	echo ""
-	case "$choice" in
-	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
-	*)
-		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
-		exit 1
-		;;
-	esac
-fi
-
 if ! [ -x "$(command -v git)" ]; then
 	echo -e "\e[1m\e[35mGIT MISSING\e[0m"
 	echo -e "IHP uses git for pulling the project boilerplate."
@@ -229,6 +211,24 @@ if ! [ -x "$(command -v make)" ]; then
 	y | Y) nix-env -iA ${NIXPKGS_ATTR}.gnumake ;;
 	*)
 		echo -e "\e[31mPlease install make manually and then re-run this program.\e[0m"
+		exit 1
+		;;
+	esac
+fi
+
+if ! [ -x "$(command -v cachix)" ]; then
+	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
+	echo -e "IHP uses cachix as a binary cache."
+	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
+	echo ""
+	echo ""
+	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
+	read -r -n1 choice
+	echo ""
+	case "$choice" in
+	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
+	*)
+		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
 		exit 1
 		;;
 	esac
