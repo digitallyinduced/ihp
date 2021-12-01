@@ -425,6 +425,106 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should normalize primary keys" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+                        failed_login_attempts INT DEFAULT 0 NOT NULL,
+                        access_token TEXT DEFAULT NULL
+                    );
+                    CREATE TABLE posts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        body TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    --
+                    -- PostgreSQL database dump
+                    --
+
+                    -- Dumped from database version 14.0 (Debian 14.0-1.pgdg110+1)
+                    -- Dumped by pg_dump version 14beta1
+
+                    SET statement_timeout = 0;
+                    SET lock_timeout = 0;
+                    SET idle_in_transaction_session_timeout = 0;
+                    SET client_encoding = 'UTF8';
+                    SET standard_conforming_strings = on;
+                    SELECT pg_catalog.set_config('search_path', '', false);
+                    SET default_toast_compression = 'pglz';
+                    SET check_function_bodies = false;
+                    SET xmloption = content;
+                    SET client_min_messages = warning;
+                    SET row_security = off;
+
+                    --
+                    -- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+                    --
+
+                    CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+
+
+                    --
+                    -- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
+                    --
+
+                    COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+
+
+                    --
+                    -- Name: ihp_user_id(); Type: FUNCTION; Schema: public; Owner: -
+                    --
+
+                    CREATE FUNCTION public.ihp_user_id() RETURNS uuid
+                        LANGUAGE sql
+                        AS $$ SELECT current_setting('rls.ihp_user_id')::uuid; $$;
+
+
+                    SET default_tablespace = '';
+
+                    SET default_table_access_method = heap;
+
+                    --
+                    -- Name: users; Type: TABLE; Schema: public; Owner: -
+                    --
+
+                    CREATE TABLE public.users (
+                        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+                        email text NOT NULL,
+                        password_hash text NOT NULL,
+                        locked_at timestamp with time zone,
+                        failed_login_attempts integer DEFAULT 0 NOT NULL,
+                        access_token text
+                    );
+
+
+                    --
+                    -- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+                    --
+
+                    ALTER TABLE ONLY public.users
+                        ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+                    --
+                    -- PostgreSQL database dump complete
+                    --
+
+                |]
+                let migration = sql [i|
+                    CREATE TABLE posts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        body TEXT NOT NULL
+                    );
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration                
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

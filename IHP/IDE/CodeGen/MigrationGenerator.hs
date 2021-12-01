@@ -280,6 +280,7 @@ parseDumpedSql sql =
 
 normalizeSchema :: [Statement] -> [Statement]
 normalizeSchema statements = map normalizeStatement statements
+        |> normalizePrimaryKeys
 
 normalizeStatement :: Statement -> Statement
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizeTable table }
@@ -344,3 +345,36 @@ migrationPathFromPlan plan =
                     otherwise                    -> Nothing
         in
             path
+
+-- | Removes @ALTER TABLE .. ADD CONSTRAINT .._pkey PRIMARY KEY (id);@ and moves it into the 'primaryKeyConstraint' field of the 'CreateTable'  statement
+--
+-- pg_dump dumps a table like this:
+--
+-- > CREATE TABLE a (
+-- >     id uuid DEFAULT uuid_generate_v4() NOT NULL
+-- > );
+-- > 
+-- > ALTER TABLE a ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+--
+-- This function basically removes the @ALTER TABLE@ statements and moves the primary key directly into the @CREATE TABLE@ statement:
+--
+-- > CREATE TABLE a (
+-- >     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+-- > );
+--
+normalizePrimaryKeys :: [Statement] -> [Statement]
+normalizePrimaryKeys statements = normalizePrimaryKeys' [] statements
+    where
+        normalizePrimaryKeys' normalizedStatements ((AddConstraint { tableName, constraintName, constraint = AlterTableAddPrimaryKey { primaryKeyConstraint } }):rest) =
+            normalizePrimaryKeys'
+                (normalizedStatements
+                    |> map \case
+                        StatementCreateTable { unsafeGetCreateTable = table@(CreateTable { name }) } | name == tableName -> StatementCreateTable { unsafeGetCreateTable = addPK primaryKeyConstraint table }
+                        otherwise -> otherwise
+                )
+                (rest)
+        normalizePrimaryKeys' normalizedStatements (statement:rest) = normalizePrimaryKeys' (statement:normalizedStatements) rest
+        normalizePrimaryKeys' normalizedStatements [] = normalizedStatements
+
+        addPK :: PrimaryKeyConstraint -> CreateTable -> CreateTable
+        addPK PrimaryKeyConstraint { primaryKeyColumnNames } table@(CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs } }) = table { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs <> primaryKeyColumnNames } }
