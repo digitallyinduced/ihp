@@ -176,6 +176,31 @@ tests = do
                 it "should render with custom placeholder" do
                     let select = baseSelect { placeholder = "Pick something" }
                     styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+            
+            describe "textarea field" do
+                let baseTextField = FormField
+                        { fieldType = TextareaInput
+                        , fieldName = "body"
+                        , fieldLabel = "Body:"
+                        , fieldValue = "Hello\nWorld!"
+                        , fieldInputId = "body"
+                        , validatorResult = Nothing
+                        , fieldInput = \formField -> H.textarea (cs (fieldValue formField))
+                        , fieldClass = ""
+                        , labelClass = ""
+                        , disabled = False
+                        , disableLabel = False
+                        , disableGroup = False
+                        , disableValidationResult = False
+                        , cssFramework = cssFramework
+                        , helpText = ""
+                        , placeholder = "Describe your issue"
+                        , required = False
+                        , autofocus = False
+                        }
+                it "should render" do
+                    let textField = baseTextField
+                    styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-body\"><label class=\"\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"form-control\">Hello\nWorld!</textarea></div>"
 
             describe "pagination" do
                 let basePagination = Pagination
