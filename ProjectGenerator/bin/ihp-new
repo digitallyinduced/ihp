@@ -182,24 +182,6 @@ if [ $DIRENV_SETUP = 0 ] && [ DIRENV_HOOK_ADDED != 1 ]; then
 fi
 
 
-if ! [ -x "$(command -v cachix)" ]; then
-	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
-	echo -e "IHP uses cachix as a binary cache."
-	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
-	echo ""
-	echo ""
-	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
-	read -r -n1 choice
-	echo ""
-	case "$choice" in
-	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
-	*)
-		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
-		exit 1
-		;;
-	esac
-fi
-
 if ! [ -x "$(command -v git)" ]; then
 	echo -e "\e[1m\e[35mGIT MISSING\e[0m"
 	echo -e "IHP uses git for pulling the project boilerplate."
@@ -234,6 +216,40 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
+if ! [ -x "$(command -v cachix)" ]; then
+	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
+	echo -e "IHP uses cachix as a binary cache."
+	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
+	echo ""
+	echo ""
+	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
+	read -r -n1 choice
+	echo ""
+	case "$choice" in
+	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
+	*)
+		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
+		exit 1
+		;;
+	esac
+fi
+
+if ! grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf; then
+	echo -e "\e[1mCachix doesn't seem to be configured\e[0m"
+	echo -e "IHP provides a cachix cache with binaries for all IHP packages and commonly used dependencies."
+	echo -e "While not required, this greatly speeds up the installation & build process."
+	echo -e "This could be a false negative if you use a more complex nix configuration."
+	echo ""
+	echo ""
+	echo -e "\e[1mWe will configure the cache for you now using 'cachix use digitallyinduced'. Continue? (Type y to proceed) \e[0m"
+	read -r -n1 choice
+	echo ""
+	case "$choice" in
+	y | Y) cachix use digitallyinduced ;;
+	*) echo -e "Skipping cachix configuration" ;;
+	esac
+fi
+
 BOILERPLATE_GIT_BRANCH="master"
 
 if [[ "$1" == "--elm" ]]; then
@@ -245,10 +261,6 @@ elif [[ "$1" == "--purescript-halogen" ]]; then
 else
 	echo "We will now create your new IHP. This may take up to 30 seconds."
 fi
-
-grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf || {
-	cachix use digitallyinduced
-}
 
 git clone --quiet --depth=1 --branch "$BOILERPLATE_GIT_BRANCH" "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"
 cd "$PROJECT_NAME"
