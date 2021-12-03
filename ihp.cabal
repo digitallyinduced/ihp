@@ -295,6 +295,7 @@ library
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
         , IHP.DataSync.Role
+        , IHP.PGListener
         -- IDE MODULES
         -- We cannot split this into manual library sections because of https://github.com/haskell/cabal/issues/1919
         , IHP.IDE.SchemaDesigner.Controller.Columns
