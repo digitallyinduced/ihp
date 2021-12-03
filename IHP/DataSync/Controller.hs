@@ -21,6 +21,8 @@ import IHP.DataSync.DynamicQueryCompiler
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
 import qualified Data.ByteString.Char8 as ByteString
+import qualified IHP.PGListener as PGListener
+import IHP.ApplicationContext
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -35,6 +37,7 @@ instance (
         setState DataSyncReady { subscriptions = HashMap.empty }
 
         let maybeUserId = get #id <$> currentUserOrNothing
+        let pgListener = ?applicationContext |> get #pgListener
 
         let
             handleMessage :: DataSyncMessage -> IO ()
@@ -66,12 +69,7 @@ instance (
                 -- Store it in IORef as an INSERT requires us to add an id
                 watchedRecordIdsRef <- newIORef watchedRecordIds
 
-                (notificationStream, pgListener) <- ChangeNotifications.watchInsertOrUpdateTable tableNameRLS
-
-                streamReader <- async do
-                    forever do
-                        notification <- MVar.takeMVar notificationStream
-                        case notification of
+                let callback notification = case notification of
                             ChangeNotifications.DidInsert { id } -> do
                                 -- The new record could not be accessible to the current user with a RLS policy
                                 -- E.g. it could be a new record in a 'projects' table, but the project belongs
@@ -102,16 +100,11 @@ instance (
                                 when isWatchingRecord do
                                     sendJSON DidDelete { subscriptionId, id }
 
-                -- The 'notificationStream' is an MVar, but that doesn't mean we can rely on the haskell runtime
-                -- to kill the async. The thread could be blocked at the 'LISTEN ..' query and then will not get killed
-                -- automatically by the MVar.
-                --
-                -- The 'streamReader' will be cleaned up by 'cleanupAllSubscriptions'. This will then automatically
-                -- also clean up the 'pgListener'.
-                link2 streamReader pgListener
-                    
 
-                modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId Subscription { id = subscriptionId, tableWatcher = streamReader }))
+                channelSubscription <- pgListener
+                        |> PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback
+
+                modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId Subscription { id = subscriptionId, channelSubscription }))
 
                 sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
 
@@ -121,7 +114,7 @@ instance (
                 
                 -- Cancel table watcher
                 case maybeSubscription of
-                    Just subscription -> cancel (get #tableWatcher subscription)
+                    Just subscription -> pgListener |> PGListener.unsubscribe (get #channelSubscription subscription)
                     Nothing -> pure ()
 
                 modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
@@ -246,13 +239,18 @@ instance (
 
     onClose = cleanupAllSubscriptions
 
-cleanupAllSubscriptions :: (?state :: IORef DataSyncController) => IO ()
+cleanupAllSubscriptions :: _ => (?state :: IORef DataSyncController, ?applicationContext :: ApplicationContext) => IO ()
 cleanupAllSubscriptions = do
     state <- getState
+    let pgListener = ?applicationContext |> get #pgListener
+
     case state of
         DataSyncReady { subscriptions } -> do
-            forEach (subscriptions |> HashMap.elems) \subscription -> do
-                cancel (get #tableWatcher subscription)
+            let channelSubscriptions = subscriptions
+                    |> HashMap.elems
+                    |> map (get #channelSubscription)
+            forEach channelSubscriptions \channelSubscription -> do
+                pgListener |> PGListener.unsubscribe channelSubscription
 
             pure ()
         _ -> pure ()
