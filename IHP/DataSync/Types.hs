@@ -20,7 +20,7 @@ data DataSyncMessage
 data DataSyncResponse
     = DataSyncResult { result :: [[Field]], requestId :: !Int }
     | DataSyncError { requestId :: !Int, errorMessage :: !Text }
-    | FailedToDecodeMessageError
+    | FailedToDecodeMessageError { errorMessage :: !Text }
     | DidCreateDataSubscription { requestId :: !Int, subscriptionId :: UUID, result :: [[Field]] }
     | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: UUID }
     | DidInsert { subscriptionId :: UUID, record :: [Field] }

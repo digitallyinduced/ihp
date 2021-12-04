@@ -78,9 +78,12 @@ instance (
                                 -- E.g. it could be a new record in a 'projects' table, but the project belongs
                                 -- to a different user, and thus the current user should not be able to see it.
                                 --
+                                -- The new record could also be not part of the WHERE condition of the initial query.
+                                -- Therefore we need to use the subscriptions WHERE condition to fetch the new record here.
+                                --
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
-                                newRecord :: [[Field]] <- withRLS $ sqlQuery "SELECT * FROM ? WHERE id = ? LIMIT 1" (PG.Identifier (get #table query), id)
+                                newRecord :: [[Field]] <- withRLS $ sqlQuery ("SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1") (theParams <> [PG.toField id])
 
                                 case headMay newRecord of
                                     Just record -> do
@@ -216,10 +219,10 @@ instance (
 
 
         forever do
-            message <- Aeson.decode <$> receiveData @LByteString
+            message <- Aeson.eitherDecodeStrict' <$> receiveData @ByteString
 
             case message of
-                Just decodedMessage -> do
+                Right decodedMessage -> do
                     let requestId = get #requestId decodedMessage
 
                     -- Handle the messages in an async way
@@ -238,7 +241,7 @@ instance (
                             Right result -> pure ()
 
                     pure ()
-                Nothing -> sendJSON FailedToDecodeMessageError
+                Left errorMessage -> sendJSON FailedToDecodeMessageError { errorMessage = cs errorMessage }
 
     onClose = cleanupAllSubscriptions
 
