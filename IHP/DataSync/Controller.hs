@@ -69,6 +69,9 @@ instance (
                 -- Store it in IORef as an INSERT requires us to add an id
                 watchedRecordIdsRef <- newIORef watchedRecordIds
 
+                -- Make sure the database triggers are there
+                sqlExec (ChangeNotifications.createNotificationFunction tableNameRLS) ()
+
                 let callback notification = case notification of
                             ChangeNotifications.DidInsert { id } -> do
                                 -- The new record could not be accessible to the current user with a RLS policy
