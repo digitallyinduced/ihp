@@ -15,6 +15,7 @@ import IHP.ApplicationContext
 import qualified IHP.ControllerSupport as ControllerSupport
 import qualified IHP.Environment as Env
 import IHP.Log.Types
+import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
@@ -41,9 +42,10 @@ run configBuilder = do
     sessionVault <- Vault.newKey
     autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
     modelContext <- initModelContext frameworkConfig
+    pgListener <- PGListener.init modelContext
 
     let ?modelContext = modelContext
-    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig }
+    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
 
     sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
     staticMiddleware <- initStaticMiddleware frameworkConfig

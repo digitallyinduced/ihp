@@ -176,6 +176,7 @@ data CSSFramework = CSSFramework
     -- | Renders the full form field calling other functions below
     , styledFormField :: CSSFramework -> FormField -> Blaze.Html
     , styledTextFormField :: CSSFramework -> Text -> FormField -> Blaze.Html -> Blaze.Html
+    , styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
     , styledCheckboxFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
     , styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
     , styledFormGroup :: CSSFramework -> Text -> Blaze.Html -> Blaze.Html

@@ -37,6 +37,7 @@ import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
 import qualified Control.Exception as Exception
+import qualified IHP.PGListener as PGListener
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -62,8 +63,9 @@ withIHPApp application configBuilder hspecAction = do
 
         autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
         session <- Vault.newKey
+        pgListener <- PGListener.init modelContext
         let sessionVault = Vault.insert session mempty Vault.empty
-        let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig }
+        let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
 
         let requestContext = RequestContext
              { request = defaultRequest {vault = sessionVault}
@@ -85,7 +87,8 @@ mockContextNoDatabase application configBuilder = do
    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
    session <- Vault.newKey
    let sessionVault = Vault.insert session mempty Vault.empty
-   let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig }
+   pgListener <- PGListener.init modelContext
+   let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
 
    let requestContext = RequestContext
          { request = defaultRequest {vault = sessionVault}

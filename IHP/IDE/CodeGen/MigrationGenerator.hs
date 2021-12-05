@@ -47,6 +47,7 @@ diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchTable
             |> patchEnumType
+            |> applyRenameTable
     where
         create :: [Statement]
         create = targetSchema \\ actualSchema
@@ -97,11 +98,38 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         otherwise                      -> False
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
+        
+        -- | Replaces 'DROP TABLE a; CREATE TABLE b;' DDL sequences with a more efficient 'ALTER TABLE a RENAME TO b' sequence if
+        -- the tables have no differences except the name.
+        applyRenameTable :: [Statement] -> [Statement]
+        applyRenameTable ((s@DropTable { tableName }):statements) =
+                case createTable of
+                    Just createTable@(StatementCreateTable { unsafeGetCreateTable = createTable' }) -> (RenameTable { from = tableName, to = get #name createTable' }):(applyRenameTable (delete createTable statements))
+                    Nothing -> s:(applyRenameTable statements)
+            where
+                createTable :: Maybe Statement
+                createTable = find isCreateTableStatement statements
+
+                isCreateTableStatement :: Statement -> Bool
+                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) = (get #name table /= get #name actualTable') && ((actualTable' :: CreateTable) { name = "" } == (table :: CreateTable) { name = "" })
+                isCreateTableStatement otherwise = False
+
+                (Just actualTable) = actualSchema |> find \case
+                        StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
+                        otherwise                                                            -> False
+                
+                actualTable' :: CreateTable
+                actualTable' = case actualTable of
+                    StatementCreateTable { unsafeGetCreateTable = table } -> table
+        applyRenameTable (s:rest) = s:(applyRenameTable rest)
+        applyRenameTable [] = []
 
         toDropStatement :: Statement -> Maybe Statement
         toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }
         toDropStatement CreateEnumType { name } = Just DropEnumType { name }
         toDropStatement CreateIndex { indexName } = Just DropIndex { indexName }
+        toDropStatement AddConstraint { tableName, constraintName } = Just DropConstraint { tableName, constraintName }
+        toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
         toDropStatement otherwise = Nothing
 
 removeComments = filter \case
@@ -115,6 +143,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 (map dropColumn dropColumns <> map createColumn createColumns)
                     |> applyRenameColumn
                     |> applyMakeUnique
+                    |> applyToggleNull
             where
 
                 createColumns :: [Column]
@@ -172,15 +201,52 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                             else AddConstraint { tableName, constraintName = "",  constraint = UniqueConstraint { columnNames = [get #name dropColumn] } }
 
                         matchingCreateColumn :: Maybe Statement
-                        matchingCreateColumn = case dropColumn of
-                            dropColumn -> find isMatchingCreateColumn statements
-                            otherwise  -> Nothing
+                        matchingCreateColumn = find isMatchingCreateColumn statements
 
                         isMatchingCreateColumn :: Statement -> Bool
                         isMatchingCreateColumn AddColumn { column = addColumn } = addColumn { isUnique = False } == dropColumn { isUnique = False }
                         isMatchingCreateColumn otherwise                        = False
                 applyMakeUnique (statement:rest) = statement:(applyMakeUnique rest)
                 applyMakeUnique [] = []
+                
+                -- | Emits 'ALTER TABLE table ALTER COLUMN column DROP NOT NULL'
+                --
+                -- This function substitutes the following queries:
+                --
+                -- > ALTER TABLE table DROP COLUMN column;
+                -- > ALTER TABLE table ADD COLUMN column;
+                --
+                -- With a more natural @DROP NOT NULL@:
+                --
+                -- > ALTER TABLE table ALTER COLUMN column DROP NOT NULL
+                --
+                applyToggleNull (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
+                        Just matchingCreateColumn -> updateConstraint:(applyToggleNull (filter ((/=) matchingCreateColumn) statements))
+                        Nothing -> s:(applyToggleNull statements)
+                    where
+                        dropColumn :: Column
+                        (Just dropColumn) = actualColumns
+                                |> find \case
+                                    Column { name } -> name == columnName
+                                    otherwise       -> False                                
+
+                        updateConstraint = if get #notNull dropColumn
+                            then DropNotNull { tableName, columnName = get #name dropColumn }
+                            else SetNotNull { tableName, columnName = get #name dropColumn }
+
+                        matchingCreateColumn :: Maybe Statement
+                        matchingCreateColumn = find isMatchingCreateColumn statements
+
+                        isMatchingCreateColumn :: Statement -> Bool
+                        isMatchingCreateColumn AddColumn { column = addColumn } = addColumn `eqColumnExceptNull` dropColumn
+                        isMatchingCreateColumn otherwise                        = False
+
+                        eqColumnExceptNull :: Column -> Column -> Bool
+                        eqColumnExceptNull colA colB = (normalizeCol colA) == (normalizeCol colB)
+                            where
+                                normalizeCol col = col { notNull = False, defaultValue = Just (VarExpression "null") }
+                applyToggleNull (statement:rest) = statement:(applyToggleNull rest)
+                applyToggleNull [] = []
 
 migrateEnum :: Statement -> Statement -> [Statement]
 migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { values = actualValues } = map addValue newValues
@@ -214,6 +280,7 @@ parseDumpedSql sql =
 
 normalizeSchema :: [Statement] -> [Statement]
 normalizeSchema statements = map normalizeStatement statements
+        |> normalizePrimaryKeys
 
 normalizeStatement :: Statement -> Statement
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizeTable table }
@@ -278,3 +345,36 @@ migrationPathFromPlan plan =
                     otherwise                    -> Nothing
         in
             path
+
+-- | Removes @ALTER TABLE .. ADD CONSTRAINT .._pkey PRIMARY KEY (id);@ and moves it into the 'primaryKeyConstraint' field of the 'CreateTable'  statement
+--
+-- pg_dump dumps a table like this:
+--
+-- > CREATE TABLE a (
+-- >     id uuid DEFAULT uuid_generate_v4() NOT NULL
+-- > );
+-- > 
+-- > ALTER TABLE a ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+--
+-- This function basically removes the @ALTER TABLE@ statements and moves the primary key directly into the @CREATE TABLE@ statement:
+--
+-- > CREATE TABLE a (
+-- >     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+-- > );
+--
+normalizePrimaryKeys :: [Statement] -> [Statement]
+normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
+    where
+        normalizePrimaryKeys' normalizedStatements ((AddConstraint { tableName, constraintName, constraint = AlterTableAddPrimaryKey { primaryKeyConstraint } }):rest) =
+            normalizePrimaryKeys'
+                (normalizedStatements
+                    |> map \case
+                        StatementCreateTable { unsafeGetCreateTable = table@(CreateTable { name }) } | name == tableName -> StatementCreateTable { unsafeGetCreateTable = addPK primaryKeyConstraint table }
+                        otherwise -> otherwise
+                )
+                (rest)
+        normalizePrimaryKeys' normalizedStatements (statement:rest) = normalizePrimaryKeys' (statement:normalizedStatements) rest
+        normalizePrimaryKeys' normalizedStatements [] = normalizedStatements
+
+        addPK :: PrimaryKeyConstraint -> CreateTable -> CreateTable
+        addPK PrimaryKeyConstraint { primaryKeyColumnNames } table@(CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs } }) = table { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs <> primaryKeyColumnNames } }

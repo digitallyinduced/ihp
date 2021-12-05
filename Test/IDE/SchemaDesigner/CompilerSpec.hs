@@ -538,22 +538,42 @@ tests = do
             let statements = [ RenameColumn { tableName = "users", from = "name", to = "full_name" } ]
             compileSql statements `shouldBe` sql
 
-        it "should compile 'ALTER TABLE .. ADD UNIQUE (..);" do
+        it "should compile 'ALTER TABLE .. ADD UNIQUE (..);' statements" do
             let sql = "ALTER TABLE users ADD UNIQUE (full_name);\n"
             let statements = [ AddConstraint { tableName = "users", constraintName = "", constraint = UniqueConstraint { columnNames = ["full_name"] }  } ]
             compileSql statements `shouldBe` sql
 
-        it "should compile 'ALTER TABLE .. DROP CONSTRAINT ..;" do
+        it "should compile 'ALTER TABLE .. DROP CONSTRAINT ..;' statements" do
             let sql = "ALTER TABLE users DROP CONSTRAINT users_full_name_key;\n"
             let statements = [ DropConstraint { tableName = "users", constraintName = "users_full_name_key" } ]
             compileSql statements `shouldBe` sql
 
-        it "should compile 'DROP TYPE ..;" do
+        it "should compile 'DROP TYPE ..;' statements" do
             let sql = "DROP TYPE colors;\n"
             let statements = [ DropEnumType { name = "colors" } ]
             compileSql statements `shouldBe` sql
 
-        it "should compile 'DROP INDEX ..;" do
+        it "should compile 'DROP INDEX ..;' statements" do
             let sql = "DROP INDEX a;\n"
             let statements = [ DropIndex { indexName = "a" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email DROP NOT NULL;\n"
+            let statements = [ DropNotNull { tableName = "users", columnName = "email" } ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. SET NOT NULL;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email SET NOT NULL;\n"
+            let statements = [ SetNotNull { tableName = "users", columnName = "email" } ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'ALTER TABLE .. RENAME TO ..;' statements" do
+            let sql = "ALTER TABLE profiles RENAME TO users;\n"
+            let statements = [ RenameTable { from = "profiles", to = "users" } ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'DROP POLICY .. ON ..;' statements" do
+            let sql = "DROP POLICY \"Users can manage their todos\" ON todos;\n"
+            let statements = [ DropPolicy { tableName = "todos", policyName = "Users can manage their todos" } ]
             compileSql statements `shouldBe` sql

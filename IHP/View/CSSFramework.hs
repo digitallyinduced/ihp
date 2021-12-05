@@ -32,6 +32,7 @@ instance Default CSSFramework where
                 , styledFlashMessages
                 , styledFormField
                 , styledTextFormField
+                , styledTextareaFormField
                 , styledCheckboxFormField
                 , styledSelectFormField
                 , styledFormGroup
@@ -69,7 +70,7 @@ instance Default CSSFramework where
                         DateTimeInput -> styledTextFormField cssFramework "datetime-local" formField validationResult
                         CheckboxInput -> styledCheckboxFormField cssFramework formField validationResult
                         HiddenInput -> styledTextFormField cssFramework "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True } validationResult
-                        TextareaInput -> styledTextFormField cssFramework "text" formField validationResult
+                        TextareaInput -> styledTextareaFormField cssFramework formField validationResult
                         SelectInput {} -> styledSelectFormField cssFramework formField validationResult
                         FileInput -> styledTextFormField cssFramework "file" formField validationResult
 
@@ -194,6 +195,25 @@ instance Default CSSFramework where
                             {optionLabel}
                         </option>
                     |]
+
+            styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+            styledTextareaFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required, autofocus } validationResult =
+                [hsx|
+                    {label}
+                    <textarea
+                        name={fieldName}
+                        placeholder={placeholder}
+                        id={fieldInputId}
+                        class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                        required={required}
+                        disabled={disabled}
+                        autofocus={autofocus}
+                    >{fieldValue}</textarea>{validationResult}{helpText}|]
+                where
+                    label = unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
+                    inputClass = (styledInputClass cssFramework formField, True)
+                    inputInvalidClass = styledInputInvalidClass cssFramework formField
+                    helpText = styledFormFieldHelp cssFramework formField
 
             styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
             styledValidationResult cssFramework formField@FormField { validatorResult = Just violation } =
@@ -349,6 +369,7 @@ tailwind :: CSSFramework
 tailwind = def
     { styledFlashMessage
     , styledTextFormField
+    , styledTextareaFormField
     , styledCheckboxFormField
     , styledSelectFormField
     , styledSubmitButtonClass
@@ -448,6 +469,29 @@ tailwind = def
                 helpText = styledFormFieldHelp cssFramework formField
                 -- If there's no value, then we want to hide the "value" attribute.
                 maybeValue = if fieldValue == "" then Nothing else Just fieldValue
+
+
+        styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+        styledTextareaFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, placeholder, required, autofocus } validationResult =
+            [hsx|
+                {label}
+                <textarea
+                    name={fieldName}
+                    placeholder={placeholder}
+                    id={fieldInputId}
+                    class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                    required={required}
+                    disabled={disabled}
+                    autofocus={autofocus}
+                >{fieldValue}</textarea>{validationResult}{helpText}
+            |]
+            where
+                twLabelClass = "font-medium text-gray-700" <> " " <> labelClass
+                label = unless (disableLabel || null fieldLabel) [hsx|<label class={twLabelClass} for={fieldInputId}>{fieldLabel}</label>|]
+                inputClass = (styledInputClass cssFramework formField, True)
+                inputInvalidClass = styledInputInvalidClass cssFramework formField
+                helpText = styledFormFieldHelp cssFramework formField
+
 
         styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
         styledSelectFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, fieldInput, labelClass, required, autofocus } validationResult =

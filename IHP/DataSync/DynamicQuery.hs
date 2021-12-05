@@ -20,12 +20,13 @@ import Data.Aeson.TH
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
 data DynamicValue
-    = IntValue Int
-    | TextValue Text
-    | BoolValue Bool
-    | UUIDValue UUID
-    | DateTimeValue UTCTime
+    = IntValue !Int
+    | TextValue !Text
+    | BoolValue !Bool
+    | UUIDValue !UUID
+    | DateTimeValue !UTCTime
     | Null
+    deriving (Show, Eq)
 
 -- | Similiar to IHP.QueryBuilder.SQLQuery, but is designed to be accessed by external users
 --
@@ -36,11 +37,31 @@ data DynamicValue
 data DynamicSQLQuery = DynamicSQLQuery
     { table :: !Text
     , selectedColumns :: SelectedColumns
-    , whereCondition :: !(Maybe Condition)
+    , whereCondition :: !(Maybe ConditionExpression)
     , orderByClause :: ![OrderByClause]
     , limitClause :: !(Maybe Text)
     , offsetClause :: !(Maybe Text)
     } deriving (Show, Eq)
+
+-- | Represents a WHERE conditions of a 'DynamicSQLQuery'
+data ConditionExpression
+    = ColumnExpression { field :: !Text }
+    | NullExpression
+    | InfixOperatorExpression { left :: !ConditionExpression, op :: !ConditionOperator, right :: !ConditionExpression }
+    | LiteralExpression { value :: !DynamicValue }
+    deriving (Show, Eq)
+
+-- | Operators available in WHERE conditions
+data ConditionOperator
+    = OpEqual -- ^ a = b
+    | OpGreaterThan -- ^ a > b
+    | OpLessThan -- ^ a < b
+    | OpGreaterThanOrEqual -- ^ a >= b
+    | OpLessThanOrEqual -- ^ a <= b
+    | OpNotEqual -- ^ a <> b
+    | OpAnd -- ^ a AND b
+    | OpOr -- ^ a OR b
+    deriving (Show, Eq)
 
 data SelectedColumns
     = SelectAll -- ^ SELECT * FROM table
@@ -113,3 +134,6 @@ $(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
 $(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
 $(deriveFromJSON defaultOptions 'SelectAll)
 $(deriveFromJSON defaultOptions 'DynamicSQLQuery)
+$(deriveFromJSON defaultOptions ''ConditionOperator)
+$(deriveFromJSON defaultOptions ''ConditionExpression)
+$(deriveFromJSON defaultOptions ''DynamicValue)

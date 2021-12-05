@@ -62,7 +62,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> dropType <|> commentStatement <|> comment
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> dropType <|> commentStatement <|> comment
     space
     pure s
 
@@ -512,13 +512,41 @@ alterTable = do
             dropColumn tableName <|> dropConstraint tableName
     let rename = do
             lexeme "RENAME"
-            renameColumn tableName
-    enableRowLevelSecurity tableName <|> add <|> drop <|> rename
+            renameColumn tableName <|> renameTable tableName
+    let alter = do
+            lexeme "ALTER"
+            alterColumn tableName
+    enableRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
 
 alterType = do
     lexeme "TYPE"
     typeName <- qualifiedIdentifier
     addValue typeName
+
+-- | ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+--  ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+alterColumn tableName = do
+    lexeme "COLUMN"
+    columnName <- identifier
+
+    let dropNotNull = do
+            lexeme "DROP"
+            lexeme "NOT"
+            lexeme "NULL"
+            char ';'
+            pure DropNotNull { tableName, columnName }
+    
+    let setNotNull = do
+            lexeme "SET"
+            lexeme "NOT"
+            lexeme "NULL"
+            char ';'
+            pure SetNotNull { tableName, columnName }
+
+    dropNotNull <|> setNotNull
+    
+
+    
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"
@@ -602,6 +630,12 @@ renameColumn tableName = do
     char ';'
     pure RenameColumn { tableName, from, to }
 
+renameTable tableName = do
+    lexeme "TO"
+    to <- identifier
+    char ';'
+    pure RenameTable { from = tableName, to }
+
 dropTable = do
     lexeme "DROP"
     lexeme "TABLE"
@@ -622,6 +656,15 @@ dropIndex = do
     indexName <- qualifiedIdentifier
     char ';'
     pure DropIndex { indexName }
+
+dropPolicy = do
+    lexeme "DROP"
+    lexeme "POLICY"
+    policyName <- qualifiedIdentifier
+    lexeme "ON"
+    tableName <- qualifiedIdentifier
+    char ';'
+    pure DropPolicy { tableName, policyName }
 
 createSequence = do
     lexeme "CREATE"

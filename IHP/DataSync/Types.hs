@@ -5,6 +5,7 @@ import Data.Aeson
 import IHP.QueryBuilder
 import IHP.DataSync.DynamicQuery
 import Data.HashMap.Strict (HashMap)
+import qualified IHP.PGListener as PGListener
 
 data DataSyncMessage
     = DataSyncQuery { query :: !DynamicSQLQuery, requestId :: !Int }
@@ -19,7 +20,7 @@ data DataSyncMessage
 data DataSyncResponse
     = DataSyncResult { result :: [[Field]], requestId :: !Int }
     | DataSyncError { requestId :: !Int, errorMessage :: !Text }
-    | FailedToDecodeMessageError
+    | FailedToDecodeMessageError { errorMessage :: !Text }
     | DidCreateDataSubscription { requestId :: !Int, subscriptionId :: UUID, result :: [[Field]] }
     | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: UUID }
     | DidInsert { subscriptionId :: UUID, record :: [Field] }
@@ -30,10 +31,8 @@ data DataSyncResponse
     | DidUpdateRecord { requestId :: !Int, record :: [Field] } -- ^ Response to 'UpdateRecordMessage'
     | DidDeleteRecord { requestId :: !Int }
 
-data Subscription = Subscription { id :: UUID, tableWatcher :: Async () }
-    deriving (Eq)
+data Subscription = Subscription { id :: UUID, channelSubscription :: PGListener.Subscription }
 
 data DataSyncController
     = DataSyncController
     | DataSyncReady { subscriptions :: HashMap UUID Subscription }
-    deriving (Eq)
