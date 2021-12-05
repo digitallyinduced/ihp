@@ -24,6 +24,7 @@ import IHP.WebSocket
 import IHP.Controller.Context
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple.Types as PG
+import Data.String.Interpolate.IsString
 
 initAutoRefresh :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initAutoRefresh = do
@@ -226,18 +227,25 @@ channelName tableName = "did_change_" <> tableName
 
 -- | Returns the sql code to set up a database trigger
 notificationTrigger :: ByteString -> PG.Query
-notificationTrigger tableName = PG.Query $ ""
-        <> "BEGIN;\n"
-        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
-        <> "BEGIN\n"
-        <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
-        <> "    RETURN new;"
-        <> "END;\n"
-        <> "$$ language plpgsql;"
-        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "COMMIT;\n"
+notificationTrigger tableName = PG.Query [i|
+        BEGIN;
+            CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
+                BEGIN
+                    PERFORM pg_notify('#{channelName tableName}', '');
+                    RETURN new;
+                END;
+            $$ language plpgsql;
+            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
+            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+            
+            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
+            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+
+            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
+            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+        
+        COMMIT;
+    |]
     where
         functionName = "notify_did_change_" <> tableName
         insertTriggerName = "did_insert_" <> tableName
