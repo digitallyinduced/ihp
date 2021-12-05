@@ -19,12 +19,13 @@ import qualified Data.List as List
 compileQuery :: DynamicSQLQuery -> (PG.Query, [PG.Action])
 compileQuery DynamicSQLQuery { .. } = (sql, args)
     where
-        sql = "SELECT ? FROM ?" <> orderBySql
+        sql = "SELECT ? FROM ?" <> orderBySql <> whereSql
         args = catMaybes
                 [ Just (compileSelectedColumns selectedColumns)
                 , Just (PG.toField (PG.Identifier table))
                 ]
                 <> orderByArgs
+                <> whereArgs
 
         (orderBySql, orderByArgs) = case orderByClause of
                 [] -> ("", [])
@@ -41,6 +42,10 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
                         |> concat
                     )
 
+        (whereSql, whereArgs) = case compileCondition <$> whereCondition of
+            Just (sql, args) -> (" WHERE " <> sql, args)
+            Nothing -> ("", [])
+
 compileSelectedColumns :: SelectedColumns -> PG.Action
 compileSelectedColumns SelectAll = PG.Plain "*"
 compileSelectedColumns (SelectSpecific fields) = PG.Many args
@@ -51,3 +56,29 @@ compileSelectedColumns (SelectSpecific fields) = PG.Many args
         fieldActions = (map (\field -> [ PG.toField (PG.Identifier field) ]) fields)
 
 -- TODO: validate query against schema
+
+compileCondition :: ConditionExpression -> (PG.Query, [PG.Action])
+compileCondition (ColumnExpression column) = ("?", [PG.toField $ PG.Identifier (fieldNameToColumnName column)])
+compileCondition NullExpression = ("NULL", [])
+compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") " <> compileOperator operator <> " (" <> queryB <> ")", paramsA <> paramsB)
+    where
+        (queryA, paramsA) = compileCondition a
+        (queryB, paramsB) = compileCondition b
+compileCondition (LiteralExpression literal) = ("?", [toValue literal])
+    where
+        toValue (IntValue int) = PG.toField int
+        toValue (TextValue text) = PG.toField text
+        toValue (BoolValue bool) = PG.toField bool
+        toValue (UUIDValue uuid) = PG.toField uuid
+        toValue (DateTimeValue utcTime) = PG.toField utcTime
+        toValue Null = PG.toField PG.Null
+
+compileOperator :: ConditionOperator -> PG.Query
+compileOperator OpEqual = "="
+compileOperator OpGreaterThan = ">"
+compileOperator OpLessThan = "<"
+compileOperator OpGreaterThanOrEqual = ">="
+compileOperator OpLessThanOrEqual = "<="
+compileOperator OpNotEqual = "<>"
+compileOperator OpAnd = "AND"
+compileOperator OpOr = "OR"
