@@ -21,8 +21,9 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
-import qualified IHP.PGNotify as PGNotify
 import IHP.Controller.Context
+import qualified IHP.PGListener as PGListener
+import qualified Database.PostgreSQL.Simple.Types as PG
 
 initAutoRefresh :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initAutoRefresh = do
@@ -156,7 +157,13 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
     modifyIORef autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
-    subscriptions <-  subscriptionRequired |> mapM (\table -> PGNotify.watchInsertOrUpdateTable table do
+
+    pgListener <- get #pgListener <$> readIORef autoRefreshServer
+    subscriptions <-  subscriptionRequired |> mapM (\table -> do
+        let createTriggerSql = notificationTrigger table
+        sqlExec createTriggerSql ()
+
+        pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (get #sessions) <$> readIORef autoRefreshServer
                 sessions
                     |> filter (\session -> table `Set.member` (get #tables session))
@@ -213,7 +220,26 @@ gcSessions autoRefreshServer = do
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
 isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
 
--- | Stops all async Auto Refresh subscriptions
-stopAutoRefreshServer :: IORef AutoRefreshServer -> IO ()
-stopAutoRefreshServer autoRefreshServer =
-    readIORef autoRefreshServer >>= (\autoRefreshServer -> autoRefreshServer |> get #subscriptions |> mapM_ uninterruptibleCancel)
+-- | Returns the event name of the event that the pg notify trigger dispatches
+channelName :: ByteString -> ByteString
+channelName tableName = "did_change_" <> tableName
+
+-- | Returns the sql code to set up a database trigger
+notificationTrigger :: ByteString -> PG.Query
+notificationTrigger tableName = PG.Query $ ""
+        <> "BEGIN;\n"
+        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+        <> "BEGIN\n"
+        <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
+        <> "    RETURN new;"
+        <> "END;\n"
+        <> "$$ language plpgsql;"
+        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "COMMIT;\n"
+    where
+        functionName = "notify_did_change_" <> tableName
+        insertTriggerName = "did_insert_" <> tableName
+        updateTriggerName = "did_update_" <> tableName
+        deleteTriggerName = "did_delete_" <> tableName

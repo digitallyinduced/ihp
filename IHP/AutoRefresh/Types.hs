@@ -8,6 +8,7 @@ module IHP.AutoRefresh.Types where
 import IHP.Prelude
 import IHP.Controller.RequestContext
 import Control.Concurrent.MVar (MVar)
+import qualified IHP.PGListener as PGListener
 
 data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshSession = AutoRefreshSession
@@ -24,7 +25,12 @@ data AutoRefreshSession = AutoRefreshSession
         , lastPing :: !UTCTime
         }
 
-data AutoRefreshServer = AutoRefreshServer { subscriptions :: [Async ()], sessions :: ![AutoRefreshSession], subscribedTables :: !(Set ByteString) }
+data AutoRefreshServer = AutoRefreshServer
+        { subscriptions :: [PGListener.Subscription]
+        , sessions :: ![AutoRefreshSession]
+        , subscribedTables :: !(Set ByteString)
+        , pgListener :: PGListener.PGListener
+        }
 
-newAutoRefreshServer :: AutoRefreshServer
-newAutoRefreshServer = AutoRefreshServer { subscriptions = [], sessions = [], subscribedTables = mempty }
+newAutoRefreshServer :: PGListener.PGListener -> AutoRefreshServer
+newAutoRefreshServer pgListener = AutoRefreshServer { subscriptions = [], sessions = [], subscribedTables = mempty, pgListener }
