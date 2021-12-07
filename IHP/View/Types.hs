@@ -49,7 +49,7 @@ data FormField = FormField
     , fieldValue :: !Text
     , fieldInputId :: !Text
     , validatorResult :: !(Maybe Violation)
-    , fieldInput :: !(FormField -> Blaze.Html)
+    , additionalAttributes :: [(Text, Text)]
     , fieldClass :: !Text
     , labelClass :: !Text
     , disabled :: !Bool
