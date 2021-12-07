@@ -40,9 +40,9 @@ run configBuilder = do
     frameworkConfig <- buildFrameworkConfig configBuilder
 
     sessionVault <- Vault.newKey
-    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
     modelContext <- initModelContext frameworkConfig
     pgListener <- PGListener.init modelContext
+    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
     let ?modelContext = modelContext
     let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
@@ -63,7 +63,7 @@ run configBuilder = do
 
     run `finally` do
         frameworkConfig |> get #logger |> get #cleanup
-        AutoRefresh.stopAutoRefreshServer autoRefreshServer
+        PGListener.stop pgListener
 
 {-# INLINABLE run #-}
 

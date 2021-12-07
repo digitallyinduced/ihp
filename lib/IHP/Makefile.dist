@@ -95,10 +95,19 @@ endif
 
 all: build/ihp-lib build/Generated/Types.hs
 
-.envrc: default.nix ## Rebuild nix packages and .envrc
+# Avoid canceling the 'make .envrc' task causing the .envrc file to be deleted
+.PRECIOUS: .envrc build/envrc
+
+.envrc: build/envrc default.nix ## Rebuild nix packages and .envrc
 	rm -f .envrc
-	echo "PATH_add $$(nix-shell -j auto --cores 0 --pure --run 'printf %q $$PATH')" > .envrc
+	mv build/envrc .envrc
 	direnv allow
+
+# We build the .envrc file in a seperate task to avoid causing the .envrc accidentally
+# getting deleted when the nix-shell fails to build
+build/envrc: default.nix
+	rm -f build/envrc
+	echo "PATH_add $$(nix-shell -j auto --cores 0 --pure --run 'printf %q $$PATH')" > build/envrc
 
 build/bin:
 	mkdir -p build/bin

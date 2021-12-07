@@ -421,7 +421,7 @@ textField field = FormField
         , disableLabel = False
         , disableGroup = False
         , disableValidationResult = False
-        , fieldInput = const Html5.input
+        , additionalAttributes = []
         , cssFramework = get #cssFramework ?formContext
         , helpText = ""
         , placeholder = ""
@@ -470,7 +470,7 @@ textareaField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-textareaField field = (textField field) { fieldType = TextareaInput, fieldInput = \formField -> Html5.textarea (cs (fieldValue formField)) }
+textareaField field = (textField field) { fieldType = TextareaInput }
 {-# INLINE textareaField #-}
 
 -- | Renders a color field
@@ -635,7 +635,7 @@ checkboxField field = FormField
         , disableLabel = False
         , disableGroup = False
         , disableValidationResult = False
-        , fieldInput = const Html5.input
+        , additionalAttributes = []
         , cssFramework = get #cssFramework ?formContext
         , helpText = ""
         , placeholder = ""
@@ -709,7 +709,7 @@ selectField field items = FormField
         , disableLabel = False
         , disableGroup = False
         , disableValidationResult = False
-        , fieldInput = const (Html5.select mempty)
+        , additionalAttributes = []
         , cssFramework = get #cssFramework ?formContext
         , helpText = ""
         , placeholder = "Please select"

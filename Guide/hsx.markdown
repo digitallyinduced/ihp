@@ -145,7 +145,7 @@ This will render to:
 For dynamic use cases you can use `{...attributeList}`:
 
 ```haskell
-<div { ...[ ("data-my-attribute", "Hello World!") ] } />
+<div { ...[ ("data-my-attribute" :: Text, "Hello World!" :: Text) ] } />
 <div { ...[ ("data-user-" <> tshow userId, tshow userFirstname) ] } />
 <div { ...someVariable } />
 ```

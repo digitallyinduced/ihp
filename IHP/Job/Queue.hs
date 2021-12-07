@@ -19,6 +19,7 @@ import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.Controller.Param
 import qualified System.Random as Random
+import qualified IHP.PGListener as PGListener
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -67,26 +68,18 @@ fetchNextJob workerId = do
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => Text -> Int -> IO () -> IO (Async.Async ())
-watchForJob tableName pollInterval handleJob = do
-    sqlExec (PG.Query $ cs $ createNotificationTrigger tableName) ()
-
-    let listenStatement = "LISTEN " <> PG.Query (cs $ eventName tableName)
-    watcher <- Async.asyncBound do
-        forever do
-            notification <- withDatabaseConnection \databaseConnection -> do
-                PG.execute databaseConnection listenStatement ()
-                PG.getNotification databaseConnection
-
-            handleJob
+watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> IO () -> IO PGListener.Subscription
+watchForJob pgListener tableName pollInterval handleJob = do
+    let tableNameBS = cs tableName
+    sqlExec (createNotificationTrigger tableNameBS) ()
 
     poller <- pollForJob tableName pollInterval handleJob
+    subscription <- pgListener |> PGListener.subscribe (channelName tableNameBS) (const handleJob)
 
-    -- When the watcher is stopped, we also want to stop the poller
-    Async.link watcher
+    -- When the thread, we also want to stop the poller
     Async.link poller
 
-    pure watcher
+    pure subscription
 
 -- | Periodically checks the queue table for open jobs. Calls the callback if there are any.
 --
@@ -112,12 +105,12 @@ pollForJob tableName pollInterval handleJob = do
 
             Concurrent.threadDelay pollIntervalWithJitter
 
-createNotificationTrigger :: Text -> Text
-createNotificationTrigger tableName = ""
+createNotificationTrigger :: ByteString -> PG.Query
+createNotificationTrigger tableName = PG.Query $ ""
         <> "BEGIN;\n"
         <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
         <> "BEGIN\n"
-        <> "    PERFORM pg_notify('" <> eventName tableName <> "', '');\n"
+        <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
         <> "    RETURN new;"
         <> "END;\n"
         <> "$$ language plpgsql;"
@@ -130,8 +123,8 @@ createNotificationTrigger tableName = ""
         updateTriggerName = "did_update_job_" <> tableName
 
 -- | Retuns the event name of the event that the pg notify trigger dispatches
-eventName :: Text -> Text
-eventName tableName = "job_available_" <> tableName
+channelName :: ByteString -> ByteString
+channelName tableName = "job_available_" <> tableName
 
 -- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
 jobDidFail :: forall job.

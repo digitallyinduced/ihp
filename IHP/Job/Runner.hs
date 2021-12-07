@@ -19,6 +19,7 @@ import qualified System.Posix.Signals as Signals
 import qualified System.Exit as Exit
 import qualified System.Timeout as Timeout
 import qualified Control.Concurrent.Async.Pool as Pool
+import qualified IHP.PGListener as PGListener
 
 runJobWorkers :: [JobWorker] -> Script
 runJobWorkers jobWorkers = do
@@ -36,15 +37,20 @@ runJobWorkersWithExitHandler jobWorkers withExitHandler = do
 
     putStrLn ("Starting worker " <> tshow workerId)
 
-    let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context}
+    -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
+    -- could overload the main PGListener connection. In that case we still want jobs to be
+    -- run independent of the system being very busy.
+    let withPGListener = Exception.bracket (PGListener.init ?modelContext) (PGListener.stop)
 
-    withExitHandler jobWorkerArgs do
-        listenAndRuns <- jobWorkers
-            |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
+    withPGListener \pgListener -> do
+        let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
+        withExitHandler jobWorkerArgs do
+            listenAndRuns <- jobWorkers
+                |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
 
-        forEach listenAndRuns Async.link
+            forEach listenAndRuns Async.link
 
-        pure ()
+            pure ()
 
 waitExitHandler JobWorkerArgs { .. } main = do
     threadId <- Concurrent.myThreadId
@@ -158,7 +164,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
             startLoop
 
             -- Start a job when a new job is added to the table or when it's set to retry
-            watcher <- Queue.watchForJob (tableName @job) (queuePollInterval @job) startLoop
+            watcher <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) startLoop
             
             -- Keep the task group alive until the outer async is killed
             forever (Concurrent.threadDelay maxBound)
