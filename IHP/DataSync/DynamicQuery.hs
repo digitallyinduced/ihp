@@ -99,6 +99,10 @@ instance PG.FromField Field where
                 <|> (UUIDValue <$> PG.fromField field fieldValue')
                 <|> (DateTimeValue <$> PG.fromField field fieldValue')
                 <|> (PG.fromField @PG.Null field fieldValue' >> pure IHP.DataSync.DynamicQuery.Null)
+                <|> fromFieldCustomEnum field fieldValue'
+
+            fromFieldCustomEnum field (Just value) = pure (TextValue (cs value))
+            fromFieldCustomEnum field Nothing      = pure IHP.DataSync.DynamicQuery.Null
 
 
 -- | Returns a list of all id's in a result
