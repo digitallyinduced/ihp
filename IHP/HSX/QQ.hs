@@ -85,7 +85,7 @@ toStringAttribute (StaticAttribute name (ExpressionValue expression)) = let name
 toStringAttribute (SpreadAttributes expression) = [| spreadAttributes $(pure expression) |]
 
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Html5.Html -> Html5.Html
-spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (name <> "=\"") value) attributes
+spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (" " <> name <> "=\"") value) attributes
 
 applyAttributes :: Html5.Html -> [Html5.Html -> Html5.Html] -> Html5.Html
 applyAttributes element attributes = foldl' (\element attribute -> attribute element) element attributes
