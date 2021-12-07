@@ -198,3 +198,4 @@ aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger val
     Left (floating :: Double) -> PG.toField floating
     Right (integer :: Integer) -> PG.toField integer
 aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
+aesonValueToPostgresValue object@(Object values) = PG.toField (toJSON object)
