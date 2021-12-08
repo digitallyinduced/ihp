@@ -19,13 +19,13 @@ import qualified Data.List as List
 compileQuery :: DynamicSQLQuery -> (PG.Query, [PG.Action])
 compileQuery DynamicSQLQuery { .. } = (sql, args)
     where
-        sql = "SELECT ? FROM ?" <> orderBySql <> whereSql
+        sql = "SELECT ? FROM ?" <> whereSql <> orderBySql
         args = catMaybes
                 [ Just (compileSelectedColumns selectedColumns)
                 , Just (PG.toField (PG.Identifier table))
                 ]
-                <> orderByArgs
                 <> whereArgs
+                <> orderByArgs
 
         (orderBySql, orderByArgs) = case orderByClause of
                 [] -> ("", [])

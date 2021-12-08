@@ -329,19 +329,14 @@ The following options are not commonly used, but are useful sometimes.
 
 #### Adding custom attributes to the input element
 
-Form rendering is built on top of [blaze html](https://hackage.haskell.org/package/blaze-html). So you need to import the blaze HTML functions for this. Add this at the top of your module:
-
-```haskell
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
-```
+Customize it like this:
 
 ```haskell
 -- On click, open an alert.
-{(textField #title) { fieldInput = (\fieldInput -> H.input ! A.onclick "alert(1)") } }
+{(textField #title) { additionalAttributes = [ ("onclick", "alert(1)") ] } }
 
 -- Add HTML5 'min' and 'max' attributes to a number input.
-{(numberField #someval) { fieldInput = (\fieldInput -> H.input ! A.min "1" ! A.max "100") } }
+{(numberField #someval) { additionalAttributes = [ ("min", "1"), ("max", 100) ] } }
 ```
 
 This will render like:
@@ -350,12 +345,12 @@ This will render like:
 <div class="form-group" id="form-group-post_title">
     <label class="" for="post_title">Title</label>
     <input
-        onclick="alert(1)"
         type="text"
         name="title"
         placeholder=""
         id="post_title"
         class="form-control"
+        onclick="alert(1)"
     />
 </div>
 
@@ -364,14 +359,12 @@ This will render like:
     <input
         type="number"
         name="someval"
+        class="form-control"
         min="1"
         max="100"
-        class="form-control"
     />
 </div>
 ```
-
-Using the `fieldInput`, which is passed as an argument, you can access the other options of the form. Don't set the `class` attribute on your custom field input, as this will break rendering.
 
 #### Custom name attribute
 

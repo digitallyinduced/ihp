@@ -30,7 +30,7 @@ Run this command to fix the missing link:
 nix-shell --run 'make build/ihp-lib'
 ```
 
-**If this is not working:** Please run `which RunDevServer`. If this returns `RunDevServer not found`, this indicates that `direnv` (which has been installed by `ihp-new`) is not loading the `.envrc` file of the
+**If this is not working:** Please run `which RunDevServer`. If this returns `RunDevServer not found`, this indicates that `direnv` (which has been installed by `ihp-new`) is not loading the `.envrc` file of your shell.
 
 To solve this, run the following commands:
 

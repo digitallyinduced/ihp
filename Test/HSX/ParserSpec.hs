@@ -57,3 +57,8 @@ tests = do
         it "should collapse spaces" do
             let p = parseHsx position "\n    Hello\n    World\n    !    "
             p `shouldBe`  (Right (Children [TextNode "Hello World !"]))
+        
+        it "should parse spread values" do
+            let p = parseHsx position "<div {...variables}/>"
+            -- We cannot easily construct the @VarE variables@ expression, therefore we use show here for comparison
+            tshow p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"

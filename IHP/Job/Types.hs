@@ -12,6 +12,7 @@ import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent.Async.Pool as Pool
+import qualified IHP.PGListener as PGListener
 
 class Job job where
     perform :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => job -> IO ()
@@ -44,6 +45,7 @@ data JobWorkerArgs = JobWorkerArgs
     , workerId :: UUID
     , modelContext :: ModelContext
     , frameworkConfig :: FrameworkConfig
+    , pgListener :: PGListener.PGListener
     }
 
 newtype JobWorker = JobWorker (JobWorkerArgs -> IO (Async.Async ()))

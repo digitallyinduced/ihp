@@ -231,7 +231,6 @@ library
         , IHP.AutoRefresh.Types
         , IHP.AutoRefresh.View
         , IHP.WebSocket
-        , IHP.PGNotify
         , IHP.Mail
         , IHP.Mail.Types
         , IHP.MailPrelude

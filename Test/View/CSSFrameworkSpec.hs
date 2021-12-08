@@ -56,7 +56,7 @@ tests = do
                         , fieldValue = ""
                         , fieldInputId = "fname"
                         , validatorResult = Nothing
-                        , fieldInput = const H.input
+                        , additionalAttributes = []
                         , fieldClass = ""
                         , labelClass = ""
                         , disabled = False
@@ -92,6 +92,10 @@ tests = do
                 it "should render with help text" do
                     let textField = baseTextField { helpText = "Enter your first name" }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-fname\"><label class=\"\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\"> <small class=\"form-text text-muted\">Enter your first name</small></div>"
+                
+                it "should render with additional attributes" do
+                    let textField = baseTextField { additionalAttributes = [ ("min", "1"), ("max", "100") ] }
+                    styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-fname\"><label class=\"\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\" min=\"1\" max=\"100\"> </div>"
 
 
             describe "checkbox" do
@@ -108,7 +112,7 @@ tests = do
                         , disableLabel = False
                         , disableGroup = False
                         , disableValidationResult = False
-                        , fieldInput = const H.input
+                        , additionalAttributes = []
                         , cssFramework = cssFramework
                         , helpText = ""
                         , placeholder = ""
@@ -138,6 +142,10 @@ tests = do
                 it "should render with help text" do
                     let checkbox = baseCheckbox { helpText = "Is the user active?" }
                     styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" id=\"user_is_active\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\"><label class=\"form-check-label\" for=\"user_is_active\">Is Active</label>  <small class=\"form-text text-muted\">Is the user active?</small></div></div>"
+                
+                it "should render with additional attributes" do
+                    let checkbox = baseCheckbox { additionalAttributes = [ ("data-x", "true") ] }
+                    styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" id=\"user_is_active\" checked=\"checked\" data-x=\"true\"><input type=\"hidden\" name=\"is_active\" value=\"off\"><label class=\"form-check-label\" for=\"user_is_active\">Is Active</label>  </div></div>"
 
             describe "select" do
                 let baseSelect = FormField
@@ -153,7 +161,7 @@ tests = do
                         , disableLabel = False
                         , disableGroup = False
                         , disableValidationResult = False
-                        , fieldInput = const (H.select mempty)
+                        , additionalAttributes = []
                         , cssFramework = cssFramework
                         , helpText = ""
                         , placeholder = "Please select"
@@ -176,6 +184,10 @@ tests = do
                 it "should render with custom placeholder" do
                     let select = baseSelect { placeholder = "Pick something" }
                     styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+
+                it "should render with additional attributes" do
+                    let select = baseSelect { additionalAttributes = [ ("data-x", "true") ] }
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
             
             describe "textarea field" do
                 let baseTextField = FormField
@@ -185,7 +197,7 @@ tests = do
                         , fieldValue = "Hello\nWorld!"
                         , fieldInputId = "body"
                         , validatorResult = Nothing
-                        , fieldInput = \formField -> H.textarea (cs (fieldValue formField))
+                        , additionalAttributes = []
                         , fieldClass = ""
                         , labelClass = ""
                         , disabled = False
@@ -201,6 +213,10 @@ tests = do
                 it "should render" do
                     let textField = baseTextField
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-body\"><label class=\"\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"form-control\">Hello\nWorld!</textarea></div>"
+                
+                it "should render with additional attributes" do
+                    let textField = baseTextField { additionalAttributes = [ ("data-x", "true") ] }
+                    styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-body\"><label class=\"\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"form-control\" data-x=\"true\">Hello\nWorld!</textarea></div>"
 
             describe "pagination" do
                 let basePagination = Pagination

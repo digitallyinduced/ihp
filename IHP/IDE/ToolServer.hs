@@ -43,6 +43,7 @@ import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
 import qualified IHP.IDE.Types
+import qualified IHP.PGListener as PGListener
 
 startToolServer :: (?context :: Context) => IO ()
 startToolServer = do
@@ -73,8 +74,10 @@ startToolServer' port isDebugMode = do
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (get #sessionCookie frameworkConfig) session
-    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
-    let applicationContext = ApplicationContext { modelContext = notConnectedModelContext undefined, session, autoRefreshServer, frameworkConfig }
+    let modelContext = notConnectedModelContext undefined
+    pgListener <- PGListener.init modelContext
+    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+    let applicationContext = ApplicationContext { modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext

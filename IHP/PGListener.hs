@@ -34,6 +34,8 @@ import Data.HashMap.Strict as HashMap
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.Aeson as Aeson
+import qualified IHP.Log as Log
+import qualified Control.Exception as Exception
 
 -- TODO: How to deal with timeout of the connection?
 
@@ -61,8 +63,8 @@ data Subscription = Subscription
 data PGListener = PGListener
     { modelContext :: !ModelContext
     , listeningTo :: !(MVar (Set Channel))
+    , listenTo :: !(MVar Channel)
     , subscriptions :: !(IORef (HashMap Channel [Subscription]))
-    , connection :: !(MVar PG.Connection)
     , notifyLoopAsync :: !(Async ())
     }
 
@@ -78,11 +80,11 @@ init :: ModelContext -> IO PGListener
 init modelContext = do
     listeningTo <- MVar.newMVar Set.empty
     subscriptions <- newIORef HashMap.empty
-    connection <- MVar.newEmptyMVar
+    listenTo <- MVar.newEmptyMVar
 
     let ?modelContext = modelContext
-    notifyLoopAsync <- async (notifyLoop connection subscriptions)
-    pure PGListener { modelContext, listeningTo, subscriptions, connection, notifyLoopAsync }
+    notifyLoopAsync <- async (notifyLoop listeningTo listenTo subscriptions)
+    pure PGListener { modelContext, listeningTo, subscriptions, listenTo, notifyLoopAsync }
 
 -- | Stops the database listener async and puts the database connection used back into the database pool
 --
@@ -157,32 +159,70 @@ unsubscribe subscription@(Subscription { .. }) pgListener = do
 
 -- | Runs a @LISTEN ..;@ statements on the postgres connection, if not already listening on that channel
 listenToChannelIfNeeded :: Channel -> PGListener -> IO ()
-listenToChannelIfNeeded channel pgListener = MVar.modifyMVar_ (get #listeningTo pgListener) \listeningTo -> do
+listenToChannelIfNeeded channel pgListener = do
+    listeningTo <- MVar.readMVar (get #listeningTo pgListener)
     let alreadyListening = channel `Set.member` listeningTo
-    if alreadyListening
-        then pure listeningTo
-        else do
-            connection <- MVar.readMVar (get #connection pgListener)
 
-            PG.execute connection "LISTEN ?" [PG.Identifier (cs channel)]
+    unless alreadyListening do
+        MVar.putMVar (get #listenTo pgListener) channel
+            
 
-            pure (Set.insert channel listeningTo)
+            
 
 -- | The main loop that is receiving events from the database and triggering callbacks
 --
 -- Todo: What happens when the connection dies?
-notifyLoop :: (?modelContext :: ModelContext) => MVar PG.Connection -> IORef (HashMap Channel [Subscription]) -> IO ()
-notifyLoop connectionVar subscriptions = do
-    withDatabaseConnection \databaseConnection -> do
-        MVar.putMVar connectionVar databaseConnection
-        forever do
-            notification <- PG.getNotification databaseConnection
-            let channel = get #notificationChannel notification
+notifyLoop :: (?modelContext :: ModelContext) => MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IO ()
+notifyLoop listeningToVar listenToVar subscriptions = do
+    -- Wait until the first LISTEN is requested before taking a database connection from the pool
+    MVar.readMVar listenToVar
 
-            allSubscriptions <- readIORef subscriptions
-            let channelSubscriptions = allSubscriptions
-                    |> HashMap.lookup channel
-                    |> fromMaybe []
+    let innerLoop = do
+            withDatabaseConnection \databaseConnection -> do
 
-            Async.forConcurrently channelSubscriptions \subscription -> do
-                (get #callback subscription) notification
+                -- If listeningTo already contains channels, this means that previously the database connection
+                -- died, so we're restarting here. Therefore we need to replay all LISTEN calls to restore the previous state
+                listeningTo <- MVar.readMVar listeningToVar
+                forEach listeningTo (listenToChannel databaseConnection)
+
+                -- This loop reads channels from the 'listenToVar' and then triggers a LISTEN statement on
+                -- the current database connections
+                let listenLoop = forever do
+                        channel <- MVar.takeMVar listenToVar
+                        
+                        MVar.modifyMVar_ listeningToVar \listeningTo -> do
+                            let alreadyListening = channel `Set.member` listeningTo
+
+                            if alreadyListening
+                                then pure listeningTo
+                                else do
+                                    listenToChannel databaseConnection channel
+                                    pure (Set.insert channel listeningTo)
+
+                Async.withAsync listenLoop \listenLoopAsync -> do
+                    forever do
+                        notification <- PG.getNotification databaseConnection
+                        let channel = get #notificationChannel notification
+
+                        allSubscriptions <- readIORef subscriptions
+                        let channelSubscriptions = allSubscriptions
+                                |> HashMap.lookup channel
+                                |> fromMaybe []
+
+                        Async.forConcurrently channelSubscriptions \subscription -> do
+                            (get #callback subscription) notification
+
+    -- This outer loop restarts the listeners if the database connection dies (e.g. due to a timeout)
+    forever do
+        result <- Exception.try innerLoop
+        case result of
+            Left (error :: SomeException) -> do
+                let ?context = ?modelContext -- Log onto the modelContext logger
+                Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error)
+            Right _ -> pure ()
+
+
+listenToChannel :: PG.Connection -> Channel -> IO ()
+listenToChannel databaseConnection channel = do
+    PG.execute databaseConnection "LISTEN ?" [PG.Identifier (cs channel)]
+    pure ()

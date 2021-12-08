@@ -153,6 +153,17 @@ tests = do
                 </html>
             |] `shouldBeHtml` "<html><head><meta charset=\"utf-8\"> <link rel=\"stylesheet\" href=\"/vendor/bootstrap.min.css\"><link rel=\"stylesheet\" href=\"/vendor/flatpickr.min.css\"><link rel=\"stylesheet\" href=\"/app.css\"> <script src=\"/prod.js\"></script><title>IHP Forum</title></head><body><div class=\"container mt-4\"><nav class=\"navbar navbar-expand-lg navbar-light mb-4\"><a class=\"navbar-brand\" href=\"/\">\955 IHP Forum</a></nav></div></body></html>"
 
+        it "should handle spread attributes with a variable" do
+            let customAttributes :: [(Text, Text)] = [
+                    ("hello", "world")
+                    ]
+            [hsx|<div {...customAttributes}></div>|] `shouldBeHtml` "<div hello=\"world\"></div>"
+        
+        it "should handle spread attributes with a list" do
+            -- See https://github.com/digitallyinduced/ihp/issues/1226
+
+            [hsx|<div {...[ ("data-hoge" :: Text, "Hello World!" :: Text) ]}></div>|] `shouldBeHtml` "<div data-hoge=\"Hello World!\"></div>"
+
 data Project = Project { name :: Text }
 
 shouldBeHtml hsx expectedHtml = (Blaze.renderMarkup hsx) `shouldBe` expectedHtml

@@ -61,9 +61,9 @@ withIHPApp application configBuilder hspecAction = do
     Exception.bracket initTestDatabase cleanupTestDatabase \testDatabase -> do
         modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (get #url testDatabase) logger
 
-        autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
         session <- Vault.newKey
         pgListener <- PGListener.init modelContext
+        autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
         let sessionVault = Vault.insert session mempty Vault.empty
         let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
 
@@ -84,10 +84,10 @@ mockContextNoDatabase application configBuilder = do
    logger <- newLogger def { level = Warn } -- don't log queries
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
-   autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
    session <- Vault.newKey
    let sessionVault = Vault.insert session mempty Vault.empty
    pgListener <- PGListener.init modelContext
+   autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
    let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
 
    let requestContext = RequestContext
