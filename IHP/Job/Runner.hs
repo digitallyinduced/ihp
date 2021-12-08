@@ -40,17 +40,18 @@ runJobWorkersWithExitHandler jobWorkers withExitHandler = do
     -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
     -- could overload the main PGListener connection. In that case we still want jobs to be
     -- run independent of the system being very busy.
-    let withPGListener = Exception.bracket (PGListener.init ?modelContext) (PGListener.stop)
+    pgListener <- PGListener.init ?modelContext
 
-    withPGListener \pgListener -> do
-        let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
-        withExitHandler jobWorkerArgs do
-            listenAndRuns <- jobWorkers
-                |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
+    -- Todo: When do we call `PGListener.stop pgListener` ?
 
-            forEach listenAndRuns Async.link
+    let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
+    withExitHandler jobWorkerArgs do
+        listenAndRuns <- jobWorkers
+            |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
 
-            pure ()
+        forEach listenAndRuns Async.link
+
+        pure ()
 
 waitExitHandler JobWorkerArgs { .. } main = do
     threadId <- Concurrent.myThreadId
