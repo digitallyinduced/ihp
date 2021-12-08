@@ -577,3 +577,8 @@ tests = do
             let sql = "DROP POLICY \"Users can manage their todos\" ON todos;\n"
             let statements = [ DropPolicy { tableName = "todos", policyName = "Users can manage their todos" } ]
             compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE EXTENSION IF NOT EXISTS;' statements with an unqualified name" do
+            let sql = "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;\n"
+            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True } ]
+            compileSql statements `shouldBe` sql

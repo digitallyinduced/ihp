@@ -71,7 +71,7 @@ createExtension = do
     lexeme "CREATE"
     lexeme "EXTENSION"
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
-    name <- cs <$> (char '"' *> manyTill Lexer.charLiteral (char '"'))
+    name <- qualifiedIdentifier
     optional do
         space
         lexeme "WITH"

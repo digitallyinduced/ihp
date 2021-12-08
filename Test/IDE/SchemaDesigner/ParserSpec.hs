@@ -22,6 +22,9 @@ tests = do
         
         it "should parse an CREATE EXTENSION with schema suffix" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+        
+        it "should parse an CREATE EXTENSION without quotes" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True }
 
         it "should parse a line comment" do
             parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
