@@ -5,6 +5,7 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.IDE.SchemaDesigner.Parser
 ( parseSchemaSql
+, parseSqlFile
 , schemaFilePath
 , parseDDL
 , expression
@@ -26,7 +27,10 @@ import Control.Monad.Combinators.Expr
 schemaFilePath = "Application/Schema.sql"
 
 parseSchemaSql :: IO (Either ByteString [Statement])
-parseSchemaSql = do
+parseSchemaSql = parseSqlFile schemaFilePath
+
+parseSqlFile :: FilePath -> IO (Either ByteString [Statement])
+parseSqlFile schemaFilePath = do
     schemaSql <- Text.readFile schemaFilePath
     let result = runParser parseDDL (cs schemaFilePath) schemaSql
     case result of
