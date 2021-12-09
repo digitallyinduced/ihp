@@ -107,7 +107,6 @@ compileExpression (IntExpression integer) = tshow integer
 compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
 compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
 compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
-compileExpression otherwise = tshow otherwise
 
 compileExpressionWithOptionalParenthese :: Expression -> Text
 compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr
