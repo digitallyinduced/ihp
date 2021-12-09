@@ -584,13 +584,13 @@ tests = do
             compileSql statements `shouldBe` sql
 
         it "should compile 'CREATE POLICY ..;' statements with an EXISTS condition" do
-            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM projects WHERE id = project_id)) WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE id = project_id));\n|]
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));\n|]
             let statements =
                     [ CreatePolicy
                         { name = "Users can manage their project's migrations"
                         , tableName = "migrations"
-                        , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
-                        , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                        , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                        , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                         }
                     ]
             compileSql statements `shouldBe` sql

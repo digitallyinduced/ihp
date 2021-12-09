@@ -389,6 +389,7 @@ table = [
             , prefix "NOT" NotExpression
             , prefix "EXISTS" ExistsExpression
             , typeCast
+            , dot
             ],
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
         ]
@@ -403,6 +404,11 @@ table = [
             symbol "::"
             castType <- sqlType
             pure $ \expr -> TypeCastExpression expr castType
+
+        dot = Postfix do
+            char '.'
+            name <- identifier
+            pure $ \expr -> DotExpression expr name
 
 -- | Parses a SQL expression
 --
