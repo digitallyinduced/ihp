@@ -696,6 +696,15 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse 'DROP POLICY .. ON ..' statements" do
             parseSql "DROP POLICY \"Users can manage their todos\" ON todos;" `shouldBe` DropPolicy { tableName = "todos", policyName = "Users can manage their todos" }
 
+        it "should parse policies with an EXISTS condition" do
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM projects WHERE id = project_id)) WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE id = project_id));|]
+            parseSql sql `shouldBe` CreatePolicy
+                    { name = "Users can manage their project's migrations"
+                    , tableName = "migrations"
+                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    }
+
 col :: Column
 col = Column
     { name = ""

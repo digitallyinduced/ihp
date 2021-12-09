@@ -368,7 +368,7 @@ sqlType = choice $ map optionalArray
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
 
-term = parens expression <|> try callExpr <|> try doubleExpr <|> try intExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -383,6 +383,7 @@ table = [
 
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
+            , prefix "EXISTS" ExistsExpression
             , typeCast
             ],
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
@@ -433,6 +434,16 @@ textExpr' = cs <$> do
             string "'\\x'"
             pure ""
     (try (char '\'' *> manyTill Lexer.charLiteral (char '\''))) <|> emptyByteString
+
+selectExpr :: Parser Expression
+selectExpr = do
+    lexeme "SELECT"
+    columns <- expression `sepBy` (char ',' >> space)
+    lexeme "FROM"
+    from <- expression
+    lexeme "WHERE"
+    whereClause <- expression
+    pure (SelectExpression Select { .. })
 
 identifier :: Parser Text
 identifier = do
