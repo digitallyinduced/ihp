@@ -54,6 +54,15 @@ data ModelContext = ModelContext
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
     , trackTableReadCallback :: Maybe (ByteString -> IO ())
+    -- | Is set to a value if row level security was enabled at runtime
+    , rowLevelSecurity :: Maybe RowLevelSecurityContext
+    }
+
+-- | When row level security is enabled at runtime, this keeps track of the current
+-- logged in user and the postgresql role to switch to.
+data RowLevelSecurityContext = RowLevelSecurityContext
+    { rlsAuthenticatedRole :: Text -- ^ Default is @ihp_authenticated@. This value comes from the @IHP_RLS_AUTHENTICATED_ROLE@  env var.
+    , rlsUserId :: PG.Action -- ^ The user id of the current logged in user
     }
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -63,6 +72,7 @@ notConnectedModelContext logger = ModelContext
     , transactionConnection = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
+    , rowLevelSecurity = Nothing
     }
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
@@ -75,6 +85,7 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
+    let rowLevelSecurity = Nothing
     pure ModelContext { .. }
 
 instance LoggingProvider ModelContext where
@@ -371,10 +382,19 @@ sqlExec theQuery theParameters = do
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
 withDatabaseConnection block =
     let
-        ModelContext { connectionPool, transactionConnection } = ?modelContext
+        ModelContext { connectionPool, transactionConnection, rowLevelSecurity } = ?modelContext
     in case transactionConnection of
         Just transactionConnection -> block transactionConnection
-        Nothing -> Pool.withResource connectionPool block
+        Nothing ->
+            -- When row level security is enabled, we need to implicitly wrap the current query in a
+            -- transaction, as we need to make sure the @SET LOCAL ROLE ihp_authenticated@ and
+            -- @SET LOCAL rls.ihp_user_id = ..@ queries are executed on the same connection before
+            -- the actual query has been executed.
+            case rowLevelSecurity of
+                Just rowLevelSecurity -> withTransaction do
+                    let (Just connection) = ?modelContext |> get #transactionConnection
+                    block connection
+                Nothing -> Pool.withResource connectionPool block
 {-# INLINABLE withDatabaseConnection #-}
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
@@ -417,7 +437,17 @@ withTransaction block = withTransactionConnection do
             |> \case
                 Just connection -> connection
                 Nothing -> error "withTransaction: transactionConnection not set as expected"
-    PG.withTransaction connection block
+    case get #rowLevelSecurity ?modelContext of
+        -- When starting a new transaction while RLS is enabled, we switch the transaction over
+        -- to the @ihp_authenticated@ role and also set the @rls.ihp_user_id@ variable.
+        --
+        -- This branch is also called from @withDatabaseConnection@, as we
+        -- automatically wrap all queries in an implicit transaction when RLS is enabled.
+        Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } -> PG.withTransaction connection do
+            sqlExec "SET LOCAL ROLE ?" [PG.Identifier rlsAuthenticatedRole]
+            sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only rlsUserId)
+            block
+        Nothing -> PG.withTransaction connection block
 {-# INLINABLE withTransaction #-}
 
 -- | Returns the postgres connection when called within a 'withTransaction' block
@@ -440,7 +470,8 @@ rollbackTransaction = PG.rollback transactionConnectionOrError
 
 withTransactionConnection :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
 withTransactionConnection block = do
-    withDatabaseConnection \connection -> do
+    let ModelContext { connectionPool } = ?modelContext
+    Pool.withResource connectionPool \connection -> do
         let modelContext = ?modelContext { transactionConnection = Just connection }
         let ?modelContext = modelContext in block
 {-# INLINABLE withTransactionConnection #-}

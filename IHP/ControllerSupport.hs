@@ -75,6 +75,9 @@ runAction controller = do
     let respond = ?context |> get #requestContext |> get #respond
 
     let doRunAction = do
+            authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
+
+            let ?modelContext = authenticatedModelContext
             beforeAction
             (action controller)
             ErrorController.handleNoResponseReturned controller
@@ -99,6 +102,17 @@ runActionWithNewContext controller = do
             ErrorController.displayException exception controller " while calling initContext"
         Right context -> do
             runAction controller
+
+-- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
+-- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
+--
+-- If row leve security wasn't enabled, this will just return the current model context.
+prepareRLSIfNeeded :: (?context :: ControllerContext) => ModelContext -> IO ModelContext
+prepareRLSIfNeeded modelContext = do
+    rowLevelSecurityContext <- Context.maybeFromContext
+    case rowLevelSecurityContext of
+        Just context -> pure modelContext { rowLevelSecurity = Just context }
+        Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
 startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
