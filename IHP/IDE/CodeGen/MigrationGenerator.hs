@@ -21,6 +21,7 @@ import IHP.IDE.SchemaDesigner.Types
 import Text.Megaparsec
 import IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
+import qualified IHP.LibDir as LibDir
 
 buildPlan :: Text -> IO (Int, [GeneratorAction])
 buildPlan description = do
@@ -38,10 +39,18 @@ buildPlan description = do
             ])
 
 diffAppDatabase = do
-    (Right targetSchema) <- Parser.parseSchemaSql
+    (Right schemaSql) <- Parser.parseSchemaSql
+    (Right ihpSchemaSql) <- parseIHPSchema
     actualSchema <- getAppDBSchema
 
+    let targetSchema = ihpSchemaSql <> schemaSql
+
     pure (diffSchemas targetSchema actualSchema)
+
+parseIHPSchema :: IO (Either ByteString [Statement])
+parseIHPSchema = do
+    libDir <- LibDir.findLibDirectory
+    Parser.parseSqlFile (cs $ libDir <> "/IHPSchema.sql")
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
@@ -56,8 +65,8 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         drop = (actualSchema \\ targetSchema)
                 |> mapMaybe toDropStatement
 
-        targetSchema = removeComments $ normalizeSchema targetSchema'
-        actualSchema = removeComments $ normalizeSchema actualSchema'
+        targetSchema = removeNoise $ normalizeSchema targetSchema'
+        actualSchema = removeNoise $ normalizeSchema actualSchema'
 
         -- | Replaces 'DROP TABLE x; CREATE TABLE x;' DDL sequences with a more efficient 'ALTER TABLE' sequence
         patchTable :: [Statement] -> [Statement]
@@ -132,9 +141,12 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
         toDropStatement otherwise = Nothing
 
-removeComments = filter \case
+removeNoise = filter \case
         Comment {} -> False
-        _          -> True
+        StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } } -> False
+        AddConstraint { tableName = "schema_migrations" }                                          -> False
+        CreateFunction { functionName = "ihp_user_id" }                                            -> False
+        _                                                                                          -> True
 
 migrateTable :: Statement -> Statement -> [Statement]
 migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } StatementCreateTable { unsafeGetCreateTable = actualTable } = migrateTable' targetTable actualTable
