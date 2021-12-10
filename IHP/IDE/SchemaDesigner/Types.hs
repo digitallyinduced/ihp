@@ -140,6 +140,7 @@ data Expression =
     -- | value::type
     | TypeCastExpression Expression PostgresType
     | SelectExpression Select
+    | DotExpression Expression Text
     deriving (Eq, Show)
 
 data Select = Select
