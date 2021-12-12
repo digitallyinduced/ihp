@@ -23,7 +23,7 @@ instance Controller PoliciesController where
     action NewPolicyAction { tableName } = do
         statements <- readSchema
         let (Just table) = findStatementByName tableName statements
-        let policy = SchemaOperations.suggestPolicy table
+        let policy = SchemaOperations.suggestPolicy statements table
         let columns = get #columns $ unsafeGetCreateTable table
         render NewPolicyView { .. }
 

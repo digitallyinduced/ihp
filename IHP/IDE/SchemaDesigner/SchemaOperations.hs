@@ -214,7 +214,7 @@ disableRowLevelSecurityIfNoPolicies tableName schema =
 -- | Checks if there exists a @user_id@ column, and returns a policy based on that.
 -- If there's no @user_id@ field on the table it will return an empty policy
 --
--- TODO: In the future this function should follow foreign keys to find the shortest path to a user_id.
+-- This function also follows foreign keys to find the shortest path to a user_id.
 -- E.g. when having a schema post_meta_tags (no user_id column) <-> posts (has a user_id) <-> users:
 --
 -- >                                                 post_id
@@ -231,8 +231,8 @@ disableRowLevelSecurityIfNoPolicies tableName schema =
 -- >                                                                 │
 -- >                                          users  ◄───────────────┘
 --
-suggestPolicy :: Statement -> Statement
-suggestPolicy (StatementCreateTable CreateTable { name = tableName, columns })
+suggestPolicy :: Schema -> Statement -> Statement
+suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, columns })
     | isJust (find isUserIdColumn columns)  = CreatePolicy
         { name = "Users can manage their " <> tableName
         , tableName
@@ -241,7 +241,69 @@ suggestPolicy (StatementCreateTable CreateTable { name = tableName, columns })
         }
     where
         compareUserId = EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])
-suggestPolicy (StatementCreateTable CreateTable { name = tableName }) = CreatePolicy { name = "", tableName, using = Nothing, check = Nothing }
+suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, columns }) = 
+            columnsWithFKAndRefTable
+                |> mapMaybe columnWithFKAndRefTableToPolicy
+                |> head
+                |> fromMaybe (emptyPolicy)
+        where
+            referenced = columns
+
+            columnWithFKAndRefTableToPolicy :: (Column, Constraint, CreateTable) -> Maybe Statement
+            columnWithFKAndRefTableToPolicy (column, ForeignKeyConstraint { referenceColumn }, CreateTable { name = refTableName, columns = refTableColumns }) | isJust (find isUserIdColumn refTableColumns) = Just CreatePolicy
+                    { name = "Users can manage the " <> tableName <> " if they can see the " <> tableNameToModelName refTableName
+                    , tableName
+                    , using = Just delegateCheck
+                    , check = Just delegateCheck
+                    }
+                where
+                    delegateCheck = ExistsExpression (
+                            SelectExpression (
+                                Select
+                                { columns = [IntExpression 1]
+                                , from = DotExpression (VarExpression "public") refTableName
+                                , whereClause = EqExpression (DotExpression (VarExpression refTableName) refColumnName) (DotExpression (VarExpression tableName) (get #name column))
+                                }
+                            )
+                        )
+                    refColumnName = referenceColumn |> fromMaybe "id"
+
+            columnWithFKAndRefTableToPolicy otherwise = Nothing
+
+
+            columnsWithFKAndRefTable :: [(Column, Constraint, CreateTable)]
+            columnsWithFKAndRefTable =
+                 columns
+                 |> map findFK
+                 |> zip columns
+                 |> mapMaybe \case
+                        (col, Just fk) -> Just (col, fk)
+                        (col, Nothing) -> Nothing
+                 |> map (\(column, fk) -> (column, fk, resolveFK fk))
+                 |> mapMaybe  \case
+                        (column, fk, Just refTable) -> Just (column, fk, refTable)
+                        (column, fk, Nothing)       -> Nothing
+
+            findFK :: Column -> Maybe Constraint
+            findFK column =
+                schema
+                    |> mapMaybe (\case
+                        AddConstraint { tableName = fkTable, constraint = fk@(ForeignKeyConstraint { columnName = fkCol }) } ->
+                            if fkTable == tableName && fkCol == get #name column
+                                then Just fk
+                                else Nothing
+                        otherwise -> Nothing)
+                    |> head
+
+            resolveFK :: Constraint -> Maybe CreateTable
+            resolveFK ForeignKeyConstraint { referenceTable } = schema
+                    |> find \case
+                        StatementCreateTable CreateTable {  name }  -> name == referenceTable
+                        otheriwse                                   -> False
+                    |> fmap \case
+                        StatementCreateTable table -> table
+
+            emptyPolicy = CreatePolicy { name = "", tableName, using = Nothing, check = Nothing }
 
 isUserIdColumn :: Column -> Bool
 isUserIdColumn Column { name = "user_id" } = True
