@@ -5,7 +5,11 @@ import ReactDOM from 'react-dom'
 import '@docsearch/react/style';
 
 function IHPSearch() {
-  return <DocSearch apiKey="e2a57f1c68adf1b431ae8ee3cb0d3207" indexName="digitallyinduced" />
+  return <DocSearch
+    appId="JMAC7352QM"
+    apiKey="097d3287e3009d4d3f666eefd7b05b1d"
+    indexName="digitallyinduced"
+  />
 }
 
 ReactDOM.render(

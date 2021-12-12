@@ -22,6 +22,9 @@ tests = do
         
         it "should parse an CREATE EXTENSION with schema suffix" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+        
+        it "should parse an CREATE EXTENSION without quotes" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True }
 
         it "should parse a line comment" do
             parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
@@ -692,6 +695,24 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         
         it "should parse 'DROP POLICY .. ON ..' statements" do
             parseSql "DROP POLICY \"Users can manage their todos\" ON todos;" `shouldBe` DropPolicy { tableName = "todos", policyName = "Users can manage their todos" }
+
+        it "should parse policies with an EXISTS condition" do
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM projects WHERE id = project_id)) WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE id = project_id));|]
+            parseSql sql `shouldBe` CreatePolicy
+                    { name = "Users can manage their project's migrations"
+                    , tableName = "migrations"
+                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    }
+        
+        it "should parse policies with an EXISTS condition and a qualified table name" do
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));|]
+            parseSql sql `shouldBe` CreatePolicy
+                    { name = "Users can manage their project's migrations"
+                    , tableName = "migrations"
+                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                    }
 
 col :: Column
 col = Column

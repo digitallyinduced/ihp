@@ -121,6 +121,8 @@ data Expression =
     | IsExpression Expression Expression
     -- | NOT a
     | NotExpression Expression
+    -- | EXISTS a
+    | ExistsExpression Expression
     -- | a OR b
     | OrExpression Expression Expression
     -- | a < b
@@ -137,7 +139,15 @@ data Expression =
     | IntExpression Int
     -- | value::type
     | TypeCastExpression Expression PostgresType
+    | SelectExpression Select
+    | DotExpression Expression Text
     deriving (Eq, Show)
+
+data Select = Select
+    { columns :: [Expression]
+    , from :: Expression
+    , whereClause :: Expression
+    } deriving (Eq, Show)
 
 data PostgresType
     = PUUID

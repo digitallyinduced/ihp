@@ -577,3 +577,20 @@ tests = do
             let sql = "DROP POLICY \"Users can manage their todos\" ON todos;\n"
             let statements = [ DropPolicy { tableName = "todos", policyName = "Users can manage their todos" } ]
             compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE EXTENSION IF NOT EXISTS;' statements with an unqualified name" do
+            let sql = "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;\n"
+            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE POLICY ..;' statements with an EXISTS condition" do
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));\n|]
+            let statements =
+                    [ CreatePolicy
+                        { name = "Users can manage their project's migrations"
+                        , tableName = "migrations"
+                        , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                        , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                        }
+                    ]
+            compileSql statements `shouldBe` sql

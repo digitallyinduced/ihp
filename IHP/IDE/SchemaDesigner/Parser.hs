@@ -5,6 +5,7 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.IDE.SchemaDesigner.Parser
 ( parseSchemaSql
+, parseSqlFile
 , schemaFilePath
 , parseDDL
 , expression
@@ -26,7 +27,10 @@ import Control.Monad.Combinators.Expr
 schemaFilePath = "Application/Schema.sql"
 
 parseSchemaSql :: IO (Either ByteString [Statement])
-parseSchemaSql = do
+parseSchemaSql = parseSqlFile schemaFilePath
+
+parseSqlFile :: FilePath -> IO (Either ByteString [Statement])
+parseSqlFile schemaFilePath = do
     schemaSql <- Text.readFile schemaFilePath
     let result = runParser parseDDL (cs schemaFilePath) schemaSql
     case result of
@@ -71,7 +75,7 @@ createExtension = do
     lexeme "CREATE"
     lexeme "EXTENSION"
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
-    name <- cs <$> (char '"' *> manyTill Lexer.charLiteral (char '"'))
+    name <- qualifiedIdentifier
     optional do
         space
         lexeme "WITH"
@@ -368,7 +372,7 @@ sqlType = choice $ map optionalArray
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
 
-term = parens expression <|> try callExpr <|> try doubleExpr <|> try intExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -383,7 +387,9 @@ table = [
 
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
+            , prefix "EXISTS" ExistsExpression
             , typeCast
+            , dot
             ],
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
         ]
@@ -398,6 +404,11 @@ table = [
             symbol "::"
             castType <- sqlType
             pure $ \expr -> TypeCastExpression expr castType
+
+        dot = Postfix do
+            char '.'
+            name <- identifier
+            pure $ \expr -> DotExpression expr name
 
 -- | Parses a SQL expression
 --
@@ -433,6 +444,16 @@ textExpr' = cs <$> do
             string "'\\x'"
             pure ""
     (try (char '\'' *> manyTill Lexer.charLiteral (char '\''))) <|> emptyByteString
+
+selectExpr :: Parser Expression
+selectExpr = do
+    lexeme "SELECT"
+    columns <- expression `sepBy` (char ',' >> space)
+    lexeme "FROM"
+    from <- expression
+    lexeme "WHERE"
+    whereClause <- expression
+    pure (SelectExpression Select { .. })
 
 identifier :: Parser Text
 identifier = do

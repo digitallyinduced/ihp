@@ -107,6 +107,7 @@ all: build/ihp-lib build/Generated/Types.hs
 # getting deleted when the nix-shell fails to build
 build/envrc: default.nix
 	rm -f build/envrc
+	mkdir -p build
 	echo "PATH_add $$(nix-shell -j auto --cores 0 --pure --run 'printf %q $$PATH')" > build/envrc
 
 build/bin:

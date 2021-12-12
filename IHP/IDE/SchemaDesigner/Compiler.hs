@@ -24,7 +24,7 @@ compileSql statements = statements
 compileStatement :: Statement -> Text
 compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints }) = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n);"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values |> map TextExpression |> map compileExpression) <> ");"
-compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
+compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> ";"
 compileStatement AddConstraint { tableName, constraintName = "", constraint = UniqueConstraint { columnNames } } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
 compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
 compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
@@ -105,6 +105,9 @@ compileExpression (GreaterThanOrEqualToExpression a b) = compileExpressionWithOp
 compileExpression (DoubleExpression double) = tshow double
 compileExpression (IntExpression integer) = tshow integer
 compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
+compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
+compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
+compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
 
 compileExpressionWithOptionalParenthese :: Expression -> Text
 compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr
@@ -118,6 +121,7 @@ compileExpressionWithOptionalParenthese expr@(CallExpression {}) = compileExpres
 compileExpressionWithOptionalParenthese expr@(TextExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(IntExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DoubleExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b) = compileExpression expr
 compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 compareStatement (CreateEnumType {}) _ = LT
@@ -159,9 +163,9 @@ compilePostgresType (PCustomType theType) = theType
 compileIdentifier :: Text -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
     where
-        identifierNeedsQuoting = isKeyword || containsSpace
+        identifierNeedsQuoting = isKeyword || containsChar ' ' || containsChar '-'
         isKeyword = IHP.Prelude.toUpper identifier `elem` keywords
-        containsSpace = Text.any (' ' ==) identifier
+        containsChar char = Text.any (char ==) identifier
 
         keywords = [ "ABORT"
             , "ABSOLUTE"

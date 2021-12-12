@@ -93,7 +93,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 }
-
+                let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage their posts"
                         , tableName = "posts"
@@ -101,7 +101,7 @@ tests = do
                         , check = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" []))
                         }
 
-                SchemaOperations.suggestPolicy table `shouldBe` expectedPolicy
+                SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest an empty policy if no user_id column exists" do
                 let table = StatementCreateTable CreateTable
@@ -113,7 +113,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 }
-
+                let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = ""
                         , tableName = "posts"
@@ -121,4 +121,35 @@ tests = do
                         , check = Nothing
                         }
 
-                SchemaOperations.suggestPolicy table `shouldBe` expectedPolicy
+                SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
+
+            it "should suggest a policy if it can find a one hop path to a user_id column" do
+                let tasksTable = StatementCreateTable CreateTable
+                                { name = "tasks"
+                                , columns =
+                                    [ Column { name = "task_list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False }
+                                    ]
+                                , primaryKeyConstraint = PrimaryKeyConstraint []
+                                , constraints = []
+                                }
+                let taskListsTable = StatementCreateTable CreateTable
+                                { name = "task_lists"
+                                , columns =
+                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False }
+                                    ]
+                                , primaryKeyConstraint = PrimaryKeyConstraint []
+                                , constraints = []
+                                }
+                let schema =
+                            [ tasksTable
+                            , taskListsTable
+                            , AddConstraint { tableName = "tasks", constraintName = "tasks_ref_task_lists", constraint = ForeignKeyConstraint { columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing } }
+                            ]
+                let expectedPolicy = CreatePolicy
+                        { name = "Users can manage the tasks if they can see the TaskList"
+                        , tableName = "tasks"
+                        , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))
+                        , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))
+                        }
+
+                SchemaOperations.suggestPolicy schema tasksTable `shouldBe` expectedPolicy
