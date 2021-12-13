@@ -3,6 +3,7 @@ module IHP.DataSync.RowLevelSecurity
 , ensureRLSEnabled
 , hasRLSEnabled
 , TableWithRLS (tableName)
+, makeCachedEnsureRLSEnabled
 )
 where
 
@@ -13,6 +14,9 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified IHP.DataSync.Role as Role
 
 import Network.HTTP.Types (status400)
+
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 withRLS :: forall userId result.
     ( PG.ToField userId
@@ -41,6 +45,34 @@ ensureRLSEnabled table = do
     rlsEnabled <- hasRLSEnabled table
     unless rlsEnabled (error "Row level security is required for accessing this table")
     pure (TableWithRLS table)
+
+-- | Returns a factory for 'ensureRLSEnabled' that memoizes when a table has RLS enabled.
+--
+-- When a table doesn't have RLS enabled yet, the result is not memoized.
+--
+-- __Example:__
+--
+-- > -- Setup
+-- > ensureRLSEnabled <- makeCachedEnsureRLSEnabled
+-- >
+-- > ensureRLSEnabled "projects" -- Runs a database query to check if row level security is enabled for the projects table
+-- >
+-- > -- Asuming 'ensureRLSEnabled "projects"' proceeded without errors:
+-- >
+-- > ensureRLSEnabled "projects" -- Now this will instantly return True and don't fire any SQL queries anymore
+--
+makeCachedEnsureRLSEnabled :: (?modelContext :: ModelContext) => IO (Text -> IO TableWithRLS)
+makeCachedEnsureRLSEnabled = do
+    tables <- newIORef Set.empty
+    pure \tableName -> do
+        rlsEnabled <- Set.member tableName <$> readIORef tables
+
+        if rlsEnabled
+            then pure TableWithRLS { tableName }
+            else do
+                proof <- ensureRLSEnabled tableName
+                modifyIORef tables (Set.insert tableName)
+                pure proof
 
 -- | Returns 'True' if row level security has been enabled on a table
 --

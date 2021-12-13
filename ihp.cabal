@@ -102,6 +102,7 @@ common shared-properties
             , cereal
             , cereal-text
             , neat-interpolation
+            , unagi-chan
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

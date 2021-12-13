@@ -62,6 +62,7 @@
 , hspec
 , cereal-text
 , neat-interpolation
+, unagi-chan
 }:
 mkDerivation {
   pname = "ihp";
@@ -130,6 +131,7 @@ mkDerivation {
     hspec
     cereal-text
     neat-interpolation
+    unagi-chan
   ];
   license = lib.licenses.mit;
   postInstall = ''

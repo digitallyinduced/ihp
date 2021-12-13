@@ -36,6 +36,7 @@ import qualified Data.List as List
 import qualified Data.Aeson as Aeson
 import qualified IHP.Log as Log
 import qualified Control.Exception as Exception
+import qualified Control.Concurrent.Chan.Unagi as Queue
 
 -- TODO: How to deal with timeout of the connection?
 
@@ -53,7 +54,8 @@ type Callback = PG.Notification -> IO ()
 -- | Returned by a call to 'subscribe'
 data Subscription = Subscription
     { id :: !UUID
-    , callback :: !Callback
+    , reader :: !(Async ())
+    , inChan :: !(Queue.InChan PG.Notification)
     , channel :: !Channel
     }
 
@@ -114,6 +116,13 @@ subscribe channel callback pgListener = do
     id <- UUID.nextRandom
     listenToChannelIfNeeded channel pgListener
 
+    -- We use a queue here to guarantee that the messages are processed in the right order
+    -- while keeping high performance.
+    --
+    -- A naive implementation might be just kicking of an async for each message. But in that case
+    -- the messages might be delivered to the final consumer out of order.
+    (inChan, outChan) <- Queue.newChan
+    reader <- async (forever (Queue.readChan outChan >>= callback))
     let subscription = Subscription { .. }
 
     modifyIORef' (get #subscriptions pgListener) (HashMap.insertWith mappend channel [subscription] )
@@ -209,8 +218,9 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                                 |> HashMap.lookup channel
                                 |> fromMaybe []
 
-                        Async.forConcurrently channelSubscriptions \subscription -> do
-                            (get #callback subscription) notification
+                        forEach channelSubscriptions \subscription -> do
+                            let inChan = get #inChan subscription
+                            Queue.writeChan inChan notification
 
     -- This outer loop restarts the listeners if the database connection dies (e.g. due to a timeout)
     forever do
