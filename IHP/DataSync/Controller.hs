@@ -38,6 +38,8 @@ instance (
     run = do
         setState DataSyncReady { subscriptions = HashMap.empty }
 
+        ensureRLSEnabled <- makeCachedEnsureRLSEnabled
+
         let maybeUserId = get #id <$> currentUserOrNothing
         let pgListener = ?applicationContext |> get #pgListener
 
