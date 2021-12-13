@@ -134,7 +134,7 @@ tests = do
                         full_name TEXT NOT NULL
                     );
                 |]
-                let migration = sql [i|ALTER TABLE users ADD UNIQUE (full_name);|]
+                let migration = sql [i|ALTER TABLE users ADD CONSTRAINT "users_full_name_key" UNIQUE (full_name);|]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
             
@@ -624,6 +624,27 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
+
+            it "should normalize unique constraints on columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        github_user_id INT DEFAULT NULL UNIQUE
+                    );
+                |]
+
+                let actualSchema = sql [i|
+                    CREATE TABLE public.users (
+                        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+                        github_user_id integer
+                    );
+
+                    ALTER TABLE ONLY public.users ADD CONSTRAINT users_github_user_id_key UNIQUE (github_user_id);
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 
 
 sql :: Text -> [Statement]

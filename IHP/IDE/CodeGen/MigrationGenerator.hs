@@ -292,24 +292,36 @@ parseDumpedSql sql =
 
 normalizeSchema :: [Statement] -> [Statement]
 normalizeSchema statements = map normalizeStatement statements
+        |> concat
         |> normalizePrimaryKeys
 
-normalizeStatement :: Statement -> Statement
-normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizeTable table }
-normalizeStatement AddConstraint { tableName, constraintName, constraint } = AddConstraint { tableName, constraintName, constraint = normalizeConstraint constraint }
-normalizeStatement CreateEnumType { name, values } = CreateEnumType { name = Text.toLower name, values = map Text.toLower values }
-normalizeStatement otherwise = otherwise
+normalizeStatement :: Statement -> [Statement]
+normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizedTable } : normalizeTableRest
+    where 
+        (normalizedTable, normalizeTableRest) = normalizeTable table
+normalizeStatement AddConstraint { tableName, constraintName, constraint } = [ AddConstraint { tableName, constraintName, constraint = normalizeConstraint constraint } ]
+normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
+normalizeStatement otherwise = [otherwise]
 
-normalizeTable :: CreateTable -> CreateTable
-normalizeTable CreateTable { .. } = CreateTable { columns = map normalizeColumn columns, .. }
+normalizeTable :: CreateTable -> (CreateTable, [Statement])
+normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, .. }, concat $ snd normalizedColumns )
+    where
+        normalizedColumns = columns
+                |> map (normalizeColumn table)
+                |> unzip
 
 normalizeConstraint :: Constraint -> Constraint
 normalizeConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
 normalizeConstraint otherwise = otherwise
 
-normalizeColumn :: Column -> Column
-normalizeColumn Column { name, columnType, defaultValue, notNull, isUnique } = Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique }
+normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
+normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False }, uniqueConstraint)
     where
+        uniqueConstraint =
+            if isUnique
+                then [ AddConstraint { tableName = get #name table, constraintName = (get #name table) <>"_" <> name <> "_key", constraint = UniqueConstraint [name] } ]
+                else []
+
         normalizeName :: Text -> Text
         normalizeName nane = Text.toLower name
 
