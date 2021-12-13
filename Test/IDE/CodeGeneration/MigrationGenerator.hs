@@ -646,6 +646,21 @@ tests = do
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
 
+            it "should normalize policy definitions" do
+                let targetSchema = sql [i|
+                    CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE projects.id = migrations.project_id));
+                |]
+
+                let actualSchema = sql [i|
+                    CREATE POLICY "Users can manage their project's migrations" ON public.migrations USING ((EXISTS ( SELECT 1
+                       FROM public.projects
+                      WHERE (projects.id = migrations.project_id)))) WITH CHECK ((EXISTS ( SELECT 1
+                       FROM public.projects
+                      WHERE (projects.id = migrations.project_id))));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

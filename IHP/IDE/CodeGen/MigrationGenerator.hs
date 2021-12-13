@@ -301,6 +301,7 @@ normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = State
         (normalizedTable, normalizeTableRest) = normalizeTable table
 normalizeStatement AddConstraint { tableName, constraintName, constraint } = [ AddConstraint { tableName, constraintName, constraint = normalizeConstraint constraint } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
+normalizeStatement CreatePolicy { name, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check } ]
 normalizeStatement otherwise = [otherwise]
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
@@ -331,28 +332,35 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
                 then Nothing
                 else Just (VarExpression "null") -- pg_dump columns don't have an explicit default null value
 
-        normalizeExpression :: Expression -> Expression
-        normalizeExpression e@(TextExpression {}) = e
-        normalizeExpression (VarExpression var) = VarExpression (Text.toLower var)
-        normalizeExpression (CallExpression function args) = CallExpression (Text.toLower function) (map normalizeExpression args)
-        normalizeExpression (NotEqExpression a b) = NotEqExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (EqExpression a b) = EqExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (AndExpression a b) = AndExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (IsExpression a b) = IsExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (NotExpression a) = NotExpression (normalizeExpression a)
-        normalizeExpression (OrExpression a b) = OrExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (LessThanExpression a b) = LessThanExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-        normalizeExpression e@(DoubleExpression {}) = e
-        normalizeExpression e@(IntExpression {}) = e
-        -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
-        -- Therefore we remove these typecasts here
-        --
-        -- 'job_status_not_started'::public.job_status => 'job_status_not_started'
-        --
-        normalizeExpression (TypeCastExpression a b) = normalizeExpression a
+normalizeExpression :: Expression -> Expression
+normalizeExpression e@(TextExpression {}) = e
+normalizeExpression (VarExpression var) = VarExpression (Text.toLower var)
+normalizeExpression (CallExpression function args) = CallExpression (Text.toLower function) (map normalizeExpression args)
+normalizeExpression (NotEqExpression a b) = NotEqExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (EqExpression a b) = EqExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (AndExpression a b) = AndExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (IsExpression a b) = IsExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (NotExpression a) = NotExpression (normalizeExpression a)
+normalizeExpression (OrExpression a b) = OrExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (LessThanExpression a b) = LessThanExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression e@(DoubleExpression {}) = e
+normalizeExpression e@(IntExpression {}) = e
+-- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
+-- Therefore we remove these typecasts here
+--
+-- 'job_status_not_started'::public.job_status => 'job_status_not_started'
+--
+normalizeExpression (TypeCastExpression a b) = normalizeExpression a
+normalizeExpression (SelectExpression Select { columns, from, whereClause }) = SelectExpression Select { columns = normalizeExpression <$> columns, from = normalizeFrom from, whereClause = normalizeExpression whereClause }
+    where
+        -- Turns a `SELECT 1 FROM a` into `SELECT 1 FROM public.a`
+        normalizeFrom (VarExpression a) = DotExpression (VarExpression "public") a
+        normalizeFrom otherwise = normalizeExpression otherwise
+normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) b
+normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
 
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
