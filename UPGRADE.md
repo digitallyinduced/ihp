@@ -67,6 +67,41 @@ After updating your project, please consult the segments from your current relea
 
     If you use functionality of `newtype-generics` beyond wrapping and unwrapping the Id values, [please add `newtype-generics` to your `default.nix` and run `make -B .envrc` again](https://ihp.digitallyinduced.com/Guide/package-management.html#using-a-haskell-package).
 
+5. **SMTP Mail**
+    
+    If you configure a custom SMTP server in your `Config.hs`, you will need to explicitly configure the encryption setting:
+
+    The `newtype-generics` package provided functions like `pack` and `unpack` to wrap things inside a `newtype` wrapper.
+    
+    Change code like this:
+
+    ```haskell
+    import IHP.Mail
+
+    config :: ConfigBuilder
+    config = do
+        option $ SMTP
+            { host = "smtp.myisp.com"
+            , port = 2525
+            , credentials = Nothing
+            }
+    ```
+
+    To this:
+
+    ```haskell
+    import IHP.Mail
+
+    config :: ConfigBuilder
+    config = do
+        option $ SMTP
+            { host = "smtp.myisp.com"
+            , port = 2525
+            , credentials = Nothing
+            , encryption = TLS -- <-- NEW, other options: `Unencrypted` or `STARTTLS`
+            }
+    ```
+
 # Upgrade to Beta 0.16.0 from Beta 0.15.0
 1. **Switch IHP version**
 
