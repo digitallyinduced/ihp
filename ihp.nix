@@ -62,10 +62,11 @@
 , hspec
 , cereal-text
 , neat-interpolation
+, unagi-chan
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v0.16.0";
+  version = "v0.17.0";
   src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
@@ -130,6 +131,7 @@ mkDerivation {
     hspec
     cereal-text
     neat-interpolation
+    unagi-chan
   ];
   license = lib.licenses.mit;
   postInstall = ''

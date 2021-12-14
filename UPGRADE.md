@@ -2,6 +2,105 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 0.17.0 from Beta 0.16.0
+1. **Switch IHP version**
+
+    - **IHP Basic**
+
+        Open `default.nix` and change the git commit in line 4 to the following:
+
+        ```diff
+        -ref = "refs/tags/v0.16.0";
+        +ref = "refs/tags/v0.17.0";
+        ```
+
+    - **IHP Pro & IHP Business**
+
+        Visit https://ihp.digitallyinduced.com/Builds and copy the latest v0.17.0 URL into your `default.nix`.
+
+2. **Remake Env**
+
+    Run the following commands:
+
+    ```bash
+    nix-shell --run 'make -B .envrc'
+    nix-shell --run 'make -B build/ihp-lib'
+    ```
+
+    Now you can start your project as usual with `./start`.
+
+3. **Forms**
+
+    - If your app's forms have custom attributes using `fieldInput`, you will need to follow this step.
+    - If your app has no custom attributes, you can skip this step.
+    - If you don't know whether this applies to you, the compiler will tell you as this leads to a type error.
+
+    The `fieldInput` attribute has bee removed completly. But IHP still continues to support custom attributes in form fields.
+
+    Code like this:
+
+    ```haskell
+     {(textareaField #content)
+         { helpText = "Markdown"
+         , fieldInput = (\fieldInput -> H.textarea content ! A.rows "16")
+         }
+     }
+    ```
+
+    needs to be changed to this:
+
+    ```haskell
+     {(textareaField #content)
+         { helpText = "Markdown"
+         , additionalAttributes = [ ("rows", "16") ]
+         }
+     }
+    ```
+
+4. **Newtype Generics**
+    
+    We don't use the "Newtype Generics" package as much as expected. To keep IHP lightweight we've removed that package from IHP.
+
+    The `newtype-generics` package provided functions like `pack` and `unpack` to wrap things inside a `newtype` wrapper.
+
+    A common use case is to unpack a `Id Project` to get the underlying `UUID` value. If you've been using code like `unpack projectId`, replace this with the new [`unpackId`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:unpackId) like this: `unpackId projectId`. Same goes for [`packId`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:packId).
+
+    If you use functionality of `newtype-generics` beyond wrapping and unwrapping the Id values, [please add `newtype-generics` to your `default.nix` and run `make -B .envrc` again](https://ihp.digitallyinduced.com/Guide/package-management.html#using-a-haskell-package).
+
+5. **SMTP Mail**
+    
+    If you configure a custom SMTP server in your `Config.hs`, you will need to explicitly configure the encryption setting:
+
+    The `newtype-generics` package provided functions like `pack` and `unpack` to wrap things inside a `newtype` wrapper.
+    
+    Change code like this:
+
+    ```haskell
+    import IHP.Mail
+
+    config :: ConfigBuilder
+    config = do
+        option $ SMTP
+            { host = "smtp.myisp.com"
+            , port = 2525
+            , credentials = Nothing
+            }
+    ```
+
+    To this:
+
+    ```haskell
+    import IHP.Mail
+
+    config :: ConfigBuilder
+    config = do
+        option $ SMTP
+            { host = "smtp.myisp.com"
+            , port = 2525
+            , credentials = Nothing
+            , encryption = TLS -- <-- NEW, other options: `Unencrypted` or `STARTTLS`
+            }
+    ```
 
 # Upgrade to Beta 0.16.0 from Beta 0.15.0
 1. **Switch IHP version**

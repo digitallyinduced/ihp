@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             0.16.0
+version:             0.17.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             NONE
@@ -102,6 +102,7 @@ common shared-properties
             , cereal
             , cereal-text
             , neat-interpolation
+            , unagi-chan
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
