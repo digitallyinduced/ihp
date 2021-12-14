@@ -12,24 +12,6 @@ The hybrid approach gives you the best of both worlds: The low interactivity of 
 
 This guide will help you understand the best-practices of building hybrid applications with IHP and React.
 
-
-### IHP Version
-
-Please upgrade to IHP master to use DataSync.
-
-Put this into your `default.nix`
-
-```nix
-# default.nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "27eb7c65cbf57557af7fc712c93a1d49a5c63834";
-    };
-in
-    ...
-```
-
 ## Todo List App
 
 ### Adding React to your IHP project
@@ -88,6 +70,9 @@ npm add react react-dom
 
 # We also need esbuild for bundling
 npm add esbuild
+
+# Install IHP JS helpers
+npm add "https://gitpkg.now.sh/digitallyinduced/ihp/lib/IHP/DataSync?0babfec7a90675ca37d56c38dac69e784e64fc83"
 ```
 
 #### Adding an Entrypoint
@@ -95,15 +80,17 @@ npm add esbuild
 Next we need a new entrypoint for our SPA. Create a new file `Frontend/app.jsx` with the following content:
 
 ```javascript
-import * as React from 'react'
-import * as ReactDOM from 'react-dom'
+import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 
-class HelloWorld extends React.Component {
-    render() {
-        return <div>
-            Hello from react!
-        </div>
-    }
+import { DataSubscription, createRecord, updateRecord, deleteRecord, createRecords } from 'ihp-datasync/ihp-datasync';
+import { query } from 'ihp-datasync/ihp-querybuilder';
+import { useQuery } from 'ihp-datasync/ihp-datasync-react';
+
+function HelloWorld() {
+    return <div>
+        Hello from react!
+    </div>
 }
 
 function startApp() {
@@ -371,40 +358,26 @@ Let's first display our todo list:
 1. Open `Frontend/app.jsx` and append this react component before `startApp`:
 
     ```javascript
-    class TodoList extends React.Component {
-        constructor(props) {
-            super(props);
-            this.state = { todos: null };
+    function TodoList() {
+        const todos = useQuery(query('todos'));
+
+        if (todos === null) {
+            return <div className="spinner-border text-primary" role="status">
+                <span className="sr-only">Loading...</span>
+            </div>;
         }
 
-        async componentDidMount() {
-            const todos = await query('todos').fetch()
-            this.setState({ todos });
-        }
-
-        render() {
-            const { todos } = this.state;
-            
-            if (todos === null) {
-                return <div className="spinner-border text-primary" role="status">
-                    <span className="sr-only">Loading...</span>
-                </div>;
-            }
-
-            return <div>
-                {todos.map(todo => <div>{todo.title}</div>)}
-            </div>
-        }
+        return <div>
+            {todos.map(todo => <div>{todo.title}</div>)}
+        </div>
     }
     ```
 2. Next we want to render our `<TodoList/>` in the `<HelloWorld>` component. For that replace the `class HelloWorld` in `app.jsx` with this:
     ```javascript
-    class HelloWorld extends React.Component {
-        render() {
-            return <div>
-                <TodoList/>
-            </div>
-        }
+    function HelloWorld() {
+        return <div>
+            <TodoList/>
+        </div>
     }
     ```
 3. Open the app in the browser. The first `Hello World!` todo we've created in the previous step should be visible now:
@@ -419,55 +392,47 @@ Next we're going to add a todo form to create new todos:
 1. Add this component to `app.jsx`:
 
     ```javascript
-    class NewTodo extends React.Component {
-        constructor(props) {
-            super(props);
-            this.state = { title: '' };
-            this.handleSubmit = this.handleSubmit.bind(this);
-        }
+    function NewTodo() {
+        let [title, setTitle] = useState("");
 
-        render() {
-            return <form onSubmit={this.handleSubmit} disabled={this.state.loading}>
-                <div className="form-group d-flex flex-row">
-                    <input
-                        type="text"
-                        className="form-control"
-                        placeholder="New todo"
-                        value={this.state.title}
-                        onChange={event => this.setState({ title: event.target.value })}
-                        disabled={this.state.loading}
-                    />
-
-                    <button type="submit" className="btn btn-primary" disabled={this.state.loading}>Save</button>
-                </div>
-            </form>
-        }
-
-        async handleSubmit(event) {
+        async function handleSubmit(event) {
             const form = event.target;
 
             event.preventDefault();
 
             this.setState({ loading: true });
-            await createRecord('todos', { title: this.state.title, userId: this.props.userId });
+            await createRecord('todos', { title: title, userId: this.props.userId });
 
             this.setState({ loading: false, title: '' });
         }
+
+        return <form onSubmit={this.handleSubmit} disabled={this.state.loading}>
+            <div className="form-group d-flex flex-row">
+                <input
+                    type="text"
+                    className="form-control"
+                    placeholder="New todo"
+                    value={this.state.title}
+                    onChange={event => this.setState({ title: event.target.value })}
+                    disabled={this.state.loading}
+                />
+
+                <button type="submit" className="btn btn-primary" disabled={this.state.loading}>Save</button>
+            </div>
+        </form>
     }
     ```
 
-    This is mostly a conventional react form. The interesting part is inside the `handleSubmit`, where we call `await createRecord('todos', { title: this.state.title, userId: this.props.users });`.
+    This is mostly a conventional react form. The interesting part is inside the `handleSubmit`, where we call `await createRecord('todos', { title: title, userId: this.props.users });`.
 
-2. Change the `render()` function of `HelloWorld` to also display our `<NewTodo/>` component:
+2. Change the `HelloWorld` component to also display our `<NewTodo/>` component:
     
     ```javascript
-    class HelloWorld extends React.Component {
-        render() {
-            return <div>
-                <TodoList/>
-                <NewTodo userId={this.props.userId}/>
-            </div>
-        }
+    function HelloWorld() {
+        return <div>
+            <TodoList/>
+            <NewTodo userId={this.props.userId}/>
+        </div>
     }
     ```
 3. We also need to pass the `userId` prop to the `HelloWorld` component. For that we're going to change the `startApp()` function to pass it via a data attribute from the haskell side to our JS frontend.
@@ -504,30 +469,9 @@ Next we're going to add a todo form to create new todos:
 
 ##### Making the `<TodoList/>` Realtime
 
-To make our todos show up directly after adding them inside `<NewTodo/>`, we need to modify the `componentDidMount()` of the `TodoList`.
+Our todo app is already realtime. Open the app again and enter a new todo. You will now see it showing up instantly. You can also open a second browser window (keep in mind that you need to be logged in), and changes will appear in both windows at the same time.
 
-Right now it should like this:
-
-```javascript
-async componentDidMount() {
-    const todos = await query('todos').fetch()
-    this.setState({ todos });
-}
-```
-
-Replace it with this:
-
-```javascript
-async componentDidMount() {
-    await query('todos')
-        .orderBy('createdAt')
-        .fetchAndRefresh(todos => this.setState({ todos }))
-}
-```
-
-You can see that instead of using `fetch` we now use `fetchAndRefresh` and pass a callback. The `todos => this.setState({ todos })` callback is called whenever the result set of our `query('todos')` we fired here changes. Our `todos => this.setState({ todos })` will then call `setState` which will trigger a re-render of our react component.
-
-Open the app again and enter a new todo. You will now see it showing up instantly. You can also open a second browser window (keep in mind that you need to be logged in), and changes will appear in both windows at the same time.
+The `useQuery(query('todos'))` call in our `TodoList` has set up a subscription behind the scences. Whenever the result set of our `query('todos')` we fired here changes, it will trigger a re-render of our component.
 
 ##### Checking off Todos
 
@@ -557,19 +501,19 @@ This displays a checkbox next to the todo title. When the checkbox is toggled it
 Now we need to use this new `TodoItem` component inside our `TodoList`. Change the `render()` function of the `TodoList` to this:
 
 ```javascript
-    render() {
-        const { todos } = this.state;
-        
-        if (todos === null) {
-            return <div className="spinner-border text-primary" role="status">
-                <span className="sr-only">Loading...</span>
-            </div>;
-        }
+function TodoList() {
+    const todos = useQuery(query('todos'));
 
-        return <div>
-            {todos.map(todo => <TodoItem todo={todo} key={todo.id}/>)}
-        </div>
+    if (todos === null) {
+        return <div className="spinner-border text-primary" role="status">
+            <span className="sr-only">Loading...</span>
+        </div>;
     }
+
+    return <div>
+        {todos.map(todo => <TodoItem todo={todo} key={todo.id}/>)}
+    </div>
+}
 ```
 
 Open the app again and try to check off a couple of todos.
@@ -741,22 +685,6 @@ This will execute:
 DELETE FROM todos WHERE id = "66cc037e-5729-435c-b507-a17492fe44f4"
 ```
 
-
-## Troubleshooting
-
-`FormatError {fmtMessage = "1 single '?' characters, but 3 parameters", fmtQuery = "SELECT ? FROM ??", fmtParams = ["*","todos",""]}`
-
-This error is caused by a bug in IHP v0.15 and IHP v0.16. You have two solution:
-1. Upgrade to IHP v0.17 / latest IHP master.
-2. Add a `orderBy('createdAt')` to your calls:
-
-    ```javascript
-    // FAILS with FormatError {fmtMessage = "1 single '?' characters, but 3 parameters", fmtQuery = "SELECT ? FROM ??", fmtParams = ["*","todos",""]}
-    const todos = await query('todos').fetch();
-
-    // GOOD
-    const todos = await query('todos').orderBy('createdAt').fetch();
-    ```
 
 ## Advanced IHP DataSync
 
