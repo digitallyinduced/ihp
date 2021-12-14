@@ -6,8 +6,8 @@
 , dontCheckPackages ? ["mmark" "mmark-ext"]
 , doJailbreakPackages ? ["haskell-to-elm"]
 , dontHaddockPackages ? []
-, nixPkgsRev ? "51bcdc4cdaac48535dabf0ad4642a66774c609ed"
-, nixPkgsSha256 ? "0zpf159nlpla6qgxfgb2m3c2v09fz8jilc21zwymm59qrq6hxscm"
+, nixPkgsRev ? "38da06c69f821af50323d54b28d342cc3eb42891"
+, nixPkgsSha256 ? "sha256-LUxcecUAujNSXkCLFog6rqr5acZUGGqCZ5wMQd4yuJw"
 , compiler ? "ghc8107"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
