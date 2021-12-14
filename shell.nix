@@ -63,6 +63,7 @@ let
         async-pool
         cereal-text
         neat-interpolation
+        unagi-chan
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

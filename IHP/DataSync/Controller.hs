@@ -23,6 +23,8 @@ import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified IHP.PGListener as PGListener
 import IHP.ApplicationContext
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -35,6 +37,8 @@ instance (
 
     run = do
         setState DataSyncReady { subscriptions = HashMap.empty }
+
+        ensureRLSEnabled <- makeCachedEnsureRLSEnabled
 
         let maybeUserId = get #id <$> currentUserOrNothing
         let pgListener = ?applicationContext |> get #pgListener
@@ -67,7 +71,7 @@ instance (
                 let watchedRecordIds = recordIds result
 
                 -- Store it in IORef as an INSERT requires us to add an id
-                watchedRecordIdsRef <- newIORef watchedRecordIds
+                watchedRecordIdsRef <- newIORef (Set.fromList watchedRecordIds)
 
                 -- Make sure the database triggers are there
                 sqlExec (ChangeNotifications.createNotificationFunction tableNameRLS) ()
@@ -89,20 +93,20 @@ instance (
                                     Just record -> do
                                         -- Add the new record to 'watchedRecordIdsRef'
                                         -- Otherwise the updates and deletes will not be dispatched to the client
-                                        modifyIORef watchedRecordIdsRef (id:)
+                                        modifyIORef watchedRecordIdsRef (Set.insert id)
 
                                         sendJSON DidInsert { subscriptionId, record }
                                     Nothing -> pure ()
                             ChangeNotifications.DidUpdate { id, changeSet } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
-                                isWatchingRecord <- elem id <$> readIORef watchedRecordIdsRef
+                                isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
                                 when isWatchingRecord do
                                     sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue changeSet }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
-                                isWatchingRecord <- elem id <$> readIORef watchedRecordIdsRef
+                                isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
                                 when isWatchingRecord do
                                     sendJSON DidDelete { subscriptionId, id }
 
