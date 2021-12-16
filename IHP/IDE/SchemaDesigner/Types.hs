@@ -58,6 +58,8 @@ data Statement
     | RenameTable { from :: Text, to :: Text }
     -- | DROP POLICY policyName ON tableName;
     | DropPolicy { tableName :: Text, policyName :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName SET DEFAULT 'value';
+    | SetDefaultValue { tableName :: Text, columnName :: Text, value :: Expression }
     deriving (Eq, Show)
 
 data CreateTable

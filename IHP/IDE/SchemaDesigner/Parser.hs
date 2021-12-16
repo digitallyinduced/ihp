@@ -546,6 +546,7 @@ alterType = do
 
 -- | ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 --  ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+--  ALTER TABLE users ALTER COLUMN email SET DEFAULT 'value';
 alterColumn tableName = do
     lexeme "COLUMN"
     columnName <- identifier
@@ -557,14 +558,21 @@ alterColumn tableName = do
             char ';'
             pure DropNotNull { tableName, columnName }
     
-    let setNotNull = do
+    let set = do
             lexeme "SET"
-            lexeme "NOT"
-            lexeme "NULL"
-            char ';'
-            pure SetNotNull { tableName, columnName }
+            let notNull = do
+                    lexeme "NOT"
+                    lexeme "NULL"
+                    char ';'
+                    pure SetNotNull { tableName, columnName }
+            let defaultValue = do
+                    lexeme "DEFAULT"
+                    value <- expression
+                    char ';'
+                    pure SetDefaultValue { tableName, columnName, value }
+            notNull <|> defaultValue
 
-    dropNotNull <|> setNotNull
+    dropNotNull <|> set
     
 
     

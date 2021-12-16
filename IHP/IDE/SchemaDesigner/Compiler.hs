@@ -44,6 +44,7 @@ compileStatement DropNotNull { tableName, columnName } = "ALTER TABLE " <> compi
 compileStatement SetNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET NOT NULL;"
 compileStatement RenameTable { from, to } = "ALTER TABLE " <> compileIdentifier from <> " RENAME TO " <> compileIdentifier to <> ";"
 compileStatement DropPolicy { tableName, policyName } =  "DROP POLICY " <> compileIdentifier policyName <> " ON " <> compileIdentifier tableName <> ";"
+compileStatement SetDefaultValue { tableName, columnName, value } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET DEFAULT " <> compileExpression value <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
