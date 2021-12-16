@@ -155,6 +155,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 (map dropColumn dropColumns <> map createColumn createColumns)
                     |> applyRenameColumn
                     |> applyMakeUnique
+                    |> applySetDefault
                     |> applyToggleNull
             where
 
@@ -220,7 +221,43 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         isMatchingCreateColumn otherwise                        = False
                 applyMakeUnique (statement:rest) = statement:(applyMakeUnique rest)
                 applyMakeUnique [] = []
-                
+
+                -- | Emits "ALTER TABLE table ALTER COLUMN column SET DEFAULT 'value'"
+                --
+                -- This function substitutes the following queries:
+                --
+                -- > ALTER TABLE table DROP COLUMN column;
+                -- > ALTER TABLE table ADD COLUMN column;
+                --
+                -- With a more natural @SET DEFAULT@:
+                --
+                -- > ALTER TABLE table ALTER COLUMN column SET DEFAULT 'value'
+                --
+                applySetDefault (s@(DropColumn { columnName }):statements) = case matchingDefaultValue of
+                        Just (matchingCreateColumn, value) -> SetDefaultValue { tableName, columnName, value }:(applySetDefault (filter ((/=) matchingCreateColumn) statements))
+                        Nothing -> s:(applySetDefault statements)
+                    where
+                        dropColumn :: Column
+                        (Just dropColumn) = actualColumns
+                                |> find \case
+                                    Column { name } -> name == columnName
+                                    otherwise       -> False                                
+
+                        matchingDefaultValue :: Maybe (Statement, Expression)
+                        matchingDefaultValue = do
+                                matchingCreateColumn <- matchingCreateColumn
+                                value <- get #defaultValue (get #column matchingCreateColumn)
+                                pure (matchingCreateColumn, value)
+
+                        matchingCreateColumn :: Maybe Statement
+                        matchingCreateColumn = find isMatchingCreateColumn statements
+
+                        isMatchingCreateColumn :: Statement -> Bool
+                        isMatchingCreateColumn AddColumn { column = addColumn } = (addColumn { defaultValue = Nothing } :: Column) == (dropColumn { defaultValue = Nothing } :: Column)
+                        isMatchingCreateColumn otherwise                        = False
+                applySetDefault (statement:rest) = statement:(applySetDefault rest)
+                applySetDefault [] = []
+
                 -- | Emits 'ALTER TABLE table ALTER COLUMN column DROP NOT NULL'
                 --
                 -- This function substitutes the following queries:
