@@ -567,7 +567,12 @@ tests = do
             let sql = "ALTER TABLE users ALTER COLUMN email SET NOT NULL;\n"
             let statements = [ SetNotNull { tableName = "users", columnName = "email" } ]
             compileSql statements `shouldBe` sql
-        
+
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. SET DEFAULT ..;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email SET DEFAULT null;\n"
+            let statements = [ SetDefaultValue { tableName = "users", columnName = "email", value = VarExpression "null" } ]
+            compileSql statements `shouldBe` sql
+
         it "should compile 'ALTER TABLE .. RENAME TO ..;' statements" do
             let sql = "ALTER TABLE profiles RENAME TO users;\n"
             let statements = [ RenameTable { from = "profiles", to = "users" } ]
