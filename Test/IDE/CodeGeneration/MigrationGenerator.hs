@@ -155,6 +155,40 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should handle default values added to columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT DEFAULT 'value' NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|ALTER TABLE users ALTER COLUMN full_name SET DEFAULT 'value';|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should handle default values removed from columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        full_name TEXT DEFAULT 'value' NOT NULL
+                    );
+                |]
+                let migration = sql [i|ALTER TABLE users ALTER COLUMN full_name DROP DEFAULT;|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
             it "should handle UNIQUE constraints removed from columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

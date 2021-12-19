@@ -233,8 +233,12 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 --
                 -- > ALTER TABLE table ALTER COLUMN column SET DEFAULT 'value'
                 --
-                applySetDefault (s@(DropColumn { columnName }):statements) = case matchingDefaultValue of
-                        Just (matchingCreateColumn, value) -> SetDefaultValue { tableName, columnName, value }:(applySetDefault (filter ((/=) matchingCreateColumn) statements))
+                applySetDefault (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
+                        Just matchingCreateColumn -> case get #defaultValue (get #column matchingCreateColumn) of
+                            Just value -> SetDefaultValue { tableName, columnName, value }:rest
+                            Nothing -> DropDefaultValue { tableName, columnName }:rest
+                            where
+                                rest = applySetDefault (filter ((/=) matchingCreateColumn) statements)
                         Nothing -> s:(applySetDefault statements)
                     where
                         dropColumn :: Column
@@ -242,12 +246,6 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                                 |> find \case
                                     Column { name } -> name == columnName
                                     otherwise       -> False                                
-
-                        matchingDefaultValue :: Maybe (Statement, Expression)
-                        matchingDefaultValue = do
-                                matchingCreateColumn <- matchingCreateColumn
-                                value <- get #defaultValue (get #column matchingCreateColumn)
-                                pure (matchingCreateColumn, value)
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
