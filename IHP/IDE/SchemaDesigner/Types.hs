@@ -60,6 +60,8 @@ data Statement
     | DropPolicy { tableName :: Text, policyName :: Text }
     -- ALTER TABLE tableName ALTER COLUMN columnName SET DEFAULT 'value';
     | SetDefaultValue { tableName :: Text, columnName :: Text, value :: Expression }
+    -- ALTER TABLE tableName ALTER COLUMN columnName DROP DEFAULT;
+    | DropDefaultValue { tableName :: Text, columnName :: Text }
     deriving (Eq, Show)
 
 data CreateTable
