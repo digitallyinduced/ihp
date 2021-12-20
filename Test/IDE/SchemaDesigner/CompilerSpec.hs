@@ -567,7 +567,17 @@ tests = do
             let sql = "ALTER TABLE users ALTER COLUMN email SET NOT NULL;\n"
             let statements = [ SetNotNull { tableName = "users", columnName = "email" } ]
             compileSql statements `shouldBe` sql
-        
+
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. SET DEFAULT ..;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email SET DEFAULT null;\n"
+            let statements = [ SetDefaultValue { tableName = "users", columnName = "email", value = VarExpression "null" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. DROP DEFAULT;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email DROP DEFAULT;\n"
+            let statements = [ DropDefaultValue { tableName = "users", columnName = "email" } ]
+            compileSql statements `shouldBe` sql
+
         it "should compile 'ALTER TABLE .. RENAME TO ..;' statements" do
             let sql = "ALTER TABLE profiles RENAME TO users;\n"
             let statements = [ RenameTable { from = "profiles", to = "users" } ]
@@ -593,4 +603,9 @@ tests = do
                         , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                         }
                     ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'ALTER TYPE .. ADD VALUE ..;' statements" do
+            let sql = "ALTER TYPE colors ADD VALUE 'blue';\n"
+            let statements = [ AddValueToEnumType { enumName = "colors", newValue = "blue" } ]
             compileSql statements `shouldBe` sql

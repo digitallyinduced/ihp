@@ -70,8 +70,6 @@ After updating your project, please consult the segments from your current relea
 5. **SMTP Mail**
     
     If you configure a custom SMTP server in your `Config.hs`, you will need to explicitly configure the encryption setting:
-
-    The `newtype-generics` package provided functions like `pack` and `unpack` to wrap things inside a `newtype` wrapper.
     
     Change code like this:
 

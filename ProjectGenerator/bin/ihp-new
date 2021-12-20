@@ -259,7 +259,7 @@ elif [[ "$1" == "--purescript-halogen" ]]; then
 	echo "We will now create your new IHP project with PureScript + Halogen. This may take up to 30 seconds."
 	BOILERPLATE_GIT_BRANCH="purescript-halogen"
 else
-	echo "We will now create your new IHP. This may take up to 30 seconds."
+	echo "We will now create your new IHP project. This may take up to 30 seconds."
 fi
 
 git clone --quiet --depth=1 --branch "$BOILERPLATE_GIT_BRANCH" "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"

@@ -689,7 +689,13 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         
         it "should parse 'ALTER TABLE .. ALTER COLUMN .. SET NOT NULL' statements" do
             parseSql "ALTER TABLE a ALTER COLUMN b SET NOT NULL;" `shouldBe` SetNotNull { tableName = "a", columnName = "b" }
-        
+
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. SET DEFAULT ..' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b SET DEFAULT null;" `shouldBe` SetDefaultValue { tableName = "a", columnName = "b", value = VarExpression "null" }
+
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. DROP DEFAULT' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b DROP DEFAULT;" `shouldBe` DropDefaultValue { tableName = "a", columnName = "b" }
+
         it "should parse 'ALTER TABLE .. RENAME TO ..' statements" do
             parseSql "ALTER TABLE profiles RENAME TO users;" `shouldBe` RenameTable { from = "profiles", to = "users" }
         
