@@ -27,8 +27,18 @@ import qualified Data.Text as Text
 import Data.Maybe
 
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> Mail
-buildMail mail = let ?mail = mail in simpleMailInMemory (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) attachments'
+buildMail mail =
+    let ?mail = mail in
+    let mail' = simpleMailInMemory (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) attachments' in
+    mail' { mailCc      = cc mail
+          , mailBcc     = bcc mail
+          , mailHeaders = ("Subject", subject) : h
+          }
     where
+        h = case replyTo mail of
+            Nothing      -> headers mail
+            Just replyTo -> ("Reply-To", renderAddress replyTo) : (headers mail)
+
         attachments' = mail
                 |> attachments
                 |> map (\MailAttachment { name, content, contentType } -> (contentType, name, content))
@@ -96,6 +106,27 @@ class BuildMail mail where
     -- >     }
     --
     to :: (?context :: context, ConfigProvider context) => mail -> Address
+
+    -- | Sets an optional reply-to address
+    replyTo :: (?context :: context, ConfigProvider context) => mail -> Maybe Address
+    replyTo mail = Nothing
+
+    -- | Public list of addresses to receive a copy of the mail (CC)
+    cc :: (?context :: context, ConfigProvider context) => mail -> [Address]
+    cc mail = []
+
+    -- | Hidden list of addresses to receive a copy of the mail (BCC)
+    bcc :: (?context :: context, ConfigProvider context) => mail -> [Address]
+    bcc mail = []
+
+    -- | Custom headers, excluding `from`, `to`, `cc`, and `bcc`
+    --
+    -- __Example:__ Add a custom X-Sender header
+    --
+    -- > headers CreateAccountMail { .. } = [("X-Sender", "mail4j 2.17.0")]
+    --
+    headers :: (?context :: context, ConfigProvider context) => mail -> Headers
+    headers mail = []
 
     -- | Your sender address
     --
