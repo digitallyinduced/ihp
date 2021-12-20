@@ -604,3 +604,8 @@ tests = do
                         }
                     ]
             compileSql statements `shouldBe` sql
+        
+        it "should compile 'ALTER TYPE .. ADD VALUE ..;' statements" do
+            let sql = "ALTER TYPE colors ADD VALUE 'blue';\n"
+            let statements = [ AddValueToEnumType { enumName = "colors", newValue = "blue" } ]
+            compileSql statements `shouldBe` sql
