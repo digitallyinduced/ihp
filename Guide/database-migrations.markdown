@@ -76,3 +76,28 @@ migrate
 ```
 
 A good value for `MINIMUM_REVISION` is typically the unix timestamp of the time when the database was initially created.
+
+## Common Issues
+
+### ALTER TYPE ... ADD cannot run inside a transaction block
+
+When running a miration like this:
+
+```sql
+ALTER TYPE my_enum ADD VALUE 'some_value';
+```
+
+you will typical get an error like this:
+
+```
+Query (89.238182ms): "BEGIN" ()
+migrate: SqlError {sqlState = "25001", sqlExecStatus = FatalError, sqlErrorMsg = "ALTER TYPE ... ADD cannot run inside a transaction block", sqlErrorDetail = "", sqlErrorHint = ""}
+```
+
+IHP implicit wraps the migration within a transaction. You can disable this implicit transaction manually like this:
+
+```sql
+COMMIT; -- Commit the transaction previously started by IHP
+ALTER TYPE my_enum ADD VALUE 'some_value';
+BEGIN; -- Restart the connection as IHP will also try to run it's own COMMIT
+```
