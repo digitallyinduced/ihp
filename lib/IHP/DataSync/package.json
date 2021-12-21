@@ -1,5 +1,6 @@
 {
   "name": "ihp-datasync",
+  "type": "module",
   "version": "0.1.0",
   "description": "IHP DataSync JS SDK",
   "main": "index.js",
