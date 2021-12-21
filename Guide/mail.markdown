@@ -226,10 +226,10 @@ Every email should have a plain text version for people with reasonable mail cli
 The better option is to manually provide a useful plain text version of your emails:
 
 ```haskell
--- don't use, emails look off
+import NeatInterpolation
 
-text ConfirmationMail { .. } = cs [plain|
-    Hey #{userName},
+text ConfirmationMail { .. } = cs [trimming|
+    Hey ${userName},
 
     Thanks for signing up! Please confirm your account by following this link:
 	https://....
@@ -238,45 +238,8 @@ text ConfirmationMail { .. } = cs [plain|
 	    userName = get #name user
 ```
 
-Note a few differences here: we use `[plain| ... |]` instead of `[hsx| ... |]` so we can't use HSX's inline Haskell like `{get #userName user}` but have to live with simple substitution. Note the `#` in front of these substitutions: `#{userName}`. We use `cs` to convert the `[Char]` to the required `Text` type.
+Note a few differences to the `html` version here:
 
-If you send this email, due to the way we indented the code it would render as:
-
-```
-(blank line)
-    Hey Foobar,
-
-    Thanks for signing up! Please confirm your account by following this link:
-    https://....
-(blank line)
-```
-
-To get proper plain text rendering you either need to forgo nice indentation and do it like this:
-
-```haskell
--- example without nice indentation
-
-text ConfirmationMail { .. } = cs [plain|Hey #{userName},
-
-Thanks for signing up! Please confirm your account by following this link:
-https://....|]
-    where
-	    userName = get #name user
-```
-
-or use code like `|> T.strip |> T.lines |> map T.strip |> T.unlines` which strips leading newlines and spaces from the whole mail, and then leading spaces from every line:
-
-```haskell
--- example with nice indentation, and still nice email
-
-import qualified Data.Text as T
-
-text ConfirmationMail { .. } = cs [plain|
-    Hey #{userName},
-
-    Thanks for signing up! Please confirm your account by following this link:
-	https://....
-|] |> T.strip |> T.lines |> map T.strip |> T.unlines
-    where
-	    userName = get #name user
-```
+- We use `[trimming| ... |]` instead of `[hsx| ... |]` so we can't use HSX's inline Haskell like `{get #userName user}` but have to live with simple substitution. Note the dollar sign in front of these substitutions: `${userName}`.
+- The `[trimming||]` quasiquoter takes care of removing the whitespace that our indentations introduced, which we don't want in the actual emails.
+- We use `cs` to convert the `[Char]` to the required `Text` type.
