@@ -30,7 +30,7 @@ With bugs we have the same story. Instead of just a GitHub issue, it’s now a c
 
 Here’s the big plan in a short form:
 
-1. Introduce a IHP Pro subscription
+1. Introduce an IHP Pro subscription
 2. Use the funding by our new customers to make IHP & the ecosystem a lot better
 3. Become the well-known best framework for building web applications
 
@@ -46,4 +46,3 @@ We recommend you try out these features after upgrading to pro:
 
 - [Google Login](oauth.html#introduction)
 - [Email Confirmation](authentication.html#email-confirmation)
-
