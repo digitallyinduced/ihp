@@ -102,8 +102,8 @@ If you need to send specific mail headers you can do so as well:
 ```haskell
 headers ConfirmationMail { .. } =
     [ ("X-Mailer", "mail4j 2.17.0")
-	, ("In-Reply-To", "<123456@list.example.com>")
-	]
+    , ("In-Reply-To", "<123456@list.example.com>")
+    ]
 ```
 
 Implementation detail: IHP first adds headers set by itself (like `Subject` and the optional `Reply-To`), then headers provided via `headers`. If you don't want to use the `replyTo` helper from above it's absolutely fine to add the `Reply-To` header manually.
@@ -131,7 +131,7 @@ config = do
         { host = "smtp.myisp.com"
         , port = 2525
         , credentials = Nothing -- or: Just ("myusername","hunter2")
-		, encryption = TLS -- <-- other options: `Unencrypted` or `STARTTLS`
+        , encryption = TLS -- <-- other options: `Unencrypted` or `STARTTLS`
         }
 ```
 
@@ -157,7 +157,7 @@ config = do
         { host = "127.0.1.1"
         , port = 1025
         , credentials = Nothing
-		, encryption = Unencrypted
+        , encryption = Unencrypted
         }
 ```
 
@@ -232,10 +232,10 @@ text ConfirmationMail { .. } = cs [trimming|
     Hey ${userName},
 
     Thanks for signing up! Please confirm your account by following this link:
-	https://....
+    https://....
 |]
     where
-	    userName = get #name user
+        userName = get #name user
 ```
 
 Note a few differences to the `html` version here:
