@@ -127,7 +127,7 @@ In general the `\case ...` can be expanded to `\value -> case value of ...`.
 
 ### The Pipe operator [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-)
 
-In IHP code bases you find lot's of usage of the [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-) operator. We usually call it the `pipe operator`.
+In IHP code bases you find lots of usage of the [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-) operator. We usually call it the `pipe operator`.
 
 The operator allows you to write code like this:
 
@@ -147,7 +147,7 @@ validateField #firstname nonEmpty (
 
 In general:
 ```haskell
-function arg1 arg2 object 
+function arg1 arg2 object
 =
 object |> function arg1 arg2
 ```

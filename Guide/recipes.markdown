@@ -293,7 +293,7 @@ To confirm before a link is fired add an `onclick` to the link.
 To generate a random string which can be used as a secure token or hash use [`generateAuthenticationToken`](https://hackage.haskell.org/package/wreq):
 
 ```haskell
-import IHP.AuthSupport.Authentication -- Not needed if you're inside a IHP controller
+import IHP.AuthSupport.Authentication -- Not needed if you're inside an IHP controller
 
 do
     token <- generateAuthenticationToken
@@ -346,7 +346,7 @@ import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types (status404)
 import Network.Wai (responseLBS)
 
-customNotFoundResponse :: (?context :: ControllerContext) => IO () 
+customNotFoundResponse :: (?context :: ControllerContext) => IO ()
 customNotFoundResponse = do
   page <- LBS.readFile "static/404.html"
   respondAndExit $ responseLBS status404 [(hContentType, "text/html")] page
@@ -356,7 +356,7 @@ Now you can use your `customNotFoundResponse`:
 
 ```haskell
 action WelcomeAction  = do
-post <- fetchOneOrNothing ("30a73014-101e-4269-be91-be6c019de289" :: Id Post) 
+post <- fetchOneOrNothing ("30a73014-101e-4269-be91-be6c019de289" :: Id Post)
 case post of
    Nothing ->  customNotFoundResponse -- Database record disappeared !!!
    Just post -> render ShowView { .. }

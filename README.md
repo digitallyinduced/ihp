@@ -67,7 +67,7 @@ Auto Refresh can be enabled for IHP views with a single line of code.
 [Watch it in action!](https://twitter.com/digitallyinduce/status/1312017800223956992)
 
 **Longterm Roadmap**
-Lot's of frameworks are already gone a year after launch. Especially in the fast moving JS world. But don't worry about IHP. We have been using it at digitally induced since 2017. It's actively used by us and our friends and partners. Even without external contributors we will build new features and do periodic maintenance releases in the future. We have big plans for IHP and as a profitable and independent software company we have the ability to actually execute them over the longterm.
+Lots of frameworks are already gone a year after launch. Especially in the fast moving JS world. But don't worry about IHP. We have been using it at digitally induced since 2017. It's actively used by us and our friends and partners. Even without external contributors we will build new features and do periodic maintenance releases in the future. We have big plans for IHP and as a profitable and independent software company we have the ability to actually execute them over the longterm.
 
 ## Reviews
 
