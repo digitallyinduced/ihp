@@ -119,7 +119,7 @@ class BuildMail mail where
     bcc :: (?context :: context, ConfigProvider context) => mail -> [Address]
     bcc mail = []
 
-    -- | Custom headers, excluding `from`, `to`, `cc`, and `bcc`
+    -- | Custom headers, excluding @from@, @to@, @cc@, @bcc@, @subject@, and @reply-to@
     --
     -- __Example:__ Add a custom X-Sender header
     --
