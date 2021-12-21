@@ -121,9 +121,9 @@ class BuildMail mail where
 
     -- | Custom headers, excluding @from@, @to@, @cc@, @bcc@, @subject@, and @reply-to@
     --
-    -- __Example:__ Add a custom X-Sender header
+    -- __Example:__ Add a custom X-Mailer header
     --
-    -- > headers CreateAccountMail { .. } = [("X-Sender", "mail4j 2.17.0")]
+    -- > headers CreateAccountMail { .. } = [("X-Mailer", "mail4j 2.17.0")]
     --
     headers :: (?context :: context, ConfigProvider context) => mail -> Headers
     headers mail = []
