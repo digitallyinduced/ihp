@@ -226,8 +226,6 @@ Every email should have a plain text version for people with reasonable mail cli
 The better option is to manually provide a useful plain text version of your emails:
 
 ```haskell
-import NeatInterpolation
-
 text ConfirmationMail { .. } = cs [trimming|
     Hey ${userName},
 
