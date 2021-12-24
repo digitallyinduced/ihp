@@ -1,0 +1,22 @@
+#repl {
+    background-color: hsla(192, 81%, 3%, 1);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#repl pre {
+    color: hsla(196, 13%, 90%, 1);
+    padding-left: 2rem;
+    padding-right: 4rem;
+    padding-top: 80px;
+    padding-bottom: 1rem;
+    margin-bottom: 0;
+    font-size: 14px;
+    height: 80vh;
+    overflow: auto;
+}
+
+#repl pre:empty {
+    display: none;
+}

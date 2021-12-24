@@ -2,6 +2,7 @@ module IHP.IDE.Types where
 
 import ClassyPrelude
 import System.Process.Internals
+import Control.Concurrent (MVar(..))
 import qualified System.Process as Process
 import qualified GHC.IO.Handle as Handle
 import qualified Network.WebSockets as Websocket
@@ -48,6 +49,7 @@ data Action =
     | HaskellFileChanged
     | SchemaChanged
     | UpdateStatusServerState !StatusServerState
+    | UpdateReplState !ReplState
     | UpdateLiveReloadNotificationServerState !LiveReloadNotificationServerState
     | UpdateFileWatcherState !FileWatcherState
     | UpdateToolServerState !ToolServerState
@@ -118,6 +120,22 @@ instance Show ToolServerState where
     show ToolServerNotStarted = "NotStarted"
     show ToolServerStarted {} = "Started"
 
+data ReplState
+    = ReplNotStarted
+    | ReplStarted
+        { process :: !ManagedProcess
+        , inputLine :: !(MVar ByteString)
+        , outputLines :: !(IORef [ByteString])
+        , clients :: !(IORef [MVar ()])
+        , stdoutListener :: Async ()
+        , stderrListener :: Async ()
+        , inputListener :: Async ()
+        }
+
+instance Show ReplState where
+    show ReplNotStarted = "ReplNotStarted"
+    show ReplStarted {} = "ReplStarted"
+
 
 instance Show (IORef x) where show _ = "(..)"
 instance Show ProcessHandle where show _ = "(..)"
@@ -126,6 +144,7 @@ instance Show (Async ()) where show _ = "(..)"
 data AppState = AppState
     { postgresState :: !PostgresState
     , appGHCIState :: !AppGHCIState
+    , replState :: !ReplState
     , statusServerState :: !StatusServerState
     , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
     , fileWatcherState :: !FileWatcherState
@@ -140,6 +159,7 @@ emptyAppState = do
     pure AppState
         { postgresState = PostgresNotStarted
         , appGHCIState = AppGHCINotStarted
+        , replState = ReplNotStarted
         , statusServerState = StatusServerNotStarted
         , liveReloadNotificationServerState = LiveReloadNotificationServerState { clients }
         , fileWatcherState = FileWatcherNotStarted

@@ -22,7 +22,7 @@
 #logs .logs-navigation {
     height: 100%;
     display: flex;
-    flex-direction: column;;
+    flex-direction: column;
     padding-top: 80px;
 }
 

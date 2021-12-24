@@ -11,3 +11,4 @@ instance AutoRoute EnumValuesController
 instance AutoRoute LogsController
 instance AutoRoute DataController
 instance AutoRoute CodeGenController
+instance AutoRoute ReplController

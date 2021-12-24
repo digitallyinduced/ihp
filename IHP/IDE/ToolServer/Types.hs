@@ -105,6 +105,19 @@ data CodeGenController
     | OpenControllerAction
     deriving (Eq, Show, Data)
 
+data ReplController
+    = ReplAction
+    deriving (Eq, Show, Data)
+
+data ReplWSApp
+    = InitReplSocket
+    | ListenReplSocket
+    deriving (Eq, Show, Data)
+
+data ReplOutputApp
+    = ReplOutputInit
+    | ReplOutputListen
+    deriving (Eq, Show, Data)
 
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString

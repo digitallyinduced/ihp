@@ -12,6 +12,7 @@ import qualified System.FSNotify as FS
 import IHP.IDE.Types
 import IHP.IDE.Postgres
 import IHP.IDE.StatusServer
+import IHP.IDE.Repl
 import IHP.IDE.LiveReloadNotificationServer
 import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer
@@ -65,11 +66,11 @@ main = do
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) = 
+handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) =
     case postgresState of
         PostgresStarted {} -> do
             async (updateDatabaseIsOutdated state)
-            
+
             -- If the app is already running before the postgres started up correctly,
             -- we need to trigger a restart, otherwise e.g. background jobs will not start correctly
             case appGHCIState of
@@ -150,6 +151,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
             sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
             sendGhciCommand process ":r"
         AppGHCILoading { .. } -> sendGhciCommand process ":r"
+        _ -> error "impossible: file changed, but app server not running"
 
     clearStatusServer statusServerState
 
@@ -158,6 +160,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
                 AppGHCILoading { .. } -> AppGHCILoading { .. }
                 AppGHCIModulesLoaded { .. } -> AppGHCILoading { .. }
                 RunningAppGHCI { .. } -> AppGHCILoading { .. }
+                _ -> error "impossible: file changed, but app server not running"
     pure state { appGHCIState = appGHCIState' }
 
 handleAction state SchemaChanged = do
@@ -174,6 +177,11 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
             pure state { appGHCIState = AppGHCIModulesLoaded { .. } }
         otherwise -> do Log.info ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
 
+handleAction state@(AppState { replState }) (UpdateReplState newState) =
+    pure state { replState = newState }
+
+handleAction _ action = error $ "Can't handle action: " <> show action
+
 
 
 start :: (?context :: Context) => IO ()
@@ -181,6 +189,7 @@ start = do
     async startToolServer
     async startStatusServer
     async startAppGHCI
+    async startRepl
     async startPostgres
     async startFileWatcher
     pure ()
@@ -189,6 +198,7 @@ stop :: (?context :: Context) => AppState -> IO ()
 stop AppState { .. } = do
     when (get #isDebugMode ?context) (Log.debug ("Stop called" :: Text))
     stopAppGHCI appGHCIState
+    stopRepl replState
     stopPostgres postgresState
     stopStatusServer statusServerState
     stopFileWatcher fileWatcherState

@@ -29,6 +29,7 @@ import IHP.IDE.SchemaDesigner.Controller.Tables ()
 import IHP.IDE.Data.Controller ()
 import IHP.IDE.Logs.Controller ()
 import IHP.IDE.CodeGen.Controller ()
+import IHP.IDE.Repl.Controller ()
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.Controller as Helper
 import IHP.IDE.ToolServer.Routes ()
@@ -101,11 +102,11 @@ startToolServer' port isDebugMode = do
             >>= pure . get #liveReloadNotificationServerState
 
     Warp.runSettings warpSettings $
-            staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware
-                $ Websocket.websocketsOr
-                    Websocket.defaultConnectionOptions
-                    (LiveReloadNotificationServer.app liveReloadNotificationServerState)
-                    application
+            staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware application
+                -- $ Websocket.websocketsOr
+                --     Websocket.defaultConnectionOptions
+                --     (LiveReloadNotificationServer.app liveReloadNotificationServerState)
+                --     application
 
 stopToolServer ToolServerStarted { thread } = uninterruptibleCancel thread
 stopToolServer ToolServerNotStarted = pure ()
@@ -131,6 +132,9 @@ instance FrontController ToolServerApplication where
         , parseRoute @LogsController
         , parseRoute @DataController
         , parseRoute @CodeGenController
+        , parseRoute @ReplController
+        , webSocketApp @ReplWSApp
+        , webSocketApp @ReplOutputApp
         , startPage TablesAction
         ]
 
