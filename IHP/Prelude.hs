@@ -39,6 +39,7 @@ module IHP.Prelude
 , module Control.Exception
 , module Control.Monad.Fail
 , module Control.Concurrent.Async
+, module NeatInterpolation
 )
 where
 
@@ -73,6 +74,7 @@ import Data.Time.Format
 import Control.Exception (throw, throwIO, catch)
 import Control.Monad.Fail (fail)
 import Control.Concurrent.Async
+import NeatInterpolation (trimming)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b

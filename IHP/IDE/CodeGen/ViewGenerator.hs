@@ -5,7 +5,6 @@ import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import NeatInterpolation
 
 data ViewConfig = ViewConfig
     { controllerName :: Text
