@@ -38,6 +38,7 @@ import IHP.ControllerPrelude
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
+import IHP.Pagination.Types
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
@@ -176,11 +177,14 @@ instance JobsDashboard '[] where
 
     listJob = error "listJob: Requested job type not in JobsDashboard Type"
     listJob' _ = do
-        let page = fromMaybe 1 $ param "page"
-            table = param "tableName"
-        numberOfPages <- numberOfPagesForTable table 25
-        jobs <- queryBaseJobsFromTablePaginated table (page - 1) 25
-        render $ HtmlView $ renderBaseJobTablePaginated table jobs page numberOfPages
+        let table = param "tableName"
+            options = defaultPaginationOptions
+            page = paramOrDefault 1 "page"
+            pageSize = paramOrDefault (maxItems options) "maxItems"
+        totalItems <- totalRecordsForTable table
+        jobs <- queryBaseJobsFromTablePaginated table (page - 1) pageSize
+        let pagination = Pagination { currentPage = page, totalItems, pageSize, window = windowSize options }
+        render $ HtmlView $ renderBaseJobTablePaginated table jobs pagination
         render $ EmptyView
 
     viewJob = error "viewJob: Requested job type not in JobsDashboard Type"

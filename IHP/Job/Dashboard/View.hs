@@ -12,6 +12,8 @@ import IHP.ViewPrelude (JobStatus(..), ControllerContext, Html, View, hsx, html,
 import qualified Data.List as List
 import IHP.Job.Dashboard.Types
 import IHP.Job.Dashboard.Utils
+import IHP.Pagination.Types
+import IHP.Pagination.ViewFunctions
 import qualified IHP.Log as Log
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
@@ -87,8 +89,8 @@ renderBaseJobTable table rows =
 |]
     where renderHeader field = [hsx|<th>{field}</th>|]
 
-renderBaseJobTablePaginated :: Text -> [BaseJob] -> Int -> Int -> Html
-renderBaseJobTablePaginated table jobs page totalPages =
+renderBaseJobTablePaginated :: Text -> [BaseJob] -> Pagination -> Html
+renderBaseJobTablePaginated table jobs pagination =
     let
         headers :: [Text] = ["ID", "Updated At", "Status", "", ""]
         lastJobIndex = (List.length jobs) - 1
@@ -111,37 +113,10 @@ renderBaseJobTablePaginated table jobs page totalPages =
                     </tbody>
                 </table>
             </div>
-            <nav aria-label="Page navigation example">
-                <ul class="pagination justify-content-end">
-                    {renderPrev}
-                    {when (totalPages /= 1) renderDest}
-                    {renderNext}
-                </ul>
-            </nav>
+            {renderPagination pagination}
         |]
     where
         renderHeader field = [hsx|<th>{field}</th>|]
-        renderDest = [hsx|<li class="page-item active"><a class="page-link" href={ListJobAction table page}>{page}</a></li>|]
-        renderPrev
-            | page == 1 = [hsx||]
-            | otherwise = [hsx|
-                <li class="page-item">
-                    <a class="page-link" href={ListJobAction table (page - 1)} aria-label="Previous">
-                        <span aria-hidden="true">&laquo;</span>
-                        <span class="sr-only">Previous</span>
-                    </a>
-                </li>
-        |]
-        renderNext
-            | page == totalPages || totalPages == 0 = [hsx||]
-            | otherwise = [hsx|
-                <li class="page-item">
-                    <a class="page-link" href={ListJobAction table (page + 1)} aria-label="Next">
-                        <span aria-hidden="true">&raquo;</span>
-                        <span class="sr-only">Next</span>
-                    </a>
-                </li>
-            |]
 
 renderBaseJobTableRow :: BaseJob -> Html
 renderBaseJobTableRow job = [hsx|
