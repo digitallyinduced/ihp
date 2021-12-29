@@ -12,7 +12,7 @@ numberOfPagesForTable table pageSize = do
         (pages, 0) -> pages
         (pages, _) -> pages + 1
 
-totalRecordsForTable :: (?modelContext::ModelContext) => Text -> IO Int
+totalRecordsForTable :: (?modelContext :: ModelContext) => Text -> IO Int
 totalRecordsForTable table = do
     (PG.Only totalRecords : _) <- sqlQuery
         (PG.Query $ cs $ "SELECT COUNT(*) FROM " <> table)
