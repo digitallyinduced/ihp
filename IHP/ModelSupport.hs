@@ -401,7 +401,7 @@ withDatabaseConnection block =
 --
 -- __Example:__
 --
--- > usersCount <- sqlQuery "SELECT COUNT(*) FROM users"
+-- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO value
