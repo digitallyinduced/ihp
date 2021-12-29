@@ -185,7 +185,6 @@ instance JobsDashboard '[] where
         jobs <- queryBaseJobsFromTablePaginated table (page - 1) pageSize
         let pagination = Pagination { currentPage = page, totalItems, pageSize, window = windowSize options }
         render $ HtmlView $ renderBaseJobTablePaginated table jobs pagination
-        render $ EmptyView
 
     viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
     viewJob' _ = do
