@@ -8,7 +8,6 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.SchemaCompiler
 import IHP.IDE.SchemaDesigner.Types
-import NeatInterpolation
 import qualified Data.Text as Text
 
 tests = do
@@ -18,7 +17,7 @@ tests = do
                 let statement = CreateEnumType { name = "mood", values = ["happy", "very happy", "sad", "very sad"] }
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
-                output `shouldBe` [text|
+                output `shouldBe` [trimming|
                     data Mood = Happy | VeryHappy | Sad | VerySad deriving (Eq, Show, Read, Enum)
                     instance FromField Mood where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "happy") = pure Happy
@@ -55,7 +54,7 @@ tests = do
                 let statement = CreateEnumType { name = "Province", values = ["Alberta", "BritishColumbia", "Saskatchewan", "Manitoba", "Ontario", "Quebec", "NovaScotia", "NewBrunswick", "PrinceEdwardIsland", "NewfoundlandAndLabrador"] }
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
-                output `shouldBe` [text|
+                output `shouldBe` [trimming|
                     data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum)
                     instance FromField Province where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Alberta") = pure Alberta
@@ -101,7 +100,7 @@ tests = do
                 let enum2 = CreateEnumType { name = "apartment_type", values = ["LOFT", "APARTMENT"] }
                 let output = compileStatementPreview [enum1, enum2] enum1 |> Text.strip
 
-                output `shouldBe` [text|
+                output `shouldBe` [trimming|
                     data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum)
                     instance FromField PropertyType where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "APARTMENT") = pure PropertyTypeApartment
@@ -128,7 +127,7 @@ tests = do
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
-                getInstanceDecl "CanCreate" compileOutput `shouldBe` [text|
+                getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
@@ -138,7 +137,7 @@ tests = do
                             sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
-                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [text|
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
                             List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, get #id model))
@@ -153,7 +152,7 @@ tests = do
                 }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [text|
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
                             List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
@@ -170,7 +169,7 @@ tests = do
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                compileOutput `shouldBe` [text|
+                compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
                     type User = User' 
@@ -229,7 +228,7 @@ tests = do
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                compileOutput `shouldBe` [text|
+                compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
                     type User = User' 

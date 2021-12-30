@@ -6,7 +6,7 @@
 
 ## Introduction
 
-IHP has built-in functionality for creating and running background jobs. Jobs are perfect for any tasks that can be split up into small units and run in parallel, such periodically cleaning the database, sending emails, and scraping data.
+IHP has built-in functionality for creating and running background jobs. Jobs are perfect for any tasks that can be split up into small units and run in parallel, such as periodically cleaning the database, sending emails, and scraping data.
 
 ### Creating a job
 

@@ -38,7 +38,7 @@ instance BuildMail ConfirmationMail where
     |]
 ```
 
-### Changing Subject
+### Changing the Subject
 
 Let's first change the subject of our mail from `Subject` to something more useful:
 
@@ -66,9 +66,17 @@ to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addr
 
 The email sender is set to `hi@example.com` by default. Usually, you want to use your domain here. For this example, we will stick with the `hi@example.com` for now.
 
+### Changing the Reply-To address
+
+By default the "Reply" button in an email programs creates a reply to the From address. You can change that behavior by setting the `Reply-To` header to another target email address:
+
+```haskell
+replyTo ConfirmationMail { .. } = Just Address { addessName = Just "Support", addressEmail = "support@example.com" }
+```
+
 ### Email Content
 
-Last we need to change the email text a little bit. The mail supports HSX so this is similar to writing a IHP view:
+Last we need to change the email text a little bit. The mail supports HSX so this is similar to writing an IHP view:
 
 ```haskell
     html ConfirmationMail { .. } = [hsx|
@@ -86,6 +94,21 @@ action MyAction = do
     user <- fetch "..."
     sendMail ConfirmationMail { user }
 ```
+
+## Custom Headers
+
+If you need to send specific mail headers you can do so as well:
+
+```haskell
+headers ConfirmationMail { .. } =
+    [ ("X-Mailer", "mail4j 2.17.0")
+    , ("In-Reply-To", "<123456@list.example.com>")
+    ]
+```
+
+Implementation detail: IHP first adds headers set by itself (like `Subject` and the optional `Reply-To`), then headers provided via `headers`. If you don't want to use the `replyTo` helper from above it's absolutely fine to add the `Reply-To` header manually.
+
+
 
 ## Mail Servers
 
@@ -107,13 +130,14 @@ config = do
     option $ SMTP
         { host = "smtp.myisp.com"
         , port = 2525
-        , credentials = Nothing -- or Just ("myusername","hunter2")
+        , credentials = Nothing -- or: Just ("myusername","hunter2")
+        , encryption = TLS -- <-- other options: `Unencrypted` or `STARTTLS`
         }
 ```
 
 ### Local (For Debugging)
 
-A convinient way to see sent mails is to use a local mail testing such as [MailHog](https://github.com/mailhog/MailHog). This service will catch all outgoing emails, and show their HTML to you - which is handy while developing. 
+A convinient way to see sent mails is to use a local mail testing such as [MailHog](https://github.com/mailhog/MailHog). This service will catch all outgoing emails, and show their HTML to you - which is handy while developing.
 
 1. Make sure `sendmail` is locally installed and configured.
 2. Install MailHog.
@@ -133,6 +157,7 @@ config = do
         { host = "127.0.1.1"
         , port = 1025
         , credentials = Nothing
+        , encryption = Unencrypted
         }
 ```
 
@@ -196,4 +221,23 @@ instance BuildMail ConfirmationMail where
 
 ## Plain Text Emails
 
-TODO
+Every email should have a plain text version for people with reasonable mail clients. If you don't specify one and only set the HTML content via `html` (see above), then IHP automatically creates a plain text version from you by stripping away all HTML tags. This is suboptimal.
+
+The better option is to manually provide a useful plain text version of your emails:
+
+```haskell
+text ConfirmationMail { .. } = cs [trimming|
+    Hey ${userName},
+
+    Thanks for signing up! Please confirm your account by following this link:
+    https://....
+|]
+    where
+        userName = get #name user
+```
+
+Note a few differences to the `html` version here:
+
+- We use `[trimming| ... |]` instead of `[hsx| ... |]` so we can't use HSX's inline Haskell like `{get #userName user}` but have to live with simple substitution. Note the dollar sign in front of these substitutions: `${userName}`.
+- The `[trimming||]` quasiquoter takes care of removing the whitespace that our indentations introduced, which we don't want in the actual emails.
+- We use `cs` to convert the `[Char]` to the required `Text` type.

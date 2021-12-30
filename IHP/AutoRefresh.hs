@@ -162,7 +162,11 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     pgListener <- get #pgListener <$> readIORef autoRefreshServer
     subscriptions <-  subscriptionRequired |> mapM (\table -> do
         let createTriggerSql = notificationTrigger table
-        sqlExec createTriggerSql ()
+
+        -- We need to add the trigger from the main IHP database role other we will get this error:
+        -- ERROR:  permission denied for schema public
+        withRowLevelSecurityDisabled do
+            sqlExec createTriggerSql ()
 
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (get #sessions) <$> readIORef autoRefreshServer

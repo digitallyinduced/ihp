@@ -401,7 +401,7 @@ withDatabaseConnection block =
 --
 -- __Example:__
 --
--- > usersCount <- sqlQuery "SELECT COUNT(*) FROM users"
+-- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO value
@@ -449,6 +449,29 @@ withTransaction block = withTransactionConnection do
             block
         Nothing -> PG.withTransaction connection block
 {-# INLINABLE withTransaction #-}
+
+-- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
+--
+-- This is used e.g. by IHP AutoRefresh to be able to set up it's database triggers. When trying to set up a database
+-- trigger from the ihp_authenticated role, it typically fails because it's missing permissions. Using 'withRowLevelSecurityDisabled'
+-- we switch to the main role which is allowed to set up database triggers.
+--
+-- SQL queries run from within the passed block are executed in their own transaction.
+--
+-- __Example:__
+--
+-- > -- SQL code executed here might be run from the ihp_authenticated role
+-- > withRowLevelSecurityDisabled do
+-- >    -- SQL code executed here is run as the main IHP db role
+-- >    sqlExec "CREATE OR REPLACE FUNCTION .." ()
+--
+withRowLevelSecurityDisabled :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
+withRowLevelSecurityDisabled block = do
+    let currentModelContext = ?modelContext
+    case get #rowLevelSecurity currentModelContext of
+        Just _ -> let ?modelContext = currentModelContext { rowLevelSecurity = Nothing, transactionConnection = Nothing } in block
+        Nothing -> block
+{-# INLINABLE withRowLevelSecurityDisabled #-}
 
 -- | Returns the postgres connection when called within a 'withTransaction' block
 --
