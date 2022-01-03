@@ -178,8 +178,12 @@ hsxAttributeName = do
         isValidAttributeName name =
             "data-" `Text.isPrefixOf` name
             || "aria-" `Text.isPrefixOf` name
+            -- Prefix for HTMX support
             || "hx-" `Text.isPrefixOf` name
-            || "hx-" `Text.isPrefixOf` name
+            -- Prefixes for Alpine.js support
+            || "x-" `Text.isPrefixOf` name
+            || "@" `Text.isPrefixOf` name
+            || ":" `Text.isPrefixOf` name
             || name `Set.member` attributes
 
         rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-')
