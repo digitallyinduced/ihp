@@ -720,6 +720,16 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                     }
 
+        it "should parse a call expression with multiple arguments" do
+            let sql = cs [plain|ALTER TABLE a ADD CONSTRAINT source CHECK (num_nonnulls(a, b, c) = 1);|]
+            parseSql sql `shouldBe`  AddConstraint
+                { tableName = "a"
+                , constraint = CheckConstraint
+                    { name = Just "source"
+                    , checkExpression = EqExpression (CallExpression "num_nonnulls" [VarExpression "a",VarExpression "b",VarExpression "c"]) (IntExpression 1)
+                    }
+                }
+
 col :: Column
 col = Column
     { name = ""
