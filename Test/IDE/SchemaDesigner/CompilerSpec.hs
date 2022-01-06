@@ -109,9 +109,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
@@ -122,9 +122,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetDefault
@@ -135,9 +135,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetNull
@@ -148,9 +148,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE RESTRICT" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Restrict
@@ -161,9 +161,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE NO ACTION" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just NoAction
@@ -174,9 +174,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. (without ON DELETE)" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Nothing
@@ -187,9 +187,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
+                        { name = "check_title_length"
+                        , checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');\n"
@@ -197,9 +197,9 @@ tests = do
         it "should compile a complex ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint
                     { tableName = "properties"
-                    , constraintName = "foobar"
                     , constraint = CheckConstraint
-                        { checkExpression = OrExpression
+                        { name = "foobar"
+                        , checkExpression = OrExpression
                                 (AndExpression
                                     (AndExpression
                                         (EqExpression (VarExpression "property_type") (TextExpression "haus_buy"))
@@ -222,9 +222,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = LessThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = LessThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) < 20);\n"
@@ -232,9 +232,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <=" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = LessThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = LessThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) <= 20);\n"
@@ -242,9 +242,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = GreaterThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = GreaterThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) > 20);\n"
@@ -252,9 +252,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >=" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = GreaterThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = GreaterThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) >= 20);\n"
@@ -334,7 +334,7 @@ tests = do
                         , col { name = "follower_id", columnType = PUUID, notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -540,7 +540,7 @@ tests = do
 
         it "should compile 'ALTER TABLE .. ADD UNIQUE (..);' statements" do
             let sql = "ALTER TABLE users ADD UNIQUE (full_name);\n"
-            let statements = [ AddConstraint { tableName = "users", constraintName = "", constraint = UniqueConstraint { columnNames = ["full_name"] }  } ]
+            let statements = [ AddConstraint { tableName = "users", constraint = UniqueConstraint { name = Nothing, columnNames = ["full_name"] }  } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'ALTER TABLE .. DROP CONSTRAINT ..;' statements" do

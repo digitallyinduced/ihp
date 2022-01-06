@@ -116,9 +116,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
@@ -128,9 +128,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET DEFAULT;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetDefault
@@ -140,9 +140,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetNull
@@ -152,9 +152,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE RESTRICT" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE RESTRICT;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Restrict
@@ -164,9 +164,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE NO ACTION" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE NO ACTION;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just NoAction
@@ -176,9 +176,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. (without ON DELETE)" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id);" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Nothing
@@ -188,18 +188,18 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
+                        { name = "check_title_length"
+                        , checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
                         }
                     }
 
         it "should parse a complex ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             parseSql "ALTER TABLE properties ADD CONSTRAINT foobar CHECK ((property_type = 'haus_buy' AND area_garden IS NOT NULL AND rent_monthly IS NULL) OR (property_type = 'haus_rent' AND rent_monthly IS NOT NULL AND price IS NULL));" `shouldBe` AddConstraint
                     { tableName = "properties"
-                    , constraintName = "foobar"
                     , constraint = CheckConstraint
-                        { checkExpression = OrExpression
+                        { name = "foobar"
+                        , checkExpression = OrExpression
                                 (AndExpression
                                     (AndExpression
                                         (EqExpression (VarExpression "property_type") (TextExpression "haus_buy"))
@@ -222,9 +222,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) < 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             LessThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
@@ -236,9 +236,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <=" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) <= 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             LessThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
@@ -248,9 +248,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) > 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             GreaterThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
@@ -261,9 +261,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >=" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) >= 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             GreaterThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
@@ -360,7 +360,7 @@ tests = do
                         , col { name = "follower_id", columnType = PUUID, notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                     }
 
         it "should fail to parse a CREATE TABLE statement with an empty UNIQUE () constraint" do

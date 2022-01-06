@@ -17,8 +17,8 @@ data Statement
     | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
     | CreateExtension { name :: Text, ifNotExists :: Bool }
-    -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;
-    | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName ADD CONSTRAINT constraint;
+    | AddConstraint { tableName :: Text, constraint :: Constraint }
     -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
     | DropConstraint { tableName, constraintName :: Text }
     -- | ALTER TABLE tableName ADD COLUMN column;
@@ -97,15 +97,24 @@ newtype PrimaryKeyConstraint
 data Constraint
     -- | FOREIGN KEY (columnName) REFERENCES referenceTable (referenceColumn) ON DELETE onDelete;
     = ForeignKeyConstraint
-        { columnName :: Text
-        , referenceTable :: Text
-        , referenceColumn :: Maybe Text
-        , onDelete :: Maybe OnDelete
+        { name :: !(Maybe Text)
+        , columnName :: !Text
+        , referenceTable :: !Text
+        , referenceColumn :: !(Maybe Text)
+        , onDelete :: !(Maybe OnDelete)
         }
     | UniqueConstraint
-        { columnNames :: [Text] }
-    | CheckConstraint { checkExpression :: Expression }
-    | AlterTableAddPrimaryKey { primaryKeyConstraint :: PrimaryKeyConstraint }
+        { name :: !(Maybe Text)
+        , columnNames :: ![Text]
+        }
+    | CheckConstraint
+        { name :: !(Maybe Text)
+        , checkExpression :: !Expression
+        }
+    | AlterTableAddPrimaryKey
+        { name :: !(Maybe Text)
+        , primaryKeyConstraint :: !PrimaryKeyConstraint
+        }
     deriving (Eq, Show)
 
 data Expression =
