@@ -712,6 +712,23 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "should normalize check constraints" do
+                let targetSchema = sql [i|
+                    CREATE TABLE public.a (
+                        id uuid DEFAULT public.uuid_generate_v4() NOT NULL
+                    );
+                    ALTER TABLE a ADD CONSTRAINT contact_email_or_url CHECK (contact_email IS NOT NULL OR source_url IS NOT NULL);
+                |]
+
+                let actualSchema = sql [i|
+                    CREATE TABLE public.a (
+                        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+                        CONSTRAINT contact_email_or_url CHECK (((contact_email IS NOT NULL) OR (source_url IS NOT NULL)))
+                    );
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

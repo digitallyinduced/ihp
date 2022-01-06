@@ -190,7 +190,12 @@ fetchRows :: FromRow r => PG.Connection -> Text -> IO [r]
 fetchRows connection tableName = do
     pkFields <- tablePrimaryKeyFields connection tableName
 
-    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields
+    let query = "SELECT * FROM "
+            <> tableName
+            <> (if null pkFields
+                    then ""
+                    else " ORDER BY " <> intercalate ", " pkFields
+                )
 
     PG.query_ connection (PG.Query . cs $! query)
 
@@ -198,7 +203,13 @@ fetchRowsPage :: FromRow r => PG.Connection -> Text -> Int -> Int -> IO [r]
 fetchRowsPage connection tableName page rows = do
     pkFields <- tablePrimaryKeyFields connection tableName
     let slice = " OFFSET " <> show (page * rows - rows) <> " ROWS FETCH FIRST " <> show rows <> " ROWS ONLY"
-    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice
+    let query = "SELECT * FROM "
+            <> tableName
+            <> (if null pkFields
+                    then ""
+                    else " ORDER BY " <> intercalate ", " pkFields
+                )
+            <> slice
 
     PG.query_ connection (PG.Query . cs $! query)
 

@@ -137,7 +137,9 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }
         toDropStatement CreateEnumType { name } = Just DropEnumType { name }
         toDropStatement CreateIndex { indexName } = Just DropIndex { indexName }
-        toDropStatement AddConstraint { tableName, constraintName } = Just DropConstraint { tableName, constraintName }
+        toDropStatement AddConstraint { tableName, constraint } = case get #name constraint of
+                Just constraintName -> Just DropConstraint { tableName, constraintName }
+                Nothing -> Nothing
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
         toDropStatement otherwise = Nothing
 
@@ -211,7 +213,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
 
                         updateConstraint = if get #isUnique dropColumn
                             then DropConstraint { tableName, constraintName = tableName <> "_" <> (get #name dropColumn) <> "_key" }
-                            else AddConstraint { tableName, constraintName = "",  constraint = UniqueConstraint { columnNames = [get #name dropColumn] } }
+                            else AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames = [get #name dropColumn] } }
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
@@ -334,20 +336,55 @@ normalizeStatement :: Statement -> [Statement]
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizedTable } : normalizeTableRest
     where 
         (normalizedTable, normalizeTableRest) = normalizeTable table
-normalizeStatement AddConstraint { tableName, constraintName, constraint } = [ AddConstraint { tableName, constraintName, constraint = normalizeConstraint constraint } ]
+normalizeStatement AddConstraint { tableName, constraint } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check } ]
 normalizeStatement otherwise = [otherwise]
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
-normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, .. }, concat $ snd normalizedColumns )
+normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )
     where
         normalizedColumns = columns
                 |> map (normalizeColumn table)
                 |> unzip
 
+        -- pg_dump typically inlines the table constraints into the CREATE TABLE statement like this:
+        --
+        -- > CREATE TABLE public.a (
+        -- >     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+        -- >     CONSTRAINT c CHECK 1=1
+        -- > );
+        --
+        -- In IHP we typically split this into a 'CREATE TABLE' statement and into a 'ALTER TABLE .. ADD CONSTRAINT ..' statement.
+        --
+        -- We normalize the above statement to this:
+        --
+        -- > CREATE TABLE public.a (
+        -- >     id uuid DEFAULT public.uuid_generate_v4() NOT NULL
+        -- > );
+        -- > ALTER TABLE a ADD CONSTRAINT c CHECK 1=1;
+        normalizedCheckConstraints :: [Either Statement Constraint]
+        normalizedCheckConstraints = constraints
+                |> map \case
+                    checkConstraint@(CheckConstraint {}) -> Left AddConstraint { tableName = name, constraint = checkConstraint }
+                    otherConstraint -> Right otherConstraint
+
+        normalizedTableConstraints :: [Constraint]
+        normalizedTableConstraints = 
+            normalizedCheckConstraints
+            |> mapMaybe \case
+                Left _ -> Nothing
+                Right c -> Just c
+
+        normalizedConstraintsStatements :: [Statement]
+        normalizedConstraintsStatements = 
+            normalizedCheckConstraints
+            |> mapMaybe \case
+                Right _ -> Nothing
+                Left c -> Just c
+
 normalizeConstraint :: Constraint -> Constraint
-normalizeConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
+normalizeConstraint ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
 normalizeConstraint otherwise = otherwise
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
@@ -355,7 +392,7 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
     where
         uniqueConstraint =
             if isUnique
-                then [ AddConstraint { tableName = get #name table, constraintName = (get #name table) <>"_" <> name <> "_key", constraint = UniqueConstraint [name] } ]
+                then [ AddConstraint { tableName = get #name table, constraint = UniqueConstraint (Just $ (get #name table) <>"_" <> name <> "_key") [name] } ]
                 else []
 
         normalizeName :: Text -> Text
@@ -432,7 +469,7 @@ migrationPathFromPlan plan =
 normalizePrimaryKeys :: [Statement] -> [Statement]
 normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
     where
-        normalizePrimaryKeys' normalizedStatements ((AddConstraint { tableName, constraintName, constraint = AlterTableAddPrimaryKey { primaryKeyConstraint } }):rest) =
+        normalizePrimaryKeys' normalizedStatements ((AddConstraint { tableName, constraint = AlterTableAddPrimaryKey { primaryKeyConstraint } }):rest) =
             normalizePrimaryKeys'
                 (normalizedStatements
                     |> map \case

@@ -417,9 +417,9 @@ findForeignKey :: [Statement] -> Text -> Text -> Maybe Statement
 findForeignKey statements tableName columnName =
     find (\statement -> statement == AddConstraint
         { tableName = tableName
-        , constraintName = (get #constraintName statement)
         , constraint = ForeignKeyConstraint
-            { columnName = columnName
+            { name = Just (get #constraintName statement)
+            , columnName = columnName
             , referenceTable = (get #referenceTable (get #constraint statement))
             , referenceColumn = (get #referenceColumn (get #constraint statement))
             , onDelete = (get #onDelete (get #constraint statement))  }

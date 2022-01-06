@@ -143,7 +143,7 @@ tests = do
                 let schema =
                             [ tasksTable
                             , taskListsTable
-                            , AddConstraint { tableName = "tasks", constraintName = "tasks_ref_task_lists", constraint = ForeignKeyConstraint { columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing } }
+                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing } }
                             ]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage the tasks if they can see the TaskList"
