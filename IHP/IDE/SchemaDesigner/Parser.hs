@@ -130,20 +130,18 @@ createEnumType = do
     pure CreateEnumType { name, values }
 
 addConstraint tableName = do
-    lexeme "CONSTRAINT"
-    constraintName <- identifier
     constraint <- parseTableConstraint >>= \case
-      Left primaryKeyConstraint -> pure AlterTableAddPrimaryKey { primaryKeyConstraint }
+      Left primaryKeyConstraint -> pure AlterTableAddPrimaryKey { name = Nothing, primaryKeyConstraint }
       Right constraint -> pure constraint
     char ';'
-    pure AddConstraint { tableName, constraintName, constraint }
+    pure AddConstraint { tableName, constraint }
 
 parseTableConstraint = do
-    optional do
+    name <- optional do
         lexeme "CONSTRAINT"
         identifier
     (Left <$> parsePrimaryKeyConstraint) <|>
-      (Right <$> (parseForeignKeyConstraint <|> parseUniqueConstraint <|> parseCheckConstraint))
+      (Right <$> (parseForeignKeyConstraint name <|> parseUniqueConstraint name <|> parseCheckConstraint name))
 
 parsePrimaryKeyConstraint = do
     lexeme "PRIMARY"
@@ -151,7 +149,7 @@ parsePrimaryKeyConstraint = do
     primaryKeyColumnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
     pure PrimaryKeyConstraint { primaryKeyColumnNames }
 
-parseForeignKeyConstraint = do
+parseForeignKeyConstraint name = do
     lexeme "FOREIGN"
     lexeme "KEY"
     columnName <- between (char '(' >> space) (char ')' >> space) identifier
@@ -162,17 +160,17 @@ parseForeignKeyConstraint = do
         lexeme "ON"
         lexeme "DELETE"
         parseOnDelete
-    pure ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete }
+    pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete }
 
-parseUniqueConstraint = do
+parseUniqueConstraint name = do
     lexeme "UNIQUE"
     columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
-    pure UniqueConstraint { columnNames }
+    pure UniqueConstraint { name, columnNames }
 
-parseCheckConstraint = do
+parseCheckConstraint name = do
     lexeme "CHECK"
     checkExpression <- between (char '(' >> space) (char ')' >> space) expression
-    pure CheckConstraint { checkExpression }
+    pure CheckConstraint { name, checkExpression }
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
@@ -524,9 +522,9 @@ alterTable = do
     let add = do
             lexeme "ADD"
             let addUnique = do
-                    unique <- parseUniqueConstraint
+                    unique <- parseUniqueConstraint Nothing
                     char ';'
-                    pure (AddConstraint tableName "" unique)
+                    pure (AddConstraint tableName unique)
             addConstraint tableName <|> addColumn tableName <|> addUnique
     let drop = do
             lexeme "DROP"
