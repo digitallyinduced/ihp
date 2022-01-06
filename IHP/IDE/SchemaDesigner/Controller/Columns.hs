@@ -109,7 +109,7 @@ instance Controller ColumnsController where
         let columnId = param "columnId"
         let columnName = param "columnName"
         case findForeignKey statements tableName columnName of
-            Just AddConstraint { constraintName, .. } -> updateSchema (deleteForeignKeyConstraint constraintName)
+            Just AddConstraint { constraint = constraint@(ForeignKeyConstraint { name = Just constraintName }) } -> updateSchema (deleteForeignKeyConstraint constraintName)
             otherwise -> pure ()
 
         let indicesToDelete = findIndicesReferencingColumn statements (tableName, columnName)
@@ -144,7 +144,7 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let tableNames = nameList (getCreateTable statements)
-        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
+        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
         onDelete <- case (get #onDelete (get #constraint statement)) of
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
@@ -161,9 +161,9 @@ instance Controller ColumnsController where
         let constraintName = param "constraintName"
         let referenceTable = param "referenceTable"
         let constraintId = findIndex (\statement -> statement == AddConstraint { tableName = tableName
-            , constraintName = (get #constraintName statement)
             , constraint = ForeignKeyConstraint
-                { columnName = columnName
+                { name = Just (get #constraintName statement)
+                , columnName = columnName
                 , referenceTable = (get #referenceTable (get #constraint statement))
                 , referenceColumn = (get #referenceColumn (get #constraint statement))
                 , onDelete=(get #onDelete (get #constraint statement)) } }) statements
@@ -216,10 +216,12 @@ deleteColumnInTable tableName columnId statement = statement
 
 
 updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> Int -> [Statement] -> [Statement]
-updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
+updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
-deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
+deleteForeignKeyConstraint constraintName = filter \case
+    AddConstraint { constraint } | get #name constraint == Just constraintName -> False
+    otherwise -> True
 
 
 deleteTableIndex :: Text -> [Statement] -> [Statement]
@@ -250,10 +252,10 @@ referencingColumnForeignKeyConstraints tableName columnName statements =
         statement ==
             AddConstraint
                 { tableName = tableName
-                , constraintName = (get #constraintName statement)
                 , constraint =
                     ForeignKeyConstraint
-                        { columnName = columnName
+                        { name = Just (get #constraintName statement)
+                        , columnName = columnName
                         , referenceTable = (get #referenceTable (get #constraint statement))
                         , referenceColumn = (get #referenceColumn (get #constraint statement))
                         , onDelete = (get #onDelete (get #constraint statement))
