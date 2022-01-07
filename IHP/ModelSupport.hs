@@ -25,6 +25,7 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.ToField as PG
+import qualified Database.PostgreSQL.Simple.ToRow as PG
 import GHC.Records
 import GHC.TypeLits
 import GHC.Types
@@ -341,16 +342,10 @@ measureTimeIfLogging queryAction theQuery theParameters = do
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
-            result <- try $ queryAction
-
-            case result of
-                Left (e :: SomeException) -> do
-                    error $ "\nError in query: " <> show theQuery <> "\n" <> show e
-                Right result -> do
-                    end <- getCurrentTime
-                    let theTime = end `diffUTCTime` start
-                    logQuery theQuery theParameters theTime
-                    pure result
+            queryAction `finally` do
+                end <- getCurrentTime
+                let theTime = end `diffUTCTime` start
+                logQuery theQuery theParameters theTime
         else queryAction
 
 -- | Runs a raw sql query
@@ -366,7 +361,9 @@ measureTimeIfLogging queryAction theQuery theParameters = do
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
     measureTimeIfLogging
-        (withDatabaseConnection \connection -> PG.query connection theQuery theParameters)
+        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+            PG.query connection theQuery theParameters
+        )
         theQuery
         theParameters
 {-# INLINABLE sqlQuery #-}
@@ -379,7 +376,9 @@ sqlQuery theQuery theParameters = do
 sqlExec :: (?modelContext :: ModelContext, PG.ToRow q, Show q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
     measureTimeIfLogging
-        (withDatabaseConnection \connection -> PG.execute connection theQuery theParameters)
+        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+            PG.execute connection theQuery theParameters
+        )
         theQuery
         theParameters
 {-# INLINABLE sqlExec #-}
@@ -412,7 +411,9 @@ withDatabaseConnection block =
 sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
     result <- measureTimeIfLogging
-        (withDatabaseConnection \connection -> PG.query connection theQuery theParameters)
+        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+            PG.query connection theQuery theParameters
+        )
         theQuery
         theParameters
     pure case result of
@@ -832,6 +833,23 @@ data RecordNotFoundException
     deriving (Show)
 
 instance Exception RecordNotFoundException
+
+-- | Whenever calls to 'Database.PostgreSQL.Simple.query' or 'Database.PostgreSQL.Simple.execute'
+-- raise an 'Database.PostgreSQL.Simple.SqlError' exception, we wrap that exception in this data structure.
+-- This allows us to show the actual database query that has triggered the error.
+data EnhancedSqlError
+    = EnhancedSqlError
+    { sqlErrorQuery :: Query
+    , sqlErrorQueryParams :: [Action]
+    , sqlError :: PG.SqlError
+    } deriving (Show)
+
+-- | Catches 'SqlError' and wraps them in 'EnhancedSqlError'
+enhanceSqlError :: PG.ToRow parameters => Query -> parameters -> IO a -> IO a
+enhanceSqlError sqlErrorQuery sqlErrorQueryParams block = catch block (\sqlError -> throwIO EnhancedSqlError { sqlErrorQuery, sqlErrorQueryParams = PG.toRow sqlErrorQueryParams, sqlError })
+{-# INLINE enhanceSqlError #-}
+
+instance Exception EnhancedSqlError
 
 instance Default Aeson.Value where
     def = Aeson.Null

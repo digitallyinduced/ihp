@@ -238,7 +238,7 @@ instance (
                         case result of
                             Left (e :: Exception.SomeException) -> do
                                 let errorMessage = case fromException e of
-                                        Just (sqlError :: PG.SqlError) -> cs (get #sqlErrorMsg sqlError)
+                                        Just (enhancedSqlError :: EnhancedSqlError) -> cs (get #sqlErrorMsg (get #sqlError enhancedSqlError))
                                         Nothing -> cs (displayException e)
                                 Log.error (tshow e)
                                 sendJSON DataSyncError { requestId, errorMessage }
