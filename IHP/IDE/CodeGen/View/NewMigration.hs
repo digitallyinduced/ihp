@@ -27,6 +27,7 @@ instance View NewMigrationView where
         where
             renderForm = [hsx|
                 <form method="POST" action={CreateMigrationAction}>
+                    <input type="hidden" name="runMigration" value={inputValue runMigration}/>
                     <div class="d-flex">
                         <input
                             type="text"
