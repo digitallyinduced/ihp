@@ -23,7 +23,14 @@ action SessionExampleAction = do
     setSession "userEmail" "hi@digitallyinduced.com"
 ```
 
-Right now, [`setSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:setSession) only accepts `Text` values. Other types like `Int` have to be converted to `Text` using [`tshow theIntValue`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:tshow).
+You can use [`setSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:setSession) with other data types like `Int`, `Bool` or `UUID` as well:
+
+
+```haskell
+action SessionExampleAction = do
+    let meaningOfLife :: Int = 42
+    setSession "meaningOfLife" meaningOfLife
+```
 
 ### Reading
 
@@ -31,17 +38,17 @@ You can use [`getSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Control
 
 ```haskell
 action SessionExampleAction = do
-    userEmail <- getSession "userEmail"
+    userEmail :: Maybe Text <- getSession "userEmail"
 ```
 
 `userEmail` is set to `Just "hi@digitallyinduced.com"` when the value has been set before. Otherwise, it will be `Nothing`.
 
-For convenience you can use [`getSessionInt`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:getSessionInt) to retrieve the value as a `Maybe Int`, and [`getSessionUUID`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:getSessionUUID) to retrieve the value as a `Maybe UUID`:
+The [`getSession`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Session.html#v:getSession) also supports other data types like `Int`, `Bool` or `UUID`:
 
 ```haskell
 action SessionExampleAction = do
-    counter :: Maybe Int <- getSessionInt "counter"
-    userId :: Maybe UUID <- getSessionUUID "userId"
+    counter :: Maybe Int <- getSession "counter"
+    userId :: Maybe UUID <- getSession "userId"
 ```
 
 ### Deleting
