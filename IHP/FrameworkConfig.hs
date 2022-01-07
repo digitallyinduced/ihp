@@ -1,34 +1,25 @@
 module IHP.FrameworkConfig where
 
 import IHP.Prelude
-import ClassyPrelude (readMay)
-import qualified System.Environment as Environment
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
-import Data.String.Conversions (cs)
-import qualified System.Directory as Directory
 import qualified Data.Text as Text
-import qualified System.Process as Process
-import Network.Wai (Middleware)
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
-import Data.Default (def)
-import Data.Time.Clock (NominalDiffTime)
 import IHP.Mail.Types
 import qualified Control.Monad.Trans.State.Strict as State
-import Data.Maybe (fromJust)
 import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
-import IHP.HaskellSupport hiding (set)
 import IHP.View.Types
 import IHP.View.CSSFramework
-import System.IO.Unsafe (unsafePerformIO)
 import IHP.Log.Types
 import IHP.Log (makeRequestLogger, defaultRequestLogger)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
+import qualified System.Posix.Env.ByteString as Posix
+import Data.String.Interpolate.IsString (i)
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -71,6 +62,14 @@ type ConfigBuilder = State.StateT TMap.TMap IO ()
 -- | Interface for exception tracking services such as sentry
 newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> SomeException -> IO () }
 
+-- | Typically "http://localhost:8001", Url where the IDE is running
+newtype IdeBaseUrl = IdeBaseUrl Text
+
+-- | Postgres role to be used for making queries with Row level security enabled
+newtype RLSAuthenticatedRole = RLSAuthenticatedRole Text
+
+newtype AssetVersion = AssetVersion Text
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -81,16 +80,18 @@ newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> So
 --
 -- This code will return 'Production' as the second call to 'option' is ignored to not override the existing option.
 option :: forall option. Typeable option => option -> State.StateT TMap.TMap IO ()
-option value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
+option !value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
 {-# INLINABLE option #-}
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
-    option Development
+    ihpEnv <- envOrDefault "IHP_ENV" Development
+    option ihpEnv
+
     option $ AppHostname "localhost"
 
-    port <- liftIO defaultAppPort
-    option $ AppPort port
+    port :: AppPort <- envOrDefault "PORT" (AppPort defaultPort)
+    option port
 
     option $ ExceptionTracker Warp.defaultOnException
 
@@ -100,13 +101,7 @@ ihpDefaultConfig = do
     option defaultLogger
     logger <- findOption @Logger
 
-    requestLoggerIpAddrSource <-
-        liftIO (Environment.lookupEnv "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE")
-        >>= \case
-            Just "FromHeader" -> pure RequestLogger.FromHeader
-            Just "FromSocket" -> pure RequestLogger.FromSocket
-            Nothing           -> pure RequestLogger.FromSocket
-            _                 -> error "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE set to invalid value. Expected FromHeader or FromSocket"
+    requestLoggerIpAddrSource <- envOrDefault "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE" RequestLogger.FromSocket
 
     reqLoggerMiddleware <- liftIO $
             case environment of
@@ -129,13 +124,19 @@ ihpDefaultConfig = do
     option $ DatabaseUrl databaseUrl
     option $ DBPoolIdleTime $
             case environment of
-            Development -> 2
-            Production -> 60
+                Development -> 2
+                Production -> 60
     option $ DBPoolMaxConnections 20
 
     (AppPort port) <- findOption @AppPort
-    (AppHostname appHostname) <- findOption @AppHostname
-    option $ BaseUrl ("http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else ""))
+
+    -- The IHP_BASEURL env var can override the hardcoded base url in Config.hs
+    ihpBaseUrlEnvVar <- envOrNothing "IHP_BASEURL"
+    case ihpBaseUrlEnvVar of 
+        Just baseUrl -> option (BaseUrl baseUrl)
+        Nothing -> do
+            (AppHostname appHostname) <- findOption @AppHostname
+            option $ BaseUrl ("http://" <> appHostname <> (if port /= 80 then ":" <> tshow port else ""))
 
     (BaseUrl currentBaseUrl) <- findOption @BaseUrl
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
@@ -144,13 +145,102 @@ ihpDefaultConfig = do
 
     option bootstrap
 
+    when (environment == Development) do
+        ihpIdeBaseUrl <- envOrDefault "IHP_IDE_BASEURL" "http://localhost:8001"
+        option (IdeBaseUrl ihpIdeBaseUrl)
+
+    rlsAuthenticatedRole <- envOrDefault "IHP_RLS_AUTHENTICATED_ROLE" "ihp_authenticated"
+    option $ RLSAuthenticatedRole rlsAuthenticatedRole
+
+    initAssetVersion
 
 {-# INLINABLE ihpDefaultConfig #-}
+
+
+-- | Returns a env variable. The raw string
+-- value is parsed before returning it. So the return value type depends on what
+-- you expect (e.g. can be Text, Int some custom type).
+--
+-- When the parameter is missing or cannot be parsed, an error is raised and
+-- the app startup is aborted. Use 'envOrDefault' when you want to get a
+-- default value instead of an error, or 'paramOrNothing' to get @Nothing@
+-- when the env variable is missing.
+--
+-- You can define a custom env variable parser by defining a 'EnvVarReader' instance.
+--
+-- __Example:__ Accessing a env var PORT.
+--
+-- Let's say an env var PORT is set to 1337
+--
+-- > export PORT=1337
+--
+-- We can read @PORT@ like this:
+--
+-- > port <- env @Int "PORT"
+--
+-- __Example:__ Missing env vars
+--
+-- Let's say the @PORT@ env var is not defined. In that case we'll get an
+-- error when trying to access it:
+--
+-- >>> port <- env @Int "PORT"
+-- "Env var 'PORT' not set, but it's required for the app to run"
+--
+env :: forall result monad. (MonadIO monad) => EnvVarReader result => ByteString -> monad result
+env name = envOrDefault name (error [i|Env var '#{name}' not set, but it's required for the app to run|])
+
+envOrDefault :: (MonadIO monad) => EnvVarReader result => ByteString -> result -> monad result
+envOrDefault name defaultValue = fromMaybe defaultValue <$> envOrNothing name
+
+envOrNothing :: (MonadIO monad) => EnvVarReader result => ByteString -> monad (Maybe result)
+envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
+    where
+        parseString string = case envStringToValue string of
+            Left errorMessage -> error [i|Env var '#{name}' is invalid: #{errorMessage}|]
+            Right value -> value
+
+class EnvVarReader valueType where
+    envStringToValue :: ByteString -> Either Text valueType
+
+instance EnvVarReader Environment where
+    envStringToValue "Production"  = Right Production
+    envStringToValue "Development" = Right Development
+    envStringToValue otherwise     = Left "Should be set to 'Development' or 'Production'"
+
+instance EnvVarReader Int where
+    envStringToValue string = case textToInt (cs string) of
+        Just integer -> Right integer
+        Nothing -> Left [i|Expected integer, got #{string}|]
+
+instance EnvVarReader Text where
+    envStringToValue string = Right (cs string)
+
+instance EnvVarReader ByteString where
+    envStringToValue string = Right string
+
+instance EnvVarReader AppPort where
+    envStringToValue string = AppPort <$> envStringToValue string
+
+instance EnvVarReader RequestLogger.IPAddrSource where
+    envStringToValue "FromHeader" = Right RequestLogger.FromHeader
+    envStringToValue "FromSocket" = Right RequestLogger.FromSocket
+    envStringToValue otherwise    = Left "Expected 'FromHeader' or 'FromSocket'"
+
+
+initAssetVersion :: ConfigBuilder
+initAssetVersion = do
+    ihpCloudContainerId <- envOrNothing "IHP_CLOUD_CONTAINER_ID"
+    ihpAssetVersion <- envOrNothing "IHP_ASSET_VERSION"
+    let assetVersion = [ ihpCloudContainerId, ihpAssetVersion]
+            |> catMaybes
+            |> head
+            |> fromMaybe "dev"
+    option (AssetVersion assetVersion)
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
 findOption = fromMaybe (error optionNotFoundErrorMessage) <$> findOptionOrNothing @option
     where
-        optionNotFoundErrorMessage = "Could not find " <> show (Typeable.typeOf (undefined :: option))
+        optionNotFoundErrorMessage = "findOption: Could not find " <> show (Typeable.typeOf (undefined :: option))
 {-# INLINABLE findOption #-}
 
 findOptionOrNothing :: forall option. Typeable option => State.StateT TMap.TMap IO (Maybe option)
@@ -179,6 +269,9 @@ buildFrameworkConfig appConfig = do
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
+            (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
+            (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
+            (AssetVersion assetVersion) <- findOption @AssetVersion
 
             appConfig <- State.get
 
@@ -251,7 +344,7 @@ data FrameworkConfig = FrameworkConfig
     -- >     option Development
     -- >     option (AppHostname "localhost")
     -- >     
-    -- >     redisUrl <- liftIO $ System.Environment.getEnv "REDIS_URL"
+    -- >     redisUrl <- env "REDIS_URL"
     -- >     option (RedisUrl redisUrl)
     --
     -- This redis url can be access from all IHP entrypoints using the ?applicationContext that is in scope:
@@ -321,6 +414,23 @@ data FrameworkConfig = FrameworkConfig
     -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
     -- >
     , parseRequestBodyOptions :: WaiParse.ParseRequestBodyOptions
+    , ideBaseUrl :: Text
+
+    -- | See IHP.DataSync.Role
+    , rlsAuthenticatedRole :: Text
+
+    -- | The asset version is used for cache busting
+    --
+    -- On IHP Cloud IHP automatically uses the @IHP_CLOUD_CONTAINER_ID@ env variable
+    -- as the asset version. So when running there, you don't need to do anything.
+    --
+    -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
+    -- env variable with e.g. the git commit hash of the production build.
+    --
+    -- If IHP cannot figure out an asset version, it will fallback to the static
+    -- string @"dev"@.
+    --
+    , assetVersion :: !Text
 }
 
 class ConfigProvider a where
@@ -358,18 +468,11 @@ data RootApplication = RootApplication deriving (Eq, Show)
 defaultPort :: Int
 defaultPort = 8000
 
-defaultAppPort :: IO Int
-defaultAppPort = do
-    portStr <- Environment.lookupEnv "PORT"
-    case portStr of
-        Just portStr -> pure $ fromMaybe (error "PORT: Invalid value") (readMay portStr)
-        Nothing -> pure defaultPort
-
 defaultDatabaseUrl :: IO ByteString
 defaultDatabaseUrl = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
-    (Environment.lookupEnv "DATABASE_URL") >>= (pure . maybe defaultDatabaseUrl cs )
+    envOrDefault "DATABASE_URL" defaultDatabaseUrl
 
 defaultLoggerForEnv :: Environment -> IO Logger
 defaultLoggerForEnv = \case

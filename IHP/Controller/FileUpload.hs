@@ -17,10 +17,8 @@ import IHP.Prelude
 import Network.Wai.Parse (FileInfo, fileContent)
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
-import qualified System.Process as Process
 import IHP.Controller.RequestContext
 import IHP.Controller.Context
-import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified System.Process as Process
 
 -- | Returns a file upload from the request as a ByteString.
@@ -145,7 +143,7 @@ data ImageUploadOptions = ImageUploadOptions {
 -- >             redirectTo EditUserAction { .. }
 --
 -- The uploaded image path is now stored in #pictureUrl.
-uploadImageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadImageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -195,7 +193,7 @@ uploadImageWithOptions options _ user =
 -- >             user <- user |> updateRecord
 -- >             redirectTo EditUserAction { .. }
 --
-uploadImageFile :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadImageFile :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName

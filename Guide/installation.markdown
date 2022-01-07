@@ -127,7 +127,7 @@ Note that nix can gradually grow to use several GB of disk space, especially aft
 You can now install IHP by running:
 
 ```bash
-nix-env -f https://ihp.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
 ```
 
 #### NixOS specific
@@ -145,6 +145,16 @@ nix.trustedUsers = [ "root" "USERNAME_HERE" ];
 ```
 
 [See the documentation for `nix.trustedUsers` to learn more about what this is doing](https://search.nixos.org/options?show=nix.trustedUsers&query=nix.trustedUsers).
+
+#### GitPod
+
+If you use GitPod for Development in the Cloud, [you can use IHP GitPod Template](https://github.com/gitpod-io/template-ihp/generate).
+
+On first start up, GitPod will automatically generate a new IHP project for you. You just need to call `git add .` and then commit the boilerplate after first start.
+
+If you want to try it out before making your own repo, use this button below:
+
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/gitpod-io/template-ihp)
 
 ## 3. Next
 

@@ -27,6 +27,9 @@ instance IsLabel name (Proxy name') where
 
 So `#companyId` can be written as `fromLabel @"companyId"` which IHP turns into `Proxy @"companyId"`. The `Proxy` value is now a normal haskell value and is passed to functions such as `get` or `set`.
 
+Note that the `fromLabel @"companyId"` style syntax is currently not supported inside HSX expressions. See [this stackoverflow answer](https://stackoverflow.com/a/68962193/268581) for an explanation.
+
+
 ### The at symbol @
 
 Another symbol used often in IHP is the `@` symbol, like this:
@@ -79,7 +82,7 @@ action UsersAction = do
 
 ### The bang operator `!`
 
-Inside your `Types.hs` you see lots of `!`s, like this:
+Inside your `Web/Types.hs` you see lots of `!`s, like this:
 
 ```haskell
 ShowPostAction { postId :: !(Id Post) }
@@ -122,9 +125,9 @@ In general the `\case ...` can be expanded to `\value -> case value of ...`.
 
 [Learn more about lambda cases here.](https://typeclasses.com/ghc/lambda-case)
 
-### The Pipe operator `|>`
+### The Pipe operator [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-)
 
-In IHP code bases you find lot's of usage of the `|>` operator. We usually call it the `pipe operator`.
+In IHP code bases you find lots of usage of the [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-) operator. We usually call it the `pipe operator`.
 
 The operator allows you to write code like this:
 
@@ -144,7 +147,7 @@ validateField #firstname nonEmpty (
 
 In general:
 ```haskell
-function arg1 arg2 object 
+function arg1 arg2 object
 =
 object |> function arg1 arg2
 ```

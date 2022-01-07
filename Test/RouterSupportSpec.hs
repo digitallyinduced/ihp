@@ -135,8 +135,12 @@ assertFailure :: SResponse -> IO ()
 assertFailure response = do
     get #simpleStatus response `shouldBe` status400
 
+config = do
+    option Development
+    option (AppPort 8000)
+
 tests :: Spec
-tests = beforeAll (option Development |> mockContextNoDatabase WebApplication) do
+tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "Typed Auto Route" $ do
         it "parses empty route" $ withContext do
             runSession (testGet "test/Test") Server.application >>= assertSuccess "TestAction"

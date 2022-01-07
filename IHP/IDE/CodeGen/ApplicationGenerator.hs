@@ -1,16 +1,7 @@
 module IHP.IDE.CodeGen.ApplicationGenerator (buildPlan) where
 
 import IHP.Prelude
-import IHP.HaskellSupport
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import IHP.ViewSupport
-import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
-import IHP.IDE.SchemaDesigner.Types
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 
 buildPlan :: Text -> IO (Either Text [GeneratorAction])
 buildPlan applicationName =
@@ -69,6 +60,7 @@ generateGenericApplication applicationName =
                 <> "import Application.Helper.Controller\n"
                 <> "import IHP.ControllerPrelude\n"
                 <> "import Generated.Types\n"
+                <> "import " <> applicationName <> ".Routes\n"
 
             viewLayoutHs =
                 "module " <> applicationName <> ".View.Layout (defaultLayout, Html) where\n"
@@ -126,11 +118,12 @@ generateGenericApplication applicationName =
                 <> "        <script src={assetPath \"/vendor/turbolinksMorphdom.js\"}></script>\n"
                 <> "        <script src={assetPath \"/helpers.js\"}></script>\n"
                 <> "        <script src={assetPath \"/ihp-auto-refresh.js\"}></script>\n"
+                <> "        <script src={assetPath \"/app.js\"}></script>\n"
                 <> "    |]\n"
                 <> "\n"
                 <> "devScripts :: Html\n"
                 <> "devScripts = [hsx|\n"
-                <> "        <script id=\"livereload-script\" src={assetPath \"/livereload.js\"}></script>\n"
+                <> "        <script id=\"livereload-script\" src={assetPath \"/livereload.js\"} data-ws={liveReloadWebsocketUrl}></script>\n"
                 <> "    |]\n"
                 <> "\n"
                 <> "metaTags :: Html\n"

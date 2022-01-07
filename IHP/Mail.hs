@@ -6,14 +6,13 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Mail
 ( MailServer (..)
 , BuildMail (..)
+, SMTPEncryption ( ..)
 , sendMail
 , sendWithMailServer
 )
 where
 
 import IHP.Prelude
-import IHP.Controller.RequestContext
-import IHP.ControllerSupport
 import IHP.Mail.Types
 import IHP.FrameworkConfig
 
@@ -28,8 +27,18 @@ import qualified Data.Text as Text
 import Data.Maybe
 
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> Mail
-buildMail mail = let ?mail = mail in simpleMailInMemory (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) attachments'
+buildMail mail =
+    let ?mail = mail in
+    let mail' = simpleMailInMemory (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) attachments' in
+    mail' { mailCc      = cc mail
+          , mailBcc     = bcc mail
+          , mailHeaders = ("Subject", subject) : h
+          }
     where
+        h = case replyTo mail of
+            Nothing      -> headers mail
+            Just replyTo -> ("Reply-To", renderAddress replyTo) : (headers mail)
+
         attachments' = mail
                 |> attachments
                 |> map (\MailAttachment { name, content, contentType } -> (contentType, name, content))
@@ -59,8 +68,16 @@ sendWithMailServer SendGrid { .. } mail = do
     where headers = mailHeaders mail
 
 sendWithMailServer IHP.Mail.Types.SMTP { .. } mail
-    | isNothing credentials = SMTP.sendMail' host port mail
-    | otherwise = SMTP.sendMailWithLogin' host port (fst creds) (snd creds) mail
+    | isNothing credentials =
+          case encryption of
+              Unencrypted -> SMTP.sendMail' host port mail
+              TLS -> SMTP.sendMailTLS' host port mail
+              STARTTLS -> SMTP.sendMailSTARTTLS' host port mail
+    | otherwise =
+          case encryption of
+              Unencrypted -> SMTP.sendMailWithLogin' host port (fst creds) (snd creds) mail
+              TLS -> SMTP.sendMailWithLoginTLS' host port (fst creds) (snd creds) mail
+              STARTTLS -> SMTP.sendMailWithLoginSTARTTLS' host port (fst creds) (snd creds) mail
     where creds = fromJust credentials
 
 sendWithMailServer Sendmail mail = do
@@ -70,7 +87,7 @@ sendWithMailServer Sendmail mail = do
 class BuildMail mail where
     -- | You can use @?mail@ to make this dynamic based on the given entity
     subject :: (?mail :: mail) => Text
-    
+
     -- | The email receiver
     --
     -- __Example:__
@@ -89,6 +106,27 @@ class BuildMail mail where
     -- >     }
     --
     to :: (?context :: context, ConfigProvider context) => mail -> Address
+
+    -- | Sets an optional reply-to address
+    replyTo :: (?context :: context, ConfigProvider context) => mail -> Maybe Address
+    replyTo mail = Nothing
+
+    -- | Public list of addresses to receive a copy of the mail (CC)
+    cc :: (?context :: context, ConfigProvider context) => mail -> [Address]
+    cc mail = []
+
+    -- | Hidden list of addresses to receive a copy of the mail (BCC)
+    bcc :: (?context :: context, ConfigProvider context) => mail -> [Address]
+    bcc mail = []
+
+    -- | Custom headers, excluding @from@, @to@, @cc@, @bcc@, @subject@, and @reply-to@
+    --
+    -- __Example:__ Add a custom X-Mailer header
+    --
+    -- > headers CreateAccountMail { .. } = [("X-Mailer", "mail4j 2.17.0")]
+    --
+    headers :: (?context :: context, ConfigProvider context) => mail -> Headers
+    headers mail = []
 
     -- | Your sender address
     --

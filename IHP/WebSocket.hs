@@ -12,19 +12,19 @@ module IHP.WebSocket
 , receiveData
 , receiveDataMessage
 , sendTextData
+, sendJSON
 )
 where
 
 import IHP.Prelude
 import qualified Network.WebSockets as Websocket
-import qualified Network.Wai.Handler.WebSockets as Websocket
 import IHP.ApplicationContext
 import IHP.Controller.RequestContext
-import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
 import qualified Control.Exception as Exception
 import IHP.Controller.Context
+import qualified Data.Aeson as Aeson
 
 class WSApp state where
     initialState :: state
@@ -67,6 +67,19 @@ receiveDataMessage = Websocket.receiveDataMessage ?connection
 
 sendTextData :: (?connection :: Websocket.Connection, Websocket.WebSocketsData text) => text -> IO ()
 sendTextData text = Websocket.sendTextData ?connection text
+
+-- | Json encode a payload and send it over the websocket wire
+--
+-- __Example:__
+--
+-- > message <- Aeson.decode <$> receiveData @LByteString
+-- >
+-- > case message of
+-- >     Just decodedMessage -> handleMessage decodedMessage
+-- >     Nothing -> sendJSON FailedToDecodeMessageError
+--
+sendJSON :: (?connection :: Websocket.Connection, Aeson.ToJSON value) => value -> IO ()
+sendJSON payload = sendTextData (Aeson.encode payload)
 
 instance Websocket.WebSocketsData UUID where
     fromDataMessage (Websocket.Text byteString _) = UUID.fromLazyASCIIBytes byteString |> Maybe.fromJust

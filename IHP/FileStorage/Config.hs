@@ -11,13 +11,9 @@ module IHP.FileStorage.Config
 
 import IHP.Prelude
 import IHP.FileStorage.Types
-import IHP.Controller.Context
 import IHP.FrameworkConfig
 
 import Network.Minio
-import qualified System.IO.Temp as Temp
-import qualified Data.Conduit.Binary as Conduit
-import qualified Network.Wai.Parse as Wai
 
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap

@@ -15,11 +15,11 @@ To avoid this problem, web applications typically append a hash to the url of yo
 <script src="/app.js?v=19319eb"></script>
 ```
 
-IHP provides an `assetPath` view helper to automatically add these hashes:
+IHP provides an [`assetPath`](https://ihp.digitallyinduced.com/api-docs/IHP-Assets-ViewFunctions.html#v:assetPath) view helper to automatically add these hashes:
 
 ```haskell
 [hsx|
-    <script={assetPath "/app.js"}/>
+    <script src={assetPath "/app.js"}/>
     <link rel="stylesheet" href={assetPath "/app.css"}/>
 |]
 ```

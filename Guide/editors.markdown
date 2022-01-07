@@ -24,6 +24,16 @@ To make file paths clickable inside the web browser (e.g. when a type error happ
 export IHP_EDITOR="code --goto"
 ```
 
+
+### VSCode + Haskell Language Server Troubleshooting
+
+#### "Couldn't figure out what GHC version the project is using"
+
+If you get an error `Couldn't figure out what GHC version the project is using` in Visual Studio Code make sure that the Nix Env Selector plugin was started correctly:
+1. Open the project in VS Code
+2. Click `View` -> `Command Palette` -> `Nix-Env: Select Environment` -> `default.nix`
+3. This will restart VS Code. After that Haskell Language Server should be working.
+
 ### VSCode on Windows with Windows Subsystem for Linux
 
 It is important to not access the files within the WSL from Windows itself (however, the other way around is ok). You can seamlessly (including auto-save) work on your projects within WSL from VS Code in Windows by adding the [`Remote WSL`](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) extension from Microsoft.
@@ -86,13 +96,15 @@ Provided you already have CoC setup, just run `:CocConfig` and add the following
 }
 ```
 
-## Notes on `haskell-language-server`
+## Haskell Language Server
 
 Because haskell-language-server is tightly coupled to the GHC version it comes pre-bundled with IHP. In case you also have a local install of haskell-language-server you need to make sure that the one provided by IHP is used. Usually, this is done automatically when your editor is picking up the `.envrc` file.
 
 When something goes wrong you can also run `haskell-language-server` inside the project directory (within a `nix-shell`). This might output some helpful error messages.
 
-## Customizing the Web Browser used by IHP
+## IHP Dev Server
+
+### Customizing the Web Browser used by IHP
 
 When running `./start` the application will automatically be opened in your default browser. You can manually specificy a browser by setting the env var `IHP_BROWSER`:
 
@@ -104,4 +116,58 @@ You can disable the auto-start of the browser completely using `echo` as your br
 
 ```bash
 export IHP_BROWSER=echo
+```
+
+
+### Running the IHP Dev Server On a Host Different From `localhost`
+
+If you run the IHP dev server on computer different from your local machine (e.g. a second computer in your network or a Cloud Dev Env like GitPod), you need to specify the right base url:
+
+```bash
+export IHP_BASEURL=http://some-other-host:8000 # App Url, Default: http://localhost:8000
+export IHP_IDE_BASEURL=http://some-other-host:8001 # SchemaDesigner etc., Default: http://localhost:8001
+```
+
+Next time you use the dev server via `./start` all links will use the right `IHP_BASEURL` instead of using `localhost:8000`;
+
+### Hoogle
+
+To quickly look up function type signatures you can use the built-in hoogle server.
+
+To install it:
+1. Open `default.nix`
+2. Add `withHoogle = true;` to the `haskellEnv` block, like this:
+```nix
+let
+    ihp = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/ihp.git";
+        ref = "refs/tags/v0.14.0";
+    };
+    haskellEnv = import "${ihp}/NixSupport/default.nix" {
+        ihp = ihp;
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            wai
+            text
+            hlint
+            p.ihp
+        ];
+        otherDeps = p: with p; [
+            # Native dependencies, e.g. imagemagick
+        ];
+        projectPath = ./.;
+
+        withHoogle = true; # <-------
+    };
+in
+    haskellEnv
+```
+
+Run `nix-shell --run 'make -B .envrc'` to remake your dev env.
+
+After that you can use the following command to start hoogle at `localhost:8080`:
+
+```bash
+hoogle server --local -p 8080
 ```

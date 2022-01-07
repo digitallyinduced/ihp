@@ -7,10 +7,8 @@ import ClassyPrelude
 import Data.String.Conversions (cs)
 import Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName, pluralize)
-import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
-import Data.List ((!!), (\\))
 import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
@@ -151,7 +149,7 @@ compileStatementPreview statements statement = let ?schema = Schema statements i
 
 compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
 compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
-    case primaryKeyConstraint table of
+    case get #primaryKeyConstraint table of
         -- Skip generation of tables with no primary keys
         PrimaryKeyConstraint [] -> ""
         _ -> compileData table
@@ -161,14 +159,13 @@ compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCr
             <> compileGetModelName table
             <> compilePrimaryKeyInstance table
             <> section
-            <> compilePrimaryKeyConditionInstance table
-            <> section
             <> compileInclude table
             <> compileCreate table
             <> section
             <> compileUpdate table
             <> section
             <> compileBuild table
+            <> compileTableInstance table
             <> (if needsHasFieldId table
                     then compileHasFieldId table
                     else "")
@@ -331,7 +328,7 @@ findForeignKeyConstraint CreateTable { name } column =
         (Schema statements) = ?schema
 
 compileEnumDataDefinitions :: (?schema :: Schema) => Statement -> Text
-compileEnumDataDefinitions CreateEnumType { name = ""} = "" -- Ignore enums without any values
+compileEnumDataDefinitions CreateEnumType { values = [] } = "" -- Ignore enums without any values
 compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum)\n"
         <> "instance FromField " <> modelName <> " where\n"
@@ -426,10 +423,10 @@ compileCreate table@(CreateTable { name, columns }) =
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("List.head <$> sqlQuery \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING *\" (" <> compileToRowValues bindings <> ")\n")
+                <> indent ("List.head <$> sqlQuery \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> columnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
                 <> "createMany [] = pure []\n"
                 <> "createMany models = do\n"
-                <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING *\") " <> createManyFieldValues <> "\n"
+                <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> columnNames <> "\") " <> createManyFieldValues <> "\n"
                     )
             )
 
@@ -455,11 +452,15 @@ compileUpdate table@(CreateTable { name, columns }) =
                 compileToRowValues bindingValues
 
         updates = commaSep (map (\column -> get #name column <> " = " <> columnPlaceholder column ) columns)
+
+        columnNames = columns
+                |> map (get #name)
+                |> intercalate ", "
     in
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
                 <> indent (
-                    "List.head <$> sqlQuery \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING *\" (" <> bindings <> ")\n"
+                    "List.head <$> sqlQuery \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING " <> columnNames <> "\" (" <> bindings <> ")\n"
                 )
             )
 
@@ -485,7 +486,7 @@ instance FromRow #{modelName} where
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
-        isPrimaryKey name = name `elem` primaryKeyColumnNames (primaryKeyConstraint table)
+        isPrimaryKey name = name `elem` primaryKeyColumnNames (get #primaryKeyConstraint table)
         isColumn name = name `elem` columnNames
         isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
@@ -576,6 +577,7 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                                 otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
                             PDouble -> case theNormalizedDefaultValue of
                                 DoubleExpression value -> wrapNull notNull (tshow value)
+                                IntExpression value -> wrapNull notNull (tshow value)
                                 otherwise           -> error ("toDefaultValueExpr: DOUBLE column needs to have a DoubleExpression as default value. Got: " <> show otherwise)
                             _ -> "def"
 toDefaultValueExpr _ = "def"
@@ -614,15 +616,18 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
         primaryKeyFilter :: Column -> Text
         primaryKeyFilter Column {name} = "QueryBuilder.filterWhere (#" <> columnNameToFieldName name <> ", " <> columnNameToFieldName name <> ")"
 
-compilePrimaryKeyConditionInstance :: (?schema :: Schema) => CreateTable -> Text
-compilePrimaryKeyConditionInstance table@(CreateTable { name, columns, constraints }) = cs [i|
+compileTableInstance :: (?schema :: Schema) => CreateTable -> Text
+compileTableInstance table@(CreateTable { name, columns, constraints }) = cs [i|
 instance #{instanceHead} where
+    tableName = \"#{name}\"
+    tableNameByteString = \"#{name}\"
+    columnNames = #{columnNames}
     primaryKeyCondition #{pattern} = #{condition}
     {-# INLINABLE primaryKeyCondition #-}
 |]
     where
         instanceHead :: Text
-        instanceHead = instanceConstraints <> " => PrimaryKeyCondition (" <> compileTypePattern table <> ")"
+        instanceHead = instanceConstraints <> " => Table (" <> compileTypePattern table <> ")"
             where
                 instanceConstraints =
                     table
@@ -651,6 +656,10 @@ instance #{instanceHead} where
 
         primaryKeyToCondition :: Column -> Text
         primaryKeyToCondition column = "(\"" <> get #name column <> "\", toField " <> columnNameToFieldName (get #name column) <> ")"
+
+        columnNames = columns
+                |> map (get #name)
+                |> tshow
 
 compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"

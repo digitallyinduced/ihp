@@ -10,24 +10,16 @@ import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
-import qualified Data.Time.Clock
 import IHP.ModelSupport
 import IHP.ApplicationContext
 import qualified IHP.ControllerSupport as ControllerSupport
-import Database.PostgreSQL.Simple
-import qualified IHP.LoginSupport.Middleware
 import qualified IHP.Environment as Env
-import System.Info
 import IHP.Log.Types
-import qualified IHP.Log as Log
+import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
-import IHP.RouterSupport (frontControllerToWAIApp, HasPath, CanRoute, FrontController, webSocketApp, webSocketAppWithCustomPath)
+import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
 import qualified IHP.ErrorController as ErrorController
-import qualified IHP.Controller.RequestContext as RequestContext
-import qualified Network.WebSockets as Websocket
-import qualified Network.Wai.Handler.WebSockets as Websocket
-import qualified Control.Concurrent as Concurrent
 import Control.Exception (finally)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
@@ -38,18 +30,22 @@ import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
+import qualified Control.Exception as Exception
 
+import qualified System.Environment as Env
+import qualified System.Directory as Directory
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
     frameworkConfig <- buildFrameworkConfig configBuilder
 
     sessionVault <- Vault.newKey
-    autoRefreshServer <- newIORef AutoRefresh.newAutoRefreshServer
     modelContext <- initModelContext frameworkConfig
+    pgListener <- PGListener.init modelContext
+    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
     let ?modelContext = modelContext
-    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig }
+    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
 
     sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
     staticMiddleware <- initStaticMiddleware frameworkConfig
@@ -67,7 +63,7 @@ run configBuilder = do
 
     run `finally` do
         frameworkConfig |> get #logger |> get #cleanup
-        AutoRefresh.stopAutoRefreshServer autoRefreshServer
+        PGListener.stop pgListener
 
 {-# INLINABLE run #-}
 
@@ -76,7 +72,10 @@ withBackgroundWorkers frameworkConfig app = do
     let jobWorkers = Job.workers RootApplication
     let isDevelopment = get #environment frameworkConfig == Env.Development
     if isDevelopment && not (isEmpty jobWorkers)
-            then Async.withAsync (let ?context = frameworkConfig in Job.runJobWorkers jobWorkers) (\_ -> app)
+            then do
+                workerAsync <- async (let ?context = frameworkConfig in Job.runJobWorkersKillOnExit jobWorkers)
+                Async.link workerAsync
+                app
             else app
 
 -- | Returns a middleware that returns files stored in the app's @static/@ directory and IHP's own @static/@  directory
@@ -132,9 +131,16 @@ initStaticMiddleware FrameworkConfig { environment } = do
                     , ("Vary", "Accept-Encoding")
                     ]
 
-initSessionMiddleware :: Vault.Key (Session IO String String) -> FrameworkConfig -> IO Middleware
+initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> FrameworkConfig -> IO Middleware
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    let path = "Config/client_session_key.aes"
+
+    hasSessionSecretEnvVar <- isJust <$> Env.lookupEnv "IHP_SESSION_SECRET"
+    doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
+    store <- clientsessionStore <$>
+            if hasSessionSecretEnvVar || not doesConfigDirectoryExist
+                then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
+                else ClientSession.getKey path
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
     pure sessionMiddleware
 

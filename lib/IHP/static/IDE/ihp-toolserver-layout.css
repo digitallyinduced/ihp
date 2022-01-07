@@ -13,14 +13,14 @@ body {
 #nav {
     width: 80px;
     height: 100%;
-    background: #073642;
+    background: #002b36;
     color: hsla(196, 13%, 80%, 1);
     font-size: 10px;
     display: flex;
     flex-direction: column;
 }
 
-#nav * { transition: all 0.2s }
+#nav > * { transition: all 0.2s }
 
 #nav .nav-item {
     height: 70px;
@@ -65,23 +65,51 @@ body {
     font-size: 8px;
     text-align: center;
     margin: 8px;
-    margin-top: auto;
     opacity: 0.5;
     color: hsla(196, 13%, 80%, 1);
     text-decoration: none !important;
+    margin-top: 1rem;
 }
 
-#nav-logo-lambda {
-    font-size: 32px;
-    font-weight: 600;
+.nav-user {
+    margin-top: auto;
+}
+
+.nav-user > a {
+    text-align: center;
+    margin-top: auto;
+    display: block;
+}
+
+.nav-user > a img {
+    width:  32px;
+    height: 32px;
+    border-radius: 100%;
+    border:  1px solid hsla(196, 13%, 80%, 1);
+    transition: all 0.2s
+}
+
+.nav-user:hover > a img {
+    transform: scale(1.1);
+}
+
+.nav-user.logged-out img {
+    border-color:  rgb(197, 207, 211);
 }
 
 #nav-logo {
     text-align: center;
     line-height: 1;
-    margin-bottom: 2rem;
     margin-top: 1rem;
     font-size: 9px;
+    width: 32px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#ihp-plan {
+    text-align: center;
+    margin-bottom: 2rem;
 }
 
 #content {
@@ -189,3 +217,41 @@ body {
 .data-rows-table [data-fieldname$="id"] { font-size: 8px }
 .data-rows-table [data-fieldname="created_at"] { font-size: 8px }
 .data-rows-table [data-fieldname="password_hash"] { font-size: 8px }
+
+#nav-upgrade {
+    margin-top: auto;
+}
+
+.email-support a {
+    color:  rgba(13, 99, 120, 0.8);
+}
+
+.popover {
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+}
+
+.popover-header {
+    background-color: rgba(2, 19, 23, 0.04);
+}
+
+.btn-primary {
+    background-color:  hsla(192, 81%, 26%, 1);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+    font-weight: 500;
+    border-radius: 8px;
+}
+
+.btn-primary:hover {
+    background-color: hsla(192, 81%, 26%, 0.8);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+}
+
+.btn-primary:not(:disabled):not(.disabled).active, .btn-primary:not(:disabled):not(.disabled):active, .show>.btn-primary.dropdown-toggle {
+    background-color: hsla(192, 81%, 26%, 0.8);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+}
+
+.btn-primary:focus {
+    background-color:  hsla(192, 81%, 36%, 1);
+    border: 1px solid hsla(192, 81%, 19%, 0.1);
+}

@@ -2,7 +2,7 @@
 
 This page helps you to solve a few common issues with IHP. In the long term, we should find solutions for these issues so that they don't appear every again. Until then, we have this page so that you can find a solution when you paste the error message into Google.
 
-In case your problem cannot be solved with the steps on this page, [join our awesome Gitter community](https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge). We're happy to help!
+In case your problem cannot be solved with the steps on this page, [join our Slack community](https://ihp.digitallyinduced.com/Slack). We're happy to help!
 
 ## Auto Troubleshooting
 
@@ -30,7 +30,7 @@ Run this command to fix the missing link:
 nix-shell --run 'make build/ihp-lib'
 ```
 
-**If this is not working:** Please run `which RunDevServer`. If this returns `RunDevServer not found`, this indicates that `direnv` (which has been installed by `ihp-new`) is not loading the `.envrc` file of the
+**If this is not working:** Please run `which RunDevServer`. If this returns `RunDevServer not found`, this indicates that `direnv` (which has been installed by `ihp-new`) is not loading the `.envrc` file of your shell.
 
 To solve this, run the following commands:
 

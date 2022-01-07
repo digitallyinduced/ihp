@@ -62,3 +62,42 @@ DATABASE_URL=postgresql://... migrate
 ### Running Migrations on IHP Cloud
 
 If you use IHP Cloud the migrations will be automatically executed during the deployment. Nothing to do for you :-)
+
+
+### Skipping Old Migrations
+
+You can set the `MINIMUM_REVISION` env variable when running `migrate` to ignore migration revisions older than the specified unix timestamp:
+
+```bash
+export MINIMUM_REVISION=1000
+
+# 'Application/Migration/999-old-migration.sql' would be ignored now when running 'migrate'
+migrate
+```
+
+A good value for `MINIMUM_REVISION` is typically the unix timestamp of the time when the database was initially created.
+
+## Common Issues
+
+### ALTER TYPE ... ADD cannot run inside a transaction block
+
+When running a miration like this:
+
+```sql
+ALTER TYPE my_enum ADD VALUE 'some_value';
+```
+
+you will typical get an error like this:
+
+```
+Query (89.238182ms): "BEGIN" ()
+migrate: SqlError {sqlState = "25001", sqlExecStatus = FatalError, sqlErrorMsg = "ALTER TYPE ... ADD cannot run inside a transaction block", sqlErrorDetail = "", sqlErrorHint = ""}
+```
+
+IHP implicit wraps the migration within a transaction. You can disable this implicit transaction manually like this:
+
+```sql
+COMMIT; -- Commit the transaction previously started by IHP
+ALTER TYPE my_enum ADD VALUE 'some_value';
+BEGIN; -- Restart the connection as IHP will also try to run it's own COMMIT
+```

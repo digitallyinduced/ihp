@@ -6,10 +6,11 @@
 , dontCheckPackages ? ["mmark" "mmark-ext"]
 , doJailbreakPackages ? ["haskell-to-elm"]
 , dontHaddockPackages ? []
-, nixPkgsRev ? "303e44b3c11a1ed3b470f90bc6d1f03efdb87239"
-, nixPkgsSha256 ? "0kfrw1mvpx2nkr493iq6bw0d6cxdwrmp6xqsir20bhmqwr36sds7"
-, compiler ? "ghc8104"
+, nixPkgsRev ? "38da06c69f821af50323d54b28d342cc3eb42891"
+, nixPkgsSha256 ? "sha256-LUxcecUAujNSXkCLFog6rqr5acZUGGqCZ5wMQd4yuJw"
+, compiler ? "ghc8107"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
+, additionalNixpkgsOptions ? {}
 }:
 let
   generatedOverrides = haskellPackagesNew: haskellPackagesOld:
@@ -75,7 +76,7 @@ let
     repo = "nixpkgs";
     rev = nixPkgsRev;
     sha256 = nixPkgsSha256;
-  })) { inherit config; };
+  })) ({ inherit config; } // additionalNixpkgsOptions);
 
 in
     pkgs

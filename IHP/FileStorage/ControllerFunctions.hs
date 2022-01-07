@@ -12,6 +12,7 @@ module IHP.FileStorage.ControllerFunctions
 , contentDispositionAttachmentAndFileName
 , createTemporaryDownloadUrl
 , createTemporaryDownloadUrlFromPath
+, createTemporaryDownloadUrlFromPathWithExpiredAt
 , uploadToStorage
 , uploadToStorageWithOptions
 ) where
@@ -25,7 +26,6 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.ValidationSupport
 
 import Network.Minio
-import qualified System.IO.Temp as Temp
 import qualified Data.Conduit.Binary as Conduit
 import qualified Network.Wai.Parse as Wai
 
@@ -35,9 +35,6 @@ import qualified Data.TMap as TMap
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Directory as Directory
 import qualified Control.Exception as Exception
-import qualified System.IO.Temp as Temp
-import qualified System.Process as Process
-import qualified Network.Wai.Parse as Wai
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
 import IHP.FileStorage.MimeTypes
@@ -197,11 +194,27 @@ storeFileFromPath path options = do
 -- > let url :: Text = get #url signedUrl
 -- > let expiredAt :: UTCTime = get #expiredAt signedUrl
 --
+-- See 'createTemporaryDownloadUrlFromPathWithExpiredAt' if you want to customize the url expiration time of 7 days.
+--
 createTemporaryDownloadUrlFromPath :: (?context :: context, ConfigProvider context) => Text -> IO TemporaryDownloadUrl
-createTemporaryDownloadUrlFromPath objectPath = do
-    let validInSeconds = 7 * 24 * 3600
-    publicUrlExpiredAt <- addUTCTime (fromIntegral validInSeconds) <$> getCurrentTime
+createTemporaryDownloadUrlFromPath objectPath = createTemporaryDownloadUrlFromPathWithExpiredAt (7 * 24 * 3600) objectPath
 
+
+-- | Like 'createTemporaryDownloadUrlFromPath', but with a custom expiration time. Returns a signed url for a path inside the storage. The url is valid for 7 days.
+--
+-- If the 'StaticDirStorage' is used, a unsigned normal URL will be returned, as these files are public anyways.
+--
+-- __Example:__ Get a signed url for a path that expires in 5 minutes
+--
+-- > let validInSeconds = 5 * 60
+-- > signedUrl <- createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds "logos/8ed22caa-11ea-4c45-a05e-91a51e72558d"
+-- >
+-- > let url :: Text = get #url signedUrl
+-- > let expiredAt :: UTCTime = get #expiredAt signedUrl
+--
+createTemporaryDownloadUrlFromPathWithExpiredAt :: (?context :: context, ConfigProvider context) => Int -> Text -> IO TemporaryDownloadUrl
+createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
+    publicUrlExpiredAt <- addUTCTime (fromIntegral validInSeconds) <$> getCurrentTime
     case storage of
         StaticDirStorage -> do
             let frameworkConfig = getFrameworkConfig ?context
@@ -257,7 +270,7 @@ contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; file
 -- >                 company <- company |> updateRecord
 -- >                 redirectTo EditCompanyAction { .. }
 --
-uploadToStorageWithOptions :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -306,7 +319,7 @@ uploadToStorageWithOptions options field record = do
 -- >                 company <- company |> updateRecord
 -- >                 redirectTo EditCompanyAction { .. }
 --
-uploadToStorage :: forall (fieldName :: Symbol) context record (tableName :: Symbol). (
+uploadToStorage :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName

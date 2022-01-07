@@ -7,7 +7,6 @@ module IHP.Pagination.ViewFunctions (
 import IHP.Prelude
 import IHP.Pagination.Types
 import IHP.Pagination.Helpers
-import IHP.Pagination.ControllerFunctions
 
 import IHP.ControllerSupport
 
@@ -19,63 +18,46 @@ import IHP.Controller.Param (paramOrNothing)
 import IHP.View.Classes
 import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
-import IHP.ViewSupport (theRequest)
+import IHP.ViewSupport (theRequest, theCSSFramework)
+import qualified Data.Containers.ListUtils as List
+import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, styledPaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
+import IHP.View.CSSFramework
 
 
--- | Render a navigation for your pagination. This is to be used in your view whenever 
+-- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
+-- If there is only one page, this will not render anything.
 renderPagination :: (?context::ControllerContext) => Pagination -> Html
 renderPagination pagination@Pagination {currentPage, window, pageSize} =
-    [hsx|
-        <div class="row justify-content-md-center">
-            <div class="col-auto">
-            <nav aria-label="Page Navigator">
-                <ul class="pagination">
-                    <li class={prevClass}>
-                        <a class="page-link" href={pageUrl $ currentPage - 1} aria-label="Previous">
-                            <span aria-hidden="true">&laquo;</span>
-                            <span class="sr-only">Previous</span>
-                        </a>
-                    </li>
-                    {renderItems}
-                    <li class={nextClass}>
-                        <a class="page-link" href={pageUrl $ currentPage + 1} aria-label="Previous">
-                            <span aria-hidden="true">&raquo;</span>
-                            <span class="sr-only">Next</span>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            </div>
-            <div class="col-auto">
-                <div class="form-row">
-                    <div class="col-auto mr-2">
-                        <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                            {maxItemsGenerator}
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-    |]
+        when (showPagination pagination) $ styledPagination theCSSFramework theCSSFramework paginationView
         where
-            maxItemsGenerator = let
-                oneOption :: Int -> Html
-                oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
-                in
-                    [hsx|{forEach [10,20,50,100,200] oneOption}|]
-            
-            nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
-            prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+            paginationView = PaginationView
+                { cssFramework = theCSSFramework
+                , pagination = pagination
+                , pageUrl = pageUrl
+                , linkPrevious = linkPrevious
+                , linkNext = linkNext
+                , pageDotDotItems = pageDotDotItems
+                , itemsPerPageSelector = itemsPerPageSelector
+                }
 
-            renderItem pg =
+            linkPrevious =
+                styledPaginationLinkPrevious theCSSFramework theCSSFramework pagination (pageUrl $ currentPage - 1)
+
+            linkNext =
+                styledPaginationLinkNext theCSSFramework theCSSFramework pagination (pageUrl $ currentPage + 1)
+
+            itemsPerPageSelector =
+                styledPaginationItemsPerPageSelector theCSSFramework theCSSFramework pagination itemsPerPageUrl
+
+            pageDotDotItems = [hsx|{forEach (processedPages pages) pageDotDotItem}|]
+
+            pageDotDotItem pg =
                 case pg of
                     Page n ->
-                        [hsx|<li class={linkClass n}><a class="page-link" href={pageUrl n}>{show n}</a></li>|]
+                        styledPaginationPageLink theCSSFramework theCSSFramework pagination (pageUrl n) n
                     DotDot n ->
-                        [hsx|<li class="page-item"><a class="page-link" href={pageUrl n}>…</a></li>|]
-            linkClass n = classes ["page-item", ("active", n == currentPage)]
+                        styledPaginationDotDot theCSSFramework theCSSFramework pagination
 
             pageUrl n = path <> Query.renderQuery True newQueryString
                 where
@@ -93,6 +75,9 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     queryString = Wai.queryString theRequest
                     newQueryString = queryString
                         |> setQueryValue "maxItems" (cs $ tshow n)
+                        -- If we change the number of items, we should jump back to the first page
+                        -- so we are not out of the items bound.
+                        |> setQueryValue "page" (cs $ show 1)
 
             maybeFilter queryString =
                 case paramOrNothing @Text "filter" of
@@ -104,8 +89,6 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 case paramOrNothing @Int "maxItems" of
                     Nothing -> queryString
                     Just m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
-
-            renderItems = [hsx|{forEach (processedPages pages) renderItem}|]
 
             processedPages (pg0:pg1:rest) =
                 if pg1 == pg0 + 1 then
@@ -139,7 +122,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     if window > totalPages then
                         [1..getLastPage pagination]
                     else
-                        nub $ 1 : [max 1 lowerBound..min (getLastPage pagination) upperBound] ++ [totalPages]
+                        List.nubInt $ 1 : [max 1 lowerBound..min (getLastPage pagination) upperBound] ++ [totalPages]
 
 -- | Render a filtering box in your view. Allows the user to type in a query and filter
 -- results according to what they type.
@@ -202,10 +185,17 @@ setQueryValue name value queryString =
                     )
         Nothing -> queryString <> [(name, Just value)]
 
--- | Removes a query item, specificed by the name
+-- | Removes a query item, specified by the name
 --
 -- >>> removeQueryItem "filter" [("filter", Just "test")]
 -- []
 --
 removeQueryItem :: ByteString -> Query.Query -> Query.Query
 removeQueryItem name queryString = queryString |> filter (\(queryItemName, _) -> queryItemName /= name)
+
+{-| Determine if a Pagination needs to be shown.
+    If there is only a single page, we shouldn't show a pager.
+-}
+showPagination :: Pagination -> Bool
+showPagination pagination@Pagination {currentPage} =
+    currentPage /= 1 || hasNextPage pagination || hasPreviousPage pagination

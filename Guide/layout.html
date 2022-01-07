@@ -9,6 +9,8 @@
 
     <link rel="shortcut icon" type="image/x-icon" href="ihp-logo.svg"/>
     <link rel="stylesheet" href="bootstrap.css" crossorigin="anonymous"/>
+    <link rel="stylesheet" href="search.css" />
+    <script defer data-domain="ihp.digitallyinduced.com" src="https://plausible.io/js/plausible.js"></script>
   </head>
   <body class="d-flex">
         <nav class="navbar  navbar-light" id="mobile-navbar">
@@ -27,13 +29,12 @@
                 <img src="images/ihp-logo-readme.svg" style="width:13ch;" />
             </div>
 
-            <div id="guide-search"></div>
-
             <nav class="nav flex-column primary-nav">
                 <a class="nav-link headline" href="index.html">Getting Started</a>
                 <a class="nav-link secondary" href="index.html">Intro</a>
                 <a class="nav-link secondary" href="installation.html">Installing IHP</a>
                 <a class="nav-link secondary" href="your-first-project.html">Your First Project</a>
+                <a class="nav-link secondary" href="examples.html">Examples</a>
 
                 <a class="nav-link headline" href="architecture.html">The Basics</a>
                 <a class="nav-link secondary" href="architecture.html">Architecture</a>
@@ -55,18 +56,21 @@
 
                 <a class="nav-link headline" href="mail.html">Advanced</a>
 
-                
+
                 <a class="nav-link secondary" href="mail.html">Sending Mail</a>
                 <a class="nav-link secondary" href="file-storage.html">File Storage & Uploads</a>
                 <a class="nav-link secondary" href="jobs.html">Jobs</a>
                 <a class="nav-link secondary" href="updating.html">Updating IHP</a>
-                <a class="nav-link secondary" href="auto-refresh.html">Auto Refresh</a>
+                <a class="nav-link secondary" href="auto-refresh.html">Realtime Views with Auto Refresh</a>
                 <a class="nav-link secondary" href="websockets.html">WebSockets</a>
                 <a class="nav-link secondary" href="logging.html">Logging</a>
                 <a class="nav-link secondary" href="package-management.html">Package Management</a>
                 <a class="nav-link secondary" href="deployment.html">Deployment</a>
                 <a class="nav-link secondary" href="design-goals.html">IHP Design Goals</a>
                 <a class="nav-link secondary" href="server-side-components.html">Server-Side Components</a>
+                <a class="nav-link secondary" href="ihp-pro.html">IHP Pro</a>
+                <a class="nav-link secondary" href="stripe.html">Payments with Stripe</a>
+                <a class="nav-link secondary" href="config.html">Custom Configuration</a>
 
 
                 <a class="nav-link headline" href="tailwindcss.html">Frontend</a>
@@ -76,6 +80,7 @@
                 <a class="nav-link secondary" href="modal.html">Modal</a>
                 <a class="nav-link secondary" href="npm.html">Using NPM</a>
                 <a class="nav-link secondary" href="assets.html">Static Assets</a>
+                <a class="nav-link secondary" href="realtime-spas.html">Realtime Single-Page Apps <br />& IHP DataSync</a>
                 <a class="nav-link secondary" href="javascript:alert('The frontend section is coming soon')">Form Customization</a>
 
                 <a class="nav-link headline" href="database.html">Database</a>
@@ -88,6 +93,7 @@
                 <a class="nav-link headline" href="authentication.html">Auth</a>
                 <a class="nav-link secondary" href="authentication.html">Login & Logout</a>
                 <a class="nav-link secondary" href="authorization.html">Authorization</a>
+                <a class="nav-link secondary" href="oauth.html">OAuth</a>
 
                 <a class="nav-link headline" href="recipes.html">Recipes</a>
                 <a class="nav-link headline" href="troubleshooting.html">Troubleshooting</a>
@@ -98,7 +104,6 @@
                 <a class="nav-link" href="https://ihp.digitallyinduced.com/api-docs/" target="_blank">API Docs</a>
                 <a class="nav-link" href="https://digitallyinduced.us10.list-manage.com/subscribe?u=03763c34fa6aaa4c52edfe6ce&id=a09e22a2d3" target="_blank">Newsletter</a>
                 <a class="nav-link" href="https://forum.ihpapp.com/" target="_blank">IHP Forum</a>
-                <a class="nav-link" href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Gitter.im Chat</a>
                 <a class="nav-link" href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">StackOverflow #ihp</a>
 
                 <div class="mt-2">
@@ -109,6 +114,11 @@
         <main>
             {{& output }}
         </main>
+
+        <div id="search-container">
+            <div id="search">
+            </div>
+        </div>
 
 
 
@@ -155,7 +165,6 @@
         main {
             padding: 1rem;
             width: 100%;
-            margin-top: 70px;
         }
 
         .primary-nav .nav-link {
@@ -253,8 +262,9 @@
             position: absolute;
             width: 100%;
             height: fit-content;
-            margin-top: 70px;
+            margin-top: 64px;
             padding-top: 0;
+            z-index: 1000;
         }
         .nav-column.visible, #mobile-navbar {
             background-color: #f5f6f6;
@@ -264,6 +274,7 @@
         #mobile-navbar .nav-logo .nav-logo-lambda { font-size: 2rem; }
         #mobile-navbar .nav-logo .nav-logo-name { font-size: 1rem; }
 
+        main { padding-top: 74px; }
         @media (min-width: 768px) {
             #mobile-navbar { display: none }
             .nav-column {
@@ -300,6 +311,23 @@
         .next-button:hover {
             background-color: hsla(192, 81%, 26%, 0.8)
         }
+
+        #search-container {
+            position: absolute;
+            top: 80px;
+            right: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            .DocSearch.DocSearch-Button {
+                margin-left: 0;
+                position: fixed;
+            }
+            #search-container {
+                margin-top: 70px;
+                position: initial;
+            }
+        }
     </style>
 
     <script>
@@ -326,6 +354,7 @@
     <script src="instantclick.js" data-no-instant></script>
     <script src="spoilify.js"></script>
     <script data-no-instant>InstantClick.init(); spoilify(); InstantClick.on('change', spoilify);</script>
-    <script async defer type="module" src="search.js"></script>
+
+    <script type="text/javascript" src="search.js"></script>
   </body>
 </html>

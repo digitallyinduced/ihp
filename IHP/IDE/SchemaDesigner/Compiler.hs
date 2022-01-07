@@ -22,13 +22,31 @@ compileSql statements = statements
     |> unlines
 
 compileStatement :: Statement -> Text
-compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints }) = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map (compileColumn primaryKeyConstraint) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n);"
+compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints }) = "CREATE TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n);"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values |> map TextExpression |> map compileExpression) <> ");"
-compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> "\"" <> compileIdentifier name <> "\";"
-compileStatement AddConstraint { tableName, constraintName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier constraintName <> " " <> compileConstraint constraint <> ";"
-compileStatement Comment { content } = "-- " <> content
+compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> ";"
+compileStatement AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames } } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
+compileStatement AddConstraint { tableName, constraint } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier (fromMaybe (error "compileStatement: Expected constraint name") (get #name constraint)) <> " " <> compileConstraint constraint <> ";"
+compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
+compileStatement DropColumn { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP COLUMN " <> compileIdentifier columnName <> ";"
+compileStatement RenameColumn { tableName, from, to } = "ALTER TABLE " <> compileIdentifier tableName <> " RENAME COLUMN " <> compileIdentifier from <> " TO " <> compileIdentifier to <> ";"
+compileStatement DropTable { tableName } = "DROP TABLE " <> compileIdentifier tableName <> ";"
+compileStatement Comment { content } = "--" <> content
 compileStatement CreateIndex { indexName, unique, tableName, expressions, whereClause } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
-compileStatement CreateFunction { functionName, functionBody, orReplace } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$" <> functionBody <> "$$ language plpgsql;"
+compileStatement CreateFunction { functionName, functionBody, orReplace, returns, language } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS " <> compilePostgresType returns <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
+compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> tableName <> " ENABLE ROW LEVEL SECURITY;"
+compileStatement CreatePolicy { name, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
+compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifier name <> ";"
+compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
+compileStatement DropEnumType { name } = "DROP TYPE " <> compileIdentifier name <> ";"
+compileStatement DropIndex { indexName } = "DROP INDEX " <> compileIdentifier indexName <> ";"
+compileStatement DropNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP NOT NULL;"
+compileStatement SetNotNull { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET NOT NULL;"
+compileStatement RenameTable { from, to } = "ALTER TABLE " <> compileIdentifier from <> " RENAME TO " <> compileIdentifier to <> ";"
+compileStatement DropPolicy { tableName, policyName } =  "DROP POLICY " <> compileIdentifier policyName <> " ON " <> compileIdentifier tableName <> ";"
+compileStatement SetDefaultValue { tableName, columnName, value } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET DEFAULT " <> compileExpression value <> ";"
+compileStatement DropDefaultValue { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP DEFAULT;"
+compileStatement AddValueToEnumType { enumName, newValue } = "ALTER TYPE " <> compileIdentifier enumName <> " ADD VALUE " <> compileExpression (TextExpression newValue) <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
@@ -54,7 +72,7 @@ compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
 compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique } =
-    "    " <> unwords (catMaybes
+    unwords (catMaybes
         [ Just (compileIdentifier name)
         , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
@@ -76,19 +94,38 @@ compileDefaultValue value = "DEFAULT " <> compileExpression value
 compileExpression :: Expression -> Text
 compileExpression (TextExpression value) = "'" <> value <> "'"
 compileExpression (VarExpression name) = name
-compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpression args) <> ")"
+compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
 compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
-compileExpression (EqExpression a b) = compileExpression a <> " = " <> compileExpression b
-compileExpression (IsExpression a b) = compileExpression a <> " IS " <> compileExpression b
-compileExpression (NotExpression a) = "NOT " <> compileExpression a
-compileExpression (AndExpression a b) = compileExpression a <> " AND " <> compileExpression b
-compileExpression (OrExpression a b) = "(" <> compileExpression a <> ") OR (" <> compileExpression b <> ")"
-compileExpression (LessThanExpression a b) = compileExpression a <> " < " <> compileExpression b
-compileExpression (LessThanOrEqualToExpression a b) = compileExpression a <> " <= " <> compileExpression b
-compileExpression (GreaterThanExpression a b) = compileExpression a <> " > " <> compileExpression b
-compileExpression (GreaterThanOrEqualToExpression a b) = compileExpression a <> " >= " <> compileExpression b
+compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a <> " = " <> compileExpressionWithOptionalParenthese b
+compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a <> " IS " <> compileExpressionWithOptionalParenthese b
+compileExpression (NotExpression a) = "NOT " <> compileExpressionWithOptionalParenthese a
+compileExpression (AndExpression a b) = compileExpressionWithOptionalParenthese a <> " AND " <> compileExpressionWithOptionalParenthese b
+compileExpression (OrExpression a b) = compileExpressionWithOptionalParenthese a <> " OR " <> compileExpressionWithOptionalParenthese b
+compileExpression (LessThanExpression a b) = compileExpressionWithOptionalParenthese a <> " < " <> compileExpressionWithOptionalParenthese b
+compileExpression (LessThanOrEqualToExpression a b) = compileExpressionWithOptionalParenthese a <> " <= " <> compileExpressionWithOptionalParenthese b
+compileExpression (GreaterThanExpression a b) = compileExpressionWithOptionalParenthese a <> " > " <> compileExpressionWithOptionalParenthese b
+compileExpression (GreaterThanOrEqualToExpression a b) = compileExpressionWithOptionalParenthese a <> " >= " <> compileExpressionWithOptionalParenthese b
 compileExpression (DoubleExpression double) = tshow double
+compileExpression (IntExpression integer) = tshow integer
 compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
+compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
+compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
+compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
+
+compileExpressionWithOptionalParenthese :: Expression -> Text
+compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(IsExpression a (NotExpression b)) = compileExpression a <> " IS " <> compileExpression (NotExpression b) -- 'IS (NOT NULL)' => 'IS NOT NULL'
+compileExpressionWithOptionalParenthese expr@(IsExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(EqExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(AndExpression a@(AndExpression {}) b ) = "(" <> compileExpression a <> " AND " <> compileExpressionWithOptionalParenthese b <> ")" -- '(a AND b) AND c' => 'a AND b AND C'
+compileExpressionWithOptionalParenthese expr@(AndExpression a b@(AndExpression {}) ) = "(" <> compileExpressionWithOptionalParenthese a <> " AND " <> compileExpression b <> ")" -- 'a AND (b AND c)' => 'a AND b AND C'
+--compileExpressionWithOptionalParenthese expr@(OrExpression a@(IsExpression {}) b ) = compileExpressionWithOptionalParenthese a <> " OR " <> compileExpressionWithOptionalParenthese b -- '(a IS NULL) OR b' => 'A IS NULL OR b'
+compileExpressionWithOptionalParenthese expr@(CallExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(TextExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(IntExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(DoubleExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b) = compileExpression expr
+compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
@@ -114,7 +151,8 @@ compilePostgresType PTime = "TIME"
 compilePostgresType (PNumeric (Just precision) (Just scale)) = "NUMERIC(" <> show precision <> "," <> show scale <> ")"
 compilePostgresType (PNumeric (Just precision) Nothing) = "NUMERIC(" <> show precision <> ")"
 compilePostgresType (PNumeric Nothing _) = "NUMERIC"
-compilePostgresType (PVaryingN limit) = "CHARACTER VARYING(" <> show limit <> ")"
+compilePostgresType (PVaryingN (Just limit)) = "CHARACTER VARYING(" <> show limit <> ")"
+compilePostgresType (PVaryingN Nothing) = "CHARACTER VARYING"
 compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
@@ -122,14 +160,15 @@ compilePostgresType PJSONB = "JSONB"
 compilePostgresType PInet = "INET"
 compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
+compilePostgresType PTrigger = "TRIGGER"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: Text -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
     where
-        identifierNeedsQuoting = isKeyword || containsSpace
+        identifierNeedsQuoting = isKeyword || containsChar ' ' || containsChar '-'
         isKeyword = IHP.Prelude.toUpper identifier `elem` keywords
-        containsSpace = Text.any (' ' ==) identifier
+        containsChar char = Text.any (char ==) identifier
 
         keywords = [ "ABORT"
             , "ABSOLUTE"

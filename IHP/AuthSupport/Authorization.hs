@@ -6,7 +6,6 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.AuthSupport.Authorization where
 
 import IHP.Prelude
-import Control.Monad.Fail (fail)
 
 class CanView user model where
     canView :: (?modelContext :: ModelContext) => model -> user -> IO Bool

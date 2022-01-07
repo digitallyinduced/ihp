@@ -4,16 +4,18 @@ import IHP.Prelude
 import IHP.SchemaMigration
 import qualified System.Posix.Env.ByteString as Posix
 import qualified System.Directory as Directory
-import Control.Monad.Fail
 import IHP.IDE.ToolServer.Helper.Controller (openEditor)
+import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
+import IHP.IDE.CodeGen.Controller (executePlan)
 
 main :: IO ()
 main = do
     ensureIsInAppDirectory
 
     let doCreateMigration description = do
-            migration <- createMigration description
-            let path = migrationPath migration
+            (_, plan) <- MigrationGenerator.buildPlan description
+            executePlan plan
+            let path = MigrationGenerator.migrationPathFromPlan plan
             putStrLn $ "Created migration: " <> path
             openEditor path 0 0
     

@@ -1,13 +1,11 @@
 module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer) where
 
 import IHP.ViewPrelude hiding (catch)
-import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
-import IHP.HaskellSupport
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Network.HTTP.Types.Header as HTTP
 import qualified Text.Blaze.Html5 as Html5
@@ -16,8 +14,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.Types
 import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Routes
-import ClassyPrelude (async, uninterruptibleCancel, catch, forever)
+import IHP.IDE.ToolServer.Routes ()
 import qualified Network.URI as URI
 import qualified Control.Exception as Exception
 
@@ -99,7 +96,7 @@ notifyBrowserOnApplicationOutput StatusServerPaused { serverRef, clients, standa
     pure ()
 notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
 
-notifyOutput :: (?context :: Context) => (IORef [ByteString], IORef [ByteString]) -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
+notifyOutput :: (IORef [ByteString], IORef [ByteString]) -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
 notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
     clients <- readIORef stateRef
 
@@ -201,7 +198,6 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
 
                     <div class="ihp-error-other-solutions">
                         <a href="https://ihp.digitallyinduced.com/Slack" target="_blank">Ask on Slack</a>
-                        <a href="https://gitter.im/digitallyinduced/ihp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge" target="_blank">Ask on Gitter</a>
                         <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask on Stack Overflow</a>
                         <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
                         <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs $ ByteString.unlines errorOutput))} target="_blank">Open a GitHub Issue</a>

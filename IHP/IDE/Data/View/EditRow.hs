@@ -1,10 +1,6 @@
 module IHP.IDE.Data.View.EditRow where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
@@ -191,7 +187,7 @@ instance View EditRowView where
                                             id={get #columnName def <> "-sqlbox"}
                                             type="checkbox"
                                             name={get #columnName def <> "_"}
-                                            checked={isSqlFunction_ (value val)}
+                                            checked={isSQLMode}
                                             class="mr-1"
                                             onclick={"sqlModeCheckbox('" <> get #columnName def <> "', this)"}
                                             />
@@ -204,5 +200,11 @@ instance View EditRowView where
                                         />
                                 </div>
                             </div>|]
+                                where
+                                    isNull = isNothing (get #fieldValue val)
+                                    isSQLMode = isSqlFunction_ (value val) || isNull
 
-value val = fromMaybe BS.empty (get #fieldValue val)
+value :: DynamicField -> ByteString
+value dynamicField = case get #fieldValue dynamicField of
+    Just string -> string
+    Nothing -> "NULL"

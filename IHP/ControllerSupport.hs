@@ -25,12 +25,12 @@ module IHP.ControllerSupport
 , setHeader
 , addResponseHeaders
 , addResponseHeadersFromContext
+, getAppConfig
 ) where
 
 import ClassyPrelude
 import IHP.HaskellSupport
-import Data.String.Conversions (cs)
-import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestBody, queryString, requestHeaders)
+import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
@@ -41,21 +41,19 @@ import qualified Data.ByteString.Lazy
 import qualified IHP.Controller.RequestContext as RequestContext
 import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
-import Control.Monad.Reader
-import qualified Data.TMap as TypeMap
 import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig (..))
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext)
-import IHP.FlashMessages.ControllerFunctions
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
-import qualified IHP.Assets.ControllerFunctions as Assets
+import qualified Data.Typeable as Typeable
+import qualified Data.TMap as TypeMap
 
 type Action' = IO ResponseReceived
 
@@ -77,6 +75,9 @@ runAction controller = do
     let respond = ?context |> get #requestContext |> get #respond
 
     let doRunAction = do
+            authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
+
+            let ?modelContext = authenticatedModelContext
             beforeAction
             (action controller)
             ErrorController.handleNoResponseReturned controller
@@ -94,8 +95,6 @@ runActionWithNewContext controller = do
     let ?context = controllerContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
-    initFlashMessages
-    Assets.initAssetVersion
 
     try (initContext @application) >>= \case
         Left exception -> do
@@ -103,6 +102,17 @@ runActionWithNewContext controller = do
             ErrorController.displayException exception controller " while calling initContext"
         Right context -> do
             runAction controller
+
+-- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
+-- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
+--
+-- If row leve security wasn't enabled, this will just return the current model context.
+prepareRLSIfNeeded :: (?context :: ControllerContext) => ModelContext -> IO ModelContext
+prepareRLSIfNeeded modelContext = do
+    rowLevelSecurityContext <- Context.maybeFromContext
+    case rowLevelSecurityContext of
+        Just context -> pure modelContext { rowLevelSecurity = Just context }
+        Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
 startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
@@ -262,3 +272,36 @@ respondAndExit response = do
     responseWithHeaders <- addResponseHeadersFromContext response
     Exception.throwIO (ResponseException responseWithHeaders)
 {-# INLINE respondAndExit #-}
+
+-- | Returns a custom config parameter
+--
+-- >>> getAppConfig @StripePublicKey
+-- StripePublicKey "pk_test_..."
+--
+-- Example:
+--
+-- First you need to define a custom config parameter in Config.hs:
+--
+-- > -- Config/Config.hs
+-- > newtype StripePublicKey = StripePublicKey Text
+-- >
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     -- ...
+-- >     stripePublicKey <- StripePublicKey <$> env @Text "STRIPE_PUBLIC_KEY"
+-- >     option stripePublicKey
+-- 
+-- Then you can access it using 'getAppConfig':
+--
+-- > action MyAction = do
+-- >     let (StripePublicKey stripePublicKey) = getAppConfig @StripePublicKey
+-- > 
+-- >     putStrLn ("Stripe public key: " <> stripePublicKey)
+--
+getAppConfig :: forall configParameter. (?context :: ControllerContext, Typeable configParameter) => configParameter
+getAppConfig = ?context
+        |> get #requestContext
+        |> get #frameworkConfig
+        |> get #appConfig
+        |> TypeMap.lookup @configParameter
+        |> fromMaybe (error ("Could not find " <> (show (Typeable.typeRep (Typeable.Proxy @configParameter))) <>" in config"))

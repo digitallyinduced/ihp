@@ -34,5 +34,5 @@ echo "import qualified Application.Script.$TASK_MODULE as Script" >> "$GHCI_SCRI
 echo "IHP.ScriptSupport.runScript config Script.run" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
-ghci -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
+ghci -package-env - -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
 

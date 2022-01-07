@@ -38,12 +38,12 @@ import IHP.ControllerPrelude
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
+import IHP.Pagination.Types
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
-import qualified IHP.Log as Log
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodGet, methodPost)
 import GHC.TypeLits
@@ -75,6 +75,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
     , Record job
     , Show job
     , Eq job
+    , Table job
     , Typeable job) => DisplayableJob job where
 
     -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
@@ -139,6 +140,9 @@ class JobsDashboard (jobs :: [*]) where
     deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
     deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
 
+    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
+    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+
 -- If no types are passed, try to get all tables dynamically and render them as BaseJobs
 instance JobsDashboard '[] where
 
@@ -173,12 +177,14 @@ instance JobsDashboard '[] where
 
     listJob = error "listJob: Requested job type not in JobsDashboard Type"
     listJob' _ = do
-        let page = fromMaybe 1 $ param "page"
-            table = param "tableName"
-        numberOfPages <- numberOfPagesForTable table 25
-        jobs <- queryBaseJobsFromTablePaginated table (page - 1) 25
-        render $ HtmlView $ renderBaseJobTablePaginated table jobs page numberOfPages
-        render $ EmptyView
+        let table = param "tableName"
+            options = defaultPaginationOptions
+            page = paramOrDefault 1 "page"
+            pageSize = paramOrDefault (maxItems options) "maxItems"
+        totalItems <- totalRecordsForTable table
+        jobs <- queryBaseJobsFromTablePaginated table (page - 1) pageSize
+        let pagination = Pagination { currentPage = page, totalItems, pageSize, window = windowSize options }
+        render $ HtmlView $ renderBaseJobTablePaginated table jobs pagination
 
     viewJob = error "viewJob: Requested job type not in JobsDashboard Type"
     viewJob' _ = do
@@ -204,6 +210,16 @@ instance JobsDashboard '[] where
         redirectTo ListJobsAction
 
         where delete id table = sqlExec (PG.Query $ cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id)
+
+    retryJob = error "retryJob: Requested job type not in JobsDashboard Type"
+    retryJob' = do
+        let id    :: UUID = param "id"
+            table :: Text = param "tableName"
+        retryJobById table id
+        setSuccessMessage (columnNameToFieldLabel table <> " record marked as 'retry'.")
+        redirectTo ListJobsAction
+
+        where retryJobById table id = sqlExec ("UPDATE ? SET status = 'job_status_retry' WHERE id = ?") (PG.Identifier table, id)
 
 
 -- | Defines the default implementation for a dashboard of a list of job types.
@@ -352,14 +368,14 @@ getTableName :: forall job. (DisplayableJob job) => job -> Text
 getTableName _ = tableName @job
 
 -- | Get the job with in the given table with the given ID as a 'BaseJob'.
-queryBaseJob :: _ => Text -> UUID -> IO BaseJob
+queryBaseJob :: (?modelContext :: ModelContext) => Text -> UUID -> IO BaseJob
 queryBaseJob table id = do
     (job : _) <- sqlQuery
         (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " where id = ?")
         [table, tshow id]
     pure job
 
-queryBaseJobsFromTablePaginated :: _ => Text -> Int -> Int -> IO [BaseJob]
+queryBaseJobsFromTablePaginated :: (?modelContext :: ModelContext) => Text -> Int -> Int -> IO [BaseJob]
 queryBaseJobsFromTablePaginated table page pageSize =
     sqlQuery
         (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)
@@ -372,4 +388,5 @@ instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (Jobs
     action ViewJobAction'   = autoRefresh $ viewJob' @jobs True
     action CreateJobAction' = newJob' @jobs True
     action DeleteJobAction' = deleteJob' @jobs True
+    action RetryJobAction'  = retryJob' @jobs
     action _ = error "Cannot call this action directly. Call the backtick function with no parameters instead."

@@ -1,0 +1,16 @@
+{
+  "name": "ihp-datasync",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "IHP DataSync JS SDK",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "typecheck": "./node_modules/.bin/tsc --checkJs --noEmit -t es6 index.js"
+  },
+  "author": "digitally induced GmbH",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^4.5.4"
+  }
+}

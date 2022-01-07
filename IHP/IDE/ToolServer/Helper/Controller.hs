@@ -9,13 +9,14 @@ module IHP.IDE.ToolServer.Helper.Controller
 , findWebControllers
 , findControllers
 , findApplications
+, theDevServerContext
+, clearDatabaseNeedsMigration
+, markDatabaseNeedsMigration
 ) where
 
 import IHP.Prelude
 import IHP.ControllerSupport
-import IHP.ModelSupport
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
 import qualified IHP.IDE.PortConfig as PortConfig
 import IHP.IDE.Types
 import qualified Network.Socket as Socket
@@ -83,3 +84,19 @@ findApplications = do
         where
             removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
 
+theDevServerContext :: (?context :: ControllerContext) => IO Context
+theDevServerContext = get #devServerContext <$> (fromContext @ToolServerApplication)
+
+clearDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
+clearDatabaseNeedsMigration = do
+    context <- theDevServerContext
+    state <- readIORef (get #appStateRef context)
+    writeIORef (get #databaseNeedsMigration state) False
+    pure ()
+
+markDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
+markDatabaseNeedsMigration = do
+    context <- theDevServerContext
+    state <- readIORef (get #appStateRef context)
+    writeIORef (get #databaseNeedsMigration state) True
+    pure ()

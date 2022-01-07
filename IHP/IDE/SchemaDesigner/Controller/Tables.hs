@@ -14,6 +14,7 @@ import qualified IHP.SchemaCompiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 import IHP.IDE.SchemaDesigner.Controller.Columns (updateForeignKeyConstraint)
+import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 
 instance Controller TablesController where
     beforeAction = setLayout schemaDesignerLayout
@@ -42,7 +43,7 @@ instance Controller TablesController where
                 setErrorMessage message
                 redirectTo TablesAction
             Success -> do
-                updateSchema (addTable tableName)
+                updateSchema (SchemaOperations.addTable tableName)
                 redirectTo ShowTableAction { .. }
 
     action EditTableAction { .. } = do
@@ -77,20 +78,6 @@ instance Controller TablesController where
         redirectTo TablesAction
 
 
-addTable :: Text -> [Statement] -> [Statement]
-addTable tableName list = list <> [StatementCreateTable CreateTable
-    { name = tableName
-    , columns =
-        [Column
-            { name = "id"
-            , columnType = PUUID
-            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-            , notNull = True
-            , isUnique = False
-            }]
-    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-    , constraints = []
-    }]
 
 updateTable :: Int -> Text -> [Statement] -> [Statement]
 updateTable tableId tableName list = replace tableId (StatementCreateTable CreateTable { name = tableName, columns = get #columns table, primaryKeyConstraint = get #primaryKeyConstraint table, constraints = get #constraints table }) list
@@ -100,7 +87,9 @@ deleteTable :: Int -> [Statement] -> [Statement]
 deleteTable tableId list = delete (list !! tableId) list
 
 deleteForeignKeyConstraints :: Text -> [Statement] -> [Statement]
-deleteForeignKeyConstraints tableName list = filter (\con -> not (con == AddConstraint { tableName = tableName, constraintName = get #constraintName con, constraint = get #constraint con })) list
+deleteForeignKeyConstraints tableName = filter \case
+    AddConstraint { tableName = constraintTable } | constraintTable == tableName -> False
+    otherwise -> True
 
 validateTable :: [Statement] -> Maybe Text -> Validator Text
 validateTable statements = validateNameInSchema "table name" (getAllObjectNames statements)
@@ -110,10 +99,10 @@ referencingTableForeignKeyConstraints tableName statements =
         statement ==
             AddConstraint
                 { tableName = (get #tableName statement)
-                , constraintName = (get #constraintName statement)
                 , constraint =
                     ForeignKeyConstraint
-                        { columnName = (get #columnName (get #constraint statement))
+                        { name = Just (get #constraintName statement)
+                        , columnName = (get #columnName (get #constraint statement))
                         , referenceTable = tableName
                         , referenceColumn = (get #referenceColumn (get #constraint statement))
                         , onDelete = (get #onDelete (get #constraint statement))

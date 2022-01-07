@@ -89,45 +89,98 @@ if ! [ -x "$(command -v direnv)" ]; then
 		exit 1
 		;;
 	esac
-	echo -e "\e[1mDirenv needs to be hooked into your shell. Please follow the steps below:\e[0m"
+	echo -e "\e[1mDirenv needs to be hooked into your shell.\e[0m"
+
+	DIRENV_HOOK_ADDED=0
+	if [ "${SHELL##*/}" == "bash" ] || [ "${SHELL##*/}" == "zsh" ]; then
+		echo -e "\e[1mWould you like to attempt to do this automatically? (Type y to proceed) \e[0m"
+		while true; do
+			read -r -n1 choice
+			echo ""
+			case "$choice" in
+			y | Y)
+				echo "Great!"
+				case "${SHELL##*/}" in
+				zsh )
+					echo "Adding hook to ~/.zshrc...";
+					echo 'eval "$(direnv hook bash)"' >> $HOME/.zshrc
+					DIRENV_HOOK_ADDED=1
+					;;
+				bash )
+					echo "Adding hook to ~/.bashrc...";
+					echo 'eval "$(direnv hook bash)"' >> $HOME/.bashrc
+					DIRENV_HOOK_ADDED=1
+					;;
+				default )
+					echo "\e[31mError: Unrecognised shell[0m";
+					;;
+				esac
+
+				break
+				;;
+			n | N)
+				break
+				;;
+			*) echo -e "\e[1mWould you like to attempt to do this automatically? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m" ;;
+			esac
+		done
+	else
+		echo -e "\e[31mCouldn't detect what shell you're using.\e[0m"
+	fi
+
+	if [ $DIRENV_HOOK_ADDED = 0 ]; then
+		echo ""
+		echo "Please add the hook manually."
+		echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
+		echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
+		echo "Other shells: See https://direnv.net/#README"
+		echo -e "\e[1mHave you hooked direnv into your shell? (Type y to proceed) \e[0m"
+		while true; do
+			read -r -n1 choice
+			echo ""
+			case "$choice" in
+			y | Y)
+				echo "Great!"
+				break
+				;;
+			n | N)
+				echo -e "\e[1m\e[33mHook direnv into your shell after this script has finished.\e[0m"
+				break
+				;;
+			*) echo -e "\e[1mHave you hooked direnv into your shell? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m" ;;
+			esac
+		done
+		DIRENV_HOOK_ADDED=1
+	fi
+
+fi
+
+DIRENV_SETUP=0;
+case "${SHELL##*/}" in
+zsh )
+    if grep direnv "$HOME/.zshrc" "$HOME/.zprofile" 2>&1 >/dev/null; then
+        DIRENV_SETUP=1;
+    fi;
+    ;;
+bash )
+    if grep direnv "$HOME/.bashrc" "$HOME/.bash_profile" 2>&1 >/dev/null; then
+        DIRENV_SETUP=1;
+    fi;
+    ;;
+default )
+    echo "\e[1mUnable to check if direnv is setup correctly (unrecognised shell).\e[0m";
+    ;;
+esac
+if [ $DIRENV_SETUP = 0 ] && [ DIRENV_HOOK_ADDED != 1 ]; then
+	echo -e "\e[1mDirenv shell hook doesn't seem correct.\e[0m"
+	echo -e "Direnv needs to be hooked into your shell. Please follow the steps below:"
 	echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
 	echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
 	echo "Other shells: See https://direnv.net/#README"
-	echo -e "\e[1mHave you hooked direnv into your shell? [y/n] \e[0m"
-	while true; do
-		read -r -n1 choice
-		echo ""
-		case "$choice" in
-		y | Y)
-			echo "Great!"
-			break
-			;;
-		n | N)
-			echo -e "\e[1m\e[33mHook direnv into your shell after this script has finished.\e[0m"
-			break
-			;;
-		*) echo -e "\e[1mHave you hooked direnv into your shell? Type \e[33my\e[0m\e[1m for 'yes', \e[33mn\e[0m\e[1m for 'no'. \e[0m" ;;
-		esac
-	done
+	echo -e "This could be a false negative if you use a more complex shell profile"
+    echo ""
 fi
 
-if ! [ -x "$(command -v cachix)" ]; then
-	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
-	echo -e "IHP uses cachix as a binary cache."
-	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
-	echo ""
-	echo ""
-	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
-	read -r -n1 choice
-	echo ""
-	case "$choice" in
-	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
-	*)
-		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
-		exit 1
-		;;
-	esac
-fi
 
 if ! [ -x "$(command -v git)" ]; then
 	echo -e "\e[1m\e[35mGIT MISSING\e[0m"
@@ -163,6 +216,40 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
+if ! [ -x "$(command -v cachix)" ]; then
+	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
+	echo -e "IHP uses cachix as a binary cache."
+	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
+	echo ""
+	echo ""
+	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
+	read -r -n1 choice
+	echo ""
+	case "$choice" in
+	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
+	*)
+		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
+		exit 1
+		;;
+	esac
+fi
+
+if ! grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf; then
+	echo -e "\e[1mCachix doesn't seem to be configured\e[0m"
+	echo -e "IHP provides a cachix cache with binaries for all IHP packages and commonly used dependencies."
+	echo -e "While not required, this greatly speeds up the installation & build process."
+	echo -e "This could be a false negative if you use a more complex nix configuration."
+	echo ""
+	echo ""
+	echo -e "\e[1mWe will configure the cache for you now using 'cachix use digitallyinduced'. Continue? (Type y to proceed) \e[0m"
+	read -r -n1 choice
+	echo ""
+	case "$choice" in
+	y | Y) cachix use digitallyinduced ;;
+	*) echo -e "Skipping cachix configuration" ;;
+	esac
+fi
+
 BOILERPLATE_GIT_BRANCH="master"
 
 if [[ "$1" == "--elm" ]]; then
@@ -172,12 +259,8 @@ elif [[ "$1" == "--purescript-halogen" ]]; then
 	echo "We will now create your new IHP project with PureScript + Halogen. This may take up to 30 seconds."
 	BOILERPLATE_GIT_BRANCH="purescript-halogen"
 else
-	echo "We will now create your new IHP. This may take up to 30 seconds."
+	echo "We will now create your new IHP project. This may take up to 30 seconds."
 fi
-
-grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf || {
-	cachix use digitallyinduced
-}
 
 git clone --quiet --depth=1 --branch "$BOILERPLATE_GIT_BRANCH" "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"
 cd "$PROJECT_NAME"

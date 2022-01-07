@@ -29,10 +29,10 @@ module IHP.ViewSupport
 , stripTags
 , theCSSFramework
 , fromCSSFramework
+, liveReloadWebsocketUrl
 ) where
 
 import IHP.Prelude
-import qualified Text.Blaze
 import qualified Text.Blaze.Html5 as Html5
 import IHP.ControllerSupport
 import IHP.ModelSupport
@@ -46,13 +46,11 @@ import qualified Data.ByteString as ByteString
 import IHP.RouterSupport hiding (get)
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
-import qualified IHP.ControllerSupport as ControllerSupport
-import IHP.FlashMessages.Types
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml
 import qualified Data.Sequences as Sequences
 import qualified IHP.Controller.RequestContext
-import qualified IHP.View.CSSFramework as CSSFramework
+import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context
@@ -68,7 +66,7 @@ class View theView where
 
     -- | Renders the view to a JSON
     json :: theView -> JSON.Value
-    json = error "Not implemented"
+    json = error "Json View for this route is not implemented"
 
 -- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@
@@ -151,7 +149,7 @@ isActivePathOrSub route =
 -- True
 --
 -- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller context. (?context :: ControllerContext, Typeable controller) => Bool
+isActiveController :: forall controller. (?context :: ControllerContext, Typeable controller) => Bool
 isActiveController =
     let
         (ActionType actionType) = fromFrozenContext @ActionType
@@ -250,3 +248,11 @@ instance {-# OVERLAPPABLE #-} HasField "requestContext" viewContext RequestConte
             |> get #frameworkConfig
 
 type Html = HtmlWithContext ControllerContext
+
+-- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
+liveReloadWebsocketUrl :: (?context :: ControllerContext) => Text
+liveReloadWebsocketUrl = ?context
+    |> FrameworkConfig.getFrameworkConfig
+    |> get #ideBaseUrl
+    |> Text.replace "http://" "ws://"
+    |> Text.replace "https://" "wss://"

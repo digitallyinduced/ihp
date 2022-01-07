@@ -4,8 +4,5 @@
 
 module IHP.ViewErrorMessages where
 
-import ClassyPrelude
-import GHC.TypeLits
-
 --instance TypeError (Text "Cannot 'Show' functions." :$$: Text "Perhaps there is a missing argument?") => Show (a -> b) where
 --   showsPrec = error "unreachable"

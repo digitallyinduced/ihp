@@ -40,7 +40,6 @@
 , http-media
 , cookie
 , process
-, newtype-generics
 , unix
 , fsnotify
 , countable-inflections
@@ -59,10 +58,15 @@
 , wai-cors
 , lens
 , random
+, async-pool
+, hspec
+, cereal-text
+, neat-interpolation
+, unagi-chan
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v0.13.0";
+  version = "v0.17.0";
   src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
@@ -104,7 +108,6 @@ mkDerivation {
     http-media
     cookie
     process
-    newtype-generics
     unix
     fsnotify
     countable-inflections
@@ -124,6 +127,11 @@ mkDerivation {
     wai-cors
     lens
     random
+    async-pool
+    hspec
+    cereal-text
+    neat-interpolation
+    unagi-chan
   ];
   license = lib.licenses.mit;
   postInstall = ''

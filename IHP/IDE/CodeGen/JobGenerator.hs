@@ -1,16 +1,9 @@
 module IHP.IDE.CodeGen.JobGenerator (buildPlan, buildPlan', JobConfig (..)) where
 
 import IHP.Prelude
-import IHP.HaskellSupport
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import IHP.ViewSupport
-import qualified System.Process as Process
 import IHP.IDE.CodeGen.Types
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
-import IHP.IDE.SchemaDesigner.Types
 import qualified System.Directory as Directory
-import qualified Data.Maybe as Maybe
 
 data JobConfig = JobConfig
     { applicationName :: Text
@@ -72,7 +65,8 @@ buildPlan' config =
                 <> "    last_error TEXT DEFAULT NULL,\n"
                 <> "    attempts_count INT DEFAULT 0 NOT NULL,\n"
                 <> "    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,\n"
-                <> "    locked_by UUID DEFAULT NULL\n"
+                <> "    locked_by UUID DEFAULT NULL,\n"
+                <> "    run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL\n"
                 <> ");\n"
 
 

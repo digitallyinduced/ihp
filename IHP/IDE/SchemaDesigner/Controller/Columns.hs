@@ -9,13 +9,15 @@ import IHP.IDE.SchemaDesigner.View.Columns.NewForeignKey
 import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, getDefaultValue, findForeignKey, findTableIndex)
+import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, findForeignKey, findTableIndex)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
 import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
 import qualified Data.List as List
+
+import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 
 instance Controller ColumnsController where
     beforeAction = setLayout schemaDesignerLayout
@@ -29,33 +31,25 @@ instance Controller ColumnsController where
 
     action CreateColumnAction = do
         let tableName = param "tableName"
-        let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
         let columnName = param "name"
         let validationResult = columnName |> validateColumn
         case validationResult of
             Failure message ->
                 setErrorMessage message
             Success -> do
-                let column = Column
-                        { name = columnName
-                        , columnType = arrayifytype (param "isArray") (param "columnType")
-                        , defaultValue = defaultValue
-                        , notNull = (not (param "allowNull"))
+                let options = SchemaOperations.AddColumnOptions
+                        { tableName
+                        , columnName
+                        , columnType = param "columnType"
+                        , defaultValue = param "defaultValue"
+                        , isArray = param "isArray"
+                        , allowNull = param "allowNull"
                         , isUnique = param "isUnique"
+                        , isReference = param "isReference"
+                        , referenceTable = paramOrNothing "referenceTable"
+                        , primaryKey = param "primaryKey"
                         }
-                updateSchema (map (addColumnToTable tableName column (param "primaryKey")))
-                when (param "isReference") do
-                    let columnName = param "name"
-                    let constraintName = tableName <> "_ref_" <> columnName
-                    let referenceTable = param "referenceTable"
-                    let onDelete = NoAction
-                    let addForeignKeyConstraintToSchema = addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete
-
-                    let indexName = tableName <> "_" <> columnName <> "_index"
-                    let columnNames = [columnName]
-                    let addTableIndexToSchema = addTableIndex indexName False tableName columnNames
-
-                    updateSchema (addForeignKeyConstraintToSchema . addTableIndexToSchema)
+                updateSchema $ SchemaOperations.addColumn options
 
         redirectTo ShowTableAction { .. }
 
@@ -79,13 +73,13 @@ instance Controller ColumnsController where
             Failure message ->
                 setErrorMessage message
             Success -> do
-                let defaultValue = getDefaultValue (param "columnType") (param "defaultValue")
+                let defaultValue = param "defaultValue"
                 let table = findStatementByName tableName statements
                 let columns = maybe [] (get #columns . unsafeGetCreateTable) table
                 let columnId = param "columnId"
                 let column = Column
                         { name = columnName
-                        , columnType = arrayifytype (param "isArray") (param "columnType")
+                        , columnType = SchemaOperations.arrayifytype (param "isArray") (param "columnType")
                         , defaultValue = defaultValue
                         , notNull = (not (param "allowNull"))
                         , isUnique = param "isUnique"
@@ -115,12 +109,13 @@ instance Controller ColumnsController where
         let columnId = param "columnId"
         let columnName = param "columnName"
         case findForeignKey statements tableName columnName of
-            Just AddConstraint { constraintName, .. } -> updateSchema (deleteForeignKeyConstraint constraintName)
+            Just AddConstraint { constraint = constraint@(ForeignKeyConstraint { name = Just constraintName }) } -> updateSchema (deleteForeignKeyConstraint constraintName)
             otherwise -> pure ()
 
         let indicesToDelete = findIndicesReferencingColumn statements (tableName, columnName)
         forEach indicesToDelete \CreateIndex { indexName } -> updateSchema (deleteTableIndex indexName)
         updateSchema (map (deleteColumnInTable tableName columnId))
+        
         redirectTo ShowTableAction { .. }
 
     action ToggleColumnUniqueAction { .. } = do
@@ -142,14 +137,14 @@ instance Controller ColumnsController where
         let constraintName = param "constraintName"
         let referenceTable = param "referenceTable"
         let onDelete = NoAction
-        updateSchema (addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
+        updateSchema (SchemaOperations.addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete)
         redirectTo ShowTableAction { .. }
 
     action EditForeignKeyAction { tableName, columnName, constraintName, referenceTable } = do
         let name = tableName
         statements <- readSchema
         let tableNames = nameList (getCreateTable statements)
-        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
+        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
         onDelete <- case (get #onDelete (get #constraint statement)) of
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
@@ -166,9 +161,9 @@ instance Controller ColumnsController where
         let constraintName = param "constraintName"
         let referenceTable = param "referenceTable"
         let constraintId = findIndex (\statement -> statement == AddConstraint { tableName = tableName
-            , constraintName = (get #constraintName statement)
             , constraint = ForeignKeyConstraint
-                { columnName = columnName
+                { name = Just (get #constraintName statement)
+                , columnName = columnName
                 , referenceTable = (get #referenceTable (get #constraint statement))
                 , referenceColumn = (get #referenceColumn (get #constraint statement))
                 , onDelete=(get #onDelete (get #constraint statement)) } }) statements
@@ -188,16 +183,6 @@ instance Controller ColumnsController where
         statements <- readSchema
         updateSchema (deleteForeignKeyConstraint constraintName)
         redirectTo ShowTableAction { .. }
-
-addColumnToTable :: Text -> Column -> Bool -> Statement -> Statement
-addColumnToTable tableName (column@Column { name = columnName }) isPrimaryKey (StatementCreateTable table@CreateTable { name, columns, primaryKeyConstraint = PrimaryKeyConstraint pks})
-    | name == tableName =
-        let primaryKeyConstraint =
-              if isPrimaryKey
-              then PrimaryKeyConstraint (pks <> [columnName])
-              else PrimaryKeyConstraint pks
-        in StatementCreateTable (table { columns = columns <> [column] , primaryKeyConstraint })
-addColumnToTable tableName column isPrimaryKey statement = statement
 
 updateColumnInTable :: Text -> Column -> Bool -> Int -> Statement -> Statement
 updateColumnInTable tableName column isPrimaryKey columnId (StatementCreateTable table@CreateTable { name, columns, primaryKeyConstraint })
@@ -229,17 +214,15 @@ deleteColumnInTable tableName columnId (StatementCreateTable table@CreateTable {
         table { columns = delete (columns !! columnId) columns}
 deleteColumnInTable tableName columnId statement = statement
 
-addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statement] -> [Statement]
-addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } }]
 
 updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> Int -> [Statement] -> [Statement]
-updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, constraintName = constraintName, constraint = ForeignKeyConstraint { columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
+updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
-deleteForeignKeyConstraint constraintName list = filter (\con -> not (con == AddConstraint { tableName = get #tableName con, constraintName = constraintName, constraint = get #constraint con })) list
+deleteForeignKeyConstraint constraintName = filter \case
+    AddConstraint { constraint } | get #name constraint == Just constraintName -> False
+    otherwise -> True
 
-addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames, whereClause = Nothing }]
 
 deleteTableIndex :: Text -> [Statement] -> [Statement]
 deleteTableIndex indexName list =
@@ -260,11 +243,6 @@ isCreateEnumType _ = False
 
 nameList statements = map (get #name) statements
 
-arrayifytype :: Bool -> PostgresType -> PostgresType
-arrayifytype False   (PArray coltype) = coltype
-arrayifytype True  a@(PArray coltype) = a
-arrayifytype False coltype = coltype
-arrayifytype True  coltype = PArray coltype
 
 validateColumn :: Validator Text
 validateColumn = validateNameInSchema "column name" [] Nothing
@@ -274,10 +252,10 @@ referencingColumnForeignKeyConstraints tableName columnName statements =
         statement ==
             AddConstraint
                 { tableName = tableName
-                , constraintName = (get #constraintName statement)
                 , constraint =
                     ForeignKeyConstraint
-                        { columnName = columnName
+                        { name = Just (get #constraintName statement)
+                        , columnName = columnName
                         , referenceTable = (get #referenceTable (get #constraint statement))
                         , referenceColumn = (get #referenceColumn (get #constraint statement))
                         , onDelete = (get #onDelete (get #constraint statement))

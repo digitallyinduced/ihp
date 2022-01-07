@@ -1,18 +1,20 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, getDefaultValue, databaseControls, findForeignKey, findTableIndex) where
+module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, databaseControls, findForeignKey, findTableIndex) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
-import IHP.IDE.SchemaDesigner.Compiler (compileIdentifier, compilePostgresType, compileExpression)
+import IHP.IDE.SchemaDesigner.Compiler (compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html
 schemaDesignerLayout inner = toolServerLayout [hsx|
-<div class="container">
-    <div class="row pt-5">
+<div class="container pt-5">
+    {when hasUnmigratedChanges unmigratedChanges}
+
+    <div class="row mb-2">
         <div class="col" style="display: flex; align-self: center;">
             {visualNav}
         </div>
@@ -21,10 +23,24 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
             Application/Schema.sql
         </div>
 
-        {databaseControls}
+        <div class="col">
+        </div>
     </div>
 
     {inner}
+</div>
+|]
+    where
+        (DatabaseNeedsMigration hasUnmigratedChanges) = fromFrozenContext @DatabaseNeedsMigration
+
+unmigratedChanges :: Html
+unmigratedChanges = [hsx|
+<div class="alert alert-primary d-flex align-items-center" role="alert">
+    <div style="height: fit-content">
+        <strong>Unmigrated Changes</strong>
+        Your app database is not in sync with the Schema.sql
+    </div>
+    {databaseControls}
 </div>
 |]
 
@@ -34,24 +50,29 @@ databaseControls = [hsx|
     <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
     <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
     <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
-    <div class="btn-group btn-group-sm mb-2">
-        <button
-            type="submit"
-            form="update-db-form"
+    <div class="btn-group btn-group-sm">
+        <a
             class="btn btn-primary"
-            data-toggle="tooltip"
-            data-placement="bottom"
-            data-html="true"
-            title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
+            href={NewMigrationAction}
             onclick="checkBeforeUnload()"
-            >Update DB</button>
+            >Migrate DB →</a>
 
         <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
             <span class="sr-only">Toggle Dropdown</span>
         </button>
 
-
         <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuLink">
+            <button
+                type="submit"
+                form="update-db-form"
+                class="dropdown-item"
+                data-toggle="tooltip"
+                data-placement="left"
+                data-html="true"
+                title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
+                onclick="checkBeforeUnload()"
+                >Update DB</button>
+
             <button
                 type="submit"
                 class="dropdown-item"
@@ -111,12 +132,15 @@ renderColumnSelector tableName columns statements = [hsx|
         </table>
     </section>
 
+    {auth}
+
     <section>
         {columnIndexes}
     </section>
 </div>
 <div class="custom-menu menu-for-column shadow backdrop-blur" id="context-menu-column-root">
     <a href={NewColumnAction tableName}>Add Column</a>
+    <a href={NewPolicyAction tableName}>Add Policy</a>
 </div>
 |]
     where
@@ -131,6 +155,9 @@ renderColumnSelector tableName columns statements = [hsx|
                     </table>
                 |]
                 Nothing -> [hsx||]
+
+        auth :: Html
+        auth = renderPolicies tableName statements
 
 -- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
 
@@ -190,6 +217,65 @@ renderColumnIndexes tableName statements = forEach (findTableIndexes statements 
                     |> map compileExpression
                     |> intercalate ", "
 
+
+
+renderPolicies :: Text -> [Statement] -> Html
+renderPolicies tableName statements = whenNonEmpty tablePolicies policiesTable
+    where
+        policiesTable = [hsx|
+            <section>
+                <h5>Policies</h5>
+                <table class="table table-hover table-sm">
+                    {forEach tablePolicies renderPolicy}
+                </table>
+            </section>
+        |]
+        tablePolicies :: [Statement]
+        tablePolicies = statements
+                |> filter \case
+                    CreatePolicy { tableName = policyTable } -> policyTable == tableName
+                    otherwise -> False
+
+        renderPolicy policy = [hsx|
+            <tr class="policy">
+                <td class="policy-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>
+                    <a href={EditPolicyAction tableName policyName} class="text-body nounderline">
+                        {get #name policy}
+                    </a>
+                </td>
+                {renderExpressions policy}
+            </tr>
+            <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
+                <a href={EditPolicyAction tableName policyName}>Edit Policy</a>
+                <a href={DeletePolicyAction tableName policyName} class="js-delete">Delete Policy</a>
+                <div></div>
+                <a href={NewPolicyAction tableName}>Add Policy</a>
+            </div>
+        |]
+            where
+                policyName = get #name policy
+                contextMenuId = "policy-" <> toSlug policyName
+
+        renderExpressions policy = case (get #using policy, get #check policy) of
+                (Just using, Just check) | using == check ->
+                    [hsx|
+                        <td class="policy-expression">
+                            <small>read & write if</small>
+                            {compileExpression using}
+                        </td>
+                    |]
+                (using, check) ->
+                    [hsx|
+                        <td class="policy-expression">
+                            <small>read if</small>
+                            {maybe "" compileExpression using}
+                        </td>
+                        <td class="policy-expression">
+                            <small>write if</small>
+                            {maybe "" compileExpression check}
+                        </td>
+                    |]
+
 renderEnumSelector :: Text -> [(Int, Text)] -> Html
 renderEnumSelector enumName values = [hsx|
 <div class="col-8 column-selector" oncontextmenu="showContextMenu('context-menu-value-root')">
@@ -248,6 +334,8 @@ renderObjectSelector statements activeObjectName = [hsx|
         <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
             <div class="d-flex">
                 {tableIcon} {name}
+
+                {when rlsEnabled rlsIcon}
             </div>
         </a>
         <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
@@ -270,6 +358,23 @@ renderObjectSelector statements activeObjectName = [hsx|
                 openControllerLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
                 controllerDoesNotExist = not $ (ucfirst name) `elem` webControllers
                 (WebControllers webControllers) = fromFrozenContext @WebControllers
+
+                rlsEnabled = statements
+                        |> map snd
+                        |> find \case
+                            EnableRowLevelSecurity { tableName = rlsTable } -> rlsTable == name
+                            otherwise                                       -> False
+                        |> isJust
+
+                rlsIcon = [hsx|
+                        <span
+                            class="rls-enabled"
+                            data-toggle="tooltip"
+                            data-placement="right"
+                            data-html="true"
+                            title="Row Level Security enabled"
+                            >{shieldIcon}</span>
+                        |]
 
         renderObject CreateEnumType { name } id = [hsx|
         <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
@@ -297,7 +402,8 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject CreateIndex {} id = mempty
         renderObject CreateFunction {} id = mempty
         renderObject UnknownStatement {} id = mempty
-        renderObject statement id = [hsx|<div>{statement}</div>|]
+        renderObject EnableRowLevelSecurity {} id = mempty
+        renderObject CreatePolicy {} id = mempty
 
         shouldRenderObject (StatementCreateTable CreateTable {}) = True
         shouldRenderObject CreateEnumType {} = True
@@ -311,9 +417,9 @@ findForeignKey :: [Statement] -> Text -> Text -> Maybe Statement
 findForeignKey statements tableName columnName =
     find (\statement -> statement == AddConstraint
         { tableName = tableName
-        , constraintName = (get #constraintName statement)
         , constraint = ForeignKeyConstraint
-            { columnName = columnName
+            { name = Just (get #constraintName statement)
+            , columnName = columnName
             , referenceTable = (get #referenceTable (get #constraint statement))
             , referenceColumn = (get #referenceColumn (get #constraint statement))
             , onDelete = (get #onDelete (get #constraint statement))  }
@@ -322,7 +428,7 @@ findForeignKey statements tableName columnName =
 findPrimaryKey :: [Statement] -> Text -> Maybe [Text]
 findPrimaryKey statements tableName = do
     (StatementCreateTable createTable) <- find (isCreateTable tableName) statements
-    pure . primaryKeyColumnNames $ primaryKeyConstraint createTable
+    pure . primaryKeyColumnNames $ get #primaryKeyConstraint createTable
     where
       isCreateTable tableName (StatementCreateTable CreateTable { name }) = name == tableName
       isCreateTable _ _ = False
@@ -340,11 +446,6 @@ replace :: Int -> a -> [a] -> [a]
 replace i e xs = case List.splitAt i xs of
    (before, _:after) -> before ++ (e: after)
    (a, b) -> a ++ b
-
-getDefaultValue :: Text -> Text -> Maybe Expression
-getDefaultValue columnType value = case Megaparsec.runParser Parser.expression "" value of
-        Left _ -> Nothing
-        Right expression -> Just expression
 
 -- | https://github.com/postgres/pgadmin4/blob/master/web/pgadmin/browser/server_groups/servers/databases/schemas/tables/static/img/table.svg
 tableIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="24" height="24"><defs><style>.cls-table-1{fill:#f2f2f2;}.cls-table-2{fill:#2195e7;}.cls-table-3{fill:none;stroke:#c1cbd5;stroke-linejoin:round;}.cls-table-3,.cls-table-4{stroke-width:0.75px;}.cls-table-4{fill:#def4fd;stroke:#2195e7;stroke-miterlimit:1;}</style></defs><title>table</title><g id="_2" data-name="2"><rect class="cls-table-1" x="2.92" y="3.65" width="10.15" height="8.71" rx="0.53" ry="0.53"/><path class="cls-table-2" d="M12.55,4a.15.15,0,0,1,.15.15v7.66a.15.15,0,0,1-.15.15H3.45a.15.15,0,0,1-.15-.15V4.17A.15.15,0,0,1,3.45,4h9.1m0-.75H3.45a.9.9,0,0,0-.9.9v7.66a.9.9,0,0,0,.9.9h9.1a.9.9,0,0,0,.9-.9V4.17a.9.9,0,0,0-.9-.9Z"/><line class="cls-table-3" x1="3.32" y1="9.43" x2="12.69" y2="9.43"/><line class="cls-table-3" x1="8.01" y1="7.09" x2="8" y2="11.97"/><line class="cls-table-4" x1="8.01" y1="4.03" x2="8" y2="6.58"/><line class="cls-table-4" x1="12.68" y1="6.74" x2="3.32" y2="6.74"/></g></svg>|]
@@ -372,3 +473,6 @@ functionIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" v
 
 -- | https://github.com/postgres/pgadmin4/blob/master/web/pgadmin/misc/static/explain/img/ex_unknown.svg
 unknownIcon = preEscapedToHtml [plain|<svg id="_1" data-name="1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><style>.cls-unknown-1{fill:#1cafe4;}</style></defs><title>unknown</title><path class="cls-unknown-1" d="M23.34,13.2a14.76,14.76,0,0,1,8.16-2.14,17.57,17.57,0,0,1,10.56,3q4.2,3,4.2,9a10.18,10.18,0,0,1-1.82,6.16,21,21,0,0,1-4.09,3.88l-2,1.55a6,6,0,0,0-2.16,3A12.5,12.5,0,0,0,35.83,41H28.2a22.11,22.11,0,0,1,.9-6.57,11.57,11.57,0,0,1,3.76-4.18l2-1.6A7.17,7.17,0,0,0,36.53,27a5.67,5.67,0,0,0,1.12-3.4,6.58,6.58,0,0,0-1.25-3.9q-1.25-1.76-4.56-1.76t-4.62,2.17a8.34,8.34,0,0,0-1.36,4.5H17.74Q18.08,16.55,23.34,13.2ZM28,44.81h8.41v8.13H28Z"/></svg>|]
+
+-- | https://fonts.google.com/icons?icon.query=shield
+shieldIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 24 24" height="1rem" viewBox="0 0 24 24" width="1rem" fill="currentColor"><g><rect fill="none" height="24" width="24"/></g><g><path d="M12,2L4,5v6.09c0,5.05,3.41,9.76,8,10.91c4.59-1.15,8-5.86,8-10.91V5L12,2z M18,11.09c0,4-2.55,7.7-6,8.83 c-3.45-1.13-6-4.82-6-8.83v-4.7l6-2.25l6,2.25V11.09z"/></g></svg>|]

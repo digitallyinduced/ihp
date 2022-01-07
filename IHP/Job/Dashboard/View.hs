@@ -11,12 +11,9 @@ import IHP.Prelude
 import IHP.ViewPrelude (JobStatus(..), ControllerContext, Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
 import qualified Data.List as List
 import IHP.Job.Dashboard.Types
-import IHP.ModelSupport
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import IHP.Job.Dashboard.Utils
+import IHP.Pagination.Types
+import IHP.Pagination.ViewFunctions
 import qualified IHP.Log as Log
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
@@ -60,6 +57,7 @@ renderStatus job = case get #status job of
     JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Failed</span>|]
     JobStatusSucceeded -> [hsx|<span class="badge badge-success">Succeeded</span>|]
     JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Retry</span>|]
+    JobStatusTimedOut -> [hsx|<span class="badge badge-danger" >Timed Out</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------
 
@@ -91,8 +89,8 @@ renderBaseJobTable table rows =
 |]
     where renderHeader field = [hsx|<th>{field}</th>|]
 
-renderBaseJobTablePaginated :: Text -> [BaseJob] -> Int -> Int -> Html
-renderBaseJobTablePaginated table jobs page totalPages =
+renderBaseJobTablePaginated :: Text -> [BaseJob] -> Pagination -> Html
+renderBaseJobTablePaginated table jobs pagination =
     let
         headers :: [Text] = ["ID", "Updated At", "Status", "", ""]
         lastJobIndex = (List.length jobs) - 1
@@ -115,37 +113,10 @@ renderBaseJobTablePaginated table jobs page totalPages =
                     </tbody>
                 </table>
             </div>
-            <nav aria-label="Page navigation example">
-                <ul class="pagination justify-content-end">
-                    {renderPrev}
-                    {when (totalPages /= 1) renderDest}
-                    {renderNext}
-                </ul>
-            </nav>
+            {renderPagination pagination}
         |]
     where
         renderHeader field = [hsx|<th>{field}</th>|]
-        renderDest = [hsx|<li class="page-item active"><a class="page-link" href={ListJobAction table page}>{page}</a></li>|]
-        renderPrev
-            | page == 1 = [hsx||]
-            | otherwise = [hsx|
-                <li class="page-item">
-                    <a class="page-link" href={ListJobAction table (page - 1)} aria-label="Previous">
-                        <span aria-hidden="true">&laquo;</span>
-                        <span class="sr-only">Previous</span>
-                    </a>
-                </li>
-        |]
-        renderNext
-            | page == totalPages || totalPages == 0 = [hsx||]
-            | otherwise = [hsx|
-                <li class="page-item">
-                    <a class="page-link" href={ListJobAction table (page + 1)} aria-label="Next">
-                        <span aria-hidden="true">&raquo;</span>
-                        <span class="sr-only">Next</span>
-                    </a>
-                </li>
-            |]
 
 renderBaseJobTableRow :: BaseJob -> Html
 renderBaseJobTableRow job = [hsx|
@@ -155,7 +126,7 @@ renderBaseJobTableRow job = [hsx|
             <td>{renderStatus job}</td>
             <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
             <td>
-                <form action={CreateJobAction (get #table job)} method="POST">
+                <form action={RetryJobAction (get #table job) (get #id job)} method="POST">
                     <button type="submit" style={retryButtonStyle} class="btn btn-link text-secondary">Retry</button>
                 </form>
             </td>
@@ -216,8 +187,9 @@ renderBaseJobDetailView job = let table = get #table job in [hsx|
             <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
             <button type="submit" class="btn btn-danger">Delete</button>
         </form>
-        <form action="/jobs/CreateJob" method="POST">
+        <form action="/jobs/RetryJob" method="POST">
             <input type="hidden" id="tableName" name="tableName" value={table}>
+            <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
             <button type="submit" class="btn btn-primary">Run again</button>
         </form>
     </div>

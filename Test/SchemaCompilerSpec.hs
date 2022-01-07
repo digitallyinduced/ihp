@@ -8,7 +8,6 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.SchemaCompiler
 import IHP.IDE.SchemaDesigner.Types
-import NeatInterpolation
 import qualified Data.Text as Text
 
 tests = do
@@ -18,7 +17,7 @@ tests = do
                 let statement = CreateEnumType { name = "mood", values = ["happy", "very happy", "sad", "very sad"] }
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
-                output `shouldBe` [text|
+                output `shouldBe` [trimming|
                     data Mood = Happy | VeryHappy | Sad | VerySad deriving (Eq, Show, Read, Enum)
                     instance FromField Mood where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "happy") = pure Happy
@@ -41,12 +40,21 @@ tests = do
 
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
+            it "should deal with enums that have no values" do
+                -- https://github.com/digitallyinduced/ihp/issues/1026
+                -- Empty enums typically happen when an enum was just created in the schema designer and no value has been added yet by the user
+                let statement = CreateEnumType { name = "mood", values = [] }
+                let output = compileStatementPreview [statement] statement |> Text.strip
+
+                -- We don't generate anything when no values are defined as there's nothing you could do with the enum yet
+                -- An empty data declaration is not really useful in this case
+                output `shouldBe` mempty
             it "should not pluralize values" do
                 -- See https://github.com/digitallyinduced/ihp/issues/767
                 let statement = CreateEnumType { name = "Province", values = ["Alberta", "BritishColumbia", "Saskatchewan", "Manitoba", "Ontario", "Quebec", "NovaScotia", "NewBrunswick", "PrinceEdwardIsland", "NewfoundlandAndLabrador"] }
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
-                output `shouldBe` [text|
+                output `shouldBe` [trimming|
                     data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum)
                     instance FromField Province where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Alberta") = pure Alberta
@@ -92,7 +100,7 @@ tests = do
                 let enum2 = CreateEnumType { name = "apartment_type", values = ["LOFT", "APARTMENT"] }
                 let output = compileStatementPreview [enum1, enum2] enum1 |> Text.strip
 
-                output `shouldBe` [text|
+                output `shouldBe` [trimming|
                     data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum)
                     instance FromField PropertyType where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "APARTMENT") = pure PropertyTypeApartment
@@ -119,20 +127,20 @@ tests = do
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
-                getInstanceDecl "CanCreate" compileOutput `shouldBe` [text|
+                getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING *" (Only (get #id model))
+                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (get #id model))
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING *") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
+                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
-                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [text|
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, get #id model))
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
@@ -144,10 +152,10 @@ tests = do
                 }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [text|
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
                     |]
             it "should deal with double default values" do
                 let statement = StatementCreateTable CreateTable
@@ -161,9 +169,7 @@ tests = do
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                putStrLn compileOutput
-
-                compileOutput `shouldBe` [text|
+                compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
                     type User = User' 
@@ -187,27 +193,87 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
 
-
-                    instance () => PrimaryKeyCondition (User' ) where
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
-
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING *" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING *") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
 
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING *" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0.17  def
                     instance Default (Id' "users") where def = Id def
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+                |]
+            it "should deal with integer default values for double columns" do
+                let statement = StatementCreateTable CreateTable
+                        { name = "users"
+                        , columns =
+                            [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False
+                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                compileOutput `shouldBe` [trimming|
+                    data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+                    type User = User' 
+
+                    instance FromRow User where
+                        fromRow = do
+                            id <- field
+                            ids <- field
+                            electricityUnitPrice <- field
+                            let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+                    type instance GetModelName (User' ) = "User"
+
+                    type instance PrimaryKey "users" = UUID
+
+                    instance QueryBuilder.FilterPrimaryKey "users" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
+
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
+
+                    instance Record User where
+                        {-# INLINE newRecord #-}
+                        newRecord = User def def 0  def
+                    instance Default (Id' "users") where def = Id def
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
                 |]
 
 getInstanceDecl :: Text -> Text -> Text
@@ -221,7 +287,7 @@ getInstanceDecl instanceName full =
         findInstanceDecl (line:rest)
             | ("instance " <> instanceName) `isPrefixOf` line = line : rest
             | otherwise = findInstanceDecl rest
-        findInstnaceDecl [] = error "didn't find instance declaration of " <> instanceName
+        findInstanceDecl [] = error ("didn't find instance declaration of " <> instanceName)
 
         takeInstanceDecl (line:rest)
             | isEmpty line = []

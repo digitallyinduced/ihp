@@ -17,24 +17,23 @@ module IHP.LoginSupport.Helper.Controller
 , CurrentAdminRecord
 , module IHP.AuthSupport.Authorization
 , module IHP.AuthSupport.Authentication
+, enableRowLevelSecurityIfLoggedIn
 ) where
 
 import IHP.Prelude
-import IHP.Controller.Context
 import IHP.Controller.Redirect
 import IHP.Controller.Session
 import IHP.LoginSupport.Types
-import IHP.Controller.RequestContext
 import qualified IHP.Controller.Session as Session
 import IHP.FlashMessages.ControllerFunctions
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
-import IHP.FrameworkConfig
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Monad.Fail
 import IHP.AuthSupport.Authorization
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
+import qualified IHP.FrameworkConfig as FrameworkConfig
+import qualified Database.PostgreSQL.Simple.ToField as PG
 
 {-# INLINABLE currentUser #-}
 currentUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
@@ -78,24 +77,37 @@ ensureIsAdmin =
         Just _ -> pure ()
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy admin))
 
--- | Log's in an entity
+-- | Log's in a user
+--
 -- Examples:
--- ```
--- let user :: User = ... in login user
--- let admin :: Admin = ... in login admin
--- ```
-{-# INLINABLE login #-}
+-- 
+-- > action ExampleAction = do
+-- >     user <- query @User |> fetchOne
+-- >     login user
+-- >     
+-- >     redirectToPath "/"
+--
 login :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
 login user = Session.setSession (sessionKey @user) (tshow (get #id user))
+{-# INLINABLE login #-}
 
--- Log's out an entity
-{-# INLINABLE logout #-}
-logout :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
+-- | Log's out a user
+--
+-- Example:
+--
+-- > action LogoutAction = do
+-- >     let user = currentUser
+-- >     logout user
+-- >     
+-- >     redirectToPath "/"
+--
+logout :: forall user. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user)) => user -> IO ()
 logout user = Session.setSession (sessionKey @user) ("" :: Text)
+{-# INLINABLE logout #-}
 
 {-# INLINABLE sessionKey #-}
-sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Text
-sessionKey = "login." <> ModelSupport.getModelName @user
+sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => ByteString
+sessionKey = "login." <> cs (ModelSupport.getModelName @user)
 
 redirectToLoginWithMessage :: (?context :: ControllerContext) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do
@@ -110,3 +122,40 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
     redirectToPath newSessionPath
     error "Unreachable"
 
+-- | After this call the security policies defined in your Schema.sql will be applied to the controller actions called after this
+--
+-- __Example:__
+--
+-- > instance InitControllerContext WebApplication where
+-- >     initContext = do
+-- >         initAuthentication @User
+-- >         enableRowLevelSecurityIfLoggedIn
+--
+-- Let's assume we have a policy defined in our Schema.sql that only allows users to see and edit rows in the projects table that have @projects.user_id = current_user_id@:
+--
+-- > CREATE POLICY "Users can manage their projects" ON projects USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+--
+-- Now any database queries to our @projects@ table will have this policy applied.
+--
+-- E.g. this action will now only show the users projects, even though no explicit @filterWhere (#userId, currentUserId)@ is specified on the query:
+--
+-- > action ProjectsAction = do
+-- >     projects <- query @Project |> fetch
+--
+enableRowLevelSecurityIfLoggedIn ::
+    ( ?context :: ControllerContext
+    , Typeable CurrentUserRecord
+    , HasNewSessionUrl CurrentUserRecord
+    , HasField "id" CurrentUserRecord userId
+    , PG.ToField userId
+    ) => IO ()
+enableRowLevelSecurityIfLoggedIn = do
+    case currentUserOrNothing of
+        Just user -> do
+            let rlsAuthenticatedRole = ?context
+                    |> FrameworkConfig.getFrameworkConfig
+                    |> get #rlsAuthenticatedRole
+            let rlsUserId = PG.toField (get #id user)
+            let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
+            putContext rlsContext
+        Nothing -> pure ()

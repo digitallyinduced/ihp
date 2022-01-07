@@ -13,17 +13,55 @@ data Statement
       StatementCreateTable { unsafeGetCreateTable :: CreateTable }
     -- | CREATE TYPE name AS ENUM ( values );
     | CreateEnumType { name :: Text, values :: [Text] }
+    -- | DROP TYPE name;
+    | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
     | CreateExtension { name :: Text, ifNotExists :: Bool }
-    -- | ALTER TABLE tableName ADD CONSTRAINT constraintName constraint;
-    | AddConstraint { tableName :: Text, constraintName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName ADD CONSTRAINT constraint;
+    | AddConstraint { tableName :: Text, constraint :: Constraint }
+    -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
+    | DropConstraint { tableName, constraintName :: Text }
+    -- | ALTER TABLE tableName ADD COLUMN column;
+    | AddColumn { tableName :: Text, column :: Column }
+    -- | ALTER TABLE tableName DROP COLUMN columnName;
+    | DropColumn { tableName :: Text, columnName :: Text }
+    -- | DROP TABLE tableName;
+    | DropTable { tableName :: Text }
     | UnknownStatement { raw :: Text }
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
     | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
+    -- | DROP INDEX indexName;
+    | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool }
+    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
+    -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
+    | EnableRowLevelSecurity { tableName :: Text }
+    -- CREATE POLICY name ON tableName USING using WITH CHECK check;
+    | CreatePolicy { name :: Text, tableName :: Text, using :: Maybe Expression, check :: Maybe Expression }
+    -- SET name = value;
+    | Set { name :: Text, value :: Expression }
+    -- SELECT query;
+    | SelectStatement { query :: Text }
+    -- CREATE SEQUENCE name;
+    | CreateSequence { name :: Text }
+    -- ALTER TABLE tableName RENAME COLUMN from TO to;
+    | RenameColumn { tableName :: Text, from :: Text, to :: Text }
+    -- ALTER TYPE enumName ADD VALUE newValue;
+    | AddValueToEnumType { enumName :: Text, newValue :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName DROP NOT NULL;
+    | DropNotNull { tableName :: Text, columnName :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName SET NOT NULL;
+    | SetNotNull { tableName :: Text, columnName :: Text }
+    -- | ALTER TABLE from RENAME TO to;
+    | RenameTable { from :: Text, to :: Text }
+    -- | DROP POLICY policyName ON tableName;
+    | DropPolicy { tableName :: Text, policyName :: Text }
+    -- ALTER TABLE tableName ALTER COLUMN columnName SET DEFAULT 'value';
+    | SetDefaultValue { tableName :: Text, columnName :: Text, value :: Expression }
+    -- ALTER TABLE tableName ALTER COLUMN columnName DROP DEFAULT;
+    | DropDefaultValue { tableName :: Text, columnName :: Text }
     deriving (Eq, Show)
 
 data CreateTable
@@ -59,14 +97,24 @@ newtype PrimaryKeyConstraint
 data Constraint
     -- | FOREIGN KEY (columnName) REFERENCES referenceTable (referenceColumn) ON DELETE onDelete;
     = ForeignKeyConstraint
-        { columnName :: Text
-        , referenceTable :: Text
-        , referenceColumn :: Maybe Text
-        , onDelete :: Maybe OnDelete
+        { name :: !(Maybe Text)
+        , columnName :: !Text
+        , referenceTable :: !Text
+        , referenceColumn :: !(Maybe Text)
+        , onDelete :: !(Maybe OnDelete)
         }
     | UniqueConstraint
-        { columnNames :: [Text] }
-    | CheckConstraint { checkExpression :: Expression }
+        { name :: !(Maybe Text)
+        , columnNames :: ![Text]
+        }
+    | CheckConstraint
+        { name :: !(Maybe Text)
+        , checkExpression :: !Expression
+        }
+    | AlterTableAddPrimaryKey
+        { name :: !(Maybe Text)
+        , primaryKeyConstraint :: !PrimaryKeyConstraint
+        }
     deriving (Eq, Show)
 
 data Expression =
@@ -86,6 +134,8 @@ data Expression =
     | IsExpression Expression Expression
     -- | NOT a
     | NotExpression Expression
+    -- | EXISTS a
+    | ExistsExpression Expression
     -- | a OR b
     | OrExpression Expression Expression
     -- | a < b
@@ -98,9 +148,19 @@ data Expression =
     | GreaterThanOrEqualToExpression Expression Expression
     -- | Double literal value, e.g. 0.1337
     | DoubleExpression Double
+    -- | Integer literal value, e.g. 1337
+    | IntExpression Int
     -- | value::type
     | TypeCastExpression Expression PostgresType
+    | SelectExpression Select
+    | DotExpression Expression Text
     deriving (Eq, Show)
+
+data Select = Select
+    { columns :: [Expression]
+    , from :: Expression
+    , whereClause :: Expression
+    } deriving (Eq, Show)
 
 data PostgresType
     = PUUID
@@ -118,7 +178,7 @@ data PostgresType
     | PBinary
     | PTime
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
-    | PVaryingN Int
+    | PVaryingN (Maybe Int)
     | PCharacterN Int
     | PSerial
     | PBigserial
@@ -126,5 +186,6 @@ data PostgresType
     | PInet
     | PTSVector
     | PArray PostgresType
+    | PTrigger
     | PCustomType Text
     deriving (Eq, Show)

@@ -9,7 +9,6 @@ import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
 import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
-import           Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
 import Data.String.Conversions
@@ -86,7 +85,7 @@ toStringAttribute (StaticAttribute name (ExpressionValue expression)) = let name
 toStringAttribute (SpreadAttributes expression) = [| spreadAttributes $(pure expression) |]
 
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Html5.Html -> Html5.Html
-spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (name <> "=\"") value) attributes
+spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (" " <> name <> "=\"") value) attributes
 
 applyAttributes :: Html5.Html -> [Html5.Html -> Html5.Html] -> Html5.Html
 applyAttributes element attributes = foldl' (\element attribute -> attribute element) element attributes
@@ -112,6 +111,10 @@ instance ApplyAttribute Bool where
     applyAttribute attr attr' false h | "data-" `Text.isPrefixOf` attr = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') "false") -- data attribute set to "false"
     applyAttribute attr attr' false h = h -- html boolean attribute, like <input disabled/> will be dropped as there is no other way to specify that it's set to false
     {-# INLINE applyAttribute #-}
+
+instance ApplyAttribute attribute => ApplyAttribute (Maybe attribute) where
+    applyAttribute attr attr' (Just value) h = applyAttribute attr attr' value h
+    applyAttribute attr attr' Nothing h = h
 
 instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
     applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (cs value))

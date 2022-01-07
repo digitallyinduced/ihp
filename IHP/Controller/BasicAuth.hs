@@ -6,7 +6,6 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Controller.BasicAuth (basicAuth) where
 
 import IHP.Prelude
-import IHP.Controller.RequestContext
 import IHP.ControllerSupport
 import Network.HTTP.Types (status401)
 import Network.Wai (responseLBS)

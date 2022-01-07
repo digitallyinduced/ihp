@@ -6,13 +6,12 @@
 
 ## Routing Basics
 
-In your project routes are defined in the `Web/Routes.hs`. In addition to defining that route, it also has to be added in `Web/FrontController.hs` to be picked up by the routing system.
+In your project, routes are defined in the `Web/Routes.hs`. In addition to defining that route, it also has to be added in `Web/FrontController.hs` to be picked up by the routing system.
 
-The simplest way to define a route is by using `AutoRoute`, which automatically maps each controller action to an URL. For a `PostsController`, the definition in `Web/Routes.hs` will look like this:
+The simplest way to define a route is by using [`AutoRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:AutoRoute), which automatically maps each controller action to an URL. For a `PostsController`, the definition in `Web/Routes.hs` will look like this:
 
 ```haskell
 instance AutoRoute PostsController
-type instance ModelControllerMap WebApplication Post = PostsController
 ```
 
 Afterwards enable the routes for `PostsController` in `Web/FrontController.hs` like this:
@@ -29,7 +28,7 @@ Now you can open e.g. `/Posts` to access the `PostsAction`.
 
 ## Changing the Start Page / Home Page
 
-You can define a custom start page action using the `startPage` function like this:
+You can define a custom start page action using the [`startPage`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) function like this:
 
 ```haskell
 instance FrontController WebApplication where
@@ -39,18 +38,18 @@ instance FrontController WebApplication where
         ]
 ```
 
-In a new IHP project, you usually have a `startPage WelcomeAction` defined. Make sure to remove this line. Otherwise, you will still see the default IHP welcome page.
+In a new IHP project, you usually have a [`startPage WelcomeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) defined. Make sure to remove this line. Otherwise, you will still see the default IHP welcome page.
 
 ## URL Generation
 
-Use `pathTo` to generate a path to a given action:
+Use [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo) to generate a path to a given action:
 
 ```haskell
 pathTo ShowPostAction { postId = "adddfb12-da34-44ef-a743-797e54ce3786" }
 -- /ShowPost?postId=adddfb12-da34-44ef-a743-797e54ce3786
 ```
 
-To generate a full URL, use `urlTo`:
+To generate a full URL, use [`urlTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:urlTo):
 
 ```haskell
 urlTo NewUserAction
@@ -139,7 +138,7 @@ pathTo (MyController [1,2,3]) ==> "/Default?listParam=1,2,3"
 ## For Integer ID types
 
 AutoRoute needs some help if your model does not use UUID as the id type and uses an integer based type instead. To get this to work, add the following to the
-`AutoRoute` instance declarations for each controller that needs to parse an integer ID type as an argument:
+[`AutoRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:AutoRoute) instance declarations for each controller that needs to parse an integer ID type as an argument:
 
 ```haskell
 instance AutoRoute TestController where
@@ -158,7 +157,7 @@ Show_Action   => GET, HEAD
 otherwise     => GET, POST, HEAD
 ```
 
-If you need more strong rules, consider using the other routing APIs available or overriding the `allowedMethodsForAction` like this:
+If you need more strong rules, consider using the other routing APIs available or overriding the [`allowedMethodsForAction`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:allowedMethodsForAction) like this:
 
 ```haskell
 instance AutoRoute HelloWorldController where
@@ -173,7 +172,7 @@ This prefixing has special handling for the `Web` module so that all controllers
 
 ## Custom Routing
 
-Sometimes you have special needs for your routing. For this case, IHP provides a lower-level routing API on which `AutoRoute` is built.
+Sometimes you have special needs for your routing. For this case, IHP provides a lower-level routing API on which [`AutoRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:AutoRoute) is built.
 
 Let's say we have a controller like this:
 
@@ -181,14 +180,14 @@ Let's say we have a controller like this:
 data PostsController = ShowAllMyPostsAction
 ```
 
-We want requests to `/posts` to map to `ShowAllMyPostsAction`. For that we need to add a `CanRoute` instance:
+We want requests to `/posts` to map to `ShowAllMyPostsAction`. For that we need to add a [`CanRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:CanRoute) instance:
 
 ```haskell
 instance CanRoute PostsController where
     parseRoute' = string "/posts" <* endOfInput >> pure ShowAllMyPostsAction
 ```
 
-The `parseRoute'` function is a parser that reads an URL and returns an action of type `PostsController`. The router uses [attoparsec](https://hackage.haskell.org/package/attoparsec). See below for examples on how to use this for building beautiful URLs.
+The [`parseRoute'`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseRoute-39-) function is a parser that reads an URL and returns an action of type `PostsController`. The router uses [attoparsec](https://hackage.haskell.org/package/attoparsec). See below for examples on how to use this for building beautiful URLs.
 
 Next to the routing itself, we also need to implement the URL generation:
 
@@ -237,7 +236,7 @@ action ShowPostAction { postId, slug } = do
 
 This expects the `posts` table to have a field `slug :: Text`.
 
-Now we define our `CanRoute` instance like this:
+Now we define our [`CanRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:CanRoute) instance like this:
 
 ```haskell
 instance CanRoute PostsController where
@@ -248,7 +247,7 @@ instance CanRoute PostsController where
         postById <|> postBySlug
 ```
 
-Additionally we also have to implement the `HasPath` instance:
+Additionally we also have to implement the [`HasPath`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:HasPath) instance:
 
 ```haskell
 instance HasPath PostsController where

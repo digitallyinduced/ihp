@@ -23,6 +23,8 @@ CanRoute (..)
 , parseText
 , webSocketApp
 , webSocketAppWithCustomPath
+, onlyAllowMethods
+, getMethod
 ) where
 
 import qualified Prelude
@@ -36,18 +38,13 @@ import GHC.Records
 import IHP.Controller.RequestContext
 import Network.Wai
 import IHP.ControllerSupport
-import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
+import Data.Attoparsec.ByteString.Char8 (string, Parser, parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import GHC.TypeLits
 import Data.Data
-import qualified Data.UUID as UUID
-import Data.Maybe (fromJust)
-import qualified Text.Inflections as Inflections
-import qualified Data.Either as Either
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Text as Text
 import Network.HTTP.Types.URI
-import Data.List ((!!))
 import qualified Data.List as List
 import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)
@@ -604,6 +601,37 @@ post path action = do
         _   -> fail "Invalid method, expected POST"
 {-# INLINABLE post #-}
 
+-- | Filter methods when writing a custom routing parser
+--
+-- __Example:__
+--
+-- > instance CanRoute ApiController where
+-- >    parseRoute' = do
+-- >        string "/api/"
+-- >        let
+-- >            createRecordAction = do
+-- >                onlyAllowMethods [POST]
+-- >
+-- >                table <- parseText
+-- >                endOfInput
+-- >                pure CreateRecordAction { table }
+-- >
+-- >            updateRecordAction = do
+-- >                onlyAllowMethods [PATCH]
+-- >                
+-- >                table <- parseText
+-- >                string "/"
+-- >                id <- parseUUID
+-- >                pure UpdateRecordAction { table, id }
+-- >        
+-- > createRecordAction <|> updateRecordAction
+--
+onlyAllowMethods :: (?context :: RequestContext) => [StdMethod] -> Parser ()
+onlyAllowMethods methods = do
+    method <- getMethod
+    unless (method `elem` methods) (fail ("Invalid method, expected one of: " <> show methods))
+{-# INLINABLE onlyAllowMethods #-}
+
 -- | Routes to a given WebSocket app if the path matches the WebSocket app name
 --
 -- __Example:__
@@ -679,13 +707,13 @@ runApp routes notFoundAction = do
         Right action -> action
 {-# INLINABLE runApp #-}
 
-frontControllerToWAIApp :: forall app parent config controllerContext. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> [Parser (IO ResponseReceived)] -> IO ResponseReceived -> IO ResponseReceived
+frontControllerToWAIApp :: forall app. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> [Parser (IO ResponseReceived)] -> IO ResponseReceived -> IO ResponseReceived
 frontControllerToWAIApp application additionalControllers notFoundAction = runApp (choice (map (\r -> r <* endOfInput) allControllers)) notFoundAction
     where
         allControllers = (let ?application = application in controllers) <> additionalControllers
 {-# INLINABLE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
+mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
 mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
 {-# INLINABLE mountFrontController #-}
 

@@ -7,10 +7,7 @@ module IHP.ScriptSupport (runScript, Script, module IHP.FrameworkConfig) where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
-import qualified IHP.Environment as Env
 import IHP.ModelSupport
-import IHP.ApplicationContext
-import qualified Database.PostgreSQL.Simple as PG
 import Control.Exception (finally)
 import IHP.Log (Logger(cleanup))
 

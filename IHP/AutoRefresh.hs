@@ -7,32 +7,24 @@ module IHP.AutoRefresh where
 
 import IHP.Prelude
 import IHP.AutoRefresh.Types
-import qualified Data.TMap as TypeMap
 import IHP.ControllerSupport
 import IHP.ApplicationContext
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import IHP.Controller.Session
-import qualified Network.WebSockets as Websocket
-import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Network.Wai.Internal as Wai
-import IHP.ControllerSupport
 import qualified Data.Binary.Builder as ByteString
-import qualified Control.Concurrent as Concurrent
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Data.Set as Set
 import IHP.ModelSupport
 import qualified Control.Exception as Exception
-import Control.Monad (void)
-import Control.Concurrent.Async
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
-import qualified IHP.PGNotify as PGNotify
 import IHP.Controller.Context
+import qualified IHP.PGListener as PGListener
+import qualified Database.PostgreSQL.Simple.Types as PG
+import Data.String.Interpolate.IsString
 
 initAutoRefresh :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initAutoRefresh = do
@@ -80,7 +72,21 @@ autoRefresh runAction = do
                         Wai.ResponseBuilder status headers builder -> do
                             tables <- readIORef ?touchedTables
                             lastPing <- getCurrentTime
-                            let lastResponse = ByteString.toLazyByteString builder
+
+                            -- It's important that we evaluate the response to HNF here
+                            -- Otherwise a response `error "fail"` will break auto refresh and cause
+                            -- the action to be unreachable until the server is restarted.
+                            --
+                            -- Specifically a request like this will crash the action:
+                            --
+                            -- > curl --header 'Accept: application/json' http://localhost:8000/ShowItem?itemId=6bbe1a72-400a-421e-b26a-ff58d17af3e5
+                            --
+                            -- Let's assume that the view has no implementation for JSON responses. Then
+                            -- it will render a 'error "JSON not implemented"'. After this curl request
+                            -- all future HTML requests to the current action will fail with a 503.
+                            --
+                            lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
+
                             event <- MVar.newEmptyMVar
                             let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
                             modifyIORef autoRefreshServer (\s -> s { sessions = session:(get #sessions s) } )
@@ -152,7 +158,17 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
     modifyIORef autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
-    subscriptions <-  subscriptionRequired |> mapM (\table -> PGNotify.watchInsertOrUpdateTable table do
+
+    pgListener <- get #pgListener <$> readIORef autoRefreshServer
+    subscriptions <-  subscriptionRequired |> mapM (\table -> do
+        let createTriggerSql = notificationTrigger table
+
+        -- We need to add the trigger from the main IHP database role other we will get this error:
+        -- ERROR:  permission denied for schema public
+        withRowLevelSecurityDisabled do
+            sqlExec createTriggerSql ()
+
+        pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (get #sessions) <$> readIORef autoRefreshServer
                 sessions
                     |> filter (\session -> table `Set.member` (get #tables session))
@@ -209,7 +225,33 @@ gcSessions autoRefreshServer = do
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
 isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
 
--- | Stops all async Auto Refresh subscriptions
-stopAutoRefreshServer :: IORef AutoRefreshServer -> IO ()
-stopAutoRefreshServer autoRefreshServer =
-    readIORef autoRefreshServer >>= (\autoRefreshServer -> autoRefreshServer |> get #subscriptions |> mapM_ uninterruptibleCancel)
+-- | Returns the event name of the event that the pg notify trigger dispatches
+channelName :: ByteString -> ByteString
+channelName tableName = "did_change_" <> tableName
+
+-- | Returns the sql code to set up a database trigger
+notificationTrigger :: ByteString -> PG.Query
+notificationTrigger tableName = PG.Query [i|
+        BEGIN;
+            CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
+                BEGIN
+                    PERFORM pg_notify('#{channelName tableName}', '');
+                    RETURN new;
+                END;
+            $$ language plpgsql;
+            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
+            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+            
+            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
+            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+
+            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
+            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+        
+        COMMIT;
+    |]
+    where
+        functionName = "notify_did_change_" <> tableName
+        insertTriggerName = "did_insert_" <> tableName
+        updateTriggerName = "did_update_" <> tableName
+        deleteTriggerName = "did_delete_" <> tableName

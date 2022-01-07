@@ -1,7 +1,6 @@
 module IHP.Pagination.Types where
 
 import IHP.Prelude
-import IHP.QueryBuilder
 
 data Pagination = 
     Pagination

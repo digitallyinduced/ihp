@@ -19,9 +19,18 @@ tests = do
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+        
+        it "should parse an CREATE EXTENSION with schema suffix" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+        
+        it "should parse an CREATE EXTENSION without quotes" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True }
 
         it "should parse a line comment" do
-            parseSql "-- Comment value" `shouldBe` Comment { content = "Comment value" }
+            parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
+        
+        it "should parse an empty comment" do
+            parseSqlStatements "--\n--" `shouldBe` [ Comment { content = "" }, Comment { content = "" } ]
 
         it "should parse a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
@@ -107,9 +116,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
@@ -119,9 +128,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET DEFAULT;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetDefault
@@ -131,9 +140,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetNull
@@ -143,9 +152,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE RESTRICT" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE RESTRICT;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Restrict
@@ -155,9 +164,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE NO ACTION" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE NO ACTION;" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just NoAction
@@ -167,9 +176,9 @@ tests = do
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. (without ON DELETE)" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id);" `shouldBe` AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Nothing
@@ -179,18 +188,18 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
+                        { name = "check_title_length"
+                        , checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
                         }
                     }
 
         it "should parse a complex ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             parseSql "ALTER TABLE properties ADD CONSTRAINT foobar CHECK ((property_type = 'haus_buy' AND area_garden IS NOT NULL AND rent_monthly IS NULL) OR (property_type = 'haus_rent' AND rent_monthly IS NOT NULL AND price IS NULL));" `shouldBe` AddConstraint
                     { tableName = "properties"
-                    , constraintName = "foobar"
                     , constraint = CheckConstraint
-                        { checkExpression = OrExpression
+                        { name = "foobar"
+                        , checkExpression = OrExpression
                                 (AndExpression
                                     (AndExpression
                                         (EqExpression (VarExpression "property_type") (TextExpression "haus_buy"))
@@ -213,12 +222,12 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) < 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             LessThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
@@ -227,24 +236,24 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <=" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) <= 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             LessThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) > 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             GreaterThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
@@ -252,12 +261,12 @@ tests = do
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >=" do
             parseSql "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) >= 20);" `shouldBe` AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression =
+                        { name = "check_title_length"
+                        , checkExpression =
                             GreaterThanOrEqualToExpression
                                 (CallExpression ("length") [VarExpression "title"])
-                                (VarExpression "20")
+                                (IntExpression 20)
                         }
                     }
 
@@ -274,6 +283,9 @@ tests = do
         -- Thats why empty Enums will not throw errors.
         it "should parse CREATE TYPE .. AS ENUM without values" do
             parseSql "CREATE TYPE colors AS ENUM ();" `shouldBe` CreateEnumType { name = "colors", values = [] }
+
+        it "should parse ALTER TYPE .. ADD VALUE .." do
+            parseSql "ALTER TYPE colors ADD VALUE 'blue';" `shouldBe` AddValueToEnumType { enumName = "colors", newValue = "blue" }
 
         it "should parse a CREATE TABLE with INTEGER / INT / INT4 / SMALLINT / INT2 / BIGINT / INT8 columns" do
             parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, smallint_a SMALLINT, smallint_b INT2, bigint_a BIGINT, bigint_b int8);" `shouldBe` StatementCreateTable CreateTable
@@ -333,7 +345,7 @@ tests = do
                         [ col { name = "a", columnType = PNumeric Nothing Nothing}
                         , col { name = "b", columnType = (PNumeric (Just 1) Nothing) }
                         , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
-                        , col { name = "d", columnType = (PVaryingN 10) }
+                        , col { name = "d", columnType = (PVaryingN (Just 10)) }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
@@ -348,7 +360,7 @@ tests = do
                         , col { name = "follower_id", columnType = PUUID, notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                     }
 
         it "should fail to parse a CREATE TABLE statement with an empty UNIQUE () constraint" do
@@ -444,6 +456,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
         it "should parse a CREATE FUNCTION ..() RETURNS TRIGGER .." do
@@ -451,7 +465,26 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
+        it "should parse CREATE FUNCTION statements that are outputted by pg_dump" do
+            let sql = cs [plain|
+CREATE FUNCTION public.notify_did_change_projects() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$BEGIN
+    PERFORM pg_notify('did_change_projects', '');
+    RETURN new;END;
+$$;
+            |]
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "notify_did_change_projects"
+                    , functionBody = "BEGIN\n    PERFORM pg_notify('did_change_projects', '');\n    RETURN new;END;\n"
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    }
+
 
         it "should parse unsupported SQL as a unknown statement" do
             let sql = "CREATE TABLE a(); CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y(); CREATE TABLE b();"
@@ -469,6 +502,13 @@ tests = do
                     ]
             parseSqlStatements sql `shouldBe` statements
 
+        it "should parse a integer default value" do
+            let sql = "CREATE TABLE a(electricity_unit_price INT DEFAULT 0 NOT NULL);"
+            let statements =
+                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+                    ]
+            parseSqlStatements sql `shouldBe` statements
+
         it "should parse a partial index" do
             parseSql "CREATE UNIQUE INDEX unique_source_id ON listings (source, source_id) WHERE source IS NOT NULL AND source_id IS NOT NULL;" `shouldBe` CreateIndex
                     { indexName = "unique_source_id"
@@ -481,6 +521,214 @@ tests = do
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     }
 
+        it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
+            parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
+
+        it "should parse 'CREATE POLICY' statements" do
+            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe` CreatePolicy
+                    { name = "Users can manage their tasks"
+                    , tableName = "tasks"
+                    , using = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    , check = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    }
+        it "should parse 'ALTER TABLE .. ADD COLUMN' statements" do
+            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = Column { name ="b", columnType = PInt, defaultValue = Nothing, notNull = True, isUnique = False}}
+
+        it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
+            parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
+        
+        it "should parse 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
+            parseSql "ALTER TABLE users RENAME COLUMN name TO full_name;" `shouldBe` RenameColumn { tableName = "users", from = "name", to = "full_name" }
+        
+        it "should parse 'DROP TABLE ..' statements" do
+            parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
+        
+        it "should parse 'DROP TYPE ..' statements" do
+            parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
+
+        it "should parse 'ALTER TABLE .. DROP CONSTRAINT ..' statements" do
+            parseSql "ALTER TABLE tasks DROP CONSTRAINT tasks_title_key;" `shouldBe` DropConstraint { tableName = "tasks", constraintName = "tasks_title_key" }
+
+        it "should parse 'CREATE SEQUENCE ..' statements" do
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
+
+        it "should parse 'SET' statements" do
+            parseSql "SET statement_timeout = 0;" `shouldBe` Set { name = "statement_timeout", value = IntExpression 0 }
+            parseSql "SET client_encoding = 'UTF8';" `shouldBe` Set { name = "client_encoding", value = TextExpression "UTF8" }
+
+        it "should parse 'SELECT' statements" do
+            parseSql "SELECT pg_catalog.set_config('search_path', '', false);" `shouldBe` SelectStatement { query = "pg_catalog.set_config('search_path', '', false)" }
+        it "should parse 'COMMENT' statements" do
+            parseSql "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)';" `shouldBe` Comment { content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'" }
+
+        it "should parse a column with a default value that has a qualified function call" do
+            let sql = cs [plain|
+                CREATE TABLE a(id UUID DEFAULT public.uuid_generate_v4() NOT NULL);
+            |]
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            parseSql sql `shouldBe` statement
+
+
+        it "should parse character varying type casts" do
+            let sql = cs [plain|
+                CREATE TABLE a (
+                    a character varying(510) DEFAULT NULL::character varying
+                );
+            |]
+            let statement = StatementCreateTable CreateTable
+                    { name = "a"
+                    , columns = [ Column
+                            {name = "a"
+                            , columnType = PVaryingN (Just 510)
+                            , defaultValue = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
+                            , notNull = False
+                            , isUnique = False
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            parseSql sql `shouldBe` statement
+        
+        it "should parse empty binary strings" do
+            let sql = cs [plain|
+                CREATE TABLE a (
+                    a bytea DEFAULT '\\x'::bytea NOT NULL
+                );
+            |]
+            let statement = StatementCreateTable CreateTable
+                    { name = "a"
+                    , columns = [ Column
+                            {name = "a"
+                            , columnType = PBinary
+                            , defaultValue = Just (TypeCastExpression (TextExpression "") PBinary)
+                            , notNull = True
+                            , isUnique = False
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            parseSql sql `shouldBe` statement
+        it "should parse a pg_dump header" do
+            let sql = cs [plain|
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 13.3
+-- Dumped by pg_dump version 13.3
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+
+
+            |]
+
+            let statements =
+                    [ Comment {content = ""}
+                    , Comment {content = " PostgreSQL database dump"}
+                    , Comment {content = ""}
+                    , Comment {content = " Dumped from database version 13.3"}
+                    , Comment {content = " Dumped by pg_dump version 13.3"}
+                    , Set {name = "statement_timeout", value = IntExpression 0}
+                    , Set {name = "lock_timeout", value = IntExpression 0}
+                    , Set {name = "idle_in_transaction_session_timeout", value = IntExpression 0}
+                    , Set {name = "client_encoding", value = TextExpression "UTF8"}
+                    , Set {name = "standard_conforming_strings", value = VarExpression "on"}
+                    , SelectStatement {query = "pg_catalog.set_config('search_path', '', false)"}
+                    , Set {name = "check_function_bodies", value = VarExpression "false"}
+                    , Set {name = "xmloption", value = VarExpression "content"}
+                    , Set {name = "client_min_messages", value = VarExpression "warning"}
+                    , Set {name = "row_security", value = VarExpression "off"}
+                    , Comment {content = ""}
+                    , Comment {content = " Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -"}
+                    , Comment {content = ""}
+                    , CreateExtension {name = "uuid-ossp", ifNotExists = True}
+                    , Comment {content = ""}
+                    , Comment {content = " Name: EXTENSION \"uuid-ossp\"; Type: COMMENT; Schema: -; Owner: -"}
+                    , Comment {content = ""}
+                    , Comment {content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
+                    ]
+            parseSqlStatements sql `shouldBe` statements
+        
+        it "should parse 'DROP INDEX ..' statements" do
+            parseSql "DROP INDEX a;" `shouldBe` DropIndex { indexName = "a" }
+        
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b DROP NOT NULL;" `shouldBe` DropNotNull { tableName = "a", columnName = "b" }
+        
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. SET NOT NULL' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b SET NOT NULL;" `shouldBe` SetNotNull { tableName = "a", columnName = "b" }
+
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. SET DEFAULT ..' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b SET DEFAULT null;" `shouldBe` SetDefaultValue { tableName = "a", columnName = "b", value = VarExpression "null" }
+
+        it "should parse 'ALTER TABLE .. ALTER COLUMN .. DROP DEFAULT' statements" do
+            parseSql "ALTER TABLE a ALTER COLUMN b DROP DEFAULT;" `shouldBe` DropDefaultValue { tableName = "a", columnName = "b" }
+
+        it "should parse 'ALTER TABLE .. RENAME TO ..' statements" do
+            parseSql "ALTER TABLE profiles RENAME TO users;" `shouldBe` RenameTable { from = "profiles", to = "users" }
+        
+        it "should parse 'DROP POLICY .. ON ..' statements" do
+            parseSql "DROP POLICY \"Users can manage their todos\" ON todos;" `shouldBe` DropPolicy { tableName = "todos", policyName = "Users can manage their todos" }
+
+        it "should parse policies with an EXISTS condition" do
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM projects WHERE id = project_id)) WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE id = project_id));|]
+            parseSql sql `shouldBe` CreatePolicy
+                    { name = "Users can manage their project's migrations"
+                    , tableName = "migrations"
+                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    }
+        
+        it "should parse policies with an EXISTS condition and a qualified table name" do
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));|]
+            parseSql sql `shouldBe` CreatePolicy
+                    { name = "Users can manage their project's migrations"
+                    , tableName = "migrations"
+                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                    }
+
+        it "should parse a call expression with multiple arguments" do
+            let sql = cs [plain|ALTER TABLE a ADD CONSTRAINT source CHECK (num_nonnulls(a, b, c) = 1);|]
+            parseSql sql `shouldBe`  AddConstraint
+                { tableName = "a"
+                , constraint = CheckConstraint
+                    { name = Just "source"
+                    , checkExpression = EqExpression (CallExpression "num_nonnulls" [VarExpression "a",VarExpression "b",VarExpression "c"]) (IntExpression 1)
+                    }
+                }
 
 col :: Column
 col = Column

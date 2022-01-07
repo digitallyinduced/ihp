@@ -1,14 +1,9 @@
 module IHP.IDE.Data.View.ShowTableRows where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
-import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
-import Data.Maybe
 
 data ShowTableRowsView = ShowTableRowsView
     { tableNames :: [Text]

@@ -10,7 +10,7 @@ import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
-import Test.IDE.SchemaDesigner.ParserSpec (col)
+import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
 
 tests = do
     describe "The Schema.sql Compiler" do
@@ -21,7 +21,10 @@ tests = do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
         it "should compile a line comment" do
-            compileSql [Comment { content = "Comment value" }] `shouldBe` "-- Comment value\n"
+            compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
+        
+        it "should compile a empty line comments" do
+            compileSql [Comment { content = "" }, Comment { content = "" }] `shouldBe` "--\n--\n"
 
         it "should compile a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
@@ -106,9 +109,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
@@ -119,9 +122,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetDefault
@@ -132,9 +135,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just SetNull
@@ -145,9 +148,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE RESTRICT" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Restrict
@@ -158,9 +161,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE NO ACTION" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just NoAction
@@ -171,9 +174,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. (without ON DELETE)" do
             let statement = AddConstraint
                     { tableName = "users"
-                    , constraintName = "users_ref_company_id"
                     , constraint = ForeignKeyConstraint
-                        { columnName = "company_id"
+                        { name = "users_ref_company_id"
+                        , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Nothing
@@ -184,9 +187,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
+                        { name = "check_title_length"
+                        , checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');\n"
@@ -194,9 +197,9 @@ tests = do
         it "should compile a complex ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint
                     { tableName = "properties"
-                    , constraintName = "foobar"
                     , constraint = CheckConstraint
-                        { checkExpression = OrExpression
+                        { name = "foobar"
+                        , checkExpression = OrExpression
                                 (AndExpression
                                     (AndExpression
                                         (EqExpression (VarExpression "property_type") (TextExpression "haus_buy"))
@@ -219,9 +222,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = LessThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = LessThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) < 20);\n"
@@ -229,9 +232,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <=" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = LessThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = LessThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) <= 20);\n"
@@ -239,9 +242,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = GreaterThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = GreaterThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) > 20);\n"
@@ -249,9 +252,9 @@ tests = do
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >=" do
             let statement = AddConstraint
                     { tableName = "posts"
-                    , constraintName = "check_title_length"
                     , constraint = CheckConstraint
-                        { checkExpression = GreaterThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
+                        { name = "check_title_length"
+                        , checkExpression = GreaterThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) >= 20);\n"
@@ -310,7 +313,7 @@ tests = do
                             }
                         , Column
                             { name = "d"
-                            , columnType = (PVaryingN 10)
+                            , columnType = (PVaryingN (Just 10))
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
@@ -331,7 +334,7 @@ tests = do
                         , col { name = "follower_id", columnType = PUUID, notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = [ UniqueConstraint { columnNames = [ "user_id", "follower_id" ] } ]
+                    , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -438,6 +441,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -449,6 +454,8 @@ tests = do
                     { functionName = "notify_did_insert_webrtc_connection"
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -464,6 +471,11 @@ tests = do
             let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a integer default value" do
+            let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a partial index" do
             let sql = cs [plain|CREATE UNIQUE INDEX unique_source_id ON listings (source, source_id) WHERE source IS NOT NULL AND source_id IS NOT NULL;\n|]
             let index = CreateIndex
@@ -477,3 +489,123 @@ tests = do
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     }
             compileSql [index] `shouldBe` sql
+
+        it "should compile 'ENABLE ROW LEVEL SECURITY' statements" do
+            let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
+            let statements = [EnableRowLevelSecurity { tableName = "tasks" }]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE POLICY' statements" do
+            let sql = "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());\n"
+            let policy = CreatePolicy
+                    { name = "Users can manage their tasks"
+                    , tableName = "tasks"
+                    , using = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    , check = Just (
+                        EqExpression
+                            (VarExpression "user_id")
+                            (CallExpression "ihp_user_id" [])
+                        )
+                    }
+            compileSql [policy] `shouldBe` sql
+
+        it "should use parentheses where needed" do
+            -- https://github.com/digitallyinduced/ihp/issues/1087
+            let inputSql = cs [plain|ALTER TABLE listings ADD CONSTRAINT source CHECK ((NOT (user_id IS NOT NULL AND agent_id IS NOT NULL)) AND (user_id IS NOT NULL OR agent_id IS NOT NULL));\n|]
+            compileSql [parseSql inputSql] `shouldBe` inputSql
+
+        it "should compile 'ALTER TABLE .. DROP COLUMN ..' statements" do
+            let sql = "ALTER TABLE tasks DROP COLUMN description;\n"
+            let statements = [ DropColumn { tableName = "tasks", columnName = "description" } ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'DROP TABLE ..' statements" do
+            let sql = "DROP TABLE tasks;\n"
+            let statements = [ DropTable { tableName = "tasks" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE SEQUENCE ..' statements" do
+            let sql = "CREATE SEQUENCE a;\n"
+            let statements = [ CreateSequence { name = "a" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
+            let sql = "ALTER TABLE users RENAME COLUMN name TO full_name;\n"
+            let statements = [ RenameColumn { tableName = "users", from = "name", to = "full_name" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. ADD UNIQUE (..);' statements" do
+            let sql = "ALTER TABLE users ADD UNIQUE (full_name);\n"
+            let statements = [ AddConstraint { tableName = "users", constraint = UniqueConstraint { name = Nothing, columnNames = ["full_name"] }  } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. DROP CONSTRAINT ..;' statements" do
+            let sql = "ALTER TABLE users DROP CONSTRAINT users_full_name_key;\n"
+            let statements = [ DropConstraint { tableName = "users", constraintName = "users_full_name_key" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'DROP TYPE ..;' statements" do
+            let sql = "DROP TYPE colors;\n"
+            let statements = [ DropEnumType { name = "colors" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'DROP INDEX ..;' statements" do
+            let sql = "DROP INDEX a;\n"
+            let statements = [ DropIndex { indexName = "a" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email DROP NOT NULL;\n"
+            let statements = [ DropNotNull { tableName = "users", columnName = "email" } ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. SET NOT NULL;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email SET NOT NULL;\n"
+            let statements = [ SetNotNull { tableName = "users", columnName = "email" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. SET DEFAULT ..;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email SET DEFAULT null;\n"
+            let statements = [ SetDefaultValue { tableName = "users", columnName = "email", value = VarExpression "null" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. DROP DEFAULT;' statements" do
+            let sql = "ALTER TABLE users ALTER COLUMN email DROP DEFAULT;\n"
+            let statements = [ DropDefaultValue { tableName = "users", columnName = "email" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER TABLE .. RENAME TO ..;' statements" do
+            let sql = "ALTER TABLE profiles RENAME TO users;\n"
+            let statements = [ RenameTable { from = "profiles", to = "users" } ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'DROP POLICY .. ON ..;' statements" do
+            let sql = "DROP POLICY \"Users can manage their todos\" ON todos;\n"
+            let statements = [ DropPolicy { tableName = "todos", policyName = "Users can manage their todos" } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE EXTENSION IF NOT EXISTS;' statements with an unqualified name" do
+            let sql = "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;\n"
+            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE POLICY ..;' statements with an EXISTS condition" do
+            let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));\n|]
+            let statements =
+                    [ CreatePolicy
+                        { name = "Users can manage their project's migrations"
+                        , tableName = "migrations"
+                        , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                        , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                        }
+                    ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'ALTER TYPE .. ADD VALUE ..;' statements" do
+            let sql = "ALTER TYPE colors ADD VALUE 'blue';\n"
+            let statements = [ AddValueToEnumType { enumName = "colors", newValue = "blue" } ]
+            compileSql statements `shouldBe` sql

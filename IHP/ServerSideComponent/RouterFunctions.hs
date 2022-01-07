@@ -13,7 +13,7 @@ import IHP.RouterSupport
 import qualified Prelude
 import Network.Wai
 import Data.Attoparsec.ByteString.Char8 (Parser)
-import IHP.ServerSideComponent.Controller.ComponentsController
+import IHP.ServerSideComponent.Controller.ComponentsController ()
 import Data.Aeson
 import IHP.ControllerSupport
 import IHP.ApplicationContext

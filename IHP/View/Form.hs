@@ -14,18 +14,16 @@ module IHP.View.Form where
 import IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.ConvertibleStrings ()
-import           IHP.ViewErrorMessages
+import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5
 import IHP.HSX.ToHtml
-import IHP.NameSupport
 import GHC.Types
-import IHP.RouterSupport hiding (get)
-import IHP.ModelSupport (getModelName, inputValue, isNew, GetModelName, Id', NormalizeModel, MetaBag, InputValue)
+import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue)
 import IHP.HSX.QQ (hsx)
 import IHP.View.Types
-import IHP.View.Classes
-import qualified Network.Wai as Wai
+import IHP.View.Classes ()
+import Network.Wai (pathInfo)
 import IHP.Controller.Context
 
 -- | Forms usually begin with a 'formFor' expression.
@@ -92,17 +90,12 @@ import IHP.Controller.Context
 -- >     />
 -- >     <div class="invalid-feedback">This field cannot be empty</div>
 -- > </div>
-formFor :: forall record id application. (
+formFor :: forall record. (
     ?context :: ControllerContext
-    , Eq record
-    , Typeable record
-    , ModelFormAction application record
-    , HasField "id" record id
+    , ModelFormAction record
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
-formFor record formBody = formForWithOptions @record @id @application record (\c -> c) formBody
+formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 {-# INLINE formFor #-}
 
 -- | Like 'formFor' but allows changing the underlying 'FormContext'
@@ -121,17 +114,12 @@ formFor record formBody = formForWithOptions @record @id @application record (\c
 -- >     |> set #formId "post-form"
 -- >     |> set #customFormAttributes [("data-post-id", show (get #id (get #model formContext)))]
 --
-formForWithOptions :: forall record id application. (
+formForWithOptions :: forall record. (
     ?context :: ControllerContext
-    , Eq record
-    , Typeable record
-    , ModelFormAction application record
-    , HasField "id" record id
+    , ModelFormAction record
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
-formForWithOptions record applyOptions formBody = buildForm (applyOptions (createFormContext record) { formAction = modelFormAction @application record }) formBody
+formForWithOptions record applyOptions formBody = buildForm (applyOptions (createFormContext record) { formAction = modelFormAction record }) formBody
 {-# INLINE formForWithOptions #-}
 
 -- | Like 'formFor' but disables the IHP javascript helpers.
@@ -158,17 +146,12 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 -- > formOptions formContext = formContext
 -- >     |> set #disableJavascriptSubmission True
 --
-formForWithoutJavascript :: forall record id application. (
+formForWithoutJavascript :: forall record. (
     ?context :: ControllerContext
-    , Eq record
-    , Typeable record
-    , ModelFormAction application record
-    , HasField "id" record id
+    , ModelFormAction record
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
-formForWithoutJavascript record formBody = formForWithOptions @record @id @application record (\formContext -> formContext { disableJavascriptSubmission = True }) formBody
+formForWithoutJavascript record formBody = formForWithOptions @record record (\formContext -> formContext { disableJavascriptSubmission = True }) formBody
 {-# INLINE formForWithoutJavascript #-}
 
 -- | Allows a custom form action (form submission url) to be set
@@ -194,27 +177,17 @@ formForWithoutJavascript record formBody = formForWithOptions @record @id @appli
 -- > renderForm :: Post -> Html
 -- > renderForm post = formFor' post (pathTo CreateDraftAction) [hsx||]
 --
-formFor' :: forall record id application. (
+formFor' :: forall record. (
     ?context :: ControllerContext
-    , Eq record
-    , Typeable record
-    , HasField "id" record id
     , HasField "meta" record MetaBag
-    , Default id
-    , Eq id
     ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
 
 -- | Used by 'formFor' to make a new form context
-createFormContext :: forall record viewContext id application. (
+createFormContext :: forall record. (
         ?context :: ControllerContext
-        , Eq record
-        , Typeable record
-        , HasField "id" record id
         , HasField "meta" record MetaBag
-        , Default id
-        , Eq id
         ) => record -> FormContext record
 createFormContext record =
     FormContext
@@ -229,7 +202,7 @@ createFormContext record =
 {-# INLINE createFormContext #-}
 
 -- | Used by 'formFor' to render the form
-buildForm :: forall model  id. (?context :: ControllerContext, HasField "id" model id, Default id, Eq id) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+buildForm :: forall model. (?context :: ControllerContext) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
 buildForm formContext inner =
     let
         theModel = model formContext
@@ -282,13 +255,14 @@ buildForm formContext inner =
 -- > <form method="POST" action="/CreatePost" id="" class="new-form">
 -- >     <button class="btn btn-primary create-button">Create Post</button>
 -- > </form>
-submitButton :: forall model id. (?formContext :: FormContext model, HasField "id" model id, KnownSymbol (GetModelName model), Eq id, Default id) => SubmitButton
+submitButton :: forall model. (?formContext :: FormContext model, HasField "meta" model MetaBag, KnownSymbol (GetModelName model)) => SubmitButton
 submitButton =
     let
         modelName = IHP.ModelSupport.getModelName @model
+        buttonText = modelName |> humanize -- We do this to turn 'Create ProjectTask' into 'Create Project Task'
         isNew = IHP.ModelSupport.isNew (model ?formContext)
     in SubmitButton
-    { label = cs $ (if isNew then "Create " else "Save ") <> modelName
+    { label = cs $ (if isNew then "Create " else "Save ") <> buttonText
     , buttonClass = mempty
     , cssFramework = get #cssFramework ?formContext
     }
@@ -440,14 +414,14 @@ textField field = FormField
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  inputValue ((getField @fieldName model) :: value)
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationFailure field model
+        , validatorResult = getValidationViolation field model
         , fieldClass = ""
         , labelClass = ""
         , disabled = False
         , disableLabel = False
         , disableGroup = False
         , disableValidationResult = False
-        , fieldInput = const Html5.input
+        , additionalAttributes = []
         , cssFramework = get #cssFramework ?formContext
         , helpText = ""
         , placeholder = ""
@@ -496,7 +470,7 @@ textareaField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-textareaField field = (textField field) { fieldType = TextareaInput, fieldInput = \formField -> Html5.textarea (cs (fieldValue formField)) }
+textareaField field = (textField field) { fieldType = TextareaInput }
 {-# INLINE textareaField #-}
 
 -- | Renders a color field
@@ -615,6 +589,23 @@ hiddenField :: forall fieldName model value.
 hiddenField field = (textField field) { fieldType = HiddenInput }
 {-# INLINE hiddenField #-}
 
+-- | Renders an file field
+--
+-- >>> {fileField #profilePicture}
+-- <input type="file" name="profilePicture" id="user_profilePicture" class="form-control" />
+--
+-- See 'textField' for examples of possible form control options.
+fileField :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue value
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> FormField
+fileField field = (textField field) { fieldType = FileInput }
+{-# INLINE fileField #-}
+
 -- | Renders a checkbox field
 --
 -- >>> {checkboxField #active}
@@ -637,14 +628,14 @@ checkboxField field = FormField
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  if getField @fieldName model then "yes" else "no"
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationFailure field model
+        , validatorResult = getValidationViolation field model
         , fieldClass = ""
         , labelClass = ""
         , disabled = False
         , disableLabel = False
         , disableGroup = False
         , disableValidationResult = False
-        , fieldInput = const Html5.input
+        , additionalAttributes = []
         , cssFramework = get #cssFramework ?formContext
         , helpText = ""
         , placeholder = ""
@@ -711,14 +702,14 @@ selectField field items = FormField
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
         , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationFailure field model
+        , validatorResult = getValidationViolation field model
         , fieldClass = ""
         , labelClass = ""
         , disabled = False
         , disableLabel = False
         , disableGroup = False
         , disableValidationResult = False
-        , fieldInput = const (Html5.select mempty)
+        , additionalAttributes = []
         , cssFramework = get #cssFramework ?formContext
         , helpText = ""
         , placeholder = "Please select"
@@ -754,16 +745,15 @@ instance ToHtml SubmitButton where
     toHtml submitButton@(SubmitButton { cssFramework }) = styledSubmitButton cssFramework cssFramework submitButton
 
 -- | Returns the form's action attribute for a given record.
-class ModelFormAction application record where
+class ModelFormAction record where
     modelFormAction :: (?context :: ControllerContext) => record -> Text
 
-instance (
-    HasField "id" record id
-    , Eq id
-    , Default id
+instance
+    ( HasField "id" record (Id' (GetTableName record))
+    , HasField "meta" record MetaBag
     , KnownSymbol (GetModelName record)
-    , Show id
-    ) => ModelFormAction application record where
+    , Show (Id' (GetTableName record))
+    ) => ModelFormAction record where
     -- | Returns the form's action attribute for a given record.
     --
     -- Expects that AutoRoute is used. Otherwise you need to use @formFor'@ or specify
@@ -785,3 +775,36 @@ instance (
             init path
                 |> (\path -> [""] <> (fromMaybe [] path) <> [action])
                 |> intercalate "/"
+
+-- | Renders a validation failure for a field. If the field passed all validation, no error is shown.
+--
+-- >>> {validationResult #email}
+-- <div class="invalid-feedback">is not a valid email</div>
+validationResult :: forall fieldName model fieldType.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model fieldType
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue fieldType
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> Html
+validationResult field = styledValidationResult cssFramework cssFramework (textField field)
+    where
+        result = getValidationFailure field model
+        model = ?formContext |> get #model
+        cssFramework = ?formContext |> get #cssFramework
+
+-- | Returns the validation failure for a field. If the field passed all validation, this returns 'Nothing'.
+--
+-- >>> {validationResultMaybe #email}
+-- Just "is not a valid email"
+validationResultMaybe :: forall fieldName model fieldType.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model fieldType
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> Maybe Text
+validationResultMaybe field = getValidationFailure field model
+    where
+        model = ?formContext |> get #model

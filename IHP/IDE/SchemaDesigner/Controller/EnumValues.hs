@@ -11,6 +11,8 @@ import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, replace, schemaD
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 
+import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
+
 instance Controller EnumValuesController where
     beforeAction = setLayout schemaDesignerLayout
 
@@ -26,8 +28,8 @@ instance Controller EnumValuesController where
         case validationResult of
             Failure message ->
                 setErrorMessage message
-            Success ->
-                updateSchema (map (addValueToEnum enumName enumValueName))
+            Success -> do
+                updateSchema $ SchemaOperations.addValueToEnum enumName enumValueName
 
         -- The form to save an enum has two save buttons:
         --
@@ -69,11 +71,6 @@ instance Controller EnumValuesController where
         let valueId = param "valueId"
         updateSchema (map (deleteValueInEnum enumName valueId))
         redirectTo ShowEnumAction { .. }
-
-addValueToEnum :: Text -> Text -> Statement -> Statement
-addValueToEnum enumName enumValueName (table@CreateEnumType { name, values }) | name == enumName =
-    table { values = values <> [enumValueName] }
-addValueToEnum enumName enumValueName statement = statement
 
 updateValueInEnum :: Text -> Text -> Int -> Statement -> Statement
 updateValueInEnum enumName value valueId (table@CreateEnumType { name, values }) | name == enumName =

@@ -176,7 +176,7 @@ in
 
 This will install version 0.3.0.0 of the google-oauth2 package, as this is the latest version available in the package set used by IHP. For our specific application requirements, we want to use version 0.2.2, an older version of this package.
 
-To use the older version of the package we need to override the package definition. To do this you need to install install `cabal2nix` first:
+To use the older version of the package we need to override the package definition. To do this you need to install `cabal2nix` first:
 
 ```bash
 nix-env -i cabal2nix
@@ -187,6 +187,8 @@ After cabal2nix is installed we can use it to get a nix package definition for t
 ```bash
 cabal2nix cabal://google-oauth2-0.2.2
 ```
+
+(You may need to run `cabal update` first, so that your local cabal cache of Hackage is updated.)
 
 This will output a new nix package definition like this:
 

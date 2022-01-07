@@ -6,7 +6,7 @@ module IHP.NameSupport.Inflections
 
 import Prelude
 import Data.Maybe (mapMaybe, fromMaybe, isJust, listToMaybe)
-import Data.Text (Text, toLower)
+import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.NameSupport.Inflections.Data

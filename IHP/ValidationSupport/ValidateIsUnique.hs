@@ -8,7 +8,6 @@ import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.ValidationSupport.Types
-import IHP.HaskellSupport
 import IHP.QueryBuilder
 import IHP.Fetch
 
@@ -29,7 +28,7 @@ import IHP.Fetch
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-validateIsUnique :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+validateIsUnique :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -46,6 +45,7 @@ validateIsUnique :: forall field model savedModel validationState fieldValue val
         , savedModelId ~ modelId
         , Eq modelId
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
+        , Table savedModel
     ) => Proxy field -> model -> IO model
 validateIsUnique fieldProxy model = validateIsUniqueCaseAware fieldProxy model True
 {-# INLINE validateIsUnique #-}
@@ -69,7 +69,7 @@ validateIsUnique fieldProxy model = validateIsUniqueCaseAware fieldProxy model T
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-validateIsUniqueCaseInsensitive :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -86,12 +86,13 @@ validateIsUniqueCaseInsensitive :: forall field model savedModel validationState
         , savedModelId ~ modelId
         , Eq modelId
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
+        , Table savedModel
     ) => Proxy field -> model -> IO model
 validateIsUniqueCaseInsensitive fieldProxy model = validateIsUniqueCaseAware fieldProxy model False
 {-# INLINE validateIsUniqueCaseInsensitive #-}
 
 -- | Internal helper for 'validateIsUnique' and 'validateIsUniqueCaseInsensitive'
-validateIsUniqueCaseAware :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+validateIsUniqueCaseAware :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel
@@ -108,6 +109,7 @@ validateIsUniqueCaseAware :: forall field model savedModel validationState field
         , savedModelId ~ modelId
         , Eq modelId
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
+        , Table savedModel
     ) => Proxy field -> model -> Bool -> IO model
 validateIsUniqueCaseAware fieldProxy model caseSensitive = do
     let value = getField @field model
@@ -136,7 +138,7 @@ validateIsUniqueCaseAware fieldProxy model caseSensitive = do
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-withCustomErrorMessageIO :: forall field model savedModel validationState fieldValue validationStateValue fetchedModel modelId savedModelId. (
+withCustomErrorMessageIO :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRow savedModel

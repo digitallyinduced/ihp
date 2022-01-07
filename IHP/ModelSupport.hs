@@ -9,12 +9,9 @@ module IHP.ModelSupport
 
 import IHP.HaskellSupport
 import IHP.NameSupport
-import qualified Prelude
 import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
-import qualified ClassyPrelude
 import Database.PostgreSQL.Simple (Connection)
-import qualified Text.Inflections
-import Database.PostgreSQL.Simple.Types (Query (Query))
+import Database.PostgreSQL.Simple.Types (Query)
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
@@ -23,23 +20,16 @@ import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Time.Calendar
-import Data.Time.Format
-import Unsafe.Coerce
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import GHC.Records
-import GHC.OverloadedLabels
 import GHC.TypeLits
 import GHC.Types
 import Data.Proxy
 import Data.Data
-import qualified Control.Newtype.Generics as Newtype
-import Control.Applicative (Const)
-import qualified GHC.Types as Type
-import qualified Data.Text as Text
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -47,14 +37,14 @@ import qualified Text.Read as Read
 import qualified Data.Pool as Pool
 import qualified GHC.Conc
 import IHP.Postgres.Point
-import IHP.Postgres.Inet
+import IHP.Postgres.Inet ()
 import IHP.Postgres.TSVector
-import qualified Data.ByteString.Char8 as ByteString
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
 import Data.Scientific
 import GHC.Stack
+import qualified Numeric
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -64,6 +54,15 @@ data ModelContext = ModelContext
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
     , trackTableReadCallback :: Maybe (ByteString -> IO ())
+    -- | Is set to a value if row level security was enabled at runtime
+    , rowLevelSecurity :: Maybe RowLevelSecurityContext
+    }
+
+-- | When row level security is enabled at runtime, this keeps track of the current
+-- logged in user and the postgresql role to switch to.
+data RowLevelSecurityContext = RowLevelSecurityContext
+    { rlsAuthenticatedRole :: Text -- ^ Default is @ihp_authenticated@. This value comes from the @IHP_RLS_AUTHENTICATED_ROLE@  env var.
+    , rlsUserId :: PG.Action -- ^ The user id of the current logged in user
     }
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -73,6 +72,7 @@ notConnectedModelContext logger = ModelContext
     , transactionConnection = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
+    , rowLevelSecurity = Nothing
     }
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
@@ -85,6 +85,7 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
+    let rowLevelSecurity = Nothing
     pure ModelContext { .. }
 
 instance LoggingProvider ModelContext where
@@ -120,10 +121,10 @@ instance InputValue Integer where
     inputValue = tshow
 
 instance InputValue Double where
-    inputValue = tshow
+    inputValue double = cs (Numeric.showFFloat Nothing double "")
 
 instance InputValue Float where
-    inputValue = tshow
+    inputValue float = cs (Numeric.showFFloat Nothing float "")
 
 instance InputValue Bool where
     inputValue True = "on"
@@ -181,26 +182,29 @@ type FieldName = ByteString
 
 -- | Returns @True@ when the record has not been saved to the database yet. Returns @False@ otherwise.
 --
--- __Example:__ Returns @False@ when a record has not been inserted yet.
+-- __Example:__ Returns @True@ when a record has not been inserted yet.
 --
 -- >>> let project = newRecord @Project
 -- >>> isNew project
--- False
+-- True
 --
--- __Example:__ Returns @True@ after inserting a record.
+-- __Example:__ Returns @False@ after inserting a record.
 --
 -- >>> project <- createRecord project
 -- >>> isNew project
--- True
+-- False
 --
--- __Example:__ Returns @True@ for records which have been fetched from the database.
+-- __Example:__ Returns @False@ for records which have been fetched from the database.
 --
 -- >>> book <- query @Book |> fetchOne
 -- >>> isNew book
 -- False
-isNew :: forall model id. (HasField "id" model id, Default id, Eq id) => model -> Bool
-isNew model = def == (getField @"id" model)
-{-# INLINE isNew #-}
+isNew :: forall model. (HasField "meta" model MetaBag) => model -> Bool
+isNew model = model
+        |> get #meta
+        |> get #originalDatabaseRecord
+        |> isNothing
+{-# INLINABLE isNew #-}
 
 type family GetModelName model :: Symbol
 
@@ -239,14 +243,14 @@ deriving instance (Hashable (PrimaryKey table)) => Hashable (Id' table)
 deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
 deriving instance (KnownSymbol table, NFData (PrimaryKey table)) => NFData (Id' table)
 
--- | We need to map the model to it's table name to prevent infinite recursion in the model data definition
+-- | We need to map the model to its table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
 -- But `type Project = Project' { id :: Id "projects" }` will
 type Id model = Id' (GetTableName model)
 
 instance InputValue (PrimaryKey model') => InputValue (Id' model') where
     {-# INLINE inputValue #-}
-    inputValue = inputValue . Newtype.unpack
+    inputValue = inputValue . unpackId
 
 instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
     isEmpty (Id primaryKey) = isEmpty primaryKey
@@ -254,7 +258,7 @@ instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
 recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
     getField @"id" entity
-    |> Newtype.unpack
+    |> unpackId
     |> tshow
 {-# INLINE recordToInputValue #-}
 
@@ -266,16 +270,27 @@ instance FromField (PrimaryKey model) => FromField (Id' model) where
 
 instance ToField (PrimaryKey model) => ToField (Id' model) where
     {-# INLINE toField #-}
-    toField = toField . Newtype.unpack
+    toField = toField . unpackId
 
 instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
-    show = show . Newtype.unpack
+    show = show . unpackId
 
-instance Newtype.Newtype (Id' model) where
-    type O (Id' model) = PrimaryKey model
-    pack = Id
-    unpack (Id uuid) = uuid
+-- | Turns an @UUID@ into a @Id@ type
+--
+-- > let uuid :: UUID = "5240e79c-97ff-4a5f-8567-84112541aaba"
+-- > let userId :: Id User = packId uuid
+--
+packId :: PrimaryKey model -> Id' model
+packId uuid = Id uuid
+
+-- | Unwraps a @Id@ value into an @UUID@
+--
+-- >>> unpackId ("296e5a50-b237-4ee9-83b0-17fb1e6f208f" :: Id User)
+-- "296e5a50-b237-4ee9-83b0-17fb1e6f208f" :: UUID
+--
+unpackId :: Id' model -> PrimaryKey model
+unpackId (Id uuid) = uuid
 
 -- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
 data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
@@ -372,17 +387,26 @@ sqlExec theQuery theParameters = do
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
 withDatabaseConnection block =
     let
-        ModelContext { connectionPool, transactionConnection } = ?modelContext
+        ModelContext { connectionPool, transactionConnection, rowLevelSecurity } = ?modelContext
     in case transactionConnection of
         Just transactionConnection -> block transactionConnection
-        Nothing -> Pool.withResource connectionPool block
+        Nothing ->
+            -- When row level security is enabled, we need to implicitly wrap the current query in a
+            -- transaction, as we need to make sure the @SET LOCAL ROLE ihp_authenticated@ and
+            -- @SET LOCAL rls.ihp_user_id = ..@ queries are executed on the same connection before
+            -- the actual query has been executed.
+            case rowLevelSecurity of
+                Just rowLevelSecurity -> withTransaction do
+                    let (Just connection) = ?modelContext |> get #transactionConnection
+                    block connection
+                Nothing -> Pool.withResource connectionPool block
 {-# INLINABLE withDatabaseConnection #-}
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
 -- __Example:__
 --
--- > usersCount <- sqlQuery "SELECT COUNT(*) FROM users"
+-- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO value
@@ -418,8 +442,41 @@ withTransaction block = withTransactionConnection do
             |> \case
                 Just connection -> connection
                 Nothing -> error "withTransaction: transactionConnection not set as expected"
-    PG.withTransaction connection block
+    case get #rowLevelSecurity ?modelContext of
+        -- When starting a new transaction while RLS is enabled, we switch the transaction over
+        -- to the @ihp_authenticated@ role and also set the @rls.ihp_user_id@ variable.
+        --
+        -- This branch is also called from @withDatabaseConnection@, as we
+        -- automatically wrap all queries in an implicit transaction when RLS is enabled.
+        Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } -> PG.withTransaction connection do
+            sqlExec "SET LOCAL ROLE ?" [PG.Identifier rlsAuthenticatedRole]
+            sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only rlsUserId)
+            block
+        Nothing -> PG.withTransaction connection block
 {-# INLINABLE withTransaction #-}
+
+-- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
+--
+-- This is used e.g. by IHP AutoRefresh to be able to set up it's database triggers. When trying to set up a database
+-- trigger from the ihp_authenticated role, it typically fails because it's missing permissions. Using 'withRowLevelSecurityDisabled'
+-- we switch to the main role which is allowed to set up database triggers.
+--
+-- SQL queries run from within the passed block are executed in their own transaction.
+--
+-- __Example:__
+--
+-- > -- SQL code executed here might be run from the ihp_authenticated role
+-- > withRowLevelSecurityDisabled do
+-- >    -- SQL code executed here is run as the main IHP db role
+-- >    sqlExec "CREATE OR REPLACE FUNCTION .." ()
+--
+withRowLevelSecurityDisabled :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
+withRowLevelSecurityDisabled block = do
+    let currentModelContext = ?modelContext
+    case get #rowLevelSecurity currentModelContext of
+        Just _ -> let ?modelContext = currentModelContext { rowLevelSecurity = Nothing, transactionConnection = Nothing } in block
+        Nothing -> block
+{-# INLINABLE withRowLevelSecurityDisabled #-}
 
 -- | Returns the postgres connection when called within a 'withTransaction' block
 --
@@ -441,32 +498,63 @@ rollbackTransaction = PG.rollback transactionConnectionOrError
 
 withTransactionConnection :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
 withTransactionConnection block = do
-    withDatabaseConnection \connection -> do
+    let ModelContext { connectionPool } = ?modelContext
+    Pool.withResource connectionPool \connection -> do
         let modelContext = ?modelContext { transactionConnection = Just connection }
         let ?modelContext = modelContext in block
 {-# INLINABLE withTransactionConnection #-}
 
--- | Returns the table name of a given model.
---
--- __Example:__
---
--- >>> tableName @User
--- "users"
---
-tableName :: forall model. (KnownSymbol (GetTableName model)) => Text
-tableName = symbolToText @(GetTableName model)
-{-# INLINE tableName #-}
+-- | Access meta data for a database table
+class
+    ( KnownSymbol (GetTableName record)
+    ) => Table record where
+    -- | Returns the table name of a given model.
+    --
+    -- __Example:__
+    --
+    -- >>> tableName @User
+    -- "users"
+    --
 
--- | Returns the table name of a given model as a bytestring.
---
--- __Example:__
---
--- >>> tableNameByteString @User
--- "users"
---
-tableNameByteString :: forall model. (KnownSymbol (GetTableName model)) => ByteString
-tableNameByteString = symbolToByteString @(GetTableName model)
-{-# INLINE tableNameByteString #-}
+    tableName :: Text
+    tableName = symbolToText @(GetTableName record)
+    {-# INLINE tableName #-}
+
+    -- | Returns the table name of a given model as a bytestring.
+    --
+    -- __Example:__
+    --
+    -- >>> tableNameByteString @User
+    -- "users"
+    --
+    tableNameByteString :: ByteString
+    tableNameByteString = symbolToByteString @(GetTableName record)
+    {-# INLINE tableNameByteString #-}
+
+    -- | Returns the list of column names for a given model
+    --
+    -- __Example:__
+    --
+    -- >>> columnNames @User
+    -- ["id", "email", "created_at"]
+    --
+    columnNames :: [ByteString]
+
+    -- | Returns WHERE conditions to match an entity by it's primary key
+    --
+    -- For tables with a simple primary key this returns a tuple with the id:
+    --
+    -- >>> primaryKeyCondition project
+    -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
+    --
+    -- If the table has a composite primary key, this returns multiple elements:
+    --
+    -- >>> primaryKeyCondition postTag
+    -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
+    --
+    primaryKeyCondition :: record -> [(Text, PG.Action)]
+    default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
+    primaryKeyCondition record = [("id", toField (get #id record))]
 
 logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
@@ -484,7 +572,7 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model id. (?modelContext :: ModelContext, KnownSymbol (GetTableName model), PrimaryKeyCondition model) => model -> IO ()
+deleteRecord :: forall model. (?modelContext :: ModelContext, Table model) => model -> IO ()
 deleteRecord model = do
     let condition = primaryKeyCondition model
     let whereConditions = condition |> map (\(field, _) -> field <> " = ?") |> intercalate " AND "
@@ -500,7 +588,7 @@ deleteRecord model = do
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName model), HasField "id" model id, ToField id) => id -> IO ()
+deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, Table model, HasField "id" model id, ToField id) => id -> IO ()
 deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
     let theParameters = (PG.Only id)
@@ -513,7 +601,7 @@ deleteRecordById id = do
 -- >>> let projects :: [Project] = ...
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
-deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, KnownSymbol (GetTableName record), HasField "id" record id, record ~ GetModelById id, ToField id) => [record] -> IO ()
+deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [record] -> IO ()
 deleteRecords records = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = PG.Only (PG.In (ids records))
@@ -525,7 +613,7 @@ deleteRecords records = do
 --
 -- >>> deleteAll @Project
 -- DELETE FROM projects
-deleteAll :: forall record. (?modelContext :: ModelContext, KnownSymbol (GetTableName record)) => IO ()
+deleteAll :: forall record. (?modelContext :: ModelContext, Table record) => IO ()
 deleteAll = do
     let theQuery = "DELETE FROM " <> tableName @record
     sqlExec (PG.Query . cs $! theQuery) ()
@@ -553,11 +641,6 @@ instance Default UTCTime where
 instance Default (PG.Binary ByteString) where
     def = PG.Binary ""
 
-instance Newtype.Newtype (PG.Binary payload) where
-    type O (PG.Binary payload) = payload
-    pack = PG.Binary
-    unpack (PG.Binary payload) = payload
-
 class Record model where
     newRecord :: model
 
@@ -582,9 +665,15 @@ ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (getField @"id") records
 {-# INLINE ids #-}
 
+-- | The error message of a validator can be either a plain text value or a HTML formatted value
+data Violation
+    = TextViolation { message :: !Text } -- ^ Plain text validation error, like "cannot be empty"
+    | HtmlViolation { message :: !Text } -- ^ HTML formatted, already pre-escaped validation error, like "Invalid, please <a href="http://example.com">check the documentation</a>"
+    deriving (Eq, Show)
+
 -- | Every IHP database record has a magic @meta@ field which keeps a @MetaBag@ inside. This data structure is used e.g. to keep track of the validation errors that happend.
 data MetaBag = MetaBag
-    { annotations            :: ![(Text, Text)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", "cannot be empty") ]@
+    { annotations            :: ![(Text, Violation)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", TextViolation "cannot be empty") ]@
     , touchedFields          :: ![Text] -- ^ Whenever a 'set' is callled on a field, it will be marked as touched. Only touched fields are saved to the database when you call 'updateRecord'
     , originalDatabaseRecord :: Maybe Dynamic -- ^ When the record has been fetched from the database, we save the initial database record here. This is used by 'didChange' to check if a field value is different from the initial database value.
     } deriving (Show)
@@ -596,7 +685,7 @@ instance Default MetaBag where
     def = MetaBag { annotations = [], touchedFields = [], originalDatabaseRecord = Nothing }
     {-# INLINE def #-}
 
-instance SetField "annotations" MetaBag [(Text, Text)] where
+instance SetField "annotations" MetaBag [(Text, Violation)] where
     setField value meta = meta { annotations = value }
     {-# INLINE setField #-}
 
@@ -799,18 +888,3 @@ withTableReadTracker trackedSection = do
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar
     trackedSection
-
-class PrimaryKeyCondition record where
-    -- | Returns WHERE conditions to match an entity by it's primary key
-    --
-    -- For tables with a simple primary key this returns a tuple with the id:
-    --
-    -- >>> primaryKeyCondition project
-    -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
-    --
-    -- If the table has a composite primary key, this returns multiple elements:
-    --
-    -- >>> primaryKeyCondition postTag
-    -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
-    --
-    primaryKeyCondition :: record -> [(Text, PG.Action)]

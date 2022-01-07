@@ -16,14 +16,13 @@ import IHP.FrameworkConfig (defaultPort)
 data PortConfig = PortConfig
     { appPort :: !Socket.PortNumber
     , toolServerPort :: !Socket.PortNumber
-    , liveReloadNotificationPort :: !Socket.PortNumber
     } deriving (Show, Eq)
 
 defaultAppPort :: Socket.PortNumber
 defaultAppPort = fromIntegral defaultPort
 
 allPorts :: PortConfig -> [Socket.PortNumber]
-allPorts PortConfig { .. } = [appPort, toolServerPort, liveReloadNotificationPort]
+allPorts PortConfig { .. } = [appPort, toolServerPort]
 
 instance Enum PortConfig where
     fromEnum PortConfig { .. } = fromIntegral $ toInteger (appPort - defaultAppPort)
@@ -32,7 +31,6 @@ instance Enum PortConfig where
             port = fromIntegral i
             appPort = port + defaultAppPort
             toolServerPort = port + defaultAppPort + 1
-            liveReloadNotificationPort = port + defaultAppPort + 2
 
 -- | Returns True when the given port looks to be free.
 -- Used to e.g. detect which port the dev server should use.
@@ -51,7 +49,7 @@ isPortAvailable port = do
 -- 
 -- Example:
 --
--- >>> let portConfig = PortConfig { appPort = 8000, toolServerPort = 8001, liveReloadNotificationPort = 8002 }
+-- >>> let portConfig = PortConfig { appPort = 8000, toolServerPort = 8001 }
 -- >>> isPortConfigAvailable portConfig
 -- True
 isPortConfigAvailable :: PortConfig -> IO Bool
@@ -61,10 +59,10 @@ isPortConfigAvailable portConfig = do
 
 -- | Returns a port config where all ports are available
 --
--- When e.g. port 8000, 8001 and 80002 are not used:
+-- When e.g. port 8000 and 8001 are not used:
 --
 -- >>> portConfig <- findAvailablePortConfig
--- PortConfig { appPort = 8000, toolServerPort = 8001, liveReloadNotificationPort = 8002 }
+-- PortConfig { appPort = 8000, toolServerPort = 8001 }
 findAvailablePortConfig :: IO PortConfig
 findAvailablePortConfig = do
         let portConfigs :: [PortConfig] = take 100 (map toEnum [0..])

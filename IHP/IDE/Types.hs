@@ -8,6 +8,10 @@ import qualified Network.WebSockets as Websocket
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.PortConfig
 import Data.String.Conversions (cs)
+import Data.UUID
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
+import qualified Data.ByteString.Builder as ByteString
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -28,7 +32,7 @@ cleanupManagedProcess (ManagedProcess { .. }) = Process.cleanupProcess (Just inp
 
 sendGhciCommand :: (?context :: Context) => ManagedProcess -> ByteString -> IO ()
 sendGhciCommand ManagedProcess { inputHandle } command = do
-    when (isDebugMode ?context) (putStrLn ("GHCI: " <> cs command))
+    when (isDebugMode ?context) (Log.debug ("GHCI: " <> cs command :: Text))
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
@@ -43,17 +47,17 @@ data Action =
     | AssetChanged
     | HaskellFileChanged
     | SchemaChanged
-    | UpdateStatusServerState StatusServerState
-    | UpdateLiveReloadNotificationServerState LiveReloadNotificationServerState
-    | UpdateFileWatcherState FileWatcherState
-    | UpdateToolServerState ToolServerState
+    | UpdateStatusServerState !StatusServerState
+    | UpdateLiveReloadNotificationServerState !LiveReloadNotificationServerState
+    | UpdateFileWatcherState !FileWatcherState
+    | UpdateToolServerState !ToolServerState
     | PauseApp
     deriving (Show)
 
 data PostgresState
     = PostgresNotStarted
     | StartingPostgres
-    | PostgresStarted { process :: !ManagedProcess, standardOutput :: !(IORef ByteString), errorOutput :: !(IORef ByteString) }
+    | PostgresStarted { process :: !ManagedProcess, standardOutput :: !(IORef ByteString.Builder), errorOutput :: !(IORef ByteString.Builder) }
 
 instance Show PostgresState where
     show PostgresNotStarted = "NotStarted"
@@ -73,12 +77,10 @@ instance Show AppGHCIState where
     show RunningAppGHCI { } = "Running"
 
 data LiveReloadNotificationServerState
-    = LiveReloadNotificationServerNotStarted
-    | LiveReloadNotificationServerStarted { server :: !(Async ()), clients :: !(IORef [Websocket.Connection]) }
+    = LiveReloadNotificationServerState { clients :: !(IORef (Map UUID Websocket.Connection)) }
 
 instance Show LiveReloadNotificationServerState where
-    show LiveReloadNotificationServerNotStarted = "NotStarted"
-    show LiveReloadNotificationServerStarted { } = "Started"
+    show LiveReloadNotificationServerState { } = "LiveReloadNotificationServerState"
 
 data FileWatcherState
     = FileWatcherNotStarted
@@ -128,24 +130,33 @@ data AppState = AppState
     , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
     , fileWatcherState :: !FileWatcherState
     , toolServerState :: !ToolServerState
+    , databaseNeedsMigration :: !(IORef Bool)
     } deriving (Show)
 
-emptyAppState :: AppState
-emptyAppState = AppState
-    { postgresState = PostgresNotStarted
-    , appGHCIState = AppGHCINotStarted
-    , statusServerState = StatusServerNotStarted
-    , liveReloadNotificationServerState = LiveReloadNotificationServerNotStarted
-    , fileWatcherState = FileWatcherNotStarted
-    , toolServerState = ToolServerNotStarted
-    }
+emptyAppState :: IO AppState
+emptyAppState = do
+    clients <- newIORef mempty
+    databaseNeedsMigration <- newIORef False
+    pure AppState
+        { postgresState = PostgresNotStarted
+        , appGHCIState = AppGHCINotStarted
+        , statusServerState = StatusServerNotStarted
+        , liveReloadNotificationServerState = LiveReloadNotificationServerState { clients }
+        , fileWatcherState = FileWatcherNotStarted
+        , toolServerState = ToolServerNotStarted
+        , databaseNeedsMigration
+        }
 
 data Context = Context
     { actionVar :: !(MVar Action)
     , portConfig :: !PortConfig
     , appStateRef :: !(IORef AppState)
     , isDebugMode :: !Bool
+    , logger :: !Log.Logger
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
+
+instance Log.LoggingProvider Context where
+    getLogger Context { logger } = logger

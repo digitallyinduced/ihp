@@ -1,7 +1,6 @@
 module IHP.IDE.Data.Controller where
 
 import IHP.ControllerPrelude
-import IHP.Controller.RequestContext
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.ShowTableRows
@@ -17,7 +16,6 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
 import qualified Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as BS
 import Data.Functor ((<&>))
 
 instance Controller DataController where
@@ -157,7 +155,7 @@ instance Controller DataController where
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
-connectToAppDb :: (?context :: ControllerContext) => _
+connectToAppDb :: (?context :: ControllerContext) => IO PG.Connection
 connectToAppDb = PG.connectPostgreSQL $ fromConfig databaseUrl
 
 fetchTableNames :: PG.Connection -> IO [Text]
@@ -167,7 +165,7 @@ fetchTableNames connection = do
 
 fetchTableCols :: PG.Connection -> Text -> IO [ColumnDefinition]
 fetchTableCols connection tableName = do
-    PG.query connection "SELECT column_name,data_type,column_default,CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns where table_name = ?" (PG.Only tableName)
+    PG.query connection "SELECT column_name,data_type,column_default,CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns where table_name = ? ORDER BY ordinal_position" (PG.Only tableName)
 
 fetchRow :: PG.Connection -> Text -> [Text] -> IO [[DynamicField]]
 fetchRow connection tableName primaryKeyValues = do
@@ -192,7 +190,12 @@ fetchRows :: FromRow r => PG.Connection -> Text -> IO [r]
 fetchRows connection tableName = do
     pkFields <- tablePrimaryKeyFields connection tableName
 
-    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields
+    let query = "SELECT * FROM "
+            <> tableName
+            <> (if null pkFields
+                    then ""
+                    else " ORDER BY " <> intercalate ", " pkFields
+                )
 
     PG.query_ connection (PG.Query . cs $! query)
 
@@ -200,11 +203,17 @@ fetchRowsPage :: FromRow r => PG.Connection -> Text -> Int -> Int -> IO [r]
 fetchRowsPage connection tableName page rows = do
     pkFields <- tablePrimaryKeyFields connection tableName
     let slice = " OFFSET " <> show (page * rows - rows) <> " ROWS FETCH FIRST " <> show rows <> " ROWS ONLY"
-    let query = "SELECT * FROM " <> tableName <> " ORDER BY " <> intercalate ", " pkFields <> slice
+    let query = "SELECT * FROM "
+            <> tableName
+            <> (if null pkFields
+                    then ""
+                    else " ORDER BY " <> intercalate ", " pkFields
+                )
+            <> slice
 
     PG.query_ connection (PG.Query . cs $! query)
 
-tableLength :: _ => PG.Connection -> Text -> IO Int
+tableLength :: PG.Connection -> Text -> IO Int
 tableLength connection tableName = do
     [Only count] <- PG.query connection "SELECT COUNT(*) FROM ?" [PG.Identifier tableName]
     pure count
