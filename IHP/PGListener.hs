@@ -227,8 +227,11 @@ notifyLoop listeningToVar listenToVar subscriptions = do
         result <- Exception.try innerLoop
         case result of
             Left (error :: SomeException) -> do
-                let ?context = ?modelContext -- Log onto the modelContext logger
-                Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error)
+                case fromException error of
+                    Just (error :: AsyncCancelled) -> throw error
+                    notification -> do
+                        let ?context = ?modelContext -- Log onto the modelContext logger
+                        Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error)
             Right _ -> pure ()
 
 
