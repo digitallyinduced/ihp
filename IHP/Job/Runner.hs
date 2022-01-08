@@ -18,7 +18,6 @@ import qualified Control.Concurrent.Async as Async
 import qualified System.Posix.Signals as Signals
 import qualified System.Exit as Exit
 import qualified System.Timeout as Timeout
-import qualified Control.Concurrent.Async.Pool as Pool
 import qualified IHP.PGListener as PGListener
 
 import IHP.Log.Types

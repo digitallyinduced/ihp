@@ -13,7 +13,6 @@ where
 import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified Control.Concurrent.Async as Async
-import qualified Control.Concurrent.Async.Pool as Pool
 import qualified IHP.PGListener as PGListener
 import qualified Control.Concurrent as Concurrent
 

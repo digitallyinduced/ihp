@@ -58,7 +58,6 @@
 , wai-cors
 , lens
 , random
-, async-pool
 , hspec
 , cereal-text
 , neat-interpolation
@@ -127,7 +126,6 @@ mkDerivation {
     wai-cors
     lens
     random
-    async-pool
     hspec
     cereal-text
     neat-interpolation
