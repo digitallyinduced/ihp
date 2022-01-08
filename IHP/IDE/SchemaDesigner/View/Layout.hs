@@ -193,12 +193,12 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
                 Just value -> [hsx|default: {compileExpression value} |]
                 Nothing -> mempty
         renderForeignKey = case findForeignKey statements tableName name of
-            Just addConstraint@AddConstraint { constraint } -> [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)} class="d-block nounderline" style="color: #808080;">FOREIGN KEY: {get #referenceTable constraint}</a>|]
+            Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable } } -> [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable} class="d-block nounderline" style="color: #808080;">FOREIGN KEY: {referenceTable}</a>|]
             _ -> mempty
         foreignKeyOption = case findForeignKey statements tableName name of
-            Just addConstraint@AddConstraint { constraint } ->
-                [hsx|<a href={EditForeignKeyAction tableName name (get #constraintName addConstraint) (get #referenceTable constraint)}>Edit Foreign Key Constraint</a>
-                <a href={DeleteForeignKeyAction (get #constraintName addConstraint) tableName} class="js-delete">Delete Foreign Key Constraint</a>|]
+            Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable } } ->
+                [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable}>Edit Foreign Key Constraint</a>
+                <a href={DeleteForeignKeyAction constraintName tableName} class="js-delete">Delete Foreign Key Constraint</a>|]
             _ -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
 
 renderColumnIndexes tableName statements = forEach (findTableIndexes statements tableName) renderIndex
@@ -415,15 +415,12 @@ removeQuotes n = cs n
 
 findForeignKey :: [Statement] -> Text -> Text -> Maybe Statement
 findForeignKey statements tableName columnName =
-    find (\statement -> statement == AddConstraint
-        { tableName = tableName
-        , constraint = ForeignKeyConstraint
-            { name = Just (get #constraintName statement)
-            , columnName = columnName
-            , referenceTable = (get #referenceTable (get #constraint statement))
-            , referenceColumn = (get #referenceColumn (get #constraint statement))
-            , onDelete = (get #onDelete (get #constraint statement))  }
-            } ) statements
+    find
+        (\case
+            AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumn } } -> tableName == fkTable && columnName == fkColumn
+            otherwise -> False
+        )
+        statements
 
 findPrimaryKey :: [Statement] -> Text -> Maybe [Text]
 findPrimaryKey statements tableName = do
