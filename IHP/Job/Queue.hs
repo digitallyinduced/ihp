@@ -68,18 +68,15 @@ fetchNextJob workerId = do
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> IO () -> IO PGListener.Subscription
-watchForJob pgListener tableName pollInterval handleJob = do
+watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Concurrent.MVar JobWorkerProcessMessage -> IO (PGListener.Subscription, Async.Async ())
+watchForJob pgListener tableName pollInterval onNewJob = do
     let tableNameBS = cs tableName
     sqlExec (createNotificationTrigger tableNameBS) ()
 
-    poller <- pollForJob tableName pollInterval handleJob
-    subscription <- pgListener |> PGListener.subscribe (channelName tableNameBS) (const handleJob)
+    poller <- pollForJob tableName pollInterval onNewJob
+    subscription <- pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
 
-    -- When the thread, we also want to stop the poller
-    Async.link poller
-
-    pure subscription
+    pure (subscription, poller)
 
 -- | Periodically checks the queue table for open jobs. Calls the callback if there are any.
 --
@@ -89,15 +86,15 @@ watchForJob pgListener tableName pollInterval handleJob = do
 --
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
 --
-pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> IO () -> IO (Async.Async ())
-pollForJob tableName pollInterval handleJob = do
+pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Concurrent.MVar JobWorkerProcessMessage -> IO (Async.Async ())
+pollForJob tableName pollInterval onNewJob = do
     let query = "SELECT COUNT(*) FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() LIMIT 1"
     let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry)
     Async.asyncBound do
         forever do
             count :: Int <- sqlQueryScalar query params
 
-            when (count > 0) handleJob
+            when (count > 0) (Concurrent.putMVar onNewJob JobAvailable)
 
             -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
             jitter <- Random.randomRIO (0, 2000000)

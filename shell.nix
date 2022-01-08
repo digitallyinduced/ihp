@@ -60,7 +60,6 @@ let
         temporary
         wai-cors
         random
-        async-pool
         cereal-text
         neat-interpolation
         unagi-chan

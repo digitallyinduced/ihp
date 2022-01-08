@@ -45,7 +45,7 @@ instance (
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
                 
-                result :: Either PG.SqlError [[Field]] <- Exception.try do
+                result :: Either EnhancedSqlError [[Field]] <- Exception.try do
                     withRLS do
                         sqlQuery query params
 
@@ -186,6 +186,9 @@ instance ToJSON PG.SqlError where
             fieldValueToJSON (BoolValue value) = toJSON value
             fieldValueToJSON (UUIDValue value) = toJSON value
             fieldValueToJSON (DateTimeValue value) = toJSON value
+
+instance ToJSON EnhancedSqlError where
+    toJSON EnhancedSqlError { sqlError } = toJSON sqlError
 
 renderErrorJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderErrorJson json = renderJsonWithStatusCode status400 json

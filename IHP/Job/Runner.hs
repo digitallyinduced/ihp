@@ -18,74 +18,104 @@ import qualified Control.Concurrent.Async as Async
 import qualified System.Posix.Signals as Signals
 import qualified System.Exit as Exit
 import qualified System.Timeout as Timeout
-import qualified Control.Concurrent.Async.Pool as Pool
 import qualified IHP.PGListener as PGListener
 
+import IHP.Log.Types
+import qualified IHP.Log as Log
+
+-- | Used by the RunJobs binary
 runJobWorkers :: [JobWorker] -> Script
-runJobWorkers jobWorkers = do
-    runJobWorkersWithExitHandler jobWorkers waitExitHandler
-    forever (Concurrent.threadDelay maxBound)
+runJobWorkers jobWorkers = dedicatedProcessMainLoop jobWorkers
 
-runJobWorkersKillOnExit :: [JobWorker] -> Script
-runJobWorkersKillOnExit jobWorkers = runJobWorkersWithExitHandler jobWorkers stopExitHandler
-
-runJobWorkersWithExitHandler :: [JobWorker] -> (JobWorkerArgs -> IO () -> IO ()) -> Script
-runJobWorkersWithExitHandler jobWorkers withExitHandler = do
+-- | This job worker main loop is used when the job workers are running as part of their own binary
+--
+-- In dev mode the IHP dev server is using the 'devServerMainLoop' instead. We have two main loops
+-- as the stop handling works a different in those cases.
+--
+dedicatedProcessMainLoop :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => [JobWorker] -> IO ()
+dedicatedProcessMainLoop jobWorkers = do
+    threadId <- Concurrent.myThreadId
+    exitSignalsCount <- newIORef 0
     workerId <- UUID.nextRandom
-    allJobs <- newIORef []
-    let oneSecond = 1000000
+    let logger = ?context |> get #logger
 
-    putStrLn ("Starting worker " <> tshow workerId)
+    Log.info ("Starting worker " <> tshow workerId)
 
     -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
     -- could overload the main PGListener connection. In that case we still want jobs to be
     -- run independent of the system being very busy.
     pgListener <- PGListener.init ?modelContext
+    stopSignal <- Concurrent.newEmptyMVar
+    waitForExitSignal <- installSignalHandlers
 
-    -- Todo: When do we call `PGListener.stop pgListener` ?
+    let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
+    
+    processes <- jobWorkers
+        |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
 
-    let jobWorkerArgs = JobWorkerArgs { allJobs, workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
-    withExitHandler jobWorkerArgs do
-        listenAndRuns <- jobWorkers
-            |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
+    waitForExitSignal
 
-        forEach listenAndRuns Async.link
+    Log.info ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text)
+
+    -- Stop subscriptions and poller already
+    -- This will stop all producers for the queue MVar
+    forEach processes \JobWorkerProcess { poller, subscription, action } -> do
+        PGListener.unsubscribe subscription pgListener
+        Async.cancel poller
+        Concurrent.putMVar action Stop
+
+    PGListener.stop pgListener
+
+    -- While waiting for all jobs to complete, we also wait for another exit signal
+    -- If the user sends two exit signals, we just kill all processes
+    async do
+        waitForExitSignal
+
+        Log.info ("Canceling all running jobs. CTRL+C again to force exit" :: Text)
+        
+        forEach processes \JobWorkerProcess { runners } -> do
+            forEach runners Async.cancel
+
+        Concurrent.throwTo threadId Exit.ExitSuccess
 
         pure ()
 
-waitExitHandler JobWorkerArgs { .. } main = do
-    threadId <- Concurrent.myThreadId
-    exitSignalsCount <- newIORef 0
-    let catchHandler = do
-            exitSignalsCount' <- readIORef exitSignalsCount
-            modifyIORef exitSignalsCount ((+) 1)
-            allJobs' <- readIORef allJobs
-            allJobsCompleted <- allJobs'
-                    |> mapM Pool.poll
-                    >>= pure . filter isNothing
-                    >>= pure . null
-            if allJobsCompleted
-                then Concurrent.throwTo threadId Exit.ExitSuccess
-                else if exitSignalsCount' == 0
-                    then do
-                        putStrLn "Waiting for jobs to complete. CTRL+C again to force exit"
-                        forEach allJobs' Pool.wait
-                        Concurrent.throwTo threadId Exit.ExitSuccess
-                else if exitSignalsCount' == 1 then do
-                        putStrLn "Canceling all running jobs. CTRL+C again to force exit"
-                        forEach allJobs' Pool.cancel
+    -- Wait for all runners to complete
+    forEach processes \JobWorkerProcess { runners } -> do
+        forEach runners Async.wait
 
-                        Concurrent.throwTo threadId Exit.ExitSuccess
-                else Concurrent.throwTo threadId Exit.ExitSuccess
+    Concurrent.throwTo threadId Exit.ExitSuccess
 
+devServerMainLoop :: (?modelContext :: ModelContext) => FrameworkConfig -> PGListener.PGListener -> [JobWorker] -> IO ()
+devServerMainLoop frameworkConfig pgListener jobWorkers = do
+    workerId <- UUID.nextRandom
+    let ?context = frameworkConfig
+    let logger = frameworkConfig |> get #logger
+
+    Log.info ("Starting worker " <> tshow workerId)
+
+    let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
+    
+    processes <- jobWorkers
+        |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
+
+    (forever (Concurrent.threadDelay maxBound)) `Exception.finally` do
+        forEach processes \JobWorkerProcess { poller, subscription, runners, action } -> do
+            Concurrent.putMVar action Stop
+            Async.cancel poller
+            forEach runners Async.cancel
+
+-- | Installs signals handlers and returns an IO action that blocks until the next sigINT or sigTERM is sent
+installSignalHandlers :: IO (IO ())
+installSignalHandlers = do
+    exitSignal <- Concurrent.newEmptyMVar
+
+    let catchHandler = Concurrent.putMVar exitSignal ()
             
     Signals.installHandler Signals.sigINT (Signals.Catch catchHandler) Nothing
     Signals.installHandler Signals.sigTERM (Signals.Catch catchHandler) Nothing
 
-    main
-
-    pure ()
-
+    pure (Concurrent.takeMVar exitSignal)
 
 stopExitHandler JobWorkerArgs { .. } main = main
 
@@ -128,44 +158,41 @@ jobWorkerFetchAndRunLoop :: forall job.
     , CanUpdate job
     , Show job
     , Table job
-    ) => JobWorkerArgs -> IO (Async.Async ())
+    ) => JobWorkerArgs -> IO JobWorkerProcess
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig
     let ?modelContext = modelContext
 
-    -- TOOD: now that we have maxConcurrency a better approach would be to
-    -- put all jobs in a MVar and then start maxConcurrency asyncs taking jobs from there
-    async do
-        Pool.withTaskGroup (maxConcurrency @job) \taskGroup -> do
-            -- This loop schedules all jobs that are in the queue.
-            -- It will be initally be called when first starting up this job worker
-            -- and after that it will be called when something has been inserted into the queue (or changed to retry)
-            let startLoop = do
-                    putStrLn "STARTING ASYNC JOB"
-                    asyncJob <- Pool.async taskGroup do
-                        Exception.mask $ \restore -> do
-                            maybeJob <- Queue.fetchNextJob @job workerId
-                            case maybeJob of
-                                Just job -> do
-                                    putStrLn ("Starting job: " <> tshow job)
-                                    let ?job = job
-                                    let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                                    resultOrException <- Exception.try (Timeout.timeout timeout (restore (perform job)))
-                                    case resultOrException of
-                                        Left exception -> Queue.jobDidFail job exception
-                                        Right Nothing -> Queue.jobDidTimeout job
-                                        Right (Just _) -> Queue.jobDidSucceed job
+    action <- Concurrent.newMVar JobAvailable
+    runners <- forM [0..(maxConcurrency @job)] \index -> async do
+        let loop = do
+                receivedAction <- Concurrent.takeMVar action
 
-                                    startLoop
-                                Nothing -> pure ()
-                    Pool.link asyncJob
-                    modifyIORef allJobs (asyncJob:)
+                case receivedAction of
+                    JobAvailable -> do
+                        maybeJob <- Queue.fetchNextJob @job workerId
+                        case maybeJob of
+                            Just job -> do
+                                Log.info ("Starting job: " <> tshow job)
 
-            -- Start all jobs in the queue
-            startLoop
+                                let ?job = job
+                                let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
+                                resultOrException <- Exception.try (Timeout.timeout timeout (perform job))
+                                case resultOrException of
+                                    Left exception -> Queue.jobDidFail job exception
+                                    Right Nothing -> Queue.jobDidTimeout job
+                                    Right (Just _) -> Queue.jobDidSucceed job
 
-            -- Start a job when a new job is added to the table or when it's set to retry
-            watcher <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) startLoop
-            
-            -- Keep the task group alive until the outer async is killed
-            forever (Concurrent.threadDelay maxBound)
+                                loop
+                            Nothing -> loop
+                    Stop -> do
+                        -- Put the stop signal back in to stop the other runners as well
+                        Concurrent.putMVar action Stop
+                        pure ()
+
+        loop
+
+    (subscription, poller) <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) action
+
+
+    pure JobWorkerProcess { runners, subscription, poller, action }

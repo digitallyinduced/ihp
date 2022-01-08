@@ -4,6 +4,8 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
+import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import qualified Text.Megaparsec as Megaparsec
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
@@ -82,6 +84,22 @@ tests = do
 
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
 
+        describe "deleteTable" do
+            it "delete a table with all it's indices, constraints, policies, enable RLS statements" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE users ();
+                    CREATE TABLE tasks ();
+                    CREATE INDEX tasks_user_id_index ON tasks (user_id);
+                    ALTER TABLE tasks ADD CONSTRAINT tasks_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    CREATE POLICY "Users can manage their tasks" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                    ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+                |]
+                let outputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE users ();
+                |]
+
+                SchemaOperations.deleteTable "tasks" inputSchema `shouldBe` outputSchema
+
         describe "suggestPolicy" do
             it "should suggest a policy if a user_id column exists" do
                 let table = StatementCreateTable CreateTable
@@ -153,3 +171,9 @@ tests = do
                         }
 
                 SchemaOperations.suggestPolicy schema tasksTable `shouldBe` expectedPolicy
+
+parseSqlStatements :: Text -> [Statement]
+parseSqlStatements sql =
+    case Megaparsec.runParser Parser.parseDDL "input" sql of
+            Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError) -- For better error reporting in hspec
+            Right statements -> statements

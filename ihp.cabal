@@ -97,7 +97,6 @@ common shared-properties
             , wai-cors
             , lens
             , random
-            , async-pool
             , hspec
             , cereal
             , cereal-text

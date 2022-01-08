@@ -209,12 +209,12 @@ genericHandler exception controller additionalInfo = do
 postgresHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
     let
-        handlePostgresError :: Show exception => exception -> Text -> IO ResponseReceived
-        handlePostgresError exception errorText = do
+        handlePostgresOutdatedError :: Show exception => exception -> H.Html -> IO ResponseReceived
+        handlePostgresOutdatedError exception errorText = do
             let ihpIdeBaseUrl = ?context
                     |> getFrameworkConfig
                     |> get #ideBaseUrl
-            let title = H.text ("Database looks outdated. " <> errorText)
+            let title = [hsx|Database looks outdated. {errorText}|]
             let errorMessage = [hsx|
                         <h2>Possible Solutions</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
@@ -231,19 +231,48 @@ postgresHandler exception controller additionalInfo = do
                     |]
             let RequestContext { respond } = get #requestContext ?context
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+
+        handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
+        handleSqlError exception = do
+            let ihpIdeBaseUrl = ?context
+                    |> getFrameworkConfig
+                    |> get #ideBaseUrl
+            let sqlError = get #sqlError exception
+            let title = [hsx|{get #sqlErrorMsg sqlError}|]
+            let errorMessage = [hsx|
+                        <h2>While running the following Query:</h2>
+                        <div style="margin-bottom: 2rem; font-weight: 400;">
+                            <code>{get #sqlErrorQuery exception}</code>
+                        </div>
+
+                        <h2>With Query Parameters:</h2>
+                        <div style="margin-bottom: 2rem; font-weight: 400;">
+                            <code>{get #sqlErrorQueryParams exception}</code>
+                        </div>
+
+                        <h2>Details:</h2>
+                        <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
+                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
+                    |]
+            let RequestContext { respond } = get #requestContext ?context
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
     case fromException exception of
-        Just (exception :: PG.ResultError) -> Just (handlePostgresError exception "The database result does not match the expected type.")
+        Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
         Nothing -> case fromException exception of
             -- Catching  `relation "..." does not exist`
-            Just (exception :: PG.SqlError)
-                |  "relation" `ByteString.isPrefixOf` (get #sqlErrorMsg exception)
-                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg exception)
-                -> Just (handlePostgresError exception "A table is missing.")
-            Just (exception :: PG.SqlError)
-                |  "column" `ByteString.isPrefixOf` (get #sqlErrorMsg exception)
-                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg exception)
-                -> Just (handlePostgresError exception "A column is missing.")
-            _ -> Nothing
+            Just exception@ModelSupport.EnhancedSqlError { sqlError }
+                |  "relation" `ByteString.isPrefixOf` (get #sqlErrorMsg sqlError)
+                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg sqlError)
+                -> Just (handlePostgresOutdatedError exception "A table is missing.")
+            
+            -- Catching  `columns "..." does not exist`
+            Just exception@ModelSupport.EnhancedSqlError { sqlError }
+                |  "column" `ByteString.isPrefixOf` (get #sqlErrorMsg sqlError)
+                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg sqlError)
+                -> Just (handlePostgresOutdatedError exception "A column is missing.")
+            -- Catching other SQL Errors
+            Just exception -> Just (handleSqlError exception)
+            Nothing -> Nothing
 
 patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 patternMatchFailureHandler exception controller additionalInfo = do

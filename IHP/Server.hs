@@ -37,45 +37,42 @@ import qualified System.Directory as Directory
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
-    frameworkConfig <- buildFrameworkConfig configBuilder
+    let withFrameworkConfig = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig |> get #logger |> get #cleanup)
 
-    sessionVault <- Vault.newKey
-    modelContext <- initModelContext frameworkConfig
-    pgListener <- PGListener.init modelContext
-    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+    withFrameworkConfig \frameworkConfig -> do
+        modelContext <- initModelContext frameworkConfig
+        let withPGListener = Exception.bracket (PGListener.init modelContext) PGListener.stop
 
-    let ?modelContext = modelContext
-    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
+        withPGListener \pgListener -> do
+            sessionVault <- Vault.newKey
 
-    sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
-    staticMiddleware <- initStaticMiddleware frameworkConfig
-    let corsMiddleware = initCorsMiddleware frameworkConfig
-    let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
+            autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
-    let run = withBackgroundWorkers frameworkConfig $
-           runServer frameworkConfig $
-                staticMiddleware $
-                    corsMiddleware $
-                        sessionMiddleware $
-                                requestLoggerMiddleware $
-                                        methodOverridePost $
-                                            application
+            let ?modelContext = modelContext
+            let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
 
-    run `finally` do
-        frameworkConfig |> get #logger |> get #cleanup
-        PGListener.stop pgListener
+            sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
+            staticMiddleware <- initStaticMiddleware frameworkConfig
+            let corsMiddleware = initCorsMiddleware frameworkConfig
+            let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
+
+            withBackgroundWorkers pgListener frameworkConfig $
+                   runServer frameworkConfig $
+                        staticMiddleware $
+                            corsMiddleware $
+                                sessionMiddleware $
+                                        requestLoggerMiddleware $
+                                                methodOverridePost $
+                                                    application
 
 {-# INLINABLE run #-}
 
-withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => FrameworkConfig -> IO a -> IO a
-withBackgroundWorkers frameworkConfig app = do
+withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => PGListener.PGListener -> FrameworkConfig -> IO a -> IO a
+withBackgroundWorkers pgListener frameworkConfig app = do
     let jobWorkers = Job.workers RootApplication
     let isDevelopment = get #environment frameworkConfig == Env.Development
     if isDevelopment && not (isEmpty jobWorkers)
-            then do
-                workerAsync <- async (let ?context = frameworkConfig in Job.runJobWorkersKillOnExit jobWorkers)
-                Async.link workerAsync
-                app
+            then Exception.bracket (async (Job.devServerMainLoop frameworkConfig pgListener jobWorkers)) (Async.cancel) (const app)
             else app
 
 -- | Returns a middleware that returns files stored in the app's @static/@ directory and IHP's own @static/@  directory
