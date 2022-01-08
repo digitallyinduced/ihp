@@ -5,6 +5,8 @@ module IHP.Job.Types
 , JobWorker (..)
 , JobStatus (..)
 , Worker (..)
+, JobWorkerProcess (..)
+, JobWorkerProcessMessage (..)
 )
 where
 
@@ -13,6 +15,7 @@ import IHP.FrameworkConfig
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent.Async.Pool as Pool
 import qualified IHP.PGListener as PGListener
+import qualified Control.Concurrent as Concurrent
 
 class Job job where
     perform :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => job -> IO ()
@@ -41,14 +44,13 @@ class Worker application where
     workers :: application -> [JobWorker]
 
 data JobWorkerArgs = JobWorkerArgs
-    { allJobs :: IORef [Pool.Async ()]
-    , workerId :: UUID
+    { workerId :: UUID
     , modelContext :: ModelContext
     , frameworkConfig :: FrameworkConfig
     , pgListener :: PGListener.PGListener
     }
 
-newtype JobWorker = JobWorker (JobWorkerArgs -> IO (Async.Async ()))
+newtype JobWorker = JobWorker (JobWorkerArgs -> IO JobWorkerProcess)
 
 -- | Mapping for @JOB_STATUS@. The DDL statement for this can be found in IHPSchema.sql:
 --
@@ -61,3 +63,15 @@ data JobStatus
     | JobStatusSucceeded
     | JobStatusRetry
     deriving (Eq, Show, Read, Enum)
+
+data JobWorkerProcess
+    = JobWorkerProcess
+    { runners :: [Async ()]
+    , subscription :: PGListener.Subscription
+    , poller :: Async ()
+    , action :: Concurrent.MVar JobWorkerProcessMessage
+    }
+
+data JobWorkerProcessMessage
+    = JobAvailable
+    | Stop
