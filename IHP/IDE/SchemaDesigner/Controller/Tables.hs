@@ -71,7 +71,6 @@ instance Controller TablesController where
                 redirectTo ShowTableAction { .. }
 
     action DeleteTableAction { .. } = do
-        let tableId = param "tableId"
         let tableName = param "tableName"
 
         updateSchema (SchemaOperations.deleteTable tableName)
