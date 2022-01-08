@@ -73,8 +73,8 @@ instance Controller TablesController where
     action DeleteTableAction { .. } = do
         let tableId = param "tableId"
         let tableName = param "tableName"
-        updateSchema (deleteTable tableId)
-        updateSchema (deleteForeignKeyConstraints tableName)
+
+        updateSchema (SchemaOperations.deleteTable tableName)
         redirectTo TablesAction
 
 
@@ -82,14 +82,6 @@ instance Controller TablesController where
 updateTable :: Int -> Text -> [Statement] -> [Statement]
 updateTable tableId tableName list = replace tableId (StatementCreateTable CreateTable { name = tableName, columns = get #columns table, primaryKeyConstraint = get #primaryKeyConstraint table, constraints = get #constraints table }) list
   where table = unsafeGetCreateTable (list !! tableId)
-
-deleteTable :: Int -> [Statement] -> [Statement]
-deleteTable tableId list = delete (list !! tableId) list
-
-deleteForeignKeyConstraints :: Text -> [Statement] -> [Statement]
-deleteForeignKeyConstraints tableName = filter \case
-    AddConstraint { tableName = constraintTable } | constraintTable == tableName -> False
-    otherwise -> True
 
 validateTable :: [Statement] -> Maybe Text -> Validator Text
 validateTable statements = validateNameInSchema "table name" (getAllObjectNames statements)

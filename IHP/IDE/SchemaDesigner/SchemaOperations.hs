@@ -308,3 +308,15 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
 isUserIdColumn :: Column -> Bool
 isUserIdColumn Column { name = "user_id" } = True
 isUserIdColumn otherwise                   = False
+
+
+deleteTable :: Text -> Schema -> Schema
+deleteTable tableName statements =
+    statements
+    |> filter \case
+        StatementCreateTable CreateTable { name }       | name == tableName            -> False
+        AddConstraint { tableName = constraintTable }   | constraintTable == tableName -> False
+        CreateIndex { tableName = indexTable }          | indexTable == tableName      -> False
+        EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
+        CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
+        otherwise -> True
