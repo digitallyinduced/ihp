@@ -62,6 +62,8 @@ data Statement
     | SetDefaultValue { tableName :: Text, columnName :: Text, value :: Expression }
     -- ALTER TABLE tableName ALTER COLUMN columnName DROP DEFAULT;
     | DropDefaultValue { tableName :: Text, columnName :: Text }
+    -- | CREATE TRIGGER ..;
+    | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: !TriggerEvent, tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     deriving (Eq, Show)
 
 data CreateTable
@@ -188,4 +190,22 @@ data PostgresType
     | PArray PostgresType
     | PTrigger
     | PCustomType Text
+    deriving (Eq, Show)
+
+data TriggerEventWhen
+    = Before
+    | After
+    | InsteadOf
+    deriving (Eq, Show)
+
+data TriggerEvent
+    = TriggerOnInsert
+    | TriggerOnUpdate
+    | TriggerOnDelete
+    | TriggerOnTruncate
+    deriving (Eq, Show)
+
+data TriggerFor
+    = ForEachRow
+    | ForEachStatement
     deriving (Eq, Show)

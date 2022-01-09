@@ -609,3 +609,17 @@ tests = do
             let sql = "ALTER TYPE colors ADD VALUE 'blue';\n"
             let statements = [ AddValueToEnumType { enumName = "colors", newValue = "blue" } ]
             compileSql statements `shouldBe` sql
+        
+        it "should compile 'CREATE TRIGGER .. AFTER INSERT ON .. FOR EACH ROW EXECUTE ..;' statements" do
+            let sql = "CREATE TRIGGER call_test_function_for_new_users AFTER INSERT ON users FOR EACH ROW EXECUTE FUNCTION call_test_function('hello');\n"
+            let statements = [ CreateTrigger
+                    { name = "call_test_function_for_new_users"
+                    , eventWhen = After
+                    , event = TriggerOnInsert
+                    , tableName = "users"
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "call_test_function"
+                    , arguments = [TextExpression "hello"]
+                    } ]
+            compileSql statements `shouldBe` sql

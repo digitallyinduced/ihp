@@ -507,13 +507,43 @@ createFunction = do
     char ';'
     pure CreateFunction { functionName, functionBody, orReplace, returns, language }
 
--- | Triggers are not currently used by IHP, therefore they're implemented using UnknownStatement
--- This avoid errors when having custom triggers in Schema.sql
 createTrigger = do
     lexeme "CREATE"
     lexeme "TRIGGER"
-    raw <- cs <$> someTill (anySingle) (char ';')
-    pure UnknownStatement { raw = "CREATE TRIGGER " <> raw }
+
+    name <- qualifiedIdentifier
+    eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
+    event <- (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
+
+    lexeme "ON"
+    tableName <- qualifiedIdentifier
+
+    lexeme "FOR"
+    optional (lexeme "EACH")
+
+    for <- (lexeme "ROW" >> pure ForEachRow) <|> (lexeme "STATEMENT" >> pure ForEachStatement)
+
+    whenCondition <- optional do
+        lexeme "WHEN"
+        expression
+
+    lexeme "EXECUTE"
+    optional (lexeme "FUNCTION" <|> lexeme "PROCEDURE")
+
+    (CallExpression functionName arguments) <- callExpr
+
+    char ';'
+
+    pure CreateTrigger
+        { name
+        , eventWhen
+        , event
+        , tableName
+        , for
+        , whenCondition
+        , functionName
+        , arguments
+        }
 
 alterTable = do
     lexeme "TABLE"
