@@ -422,10 +422,10 @@ compileTriggerEventWhen After = "AFTER"
 compileTriggerEventWhen InsteadOf = "INSTEAD OF"
 
 compileTriggerEvent :: TriggerEvent -> Text
-compileTriggerEvent Insert = "INSERT"
-compileTriggerEvent Update = "UPDATE"
-compileTriggerEvent Delete = "DELETE"
-compileTriggerEvent Truncate = "TRUNCATE"
+compileTriggerEvent TriggerOnInsert = "INSERT"
+compileTriggerEvent TriggerOnUpdate = "UPDATE"
+compileTriggerEvent TriggerOnDelete = "DELETE"
+compileTriggerEvent TriggerOnTruncate = "TRUNCATE"
 
 compileTriggerFor :: TriggerFor -> Text
 compileTriggerFor ForEachRow = "FOR EACH ROW"

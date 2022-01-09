@@ -513,7 +513,7 @@ createTrigger = do
 
     name <- qualifiedIdentifier
     eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
-    event <- (lexeme "INSERT" >> pure Insert) <|> (lexeme "UPDATE" >> pure Update) <|> (lexeme "DELETE" >> pure Delete) <|> (lexeme "TRUNCATE" >> pure Truncate)
+    event <- (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
 
     lexeme "ON"
     tableName <- qualifiedIdentifier

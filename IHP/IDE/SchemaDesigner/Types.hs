@@ -199,10 +199,10 @@ data TriggerEventWhen
     deriving (Eq, Show)
 
 data TriggerEvent
-    = Insert
-    | Update
-    | Delete
-    | Truncate
+    = TriggerOnInsert
+    | TriggerOnUpdate
+    | TriggerOnDelete
+    | TriggerOnTruncate
     deriving (Eq, Show)
 
 data TriggerFor
