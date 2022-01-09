@@ -66,12 +66,10 @@ module.exports = {
     content: [
         "../Web/View/**/*.hs",
     ],
-    options: {
-        safelist: [
-        // Add here custom class names. Since we're using TW's jit (Just-In-
-        // Time), `safelist` must be full class names, and not regex.
-        ],
-    },
+    safelist: [
+        // Add custom class names.
+        // https://tailwindcss.com/docs/content-configuration#safelisting-classes
+    ],
     plugins: [
         require('@tailwindcss/forms'),
     ],
