@@ -47,6 +47,7 @@ compileStatement DropPolicy { tableName, policyName } =  "DROP POLICY " <> compi
 compileStatement SetDefaultValue { tableName, columnName, value } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET DEFAULT " <> compileExpression value <> ";"
 compileStatement DropDefaultValue { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP DEFAULT;"
 compileStatement AddValueToEnumType { enumName, newValue } = "ALTER TYPE " <> compileIdentifier enumName <> " ADD VALUE " <> compileExpression (TextExpression newValue) <> ";"
+compileStatement CreateTrigger { name, eventWhen, event, tableName, for, whenCondition, functionName, arguments } = "CREATE TRIGGER " <> compileIdentifier name <> " " <> compileTriggerEventWhen eventWhen <> " " <> compileTriggerEvent event <> " ON " <> compileIdentifier tableName <> " " <> compileTriggerFor for <> " EXECUTE FUNCTION " <> compileExpression (CallExpression functionName arguments) <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
@@ -414,3 +415,18 @@ compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier e
             ]
 
 indent text = "    " <> text
+
+compileTriggerEventWhen :: TriggerEventWhen -> Text
+compileTriggerEventWhen Before = "BEFORE"
+compileTriggerEventWhen After = "AFTER"
+compileTriggerEventWhen InsteadOf = "INSTEAD OF"
+
+compileTriggerEvent :: TriggerEvent -> Text
+compileTriggerEvent Insert = "INSERT"
+compileTriggerEvent Update = "UPDATE"
+compileTriggerEvent Delete = "DELETE"
+compileTriggerEvent Truncate = "TRUNCATE"
+
+compileTriggerFor :: TriggerFor -> Text
+compileTriggerFor ForEachRow = "FOR EACH ROW"
+compileTriggerFor ForEachStatement = "FOR EACH STATEMENT"

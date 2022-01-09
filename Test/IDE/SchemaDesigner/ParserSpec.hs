@@ -485,16 +485,6 @@ $$;
                     , language = "plpgsql"
                     }
 
-
-        it "should parse unsupported SQL as a unknown statement" do
-            let sql = "CREATE TABLE a(); CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y(); CREATE TABLE b();"
-            let statements =
-                    [ StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
-                    , UnknownStatement { raw = "CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y()"  }
-                    , StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
-                    ]
-            parseSqlStatements sql `shouldBe` statements
-
         it "should parse a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
             let statements =
@@ -729,6 +719,18 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , checkExpression = EqExpression (CallExpression "num_nonnulls" [VarExpression "a",VarExpression "b",VarExpression "c"]) (IntExpression 1)
                     }
                 }
+
+        it "should parse 'CREATE TRIGGER .. AFTER INSERT ON .. FOR EACH ROW EXECUTE ..;' statements" do
+            parseSql "CREATE TRIGGER call_test_function_for_new_users AFTER INSERT ON public.users FOR EACH ROW EXECUTE FUNCTION call_test_function('hello');" `shouldBe` CreateTrigger
+                    { name = "call_test_function_for_new_users"
+                    , eventWhen = After
+                    , event = Insert
+                    , tableName = "users"
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "call_test_function"
+                    , arguments = [TextExpression "hello"]
+                    }
 
 col :: Column
 col = Column
