@@ -733,7 +733,7 @@ dropPolicy = do
 createSequence = do
     lexeme "CREATE"
     lexeme "SEQUENCE"
-    name <- identifier
+    name <- qualifiedIdentifier
     char ';'
     pure CreateSequence { name }
 
