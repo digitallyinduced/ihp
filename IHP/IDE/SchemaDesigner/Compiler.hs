@@ -130,7 +130,7 @@ compileExpressionWithOptionalParenthese expression = "(" <> compileExpression ex
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
-compareStatement (a@AddConstraint {}) (b@AddConstraint {}) = compare (get #constraintName a) (get #constraintName b)
+compareStatement (AddConstraint { constraint = a }) (AddConstraint { constraint = b }) = compare (get #name a) (get #name b)
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 
