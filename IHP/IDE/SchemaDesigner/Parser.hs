@@ -65,7 +65,7 @@ statement = do
     let create = try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> try createSequence
     let alter = do
             lexeme "ALTER"
-            alterTable <|> alterType
+            alterTable <|> alterType <|> alterSequence
     s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> dropType <|> commentStatement <|> comment
     space
     pure s
@@ -572,6 +572,11 @@ alterType = do
     typeName <- qualifiedIdentifier
     addValue typeName
 
+alterSequence = do
+    lexeme "SEQUENCE"
+    raw <- cs <$> someTill (anySingle) (char ';')
+    pure UnknownStatement { raw = "ALTER SEQUENCE " <> raw };
+
 -- | ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 --  ALTER TABLE users ALTER COLUMN email SET NOT NULL;
 --  ALTER TABLE users ALTER COLUMN email SET DEFAULT 'value';
@@ -734,6 +739,35 @@ createSequence = do
     lexeme "CREATE"
     lexeme "SEQUENCE"
     name <- qualifiedIdentifier
+
+    -- We accept all the following SEQUENCE attributes, but don't save them
+    -- This is mostly to void issues in migrations when parsing the pg_dump output
+    optional do
+        lexeme "AS"
+        sqlType
+
+    optional do
+        lexeme "START"
+        lexeme "WITH"
+        expression
+
+    optional do
+        lexeme "INCREMENT"
+        lexeme "BY"
+        expression
+
+    optional do
+        lexeme "NO"
+        lexeme "MINVALUE"
+
+    optional do
+        lexeme "NO"
+        lexeme "MAXVALUE"
+
+    optional do
+        lexeme "CACHE"
+        expression
+
     char ';'
     pure CreateSequence { name }
 
