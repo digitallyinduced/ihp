@@ -552,6 +552,18 @@ $$;
         
         it "should parse 'CREATE SEQUENCE ..' statements with qualified name" do
             parseSql "CREATE SEQUENCE public.a;" `shouldBe` CreateSequence { name = "a" }
+        
+        it "should parse 'CREATE SEQUENCE .. AS .. START WITH .. INCREMENT BY .. NO MINVALUE NO MAXVALUE CACHE ..;'" do
+            let sql = [trimming|
+                CREATE SEQUENCE public.a
+                    AS integer
+                    START WITH 1
+                    INCREMENT BY 1
+                    NO MINVALUE
+                    NO MAXVALUE
+                    CACHE 1;
+            |]
+            parseSql sql `shouldBe` CreateSequence { name = "a" }
 
         it "should parse 'SET' statements" do
             parseSql "SET statement_timeout = 0;" `shouldBe` Set { name = "statement_timeout", value = IntExpression 0 }
@@ -734,6 +746,10 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , functionName = "call_test_function"
                     , arguments = [TextExpression "hello"]
                     }
+
+        it "should parse 'ALTER SEQUENCE ..' statements" do
+            let sql = cs [plain|ALTER SEQUENCE public.a OWNED BY public.b.serial_number;|]
+            parseSql sql `shouldBe` UnknownStatement { raw = "ALTER SEQUENCE public.a OWNED BY public.b.serial_number" }
 
 col :: Column
 col = Column
