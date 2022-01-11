@@ -729,6 +729,54 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "should normalize Bigserials" do
+                let targetSchema = sql [i|
+                    CREATE TABLE testserial (
+                        testcol BIGSERIAL NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE public.testserial (
+                        testcol bigint NOT NULL
+                    );
+
+                    CREATE SEQUENCE public.testserial_testcol_seq
+                        START WITH 1
+                        INCREMENT BY 1
+                        NO MINVALUE
+                        NO MAXVALUE
+                        CACHE 1;
+
+                    ALTER SEQUENCE public.testserial_testcol_seq OWNED BY public.testserial.testcol;
+                    ALTER TABLE ONLY public.testserial ALTER COLUMN testcol SET DEFAULT nextval('public.testserial_testcol_seq'::regclass);
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+            
+            it "should normalize Serials" do
+                let targetSchema = sql [i|
+                    CREATE TABLE testserial (
+                        testcol SERIAL NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE public.testserial (
+                        testcol int NOT NULL
+                    );
+
+                    CREATE SEQUENCE public.testserial_testcol_seq
+                        START WITH 1
+                        INCREMENT BY 1
+                        NO MINVALUE
+                        NO MAXVALUE
+                        CACHE 1;
+
+                    ALTER SEQUENCE public.testserial_testcol_seq OWNED BY public.testserial.testcol;
+                    ALTER TABLE ONLY public.testserial ALTER COLUMN testcol SET DEFAULT nextval('public.testserial_testcol_seq'::regclass);
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
