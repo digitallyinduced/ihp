@@ -436,6 +436,8 @@ normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression
 
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType PBigserial = PBigInt
+normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
 
 migrationPathFromPlan :: [GeneratorAction] -> Text

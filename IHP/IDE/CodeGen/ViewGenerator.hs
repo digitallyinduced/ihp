@@ -173,7 +173,7 @@ buildPlan' schema config =
             indexView = [trimming|
                 ${viewHeader}
 
-                data IndexView = IndexView { ${pluralVariableName} :: [ ${singularName} ] ${importPagination} }
+                data IndexView = IndexView { ${pluralVariableName} :: [${singularName}] ${importPagination} }
 
                 instance View IndexView where
                     html IndexView { .. } = [hsx|
