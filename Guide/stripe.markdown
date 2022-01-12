@@ -123,15 +123,24 @@ ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_ref_plan_id FOREIGN KEY (
 ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
 ```
 
-Additionally you also need to add a `stripe_customer_id` field to your users table:
+Additionally you also need to add the following fields to your `users` table:
 
 ```sql
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     -- ...,
 
-    stripe_customer_id TEXT DEFAULT NULL
+    stripe_customer_id TEXT DEFAULT NULL,
+    plan_id UUID DEFAULT NULL,
+    subscription_id UUID DEFAULT NULL
 );
+
+CREATE INDEX users_stripe_customer_id_index ON users (stripe_customer_id);
+CREATE INDEX users_plan_id_index ON users (plan_id);
+CREATE INDEX users_subscription_id_index ON users (subscription_id);
+
+ALTER TABLE users ADD CONSTRAINT users_ref_plan_id FOREIGN KEY (plan_id) REFERENCES plans (id) ON DELETE NO ACTION;
+ALTER TABLE users ADD CONSTRAINT users_ref_subscription_id FOREIGN KEY (subscription_id) REFERENCES subscriptions (id) ON DELETE NO ACTION;
 ```
 
 ### Checkout Sessions
