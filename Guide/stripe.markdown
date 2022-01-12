@@ -218,7 +218,7 @@ instance Controller CheckoutSessionsController where
 Open `Web/Routes.hs` and enable routing:
 
 ```haskell
-instance AutoRoute SubscriptionsController
+instance AutoRoute CheckoutSessionsController
 ```
 
 Open `Web/FrontController.hs` and enable the new controller:
