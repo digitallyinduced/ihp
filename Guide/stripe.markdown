@@ -277,7 +277,7 @@ instance StripeEventController where
         user <- fetchOneOrNothing userId
         case user of
             Just user -> do
-                subscription <- newRecord @Subscription
+                subscription <- newRecord @Web.Controller.Prelude.Subscription
                     |> set #userId (get #id user)
                     |> set #stripeSubscriptionId subscriptionId
                     |> set #planId planId
