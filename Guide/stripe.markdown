@@ -337,10 +337,15 @@ On the first start this command will print out a webhook secret key (starting wi
 To integrate the Stripe Billing Portal, add an action like this to your app:
 
 ```haskell
+-- Add these imports at the top
+import qualified IHP.Stripe.Actions as Stripe
+import qualified IHP.Stripe.Types as Stripe
+
+-- Then add this action:
     action OpenBillingPortalAction = do
         subscription <- currentUser
             |> get #subscriptionId
-            |> fetch
+            |> fetchOne
 
         stripeSubscription <- Stripe.send Stripe.RetrieveSubscription { id = get #stripeSubscriptionId subscription }
 
