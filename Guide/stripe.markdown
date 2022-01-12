@@ -189,7 +189,7 @@ instance Controller CheckoutSessionsController where
                     }
                 , metadata =
                     [ ("userId", tshow currentUserId)
-                    , ("planId", tshow planId)
+                    , ("planId", tshow get #id plan)
                     ]
                 }
 
