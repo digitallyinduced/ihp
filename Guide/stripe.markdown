@@ -95,7 +95,7 @@ Open the `Application/Schema.sql` and add this:
 CREATE TABLE plans (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
-    stripe_price_id TEXT NOT NULL,
+    stripe_price_id TEXT NOT NULL
 );
 ```
 
