@@ -198,9 +198,21 @@ instance Controller CheckoutSessionsController where
     action CheckoutSuccessAction = do
         plan <- fetchOne (get #planId currentUser)
         setSuccessMessage ("You're on the " <> get #name plan <> " plan now!")
-        redirectTo SwitchToProAction
+
+        -- To keep things simple we just redirect the user to the app's start page
+        -- after successful subscribing to our plan.
+        --
+        -- It's best to have a dedicated "payment success" page, where
+        -- this action then should redirect to.
+        redirectToPath "/"
     
-    action CheckoutCancelAction = redirectTo PricingAction
+    action CheckoutCancelAction = do
+        -- You typically want to redirect the user to the page where the payment process
+        -- was started. E.g. `redirectTo PricingAction`.
+        --
+        -- To keep things simple in the Guide, we redirect to the start page
+        -- of the app for now.
+        redirectToPath "/"
 ```
 
 Open `Web/Routes.hs` and enable routing:
