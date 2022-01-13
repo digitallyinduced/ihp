@@ -421,10 +421,10 @@ varExpr :: Parser Expression
 varExpr = VarExpression <$> identifier
 
 doubleExpr :: Parser Expression
-doubleExpr = DoubleExpression <$> Lexer.float
+doubleExpr = DoubleExpression <$> (Lexer.signed spaceConsumer Lexer.float)
 
 intExpr :: Parser Expression
-intExpr = IntExpression <$> Lexer.decimal
+intExpr = IntExpression <$> (Lexer.signed spaceConsumer Lexer.decimal)
 
 callExpr :: Parser Expression
 callExpr = do
