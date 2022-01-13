@@ -777,6 +777,39 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            
+            it "should normalize index expressions" do
+                let targetSchema = sql [i|
+                    CREATE INDEX users_email_index ON users (LOWER(email));
+                |]
+                let actualSchema = sql [i|
+                    CREATE INDEX users_email_index ON public.users USING btree (lower(email));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should not detect a difference between two functions when the only difference is between 'CREATE' and 'CREATE OR REPLACE'" do
+                let targetSchema = sql [i|
+                    CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$
+                    BEGIN
+                        PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text);
+                        RETURN NEW;
+                    END;
+                    $$ language plpgsql;
+                |]
+                let actualSchema = sql [i|
+                    CREATE FUNCTION public.notify_did_insert_webrtc_connection() RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$
+                    BEGIN
+                        PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text);
+                        RETURN NEW;
+                    END;
+                    $$;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

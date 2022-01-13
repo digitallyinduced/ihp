@@ -751,6 +751,18 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             let sql = cs [plain|ALTER SEQUENCE public.a OWNED BY public.b.serial_number;|]
             parseSql sql `shouldBe` UnknownStatement { raw = "ALTER SEQUENCE public.a OWNED BY public.b.serial_number" }
 
+        it "should parse positive IntExpression's" do
+            parseExpression "1" `shouldBe` (IntExpression 1)
+
+        it "should parse negative IntExpression's" do
+            parseExpression "-1" `shouldBe` (IntExpression (-1))
+        
+        it "should parse positive DoubleExpression's" do
+            parseExpression "1.337" `shouldBe` (DoubleExpression 1.337)
+
+        it "should parse negative DoubleExpression's" do
+            parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
+
 col :: Column
 col = Column
     { name = ""
@@ -768,3 +780,9 @@ parseSqlStatements sql =
     case Megaparsec.runParser Parser.parseDDL "input" sql of
             Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError) -- For better error reporting in hspec
             Right statements -> statements
+
+parseExpression :: Text -> Expression
+parseExpression sql =
+    case Megaparsec.runParser Parser.expression "input" sql of
+            Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError) -- For better error reporting in hspec
+            Right expression -> expression

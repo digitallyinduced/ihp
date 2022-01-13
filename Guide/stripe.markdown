@@ -95,7 +95,7 @@ Open the `Application/Schema.sql` and add this:
 CREATE TABLE plans (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
-    stripe_price_id TEXT NOT NULL,
+    stripe_price_id TEXT NOT NULL
 );
 ```
 
@@ -123,15 +123,24 @@ ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_ref_plan_id FOREIGN KEY (
 ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
 ```
 
-Additionally you also need to add a `stripe_customer_id` field to your users table:
+Additionally you also need to add the following fields to your `users` table:
 
 ```sql
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     -- ...,
 
-    stripe_customer_id TEXT DEFAULT NULL
+    stripe_customer_id TEXT DEFAULT NULL,
+    plan_id UUID DEFAULT NULL,
+    subscription_id UUID DEFAULT NULL
 );
+
+CREATE INDEX users_stripe_customer_id_index ON users (stripe_customer_id);
+CREATE INDEX users_plan_id_index ON users (plan_id);
+CREATE INDEX users_subscription_id_index ON users (subscription_id);
+
+ALTER TABLE users ADD CONSTRAINT users_ref_plan_id FOREIGN KEY (plan_id) REFERENCES plans (id) ON DELETE NO ACTION;
+ALTER TABLE users ADD CONSTRAINT users_ref_subscription_id FOREIGN KEY (subscription_id) REFERENCES subscriptions (id) ON DELETE NO ACTION;
 ```
 
 ### Checkout Sessions
@@ -180,7 +189,7 @@ instance Controller CheckoutSessionsController where
                     }
                 , metadata =
                     [ ("userId", tshow currentUserId)
-                    , ("planId", tshow planId)
+                    , ("planId", tshow get #id plan)
                     ]
                 }
 
@@ -189,15 +198,27 @@ instance Controller CheckoutSessionsController where
     action CheckoutSuccessAction = do
         plan <- fetchOne (get #planId currentUser)
         setSuccessMessage ("You're on the " <> get #name plan <> " plan now!")
-        redirectTo SwitchToProAction
+
+        -- To keep things simple we just redirect the user to the app's start page
+        -- after successful subscribing to our plan.
+        --
+        -- It's best to have a dedicated "payment success" page, where
+        -- this action then should redirect to.
+        redirectToPath "/"
     
-    action CheckoutCancelAction = redirectTo PricingAction
+    action CheckoutCancelAction = do
+        -- You typically want to redirect the user to the page where the payment process
+        -- was started. E.g. `redirectTo PricingAction`.
+        --
+        -- To keep things simple in the Guide, we redirect to the start page
+        -- of the app for now.
+        redirectToPath "/"
 ```
 
 Open `Web/Routes.hs` and enable routing:
 
 ```haskell
-instance AutoRoute SubscriptionsController
+instance AutoRoute CheckoutSessionsController
 ```
 
 Open `Web/FrontController.hs` and enable the new controller:
@@ -256,7 +277,7 @@ instance StripeEventController where
         user <- fetchOneOrNothing userId
         case user of
             Just user -> do
-                subscription <- newRecord @Subscription
+                subscription <- newRecord @Web.Controller.Prelude.Subscription
                     |> set #userId (get #id user)
                     |> set #stripeSubscriptionId subscriptionId
                     |> set #planId planId
@@ -316,10 +337,15 @@ On the first start this command will print out a webhook secret key (starting wi
 To integrate the Stripe Billing Portal, add an action like this to your app:
 
 ```haskell
+-- Add these imports at the top
+import qualified IHP.Stripe.Actions as Stripe
+import qualified IHP.Stripe.Types as Stripe
+
+-- Then add this action:
     action OpenBillingPortalAction = do
         subscription <- currentUser
             |> get #subscriptionId
-            |> fetch
+            |> fetchOne
 
         stripeSubscription <- Stripe.send Stripe.RetrieveSubscription { id = get #stripeSubscriptionId subscription }
 
