@@ -21,6 +21,7 @@ data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
 data DynamicValue
     = IntValue !Int
+    | DoubleValue !Double
     | TextValue !Text
     | BoolValue !Bool
     | UUIDValue !UUID
@@ -78,6 +79,7 @@ instance {-# OVERLAPS #-} ToJSON [Field] where
     toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (fieldValueToJSON fieldValue)) fields)
         where
             fieldValueToJSON (IntValue value) = toJSON value
+            fieldValueToJSON (DoubleValue value) = toJSON value
             fieldValueToJSON (TextValue value) = toJSON value
             fieldValueToJSON (BoolValue value) = toJSON value
             fieldValueToJSON (UUIDValue value) = toJSON value
@@ -97,6 +99,7 @@ instance PG.FromField Field where
                 <|> (TextValue <$> PG.fromField field fieldValue')
                 <|> (BoolValue <$> PG.fromField field fieldValue')
                 <|> (UUIDValue <$> PG.fromField field fieldValue')
+                <|> (DoubleValue <$> PG.fromField field fieldValue')
                 <|> (DateTimeValue <$> PG.fromField field fieldValue')
                 <|> (PG.fromField @PG.Null field fieldValue' >> pure IHP.DataSync.DynamicQuery.Null)
                 <|> fromFieldCustomEnum field fieldValue'
