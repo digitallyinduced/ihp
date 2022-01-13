@@ -777,6 +777,17 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            
+            it "should normalize index expressions" do
+                let targetSchema = sql [i|
+                    CREATE INDEX users_email_index ON users (LOWER(email));
+                |]
+                let actualSchema = sql [i|
+                    CREATE INDEX users_email_index ON public.users USING btree (lower(email));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
