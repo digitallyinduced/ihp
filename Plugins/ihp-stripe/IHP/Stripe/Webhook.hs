@@ -15,6 +15,7 @@ import IHP.ControllerPrelude
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 
+-- See https://stripe.com/docs/api/events/types
 data StripeEvent
     = CheckoutSessionCompleted
         { checkoutSessionId :: Text
@@ -30,6 +31,19 @@ data StripeEvent
         , createdAt :: UTCTime
         , total :: Integer
         , currency :: Text
+        }
+    | CustomerSubscriptionUpdated -- ^ Occurs whenever a subscription changes (e.g., switching from one plan to another, or changing the status from trial to active).
+        { subscriptionId :: Text
+        , cancelAtPeriodEnd :: Bool
+        , currentPeriodEnd :: Maybe UTCTime
+        }
+    | CustomerSubscriptionDeleted -- ^ Occurs whenever a customer's subscription ends.
+        { subscriptionId :: Text
+        }
+    | CustomerSubscriptionTrialWillEnd -- ^ Occurs three days before a subscription's trial period is scheduled to end, or when a trial is ended immediately (using trial_end=now).
+        { subscriptionId :: Text
+        , trialEnds :: UTCTime
+        , cancelAtPeriodEnd :: Bool
         }
     | OtherEvent
 
@@ -57,6 +71,26 @@ instance FromJSON StripeEvent where
                 currency :: Text <- invoice .: "currency"
                 let createdAt :: UTCTime = posixSecondsToUTCTime (fromInteger created)
                 pure InvoiceFinalized { subscriptionId, stripeInvoiceId, invoiceUrl, invoicePdf, createdAt, total, currency }
+            "customer.subscription.updated" -> do
+                subscription <- payload .: "object"
+                subscriptionId :: Text <- subscription .: "id"
+                cancelAtPeriodEnd :: Bool <- subscription .: "cancel_at_period_end"
+                maybeCurrentPeriodEnd :: Maybe POSIXTime <- subscription .: "current_period_end"
+                let currentPeriodEnd :: Maybe UTCTime = fmap posixSecondsToUTCTime maybeCurrentPeriodEnd
+
+                pure CustomerSubscriptionUpdated { .. }
+            "customer.subscription.deleted" -> do
+                subscription <- payload .: "object"
+                subscriptionId :: Text <- subscription .: "id"
+
+                pure CustomerSubscriptionDeleted { .. }
+            "customer.subscription.trial_will_end" -> do
+                subscription <- payload .: "object"
+                subscriptionId :: Text <- subscription .: "id"
+                currentEndPeriod :: POSIXTime <- subscription .: "current_period_start"
+                let trialEnds :: UTCTime = posixSecondsToUTCTime currentEndPeriod
+                cancelAtPeriodEnd :: Bool <- subscription .: "cancel_at_period_end"
+                pure CustomerSubscriptionTrialWillEnd { .. }
             _ -> pure OtherEvent
 
 instance StripeEventController => Controller StripeWebhookController where

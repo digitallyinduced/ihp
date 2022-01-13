@@ -78,6 +78,10 @@ data Subscription = Subscription
     , customer :: Text
     }
 
+data CancelSubscription = CancelSubscription
+    { subscriptionId :: Text
+    }
+
 instance FromJSON CheckoutSession where
     parseJSON (Object v) = CheckoutSession <$> v .: "id" <*> v .: "url"
 
@@ -192,3 +196,8 @@ instance StripeAction RetrieveSubscriptionItems where
     send = getStripeRequest
 
 
+instance StripeAction CancelSubscription where
+    type StripeResult CancelSubscription = Subscription
+    actionUrl CancelSubscription { subscriptionId } = "https://api.stripe.com/v1/subscriptions/" <> cs subscriptionId
+    requestPayload _ = [ ("cancel_at_period_end", "true") ]
+    send = postStripeRequest
