@@ -445,11 +445,11 @@ textExpr' = cs <$> do
 
 selectExpr :: Parser Expression
 selectExpr = do
-    lexeme "SELECT"
+    symbol' "SELECT"
     columns <- expression `sepBy` (char ',' >> space)
-    lexeme "FROM"
+    symbol' "FROM"
     from <- expression
-    lexeme "WHERE"
+    symbol' "WHERE"
     whereClause <- expression
     pure (SelectExpression Select { .. })
 

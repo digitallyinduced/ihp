@@ -763,6 +763,9 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse negative DoubleExpression's" do
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
 
+        it "should parse lower-cased SELECT expressions" do
+            parseExpression "(select company_id from users where id = ihp_user_id())" `shouldBe` SelectExpression (Select {columns = [VarExpression "company_id"], from = VarExpression "users", whereClause = EqExpression (VarExpression "id") (CallExpression "ihp_user_id" [])})
+
 col :: Column
 col = Column
     { name = ""
