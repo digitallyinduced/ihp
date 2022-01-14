@@ -2,7 +2,7 @@
 {-|
 Module: IHP.Postgres.Polygon
 Description: Adds support for the Postgres Polygon type
-Copyright: (c) digitally induced GmbH, 2020
+Copyright: (c) digitally induced GmbH, 2022
 -}
 module IHP.Postgres.Polygon where
 
