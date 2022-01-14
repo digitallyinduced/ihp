@@ -386,7 +386,7 @@ instance ParamReader ModelSupport.Polygon where
             Right value -> Right value
             Left error -> Left "has to be points wrapped in parenthesis, separated with a comma, e.g. '(1,2),(3,4)'"
 
-    readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in  readParameter byteString
+    readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in readParameter byteString
     readParameterJSON _ = Left "Expected Polygon"
 
 instance ParamReader Text where
