@@ -1,6 +1,6 @@
 {-|
 Module: Test.Postgres.Polygon
-Copyright: (c) digitally induced GmbH, 2021
+Copyright: (c) digitally induced GmbH, 2022
 -}
 module Test.Postgres.Polygon where
 
