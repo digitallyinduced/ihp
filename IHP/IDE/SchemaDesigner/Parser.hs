@@ -207,6 +207,7 @@ sqlType = choice $ map optionalArray
         , real
         , double
         , point
+        , polygon
         , date
         , binary
         , time
@@ -274,6 +275,10 @@ sqlType = choice $ map optionalArray
                 point = do
                     try (symbol' "POINT")
                     pure PPoint
+
+                polygon = do
+                    try (symbol' "POLYGON")
+                    pure PPolygon
 
                 date = do
                     try (symbol' "DATE")

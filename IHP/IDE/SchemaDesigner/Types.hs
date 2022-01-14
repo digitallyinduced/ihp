@@ -176,6 +176,7 @@ data PostgresType
     | PReal
     | PDouble
     | PPoint
+    | PPolygon
     | PDate
     | PBinary
     | PTime

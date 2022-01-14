@@ -418,6 +418,14 @@ tests = do
                     , constraints = []
                     }
 
+        it "should parse a CREATE TABLE statement with a polygon column" do
+            parseSql "CREATE TABLE polygons (\n    poly POLYGON\n);\n" `shouldBe` StatementCreateTable CreateTable
+                    { name = "polygons"
+                    , columns = [ col { name = "poly", columnType = PPolygon } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+
         it "should parse a CREATE INDEX statement" do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"

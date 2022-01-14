@@ -391,6 +391,16 @@ tests = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE TABLE statement with an polygon column" do
+            let sql = cs [plain|CREATE TABLE polygon_tests (\n    poly POLYGON\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "polygon_tests"
+                    , columns = [ col { name = "poly", columnType = PPolygon } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE INDEX statement" do
             let sql = cs [plain|CREATE INDEX users_index ON users (user_name);\n|]
             let statement = CreateIndex

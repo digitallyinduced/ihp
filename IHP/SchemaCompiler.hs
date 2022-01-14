@@ -70,6 +70,7 @@ atomicType = \case
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
     PPoint -> "Point"
+    PPolygon -> "Polygon"
     PInet -> "Net.IP.IP"
     PTSVector -> "TSVector"
 

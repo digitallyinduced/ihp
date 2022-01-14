@@ -42,6 +42,7 @@ import qualified Test.RouterSupportSpec
 import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
 import qualified Test.Postgres.Point
+import qualified Test.Postgres.Polygon
 import qualified Test.Postgres.TSVector
 import qualified Test.FileStorage.MimeTypesSpec
 import qualified Test.DataSync.DynamicQueryCompiler
@@ -74,6 +75,7 @@ main = hspec do
     Test.ServerSideComponent.HtmlParserSpec.tests
     Test.ServerSideComponent.HtmlDiffSpec.tests
     Test.Postgres.Point.tests
+    Test.Postgres.Polygon.tests
     Test.Postgres.TSVector.tests
     Test.FileStorage.MimeTypesSpec.tests
     Test.DataSync.DynamicQueryCompiler.tests
