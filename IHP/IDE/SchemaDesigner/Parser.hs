@@ -207,6 +207,7 @@ sqlType = choice $ map optionalArray
         , real
         , double
         , point
+        , polygon
         , date
         , binary
         , time
@@ -274,6 +275,10 @@ sqlType = choice $ map optionalArray
                 point = do
                     try (symbol' "POINT")
                     pure PPoint
+
+                polygon = do
+                    try (symbol' "POLYGON")
+                    pure PPolygon
 
                 date = do
                     try (symbol' "DATE")
@@ -445,11 +450,11 @@ textExpr' = cs <$> do
 
 selectExpr :: Parser Expression
 selectExpr = do
-    lexeme "SELECT"
+    symbol' "SELECT"
     columns <- expression `sepBy` (char ',' >> space)
-    lexeme "FROM"
+    symbol' "FROM"
     from <- expression
-    lexeme "WHERE"
+    symbol' "WHERE"
     whereClause <- expression
     pure (SelectExpression Select { .. })
 

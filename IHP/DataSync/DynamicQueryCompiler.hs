@@ -67,6 +67,7 @@ compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") "
 compileCondition (LiteralExpression literal) = ("?", [toValue literal])
     where
         toValue (IntValue int) = PG.toField int
+        toValue (DoubleValue double) = PG.toField double
         toValue (TextValue text) = PG.toField text
         toValue (BoolValue bool) = PG.toField bool
         toValue (UUIDValue uuid) = PG.toField uuid

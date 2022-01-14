@@ -224,6 +224,23 @@ tests = do
                     (readParameterJSON @Point (json "\"1\"")) `shouldBe` (Left "has to be two numbers with a comma, e.g. '1,2'")
                     (readParameterJSON @Point (json "\"1.2\"")) `shouldBe` (Left "has to be two numbers with a comma, e.g. '1,2'")
 
+            describe "Polygon" do
+                it "should accept integer input" do
+                    (readParameter @Polygon "(100,200),(300,400)") `shouldBe`
+                        (Right Polygon { points = [ Point { x = 100, y = 200 }, Point { x = 300, y = 400 } ] })
+
+                it "should accept floating-point input" do
+                    (readParameter @Polygon "(100.1,200.2),(300.3,400.4)") `shouldBe`
+                        (Right Polygon { points = [ Point { x = 100.1, y = 200.2 }, Point { x = 300.3, y = 400.4 } ] })
+
+                it "should accept JSON integer input" do
+                    (readParameterJSON @Polygon (json "\"(100,200),(300,400)\"")) `shouldBe`
+                        (Right Polygon { points = [ Point { x = 100, y = 200 }, Point { x = 300, y = 400 } ] })
+
+                it "should accept JSON floating-point input" do
+                    (readParameterJSON @Polygon (json "\"(100.1,200.2),(300.3,400.4)\"")) `shouldBe`
+                        (Right Polygon { points = [ Point { x = 100.1, y = 200.2 }, Point { x = 300.3, y = 400.4 } ] })
+
             describe "Text" do
                 it "should handle text input" do
                     (readParameter @Text "test") `shouldBe` (Right "test")

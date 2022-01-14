@@ -332,6 +332,47 @@ To test it out [install the Stripe CLI](https://stripe.com/docs/stripe-cli). Run
 
 On the first start this command will print out a webhook secret key (starting with `whsec_`). Copy the key and open `start`. Inside the `start` script set the `export STRIPE_WEBHOOK_SECRET_KEY=""` line to this key. After this restart your app.
 
+### Handling Unsubscribes
+
+To automatically deal with customers that unsubscribe, add the following handler to `Web/Controller/StripeWebhook.hs`:
+
+```haskell
+on CustomerSubscriptionUpdated { subscriptionId, cancelAtPeriodEnd, currentPeriodEnd } = do
+    maybeSubscription <- query @Subscription
+            |> filterWhere (#stripeSubscriptionId, subscriptionId)
+            |> fetchOneOrNothing
+    case maybeSubscription of
+        Just subscription -> do
+            subscription 
+                |> set #endsAt (if cancelAtPeriodEnd
+                        then currentPeriodEnd
+                        else Nothing)
+                |> updateRecord
+            pure ()
+        Nothing -> pure ()
+
+on CustomerSubscriptionDeleted { subscriptionId } = do
+    maybeSubscription <- query @Subscription
+            |> filterWhere (#stripeSubscriptionId, subscriptionId)
+            |> fetchOneOrNothing
+    case maybeSubscription of
+        Just subscription -> do
+            now <- getCurrentTime
+            subscription 
+                |> set #endsAt now
+                |> set #isActive False
+                |> updateRecord
+
+            user <- fetch (get #userId subscription)
+            user
+                |> set #planId Nothing
+                |> set #subscriptionId Nothing
+                |> updateRecord
+        Nothing -> pure ()
+````
+
+This will set the `endsAt` date on the subscription, will mark the subscription as not active anymore and then sets the `planId` of the user to `null`.
+
 ## Billing Portal
 
 To integrate the Stripe Billing Portal, add an action like this to your app:

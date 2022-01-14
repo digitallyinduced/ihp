@@ -366,6 +366,29 @@ instance ParamReader ModelSupport.Point where
     readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in  readParameter byteString
     readParameterJSON _ = Left "Expected Point"
 
+instance ParamReader ModelSupport.Polygon where
+    {-# INLINABLE readParameter #-}
+    readParameter byteString =
+        let
+            pointParser = do
+                Attoparsec.char '('
+                x <- Attoparsec.double
+                Attoparsec.char ','
+                y <- Attoparsec.double
+                Attoparsec.char ')'
+                pure ModelSupport.Point { .. }
+            parser = do
+                points <- pointParser `Attoparsec.sepBy` (Attoparsec.char ',')
+                Attoparsec.endOfInput
+                pure ModelSupport.Polygon { .. }
+        in
+        case Attoparsec.parseOnly parser byteString of
+            Right value -> Right value
+            Left error -> Left "has to be points wrapped in parenthesis, separated with a comma, e.g. '(1,2),(3,4)'"
+
+    readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in readParameter byteString
+    readParameterJSON _ = Left "Expected Polygon"
+
 instance ParamReader Text where
     {-# INLINABLE readParameter #-}
     readParameter byteString = pure (cs byteString)

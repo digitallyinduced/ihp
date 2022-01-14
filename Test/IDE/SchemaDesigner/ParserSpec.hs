@@ -418,6 +418,14 @@ tests = do
                     , constraints = []
                     }
 
+        it "should parse a CREATE TABLE statement with a polygon column" do
+            parseSql "CREATE TABLE polygons (\n    poly POLYGON\n);\n" `shouldBe` StatementCreateTable CreateTable
+                    { name = "polygons"
+                    , columns = [ col { name = "poly", columnType = PPolygon } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+
         it "should parse a CREATE INDEX statement" do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
@@ -762,6 +770,9 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 
         it "should parse negative DoubleExpression's" do
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
+
+        it "should parse lower-cased SELECT expressions" do
+            parseExpression "(select company_id from users where id = ihp_user_id())" `shouldBe` SelectExpression (Select {columns = [VarExpression "company_id"], from = VarExpression "users", whereClause = EqExpression (VarExpression "id") (CallExpression "ihp_user_id" [])})
 
 col :: Column
 col = Column
