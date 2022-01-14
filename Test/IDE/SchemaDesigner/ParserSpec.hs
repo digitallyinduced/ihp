@@ -720,8 +720,8 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             parseSql sql `shouldBe` CreatePolicy
                     { name = "Users can manage their project's migrations"
                     , tableName = "migrations"
-                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
-                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", alias = Nothing, whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", alias = Nothing, whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
                     }
         
         it "should parse policies with an EXISTS condition and a qualified table name" do
@@ -729,8 +729,8 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             parseSql sql `shouldBe` CreatePolicy
                     { name = "Users can manage their project's migrations"
                     , tableName = "migrations"
-                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
-                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                    , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                     }
 
         it "should parse a call expression with multiple arguments" do
@@ -772,7 +772,20 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
 
         it "should parse lower-cased SELECT expressions" do
-            parseExpression "(select company_id from users where id = ihp_user_id())" `shouldBe` SelectExpression (Select {columns = [VarExpression "company_id"], from = VarExpression "users", whereClause = EqExpression (VarExpression "id") (CallExpression "ihp_user_id" [])})
+            parseExpression "(select company_id from users where id = ihp_user_id())" `shouldBe` SelectExpression (Select {columns = [VarExpression "company_id"], from = VarExpression "users", alias = Nothing, whereClause = EqExpression (VarExpression "id") (CallExpression "ihp_user_id" [])})
+
+        it "should parse policies with an alias in the USING expression" do
+            let sql = cs [plain|
+                CREATE POLICY "Users can see other users in their company" ON public.users USING ((company_id = ( SELECT users_1.company_id
+                   FROM public.users users_1
+                  WHERE (users_1.id = public.ihp_user_id()))));
+            |]
+            parseSql sql `shouldBe` CreatePolicy
+                    { name = "Users can see other users in their company"
+                    , tableName = "users"
+                    , using = Just (EqExpression (VarExpression "company_id") (SelectExpression (Select {columns = [DotExpression (VarExpression "users_1") "company_id"], from = DotExpression (VarExpression "public") "users", alias = Just "users_1", whereClause = EqExpression (DotExpression (VarExpression "users_1") "id") (CallExpression "ihp_user_id" [])})))
+                    , check = Nothing
+                    }
 
 col :: Column
 col = Column

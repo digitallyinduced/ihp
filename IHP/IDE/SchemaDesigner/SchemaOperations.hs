@@ -262,6 +262,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                                 Select
                                 { columns = [IntExpression 1]
                                 , from = DotExpression (VarExpression "public") refTableName
+                                , alias = Nothing
                                 , whereClause = EqExpression (DotExpression (VarExpression refTableName) refColumnName) (DotExpression (VarExpression tableName) (get #name column))
                                 }
                             )

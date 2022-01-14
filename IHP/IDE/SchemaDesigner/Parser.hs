@@ -454,9 +454,27 @@ selectExpr = do
     columns <- expression `sepBy` (char ',' >> space)
     symbol' "FROM"
     from <- expression
-    symbol' "WHERE"
-    whereClause <- expression
-    pure (SelectExpression Select { .. })
+
+
+    let whereClause alias = do
+            symbol' "WHERE"
+            whereClause <- expression
+            pure (SelectExpression Select { .. })
+
+    let explicitAs = do
+            symbol' "AS"
+            alias <- identifier
+            whereClause (Just alias)
+
+    let implicitAs = do
+            alias <- identifier
+            whereClause (Just alias)
+
+    whereClause Nothing <|> explicitAs <|> implicitAs
+    
+    
+    
+    
 
 identifier :: Parser Text
 identifier = do

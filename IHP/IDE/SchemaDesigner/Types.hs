@@ -161,6 +161,7 @@ data Expression =
 data Select = Select
     { columns :: [Expression]
     , from :: Expression
+    , alias :: Maybe Text
     , whereClause :: Expression
     } deriving (Eq, Show)
 
