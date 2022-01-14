@@ -809,6 +809,18 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
+            
+            it "should normalize aliases in policies" do
+                let targetSchema = sql [i|
+                    CREATE POLICY "Users can see other users in their company" ON users USING (company_id = (SELECT users.company_id FROM users WHERE users.id = ihp_user_id()));
+                |]
+                let actualSchema = sql [i|
+                    CREATE POLICY "Users can see other users in their company" ON public.users USING ((company_id = ( SELECT users_1.company_id
+                       FROM public.users users_1
+                      WHERE (users_1.id = public.ihp_user_id()))));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
 
 
 sql :: Text -> [Statement]

@@ -428,13 +428,48 @@ normalizeExpression e@(IntExpression {}) = e
 -- 'job_status_not_started'::public.job_status => 'job_status_not_started'
 --
 normalizeExpression (TypeCastExpression a b) = normalizeExpression a
-normalizeExpression (SelectExpression Select { columns, from, whereClause }) = SelectExpression Select { columns = normalizeExpression <$> columns, from = normalizeFrom from, whereClause = normalizeExpression whereClause }
+normalizeExpression (SelectExpression Select { columns, from, whereClause, alias }) = SelectExpression Select { columns = resolveAlias' <$> (normalizeExpression <$> columns), from = normalizeFrom from, whereClause = resolveAlias' (normalizeExpression whereClause), alias = Nothing }
     where
         -- Turns a `SELECT 1 FROM a` into `SELECT 1 FROM public.a`
         normalizeFrom (VarExpression a) = DotExpression (VarExpression "public") a
         normalizeFrom otherwise = normalizeExpression otherwise
+
+        resolveAlias' = resolveAlias alias (unqualifiedName from)
+
+        unqualifiedName :: Expression -> Expression
+        unqualifiedName (DotExpression (VarExpression "public") name) = VarExpression name
+        unqualifiedName name = name
 normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) b
 normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
+
+
+resolveAlias :: Maybe Text -> Expression -> Expression -> Expression
+resolveAlias (Just alias) fromExpression expression =
+    let
+        rec = resolveAlias (Just alias) fromExpression
+    in case expression of
+        e@(TextExpression {}) -> e
+        e@(VarExpression var) -> if var == alias
+                    then fromExpression
+                    else e
+        e@(CallExpression function args) -> CallExpression function (map rec args)
+        e@(NotEqExpression a b) -> NotEqExpression (rec a) (rec b)
+        e@(EqExpression a b) -> EqExpression (rec a) (rec b)
+        e@(AndExpression a b) -> AndExpression (rec a) (rec b)
+        e@(IsExpression a b) -> IsExpression (rec a) (rec b)
+        e@(NotExpression a) -> NotExpression (rec a)
+        e@(OrExpression a b) -> OrExpression (rec a) (rec b)
+        e@(LessThanExpression a b) -> LessThanExpression (rec a) (rec b)
+        e@(LessThanOrEqualToExpression a b) -> LessThanOrEqualToExpression (rec a) (rec b)
+        e@(GreaterThanExpression a b) -> GreaterThanExpression (rec a) (rec b)
+        e@(GreaterThanOrEqualToExpression a b) -> GreaterThanOrEqualToExpression (rec a) (rec b)
+        e@(DoubleExpression {}) -> e
+        e@(IntExpression {}) -> e
+        e@(TypeCastExpression a b) -> (TypeCastExpression (rec a) b)
+        e@(SelectExpression Select { columns, from, whereClause, alias }) -> SelectExpression Select { columns = rec <$> columns, from = rec from, whereClause = rec whereClause, alias = alias }
+        e@(DotExpression a b) -> DotExpression (rec a) b
+        e@(ExistsExpression a) -> ExistsExpression (rec a)
+resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)

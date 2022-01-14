@@ -146,7 +146,7 @@ ihpDefaultConfig = do
     option bootstrap
 
     when (environment == Development) do
-        ihpIdeBaseUrl <- envOrDefault "IHP_IDE_BASEURL" "http://localhost:8001"
+        ihpIdeBaseUrl <- envOrDefault "IHP_IDE_BASEURL" ("http://localhost:" <> tshow (port + 1))
         option (IdeBaseUrl ihpIdeBaseUrl)
 
     rlsAuthenticatedRole <- envOrDefault "IHP_RLS_AUTHENTICATED_ROLE" "ihp_authenticated"

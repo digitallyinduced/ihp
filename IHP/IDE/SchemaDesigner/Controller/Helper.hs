@@ -15,7 +15,7 @@ instance ParamReader PostgresType where
 
 instance ParamReader Expression where
     readParameter byteString = case Megaparsec.runParser Parser.expression "" (cs byteString) of
-        Left error -> Left (cs $ tshow error)
+        Left parserError -> Left (cs $ Megaparsec.errorBundlePretty parserError)
         Right result -> Right result
 
 readSchema ::
