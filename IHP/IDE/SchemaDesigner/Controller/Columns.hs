@@ -247,21 +247,10 @@ nameList statements = map (get #name) statements
 validateColumn :: Validator Text
 validateColumn = validateNameInSchema "column name" [] Nothing
 
-referencingColumnForeignKeyConstraints tableName columnName statements =
-    find (\statement ->
-        statement ==
-            AddConstraint
-                { tableName = tableName
-                , constraint =
-                    ForeignKeyConstraint
-                        { name = Just (get #constraintName statement)
-                        , columnName = columnName
-                        , referenceTable = (get #referenceTable (get #constraint statement))
-                        , referenceColumn = (get #referenceColumn (get #constraint statement))
-                        , onDelete = (get #onDelete (get #constraint statement))
-                        }
-                }
-    ) statements
+referencingColumnForeignKeyConstraints tableName columnName =
+    find \case
+        AddConstraint { tableName = constraintTable, constraint = ForeignKeyConstraint { columnName = fkColumnName  }  } -> constraintTable == tableName && fkColumnName == columnName
+        otherwise -> False
 
 
 -- | Returns the list of CreateIndex statements that reference a specific column
