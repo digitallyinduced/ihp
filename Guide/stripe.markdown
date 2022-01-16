@@ -112,7 +112,7 @@ CREATE TABLE subscriptions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     user_id UUID NOT NULL,
     starts_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    ends_at DATE DEFAULT NULL,
+    ends_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     is_active BOOLEAN DEFAULT true NOT NULL,
     stripe_subscription_id TEXT NOT NULL,
     plan_id UUID NOT NULL,
@@ -338,7 +338,7 @@ To automatically deal with customers that unsubscribe, add the following handler
 
 ```haskell
 on CustomerSubscriptionUpdated { subscriptionId, cancelAtPeriodEnd, currentPeriodEnd } = do
-    maybeSubscription <- query @Subscription
+    maybeSubscription <- query @Web.Controller.Prelude.Subscription
             |> filterWhere (#stripeSubscriptionId, subscriptionId)
             |> fetchOneOrNothing
     case maybeSubscription of
@@ -352,7 +352,7 @@ on CustomerSubscriptionUpdated { subscriptionId, cancelAtPeriodEnd, currentPerio
         Nothing -> pure ()
 
 on CustomerSubscriptionDeleted { subscriptionId } = do
-    maybeSubscription <- query @Subscription
+    maybeSubscription <- query @Web.Controller.Prelude.Subscription
             |> filterWhere (#stripeSubscriptionId, subscriptionId)
             |> fetchOneOrNothing
     case maybeSubscription of
@@ -368,6 +368,7 @@ on CustomerSubscriptionDeleted { subscriptionId } = do
                 |> set #planId Nothing
                 |> set #subscriptionId Nothing
                 |> updateRecord
+            pure ()
         Nothing -> pure ()
 ````
 
