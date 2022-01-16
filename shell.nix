@@ -63,6 +63,7 @@ let
         cereal-text
         neat-interpolation
         unagi-chan
+        with-utf8
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

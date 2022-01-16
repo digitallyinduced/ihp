@@ -27,9 +27,10 @@ import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 import Data.Default (def, Default (..))
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = do
+main = withUtf8 do
     actionVar <- newEmptyMVar
     appStateRef <- emptyAppState >>= newIORef
     portConfig <- findAvailablePortConfig

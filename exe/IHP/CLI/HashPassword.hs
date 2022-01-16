@@ -8,9 +8,10 @@ module Main where
 import IHP.Prelude
 import qualified Data.Text.IO as Text
 import qualified IHP.AuthSupport.Authentication as Auth
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = do
+main = withUtf8 do
     putStrLn "Enter your password and press enter:"
     plaintextPassword <- Text.getLine
     hashedPassword <- Auth.hashPassword plaintextPassword

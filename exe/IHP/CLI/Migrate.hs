@@ -5,9 +5,10 @@ import IHP.SchemaMigration
 import IHP.ModelSupport
 import IHP.FrameworkConfig
 import IHP.Log.Types
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = do
+main = withUtf8 do
     frameworkConfig <- buildFrameworkConfig (pure ())
 
     -- We need a debug logger to print out all sql queries during the migration.
