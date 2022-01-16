@@ -37,9 +37,7 @@ import qualified System.Directory as Directory
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
-    let withFrameworkConfig = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig |> get #logger |> get #cleanup)
-
-    withFrameworkConfig \frameworkConfig -> do
+    withFrameworkConfig configBuilder \frameworkConfig -> do
         modelContext <- initModelContext frameworkConfig
         let withPGListener = Exception.bracket (PGListener.init modelContext) PGListener.stop
 
