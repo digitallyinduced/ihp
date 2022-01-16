@@ -20,6 +20,7 @@ import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
 import qualified System.Posix.Env.ByteString as Posix
 import Data.String.Interpolate.IsString (i)
+import qualified Control.Exception as Exception
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -501,3 +502,18 @@ isProduction = isEnvironment Production
 
 defaultCorsResourcePolicy :: Maybe Cors.CorsResourcePolicy
 defaultCorsResourcePolicy = Nothing
+
+-- | Builds a config and calls the provided callback.
+--
+-- Once the callback has returned the resources allocated by the config are closed. Specifcally
+-- this will close open log file handles.
+--
+-- __Example:__
+--
+-- > import Config (config)
+-- >
+-- > withFrameworkConfig config \frameworkConfig -> do
+-- >     -- Do something with the FrameworkConfig here
+--
+withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
+withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig |> get #logger |> get #cleanup)

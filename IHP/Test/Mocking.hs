@@ -51,30 +51,32 @@ data MockContext application = InitControllerContext application => MockContext
 -- | Create contexts that can be used for mocking
 withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
 withIHPApp application configBuilder hspecAction = do
-    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
+    FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
+        let FrameworkConfig { dbPoolMaxConnections, dbPoolIdleTime, databaseUrl } = frameworkConfig
 
-    logger <- newLogger def { level = Warn } -- don't log queries
+        logger <- newLogger def { level = Warn } -- don't log queries
 
-    let initTestDatabase = Database.createTestDatabase databaseUrl
-    let cleanupTestDatabase testDatabase = Database.deleteDatabase databaseUrl testDatabase
+        let initTestDatabase = Database.createTestDatabase databaseUrl
+        let cleanupTestDatabase testDatabase = Database.deleteDatabase databaseUrl testDatabase
+        let withTestDatabase = Exception.bracket initTestDatabase cleanupTestDatabase
 
-    Exception.bracket initTestDatabase cleanupTestDatabase \testDatabase -> do
-        modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (get #url testDatabase) logger
+        withTestDatabase \testDatabase -> do
+            modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (get #url testDatabase) logger
 
-        session <- Vault.newKey
-        pgListener <- PGListener.init modelContext
-        autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-        let sessionVault = Vault.insert session mempty Vault.empty
-        let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
+            session <- Vault.newKey
+            pgListener <- PGListener.init modelContext
+            autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+            let sessionVault = Vault.insert session mempty Vault.empty
+            let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
 
-        let requestContext = RequestContext
-             { request = defaultRequest {vault = sessionVault}
-             , requestBody = FormBody [] []
-             , respond = const (pure ResponseReceived)
-             , vault = session
-             , frameworkConfig = frameworkConfig }
+            let requestContext = RequestContext
+                 { request = defaultRequest {vault = sessionVault}
+                 , requestBody = FormBody [] []
+                 , respond = const (pure ResponseReceived)
+                 , vault = session
+                 , frameworkConfig = frameworkConfig }
 
-        (hspecAction MockContext { .. })
+            (hspecAction MockContext { .. })
 
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
