@@ -34,9 +34,10 @@ import qualified Control.Exception as Exception
 
 import qualified System.Environment as Env
 import qualified System.Directory as Directory
+import Main.Utf8 (withUtf8)
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
-run configBuilder = do
+run configBuilder = withUtf8 do
     withFrameworkConfig configBuilder \frameworkConfig -> do
         modelContext <- initModelContext frameworkConfig
         let withPGListener = Exception.bracket (PGListener.init modelContext) PGListener.stop

@@ -6,9 +6,10 @@ import qualified System.Posix.Env.ByteString as Posix
 import IHP.IDE.CodeGen.ControllerGenerator
 import IHP.IDE.CodeGen.Controller (undoPlan)
 import qualified Data.Text as Text
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = do
+main = withUtf8 do
     ensureIsInAppDirectory
 
     args <- map cs <$> Posix.getArgs

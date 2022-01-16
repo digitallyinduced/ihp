@@ -5,9 +5,10 @@ import qualified System.Directory as Directory
 import qualified System.Posix.Env.ByteString as Posix
 import IHP.IDE.CodeGen.ApplicationGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = do
+main = withUtf8 do
     ensureIsInAppDirectory
 
     args <- map cs <$> Posix.getArgs
