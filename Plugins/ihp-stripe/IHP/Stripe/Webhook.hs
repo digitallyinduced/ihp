@@ -10,6 +10,7 @@ import qualified Stripe.Concepts as Stripe
 
 import IHP.Stripe.Types
 import IHP.Stripe.Config
+import IHP.Stripe.Actions
 import IHP.ControllerPrelude
 
 import qualified IHP.Log.Types as Log
