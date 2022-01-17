@@ -33,9 +33,7 @@ data StripeEvent
         , currency :: Text
         }
     | CustomerSubscriptionUpdated -- ^ Occurs whenever a subscription changes (e.g., switching from one plan to another, or changing the status from trial to active).
-        { subscriptionId :: Text
-        , cancelAtPeriodEnd :: Bool
-        , currentPeriodEnd :: Maybe UTCTime
+        { subscription :: Subscription
         }
     | CustomerSubscriptionDeleted -- ^ Occurs whenever a customer's subscription ends.
         { subscriptionId :: Text
@@ -73,11 +71,6 @@ instance FromJSON StripeEvent where
                 pure InvoiceFinalized { subscriptionId, stripeInvoiceId, invoiceUrl, invoicePdf, createdAt, total, currency }
             "customer.subscription.updated" -> do
                 subscription <- payload .: "object"
-                subscriptionId :: Text <- subscription .: "id"
-                cancelAtPeriodEnd :: Bool <- subscription .: "cancel_at_period_end"
-                maybeCurrentPeriodEnd :: Maybe POSIXTime <- subscription .: "current_period_end"
-                let currentPeriodEnd :: Maybe UTCTime = fmap posixSecondsToUTCTime maybeCurrentPeriodEnd
-
                 pure CustomerSubscriptionUpdated { .. }
             "customer.subscription.deleted" -> do
                 subscription <- payload .: "object"

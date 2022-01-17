@@ -9,6 +9,7 @@ import Data.Aeson
 import qualified Data.Maybe as Maybe
 import IHP.Stripe.Types
 import IHP.Stripe.Request
+import Data.Time.Clock.POSIX
 
 data CheckoutSession = CheckoutSession
     { id :: Text
@@ -76,10 +77,19 @@ data RetrieveSubscription = RetrieveSubscription
 data Subscription = Subscription
     { id :: Text
     , customer :: Text
+    , cancelAtPeriodEnd :: Bool
+    , currentPeriodEnd :: Maybe UTCTime
+    , items :: SubscriptionItemsList
     }
 
 data CancelSubscription = CancelSubscription
     { subscriptionId :: Text
+    }
+
+data Price = Price
+    { id :: Text
+    , product :: Text
+    , nickname :: Text
     }
 
 instance FromJSON CheckoutSession where
@@ -92,7 +102,18 @@ instance FromJSON BillingPortalSession where
     parseJSON (Object v) = BillingPortalSession <$> v .: "url"
 
 instance FromJSON Subscription where
-    parseJSON (Object v) = Subscription <$> v .: "id" <*> v .: "customer"
+    parseJSON (Object v) = do
+        id <- v .: "id"
+        customer <- v .: "customer"
+        cancelAtPeriodEnd <- v .: "cancel_at_period_end"
+        maybeCurrentPeriodEnd :: Maybe POSIXTime <- v .: "current_period_end"
+        let currentPeriodEnd = fmap posixSecondsToUTCTime maybeCurrentPeriodEnd
+        items <- v .: "items"
+
+        pure Subscription { .. }
+
+instance FromJSON Price where
+    parseJSON (Object v) = Price <$> v .: "id" <*> v .: "product" <*> v .: "nickname"
 
 --instance FromJSON LineItem where
 --    parseJSON (Object v) = LineItem <$> v .: "id" <*> v .: "price" <*> v .: "quantity" <*> v .:? "taxRate" <*> (pure Nothing)
@@ -101,7 +122,7 @@ instance FromJSON SubscriptionItemsList where
     parseJSON (Object v) = SubscriptionItemsList <$> v .: "data"
 
 instance FromJSON SubscriptionItem where
-    parseJSON (Object v) = SubscriptionItem <$> v .: "id" <*> v .: "quantity"
+    parseJSON (Object v) = SubscriptionItem <$> v .: "id" <*> v .: "quantity" <*> v .: "price"
 
 instance StripeAction CreateCheckoutSession where
     type StripeResult CreateCheckoutSession = CheckoutSession
@@ -186,7 +207,11 @@ instance StripeAction UpdateSubscriptionItem where
 
 
 data SubscriptionItemsList = SubscriptionItemsList { data_ :: [SubscriptionItem] }
-data SubscriptionItem = SubscriptionItem { id :: Text, quantity :: !Int }
+data SubscriptionItem = SubscriptionItem
+    { id :: Text
+    , quantity :: !Int
+    , price :: Price
+    }
 data RetrieveSubscriptionItems = RetrieveSubscriptionItems { subscriptionId :: Text }
 
 instance StripeAction RetrieveSubscriptionItems where
