@@ -337,15 +337,15 @@ On the first start this command will print out a webhook secret key (starting wi
 To automatically deal with customers that unsubscribe, add the following handler to `Web/Controller/StripeWebhook.hs`:
 
 ```haskell
-on CustomerSubscriptionUpdated { subscriptionId, cancelAtPeriodEnd, currentPeriodEnd } = do
+on CustomerSubscriptionUpdated { subscription = stripeSubscription } = do
     maybeSubscription <- query @Web.Controller.Prelude.Subscription
-            |> filterWhere (#stripeSubscriptionId, subscriptionId)
+            |> filterWhere (#stripeSubscriptionId, get #id stripeSubscription)
             |> fetchOneOrNothing
     case maybeSubscription of
         Just subscription -> do
             subscription 
-                |> set #endsAt (if cancelAtPeriodEnd
-                        then currentPeriodEnd
+                |> set #endsAt (if get #cancelAtPeriodEnd stripeSubscription
+                        then get #currentPeriodEnd stripeSubscription
                         else Nothing)
                 |> updateRecord
             pure ()
