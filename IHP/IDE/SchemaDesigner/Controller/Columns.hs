@@ -160,13 +160,10 @@ instance Controller ColumnsController where
         let columnName = param "columnName"
         let constraintName = param "constraintName"
         let referenceTable = param "referenceTable"
-        let constraintId = findIndex (\statement -> statement == AddConstraint { tableName = tableName
-            , constraint = ForeignKeyConstraint
-                { name = Just (get #constraintName statement)
-                , columnName = columnName
-                , referenceTable = (get #referenceTable (get #constraint statement))
-                , referenceColumn = (get #referenceColumn (get #constraint statement))
-                , onDelete=(get #onDelete (get #constraint statement)) } }) statements
+        let constraintId = statements
+                |> findIndex \case
+                    AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumnName } } -> tableName == fkTable && columnName == fkColumnName
+                    otherwise -> False
         let onDeleteParam = param @Text "onDelete"
         let onDelete = case onDeleteParam of
                 "Restrict" -> Restrict
