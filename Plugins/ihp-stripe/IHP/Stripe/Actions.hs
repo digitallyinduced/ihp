@@ -89,7 +89,7 @@ data CancelSubscription = CancelSubscription
 data Price = Price
     { id :: Text
     , product :: Text
-    , nickname :: Text
+    , nickname :: Maybe Text
     }
 
 instance FromJSON CheckoutSession where
