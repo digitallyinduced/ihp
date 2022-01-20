@@ -34,10 +34,15 @@ import qualified Control.Exception as Exception
 
 import qualified System.Environment as Env
 import qualified System.Directory as Directory
-import Main.Utf8 (withUtf8)
+import qualified GHC.IO.Encoding as IO
+import qualified System.IO as IO
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
-run configBuilder = withUtf8 do
+run configBuilder = do
+    -- We cannot use 'Main.Utf8.withUtf8' here, as this for some reason breaks live reloading
+    -- in the dev server. So we switch the file handles to utf8 manually
+    IO.setLocaleEncoding IO.utf8
+
     withFrameworkConfig configBuilder \frameworkConfig -> do
         modelContext <- initModelContext frameworkConfig
         let withPGListener = Exception.bracket (PGListener.init modelContext) PGListener.stop
@@ -164,7 +169,10 @@ application request respond = do
 runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
                 Warp.defaultSettings
-                    |> Warp.setBeforeMainLoop (ByteString.putStrLn "Server started")
+                    |> Warp.setBeforeMainLoop (do
+                            ByteString.putStrLn "Server started"
+                            IO.hFlush IO.stdout
+                        )
                     |> Warp.setPort appPort
 runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } = Warp.runSettings $
                 Warp.defaultSettings
