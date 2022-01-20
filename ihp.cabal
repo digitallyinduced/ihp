@@ -182,6 +182,7 @@ library
         , IHP.Controller.Context
         , IHP.Controller.Layout
         , IHP.Controller.BasicAuth
+        , IHP.Controller.Cookie
         , IHP.HSX.Parser
         , IHP.HSX.QQ
         , IHP.HSX.ToHtml
