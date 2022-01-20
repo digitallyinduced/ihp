@@ -4,9 +4,10 @@ import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.IDE.CodeGen.ScriptGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = do
+main = withUtf8 do
     args <- getArgs
     case headMay args of
         Just scriptName | not (Text.null scriptName) -> do

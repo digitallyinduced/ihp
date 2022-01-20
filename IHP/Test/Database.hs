@@ -11,6 +11,7 @@ import qualified System.Process as Process
 import qualified Data.Text as Text
 import qualified Data.ByteString as ByteString
 import qualified IHP.LibDir as LibDir
+import qualified Control.Exception as Exception
 
 data TestDatabase = TestDatabase
     { name :: Text
@@ -27,8 +28,8 @@ createTestDatabase databaseUrl = do
     databaseId <- UUID.nextRandom
     let databaseName = "test-" <> UUID.toText databaseId
 
-    connection <- PG.connectPostgreSQL databaseUrl
-    PG.execute connection "CREATE DATABASE ?" [PG.Identifier databaseName]
+    withConnection databaseUrl \connection -> do
+        PG.execute connection "CREATE DATABASE ?" [PG.Identifier databaseName]
 
     let newUrl :: ByteString = databaseUrl
             |> cs
@@ -50,17 +51,16 @@ createTestDatabase databaseUrl = do
 --
 deleteDatabase :: ByteString -> TestDatabase -> IO ()
 deleteDatabase masterDatabaseUrl testDatabase = do
-    connection <- PG.connectPostgreSQL masterDatabaseUrl
-
-    -- The WITH FORCE is required to force close open connections
-    -- Otherwise the DROP DATABASE takes a few seconds to execute
-    PG.execute connection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier (get #name testDatabase)]
+    withConnection masterDatabaseUrl \connection -> do
+        -- The WITH FORCE is required to force close open connections
+        -- Otherwise the DROP DATABASE takes a few seconds to execute
+        PG.execute connection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier (get #name testDatabase)]
     pure ()
 
 importSql url file = do
     schemaSql <- ByteString.readFile file
 
-    connection <- PG.connectPostgreSQL url
-    PG.execute connection (PG.Query schemaSql) ()
-    PG.close connection
+    withConnection url \connection -> do
+        PG.execute connection (PG.Query schemaSql) ()
 
+withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close

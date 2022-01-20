@@ -7,6 +7,8 @@ module Main where
 
 import IHP.Prelude
 import IHP.SchemaCompiler
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = compile
+main = withUtf8 do
+    compile

@@ -7,9 +7,10 @@ import qualified System.Directory as Directory
 import IHP.IDE.ToolServer.Helper.Controller (openEditor)
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
-main = do
+main = withUtf8 do
     ensureIsInAppDirectory
 
     let doCreateMigration description = do
