@@ -57,6 +57,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchTable
             |> patchEnumType
             |> applyRenameTable
+            |> removeImplicitDeletions actualSchema
     where
         create :: [Statement]
         create = targetSchema \\ actualSchema
@@ -521,3 +522,35 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 
         addPK :: PrimaryKeyConstraint -> CreateTable -> CreateTable
         addPK PrimaryKeyConstraint { primaryKeyColumnNames } table@(CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs } }) = table { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs <> primaryKeyColumnNames } }
+
+
+-- | Removes @DROP INDEX ..@ statements and other that appear after a @DROP TABLE@ statement. The @DROP TABLE ..@ statement
+-- itself already removes indexes and foreigns keys on that table. So an @DROP INDEX ..@ would then fail.
+--
+-- Shrinks a sequence like this:
+--
+-- > DROP TABLE a;
+-- > DROP INDEX some_index_on_table_a;
+-- > ALTER TABLE a DROP CONSTRAINT some_constraint_on_table_a;
+--
+-- Into this:
+--
+-- > DROP TABLE a;
+--
+removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
+removeImplicitDeletions actualSchema (statement@(DropTable { tableName }):rest) = statement:(filter isImplicitlyDeleted rest)
+    where
+        isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
+                Just CreateIndex { tableName = indexTableName } -> indexTableName /= tableName
+                Nothing -> True
+        isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= tableName
+        isImplicitlyDeleted otherwise = True
+
+        findIndexByName :: Text -> Maybe Statement
+        findIndexByName name = find (isIndex name) actualSchema
+
+        isIndex :: Text -> Statement -> Bool
+        isIndex name CreateIndex { indexName } = indexName == name
+        isIndex _    _                         = False
+removeImplicitDeletions actualSchema (statement:rest) = statement:(removeImplicitDeletions actualSchema rest)
+removeImplicitDeletions actualSchema [] = []

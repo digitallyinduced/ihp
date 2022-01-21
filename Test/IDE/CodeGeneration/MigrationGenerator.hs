@@ -821,6 +821,24 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
+            
+            it "should handle implicitly deleted indexes and constraints" do
+                let targetSchema = sql [i|
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE projects (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        user_id UUID NOT NULL
+                    );
+                    CREATE INDEX projects_name_index ON projects (name);
+                    ALTER TABLE projects ADD CONSTRAINT projects_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE;
+                |]
+                let migration = sql [i|
+                    DROP TABLE projects;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 
 sql :: Text -> [Statement]
