@@ -285,7 +285,10 @@ tests = do
             parseSql "CREATE TYPE colors AS ENUM ();" `shouldBe` CreateEnumType { name = "colors", values = [] }
 
         it "should parse ALTER TYPE .. ADD VALUE .." do
-            parseSql "ALTER TYPE colors ADD VALUE 'blue';" `shouldBe` AddValueToEnumType { enumName = "colors", newValue = "blue" }
+            parseSql "ALTER TYPE colors ADD VALUE 'blue';" `shouldBe` AddValueToEnumType { enumName = "colors", newValue = "blue", ifNotExists = False }
+        
+        it "should parse ALTER TYPE .. ADD VALUE IF NOT EXISTS .." do
+            parseSql "ALTER TYPE colors ADD VALUE IF NOT EXISTS 'blue';" `shouldBe` AddValueToEnumType { enumName = "colors", newValue = "blue", ifNotExists = True }
 
         it "should parse a CREATE TABLE with INTEGER / INT / INT4 / SMALLINT / INT2 / BIGINT / INT8 columns" do
             parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, smallint_a SMALLINT, smallint_b INT2, bigint_a BIGINT, bigint_b int8);" `shouldBe` StatementCreateTable CreateTable
@@ -786,6 +789,14 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , using = Just (EqExpression (VarExpression "company_id") (SelectExpression (Select {columns = [DotExpression (VarExpression "users_1") "company_id"], from = DotExpression (VarExpression "public") "users", alias = Just "users_1", whereClause = EqExpression (DotExpression (VarExpression "users_1") "id") (CallExpression "ihp_user_id" [])})))
                     , check = Nothing
                     }
+
+        it "should parse 'BEGIN' statements" do
+            let sql = cs [plain|BEGIN;|]
+            parseSql sql `shouldBe` Begin
+        
+        it "should parse 'COMMIT' statements" do
+            let sql = cs [plain|COMMIT;|]
+            parseSql sql `shouldBe` Commit
 
 col :: Column
 col = Column

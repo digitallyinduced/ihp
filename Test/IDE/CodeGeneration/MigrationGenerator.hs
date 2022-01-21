@@ -234,7 +234,11 @@ tests = do
                     CREATE TYPE mood AS ENUM ('sad', 'ok');
                 |]
                 let migration = sql [i|
-                    ALTER TYPE mood ADD VALUE 'happy';
+                    -- Commit the transaction previously started by IHP
+                    COMMIT;
+                    ALTER TYPE mood ADD VALUE IF NOT EXISTS 'happy';
+                    -- Restart the connection as IHP will also try to run it's own COMMIT
+                    BEGIN;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
@@ -836,6 +840,27 @@ tests = do
                 |]
                 let migration = sql [i|
                     DROP TABLE projects;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should run 'ALTER TYPE .. ADD VALUE ..' outside of a transaction" do
+                let targetSchema = sql [i|
+                    CREATE TABLE a();
+                    CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+                    CREATE TABLE b();
+                |]
+                let actualSchema = sql [i|
+                    CREATE TYPE mood AS ENUM ('sad', 'ok');
+                |]
+                let migration = sql [i|
+                    -- Commit the transaction previously started by IHP
+                    COMMIT;
+                    ALTER TYPE mood ADD VALUE IF NOT EXISTS 'happy';
+                    -- Restart the connection as IHP will also try to run it's own COMMIT
+                    BEGIN;
+                    CREATE TABLE a();
+                    CREATE TABLE b();
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration

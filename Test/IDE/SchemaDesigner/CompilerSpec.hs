@@ -617,7 +617,7 @@ tests = do
         
         it "should compile 'ALTER TYPE .. ADD VALUE ..;' statements" do
             let sql = "ALTER TYPE colors ADD VALUE 'blue';\n"
-            let statements = [ AddValueToEnumType { enumName = "colors", newValue = "blue" } ]
+            let statements = [ AddValueToEnumType { enumName = "colors", newValue = "blue", ifNotExists = False } ]
             compileSql statements `shouldBe` sql
         
         it "should compile 'CREATE TRIGGER .. AFTER INSERT ON .. FOR EACH ROW EXECUTE ..;' statements" do
@@ -632,4 +632,14 @@ tests = do
                     , functionName = "call_test_function"
                     , arguments = [TextExpression "hello"]
                     } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'BEGIN;' statements" do
+            let sql = "BEGIN;\n"
+            let statements = [ Begin ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'COMMIT;' statements" do
+            let sql = "COMMIT;\n"
+            let statements = [ Commit ]
             compileSql statements `shouldBe` sql

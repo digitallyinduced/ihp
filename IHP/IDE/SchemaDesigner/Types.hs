@@ -49,7 +49,7 @@ data Statement
     -- ALTER TABLE tableName RENAME COLUMN from TO to;
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     -- ALTER TYPE enumName ADD VALUE newValue;
-    | AddValueToEnumType { enumName :: Text, newValue :: Text }
+    | AddValueToEnumType { enumName :: Text, newValue :: Text, ifNotExists :: Bool }
     -- ALTER TABLE tableName ALTER COLUMN columnName DROP NOT NULL;
     | DropNotNull { tableName :: Text, columnName :: Text }
     -- ALTER TABLE tableName ALTER COLUMN columnName SET NOT NULL;
@@ -64,6 +64,10 @@ data Statement
     | DropDefaultValue { tableName :: Text, columnName :: Text }
     -- | CREATE TRIGGER ..;
     | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: !TriggerEvent, tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    -- | BEGIN;
+    | Begin
+    -- | COMMIT;
+    | Commit
     deriving (Eq, Show)
 
 data CreateTable

@@ -48,6 +48,8 @@ compileStatement SetDefaultValue { tableName, columnName, value } = "ALTER TABLE
 compileStatement DropDefaultValue { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP DEFAULT;"
 compileStatement AddValueToEnumType { enumName, newValue } = "ALTER TYPE " <> compileIdentifier enumName <> " ADD VALUE " <> compileExpression (TextExpression newValue) <> ";"
 compileStatement CreateTrigger { name, eventWhen, event, tableName, for, whenCondition, functionName, arguments } = "CREATE TRIGGER " <> compileIdentifier name <> " " <> compileTriggerEventWhen eventWhen <> " " <> compileTriggerEvent event <> " ON " <> compileIdentifier tableName <> " " <> compileTriggerFor for <> " EXECUTE FUNCTION " <> compileExpression (CallExpression functionName arguments) <> ";"
+compileStatement Begin = "BEGIN;"
+compileStatement Commit = "COMMIT;"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns

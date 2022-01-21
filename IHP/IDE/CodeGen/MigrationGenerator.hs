@@ -58,6 +58,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchEnumType
             |> applyRenameTable
             |> removeImplicitDeletions actualSchema
+            |> disableTransactionWhileAddingEnumValues
     where
         create :: [Statement]
         create = targetSchema \\ actualSchema
@@ -305,7 +306,7 @@ migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { valu
         newValues = targetValues \\ actualValues
         
         addValue :: Text -> Statement
-        addValue value = AddValueToEnumType { enumName = name, newValue = value }
+        addValue value = AddValueToEnumType { enumName = name, newValue = value, ifNotExists = True }
 
 getAppDBSchema :: IO [Statement]
 getAppDBSchema = do
@@ -554,3 +555,34 @@ removeImplicitDeletions actualSchema (statement@(DropTable { tableName }):rest) 
         isIndex _    _                         = False
 removeImplicitDeletions actualSchema (statement:rest) = statement:(removeImplicitDeletions actualSchema rest)
 removeImplicitDeletions actualSchema [] = []
+
+-- | Moves statements that add enum values outside the database transaction
+--
+-- When IHP generates a migration that contains a statement like this:
+--
+-- > ALTER TYPE my_enum ADD VALUE 'some_value';
+--
+-- the migration will fail with this error:
+--
+-- > Query (89.238182ms): "BEGIN" ()
+-- > migrate: SqlError {sqlState = "25001", sqlExecStatus = FatalError, sqlErrorMsg = "ALTER TYPE ... ADD cannot run inside a transaction block", sqlErrorDetail = "", sqlErrorHint = ""}
+--
+-- This function moves the @ADD VALUE@ statement outside the main database transaction:
+--
+-- > COMMIT; -- Commit the transaction previously started by IHP
+-- > ALTER TYPE my_enum ADD VALUE 'some_value';
+-- > BEGIN; -- Restart the connection as IHP will also try to run it's own COMMIT
+--
+disableTransactionWhileAddingEnumValues :: [Statement] -> [Statement]
+disableTransactionWhileAddingEnumValues statements =
+        if isEmpty addEnumValueStatements
+            then otherStatements
+            else [Comment " Commit the transaction previously started by IHP", Commit] <> (map enableIfNotExists addEnumValueStatements) <> [Comment " Restart the connection as IHP will also try to run it's own COMMIT", Begin] <> otherStatements
+    where
+        (addEnumValueStatements, otherStatements) = partition isAddEnumValueStatement statements
+
+        isAddEnumValueStatement AddValueToEnumType {} = True
+        isAddEnumValueStatement otherwise = False
+
+        enableIfNotExists statement@(AddValueToEnumType { .. }) = statement { ifNotExists = True }
+        enableIfNotExists otherwise = otherwise
