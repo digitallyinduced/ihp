@@ -76,7 +76,7 @@ withBackgroundWorkers pgListener frameworkConfig app = do
     let jobWorkers = Job.workers RootApplication
     let isDevelopment = get #environment frameworkConfig == Env.Development
     if isDevelopment && not (isEmpty jobWorkers)
-            then Exception.bracket (async (Job.devServerMainLoop frameworkConfig pgListener jobWorkers)) (Async.cancel) (const app)
+            then withAsync (Job.devServerMainLoop frameworkConfig pgListener jobWorkers) (const app)
             else app
 
 -- | Returns a middleware that returns files stored in the app's @static/@ directory and IHP's own @static/@  directory
