@@ -34,6 +34,7 @@ import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
+import qualified Test.Controller.CookieSpec
 import qualified Test.SchemaMigrationSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
@@ -81,3 +82,4 @@ main = hspec do
     Test.DataSync.DynamicQueryCompiler.tests
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
     Test.IDE.CodeGeneration.MigrationGenerator.tests
+    Test.Controller.CookieSpec.tests
