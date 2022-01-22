@@ -562,6 +562,7 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
 
         .ihp-error-code {
             padding: 1rem;
+            overflow-x: auto;
         }
 
         .ihp-error-inline-code {
