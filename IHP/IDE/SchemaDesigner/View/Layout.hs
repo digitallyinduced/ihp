@@ -12,7 +12,7 @@ import qualified Data.List as List
 schemaDesignerLayout :: Html -> Html
 schemaDesignerLayout inner = toolServerLayout [hsx|
 <div class="container pt-5">
-    {when hasUnmigratedChanges unmigratedChanges}
+    {if hasUnmigratedChanges then unmigratedChanges else databaseControls}
 
     <div class="row mb-2">
         <div class="col" style="display: flex; align-self: center;">
@@ -46,7 +46,7 @@ unmigratedChanges = [hsx|
 
 databaseControls :: Html
 databaseControls = [hsx|
-<div class="d-flex justify-content-end col">
+<div class="d-flex justify-content-end ml-auto">
     <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
     <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
     <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
