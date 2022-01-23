@@ -219,8 +219,8 @@ postgresHandler exception controller additionalInfo = do
                         <h2>Possible Solutions</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
                             Have you clicked on
-                            <form method="POST" action={ihpIdeBaseUrl <> "/UpdateDb"} target="_blank" style="display: inline">
-                                <button type="submit">Update DB</button>
+                            <form method="POST" action={ihpIdeBaseUrl <> "/NewMigration"} target="_blank" style="display: inline">
+                                <button type="submit">Migrate DB</button>
                             </form>
                             after updating the Schema?
                         </div>
