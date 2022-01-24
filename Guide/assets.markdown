@@ -6,7 +6,7 @@
 
 ## Cache Busting
 
-Sometimes problems are caused when your users still have an old version of your JS or CSS files inside their browsers cache.
+Sometimes problems are caused when your users still have an old version of your JS or CSS files inside their browser's cache.
 
 
 To avoid this problem, web applications typically append a hash to the url of your JS or CSS file. For example like this:
