@@ -686,7 +686,7 @@ DELETE FROM todos WHERE id = "66cc037e-5729-435c-b507-a17492fe44f4"
 ```
 
 
-## Using DataSync library with pure JavaScript
+## Using DataSync library without a bundler
 
 In your `Web/View/Layout.hs` file, we add an `importmap` with the rest of the scripts:
 
