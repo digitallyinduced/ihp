@@ -567,6 +567,8 @@ do
     deleteRecord user
 ```
 
+Or pass only the ID with `[`deleteRecordById`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecordById).
+
 This will execute:
 
 ```sql
@@ -583,10 +585,14 @@ do
     deleteRecords users
 ```
 
+Or pass only the ID with `[`deleteRecordByIds`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecordByIds).
+
 This will execute:
 
 ```sql
 DELETE FROM users WHERE id IN (...)
+
+
 ```
 
 ### Deleting all records
