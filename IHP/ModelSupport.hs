@@ -578,7 +578,7 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => record -> IO ()
+deleteRecord :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), ToField (PrimaryKey table), GetModelByTableName table ~ record, Show (PrimaryKey table), ToField (PrimaryKey table)) => record -> IO ()
 deleteRecord record =
     deleteRecordById @record (get #id record)
 {-# INLINABLE deleteRecord #-}
@@ -589,7 +589,7 @@ deleteRecord record =
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall record id. (?modelContext :: ModelContext, Show id, Table record, ToField id) => id -> IO ()
+deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, ToField (PrimaryKey table), Show (PrimaryKey table), record ~ GetModelByTableName table) => Id' table -> IO ()
 deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id = ?"
     let theParameters = PG.Only id
@@ -602,7 +602,7 @@ deleteRecordById id = do
 -- >>> let projects :: [Project] = ...
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
-deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [record] -> IO ()
+deleteRecords :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), ToField (PrimaryKey table), record ~ GetModelByTableName table) => [record] -> IO ()
 deleteRecords records =
     deleteRecordByIds @record (ids records)
 {-# INLINABLE deleteRecords #-}
@@ -613,7 +613,7 @@ deleteRecords records =
 -- >>> delete projectIds
 -- DELETE FROM projects WHERE id IN ('..')
 --
-deleteRecordByIds :: forall record id. (?modelContext :: ModelContext, Show id, Table record, ToField id) => [id] -> IO ()
+deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, ToField (PrimaryKey table), record ~ GetModelByTableName table) => [Id' table] -> IO ()
 deleteRecordByIds ids = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = (PG.Only (PG.In ids))
