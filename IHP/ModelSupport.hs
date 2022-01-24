@@ -605,12 +605,6 @@ deleteRecordById id = do
 deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [record] -> IO ()
 deleteRecords records =
     deleteRecordByIds @record (ids records)
-
-    -- do
-    -- let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
-    -- let theParameters = PG.Only (PG.In (ids records))
-    -- sqlExec (PG.Query . cs $! theQuery) theParameters
-    -- pure ()
 {-# INLINABLE deleteRecords #-}
 
 -- | Like 'deleteRecordById' but for a list of Ids.
@@ -619,7 +613,7 @@ deleteRecords records =
 -- >>> delete projectIds
 -- DELETE FROM projects WHERE id IN ('..')
 --
-deleteRecordByIds :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [id] -> IO ()
+deleteRecordByIds :: forall record id. (?modelContext :: ModelContext, Show id, Table record, ToField id) => [id] -> IO ()
 deleteRecordByIds ids = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
     let theParameters = (PG.Only (PG.In ids))
