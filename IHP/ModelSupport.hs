@@ -580,7 +580,7 @@ logQuery query parameters time = do
 -- Use 'deleteRecords' if you want to delete multiple records.
 deleteRecord :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => record -> IO ()
 deleteRecord record =
-    deleteRecordById (get #id record)
+    deleteRecordById @record (get #id record)
 {-# INLINABLE deleteRecord #-}
 
 -- | Like 'deleteRecord' but using an Id
@@ -589,10 +589,10 @@ deleteRecord record =
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => id -> IO ()
+deleteRecordById :: forall record id. (?modelContext :: ModelContext, Show id, Table record, ToField id) => id -> IO ()
 deleteRecordById id = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id = ?"
-    let theParameters = (PG.Only id)
+    let theParameters = PG.Only id
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecordById #-}
@@ -604,7 +604,7 @@ deleteRecordById id = do
 -- DELETE FROM projects WHERE id IN (..)
 deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [record] -> IO ()
 deleteRecords records =
-    deleteRecordByIds (ids records)
+    deleteRecordByIds @record (ids records)
 
     -- do
     -- let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
