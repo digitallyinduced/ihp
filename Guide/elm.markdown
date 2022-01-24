@@ -8,7 +8,7 @@
 
 While we recommend using IHP without any frontend frameworks, it may sometimes be useful to have a frontend framework for highly interactive parts of a webapp.
 
-We think that Elm can be a great fit for this, and have therefore made getting started with Elm in a new ihp app as simple as possible
+We think that Elm can be a great fit for this, and have therefore made getting started with Elm in a new ihp app as simple as possible.
 
 Credits to Lars Lillo Ulvestad, who wrote [a series of excellent articles](https://driftercode.com/blog/ihp-with-elm/) about the setup, which our implementation is based off of.
 
