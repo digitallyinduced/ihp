@@ -578,14 +578,9 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall model. (?modelContext :: ModelContext, Table model) => model -> IO ()
-deleteRecord model = do
-    let condition = primaryKeyCondition model
-    let whereConditions = condition |> map (\(field, _) -> field <> " = ?") |> intercalate " AND "
-    let theQuery = "DELETE FROM " <> tableName @model <> " WHERE " <> whereConditions
-    let theParameters = map snd condition
-    sqlExec (PG.Query . cs $! theQuery) theParameters
-    pure ()
+deleteRecord :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => record -> IO ()
+deleteRecord record =
+    deleteRecordById (get #id record)
 {-# INLINABLE deleteRecord #-}
 
 -- | Like 'deleteRecord' but using an Id
@@ -594,9 +589,9 @@ deleteRecord model = do
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall model id. (?modelContext :: ModelContext, Show id, Table model, HasField "id" model id, ToField id) => id -> IO ()
+deleteRecordById :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => id -> IO ()
 deleteRecordById id = do
-    let theQuery = "DELETE FROM " <> tableName @model <> " WHERE id = ?"
+    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id = ?"
     let theParameters = (PG.Only id)
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
@@ -608,12 +603,29 @@ deleteRecordById id = do
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
 deleteRecords :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [record] -> IO ()
-deleteRecords records = do
+deleteRecords records =
+    deleteRecordByIds (ids records)
+
+    -- do
+    -- let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
+    -- let theParameters = PG.Only (PG.In (ids records))
+    -- sqlExec (PG.Query . cs $! theQuery) theParameters
+    -- pure ()
+{-# INLINABLE deleteRecords #-}
+
+-- | Like 'deleteRecordById' but for a list of Ids.
+--
+-- >>> let projectIds :: [ Id Project ] = ...
+-- >>> delete projectIds
+-- DELETE FROM projects WHERE id IN ('..')
+--
+deleteRecordByIds :: forall record id. (?modelContext :: ModelContext, Show id, Table record, HasField "id" record id, ToField id) => [id] -> IO ()
+deleteRecordByIds ids = do
     let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
-    let theParameters = PG.Only (PG.In (ids records))
+    let theParameters = (PG.Only (PG.In ids))
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
-{-# INLINABLE deleteRecords #-}
+{-# INLINABLE deleteRecordByIds #-}
 
 -- | Runs a @DELETE@ query to delete all rows in a table.
 --
