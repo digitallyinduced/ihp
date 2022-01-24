@@ -567,7 +567,21 @@ do
     deleteRecord user
 ```
 
-Or pass only the ID with `[`deleteRecordById`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecordById).
+This will execute:
+
+```sql
+DELETE FROM users WHERE id = "cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7"
+```
+
+### Deleting a single record by id
+
+If you only know a record's id, use [`deleteRecordById`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecord) to run a simple `DELETE` query:
+
+```haskell
+do
+    let userId = ("cf633b17-c409-4df5-a2fc-8c3b3d6c2ea7" :: Id User)
+    deleteRecordBy userId
+```
 
 This will execute:
 
@@ -585,7 +599,23 @@ do
     deleteRecords users
 ```
 
-Or pass only the ID with `[`deleteRecordByIds`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecordByIds).
+This will execute:
+
+```sql
+DELETE FROM users WHERE id IN (...)
+
+
+```
+
+### Deleting many records by their ids
+
+If you only know the record ids, use [`deleteRecordByIds`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:deleteRecords) to run a `DELETE` query for multiple records:
+
+```haskell
+do
+    userIds :: [Id User] <- ...
+    deleteRecordByIds userIds
+```
 
 This will execute:
 
