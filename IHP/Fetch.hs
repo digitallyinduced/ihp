@@ -23,6 +23,8 @@ module IHP.Fetch
 , fetchCount
 , fetchExists
 , fetchSQLQuery
+, fetchLatest
+, fetchLatestBy
 )
 where
 
@@ -243,3 +245,65 @@ fetchSQLQuery theQuery = do
     let (sql, theParameters) = toSQL' theQuery
     trackTableRead (get #selectFrom theQuery)
     sqlQuery (Query $ cs sql) theParameters
+
+-- | Returns the latest record or Nothing
+--
+-- __Example:__
+--
+-- > latestUser <-
+-- >     query @User
+-- >         |> fetchLatest
+-- >
+--
+-- 'fetchLatest' is mainly a shortcut for code like this:
+--
+-- > latestUser <-
+-- >     query @User
+-- >         |> orderByDesc #createdAt
+-- >         |> fetchOneOrNothing
+--
+fetchLatest :: forall table queryBuilderProvider joinRegister model.
+    ( ?modelContext :: ModelContext
+    , model ~ GetModelByTableName table
+    , KnownSymbol table
+    , HasQueryBuilder queryBuilderProvider joinRegister
+    , HasField "createdAt" model UTCTime
+    , Fetchable (queryBuilderProvider table) model
+    , Table model
+    , FromRow model
+    ) => queryBuilderProvider table -> IO (Maybe model)
+fetchLatest queryBuilder = queryBuilder |> fetchLatestBy #createdAt
+
+-- | Provided a field name, it returns the latest record or Nothing
+--
+-- See 'fetchLatest' if you're looking for the latest record by the createdAt timestamp.
+--
+-- __Example:__
+--
+-- > latestTrialUser <-
+-- >     query @User
+-- >         |> fetchLatestBy #trialStartedAt
+-- >
+--
+-- 'fetchLatestBy' is mainly a shortcut for code like this:
+--
+-- > latestUser <-
+-- >     query @User
+-- >         |> orderByDesc #trialStartedAt
+-- >         |> fetchOneOrNothing
+--
+fetchLatestBy :: forall table createdAt queryBuilderProvider joinRegister model.
+    ( ?modelContext :: ModelContext
+    , KnownSymbol createdAt
+    , model ~ GetModelByTableName table
+    , KnownSymbol table
+    , HasQueryBuilder queryBuilderProvider joinRegister
+    , HasField createdAt model UTCTime
+    , Fetchable (queryBuilderProvider table) model
+    , Table model
+    , FromRow model
+    ) => Proxy createdAt -> queryBuilderProvider table -> IO (Maybe model)
+fetchLatestBy field queryBuilder =
+    queryBuilder
+    |> orderByDesc field
+    |> fetchOneOrNothing

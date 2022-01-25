@@ -66,7 +66,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> dropType <|> commentStatement <|> comment
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> dropType <|> commentStatement <|> comment <|> begin <|> commit
     space
     pure s
 
@@ -797,9 +797,23 @@ createSequence = do
 addValue typeName = do
     lexeme "ADD"
     lexeme "VALUE"
+    ifNotExists <- isJust <$> optional do
+            lexeme "IF"
+            lexeme "NOT"
+            lexeme "EXISTS"
     newValue <- textExpr'
     char ';'
-    pure AddValueToEnumType { enumName = typeName, newValue }
+    pure AddValueToEnumType { enumName = typeName, newValue, ifNotExists }
+
+begin = do
+    lexeme "BEGIN"
+    char ';'
+    pure Begin
+
+commit = do
+    lexeme "COMMIT"
+    char ';'
+    pure Commit
 
 -- | Turns sql like '1::double precision' into just '1'
 removeTypeCasts :: Expression -> Expression

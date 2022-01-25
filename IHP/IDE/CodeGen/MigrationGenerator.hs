@@ -57,6 +57,8 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchTable
             |> patchEnumType
             |> applyRenameTable
+            |> removeImplicitDeletions actualSchema
+            |> disableTransactionWhileAddingEnumValues
     where
         create :: [Statement]
         create = targetSchema \\ actualSchema
@@ -304,7 +306,7 @@ migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { valu
         newValues = targetValues \\ actualValues
         
         addValue :: Text -> Statement
-        addValue value = AddValueToEnumType { enumName = name, newValue = value }
+        addValue value = AddValueToEnumType { enumName = name, newValue = value, ifNotExists = True }
 
 getAppDBSchema :: IO [Statement]
 getAppDBSchema = do
@@ -521,3 +523,66 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 
         addPK :: PrimaryKeyConstraint -> CreateTable -> CreateTable
         addPK PrimaryKeyConstraint { primaryKeyColumnNames } table@(CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs } }) = table { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames = existingPKs <> primaryKeyColumnNames } }
+
+
+-- | Removes @DROP INDEX ..@ statements and other that appear after a @DROP TABLE@ statement. The @DROP TABLE ..@ statement
+-- itself already removes indexes and foreigns keys on that table. So an @DROP INDEX ..@ would then fail.
+--
+-- Shrinks a sequence like this:
+--
+-- > DROP TABLE a;
+-- > DROP INDEX some_index_on_table_a;
+-- > ALTER TABLE a DROP CONSTRAINT some_constraint_on_table_a;
+--
+-- Into this:
+--
+-- > DROP TABLE a;
+--
+removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
+removeImplicitDeletions actualSchema (statement@(DropTable { tableName }):rest) = statement:(filter isImplicitlyDeleted rest)
+    where
+        isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
+                Just CreateIndex { tableName = indexTableName } -> indexTableName /= tableName
+                Nothing -> True
+        isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= tableName
+        isImplicitlyDeleted otherwise = True
+
+        findIndexByName :: Text -> Maybe Statement
+        findIndexByName name = find (isIndex name) actualSchema
+
+        isIndex :: Text -> Statement -> Bool
+        isIndex name CreateIndex { indexName } = indexName == name
+        isIndex _    _                         = False
+removeImplicitDeletions actualSchema (statement:rest) = statement:(removeImplicitDeletions actualSchema rest)
+removeImplicitDeletions actualSchema [] = []
+
+-- | Moves statements that add enum values outside the database transaction
+--
+-- When IHP generates a migration that contains a statement like this:
+--
+-- > ALTER TYPE my_enum ADD VALUE 'some_value';
+--
+-- the migration will fail with this error:
+--
+-- > Query (89.238182ms): "BEGIN" ()
+-- > migrate: SqlError {sqlState = "25001", sqlExecStatus = FatalError, sqlErrorMsg = "ALTER TYPE ... ADD cannot run inside a transaction block", sqlErrorDetail = "", sqlErrorHint = ""}
+--
+-- This function moves the @ADD VALUE@ statement outside the main database transaction:
+--
+-- > COMMIT; -- Commit the transaction previously started by IHP
+-- > ALTER TYPE my_enum ADD VALUE 'some_value';
+-- > BEGIN; -- Restart the connection as IHP will also try to run it's own COMMIT
+--
+disableTransactionWhileAddingEnumValues :: [Statement] -> [Statement]
+disableTransactionWhileAddingEnumValues statements =
+        if isEmpty addEnumValueStatements
+            then otherStatements
+            else [Comment " Commit the transaction previously started by IHP", Commit] <> (map enableIfNotExists addEnumValueStatements) <> [Comment " Restart the connection as IHP will also try to run it's own COMMIT", Begin] <> otherStatements
+    where
+        (addEnumValueStatements, otherStatements) = partition isAddEnumValueStatement statements
+
+        isAddEnumValueStatement AddValueToEnumType {} = True
+        isAddEnumValueStatement otherwise = False
+
+        enableIfNotExists statement@(AddValueToEnumType { .. }) = statement { ifNotExists = True }
+        enableIfNotExists otherwise = otherwise

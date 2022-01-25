@@ -155,7 +155,7 @@ CREATE TABLE posts (
 );
 ```
 
-To load the table into our local Postgres server, we need to click `Update DB` in the Schema Designer (use `make db` from the command line).
+To load the table into our local Postgres server, we need to click `Migrate DB` in the Schema Designer. Then click `Generate & Run`.
 
 The `posts` table has been created now. Let's quickly connect to our database and see that everything is correct:
 
@@ -528,7 +528,7 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 ```
 
-(If you don't see an entry for your test post in `Application/Fixtures.sql`, then click `Update DB` in the Schema Designer (or use `make db` from the command line).)
+(If you don't see an entry for your test post in `Application/Fixtures.sql`, then click `Migrate DB -> Update DB` in the Schema Designer (or use `make db` from the command line).)
 
 All our existing posts are saved here. You should also commit this file to git to share your fixtures with your teammates. We will need these saved fixtures in a moment when we want to update the database schema.
 
@@ -542,9 +542,9 @@ Now open the `/Posts` again inside your browser. You will see this error:
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
-To update the local database, open the Schema Designer, and click the `Update DB` button. This button will save the current database content to the fixtures, destroy the database, reload the schema, and then insert the fixtures.
+To update the local database, open the Schema Designer, and click the `Migrate DB` button. Then click `Generate & Run`. This button will then bring the Schema and the actual database sync again by adding the missing column.
 
-In general, the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Update DB`.
+In general, the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Migrate DB`.
 
 You can open [http://localhost:8000/Posts](http://localhost:8000/Posts) again. The error is gone now.
 
@@ -712,7 +712,7 @@ When adding the `post_id` column, it will automatically set the type to UUID. Un
 
 By default the foreign key constraint has set its `ON DELETE` behavior to `NO ACTION`. To change the `ON DELETE`, click on the `FOREIGN KEY: posts` next to the `post_id` field.
 
-Press the `Update DB`-button to save our current posts to `Application/Fixtures.sql`, rebuild the database, and reload the `Fixtures.sql` to add our new `comments` table.
+Press the `Migrate DB` to add our new `comments` table to the dev database.
 
 ### The Controller
 
@@ -1011,7 +1011,7 @@ Right now comments are displayed in the order they're stored in the database. So
 
 [Open the Schema Designer](http://localhost:8001/). Select the `comments` Table. Right-click in the Columns Pane, Click `Add Column`. Enter `created_at`. The column type will be auto-selected, and the default value automatically sets to `NOW()`. Click `Create Column`.
 
-Now click `Update DB` to save the fixtures and then rebuild the database.
+Now click `Migrate DB` to add the new column to the local dev database.
 
 Now we have a `created_at` timestamp we can use for ordering. Open `Web/Controller/Posts.hs` and change the action from:
 

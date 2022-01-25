@@ -227,13 +227,13 @@ We also need to enable the DataSync controllers before we can use the APIs.
 3. Mount the controller:
     ```haskell
     instance FrontController WebApplication where
-        controllers = 
+        controllers =
             [ startPage WelcomeAction
-            
+
             -- DataSync
             , webSocketApp @DataSyncController -- ADD THIS
             , parseRoute @ApiController        -- AND ALSO THIS
-            
+
             -- Generator Marker
             ]
     ```
@@ -340,7 +340,7 @@ DataSync comes with a couple of JS files we need to load on our page before we c
     This returned a list with our todo in there.
 
     Like on the backend we can also use `fetchOne` here to only get returned a single `Todo` object instead of a `[Todo]`:
-    
+
     ```javascript
     await query('todos').fetchOne();
     ```
@@ -426,7 +426,7 @@ Next we're going to add a todo form to create new todos:
     This is mostly a conventional react form. The interesting part is inside the `handleSubmit`, where we call `await createRecord('todos', { title: title, userId: this.props.users });`.
 
 2. Change the `HelloWorld` component to also display our `<NewTodo/>` component:
-    
+
     ```javascript
     function HelloWorld() {
         return <div>
@@ -447,7 +447,7 @@ Next we're going to add a todo form to create new todos:
     ```
 
     Also open `Welcome.hs` (or any other haskell view where you're rendering the JS app) and add the data attribute for the `userId`:
-    
+
     ```haskell
         instance View WelcomeView where
             html WelcomeView = [hsx|
@@ -461,7 +461,7 @@ Next we're going to add a todo form to create new todos:
     Now the user id is passed from the `hello-world` react root to the `<HelloWorld/>` component, and from there to our `<NewTodo/>` element.
 
 4. Now you should be able to enter a new todo:
-    
+
     ![](images/realtime-spas/new-todo.png)
 
     After you click the `Save` button, you need to manually refresh the page to make the new todo show up inside the `<TodoList/>` component. In the next section we will make this show up in realtime.
@@ -685,6 +685,57 @@ This will execute:
 DELETE FROM todos WHERE id = "66cc037e-5729-435c-b507-a17492fe44f4"
 ```
 
+
+## Using DataSync library without a bundler
+
+In your `Web/View/Layout.hs` file, we add an `importmap` with the rest of the scripts:
+
+```html
+<!-- DataSync -->
+<script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.4.1/dist/es-module-shims.min.js"></script>
+<script type="importmap">
+    {
+        "imports": {
+            "ihp-datasync/ihp-datasync": "https://cdn.jsdelivr.net/gh/digitallyinduced/ihp@0.17.0/lib/IHP/DataSync/ihp-datasync.min.js",
+            "ihp-datasync/ihp-querybuilder": "https://cdn.jsdelivr.net/gh/digitallyinduced/ihp@0.17.0/lib/IHP/DataSync/ihp-querybuilder.min.js"
+        }
+    }
+</script>
+```
+
+The first script is a shim for `importmap` functionality, and the next script `<script type="importmap">` we define a map of how to resolve the `ihp-datasync/*` imports.
+
+No, add `type="module"` to your `app.js` script,
+
+```html
+<script type="module" src={assetPath "/app.js"}></script>
+```
+
+Inside the, `app.js` script, you can now import, `ihp-datasync/*`:
+
+```javascript
+import {
+  DataSyncController,
+  DataSubscription,
+  createRecord,
+  updateRecord,
+  deleteRecord,
+  createRecords,
+} from "ihp-datasync/ihp-datasync";
+import {
+  QueryBuilder,
+  query,
+  ihpBackendUrl,
+  fetchAuthenticated,
+} from "ihp-datasync/ihp-querybuilder";
+```
+
+You are all set!
+
+```javascript
+const articles = await query("articles").fetch();
+console.log(articles);
+```
 
 ## Advanced IHP DataSync
 

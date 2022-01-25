@@ -17,7 +17,7 @@ Check out these example apps to gain real-world knowledge on how IHP apps are bu
 
 **🗞️ IHP Blog: A simple markdown-based blog application**
 
-This project is contains the blog of the "Your First Project" guide.
+This project contains the blog of the "Your First Project" guide.
 
 - [Source Code on GitHub](https://github.com/digitallyinduced/ihp-blog-example-app)
 
