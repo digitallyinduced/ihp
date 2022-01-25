@@ -30,7 +30,7 @@ renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramew
                 }
 
 
-breadcrumbLink :: (HasPath controller) =>Html -> controller -> BreadcrumbItem
+breadcrumbLink :: (HasPath controller) => Html -> controller -> BreadcrumbItem
 breadcrumbLink label route =
     breadcrumbLinkExternal label (pathTo route)
 
