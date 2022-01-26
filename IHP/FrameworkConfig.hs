@@ -71,6 +71,8 @@ newtype RLSAuthenticatedRole = RLSAuthenticatedRole Text
 
 newtype AssetVersion = AssetVersion Text
 
+newtype CustomMiddleware = CustomMiddleware Middleware
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -154,6 +156,8 @@ ihpDefaultConfig = do
     option $ RLSAuthenticatedRole rlsAuthenticatedRole
 
     initAssetVersion
+    
+    option $ CustomMiddleware id
 
 {-# INLINABLE ihpDefaultConfig #-}
 
@@ -273,6 +277,7 @@ buildFrameworkConfig appConfig = do
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             (AssetVersion assetVersion) <- findOption @AssetVersion
+            customMiddleware <- findOption @CustomMiddleware
 
             appConfig <- State.get
 
@@ -432,6 +437,9 @@ data FrameworkConfig = FrameworkConfig
     -- string @"dev"@.
     --
     , assetVersion :: !Text
+
+    -- | User provided WAI middleware that is run after IHP's middleware stack.
+    , customMiddleware :: !CustomMiddleware
 }
 
 class ConfigProvider a where
