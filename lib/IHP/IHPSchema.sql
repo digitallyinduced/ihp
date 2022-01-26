@@ -6,5 +6,5 @@ CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 
 
 -- Used by IHP.DataSync
 CREATE FUNCTION ihp_user_id() RETURNS UUID AS $$
-    SELECT current_setting('rls.ihp_user_id')::uuid;
+    SELECT NULLIF(current_setting('rls.ihp_user_id'), '')::uuid;
 $$ LANGUAGE SQL;
