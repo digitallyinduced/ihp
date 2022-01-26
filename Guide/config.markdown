@@ -128,4 +128,27 @@ instance EnvVarReader RequestLogger.IPAddrSource where
     envStringToValue "FromHeader" = Right RequestLogger.FromHeader
     envStringToValue "FromSocket" = Right RequestLogger.FromSocket
     envStringToValue otherwise    = Left "Expected 'FromHeader' or 'FromSocket'"
-````
+```
+
+### Custom Middleware
+
+IHP provides an "escape-hatch" from the framework with the `CustomMiddleware` option.
+This can be used to run any WAI middleware after IHP's middleware stack, allowing for possibilities
+such as embedding a Servant or Yesod app into an IHP app, adding GZIP compression, or any other
+number of possibilities. See [wai-extra](https://hackage.haskell.org/package/wai-extra) for examples
+of WAI middleware that could be added.
+
+The following example sets up a custom middleware that infers the real IP using `X-Forwarded-For`
+and adds a custom header for every request.
+
+```haskell
+module Config where
+
+import Network.Wai.Middleware.AddHeaders (addHeaders)
+import Network.Wai.Middleware.RealIp (realIp)
+
+config :: ConfigBuilder
+config = do
+    option $ CustomMiddleware $ addHeaders [("X-My-Header", "Custom WAI Middleware!")] . realIp
+```
+

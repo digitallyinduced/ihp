@@ -59,15 +59,17 @@ run configBuilder = do
             staticMiddleware <- initStaticMiddleware frameworkConfig
             let corsMiddleware = initCorsMiddleware frameworkConfig
             let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
+            let CustomMiddleware customMiddleware = get #customMiddleware frameworkConfig
 
-            withBackgroundWorkers pgListener frameworkConfig $
-                   runServer frameworkConfig $
-                        staticMiddleware $
-                            corsMiddleware $
-                                sessionMiddleware $
-                                        requestLoggerMiddleware $
-                                                methodOverridePost $
-                                                    application
+            withBackgroundWorkers pgListener frameworkConfig 
+                . runServer frameworkConfig
+                . customMiddleware
+                . staticMiddleware
+                . corsMiddleware
+                . sessionMiddleware
+                . requestLoggerMiddleware
+                . methodOverridePost 
+                $ application
 
 {-# INLINABLE run #-}
 
