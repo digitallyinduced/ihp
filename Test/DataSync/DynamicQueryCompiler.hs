@@ -19,8 +19,8 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Nothing
                         , orderByClause = []
-                        , limitClause = Nothing
-                        , offsetClause = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
                         }
 
                 compileQuery query `shouldBe`
@@ -34,8 +34,8 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Nothing
                         , orderByClause = [OrderByClause { orderByColumn = "title", orderByDirection = Desc }]
-                        , limitClause = Nothing
-                        , offsetClause = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
                         }
 
                 compileQuery query `shouldBe`
@@ -52,8 +52,8 @@ tests = do
                             OrderByClause { orderByColumn = "createdAt", orderByDirection = Desc },
                             OrderByClause { orderByColumn = "title", orderByDirection = Asc }
                         ]
-                        , limitClause = Nothing
-                        , offsetClause = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
                         }
 
                 compileQuery query `shouldBe`
@@ -67,8 +67,8 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = []
-                        , limitClause = Nothing
-                        , offsetClause = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
                         }
 
                 compileQuery query `shouldBe`
@@ -82,11 +82,56 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = [ OrderByClause { orderByColumn = "createdAt", orderByDirection = Desc } ]
-                        , limitClause = Nothing
-                        , offsetClause = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
                         }
 
                 compileQuery query `shouldBe`
                         ( "SELECT ? FROM ? WHERE (?) = (?) ORDER BY ? ?"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.EscapeIdentifier "created_at", PG.Plain "DESC"]
+                        )
+
+            it "compile a basic select query with a limit" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , orderByClause = []
+                        , limit = Just 50
+                        , offset = Nothing
+                        }
+
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) = (?) LIMIT ?"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "50"]
+                        )
+
+            it "compile a basic select query with an offset" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , orderByClause = []
+                        , limit = Nothing
+                        , offset = Just 50
+                        }
+
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) = (?) OFFSET ?"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "50"]
+                        )
+
+            it "compile a basic select query with a limit and an offset" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , orderByClause = []
+                        , limit = Just 25
+                        , offset = Just 50
+                        }
+                
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) = (?) LIMIT ? OFFSET ?"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "25", PG.Plain "50"]
                         )
