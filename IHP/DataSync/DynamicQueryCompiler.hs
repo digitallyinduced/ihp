@@ -19,13 +19,15 @@ import qualified Data.List as List
 compileQuery :: DynamicSQLQuery -> (PG.Query, [PG.Action])
 compileQuery DynamicSQLQuery { .. } = (sql, args)
     where
-        sql = "SELECT ? FROM ?" <> whereSql <> orderBySql
+        sql = "SELECT ? FROM ?" <> whereSql <> orderBySql <> limitSql <> offsetSql
         args = catMaybes
                 [ Just (compileSelectedColumns selectedColumns)
                 , Just (PG.toField (PG.Identifier table))
                 ]
                 <> whereArgs
                 <> orderByArgs
+                <> limitArgs
+                <> offsetArgs
 
         (orderBySql, orderByArgs) = case orderByClause of
                 [] -> ("", [])
@@ -45,6 +47,14 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
         (whereSql, whereArgs) = case compileCondition <$> whereCondition of
             Just (sql, args) -> (" WHERE " <> sql, args)
             Nothing -> ("", [])
+
+        (limitSql, limitArgs) = case limit of
+                Just limit -> (" LIMIT ?", [PG.toField limit])
+                Nothing -> ("", [])
+        
+        (offsetSql, offsetArgs) = case offset of
+                Just offset -> (" OFFSET ?", [PG.toField offset])
+                Nothing -> ("", [])
 
 compileSelectedColumns :: SelectedColumns -> PG.Action
 compileSelectedColumns SelectAll = PG.Plain "*"

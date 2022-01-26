@@ -40,8 +40,8 @@ data DynamicSQLQuery = DynamicSQLQuery
     , selectedColumns :: SelectedColumns
     , whereCondition :: !(Maybe ConditionExpression)
     , orderByClause :: ![OrderByClause]
-    , limitClause :: !(Maybe Text)
-    , offsetClause :: !(Maybe Text)
+    , limit :: !(Maybe Int)
+    , offset :: !(Maybe Int)
     } deriving (Show, Eq)
 
 -- | Represents a WHERE conditions of a 'DynamicSQLQuery'
@@ -140,7 +140,15 @@ $(deriveFromJSON defaultOptions 'QueryBuilder.Join)
 $(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
 $(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
 $(deriveFromJSON defaultOptions 'SelectAll)
-$(deriveFromJSON defaultOptions 'DynamicSQLQuery)
 $(deriveFromJSON defaultOptions ''ConditionOperator)
 $(deriveFromJSON defaultOptions ''ConditionExpression)
 $(deriveFromJSON defaultOptions ''DynamicValue)
+
+instance FromJSON DynamicSQLQuery where
+    parseJSON = withObject "DynamicSQLQuery" $ \v -> DynamicSQLQuery
+        <$> v .: "table"
+        <*> v .: "selectedColumns"
+        <*> v .: "whereCondition"
+        <*> v .: "orderByClause"
+        <*> v .:? "limit" -- Limit can be absent in older versions of ihp-datasync.js
+        <*> v .:? "offset" -- Offset can be absent in older versions of ihp-datasync.js

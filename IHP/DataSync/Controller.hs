@@ -40,7 +40,6 @@ instance (
 
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled
 
-        let maybeUserId = get #id <$> currentUserOrNothing
         let pgListener = ?applicationContext |> get #pgListener
 
         let
