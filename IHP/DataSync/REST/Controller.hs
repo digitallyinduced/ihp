@@ -151,8 +151,8 @@ buildDynamicQueryFromRequest table = DynamicSQLQuery
     , selectedColumns = paramOrDefault SelectAll "fields"
     , whereCondition = Nothing
     , orderByClause = paramList "orderBy"
-    , limitClause = Nothing
-    , offsetClause = Nothing
+    , limit = paramOrNothing "limit"
+    , offset = paramOrNothing "offset"
     }
 
 instance ParamReader SelectedColumns where
