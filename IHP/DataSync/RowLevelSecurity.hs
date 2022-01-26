@@ -36,7 +36,17 @@ withRLS callback = withTransaction inner
         inner = do
             let maybeUserId :: Maybe userId = get #id <$> currentUserOrNothing
             sqlExec "SET LOCAL ROLE ?" [PG.Identifier Role.authenticatedRole]
-            sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only maybeUserId)
+
+            -- When the user is not logged in and maybeUserId is Nothing, we cannot
+            -- just pass @NULL@ to postgres. The @SET LOCAL@ values can only be strings.
+            --
+            -- Therefore we map Nothing to an empty string here. The empty string
+            -- means "not logged in".
+            --
+            let encodedUserId = case maybeUserId of
+                    Just userId -> PG.toField userId
+                    Nothing -> PG.toField ("" :: Text)
+            sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only encodedUserId)
             callback
 
 -- | Returns a proof that RLS is enabled for a table
