@@ -96,17 +96,34 @@ googleConnectCallbackAction = do
 
                     pure ()
                 Nothing -> do
-                    randomPassword <- generateAuthenticationToken
-                    hashed <- hashPassword randomPassword
-                    let user = newRecord @user
-                            |> set #passwordHash hashed
-                            |> set #email (get #email googleClaims)
-                            |> setJust #googleUserId googleUserId
+                    maybeUserByEmail :: Maybe user <- Sessions.usersQueryBuilder @user
+                            |> filterWhere (#email, get #email googleClaims)
+                            |> fetchOneOrNothing
 
-                    user <- createUser (beforeCreateUser user googleClaims) googleClaims
+                    case maybeUserByEmail of
+                        Just user -> do
+                            ensureIsNotLocked user
+                            Sessions.beforeLogin user
+                            login user
+                            
+                            user
+                                    |> set #failedLoginAttempts 0
+                                    |> setJust #googleUserId googleUserId
+                                    |> updateRecord
 
-                    login @user user
-                    pure ()
+                            pure ()
+                        Nothing -> do
+                            randomPassword <- generateAuthenticationToken
+                            hashed <- hashPassword randomPassword
+                            let user = newRecord @user
+                                    |> set #passwordHash hashed
+                                    |> set #email (get #email googleClaims)
+                                    |> setJust #googleUserId googleUserId
+
+                            user <- createUser (beforeCreateUser user googleClaims) googleClaims
+
+                            login @user user
+                            pure ()
                     
             redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
             redirectToPath (fromMaybe (Sessions.afterLoginRedirectPath @user) redirectUrl)
