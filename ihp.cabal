@@ -52,9 +52,7 @@ common shared-properties
             , attoparsec
             , ghc-prim
             , case-insensitive
-            , haskell-src-meta
             , template-haskell
-            , haskell-src-exts
             , interpolate
             , split
             , containers

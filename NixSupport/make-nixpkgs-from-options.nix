@@ -4,11 +4,11 @@
 { ihp
 , haskellPackagesDir
 , dontCheckPackages ? ["mmark" "mmark-ext"]
-, doJailbreakPackages ? ["haskell-to-elm"]
+, doJailbreakPackages ? ["haskell-to-elm" "mmark-cli"]
 , dontHaddockPackages ? []
-, nixPkgsRev ? "38da06c69f821af50323d54b28d342cc3eb42891"
-, nixPkgsSha256 ? "sha256-LUxcecUAujNSXkCLFog6rqr5acZUGGqCZ5wMQd4yuJw"
-, compiler ? "ghc8107"
+, nixPkgsRev ? "5efc8ca954272c4376ac929f4c5ffefcc20551d5"
+, nixPkgsSha256 ? "sha256-pHTwvnN4tTsEKkWlXQ8JMY423epos8wUOhthpwJjtpc="
+, compiler ? "ghc921"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:
@@ -50,7 +50,7 @@ let
           pkgs.haskell.packages."${compiler}".override {
             overrides = composeExtensionsList [
               generatedOverrides
-              
+
               # Overrides provided by IHP
               (makeOverrides pkgs.haskell.lib.dontCheck   ihpDontCheckPackages  )
               (makeOverrides pkgs.haskell.lib.doJailbreak ihpDoJailbreakPackages)

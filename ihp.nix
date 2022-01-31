@@ -26,7 +26,6 @@
 , clientsession
 , pwstore-fast
 , template-haskell
-, haskell-src-meta
 , random-strings
 , interpolate
 , uri-encode
@@ -95,7 +94,6 @@ mkDerivation {
     clientsession
     pwstore-fast
     template-haskell
-    haskell-src-meta
     random-strings
     interpolate
     websockets

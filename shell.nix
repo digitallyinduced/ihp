@@ -3,7 +3,7 @@ let
         ihp = ./.;
         haskellPackagesDir = ./NixSupport/haskell-packages;
     };
-    ghc = pkgs.haskell.packages.ghc8107;
+    ghc = pkgs.haskell.packages.ghc921;
     haskellDeps = ghc.ghcWithPackages (p: with p; [
         # Copied from ihp.nix
         base
@@ -29,9 +29,7 @@ let
         clientsession
         pwstore-fast
         template-haskell
-        haskell-src-meta
         random-strings
-        interpolate
         websockets
         wai-websockets
         mime-mail
