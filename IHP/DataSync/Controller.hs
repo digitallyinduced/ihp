@@ -92,7 +92,7 @@ instance (
                                     Just record -> do
                                         -- Add the new record to 'watchedRecordIdsRef'
                                         -- Otherwise the updates and deletes will not be dispatched to the client
-                                        modifyIORef watchedRecordIdsRef (Set.insert id)
+                                        modifyIORef' watchedRecordIdsRef (Set.insert id)
 
                                         sendJSON DidInsert { subscriptionId, record }
                                     Nothing -> pure ()
@@ -113,7 +113,7 @@ instance (
                 channelSubscription <- pgListener
                         |> PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback
 
-                modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId Subscription { id = subscriptionId, channelSubscription }))
+                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId Subscription { id = subscriptionId, channelSubscription }))
 
                 sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
 
@@ -126,7 +126,7 @@ instance (
                     Just subscription -> pgListener |> PGListener.unsubscribe (get #channelSubscription subscription)
                     Nothing -> pure ()
 
-                modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
+                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
                 sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
 
