@@ -50,7 +50,7 @@ instance (
 
                 let (theQuery, theParams) = compileQuery query
 
-                result :: [[Field]] <- withRLS $ sqlQuery theQuery theParams
+                result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
 
                 sendJSON DataSyncResult { result, requestId }
             
@@ -61,7 +61,7 @@ instance (
 
                 let (theQuery, theParams) = compileQuery query
 
-                result :: [[Field]] <- withRLS $ sqlQuery theQuery theParams
+                result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
 
                 let tableName = get #table query
 
@@ -87,7 +87,7 @@ instance (
                                 --
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
-                                newRecord :: [[Field]] <- withRLS $ sqlQuery ("SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1") (theParams <> [PG.toField id])
+                                newRecord :: [[Field]] <- sqlQueryWithRLS ("SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1") (theParams <> [PG.toField id])
 
                                 case headMay newRecord of
                                     Just record -> do
@@ -145,8 +145,7 @@ instance (
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
                 
-                result :: [[Field]] <- withRLS do
-                    sqlQuery query params
+                result :: [[Field]] <- sqlQueryWithRLS query params
 
                 case result of
                     [record] -> sendJSON DidCreateRecord { requestId, record }
@@ -176,7 +175,7 @@ instance (
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
 
-                records :: [[Field]] <- withRLS $ sqlQuery query params
+                records :: [[Field]] <- sqlQueryWithRLS query params
 
                 sendJSON DidCreateRecords { requestId, records }
 
@@ -205,7 +204,7 @@ instance (
                         <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
                         <> [PG.toField id]
 
-                result :: [[Field]] <- withRLS $ sqlQuery (PG.Query query) params
+                result :: [[Field]] <- sqlQueryWithRLS (PG.Query query) params
                 
                 case result of
                     [record] -> sendJSON DidUpdateRecord { requestId, record }
@@ -216,8 +215,7 @@ instance (
             handleMessage DeleteRecordMessage { table, id, requestId } = do
                 ensureRLSEnabled table
 
-                withRLS do
-                    sqlExec "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
+                sqlExecWithRLS "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
 
                 sendJSON DidDeleteRecord { requestId }
 
