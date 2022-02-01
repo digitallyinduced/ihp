@@ -102,4 +102,4 @@ hasRLSEnabled table = sqlQueryScalar "SELECT relrowsecurity FROM pg_class WHERE 
 -- > tableWithRLS <- ensureRLSEnabled "my_table"
 --
 -- Useful to carry a proof that the RLS is actually enabled
-newtype TableWithRLS = TableWithRLS { tableName :: Text }
+newtype TableWithRLS = TableWithRLS { tableName :: Text } deriving (Eq, Ord)

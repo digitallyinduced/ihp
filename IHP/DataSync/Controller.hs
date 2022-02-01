@@ -39,6 +39,7 @@ instance (
         setState DataSyncReady { subscriptions = HashMap.empty }
 
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled
+        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers
 
         let pgListener = ?applicationContext |> get #pgListener
 
@@ -73,7 +74,7 @@ instance (
                 watchedRecordIdsRef <- newIORef (Set.fromList watchedRecordIds)
 
                 -- Make sure the database triggers are there
-                sqlExec (ChangeNotifications.createNotificationFunction tableNameRLS) ()
+                installTableChangeTriggers tableNameRLS
 
                 let callback notification = case notification of
                             ChangeNotifications.DidInsert { id } -> do
