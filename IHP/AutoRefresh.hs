@@ -89,7 +89,7 @@ autoRefresh runAction = do
 
                             event <- MVar.newEmptyMVar
                             let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
-                            modifyIORef autoRefreshServer (\s -> s { sessions = session:(get #sessions s) } )
+                            modifyIORef' autoRefreshServer (\s -> s { sessions = session:(get #sessions s) } )
                             async (gcSessions autoRefreshServer)
 
                             registerNotificationTrigger ?touchedTables autoRefreshServer
@@ -147,7 +147,7 @@ instance WSApp AutoRefreshWSApp where
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
                 let autoRefreshServer = ?applicationContext |> get #autoRefreshServer
-                modifyIORef autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) (get #sessions server) })
+                modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) (get #sessions server) })
             AwaitingSessionID -> pure ()
 
 
@@ -157,7 +157,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     subscribedTables <- (get #subscribedTables) <$> (autoRefreshServer |> readIORef)
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
-    modifyIORef autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
+    modifyIORef' autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
 
     pgListener <- get #pgListener <$> readIORef autoRefreshServer
     subscriptions <-  subscriptionRequired |> mapM (\table -> do
@@ -175,7 +175,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
                     |> map (\session -> get #event session)
                     |> mapM (\event -> MVar.tryPutMVar event ())
                 pure ())
-    modifyIORef autoRefreshServer (\s -> s { subscriptions = get #subscriptions s <> subscriptions })
+    modifyIORef' autoRefreshServer (\s -> s { subscriptions = get #subscriptions s <> subscriptions })
     pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
@@ -208,7 +208,7 @@ updateSession :: (?applicationContext :: ApplicationContext) => UUID -> (AutoRef
 updateSession sessionId updateFunction = do
     let server = ?applicationContext |> get #autoRefreshServer
     let updateSession' session = if get #id session == sessionId then updateFunction session else session
-    modifyIORef server (\server -> server { sessions = map updateSession' (get #sessions server) })
+    modifyIORef' server (\server -> server { sessions = map updateSession' (get #sessions server) })
     pure ()
 
 -- | Removes all expired sessions
@@ -219,7 +219,7 @@ updateSession sessionId updateFunction = do
 gcSessions :: IORef AutoRefreshServer -> IO ()
 gcSessions autoRefreshServer = do
     now <- getCurrentTime
-    modifyIORef autoRefreshServer (\autoRefreshServer -> autoRefreshServer { sessions = filter (not . isSessionExpired now) (get #sessions autoRefreshServer) })
+    modifyIORef' autoRefreshServer (\autoRefreshServer -> autoRefreshServer { sessions = filter (not . isSessionExpired now) (get #sessions autoRefreshServer) })
 
 -- | A session is expired if it was not pinged in the last 60 seconds
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
