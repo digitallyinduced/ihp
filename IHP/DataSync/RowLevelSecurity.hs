@@ -81,7 +81,7 @@ makeCachedEnsureRLSEnabled = do
             then pure TableWithRLS { tableName }
             else do
                 proof <- ensureRLSEnabled tableName
-                modifyIORef tables (Set.insert tableName)
+                modifyIORef' tables (Set.insert tableName)
                 pure proof
 
 -- | Returns 'True' if row level security has been enabled on a table
