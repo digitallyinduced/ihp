@@ -26,6 +26,9 @@ import qualified Control.Exception as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
+
 class WSApp state where
     initialState :: state
 
@@ -43,14 +46,15 @@ startWSApp connection = do
     state <- newIORef (initialState @state)
     let ?state = state
     let ?connection = connection
-    let
-        handleException Websocket.ConnectionClosed = pure ()
-        handleException (Websocket.CloseRequest {}) = pure ()
-        handleException e = error ("Unhandled Websocket exception: " <> show e)
-    result <- Exception.try ((Websocket.withPingThread connection 30 (onPing @state) (run @state)) `Exception.catch` handleException)
-    onClose @state
+
+    result <- Exception.try ((Websocket.withPingThread connection 30 (onPing @state) (run @state)) `Exception.finally` onClose @state)
     case result of
-        Left (Exception.SomeException e) -> putStrLn (tshow e)
+        Left (e@Exception.SomeException{}) ->
+            case Exception.fromException e of
+                (Just Websocket.ConnectionClosed) -> pure ()
+                (Just (Websocket.CloseRequest {})) -> pure ()
+                (Just other) -> error ("Unhandled Websocket exception: " <> show other)
+                Nothing -> Log.error (tshow e)
         Right _ -> pure ()
 
 setState :: (?state :: IORef state) => state -> IO ()
