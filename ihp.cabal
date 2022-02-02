@@ -53,7 +53,6 @@ common shared-properties
             , ghc-prim
             , case-insensitive
             , template-haskell
-            , interpolate
             , split
             , containers
             , http-media
@@ -101,6 +100,8 @@ common shared-properties
             , neat-interpolation
             , unagi-chan
             , with-utf8
+            , ghc-meta >= 0.0.0.2
+            , interpolate
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -134,6 +135,7 @@ common shared-properties
         , LambdaCase
         , StandaloneDeriving
         , TemplateHaskell
+        , OverloadedRecordDot
     if flag(FastBuild)
         ghc-options:
             -j
@@ -146,8 +148,6 @@ common shared-properties
             -Wunused-foralls
             -Wmissing-fields
             -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -161,8 +161,6 @@ common shared-properties
             -Wunused-foralls
             -Wmissing-fields
             -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
 
 library
     import: shared-properties

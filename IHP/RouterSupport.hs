@@ -618,12 +618,12 @@ post path action = do
 -- >
 -- >            updateRecordAction = do
 -- >                onlyAllowMethods [PATCH]
--- >                
+-- >
 -- >                table <- parseText
 -- >                string "/"
 -- >                id <- parseUUID
 -- >                pure UpdateRecordAction { table, id }
--- >        
+-- >
 -- > createRecordAction <|> updateRecordAction
 --
 onlyAllowMethods :: (?context :: RequestContext) => [StdMethod] -> Parser ()
@@ -800,4 +800,4 @@ parseIntegerId queryVal = let
 --
 -- See https://forum.ihpapp.com/ShowThread?threadId=ad73d6a5-2481-4e2f-af46-9bf8849f998b
 -- See https://github.com/digitallyinduced/ihp/issues/840
-instance ((T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType argument) :<>: T.Text " to this " :<>: (T.ShowType controller))), Data argument, Data controller) => AutoRoute (argument -> controller) where
+instance ((T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType argument) :<>: T.Text " to this " :<>: (T.ShowType controller))), Data argument, Data controller, Data (argument -> controller)) => AutoRoute (argument -> controller) where

@@ -12,6 +12,7 @@ let
         string-conversions
         warp
         wai
+        interpolate
         mtl
         blaze-html
         blaze-markup
@@ -62,10 +63,12 @@ let
         neat-interpolation
         unagi-chan
         with-utf8
+        ghc-meta
 
         # Development Specific Tools (not in ihp.nix)
-        mmark-cli
         hspec
+        # haskell-language-server
+        # cabal-install
     ]);
 in
     pkgs.stdenv.mkDerivation {

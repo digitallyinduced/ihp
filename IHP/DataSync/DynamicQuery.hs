@@ -138,11 +138,10 @@ transformColumnNamesToFieldNames (Object hashMap) =
 $(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
 $(deriveFromJSON defaultOptions 'QueryBuilder.Join)
 $(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
 $(deriveFromJSON defaultOptions 'SelectAll)
+$(deriveFromJSON defaultOptions ''DynamicValue)
 $(deriveFromJSON defaultOptions ''ConditionOperator)
 $(deriveFromJSON defaultOptions ''ConditionExpression)
-$(deriveFromJSON defaultOptions ''DynamicValue)
 
 instance FromJSON DynamicSQLQuery where
     parseJSON = withObject "DynamicSQLQuery" $ \v -> DynamicSQLQuery

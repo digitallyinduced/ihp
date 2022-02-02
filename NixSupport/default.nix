@@ -1,4 +1,4 @@
-{ compiler ? "ghc8107"
+{ compiler ? "ghc921"
 , ihp
 , haskellDeps ? (p: [])
 , otherDeps ? (p: [])
@@ -15,7 +15,8 @@ let
       (if withHoogle
       then ghc.ghcWithHoogle
       else ghc.ghcWithPackages)
-        (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
+        # (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
+        (p: builtins.concatLists [ [] (haskellDeps p) ] );
     allNativePackages = builtins.concatLists [ (otherDeps pkgs) [pkgs.postgresql pkgs.makeWrapper] (if pkgs.stdenv.isDarwin then [] else []) ];
 
     appBinary = if optimized

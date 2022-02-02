@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module IHP.DataSync.Types where
 
 import IHP.Prelude
@@ -5,6 +7,8 @@ import Data.Aeson
 import IHP.QueryBuilder
 import IHP.DataSync.DynamicQuery
 import Data.HashMap.Strict (HashMap)
+import GHC.Generics (Generic)
+import Data.Aeson (FromJSON)
 import qualified IHP.PGListener as PGListener
 
 data DataSyncMessage
@@ -15,7 +19,7 @@ data DataSyncMessage
     | CreateRecordsMessage { table :: !Text, records :: ![HashMap Text Value], requestId :: !Int }
     | UpdateRecordMessage { table :: !Text, id :: !UUID, patch :: !(HashMap Text Value), requestId :: !Int }
     | DeleteRecordMessage { table :: !Text, id :: !UUID, requestId :: !Int }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic, FromJSON)
 
 data DataSyncResponse
     = DataSyncResult { result :: ![[Field]], requestId :: !Int }

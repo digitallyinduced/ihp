@@ -3,8 +3,8 @@
 # the project
 { ihp
 , haskellPackagesDir
-, dontCheckPackages ? ["mmark" "mmark-ext"]
-, doJailbreakPackages ? ["haskell-to-elm" "mmark-cli"]
+, dontCheckPackages ? ["mmark" "mmark-ext" "mutable-containers" "hspec-wai"]
+, doJailbreakPackages ? ["haskell-to-elm" "lucid" "protolude" "contiguous" "wide-word" "typerep-map" "bytesmith" "byteslice" "bytebuild" "ip" "hashtables" "hie-compat" "implicit-hie-cradle" "generic-lens" "multistate" "ghc-exactprint" "some"]
 , dontHaddockPackages ? []
 , nixPkgsRev ? "5efc8ca954272c4376ac929f4c5ffefcc20551d5"
 , nixPkgsSha256 ? "sha256-pHTwvnN4tTsEKkWlXQ8JMY423epos8wUOhthpwJjtpc="
@@ -61,8 +61,18 @@ let
               (makeOverrides pkgs.haskell.lib.doJailbreak doJailbreakPackages)
               (makeOverrides pkgs.haskell.lib.dontHaddock dontHaddockPackages)
               manualOverrides
-
-              (self: super: { haskell-language-server = pkgs.haskell.lib.appendConfigureFlag super.haskell-language-server "--enable-executable-dynamic"; })
+              (self: super: { 
+                # This doesn't work well...
+                haskell-language-server = 
+                  let
+                    src  = builtins.fetchGit {
+                      url = "https://github.com/haskell/haskell-language-server";
+                      rev = "f4022c5bb8530cd306c53b941878244bf27a5d41";
+                    };
+                    pkg = import src;
+                  in 
+                    pkg.packages.x86_64-linux.haskell-language-server-921 ;
+              })
             ];
           };
         }

@@ -7,6 +7,7 @@
 , classy-prelude
 , directory
 , string-conversions
+, interpolate
 , warp
 , wai
 , mtl
@@ -27,7 +28,6 @@
 , pwstore-fast
 , template-haskell
 , random-strings
-, interpolate
 , uri-encode
 , websockets
 , wai-websockets
@@ -62,6 +62,7 @@
 , neat-interpolation
 , unagi-chan
 , with-utf8
+, ghc-meta
 }:
 mkDerivation {
   pname = "ihp";
@@ -130,6 +131,7 @@ mkDerivation {
     neat-interpolation
     unagi-chan
     with-utf8
+    ghc-meta
   ];
   license = lib.licenses.mit;
   postInstall = ''
@@ -143,7 +145,7 @@ mkDerivation {
 
   # For faster builds when hacking on IHP:
   # Uncommenting will build without optimizations
-  # configureFlags = [ "--flag FastBuild" ];
+  configureFlags = [ "--flag FastBuild" ];
   # Uncommenting will not generate documentation
-  # doHaddock = false;
+  doHaddock = false;
 }

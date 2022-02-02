@@ -76,7 +76,7 @@ atomicType = \case
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
 haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull }
-    | [name] == primaryKeyColumnNames primaryKeyConstraint = "(" <> primaryKeyTypeName tableName <> ")"
+    | [name] == primaryKeyConstraint.primaryKeyColumnNames  = "(" <> primaryKeyTypeName tableName <> ")"
     | otherwise =
         let
             actualType =
@@ -487,7 +487,7 @@ instance FromRow #{modelName} where
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
-        isPrimaryKey name = name `elem` primaryKeyColumnNames (get #primaryKeyConstraint table)
+        isPrimaryKey name = name `elem` table.primaryKeyConstraint.primaryKeyColumnNames
         isColumn name = name `elem` columnNames
         isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
@@ -739,20 +739,20 @@ instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
     {-# INLINE getField #-}
 |]
     where
-        compilePrimaryKeyValue = case primaryKeyColumnNames primaryKeyConstraint of
+        compilePrimaryKeyValue = case primaryKeyConstraint.primaryKeyColumnNames of
             [id] -> columnNameToFieldName id
             ids -> "Id (" <> commaSep (map columnNameToFieldName ids) <> ")"
 
 needsHasFieldId :: CreateTable -> Bool
 needsHasFieldId CreateTable { primaryKeyConstraint } =
-  case primaryKeyColumnNames primaryKeyConstraint of
+  case primaryKeyConstraint.primaryKeyColumnNames of
     [] -> False
     ["id"] -> False
     _ -> True
 
 primaryKeyColumns :: CreateTable -> [Column]
 primaryKeyColumns CreateTable { name, columns, primaryKeyConstraint } =
-    map getColumn (primaryKeyColumnNames primaryKeyConstraint)
+    map getColumn primaryKeyConstraint.primaryKeyColumnNames
   where
     getColumn columnName = case find ((==) columnName . get #name) columns of
       Just c -> c

@@ -44,5 +44,6 @@
 :set -XStandaloneDeriving
 :set -XDerivingVia
 :set -XTemplateHaskell
+:set -XOverloadedRecordDot
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns

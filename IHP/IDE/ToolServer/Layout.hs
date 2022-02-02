@@ -7,7 +7,7 @@ import qualified IHP.Version as Version
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
-toolServerLayout :: Html -> Html
+toolServerLayout :: (?context :: ControllerContext) => Html -> Html
 toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
     <meta charset="utf-8"/>
@@ -23,13 +23,13 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src={assetPath "/vendor/timeago.js"}></script>
     <script src={assetPath "/vendor/popper.min.js"}></script>
     <script src={assetPath "/vendor/bootstrap.min.js"}></script>
-    
+
 
     <script src={assetPath "/vendor/turbolinks.js"}></script>
     <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
     <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
     <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
-    
+
 
     <script src={assetPath "/helpers.js"}></script>
     <script src={assetPath "/IDE/contextmenu.js"}></script>
@@ -78,7 +78,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         lint = navItem "LINT" flagIcon "#" False
         deploy = navItem "DEPLOY" globeIcon "https://ihpcloud.com/" False
         docu = navItem "DOCU" bookIcon "https://ihp.digitallyinduced.com/Guide/" False
-        
+
         isSchemaEditorController =
                     (  isActiveController @SchemaController
                     || isActiveController @TablesController

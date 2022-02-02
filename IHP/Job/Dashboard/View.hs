@@ -60,8 +60,10 @@ renderStatus job = case get #status job of
     JobStatusTimedOut -> [hsx|<span class="badge badge-danger" >Timed Out</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------
+--
+--
 
-renderBaseJobTable :: Text -> [BaseJob] -> Html
+renderBaseJobTable :: (?context :: ControllerContext) => Text -> [BaseJob] -> Html
 renderBaseJobTable table rows =
     let
         headers :: [Text] = ["ID", "Updated At", "Status", "", ""]
@@ -89,7 +91,7 @@ renderBaseJobTable table rows =
 |]
     where renderHeader field = [hsx|<th>{field}</th>|]
 
-renderBaseJobTablePaginated :: Text -> [BaseJob] -> Pagination -> Html
+renderBaseJobTablePaginated :: (?context :: ControllerContext) => Text -> [BaseJob] -> Pagination -> Html
 renderBaseJobTablePaginated table jobs pagination =
     let
         headers :: [Text] = ["ID", "Updated At", "Status", "", ""]
@@ -118,7 +120,7 @@ renderBaseJobTablePaginated table jobs pagination =
     where
         renderHeader field = [hsx|<th>{field}</th>|]
 
-renderBaseJobTableRow :: BaseJob -> Html
+renderBaseJobTableRow :: (?context :: ControllerContext) => BaseJob -> Html
 renderBaseJobTableRow job = [hsx|
         <tr>
             <td>{get #id job}</td>
@@ -134,7 +136,7 @@ renderBaseJobTableRow job = [hsx|
     |]
 
 -- | Link included in table to create a new job.
-renderNewBaseJobLink :: Text -> Html
+renderNewBaseJobLink :: (?context :: ControllerContext) => Text -> Html
 renderNewBaseJobLink table =
     let
         link = "/jobs/CreateJob?tableName=" <> table
@@ -144,7 +146,7 @@ renderNewBaseJobLink table =
         </form>
     |]
 
-renderNewBaseJobForm :: Text -> Html
+renderNewBaseJobForm :: (?context :: ControllerContext) => Text -> Html
 renderNewBaseJobForm table = [hsx|
     <br>
         <h5>New Job: {table}</h5>
@@ -155,7 +157,7 @@ renderNewBaseJobForm table = [hsx|
     </form>
 |]
 
-renderBaseJobDetailView :: BaseJob -> Html
+renderBaseJobDetailView :: (?context :: ControllerContext) => BaseJob -> Html
 renderBaseJobDetailView job = let table = get #table job in [hsx|
     <br>
         <h5>Viewing Job {get #id job} in {table |> columnNameToFieldLabel}</h5>
@@ -204,7 +206,7 @@ makeDashboardSectionFromTableViewable = do
     indexRows <- getIndex @a
     pure $ SomeView $ HtmlView $ renderTableViewableTable indexRows
 
-renderTableViewableTable :: forall a. TableViewable a => [a] -> Html
+renderTableViewableTable :: forall a. (TableViewable a, ?context :: ControllerContext) => [a] -> Html
 renderTableViewableTable rows = let
         headers = tableHeaders @a
         title = tableTitle @a

@@ -23,7 +23,7 @@ module IHP.NameSupport
 
 import Prelude hiding (splitAt, words, map)
 import IHP.HaskellSupport
-import Data.Text
+import Data.Text hiding (elem)
 import Data.String.Conversions (cs)
 import qualified Data.Char as Char
 import qualified Text.Inflections as Inflector

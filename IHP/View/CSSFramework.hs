@@ -528,7 +528,7 @@ tailwind = def
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
                 helpText = styledFormFieldHelp cssFramework formField
 
-                isValueSelected = any (\(_, optionValue) -> optionValue == fieldValue) (options fieldType)
+                isValueSelected = any (\(_, optionValue) -> optionValue == fieldValue) fieldType.options
 
                 -- Get a single option.
                 getOption (optionLabel, optionValue) = [hsx|

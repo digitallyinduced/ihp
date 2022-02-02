@@ -6,8 +6,7 @@ Description: Provides functions to be used in all views
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ViewSupport
-( HtmlWithContext
-, Layout
+( Layout
 , Html
 , View (..)
 , currentViewId
@@ -247,7 +246,7 @@ instance {-# OVERLAPPABLE #-} HasField "requestContext" viewContext RequestConte
             |> get #requestContext
             |> get #frameworkConfig
 
-type Html = HtmlWithContext ControllerContext
+type Html = Html5.Html
 
 -- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
 liveReloadWebsocketUrl :: (?context :: ControllerContext) => Text

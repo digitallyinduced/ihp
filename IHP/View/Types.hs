@@ -13,7 +13,6 @@ module IHP.View.Types
 , CSSFramework (..)
 , BreadcrumbsView(..)
 , PaginationView(..)
-, HtmlWithContext
 , Layout
 )
 where
@@ -25,8 +24,6 @@ import IHP.ModelSupport (Violation)
 import IHP.Breadcrumb.Types
 import IHP.Pagination.Types
 
-
-type HtmlWithContext context = (?context :: context) => Blaze.Html
 
 -- | A layout is just a function taking a view and returning a new view.
 --

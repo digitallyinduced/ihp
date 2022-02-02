@@ -9,7 +9,7 @@ import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
 
-schemaDesignerLayout :: Html -> Html
+schemaDesignerLayout :: (?context :: ControllerContext) => Html -> Html
 schemaDesignerLayout inner = toolServerLayout [hsx|
 <div class="container pt-5">
     {if hasUnmigratedChanges then unmigratedChanges else databaseControls}
@@ -33,7 +33,7 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
     where
         (DatabaseNeedsMigration hasUnmigratedChanges) = fromFrozenContext @DatabaseNeedsMigration
 
-unmigratedChanges :: Html
+unmigratedChanges :: (?context :: ControllerContext) => Html
 unmigratedChanges = [hsx|
 <div class="alert alert-primary d-flex align-items-center" role="alert">
     <div style="height: fit-content">
@@ -106,7 +106,7 @@ findStatementByName statementName statements = find pred statements
         pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow statementName)) = True
         pred _ = False
 
-visualNav :: Html
+visualNav :: (?context :: ControllerContext) => Html
 visualNav =
     if isActivePath ShowCodeAction
         then [hsx|<a class="custom-control custom-switch visual-switch" href={TablesAction} onclick="checkBeforeUnload()">
@@ -118,7 +118,7 @@ visualNav =
                 <label class="custom-control-label text-muted" for="visual-switch">Code Editor</label>
             </a>|]
 
-renderColumnSelector :: Text -> [(Int, Column)] -> [Statement] -> Html
+renderColumnSelector :: (?context :: ControllerContext) => Text -> [(Int, Column)] -> [Statement] -> Html
 renderColumnSelector tableName columns statements = [hsx|
 <div class="col-8 column-selector d-flex">
     <section class="flex-grow-1" oncontextmenu="showContextMenu('context-menu-column-root')">

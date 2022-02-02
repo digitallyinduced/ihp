@@ -26,6 +26,8 @@ import IHP.ApplicationContext
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+$(deriveToJSON defaultOptions 'DataSyncResult)
+
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -52,7 +54,7 @@ instance (
                 result :: [[Field]] <- withRLS $ sqlQuery theQuery theParams
 
                 sendJSON DataSyncResult { result, requestId }
-            
+
             handleMessage CreateDataSubscription { query, requestId } = do
                 tableNameRLS <- ensureRLSEnabled (get #table query)
 
@@ -120,7 +122,7 @@ instance (
             handleMessage DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
                 let maybeSubscription :: Maybe Subscription = HashMap.lookup subscriptionId subscriptions
-                
+
                 -- Cancel table watcher
                 case maybeSubscription of
                     Just subscription -> pgListener |> PGListener.unsubscribe (get #channelSubscription subscription)
@@ -143,7 +145,7 @@ instance (
                         |> map aesonValueToPostgresValue
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
-                
+
                 result :: [[Field]] <- withRLS do
                     sqlQuery query params
 
@@ -152,7 +154,7 @@ instance (
                     otherwise -> error "Unexpected result in CreateRecordMessage handler"
 
                 pure ()
-            
+
             handleMessage CreateRecordsMessage { table, records, requestId }  = do
                 ensureRLSEnabled table
 
@@ -171,7 +173,7 @@ instance (
                                 |> HashMap.elems
                                 |> map aesonValueToPostgresValue
                             )
-                        
+
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
 
@@ -205,13 +207,13 @@ instance (
                         <> [PG.toField id]
 
                 result :: [[Field]] <- withRLS $ sqlQuery (PG.Query query) params
-                
+
                 case result of
                     [record] -> sendJSON DidUpdateRecord { requestId, record }
                     otherwise -> error "Unexpected result in CreateRecordMessage handler"
 
                 pure ()
-            
+
             handleMessage DeleteRecordMessage { table, id, requestId } = do
                 ensureRLSEnabled table
 
@@ -275,8 +277,6 @@ queryFieldNamesToColumnNames sqlQuery = sqlQuery
     where
         convertOrderByClause OrderByClause { orderByColumn, orderByDirection } = OrderByClause { orderByColumn = cs (fieldNameToColumnName (cs orderByColumn)), orderByDirection }
 
-$(deriveFromJSON defaultOptions 'DataSyncQuery)
-$(deriveToJSON defaultOptions 'DataSyncResult)
 
 instance SetField "subscriptions" DataSyncController (HashMap UUID Subscription) where
     setField subscriptions record = record { subscriptions }

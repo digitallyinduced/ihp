@@ -108,7 +108,7 @@ findAllMigrations = do
         |> map cs
         |> filter (\path -> ".sql" `isSuffixOf` path)
         |> mapMaybe pathToMigration
-        |> sortBy (comparing revision)
+        |> sortBy (comparing (.revision))
         |> pure
 
 -- | Given a path such as Application/Migrate/00-initial-migration.sql it returns a Migration

@@ -76,6 +76,7 @@ import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
 import Debug.Trace
 import qualified GHC.Generics
+import Data.Aeson (FromJSON)
 
 class DefaultScope table where
     defaultScope :: QueryBuilder table -> QueryBuilder table
@@ -156,12 +157,12 @@ class IsJoined a b
 instance (ModelList b) => IsJoined a (ConsModelList a b)
 instance {-# OVERLAPPABLE #-} (ModelList b, IsJoined a b) => IsJoined a (ConsModelList c b)
 
--- Class to generalise over different QueryBuilder-providing types. The actual query builder can be extracted with 'getQueryBuilder' and injected with 'injectQueryBuilder'. Also assigns a join reqister to a queryBilderProvider. 
+-- Class to generalise over different QueryBuilder-providing types. The actual query builder can be extracted with 'getQueryBuilder' and injected with 'injectQueryBuilder'. Also assigns a join reqister to a queryBilderProvider.
 class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -> joinRegister where
     getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
     getQueryIndex :: queryBuilderProvider table -> Maybe ByteString
-    getQueryIndex _ = Nothing 
+    getQueryIndex _ = Nothing
 
 -- Wrapper for QueryBuilders resulting from joins. Associates a joinRegister type.
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
@@ -180,12 +181,12 @@ instance HasQueryBuilder QueryBuilder EmptyModelList where
 -- JoinQueryBuilderWrappers have query builders
 instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    injectQueryBuilder = JoinQueryBuilderWrapper 
+    injectQueryBuilder = JoinQueryBuilderWrapper
 
 -- NoJoinQueryBuilderWrapper have query builders and the join register does not allow any joins
 instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    injectQueryBuilder  = NoJoinQueryBuilderWrapper 
+    injectQueryBuilder  = NoJoinQueryBuilderWrapper
 
 instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
     getQueryBuilder (LabeledQueryBuilderWrapper queryBuilder) = queryBuilder
@@ -214,7 +215,7 @@ instance KnownSymbol table => ToHtml (QueryBuilder table) where
 data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString }
     deriving (Show, Eq)
 
-data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, DeepSeq.NFData)
+data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, DeepSeq.NFData, FromJSON)
 data SQLQuery = SQLQuery
     { queryIndex :: !(Maybe ByteString)
     , selectFrom :: !ByteString
@@ -289,7 +290,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
     buildQueryHelper NewQueryBuilder { columns } =
         let tableName = symbolToByteString @table
         in SQLQuery
-            {     queryIndex = getQueryIndex queryBuilderProvider 
+            {     queryIndex = getQueryIndex queryBuilderProvider
                 , selectFrom = tableName
                 , distinctClause = Nothing
                 , distinctOnClause = Nothing
@@ -341,10 +342,10 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                 let
                     firstQuery = buildQueryHelper firstQueryBuilder
                     secondQuery = buildQueryHelper secondQueryBuilder
-                    isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query) && null (joins query)
+                    isSimpleQuery query = null query.orderByClause && isNothing query.limitClause && isNothing query.offsetClause && null query.joins
                     isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
                     unionWhere =
-                        case (whereCondition firstQuery, whereCondition secondQuery) of
+                        case (firstQuery.whereCondition , secondQuery.whereCondition) of
                             (Nothing, whereCondition) -> whereCondition
                             (whereCondition, Nothing) -> whereCondition
                             (Just firstWhere, Just secondWhere) -> Just $ OrCondition firstWhere secondWhere
@@ -353,12 +354,12 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                         firstQuery { whereCondition = unionWhere }
                     else
                         error "buildQuery: Union of complex queries not supported yet"
-    
+
     buildQueryHelper JoinQueryBuilder { queryBuilder, joinData } =
-        let 
+        let
             firstQuery = buildQueryHelper queryBuilder
-         in firstQuery { joins = joinData:joins firstQuery }
-    
+         in firstQuery { joins = joinData:firstQuery.joins }
+
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
 -- __Example:__ Get the sql query that is represented by a QueryBuilder
@@ -395,20 +396,20 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
             where
                 -- Generates a string like: `posts.id, posts.title, posts.body`
                 selectFromWithColumns :: [ByteString]
-                selectFromWithColumns = 
+                selectFromWithColumns =
                     columns
                     |> map (\column -> selectFrom <> "." <> column)
         fromClause :: ByteString
         fromClause = selectFrom
 
         !theParams =
-            case whereCondition sqlQuery of
+            case sqlQuery.whereCondition of
                 Just condition -> compileConditionArgs condition
                 Nothing -> mempty
 
         toQualifiedName unqualifiedName = selectFrom <> "." <> unqualifiedName
 
-        whereConditions' = case whereCondition sqlQuery of
+        whereConditions' = case sqlQuery.whereCondition of
                 Just condition -> Just $ "WHERE " <> compileConditionQuery condition
                 Nothing -> Nothing
 
@@ -417,10 +418,10 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
                 [] -> Nothing
                 xs -> Just ("ORDER BY " <> ByteString.intercalate "," ((map (\OrderByClause { orderByColumn, orderByDirection } -> orderByColumn <> (if orderByDirection == Desc then " DESC" else mempty)) xs)))
         joinClause :: Maybe ByteString
-        joinClause = buildJoinClause $ reverse $ joins sqlQuery
+        joinClause = buildJoinClause $ reverse $ sqlQuery.joins
         buildJoinClause :: [Join] -> Maybe ByteString
         buildJoinClause [] = Nothing
-        buildJoinClause (joinClause:joinClauses) = Just $ "INNER JOIN " <> table joinClause <> " ON " <> tableJoinColumn joinClause <> " = " <>table joinClause <> "." <> otherJoinColumn joinClause <> maybe "" (" " <>) (buildJoinClause joinClauses)
+        buildJoinClause (joinClause:joinClauses) = Just $ "INNER JOIN " <> joinClause.table <> " ON " <> joinClause.tableJoinColumn <> " = " <> joinClause.table <> "." <> joinClause.otherJoinColumn <> maybe "" (" " <>) (buildJoinClause joinClauses)
 
 
 {-# INLINE toSQL' #-}
@@ -481,7 +482,7 @@ filterWhere (name, value) queryBuilderProvider = injectQueryBuilder FilterByQuer
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhere #-}
 
--- | Like 'filterWhere', but takes a type argument specifying the table which holds the column that is to be compared. The column must have been joined before using 'innerJoin' or 'innerJoinThirdTable'. Example: 
+-- | Like 'filterWhere', but takes a type argument specifying the table which holds the column that is to be compared. The column must have been joined before using 'innerJoin' or 'innerJoinThirdTable'. Example:
 --
 -- __Example:__ get posts by user Tom.
 --
@@ -567,14 +568,14 @@ filterWhereIn (name, value) queryBuilderProvider =
 {-# INLINE filterWhereIn #-}
 
 -- | Like 'filterWhereIn', but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using 'innerJoin' or 'innerJoinThirdTable'.
--- 
+--
 -- __Example:__ get posts by Tom and Tim.
 --
--- > tomOrTimPosts <- query @Post 
--- >    |> innerJoin @User (#createdBy, #id) 
--- >    |> filterWhereInJoinedTable @User (#name, ["Tom","Tim"]) 
+-- > tomOrTimPosts <- query @Post
+-- >    |> innerJoin @User (#createdBy, #id)
+-- >    |> filterWhereInJoinedTable @User (#name, ["Tom","Tim"])
 -- >    |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name IN ('Tom', 'Tim') 
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name IN ('Tom', 'Tim')
 --
 filterWhereInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
@@ -653,8 +654,8 @@ filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterBy
 --
 -- __Example:__ Serach for Posts by users whose name contains "olaf" (case insensitive)
 --
--- > olafPosts <- query @Post  
--- >                |> innerJoin @User (#createdBy, #id)  
+-- > olafPosts <- query @Post
+-- >                |> innerJoin @User (#createdBy, #id)
 -- >                |> filterWhereLikeJoinedTable @User (#name, "%Olaf%")
 -- >                |> fetch
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name LIKE '%Olaf%'
@@ -685,11 +686,11 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterB
 --
 -- __Example:__ Serach for Posts by users whose name contains "olaf" (case insensitive)
 --
--- > olafPosts <- 
--- >    query @Post  
---      |> innerJoin @User (#createdBy, #id) 
+-- > olafPosts <-
+-- >    query @Post
+--      |> innerJoin @User (#createdBy, #id)
 --      |> filterWhereILikeJoinedTable @User (#name, "%Olaf%")
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%' 
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%'
 filterWhereILikeJoinedTable :: forall model table name table' model' value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
     where
@@ -830,25 +831,25 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
 {-# INLINE filterWhereCaseInsensitive #-}
 
 -- | Joins a table to an existing QueryBuilder (or something holding a QueryBuilder) on the specified columns. Example:
--- >    query @Posts 
+-- >    query @Posts
 -- > |> innerJoin @Users (#author, #id)
 -- > -- SELECT users.* FROM users INNER JOIN posts ON users.id = posts.author ...
 innerJoin :: forall model' table' name' value' model table name value queryBuilderProvider joinRegister.
                             (
-                                KnownSymbol name, 
+                                KnownSymbol name,
                                 KnownSymbol table,
                                 HasField name model value,
-                                KnownSymbol name', 
+                                KnownSymbol name',
                                 KnownSymbol table',
                                 HasQueryBuilder queryBuilderProvider joinRegister,
                                 ModelList joinRegister,
-                                HasField name' model' value', 
+                                HasField name' model' value',
                                 value ~ value',
                                 model ~ GetModelByTableName table,
                                 table' ~ GetTableName model'
-                            ) => (Proxy name, Proxy name') -> queryBuilderProvider table -> JoinQueryBuilderWrapper (ConsModelList model' joinRegister) table 
-innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn 
-    where 
+                            ) => (Proxy name, Proxy name') -> queryBuilderProvider table -> JoinQueryBuilderWrapper (ConsModelList model' joinRegister) table
+innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
+    where
         baseTableName = symbolToByteString @table
         joinTableName = symbolToByteString @table'
         leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
@@ -866,15 +867,15 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
 -- >     |> innerJoinThirdTable @Post @Tagging (#id, #postId)
 -- >     |> labelResults @Post #id
 -- >     |> fetch
--- > -- SELECT posts.id, tags.* FROM comments INNER JOIN taggings ON tags.id = taggings.tagId INNER JOIN posts ON posts.id = taggings.postId 
--- 
+-- > -- SELECT posts.id, tags.* FROM comments INNER JOIN taggings ON tags.id = taggings.tagId INNER JOIN posts ON posts.id = taggings.postId
+--
 -- labeledTags is then a list of type ['LabeledData' (Id' "posts") Tag] such that "LabeledData postId tag" is contained in that list if "tag" is a tag of the post with id postId.
 --
 labelResults :: forall foreignModel baseModel foreignTable baseTable name value queryBuilderProvider joinRegister.
                 (
                     KnownSymbol foreignTable,
                     KnownSymbol baseTable,
-                    foreignTable ~ GetTableName foreignModel, 
+                    foreignTable ~ GetTableName foreignModel,
                     baseModel ~ GetModelByTableName baseTable,
                     HasField name foreignModel value,
                     HasQueryBuilder queryBuilderProvider joinRegister,
@@ -882,15 +883,15 @@ labelResults :: forall foreignModel baseModel foreignTable baseTable name value 
                     IsJoined foreignModel joinRegister
                 ) => Proxy name -> queryBuilderProvider baseTable -> LabeledQueryBuilderWrapper foreignTable name value baseTable
 labelResults name queryBuilderProvider = LabeledQueryBuilderWrapper $ getQueryBuilder queryBuilderProvider
-                    
+
 -- | Joins a table on a column held by a previously joined table. Example:
--- > query @Posts 
+-- > query @Posts
 -- > |> innerJoin @Users (#author, #id)
 -- > |> innerJoinThirdTable @City @Users (#id, #homeTown)
 -- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.author = users.id INNER JOIN cities ON user.home_town = cities.id
 --
 innerJoinThirdTable :: forall model model' name name' value value' table table' baseTable baseModel queryBuilderProvider joinRegister.
-                        ( 
+                        (
                             KnownSymbol name,
                             KnownSymbol table,
                             HasField name model value,
@@ -902,16 +903,16 @@ innerJoinThirdTable :: forall model model' name name' value value' table table' 
                             value ~ value',
                             table ~ GetTableName model,
                             table' ~ GetTableName model',
-                            baseModel ~ GetModelByTableName baseTable 
+                            baseModel ~ GetModelByTableName baseTable
                         ) => (Proxy name, Proxy name') -> queryBuilderProvider baseTable -> JoinQueryBuilderWrapper (ConsModelList model joinRegister) baseTable
 innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
-     where 
+     where
         baseTableName = symbolToByteString @table'
         joinTableName = symbolToByteString @table
         leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
 {-# INLINE innerJoinThirdTable #-}
-                       
+
 
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
@@ -1001,7 +1002,7 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
         firstQueryBuilder = getQueryBuilder firstQueryBuilderProvider
         secondQueryBuilder = getQueryBuilder secondQueryBuilderProvider
 
-    
+
 {-# INLINE queryUnion #-}
 
 
@@ -1017,8 +1018,8 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
 queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBuilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBuilderProvider'' model) -> queryBuilderProvider model -> queryBuilderProvider model
 queryOr firstQuery secondQuery queryBuilder = injectQueryBuilder
-    (UnionQueryBuilder { 
-        firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder, 
+    (UnionQueryBuilder {
+        firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder,
         secondQueryBuilder = getQueryBuilder $ secondQuery queryBuilder}
     )
 {-# INLINE queryOr #-}
