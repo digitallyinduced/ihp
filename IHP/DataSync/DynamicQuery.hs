@@ -26,6 +26,7 @@ data DynamicValue
     | BoolValue !Bool
     | UUIDValue !UUID
     | DateTimeValue !UTCTime
+    | PointValue !Point
     | Null
     deriving (Show, Eq)
 
@@ -84,6 +85,7 @@ instance {-# OVERLAPS #-} ToJSON [Field] where
             fieldValueToJSON (BoolValue value) = toJSON value
             fieldValueToJSON (UUIDValue value) = toJSON value
             fieldValueToJSON (DateTimeValue value) = toJSON value
+            fieldValueToJSON (PointValue value) = toJSON value
             fieldValueToJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
 
 instance PG.FromField Field where
@@ -101,6 +103,7 @@ instance PG.FromField Field where
                 <|> (UUIDValue <$> PG.fromField field fieldValue')
                 <|> (DoubleValue <$> PG.fromField field fieldValue')
                 <|> (DateTimeValue <$> PG.fromField field fieldValue')
+                <|> (PointValue <$> PG.fromField field fieldValue')
                 <|> (PG.fromField @PG.Null field fieldValue' >> pure IHP.DataSync.DynamicQuery.Null)
                 <|> fromFieldCustomEnum field fieldValue'
 

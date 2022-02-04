@@ -198,4 +198,22 @@ aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger val
     Left (floating :: Double) -> PG.toField floating
     Right (integer :: Integer) -> PG.toField integer
 aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
-aesonValueToPostgresValue object@(Object values) = PG.toField (toJSON object)
+aesonValueToPostgresValue object@(Object values) = 
+    let
+        tryDecodeAsPoint :: Maybe Point
+        tryDecodeAsPoint = do
+                xValue <- HashMap.lookup "x" values
+                yValue <- HashMap.lookup "y" values
+                x <- case xValue of
+                        Number number -> pure (Scientific.toRealFloat number)
+                        otherwise -> Nothing 
+                y <- case yValue of
+                        Number number -> pure (Scientific.toRealFloat number)
+                        otherwise -> Nothing 
+                pure Point { x, y }
+    in
+        -- This is really hacky and is mostly duck typing. We should refactor this in the future to
+        -- become more type aware by passing the DDL of the table to 'aesonValueToPostgresValue'.
+        if HashMap.size values == 2
+            then fromMaybe (PG.toField $ toJSON object) (PG.toField <$> tryDecodeAsPoint)
+            else PG.toField (toJSON object)

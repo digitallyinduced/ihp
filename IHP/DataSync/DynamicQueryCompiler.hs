@@ -82,6 +82,7 @@ compileCondition (LiteralExpression literal) = ("?", [toValue literal])
         toValue (BoolValue bool) = PG.toField bool
         toValue (UUIDValue uuid) = PG.toField uuid
         toValue (DateTimeValue utcTime) = PG.toField utcTime
+        toValue (PointValue point) = PG.toField point
         toValue Null = PG.toField PG.Null
 
 compileOperator :: ConditionOperator -> PG.Query
