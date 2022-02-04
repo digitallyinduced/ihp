@@ -14,7 +14,9 @@ data DataSyncMessage
     | CreateRecordMessage { table :: !Text, record :: !(HashMap Text Value), requestId :: !Int }
     | CreateRecordsMessage { table :: !Text, records :: ![HashMap Text Value], requestId :: !Int }
     | UpdateRecordMessage { table :: !Text, id :: !UUID, patch :: !(HashMap Text Value), requestId :: !Int }
+    | UpdateRecordsMessage { table :: !Text, ids :: ![UUID], patch :: !(HashMap Text Value), requestId :: !Int }
     | DeleteRecordMessage { table :: !Text, id :: !UUID, requestId :: !Int }
+    | DeleteRecordsMessage { table :: !Text, ids :: ![UUID], requestId :: !Int }
     deriving (Eq, Show)
 
 data DataSyncResponse
@@ -29,7 +31,9 @@ data DataSyncResponse
     | DidCreateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'CreateRecordMessage'
     | DidCreateRecords { requestId :: !Int, records :: ![[Field]] } -- ^ Response to 'CreateRecordsMessage'
     | DidUpdateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'UpdateRecordMessage'
+    | DidUpdateRecords { requestId :: !Int, records :: ![[Field]] } -- ^ Response to 'UpdateRecordsMessage'
     | DidDeleteRecord { requestId :: !Int }
+    | DidDeleteRecords { requestId :: !Int }
 
 data Subscription = Subscription { id :: !UUID, channelSubscription :: !PGListener.Subscription }
 

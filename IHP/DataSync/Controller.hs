@@ -208,7 +208,36 @@ instance (
                 
                 case result of
                     [record] -> sendJSON DidUpdateRecord { requestId, record }
-                    otherwise -> error "Unexpected result in CreateRecordMessage handler"
+                    otherwise -> error "Unexpected result in UpdateRecordMessage handler"
+
+                pure ()
+
+            handleMessage UpdateRecordsMessage { table, ids, patch, requestId } = do
+                ensureRLSEnabled table
+
+                let columns = patch
+                        |> HashMap.keys
+                        |> map fieldNameToColumnName
+                        |> map PG.Identifier
+
+                let values = patch
+                        |> HashMap.elems
+                        |> map aesonValueToPostgresValue
+
+                let keyValues = zip columns values
+
+                let setCalls = keyValues
+                        |> map (\_ -> "? = ?")
+                        |> ByteString.intercalate ", "
+                let query = "UPDATE ? SET " <> setCalls <> " WHERE id IN ? RETURNING *"
+
+                let params = [PG.toField (PG.Identifier table)]
+                        <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
+                        <> [PG.toField (PG.In ids)]
+
+                records <- sqlQueryWithRLS (PG.Query query) params
+                
+                sendJSON DidUpdateRecords { requestId, records }
 
                 pure ()
             
@@ -218,6 +247,13 @@ instance (
                 sqlExecWithRLS "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
 
                 sendJSON DidDeleteRecord { requestId }
+            
+            handleMessage DeleteRecordsMessage { table, ids, requestId } = do
+                ensureRLSEnabled table
+
+                sqlExecWithRLS "DELETE FROM ? WHERE id IN ?" (PG.Identifier table, PG.In ids)
+
+                sendJSON DidDeleteRecords { requestId }
 
 
         forever do
