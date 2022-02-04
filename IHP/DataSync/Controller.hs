@@ -247,6 +247,13 @@ instance (
                 sqlExecWithRLS "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
 
                 sendJSON DidDeleteRecord { requestId }
+            
+            handleMessage DeleteRecordsMessage { table, ids, requestId } = do
+                ensureRLSEnabled table
+
+                sqlExecWithRLS "DELETE FROM ? WHERE id IN ?" (PG.Identifier table, PG.In ids)
+
+                sendJSON DidDeleteRecords { requestId }
 
 
         forever do
