@@ -85,7 +85,6 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let destroy = PG.close
     connectionPool <- Pool.createPool create destroy numStripes idleTime maxConnections
 
-    let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
     let rowLevelSecurity = Nothing
