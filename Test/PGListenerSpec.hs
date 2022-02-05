@@ -19,14 +19,14 @@ tests = do
             it "should add a subscriber" do
                 pgListener <- PGListener.init modelContext
 
-                subscriptionsCount <- HashMap.size <$> readIORef (pgListener |> get #subscriptions)
+                subscriptionsCount <- length . concat . HashMap.elems <$> readIORef (pgListener |> get #subscriptions)
                 subscriptionsCount `shouldBe` 0
 
                 let didInsertRecordCallback notification = pure ()
 
                 pgListener |> PGListener.subscribe "did_insert_record" didInsertRecordCallback
 
-                subscriptionsCount <- HashMap.size <$> readIORef (pgListener |> get #subscriptions)
+                subscriptionsCount <- length . concat . HashMap.elems <$> readIORef (pgListener |> get #subscriptions)
                 subscriptionsCount `shouldBe` 1
 
         describe "unsubscribe" do
@@ -36,5 +36,7 @@ tests = do
                 subscription <- pgListener |> PGListener.subscribe "did_insert_record" (const (pure ()))
                 pgListener |> PGListener.unsubscribe subscription
 
-                subscriptionsCount <- HashMap.size <$> readIORef (pgListener |> get #subscriptions)
+                subscriptions <- readIORef (pgListener |> get #subscriptions)
+                subscriptionsCount <- length . concat . HashMap.elems <$> readIORef (pgListener |> get #subscriptions)
+
                 subscriptionsCount `shouldBe` 0
