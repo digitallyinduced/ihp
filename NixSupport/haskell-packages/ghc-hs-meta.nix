@@ -2,11 +2,11 @@
 , lib, template-haskell
 }:
 mkDerivation {
-  pname = "ghc-meta";
+  pname = "ghc-hs-meta";
   version = "0.1.0.0";
   src = fetchzip {
-    url = "https://github.com/zacwood9/ghc-meta/archive/refs/heads/master.zip";
-    sha256 = "1sglwqaw38v4zydvfczhkr99zxvnrrqmdiwl8676hp9bm5gcb07i";
+    url = "https://github.com/zacwood9/ghc-hs-meta/archive/refs/heads/master.zip";
+    sha256 = "1lp46js6r9dab1p056rq5h6vl8srnqnjs4wkdvafgb0xlr2rwi9k";
   };
   libraryHaskellDepends = [
     base bytestring ghc ghc-boot template-haskell
@@ -14,6 +14,6 @@ mkDerivation {
   testHaskellDepends = [
     base bytestring ghc ghc-boot hspec template-haskell
   ];
-  description = "Haskell source to Template Haskell expression";
+  description = "Translate Haskell source to Template Haskell expression";
   license = lib.licenses.bsd3;
 }

@@ -63,7 +63,7 @@ let
         neat-interpolation
         unagi-chan
         with-utf8
-        ghc-meta
+        ghc-hs-meta
 
         # Development Specific Tools (not in ihp.nix)
         hspec

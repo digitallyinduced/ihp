@@ -22,7 +22,7 @@ import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
 import qualified Data.Containers.ListUtils as List
 
-import GHC.Meta.Parse (parseExp)
+import Language.Haskell.Meta.Parse (parseExp)
 
 data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 

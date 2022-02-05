@@ -100,7 +100,7 @@ common shared-properties
             , neat-interpolation
             , unagi-chan
             , with-utf8
-            , ghc-meta >= 0.0.0.2
+            , ghc-hs-meta
             , interpolate
     default-extensions:
         OverloadedStrings

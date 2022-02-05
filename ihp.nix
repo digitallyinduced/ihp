@@ -62,7 +62,7 @@
 , neat-interpolation
 , unagi-chan
 , with-utf8
-, ghc-meta
+, ghc-hs-meta
 }:
 mkDerivation {
   pname = "ihp";
@@ -131,7 +131,7 @@ mkDerivation {
     neat-interpolation
     unagi-chan
     with-utf8
-    ghc-meta
+    ghc-hs-meta
   ];
   license = lib.licenses.mit;
   postInstall = ''

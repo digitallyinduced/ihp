@@ -1,6 +1,6 @@
 { mkDerivation, base, byteslice, bytestring, fetchzip, gauge
-, ghc-meta, integer-logarithms, lib, natural-arithmetic, primitive
-, primitive-offset, primitive-unlifted, QuickCheck
+, ghc-hs-meta, integer-logarithms, lib, natural-arithmetic
+, primitive, primitive-offset, primitive-unlifted, QuickCheck
 , quickcheck-classes, quickcheck-instances, run-st, tasty
 , tasty-hunit, tasty-quickcheck, template-haskell, text, text-short
 , vector, wide-word, zigzag
@@ -10,10 +10,10 @@ mkDerivation {
   version = "0.3.9.0";
   src = fetchzip {
     url = "https://github.com/zacwood9/bytebuild/archive/refs/heads/master.zip";
-    sha256 = "04hz2l696207811zx7irbalj6b47rpy3xxd4zs6w645nngv5b69y";
+    sha256 = "04p7a6a3h62lsvj2h0319nqyhzqf4ks17pkzivsq9mr4iccwjv0v";
   };
   libraryHaskellDepends = [
-    base byteslice bytestring ghc-meta integer-logarithms
+    base byteslice bytestring ghc-hs-meta integer-logarithms
     natural-arithmetic primitive primitive-offset primitive-unlifted
     run-st template-haskell text-short wide-word zigzag
   ];
