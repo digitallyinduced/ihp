@@ -11,7 +11,7 @@ module IHP.PGListener
 ( Channel
 , Callback
 , Subscription (..)
-, PGListener
+, PGListener (..)
 , init
 , stop
 , subscribe
