@@ -263,6 +263,7 @@ Then you need to import it in your controller/script:
 
 ```haskell
 import qualified Network.Wreq as Wreq
+import Control.Lens ((^.))
 ```
 
 To simply fetch and render another website, you could use a function like this:
