@@ -7,6 +7,7 @@ import IHP.DataSync.DynamicQuery
 import Data.HashMap.Strict (HashMap)
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple as PG
+import Control.Concurrent.MVar as MVar
 
 data DataSyncMessage
     = DataSyncQuery { query :: !DynamicSQLQuery, requestId :: !Int, transactionId :: !(Maybe UUID) }
@@ -42,17 +43,17 @@ data DataSyncResponse
     | DidRollbackTransaction { requestId :: !Int, transactionId :: !UUID }
     | DidCommitTransaction { requestId :: !Int, transactionId :: !UUID }
 
-data Subscription = Subscription { id :: !UUID, channelSubscription :: !PGListener.Subscription }
 data DataSyncTransaction
     = DataSyncTransaction
     { id :: !UUID
     , connection :: !PG.Connection
-    , releaseConnection :: IO ()
+    , close :: MVar ()
     }
 
 data DataSyncController
     = DataSyncController
     | DataSyncReady
-        { subscriptions :: !(HashMap UUID Subscription)
+        { subscriptions :: !(HashMap UUID (MVar.MVar ()))
         , transactions :: !(HashMap UUID DataSyncTransaction)
+        , asyncs :: ![Async ()]
         }
