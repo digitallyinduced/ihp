@@ -621,7 +621,7 @@ compileTableInstance :: (?schema :: Schema) => CreateTable -> Text
 compileTableInstance table@(CreateTable { name, columns, constraints }) = cs [i|
 instance #{instanceHead} where
     tableName = \"#{name}\"
-    tableNameByteString = \"#{name}\"
+    tableNameByteString = Data.Text.Encoding.encodeUtf8 \"#{name}\"
     columnNames = #{columnNames}
     primaryKeyCondition #{pattern} = #{condition}
     {-# INLINABLE primaryKeyCondition #-}

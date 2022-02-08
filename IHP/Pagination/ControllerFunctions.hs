@@ -23,7 +23,7 @@ import IHP.QueryBuilder
     ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 
-import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar)
+import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
 
 import Database.PostgreSQL.Simple.ToField (toField, Action)
 import Database.PostgreSQL.Simple.Types (Query(Query))
@@ -131,7 +131,9 @@ filterList :: forall name table model queryBuilderProvider joinRegister .
     , HasField name model Text
     , model ~ GetModelByTableName table
     , KnownSymbol table
-    , HasQueryBuilder queryBuilderProvider joinRegister) =>
+    , HasQueryBuilder queryBuilderProvider joinRegister
+    , Table model
+    ) =>
     Proxy name
     -> queryBuilderProvider table
     -> queryBuilderProvider table

@@ -48,6 +48,7 @@ import Data.Dynamic
 import Data.Scientific
 import GHC.Stack
 import qualified Numeric
+import qualified Data.Text.Encoding as Text
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -533,7 +534,7 @@ class
     -- "users"
     --
     tableNameByteString :: ByteString
-    tableNameByteString = symbolToByteString @(GetTableName record)
+    tableNameByteString = Text.encodeUtf8 (tableName @record)
     {-# INLINE tableNameByteString #-}
 
     -- | Returns the list of column names for a given model
