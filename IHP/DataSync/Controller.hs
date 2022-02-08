@@ -25,6 +25,7 @@ import qualified IHP.PGListener as PGListener
 import IHP.ApplicationContext
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified Data.Pool as Pool
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -36,31 +37,34 @@ instance (
     initialState = DataSyncController
 
     run = do
-        setState DataSyncReady { subscriptions = HashMap.empty }
+        setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty, asyncs = [] }
 
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled
+        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers
 
         let pgListener = ?applicationContext |> get #pgListener
 
         let
             handleMessage :: DataSyncMessage -> IO ()
-            handleMessage DataSyncQuery { query, requestId } = do
+            handleMessage DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (get #table query)
 
                 let (theQuery, theParams) = compileQuery query
 
-                result :: [[Field]] <- withRLS $ sqlQuery theQuery theParams
+                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
 
                 sendJSON DataSyncResult { result, requestId }
             
             handleMessage CreateDataSubscription { query, requestId } = do
+                ensureBelowSubscriptionsLimit
+
                 tableNameRLS <- ensureRLSEnabled (get #table query)
 
                 subscriptionId <- UUID.nextRandom
 
                 let (theQuery, theParams) = compileQuery query
 
-                result :: [[Field]] <- withRLS $ sqlQuery theQuery theParams
+                result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
 
                 let tableName = get #table query
 
@@ -73,7 +77,7 @@ instance (
                 watchedRecordIdsRef <- newIORef (Set.fromList watchedRecordIds)
 
                 -- Make sure the database triggers are there
-                sqlExec (ChangeNotifications.createNotificationFunction tableNameRLS) ()
+                installTableChangeTriggers tableNameRLS
 
                 let callback notification = case notification of
                             ChangeNotifications.DidInsert { id } -> do
@@ -86,13 +90,13 @@ instance (
                                 --
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
-                                newRecord :: [[Field]] <- withRLS $ sqlQuery ("SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1") (theParams <> [PG.toField id])
+                                newRecord :: [[Field]] <- sqlQueryWithRLS ("SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1") (theParams <> [PG.toField id])
 
                                 case headMay newRecord of
                                     Just record -> do
                                         -- Add the new record to 'watchedRecordIdsRef'
                                         -- Otherwise the updates and deletes will not be dispatched to the client
-                                        modifyIORef watchedRecordIdsRef (Set.insert id)
+                                        modifyIORef' watchedRecordIdsRef (Set.insert id)
 
                                         sendJSON DidInsert { subscriptionId, record }
                                     Nothing -> pure ()
@@ -109,28 +113,29 @@ instance (
                                 when isWatchingRecord do
                                     sendJSON DidDelete { subscriptionId, id }
 
+                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
+                let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
-                channelSubscription <- pgListener
-                        |> PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback
+                Exception.bracket subscribe unsubscribe \channelSubscription -> do
+                    close <- MVar.newEmptyMVar
+                    modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
-                modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId Subscription { id = subscriptionId, channelSubscription }))
+                    sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
 
-                sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
+                    MVar.takeMVar close
 
             handleMessage DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
-                let maybeSubscription :: Maybe Subscription = HashMap.lookup subscriptionId subscriptions
+                let (Just closeSignalMVar) = HashMap.lookup subscriptionId subscriptions
                 
                 -- Cancel table watcher
-                case maybeSubscription of
-                    Just subscription -> pgListener |> PGListener.unsubscribe (get #channelSubscription subscription)
-                    Nothing -> pure ()
+                MVar.putMVar closeSignalMVar ()
 
-                modifyIORef ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
+                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
                 sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
 
-            handleMessage CreateRecordMessage { table, record, requestId }  = do
+            handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
                 let query = "INSERT INTO ? ? VALUES ? RETURNING *"
@@ -144,8 +149,7 @@ instance (
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
                 
-                result :: [[Field]] <- withRLS do
-                    sqlQuery query params
+                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId query params
 
                 case result of
                     [record] -> sendJSON DidCreateRecord { requestId, record }
@@ -153,7 +157,7 @@ instance (
 
                 pure ()
             
-            handleMessage CreateRecordsMessage { table, records, requestId }  = do
+            handleMessage CreateRecordsMessage { table, records, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
                 let query = "INSERT INTO ? ? ? RETURNING *"
@@ -175,13 +179,13 @@ instance (
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
 
-                records :: [[Field]] <- withRLS $ sqlQuery query params
+                records :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId query params
 
                 sendJSON DidCreateRecords { requestId, records }
 
                 pure ()
 
-            handleMessage UpdateRecordMessage { table, id, patch, requestId } = do
+            handleMessage UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 let columns = patch
@@ -204,21 +208,107 @@ instance (
                         <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
                         <> [PG.toField id]
 
-                result :: [[Field]] <- withRLS $ sqlQuery (PG.Query query) params
+                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (PG.Query query) params
                 
                 case result of
                     [record] -> sendJSON DidUpdateRecord { requestId, record }
-                    otherwise -> error "Unexpected result in CreateRecordMessage handler"
+                    otherwise -> error "Unexpected result in UpdateRecordMessage handler"
+
+                pure ()
+
+            handleMessage UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
+                ensureRLSEnabled table
+
+                let columns = patch
+                        |> HashMap.keys
+                        |> map fieldNameToColumnName
+                        |> map PG.Identifier
+
+                let values = patch
+                        |> HashMap.elems
+                        |> map aesonValueToPostgresValue
+
+                let keyValues = zip columns values
+
+                let setCalls = keyValues
+                        |> map (\_ -> "? = ?")
+                        |> ByteString.intercalate ", "
+                let query = "UPDATE ? SET " <> setCalls <> " WHERE id IN ? RETURNING *"
+
+                let params = [PG.toField (PG.Identifier table)]
+                        <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
+                        <> [PG.toField (PG.In ids)]
+
+                records <- sqlQueryWithRLSAndTransactionId transactionId (PG.Query query) params
+                
+                sendJSON DidUpdateRecords { requestId, records }
 
                 pure ()
             
-            handleMessage DeleteRecordMessage { table, id, requestId } = do
+            handleMessage DeleteRecordMessage { table, id, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                withRLS do
-                    sqlExec "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
+                sqlExecWithRLSAndTransactionId transactionId "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
 
                 sendJSON DidDeleteRecord { requestId }
+            
+            handleMessage DeleteRecordsMessage { table, ids, requestId, transactionId } = do
+                ensureRLSEnabled table
+
+                sqlExecWithRLSAndTransactionId transactionId "DELETE FROM ? WHERE id IN ?" (PG.Identifier table, PG.In ids)
+
+                sendJSON DidDeleteRecords { requestId }
+
+            handleMessage StartTransaction { requestId } = do
+                ensureBelowTransactionLimit
+
+                transactionId <- UUID.nextRandom
+
+
+                let takeConnection = ?modelContext
+                                    |> get #connectionPool
+                                    |> Pool.takeResource
+
+                let releaseConnection (connection, localPool) = do
+                        PG.execute connection "ROLLBACK" () -- Make sure there's no pending transaction in case something went wrong
+                        Pool.putResource localPool connection
+
+                Exception.bracket takeConnection releaseConnection \(connection, localPool) -> do
+                    transactionSignal <- MVar.newEmptyMVar
+
+                    let globalModelContext = ?modelContext
+                    let ?modelContext = globalModelContext { transactionConnection = Just connection } in sqlExecWithRLS "BEGIN" ()
+
+                    let transaction = DataSyncTransaction
+                            { id = transactionId
+                            , connection
+                            , close = transactionSignal
+                            }
+
+                    modifyIORef' ?state (\state -> state |> modify #transactions (HashMap.insert transactionId transaction))
+
+                    sendJSON DidStartTransaction { requestId, transactionId }
+
+                    MVar.takeMVar transactionSignal
+
+                    modifyIORef' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
+
+            handleMessage RollbackTransaction { requestId, id } = do
+                DataSyncTransaction { id, close } <- findTransactionById id
+
+                sqlExecWithRLSAndTransactionId (Just id) "ROLLBACK" ()
+                MVar.putMVar close ()
+
+                sendJSON DidRollbackTransaction { requestId, transactionId = id }
+
+            handleMessage CommitTransaction { requestId, id } = do
+                DataSyncTransaction { id, close } <- findTransactionById id
+
+                sqlExecWithRLSAndTransactionId (Just id) "COMMIT" ()
+                MVar.putMVar close ()
+
+                sendJSON DidCommitTransaction { requestId, transactionId = id }
+
 
 
         forever do
@@ -228,22 +318,24 @@ instance (
                 Right decodedMessage -> do
                     let requestId = get #requestId decodedMessage
 
-                    -- Handle the messages in an async way
-                    -- This increases throughput as multiple queries can be fetched
-                    -- in parallel
-                    async do
-                        result <- Exception.try (handleMessage decodedMessage)
+                    Exception.mask \restore -> do
+                        -- Handle the messages in an async way
+                        -- This increases throughput as multiple queries can be fetched
+                        -- in parallel
+                        handlerProcess <- async $ restore do
+                            result <- Exception.try (handleMessage decodedMessage)
 
-                        case result of
-                            Left (e :: Exception.SomeException) -> do
-                                let errorMessage = case fromException e of
-                                        Just (enhancedSqlError :: EnhancedSqlError) -> cs (get #sqlErrorMsg (get #sqlError enhancedSqlError))
-                                        Nothing -> cs (displayException e)
-                                Log.error (tshow e)
-                                sendJSON DataSyncError { requestId, errorMessage }
-                            Right result -> pure ()
+                            case result of
+                                Left (e :: Exception.SomeException) -> do
+                                    let errorMessage = case fromException e of
+                                            Just (enhancedSqlError :: EnhancedSqlError) -> cs (get #sqlErrorMsg (get #sqlError enhancedSqlError))
+                                            Nothing -> cs (displayException e)
+                                    Log.error (tshow e)
+                                    sendJSON DataSyncError { requestId, errorMessage }
+                                Right result -> pure ()
 
-                    pure ()
+                        modifyIORef' ?state (\state -> state |> modify #asyncs (handlerProcess:))
+                        pure ()
                 Left errorMessage -> sendJSON FailedToDecodeMessageError { errorMessage = cs errorMessage }
 
     onClose = cleanupAllSubscriptions
@@ -254,14 +346,7 @@ cleanupAllSubscriptions = do
     let pgListener = ?applicationContext |> get #pgListener
 
     case state of
-        DataSyncReady { subscriptions } -> do
-            let channelSubscriptions = subscriptions
-                    |> HashMap.elems
-                    |> map (get #channelSubscription)
-            forEach channelSubscriptions \channelSubscription -> do
-                pgListener |> PGListener.unsubscribe channelSubscription
-
-            pure ()
+        DataSyncReady { asyncs } -> forEach asyncs uninterruptibleCancel
         _ -> pure ()
 
 changesToValue :: [ChangeNotifications.Change] -> Value
@@ -275,8 +360,95 @@ queryFieldNamesToColumnNames sqlQuery = sqlQuery
     where
         convertOrderByClause OrderByClause { orderByColumn, orderByDirection } = OrderByClause { orderByColumn = cs (fieldNameToColumnName (cs orderByColumn)), orderByDirection }
 
+
+runInModelContextWithTransaction :: (?state :: IORef DataSyncController, _) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
+runInModelContextWithTransaction function (Just transactionId) = do
+    let globalModelContext = ?modelContext
+
+    DataSyncTransaction { connection } <- findTransactionById transactionId
+    let
+            ?modelContext = globalModelContext { transactionConnection = Just connection }
+        in
+            function
+runInModelContextWithTransaction function Nothing = function
+
+findTransactionById :: (?state :: IORef DataSyncController) => UUID -> IO DataSyncTransaction
+findTransactionById transactionId = do
+    transactions <- get #transactions <$> readIORef ?state
+    case HashMap.lookup transactionId transactions of
+        Just transaction -> pure transaction
+        Nothing -> error "No transaction with that id"
+
+-- | Allow max 10 concurrent transactions per connection to avoid running out of database connections
+--
+-- Each transaction removes a database connection from the connection pool. If we don't limit the transactions,
+-- a single user could take down the application by starting more than 'IHP.FrameworkConfig.DBPoolMaxConnections'
+-- concurrent transactions. Then all database connections are removed from the connection pool and further database
+-- queries for other users will fail.
+--
+ensureBelowTransactionLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
+ensureBelowTransactionLimit = do
+    transactions <- get #transactions <$> readIORef ?state
+    let transactionCount = HashMap.size transactions
+    when (transactionCount >= maxTransactionsPerConnection) do
+        error ("You've reached the transaction limit of " <> tshow maxTransactionsPerConnection <> " transactions")
+
+ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
+ensureBelowSubscriptionsLimit = do
+    subscriptions <- get #subscriptions <$> readIORef ?state
+    let subscriptionsCount = HashMap.size subscriptions
+    when (subscriptionsCount >= maxSubscriptionsPerConnection) do
+        error ("You've reached the subscriptions limit of " <> tshow maxSubscriptionsPerConnection <> " subscriptions")
+
+maxTransactionsPerConnection :: _ => Int
+maxTransactionsPerConnection = 
+    case getAppConfig @DataSyncMaxTransactionsPerConnection of
+        DataSyncMaxTransactionsPerConnection value -> value
+
+maxSubscriptionsPerConnection :: _ => Int
+maxSubscriptionsPerConnection = 
+    case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
+        DataSyncMaxSubscriptionsPerConnection value -> value
+
+sqlQueryWithRLSAndTransactionId ::
+    ( ?modelContext :: ModelContext
+    , PG.ToRow parameters
+    , ?context :: ControllerContext
+    , userId ~ Id CurrentUserRecord
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , ?context :: ControllerContext
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , PG.ToField userId
+    , FromRow result
+    , ?state :: IORef DataSyncController
+    ) => Maybe UUID -> PG.Query -> parameters -> IO [result]
+sqlQueryWithRLSAndTransactionId transactionId theQuery theParams = runInModelContextWithTransaction (sqlQueryWithRLS theQuery theParams) transactionId
+
+sqlExecWithRLSAndTransactionId ::
+    ( ?modelContext :: ModelContext
+    , PG.ToRow parameters
+    , ?context :: ControllerContext
+    , userId ~ Id CurrentUserRecord
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , ?context :: ControllerContext
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , PG.ToField userId
+    , ?state :: IORef DataSyncController
+    ) => Maybe UUID -> PG.Query -> parameters -> IO Int64
+sqlExecWithRLSAndTransactionId transactionId theQuery theParams = runInModelContextWithTransaction (sqlExecWithRLS theQuery theParams) transactionId
+
 $(deriveFromJSON defaultOptions 'DataSyncQuery)
 $(deriveToJSON defaultOptions 'DataSyncResult)
 
-instance SetField "subscriptions" DataSyncController (HashMap UUID Subscription) where
+instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }
+
+instance SetField "transactions" DataSyncController (HashMap UUID DataSyncTransaction) where
+    setField transactions record = record { transactions }
+
+instance SetField "asyncs" DataSyncController [Async ()] where
+    setField asyncs record = record { asyncs }

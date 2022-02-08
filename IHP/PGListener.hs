@@ -11,7 +11,7 @@ module IHP.PGListener
 ( Channel
 , Callback
 , Subscription (..)
-, PGListener
+, PGListener (..)
 , init
 , stop
 , subscribe
@@ -161,9 +161,10 @@ subscribeJSON channel callback pgListener = subscribe channel callback' pgListen
 unsubscribe :: Subscription -> PGListener -> IO ()
 unsubscribe subscription@(Subscription { .. }) pgListener = do
     let
-        deleteById :: UUID -> [Subscription] -> [Subscription]
-        deleteById id = List.deleteBy (\a b -> get #id a == get #id b) subscription
-    modifyIORef' (get #subscriptions pgListener) (HashMap.adjust (deleteById id) channel)
+        deleteById :: [Subscription] -> [Subscription]
+        deleteById = List.deleteBy (\a b -> get #id a == get #id b) subscription
+    modifyIORef' (get #subscriptions pgListener) (HashMap.adjust deleteById channel)
+    uninterruptibleCancel reader
     pure ()     
 
 -- | Runs a @LISTEN ..;@ statements on the postgres connection, if not already listening on that channel

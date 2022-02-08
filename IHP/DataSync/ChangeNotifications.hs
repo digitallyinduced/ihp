@@ -3,6 +3,8 @@ module IHP.DataSync.ChangeNotifications
 , ChangeNotification (..)
 , Change (..)
 , createNotificationFunction
+, installTableChangeTriggers
+, makeCachedInstallTableChangeTriggers
 ) where
 
 import IHP.Prelude
@@ -17,6 +19,8 @@ import qualified Control.Concurrent.MVar as MVar
 import IHP.DataSync.DynamicQuery (transformColumnNamesToFieldNames)
 import qualified IHP.DataSync.RowLevelSecurity as RLS
 import qualified IHP.PGListener as PGListener
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -89,6 +93,21 @@ createNotificationFunction table = [i|
         insertTriggerName = "did_insert_" <> tableName
         updateTriggerName = "did_update_" <> tableName
         deleteTriggerName = "did_delete_" <> tableName
+
+installTableChangeTriggers :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO ()
+installTableChangeTriggers tableNameRLS = do
+    sqlExec (createNotificationFunction tableNameRLS) ()
+    pure ()
+
+makeCachedInstallTableChangeTriggers :: (?modelContext :: ModelContext) => IO (RLS.TableWithRLS -> IO ())
+makeCachedInstallTableChangeTriggers = do
+    tables <- newIORef Set.empty
+    pure \tableName -> do
+        triggersInstalled <- Set.member tableName <$> readIORef tables
+
+        unless triggersInstalled do
+            installTableChangeTriggers tableName
+            modifyIORef' tables (Set.insert tableName)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString

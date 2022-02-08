@@ -85,7 +85,6 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let destroy = PG.close
     connectionPool <- Pool.createPool create destroy numStripes idleTime maxConnections
 
-    let queryDebuggingEnabled = False -- The app server will override this in dev mode and set it to True
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
     let rowLevelSecurity = Nothing
@@ -912,7 +911,7 @@ trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
 withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set ByteString)) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
-    let trackTableReadCallback = Just \tableName -> modifyIORef touchedTablesVar (Set.insert tableName)
+    let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
     let oldModelContext = ?modelContext
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar

@@ -26,6 +26,15 @@ import qualified Control.Exception as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 
+import qualified IHP.Log.Types as Log
+import qualified IHP.Log as Log
+
+import Control.Concurrent.Chan
+import Control.Concurrent
+import System.Timeout
+import Data.Function (fix)
+import qualified Network.WebSockets.Connection as WebSocket
+
 class WSApp state where
     initialState :: state
 
@@ -43,14 +52,23 @@ startWSApp connection = do
     state <- newIORef (initialState @state)
     let ?state = state
     let ?connection = connection
-    let
-        handleException Websocket.ConnectionClosed = pure ()
-        handleException (Websocket.CloseRequest {}) = pure ()
-        handleException e = error ("Unhandled Websocket exception: " <> show e)
-    result <- Exception.try ((Websocket.withPingThread connection 30 (onPing @state) (run @state)) `Exception.catch` handleException)
-    onClose @state
+
+    let runWithPongChan pongChan = do
+            let connectionOnPong = writeChan pongChan ()
+            let ?connection = connection
+                    { WebSocket.connectionOptions = (get #connectionOptions connection) { WebSocket.connectionOnPong } 
+                    }
+                in
+                    run @state
+
+    result <- Exception.try ((withPinger connection runWithPongChan) `Exception.finally` onClose @state)
     case result of
-        Left (Exception.SomeException e) -> putStrLn (tshow e)
+        Left (e@Exception.SomeException{}) ->
+            case Exception.fromException e of
+                (Just Websocket.ConnectionClosed) -> pure ()
+                (Just (Websocket.CloseRequest {})) -> pure ()
+                (Just other) -> error ("Unhandled Websocket exception: " <> show other)
+                Nothing -> Log.error (tshow e)
         Right _ -> pure ()
 
 setState :: (?state :: IORef state) => state -> IO ()
@@ -86,3 +104,47 @@ instance Websocket.WebSocketsData UUID where
     fromDataMessage (Websocket.Binary byteString) = UUID.fromLazyASCIIBytes byteString |> Maybe.fromJust
     fromLazyByteString byteString = UUID.fromLazyASCIIBytes byteString |> Maybe.fromJust
     toLazyByteString = UUID.toLazyASCIIBytes
+
+data PongTimeout
+    = PongTimeout
+    deriving (Show)
+
+instance Exception PongTimeout
+
+pingWaitTime :: Int
+pingWaitTime = 30
+
+
+-- | Pings the client every 30 seconds and expects a pong response within 10 secons. If no pong response
+-- is received within 10 seconds, it will kill the connection.
+--
+-- We cannot use the withPingThread of the websockets package as this doesn't deal with pong messages. So
+-- open connection will stay around forever.
+--
+-- This implementation is based on https://github.com/jaspervdj/websockets/issues/159#issuecomment-552776502
+withPinger conn action = do
+    pongChan <- newChan
+    mainAsync <- async $ action pongChan
+    pingerAsync <- async $ runPinger conn pongChan
+
+    waitEitherCatch mainAsync pingerAsync >>= \case
+        -- If the application async died for any reason, kill the pinger async
+        Left result -> do
+            cancel pingerAsync
+            case result of
+                Left exception -> throw exception
+                Right result -> pure ()
+        -- The pinger thread should never throw an exception. If it does, kill the app thread
+        Right (Left exception) -> do
+            cancel mainAsync
+            throw exception
+        -- The pinger thread exited due to a pong timeout. Tell the app thread about it.
+        Right (Right ()) -> cancelWith mainAsync PongTimeout
+
+runPinger conn pongChan = fix $ \loop -> do
+    Websocket.sendPing conn (mempty :: ByteString)
+    threadDelay pingWaitTime
+    -- See if we got a pong in that time
+    timeout 1000000 (readChan pongChan) >>= \case
+        Just () -> loop
+        Nothing -> return ()

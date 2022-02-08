@@ -16,6 +16,7 @@ import           Database.PostgreSQL.Simple.TypeInfo.Macro as TI
 import           Data.ByteString.Builder (byteString, char8)
 import           Data.Attoparsec.ByteString.Char8 hiding (Result, char8, Parser(..))
 import Data.Attoparsec.Internal.Types (Parser)
+import Data.Aeson
 
 -- | Represents a Postgres Point
 --
@@ -59,3 +60,12 @@ serializePoint Point { x, y } = Many
     , toField y
     , Plain (char8 ')')
     ]
+
+
+instance FromJSON Point where
+    parseJSON = withObject "Point" $ \v -> Point
+        <$> v .: "x"
+        <*> v .: "y"
+
+instance ToJSON Point where
+    toJSON Point { x, y } = object [ "x" .= x, "y" .= y ]

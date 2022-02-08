@@ -1,9 +1,10 @@
 module IHP.DataSync.RowLevelSecurity
-( withRLS
-, ensureRLSEnabled
+( ensureRLSEnabled
 , hasRLSEnabled
 , TableWithRLS (tableName)
 , makeCachedEnsureRLSEnabled
+, sqlQueryWithRLS
+, sqlExecWithRLS
 )
 where
 
@@ -11,6 +12,7 @@ import IHP.ControllerPrelude
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Database.PostgreSQL.Simple.ToRow as PG
 import qualified IHP.DataSync.Role as Role
 
 import Network.HTTP.Types (status400)
@@ -18,36 +20,71 @@ import Network.HTTP.Types (status400)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-withRLS :: forall userId result.
-    ( PG.ToField userId
+sqlQueryWithRLS ::
+    ( ?modelContext :: ModelContext
+    , PG.ToRow parameters
+    , ?context :: ControllerContext
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , ?modelContext :: ModelContext
-    ) => ((?modelContext :: ModelContext) => IO result) -> IO result
-withRLS callback = withTransaction inner
+    , PG.ToField userId
+    , FromRow result
+    ) => PG.Query -> parameters -> IO [result]
+sqlQueryWithRLS query parameters = sqlQuery queryWithRLS parametersWithRLS
     where
-        -- The inner call is required here as we need to capture the right ?modelContext
-        -- from withTransaction, otherwise the wrong database connection is used
-        inner :: (?modelContext :: ModelContext) => IO result
-        inner = do
-            let maybeUserId :: Maybe userId = get #id <$> currentUserOrNothing
-            sqlExec "SET LOCAL ROLE ?" [PG.Identifier Role.authenticatedRole]
+        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+{-# INLINE sqlQueryWithRLS #-}
 
-            -- When the user is not logged in and maybeUserId is Nothing, we cannot
-            -- just pass @NULL@ to postgres. The @SET LOCAL@ values can only be strings.
-            --
-            -- Therefore we map Nothing to an empty string here. The empty string
-            -- means "not logged in".
-            --
-            let encodedUserId = case maybeUserId of
-                    Just userId -> PG.toField userId
-                    Nothing -> PG.toField ("" :: Text)
-            sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only encodedUserId)
-            callback
+sqlExecWithRLS ::
+    ( ?modelContext :: ModelContext
+    , PG.ToRow parameters
+    , ?context :: ControllerContext
+    , userId ~ Id CurrentUserRecord
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , ?context :: ControllerContext
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , PG.ToField userId
+    ) => PG.Query -> parameters -> IO Int64
+sqlExecWithRLS query parameters = sqlExec queryWithRLS parametersWithRLS
+    where
+        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+{-# INLINE sqlExecWithRLS #-}
+
+wrapStatementWithRLS ::
+    ( ?modelContext :: ModelContext
+    , PG.ToRow parameters
+    , ?context :: ControllerContext
+    , userId ~ Id CurrentUserRecord
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , ?context :: ControllerContext
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , PG.ToField userId
+    ) => PG.Query -> parameters -> (PG.Query, [PG.Action])
+wrapStatementWithRLS query parameters = (queryWithRLS, parametersWithRLS)
+    where
+        queryWithRLS = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query <> ";"
+
+        maybeUserId = get #id <$> currentUserOrNothing
+
+        -- When the user is not logged in and maybeUserId is Nothing, we cannot
+        -- just pass @NULL@ to postgres. The @SET LOCAL@ values can only be strings.
+        --
+        -- Therefore we map Nothing to an empty string here. The empty string
+        -- means "not logged in".
+        --
+        encodedUserId = case maybeUserId of
+                Just userId -> PG.toField userId
+                Nothing -> PG.toField ("" :: Text)
+
+        parametersWithRLS = [PG.toField (PG.Identifier Role.authenticatedRole), PG.toField encodedUserId] <> (PG.toRow parameters)
+{-# INLINE wrapStatementWithRLS #-}
 
 -- | Returns a proof that RLS is enabled for a table
 ensureRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO TableWithRLS
@@ -81,7 +118,7 @@ makeCachedEnsureRLSEnabled = do
             then pure TableWithRLS { tableName }
             else do
                 proof <- ensureRLSEnabled tableName
-                modifyIORef tables (Set.insert tableName)
+                modifyIORef' tables (Set.insert tableName)
                 pure proof
 
 -- | Returns 'True' if row level security has been enabled on a table
@@ -102,4 +139,4 @@ hasRLSEnabled table = sqlQueryScalar "SELECT relrowsecurity FROM pg_class WHERE 
 -- > tableWithRLS <- ensureRLSEnabled "my_table"
 --
 -- Useful to carry a proof that the RLS is actually enabled
-newtype TableWithRLS = TableWithRLS { tableName :: Text }
+newtype TableWithRLS = TableWithRLS { tableName :: Text } deriving (Eq, Ord)

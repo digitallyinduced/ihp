@@ -46,8 +46,7 @@ instance (
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
                 
                 result :: Either EnhancedSqlError [[Field]] <- Exception.try do
-                    withRLS do
-                        sqlQuery query params
+                    sqlQueryWithRLS query params
 
                 case result of
                     Left error -> renderErrorJson error
@@ -81,7 +80,7 @@ instance (
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
 
-                result :: [[Field]] <- withRLS $ sqlQuery query params
+                result :: [[Field]] <- sqlQueryWithRLS query params
                 renderJson result
 
         
@@ -113,7 +112,7 @@ instance (
                 <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
                 <> [PG.toField id]
 
-        result :: [[Field]] <- withRLS $ sqlQuery (PG.Query query) params
+        result :: [[Field]] <- sqlQueryWithRLS (PG.Query query) params
 
         renderJson (head result)
 
@@ -121,8 +120,7 @@ instance (
     action DeleteRecordAction { table, id } = do
         ensureRLSEnabled table
 
-        withRLS do
-            sqlExec "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
+        sqlExecWithRLS "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
 
         renderJson True
 
@@ -130,8 +128,7 @@ instance (
     action ShowRecordAction { table, id } = do
         ensureRLSEnabled table
 
-        result :: [[Field]] <- withRLS do
-            sqlQuery "SELECT * FROM ? WHERE id = ?" (PG.Identifier table, id)
+        result :: [[Field]] <- sqlQueryWithRLS "SELECT * FROM ? WHERE id = ?" (PG.Identifier table, id)
 
         renderJson (head result)
 
@@ -142,7 +139,7 @@ instance (
         ensureRLSEnabled table
 
         let (theQuery, theParams) = compileQuery (buildDynamicQueryFromRequest table)
-        result :: [[Field]] <- withRLS (sqlQuery theQuery theParams)
+        result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
 
         renderJson result
 
@@ -201,4 +198,22 @@ aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger val
     Left (floating :: Double) -> PG.toField floating
     Right (integer :: Integer) -> PG.toField integer
 aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
-aesonValueToPostgresValue object@(Object values) = PG.toField (toJSON object)
+aesonValueToPostgresValue object@(Object values) = 
+    let
+        tryDecodeAsPoint :: Maybe Point
+        tryDecodeAsPoint = do
+                xValue <- HashMap.lookup "x" values
+                yValue <- HashMap.lookup "y" values
+                x <- case xValue of
+                        Number number -> pure (Scientific.toRealFloat number)
+                        otherwise -> Nothing 
+                y <- case yValue of
+                        Number number -> pure (Scientific.toRealFloat number)
+                        otherwise -> Nothing 
+                pure Point { x, y }
+    in
+        -- This is really hacky and is mostly duck typing. We should refactor this in the future to
+        -- become more type aware by passing the DDL of the table to 'aesonValueToPostgresValue'.
+        if HashMap.size values == 2
+            then fromMaybe (PG.toField $ toJSON object) (PG.toField <$> tryDecodeAsPoint)
+            else PG.toField (toJSON object)
