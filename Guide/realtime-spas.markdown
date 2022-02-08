@@ -597,6 +597,81 @@ const todos = await query('todos').fetchAndRefresh(callback);
 
 The `fetchAndRefresh` function is using a websocket to be notified about any changes to the selected data set. [It's using IHP's `DataSubscription` API.](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/vendor/ihp-datasync.js) For more fine grained control you can use the `DataSubscription` API directly instead of relying on `fetchAndRefresh`.
 
+#### Filtering
+
+Filtering records works similar to normal IHP. In JavaScript you have the choice between `filterWhere` and `where` - the two function work identically.
+
+```javascript
+const todos = await query('todos')
+        .filterWhere('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
+        .fetch()
+
+// is equivalent to:
+
+const todos = await query('todos')
+        .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
+        .fetch()
+```
+
+##### Chaining conditions
+
+You can chain as many conditions as you want - they will be `AND`ed in the resulting SQL query:
+
+```javascript
+const todos = await('todos')
+        .where('title', 'test')
+        .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
+        .fetch()
+
+// SQL:
+// SELECT * FROM todos
+// WHERE title = 'test'
+// AND id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
+```
+
+##### Adding alternative conditions using `or`
+
+You can also combine conditions using or with the `.or` function, which will take all previous conditions and allow any row to match that fulfills the alternative condition:
+
+```javascript
+// add this import
+import { where } from 'ihp-datasync/ihp-querybuilder'
+
+const todos = await('todos')
+        .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
+        .or(where('id', '173ecd94-911d-1e42-dc8f-1b780320a316'))
+        .fetch()
+	
+// SQL:
+// SELECT * FROM todos
+// WHERE id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
+// OR id = '173ecd94-911d-1e42-dc8f-1b780320a316'
+```
+
+You can of course chain the conditions inside the `.or` call as well.
+
+##### Adding additional conditions using `and`
+
+In some cases you might want to add a combination of conditions to a query using `and` and doing so by chaining would be unclear. In that case, you can use the `.and` function which functions identically to the `.or` function, except for of course combining the conditions using `AND`, not `OR`.
+
+```javascript
+// add this import
+import { where } from 'ihp-datasync/ihp-querybuilder'
+
+const todos = await('todos')
+        .where('userId', '173ecd94-911d-1e42-dc8f-1b780320a316')
+        .and(where('title', 'Test').or(where('title', 'test')))
+
+// SQL:
+// SELECT * FROM todos
+// WHERE user_id = '173ecd94-911d-1e42-dc8f-1b780320a316'
+// AND (title = 'Test' OR title = 'test')
+```
+
+##### Checking for inequality
+
+If you want to check for inequality instead of equality of a column value, you can use the `filterWhereNot` and `whereNot` functions. They work identically to their `filterWhere` and `where` counterparts and can be used in any situation those functions can be used in.
+
 #### Fetching a single record
 
 When you have the id of a record, you can also use `fetchOne` to get it from the database:
