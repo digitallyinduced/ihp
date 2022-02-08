@@ -5,12 +5,14 @@
   "description": "IHP DataSync JS SDK",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "NODE_OPTIONS=--experimental-vm-modules ./node_modules/.bin/jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules ./node_modules/.bin/jest --watch",
     "typecheck": "./node_modules/.bin/tsc --checkJs --noEmit -t es6 index.js"
   },
   "author": "digitally induced GmbH",
   "license": "MIT",
   "devDependencies": {
+    "jest": "^27.5.0",
     "typescript": "^4.5.4"
   }
 }
