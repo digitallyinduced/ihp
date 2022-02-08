@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules ./node_modules/.bin/jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules ./node_modules/.bin/jest --watch",
     "typecheck": "./node_modules/.bin/tsc --checkJs --noEmit -t es6 index.js"
   },
   "author": "digitally induced GmbH",
