@@ -31,7 +31,6 @@ googleConnectCallbackAction :: forall user.
     , KnownSymbol (GetTableName user)
     , HasField "googleUserId" user (Maybe Text)
     , GoogleOAuthControllerConfig user
-    , user ~ CurrentUserRecord
     , HasNewSessionUrl user
     , Typeable user
     , ?context :: ControllerContext
