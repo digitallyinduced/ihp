@@ -211,7 +211,7 @@ tests = do
                     instance Default (Id' "users") where def = Id def
                     instance () => Table (User' ) where
                         tableName = "users"
-                        tableNameByteString = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyCondition User { id } = [("id", toField id)]
                         {-# INLINABLE primaryKeyCondition #-}
@@ -270,7 +270,7 @@ tests = do
                     instance Default (Id' "users") where def = Id def
                     instance () => Table (User' ) where
                         tableName = "users"
-                        tableNameByteString = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyCondition User { id } = [("id", toField id)]
                         {-# INLINABLE primaryKeyCondition #-}
