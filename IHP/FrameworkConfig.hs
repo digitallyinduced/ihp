@@ -73,6 +73,9 @@ newtype AssetVersion = AssetVersion Text
 
 newtype CustomMiddleware = CustomMiddleware Middleware
 
+newtype DataSyncMaxSubscriptionsPerConnection = DataSyncMaxSubscriptionsPerConnection Int
+newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnection Int
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -156,6 +159,11 @@ ihpDefaultConfig = do
     option $ RLSAuthenticatedRole rlsAuthenticatedRole
 
     initAssetVersion
+
+    dataSyncMaxSubscriptionsPerConnection <- envOrDefault "IHP_DATASYNC_MAX_SUBSCRIPTIONS_PER_CONNECTION" 128
+    dataSyncMaxTransactionsPerConnection <- envOrDefault "IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION" 10
+    option $ DataSyncMaxSubscriptionsPerConnection dataSyncMaxSubscriptionsPerConnection
+    option $ DataSyncMaxTransactionsPerConnection dataSyncMaxTransactionsPerConnection
     
     option $ CustomMiddleware id
 

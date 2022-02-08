@@ -386,21 +386,29 @@ findTransactionById transactionId = do
 -- concurrent transactions. Then all database connections are removed from the connection pool and further database
 -- queries for other users will fail.
 --
-ensureBelowTransactionLimit :: (?state :: IORef DataSyncController) => IO ()
+ensureBelowTransactionLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
 ensureBelowTransactionLimit = do
     transactions <- get #transactions <$> readIORef ?state
     let transactionCount = HashMap.size transactions
-    let maxTransactionsPerConnection = 10
     when (transactionCount >= maxTransactionsPerConnection) do
         error ("You've reached the transaction limit of " <> tshow maxTransactionsPerConnection <> " transactions")
 
-ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController) => IO ()
+ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
 ensureBelowSubscriptionsLimit = do
     subscriptions <- get #subscriptions <$> readIORef ?state
     let subscriptionsCount = HashMap.size subscriptions
-    let maxSubscriptionsPerConnection = 128
     when (subscriptionsCount >= maxSubscriptionsPerConnection) do
         error ("You've reached the subscriptions limit of " <> tshow maxSubscriptionsPerConnection <> " subscriptions")
+
+maxTransactionsPerConnection :: _ => Int
+maxTransactionsPerConnection = 
+    case getAppConfig @DataSyncMaxTransactionsPerConnection of
+        DataSyncMaxTransactionsPerConnection value -> value
+
+maxSubscriptionsPerConnection :: _ => Int
+maxSubscriptionsPerConnection = 
+    case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
+        DataSyncMaxSubscriptionsPerConnection value -> value
 
 sqlQueryWithRLSAndTransactionId ::
     ( ?modelContext :: ModelContext
