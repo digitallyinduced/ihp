@@ -599,18 +599,16 @@ The `fetchAndRefresh` function is using a websocket to be notified about any cha
 
 #### Filtering
 
-Filtering records works similar to normal IHP. In JavaScript you have the choice between `filterWhere` and `where` - the two function work identically.
+Filtering records works similar to normal IHP. Use `where` to filter by column values:
 
 ```javascript
 const todos = await query('todos')
-        .filterWhere('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
-        .fetch()
-
-// is equivalent to:
-
-const todos = await query('todos')
         .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
         .fetch()
+
+// SQL:
+// SELECT * FROM todos
+// WHERE id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
 ```
 
 ##### Chaining conditions
@@ -670,7 +668,7 @@ const todos = await('todos')
 
 ##### Checking for inequality
 
-If you want to check for inequality instead of equality of a column value, you can use the `filterWhereNot` and `whereNot` functions. They work identically to their `filterWhere` and `where` counterparts and can be used in any situation those functions can be used in.
+If you want to check for inequality instead of equality of a column value, you can use the `whereNot` function. It works identically to `where` and can be used in any situation those functions can be used in.
 
 #### Fetching a single record
 
@@ -678,7 +676,7 @@ When you have the id of a record, you can also use `fetchOne` to get it from the
 
 ```javascript
 const todos = await query('todos')
-        .filterWhere('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
+        .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
         .fetchOne();
 ````
 
