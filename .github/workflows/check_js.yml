@@ -18,3 +18,5 @@ jobs:
       name: 'Install NPM Packages'
     - run: cd lib/IHP/DataSync && npm run typecheck
       name: 'Typechecking DataSync modules'
+    - run: cd lib/IHP/DataSync && npm run test
+      name: 'Testing DataSync modules'
