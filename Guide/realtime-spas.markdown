@@ -611,12 +611,32 @@ const todos = await query('todos')
 // WHERE id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
 ```
 
-##### Chaining conditions
+##### Other Operators
+The above syntax is actually a shorthand for:
+
+```javascript
+const todos = await query('todos')
+        .where(eq('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802'))
+        .fetch()
+
+// SQL:
+// SELECT * FROM todos
+// WHERE id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
+```
+
+If you want to use a different operator than `=`, you can use the following functions:
+- `notEq` for `<>` (shorthand `whereNot`)
+- `lessThan` for `<` (shorthand `whereLessThan`)
+- `lessThanOrEqual` for `<=` (shorthand `whereLessThanOrEqual`)
+- `greaterThan` for `>` (shorthand `whereGreaterThan`)
+- `greaterThanOrEqual` for `>=` (shorthand `whereGreaterThanOrEqual`)
+
+##### Multiple conditions
 
 You can chain as many conditions as you want - they will be `AND`ed in the resulting SQL query:
 
 ```javascript
-const todos = await('todos')
+const todos = await query('todos')
         .where('title', 'test')
         .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
         .fetch()
@@ -627,6 +647,36 @@ const todos = await('todos')
 // AND id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
 ```
 
+You can also use the following syntaxes, which do exactly the same thing:
+
+```javascript
+const todos = await query('todos')
+        .where(
+            and(
+                eq('title', 'test'),
+                eq('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
+            )
+        )
+        .fetch()
+
+const todos = await query('todos')
+        .where(
+            and([
+                eq('title', 'test'),
+                eq('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802'),
+            ])
+        )
+        .fetch()
+
+// NOTE: this form does NOT support columns with the name 'tag'!
+const todos = await query('todos')
+        .where({
+            title: 'test',
+            id: 'd94173ec-1d91-421e-8fdc-20a3161b7802'
+        })
+        .fetch()
+```
+
 ##### Adding alternative conditions using `or`
 
 You can also combine conditions using or with the `.or` function, which will take all previous conditions and allow any row to match that fulfills the alternative condition:
@@ -635,7 +685,7 @@ You can also combine conditions using or with the `.or` function, which will tak
 // add this import
 import { where } from 'ihp-datasync/ihp-querybuilder'
 
-const todos = await('todos')
+const todos = await query('todos')
         .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
         .or(where('id', '173ecd94-911d-1e42-dc8f-1b780320a316'))
         .fetch()
@@ -648,6 +698,28 @@ const todos = await('todos')
 
 You can of course chain the conditions inside the `.or` call as well.
 
+Alternatively, if you use the verbose syntax like `.where(eq('title', 'test'))`, you can wrap multiple conditions using `or()`:
+```javascript
+// add this import
+import { or } from 'ihp-datasync/ihp-querybuilder'
+
+const todos = await query('todos')
+        .where(
+            or(
+                eq('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802'),
+                eq('id', '173ecd94-911d-1e42-dc8f-1b780320a316')
+            )
+        )
+        .fetch()
+	
+// SQL:
+// SELECT * FROM todos
+// WHERE id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
+// OR id = '173ecd94-911d-1e42-dc8f-1b780320a316'
+```
+
+If it's more convenient, you can also pass an array to the `or` function, which behaves the same way as multiple arguments.
+
 ##### Adding additional conditions using `and`
 
 In some cases you might want to add a combination of conditions to a query using `and` and doing so by chaining would be unclear. In that case, you can use the `.and` function which functions identically to the `.or` function, except for of course combining the conditions using `AND`, not `OR`.
@@ -656,7 +728,7 @@ In some cases you might want to add a combination of conditions to a query using
 // add this import
 import { where } from 'ihp-datasync/ihp-querybuilder'
 
-const todos = await('todos')
+const todos = await query('todos')
         .where('userId', '173ecd94-911d-1e42-dc8f-1b780320a316')
         .and(where('title', 'Test').or(where('title', 'test')))
 
@@ -666,9 +738,30 @@ const todos = await('todos')
 // AND (title = 'Test' OR title = 'test')
 ```
 
-##### Checking for inequality
+Alternatively, if you use the verbose syntax like `.where(eq('title', 'test'))`, you can wrap multiple conditions using `and()`:
+```javascript
+// add this import
+import { or } from 'ihp-datasync/ihp-querybuilder'
 
-If you want to check for inequality instead of equality of a column value, you can use the `whereNot` function. It works identically to `where` and can be used in any situation those functions can be used in.
+const todos = await query('todos')
+        .where(
+            and(
+                eq('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802'),
+                or(
+                    eq('title', 'Test'),
+                    eq('title', 'test')
+                )
+            )
+        )
+        .fetch()
+	
+// SQL:
+// SELECT * FROM todos
+// WHERE user_id = '173ecd94-911d-1e42-dc8f-1b780320a316'
+// AND (title = 'Test' OR title = 'test')
+```
+
+If it's more convenient, you can also pass an array to the `and` function, which behaves the same way as multiple arguments.
 
 #### Fetching a single record
 
