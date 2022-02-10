@@ -64,7 +64,7 @@ module.exports = {
         },
     },
     content: [
-        "../Web/View/**/*.hs",
+        "Web/View/**/*.hs",
     ],
     safelist: [
         // Add custom class names.
@@ -96,7 +96,7 @@ We need to add a new build command for starting a tailwind build process to our 
 
 ```makefile
 tailwind-dev:
-	cd tailwind && npx tailwindcss -i ./app.css -o ../static/app.css --watch
+	node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -106,8 +106,11 @@ This defines a new command `make tailwind-dev` that runs `npx tailwindcss build`
 For production builds, we also need a new make target:
 
 ```makefile
+node_modules:
+    NODE_ENV=production npm ci
+
 static/app.css:
-	cd tailwind && NODE_ENV=production npx tailwindcss -i ./app.css -o ../static/app.css --minify
+	NODE_ENV=production node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
