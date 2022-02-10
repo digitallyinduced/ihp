@@ -275,6 +275,49 @@ When the run of `nix-shell` succeeds, you also need to run `make -B .envrc` to r
 make -B .envrc
 ```
 
+### Building Postgres With Extensions
+
+For some applications you may want to install custom postgres extension
+libraries and have them available in the nix store.
+
+For example to enable the [postgis](https://postgis.net/) spatial
+and geographic objects in PostgreSQL add
+`postgresExtensions = (p: [ p.postgis ]);` to your project's `default.nix` file as
+an attribute of the `"{ihp}/NixSupport/default.nix"` expression.
+
+
+```nix
+let
+    ihp = builtins.fetchGit {
+        url = "https://github.com/digitallyinduced/ihp.git";
+        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+    };
+    haskellEnv = import "${ihp}/NixSupport/default.nix" {
+        ihp = ihp;
+        postgresExtensions = (p: [ p.postgis ]);
+        haskellDeps = p: with p; [
+            cabal-install
+            base
+            wai
+            text
+            hlint
+            p.ihp
+            google-oauth2
+        ];
+        otherDeps = p: with p; [
+        ];
+        projectPath = ./.;
+    };
+in
+    haskellEnv
+```
+
+Behind the scenes this will pass a function to the postgres nix expressions `postgresql.withPackages`
+function making the extension in your app's nix store postgres package.
+
+After the install you can run `create extension postgis;` to enable all the features of the
+installed extension.
+
 ### Stopping Nix From Running Tests for a Haskell Dependency
 
 Nix will try to run a test suite for a package when it's building it from source code. Sometimes the tests fail which will stop you from installing the package. In case you want to ignore the failing tests and use the package anyway follow these steps.
@@ -303,7 +346,7 @@ You can override the nixpkgs version by setting the `nixPkgsRev` and `nixPkgsSha
 import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
     ihp = ihp;
     haskellPackagesDir = ./haskell-packages/.;
-    
+
     nixPkgsRev = "c7f75838c360473805afcf5fb2fa65e678efd94b"; # <---- SET THIS OPTION
     nixPkgsSha256 = "04vx1j2gybm1693a8wxw6bpcsd4h1jdw541vwic8nfm3n80r4ckm"; # <---- ALSO SET THIS
 }
