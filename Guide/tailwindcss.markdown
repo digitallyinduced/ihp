@@ -110,7 +110,7 @@ node_modules:
     NODE_ENV=production npm ci
 
 static/app.css:
-	NODE_ENV=production node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./app.css -o ../static/app.css --minify
+	NODE_ENV=production node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
