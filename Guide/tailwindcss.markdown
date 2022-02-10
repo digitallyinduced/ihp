@@ -107,7 +107,7 @@ For production builds, we also need a new make target:
 
 ```makefile
 node_modules:
-    HOME=/tmp NODE_ENV=production npm ci
+    NODE_ENV=production npm ci
 
 static/app.css:
 	cd tailwind && NODE_ENV=production npx tailwindcss -i ./app.css -o ../static/app.css --minify
