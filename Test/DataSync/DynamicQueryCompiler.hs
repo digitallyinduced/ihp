@@ -135,3 +135,33 @@ tests = do
                         ( "SELECT ? FROM ? WHERE (?) = (?) LIMIT ? OFFSET ?"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "25", PG.Plain "50"]
                         )
+            
+            it "compile 'field = NULL' conditions to 'field IS NULL'" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual NullExpression
+                        , orderByClause = []
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+                
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) IS NULL"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id"]
+                        )
+
+            it "compile 'field <> NULL' conditions to 'field IS NOT NULL'" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpNotEqual NullExpression
+                        , orderByClause = []
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+                
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) IS NOT NULL"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id"]
+                        )

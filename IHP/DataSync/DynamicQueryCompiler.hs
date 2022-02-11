@@ -70,10 +70,19 @@ compileSelectedColumns (SelectSpecific fields) = PG.Many args
 compileCondition :: ConditionExpression -> (PG.Query, [PG.Action])
 compileCondition (ColumnExpression column) = ("?", [PG.toField $ PG.Identifier (fieldNameToColumnName column)])
 compileCondition NullExpression = ("NULL", [])
-compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") " <> compileOperator operator <> " (" <> queryB <> ")", paramsA <> paramsB)
+compileCondition (InfixOperatorExpression a OpEqual NullExpression) = compileCondition (InfixOperatorExpression a OpIs NullExpression) -- Turn 'a = NULL' into 'a IS NULL'
+compileCondition (InfixOperatorExpression a OpNotEqual NullExpression) = compileCondition (InfixOperatorExpression a OpIsNot NullExpression) -- Turn 'a <> NULL' into 'a IS NOT NULL'
+compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") " <> compileOperator operator <> " " <> rightOperand, paramsA <> paramsB)
     where
         (queryA, paramsA) = compileCondition a
         (queryB, paramsB) = compileCondition b
+
+        rightOperand = if rightParentheses
+                then "(" <>  queryB <> ")"
+                else queryB
+
+        rightParentheses :: Bool
+        rightParentheses = b /= NullExpression
 compileCondition (LiteralExpression literal) = ("?", [toValue literal])
     where
         toValue (IntValue int) = PG.toField int
@@ -94,3 +103,5 @@ compileOperator OpLessThanOrEqual = "<="
 compileOperator OpNotEqual = "<>"
 compileOperator OpAnd = "AND"
 compileOperator OpOr = "OR"
+compileOperator OpIs = "IS"
+compileOperator OpIsNot = "IS NOT"
