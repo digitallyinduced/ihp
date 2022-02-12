@@ -85,7 +85,7 @@ tests = do
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
 
         describe "deleteTable" do
-            it "delete a table with all it's indices, constraints, policies, enable RLS statements" do
+            it "delete a table with all it's indices, constraints, policies, enable RLS statements, triggers" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE users ();
                     CREATE TABLE tasks ();
@@ -93,6 +93,7 @@ tests = do
                     ALTER TABLE tasks ADD CONSTRAINT tasks_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
                     CREATE POLICY "Users can manage their tasks" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                     ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+                    CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
                 |]
                 let outputSchema = parseSqlStatements [trimming|
                     CREATE TABLE users ();

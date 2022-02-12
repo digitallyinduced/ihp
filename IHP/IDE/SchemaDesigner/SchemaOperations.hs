@@ -320,4 +320,5 @@ deleteTable tableName statements =
         CreateIndex { tableName = indexTable }          | indexTable == tableName      -> False
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
+        CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
         otherwise -> True
