@@ -652,9 +652,10 @@ createPolicy = do
     lexeme "CREATE"
     lexeme "POLICY"
     name <- identifier
-    action <- optional (lexeme "FOR" >> policyAction)
     lexeme "ON"
     tableName <- qualifiedIdentifier
+
+    action <- optional (lexeme "FOR" >> policyAction)
 
     using <- optional do
         lexeme "USING"

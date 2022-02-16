@@ -720,7 +720,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             parseSql "DROP POLICY \"Users can manage their todos\" ON todos;" `shouldBe` DropPolicy { tableName = "todos", policyName = "Users can manage their todos" }
 
         it "should parse 'CREATE POLICY .. FOR SELECT' statements" do
-            let sql = cs [plain|CREATE POLICY "Messages are public" FOR SELECT ON messages USING (true);|]
+            let sql = cs [plain|CREATE POLICY "Messages are public" ON messages FOR SELECT USING (true);|]
             parseSql sql `shouldBe` CreatePolicy
                     { name = "Messages are public"
                     , action = Just PolicyForSelect

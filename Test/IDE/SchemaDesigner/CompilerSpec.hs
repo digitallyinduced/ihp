@@ -525,7 +525,7 @@ tests = do
             compileSql [policy] `shouldBe` sql
 
         it "should compile 'CREATE POLICY .. FOR SELECT' statements" do
-            let sql = "CREATE POLICY \"Messages are public\" FOR SELECT ON messages USING (true);\n"
+            let sql = "CREATE POLICY \"Messages are public\" ON messages FOR SELECT USING (true);\n"
             let policy = CreatePolicy
                     { name = "Messages are public"
                     , action = Just PolicyForSelect
