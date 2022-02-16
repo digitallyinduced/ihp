@@ -652,6 +652,7 @@ createPolicy = do
     lexeme "CREATE"
     lexeme "POLICY"
     name <- identifier
+    action <- optional (lexeme "FOR" >> policyAction)
     lexeme "ON"
     tableName <- qualifiedIdentifier
 
@@ -666,8 +667,14 @@ createPolicy = do
 
     char ';'
 
-    pure CreatePolicy { name, tableName, using, check }
+    pure CreatePolicy { name, action, tableName, using, check }
 
+policyAction =
+    (lexeme "ALL" >> pure PolicyForAll)
+    <|> (lexeme "SELECT" >> pure PolicyForSelect)
+    <|> (lexeme "INSERT" >> pure PolicyForInsert)
+    <|> (lexeme "UPDATE" >> pure PolicyForUpdate)
+    <|> (lexeme "DELETE" >> pure PolicyForDelete)
 
 setStatement = do
     lexeme "SET"

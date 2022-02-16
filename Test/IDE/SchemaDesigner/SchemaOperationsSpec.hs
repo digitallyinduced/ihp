@@ -79,7 +79,7 @@ tests = do
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
             
             it "should not do anything if there's a policy" do
-                let policy = CreatePolicy { tableName = "a", name = "p", check = Nothing, using = Nothing }
+                let policy = CreatePolicy { tableName = "a", action = Nothing, name = "p", check = Nothing, using = Nothing }
                 let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}, policy]
 
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
@@ -115,6 +115,7 @@ tests = do
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage their posts"
+                        , action = Nothing
                         , tableName = "posts"
                         , using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" []))
                         , check = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" []))
@@ -135,6 +136,7 @@ tests = do
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = ""
+                        , action = Nothing
                         , tableName = "posts"
                         , using = Nothing
                         , check = Nothing
@@ -166,6 +168,7 @@ tests = do
                             ]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage the tasks if they can see the TaskList"
+                        , action = Nothing
                         , tableName = "tasks"
                         , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))
                         , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))

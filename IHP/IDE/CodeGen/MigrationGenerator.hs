@@ -340,10 +340,13 @@ normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = State
         (normalizedTable, normalizeTableRest) = normalizeTable table
 normalizeStatement AddConstraint { tableName, constraint } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
-normalizeStatement CreatePolicy { name, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check } ]
+normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { expressions, .. } = [ CreateIndex { expressions = map normalizeExpression expressions, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, .. } ]
 normalizeStatement otherwise = [otherwise]
+
+normalizePolicyAction (Just PolicyForAll) = Nothing
+normalizePolicyAction otherwise = otherwise
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
 normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )

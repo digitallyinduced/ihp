@@ -39,7 +39,7 @@ data Statement
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
-    | CreatePolicy { name :: Text, tableName :: Text, using :: Maybe Expression, check :: Maybe Expression }
+    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, using :: Maybe Expression, check :: Maybe Expression }
     -- SET name = value;
     | Set { name :: Text, value :: Expression }
     -- SELECT query;
@@ -214,4 +214,12 @@ data TriggerEvent
 data TriggerFor
     = ForEachRow
     | ForEachStatement
+    deriving (Eq, Show)
+
+data PolicyAction
+    = PolicyForAll
+    | PolicyForSelect
+    | PolicyForInsert
+    | PolicyForUpdate
+    | PolicyForDelete
     deriving (Eq, Show)
