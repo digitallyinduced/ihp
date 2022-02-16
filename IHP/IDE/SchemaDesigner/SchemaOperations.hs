@@ -151,7 +151,7 @@ updatePolicy UpdatePolicyOptions { .. } statements =
         statements
         |> map updatePolicy'
     where
-        updatePolicy' policy@CreatePolicy { name = pName, tableName = pTable } | pName == currentName && pTable == tableName = CreatePolicy { tableName, name, using, check }
+        updatePolicy' policy@CreatePolicy { name = pName, action, tableName = pTable } | pName == currentName && pTable == tableName = CreatePolicy { tableName, action, name, using, check }
         updatePolicy' otherwise                                                                                              = otherwise
 
 data AddPolicyOptions = AddPolicyOptions
@@ -164,7 +164,7 @@ data AddPolicyOptions = AddPolicyOptions
 addPolicy :: AddPolicyOptions -> Schema -> Schema
 addPolicy AddPolicyOptions { .. } statements = statements <> createPolicyStatement
     where
-        createPolicyStatement = [ CreatePolicy { tableName, name, using, check } ]
+        createPolicyStatement = [ CreatePolicy { tableName, action = Nothing, name, using, check } ]
 
 data DeletePolicyOptions = DeletePolicyOptions
     { tableName :: !Text
@@ -235,6 +235,7 @@ suggestPolicy :: Schema -> Statement -> Statement
 suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, columns })
     | isJust (find isUserIdColumn columns)  = CreatePolicy
         { name = "Users can manage their " <> tableName
+        , action = Nothing
         , tableName
         , using = Just compareUserId
         , check = Just compareUserId
@@ -252,6 +253,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
             columnWithFKAndRefTableToPolicy :: (Column, Constraint, CreateTable) -> Maybe Statement
             columnWithFKAndRefTableToPolicy (column, ForeignKeyConstraint { referenceColumn }, CreateTable { name = refTableName, columns = refTableColumns }) | isJust (find isUserIdColumn refTableColumns) = Just CreatePolicy
                     { name = "Users can manage the " <> tableName <> " if they can see the " <> tableNameToModelName refTableName
+                    , action = Nothing
                     , tableName
                     , using = Just delegateCheck
                     , check = Just delegateCheck
@@ -304,7 +306,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                     |> fmap \case
                         StatementCreateTable table -> table
 
-            emptyPolicy = CreatePolicy { name = "", tableName, using = Nothing, check = Nothing }
+            emptyPolicy = CreatePolicy { name = "", action = Nothing, tableName, using = Nothing, check = Nothing }
 
 isUserIdColumn :: Column -> Bool
 isUserIdColumn Column { name = "user_id" } = True
@@ -320,4 +322,5 @@ deleteTable tableName statements =
         CreateIndex { tableName = indexTable }          | indexTable == tableName      -> False
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
+        CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
         otherwise -> True

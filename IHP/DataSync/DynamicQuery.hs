@@ -63,6 +63,8 @@ data ConditionOperator
     | OpNotEqual -- ^ a <> b
     | OpAnd -- ^ a AND b
     | OpOr -- ^ a OR b
+    | OpIs -- ^ a IS b
+    | OpIsNot -- ^ a IS NOT b
     deriving (Show, Eq)
 
 data SelectedColumns

@@ -79,13 +79,13 @@ tests = do
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
             
             it "should not do anything if there's a policy" do
-                let policy = CreatePolicy { tableName = "a", name = "p", check = Nothing, using = Nothing }
+                let policy = CreatePolicy { tableName = "a", action = Nothing, name = "p", check = Nothing, using = Nothing }
                 let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}, policy]
 
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
 
         describe "deleteTable" do
-            it "delete a table with all it's indices, constraints, policies, enable RLS statements" do
+            it "delete a table with all it's indices, constraints, policies, enable RLS statements, triggers" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE users ();
                     CREATE TABLE tasks ();
@@ -93,6 +93,7 @@ tests = do
                     ALTER TABLE tasks ADD CONSTRAINT tasks_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
                     CREATE POLICY "Users can manage their tasks" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                     ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+                    CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
                 |]
                 let outputSchema = parseSqlStatements [trimming|
                     CREATE TABLE users ();
@@ -114,6 +115,7 @@ tests = do
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage their posts"
+                        , action = Nothing
                         , tableName = "posts"
                         , using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" []))
                         , check = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" []))
@@ -134,6 +136,7 @@ tests = do
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = ""
+                        , action = Nothing
                         , tableName = "posts"
                         , using = Nothing
                         , check = Nothing
@@ -165,6 +168,7 @@ tests = do
                             ]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage the tasks if they can see the TaskList"
+                        , action = Nothing
                         , tableName = "tasks"
                         , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))
                         , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))

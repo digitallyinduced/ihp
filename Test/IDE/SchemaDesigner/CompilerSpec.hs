@@ -509,6 +509,7 @@ tests = do
             let sql = "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());\n"
             let policy = CreatePolicy
                     { name = "Users can manage their tasks"
+                    , action = Nothing
                     , tableName = "tasks"
                     , using = Just (
                         EqExpression
@@ -520,6 +521,17 @@ tests = do
                             (VarExpression "user_id")
                             (CallExpression "ihp_user_id" [])
                         )
+                    }
+            compileSql [policy] `shouldBe` sql
+
+        it "should compile 'CREATE POLICY .. FOR SELECT' statements" do
+            let sql = "CREATE POLICY \"Messages are public\" FOR SELECT ON messages USING (true);\n"
+            let policy = CreatePolicy
+                    { name = "Messages are public"
+                    , action = Just PolicyForSelect
+                    , tableName = "messages"
+                    , using = Just (VarExpression "true")
+                    , check = Nothing
                     }
             compileSql [policy] `shouldBe` sql
 
@@ -608,6 +620,7 @@ tests = do
             let statements =
                     [ CreatePolicy
                         { name = "Users can manage their project's migrations"
+                        , action = Nothing
                         , tableName = "migrations"
                         , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                         , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
@@ -640,6 +653,11 @@ tests = do
             compileSql statements `shouldBe` sql
 
         it "should compile 'COMMIT;' statements" do
+            let sql = "COMMIT;\n"
+            let statements = [ Commit ]
+            compileSql statements `shouldBe` sql
+        
+        it "should compile 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL;' statements" do
             let sql = "COMMIT;\n"
             let statements = [ Commit ]
             compileSql statements `shouldBe` sql
