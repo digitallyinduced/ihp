@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module IHP.DataSync.Controller where
 
-import IHP.ControllerPrelude
+import IHP.ControllerPrelude hiding (OrderByClause)
 import qualified Control.Exception as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
@@ -353,13 +353,6 @@ changesToValue :: [ChangeNotifications.Change] -> Value
 changesToValue changes = object (map changeToPair changes)
     where
         changeToPair ChangeNotifications.Change { col, new } = (columnNameToFieldName col) .= new
-
-queryFieldNamesToColumnNames :: SQLQuery -> SQLQuery
-queryFieldNamesToColumnNames sqlQuery = sqlQuery
-        |> modify #orderByClause (map convertOrderByClause)
-    where
-        convertOrderByClause OrderByClause { orderByColumn, orderByDirection } = OrderByClause { orderByColumn = cs (fieldNameToColumnName (cs orderByColumn)), orderByDirection }
-
 
 runInModelContextWithTransaction :: (?state :: IORef DataSyncController, _) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
 runInModelContextWithTransaction function (Just transactionId) = do

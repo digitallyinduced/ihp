@@ -32,15 +32,20 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
         (orderBySql, orderByArgs) = case orderByClause of
                 [] -> ("", [])
                 orderByClauses ->
-                    ( PG.Query $ cs $ " ORDER BY " <> (intercalate ", " (map (const "? ?") orderByClauses))
+                    ( PG.Query $ cs $ " ORDER BY " <> (intercalate ", " (map compileOrderByClause orderByClauses))
                     , orderByClauses
-                        |> map (\QueryBuilder.OrderByClause { orderByColumn, orderByDirection } ->
+                        |> map (\case
+                            OrderByClause { orderByColumn, orderByDirection } ->
                                     [ PG.toField $ PG.Identifier (fieldNameToColumnName $ cs orderByColumn)
                                     , PG.toField $ if orderByDirection == QueryBuilder.Desc
                                         then PG.Plain "DESC"
                                         else PG.Plain ""
                                     ]
-                                )
+                            OrderByTSRank { tsvector, tsquery } ->
+                                    [ PG.toField $ PG.Identifier (fieldNameToColumnName tsvector)
+                                    , PG.toField tsquery
+                                    ]
+                        )
                         |> concat
                     )
 
@@ -55,6 +60,10 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
         (offsetSql, offsetArgs) = case offset of
                 Just offset -> (" OFFSET ?", [PG.toField offset])
                 Nothing -> ("", [])
+
+compileOrderByClause :: OrderByClause -> Text
+compileOrderByClause OrderByClause {} = "? ?"
+compileOrderByClause OrderByTSRank { tsvector, tsquery } = "ts_rank(?, to_tsquery('english', ?))"
 
 compileSelectedColumns :: SelectedColumns -> PG.Action
 compileSelectedColumns SelectAll = PG.Plain "*"
@@ -93,6 +102,7 @@ compileCondition (LiteralExpression literal) = ("?", [toValue literal])
         toValue (DateTimeValue utcTime) = PG.toField utcTime
         toValue (PointValue point) = PG.toField point
         toValue Null = PG.toField PG.Null
+compileCondition (CallExpression { functionCall = ToTSQuery { text } }) = ("to_tsquery('english', ?)", [PG.toField text])
 
 compileOperator :: ConditionOperator -> PG.Query
 compileOperator OpEqual = "="
@@ -105,3 +115,4 @@ compileOperator OpAnd = "AND"
 compileOperator OpOr = "OR"
 compileOperator OpIs = "IS"
 compileOperator OpIsNot = "IS NOT"
+compileOperator OpTSMatch = "@@"
