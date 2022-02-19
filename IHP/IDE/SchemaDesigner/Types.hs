@@ -196,6 +196,7 @@ data PostgresType
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
     | PVaryingN (Maybe Int)
     | PCharacterN Int
+    | PSingleChar
     | PSerial
     | PBigserial
     | PJSONB

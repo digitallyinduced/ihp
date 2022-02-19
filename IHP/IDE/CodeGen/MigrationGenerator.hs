@@ -395,7 +395,7 @@ normalizeConstraint ForeignKeyConstraint { name, columnName, referenceTable, ref
 normalizeConstraint otherwise = otherwise
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
-normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator }, uniqueConstraint)
+normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
     where
         uniqueConstraint =
             if isUnique
@@ -410,6 +410,9 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
             Nothing -> if notNull || isJust generator
                 then Nothing
                 else Just (VarExpression "null") -- pg_dump columns don't have an explicit default null value
+
+normalizeColumnGenerator :: ColumnGenerator -> ColumnGenerator
+normalizeColumnGenerator generator@(ColumnGenerator { generate }) = generator { generate = normalizeExpression generate }
 
 normalizeExpression :: Expression -> Expression
 normalizeExpression e@(TextExpression {}) = e
@@ -427,6 +430,7 @@ normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normali
 normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression e@(DoubleExpression {}) = e
 normalizeExpression e@(IntExpression {}) = e
+normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
 --
