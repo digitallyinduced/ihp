@@ -407,7 +407,7 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
 
         normalizedDefaultValue = case defaultValue of
             Just defaultValue -> Just (normalizeExpression defaultValue)
-            Nothing -> if notNull
+            Nothing -> if notNull || isJust generator
                 then Nothing
                 else Just (VarExpression "null") -- pg_dump columns don't have an explicit default null value
 

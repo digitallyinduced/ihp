@@ -865,6 +865,34 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should run not generate a default value for a generated column" do
+                let targetSchema = sql [i|
+                    CREATE TABLE products (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        sku TEXT NOT NULL,
+                        text_search TSVECTOR GENERATED ALWAYS AS 
+                            ( setweight(to_tsvector('english', sku), 'A') ||
+                              setweight(to_tsvector('english', name), 'B') ||
+                              setweight(to_tsvector('english', description), 'C')
+                            ) STORED
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE products (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        sku TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE products ADD COLUMN text_search TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), 'A') || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
