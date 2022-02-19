@@ -25,6 +25,7 @@ tests = do
                                 , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                                 , notNull = True
                                 , isUnique = False
+                                , generator = Nothing
                                 }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
