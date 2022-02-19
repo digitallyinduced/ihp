@@ -83,6 +83,7 @@ instance Controller ColumnsController where
                         , defaultValue = defaultValue
                         , notNull = (not (param "allowNull"))
                         , isUnique = param "isUnique"
+                        , generator = Nothing
                         }
                 when ((get #name column) == "") do
                     setErrorMessage ("Column Name can not be empty")
