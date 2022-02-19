@@ -120,7 +120,7 @@ tests = do
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable {
                     name = "users",
-                    columns = [ Column "id" PUUID Nothing False False ],
+                    columns = [ Column "id" PUUID Nothing False False Nothing ],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                     constraints = []
                 }
@@ -146,7 +146,7 @@ tests = do
             it "should compile CanUpdate instance with an array type with an explicit cast" do
                 let statement = StatementCreateTable $ CreateTable {
                     name = "users",
-                    columns = [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False ],
+                    columns = [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                     constraints = []
                 }
@@ -161,8 +161,8 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False
-                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}
+                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
@@ -220,8 +220,8 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True, Column "ids" (PArray PUUID) Nothing False False
-                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}
+                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
@@ -275,6 +275,65 @@ tests = do
                         primaryKeyCondition User { id } = [("id", toField id)]
                         {-# INLINABLE primaryKeyCondition #-}
                 |]
+            it "should not touch GENERATED columns" do
+                let statement = StatementCreateTable CreateTable
+                        { name = "users"
+                        , columns =
+                            [ Column "id" PUUID Nothing False True Nothing
+                            , Column {name = "ts", columnType = PTSVector, defaultValue = Nothing, notNull = True, isUnique = False, generator = Just (ColumnGenerator { generate = VarExpression "someResult", stored = False }) }
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                compileOutput `shouldBe` [trimming|
+                    data User'  = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+                    type User = User' 
+
+                    instance FromRow User where
+                        fromRow = do
+                            id <- field
+                            ts <- field
+                            let theRecord = User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+                    type instance GetModelName (User' ) = "User"
+
+                    type instance PrimaryKey "users" = UUID
+
+                    instance QueryBuilder.FilterPrimaryKey "users" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
+
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (get #id model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
+
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, get #id model))
+
+                    instance Record User where
+                        {-# INLINE newRecord #-}
+                        newRecord = User def def  def
+                    instance Default (Id' "users") where def = Id def
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
+                        columnNames = ["id","ts"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+                |]
+
 
 getInstanceDecl :: Text -> Text -> Text
 getInstanceDecl instanceName full =

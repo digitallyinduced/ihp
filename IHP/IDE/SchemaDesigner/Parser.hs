@@ -187,10 +187,17 @@ parseColumn = do
     defaultValue <- optional do
         lexeme "DEFAULT"
         expression
+    generator <- optional do
+        lexeme "GENERATED"
+        lexeme "ALWAYS"
+        lexeme "AS"
+        generate <- expression
+        stored <- isJust <$> optional (lexeme "STORED")
+        pure ColumnGenerator { generate, stored }
     primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
     notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
     isUnique <- isJust <$> optional (lexeme "UNIQUE")
-    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique })
+    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique, generator })
 
 sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
@@ -387,6 +394,7 @@ table = [
             , binary "<"  LessThanExpression
             , binary ">="  GreaterThanOrEqualToExpression
             , binary ">"  GreaterThanExpression
+            , binary "||" ConcatenationExpression
 
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression

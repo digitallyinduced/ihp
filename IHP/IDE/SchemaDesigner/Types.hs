@@ -85,6 +85,7 @@ data Column = Column
     , defaultValue :: Maybe Expression
     , notNull :: Bool
     , isUnique :: Bool
+    , generator :: Maybe ColumnGenerator
     }
     deriving (Eq, Show)
 
@@ -95,6 +96,12 @@ data OnDelete
     | SetDefault
     | Cascade
     deriving (Show, Eq)
+
+data ColumnGenerator
+    = ColumnGenerator
+    { generate :: !Expression
+    , stored :: !Bool
+    } deriving (Show, Eq)
 
 newtype PrimaryKeyConstraint
   = PrimaryKeyConstraint { primaryKeyColumnNames :: [Text] }
@@ -160,6 +167,7 @@ data Expression =
     | TypeCastExpression Expression PostgresType
     | SelectExpression Select
     | DotExpression Expression Text
+    | ConcatenationExpression Expression Expression -- ^ a || b
     deriving (Eq, Show)
 
 data Select = Select

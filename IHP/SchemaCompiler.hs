@@ -75,7 +75,7 @@ atomicType = \case
     PTSVector -> "TSVector"
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
-haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull }
+haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull, generator }
     | [name] == primaryKeyColumnNames primaryKeyConstraint = "(" <> primaryKeyTypeName tableName <> ")"
     | otherwise =
         let
@@ -84,7 +84,7 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
                     Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName referenceTable <> ")"
                     _ -> atomicType columnType
         in
-            if not notNull
+            if not notNull || isJust generator
                 then "(Maybe " <> actualType <> ")"
                 else actualType
 -- haskellType table (HasMany {name}) = "(QueryBuilder.QueryBuilder " <> tableNameToModelName name <> ")"
@@ -402,9 +402,10 @@ columnPlaceholder column@Column { columnType } = if columnPlaceholderNeedsTypeca
 compileCreate :: CreateTable -> Text
 compileCreate table@(CreateTable { name, columns }) =
     let
+        writableColumns = onlyWritableColumns columns
         modelName = tableNameToModelName name
-        columnNames = commaSep (map (get #name) columns)
-        values = commaSep (map columnPlaceholder columns)
+        columnNames = commaSep (map (get #name) writableColumns)
+        values = commaSep (map columnPlaceholder writableColumns)
 
         toBinding column@(Column { name }) =
             if hasExplicitOrImplicitDefault column
@@ -413,7 +414,7 @@ compileCreate table@(CreateTable { name, columns }) =
 
 
         bindings :: [Text]
-        bindings = map toBinding columns
+        bindings = map toBinding writableColumns
 
         createManyFieldValues :: Text
         createManyFieldValues = if null bindings
@@ -437,10 +438,13 @@ commaSep = intercalate ", "
 toBinding :: Text -> Column -> Text
 toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> columnNameToFieldName name
 
+onlyWritableColumns columns = columns |> filter (\Column { generator } -> isNothing generator)
+
 compileUpdate :: CreateTable -> Text
 compileUpdate table@(CreateTable { name, columns }) =
     let
         modelName = tableNameToModelName name
+        writableColumns = onlyWritableColumns columns
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
         toPrimaryKeyBinding Column { name } = "get #" <> columnNameToFieldName name <> " model"
@@ -448,13 +452,13 @@ compileUpdate table@(CreateTable { name, columns }) =
         bindings :: Text
         bindings =
             let
-                bindingValues = map toUpdateBinding columns <> map toPrimaryKeyBinding (primaryKeyColumns table)
+                bindingValues = map toUpdateBinding writableColumns <> map toPrimaryKeyBinding (primaryKeyColumns table)
             in
                 compileToRowValues bindingValues
 
-        updates = commaSep (map (\column -> get #name column <> " = " <> columnPlaceholder column ) columns)
+        updates = commaSep (map (\column -> get #name column <> " = " <> columnPlaceholder column ) writableColumns)
 
-        columnNames = columns
+        columnNames = writableColumns
                 |> map (get #name)
                 |> intercalate ", "
     in

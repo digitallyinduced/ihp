@@ -24,6 +24,7 @@ addTable tableName list = list <> [StatementCreateTable CreateTable
             , defaultValue = Just (CallExpression "uuid_generate_v4" [])
             , notNull = True
             , isUnique = False
+            , generator = Nothing
             }]
     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
     , constraints = []
@@ -76,6 +77,7 @@ newColumn AddColumnOptions { .. } = Column
     , defaultValue = defaultValue
     , notNull = (not allowNull)
     , isUnique = isUnique
+    , generator = Nothing
     }
 
 newForeignKeyConstraint :: Text -> Text -> Text -> Statement

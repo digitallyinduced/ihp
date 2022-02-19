@@ -74,11 +74,12 @@ compileOnDelete (Just SetDefault) = "ON DELETE SET DEFAULT"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
-compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique } =
+compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique, generator } =
     unwords (catMaybes
         [ Just (compileIdentifier name)
         , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
+        , fmap compileGenerator generator
         , primaryKeyColumnConstraint
         , if notNull then Just "NOT NULL" else Nothing
         , if isUnique then Just "UNIQUE" else Nothing
@@ -114,6 +115,7 @@ compileExpression (TypeCastExpression value type_) = compileExpression value <> 
 compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
 compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
+compileExpression (ConcatenationExpression a b) = compileExpressionWithOptionalParenthese a <> " || " <> compileExpressionWithOptionalParenthese b
 
 compileExpressionWithOptionalParenthese :: Expression -> Text
 compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr
@@ -128,6 +130,7 @@ compileExpressionWithOptionalParenthese expr@(TextExpression {}) = compileExpres
 compileExpressionWithOptionalParenthese expr@(IntExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DoubleExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(ConcatenationExpression a b ) = compileExpression expr
 compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 compareStatement (CreateEnumType {}) _ = LT
@@ -440,3 +443,10 @@ compilePolicyAction PolicyForSelect = "SELECT"
 compilePolicyAction PolicyForInsert = "INSERT"
 compilePolicyAction PolicyForUpdate = "UPDATE"
 compilePolicyAction PolicyForDelete = "DELETE"
+
+compileGenerator :: ColumnGenerator -> Text
+compileGenerator ColumnGenerator { generate, stored } =
+    "GENERATED ALWAYS AS ("
+    <> compileExpressionWithOptionalParenthese generate
+    <> ")"
+    <> (if stored then " STORED" else "")
