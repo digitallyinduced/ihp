@@ -395,7 +395,7 @@ normalizeConstraint ForeignKeyConstraint { name, columnName, referenceTable, ref
 normalizeConstraint otherwise = otherwise
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
-normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False }, uniqueConstraint)
+normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator }, uniqueConstraint)
     where
         uniqueConstraint =
             if isUnique

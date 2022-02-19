@@ -107,7 +107,7 @@ tests = do
                                 {
                                 name = "posts"
                                 , columns =
-                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False }
+                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
@@ -128,7 +128,7 @@ tests = do
                                 {
                                 name = "posts"
                                 , columns =
-                                    [ Column { name = "title", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False }
+                                    [ Column { name = "title", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
@@ -148,7 +148,7 @@ tests = do
                 let tasksTable = StatementCreateTable CreateTable
                                 { name = "tasks"
                                 , columns =
-                                    [ Column { name = "task_list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False }
+                                    [ Column { name = "task_list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
@@ -156,7 +156,7 @@ tests = do
                 let taskListsTable = StatementCreateTable CreateTable
                                 { name = "task_lists"
                                 , columns =
-                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False }
+                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []

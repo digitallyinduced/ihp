@@ -7,7 +7,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.DynamicQuery
-import IHP.QueryBuilder
+import IHP.QueryBuilder hiding (OrderByClause)
 import qualified Database.PostgreSQL.Simple.ToField as PG
 
 tests = do
@@ -164,4 +164,19 @@ tests = do
                 compileQuery query `shouldBe`
                         ( "SELECT ? FROM ? WHERE (?) IS NOT NULL"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id"]
+                        )
+
+            it "compile queries with TS expressions" do
+                let query = DynamicSQLQuery
+                        { table = "products"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "ts") OpTSMatch (CallExpression { functionCall = ToTSQuery { text = "test" }})
+                        , orderByClause = [ OrderByTSRank { tsvector = "ts", tsquery = "test" } ]
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+                
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) @@ (to_tsquery('english', ?)) ORDER BY ts_rank(?, to_tsquery('english', ?))"
+                        , [PG.Plain "*", PG.EscapeIdentifier "products", PG.EscapeIdentifier "ts", PG.Escape "test", PG.EscapeIdentifier "ts", PG.Escape "test"]
                         )
