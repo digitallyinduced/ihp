@@ -677,7 +677,7 @@ tests = do
         it "should compile 'GENERATED' columns" do
             let sql = [trimming|
                 CREATE TABLE products (
-                    ts TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), 'A') || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
+                    ts TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), ('A'::"char")) || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
                 );
             |] <> "\n"
             let statements = [
@@ -694,7 +694,7 @@ tests = do
                                                 { generate =
                                                     ConcatenationExpression
                                                         (ConcatenationExpression
-                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"],TextExpression "A"])
+                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"], TypeCastExpression (TextExpression "A") PSingleChar])
                                                             (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
                                                         )
                                                         (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])

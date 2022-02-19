@@ -228,6 +228,7 @@ sqlType = choice $ map optionalArray
         , inet
         , tsvector
         , trigger
+        , singleChar
         , customType
         ]
             where
@@ -346,6 +347,10 @@ sqlType = choice $ map optionalArray
                                 Nothing -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
                                 Just l -> pure (PCharacterN l)
                         _ -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
+
+                singleChar = do
+                    try (symbol "\"char\"")
+                    pure PSingleChar
 
                 serial = do
                     try (symbol' "SERIAL")
