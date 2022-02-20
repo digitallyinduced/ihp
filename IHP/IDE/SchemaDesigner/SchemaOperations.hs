@@ -101,6 +101,7 @@ newForeignKeyIndex tableName columnName =
     , tableName
     , expressions = [VarExpression columnName]
     , whereClause = Nothing
+    , indexType = Nothing
     }
 
 appendStatement :: Statement -> [Statement] -> [Statement]
@@ -116,7 +117,7 @@ addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statemen
 addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } }]
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames, whereClause = Nothing }]
+addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames, whereClause = Nothing, indexType = Nothing }]
 
 -- | An enum is added after all existing enum statements, but right before @CREATE TABLE@ statements
 addEnum :: Text -> Schema -> Schema
