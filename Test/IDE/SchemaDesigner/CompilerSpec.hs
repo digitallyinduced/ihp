@@ -422,6 +422,43 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+            compileSql [statement] `shouldBe` sql
+        
+        it "should compile a 'CREATE INDEX .. ON .. USING GIN' statement" do
+            let sql = cs [plain|CREATE INDEX users_index ON users USING GIN (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gin
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a 'CREATE INDEX .. ON .. USING BTREE' statement" do
+            let sql = cs [plain|CREATE INDEX users_index ON users USING BTREE (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Btree
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a 'CREATE INDEX .. ON .. USING GIST' statement" do
+            let sql = cs [plain|CREATE INDEX users_index ON users USING GIST (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gist
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -433,6 +470,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -444,6 +482,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -455,6 +494,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -510,6 +550,7 @@ tests = do
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
+                    , indexType = Nothing
                     }
             compileSql [index] `shouldBe` sql
 

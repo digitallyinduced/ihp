@@ -476,7 +476,39 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
+
+        it "should parse a 'CREATE INDEX .. ON .. USING GIN' statement" do
+            parseSql "CREATE INDEX users_index ON users USING GIN (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gin
+                    }
+
+        it "should parse a 'CREATE INDEX .. ON .. USING btree' statement" do
+            parseSql "CREATE INDEX users_index ON users USING btree (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Btree
+                    }
+
+        it "should parse a 'CREATE INDEX .. ON .. USING GIST' statement" do
+            parseSql "CREATE INDEX users_index ON users USING GIST (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gist
+                    }
+
         it "should parse a CREATE INDEX statement with multiple columns" do
             parseSql "CREATE INDEX users_index ON users (user_name, project_id);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
@@ -484,6 +516,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
@@ -492,6 +525,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
         it "should parse a CREATE UNIQUE INDEX statement" do
             parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
@@ -500,6 +534,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
@@ -560,6 +595,7 @@ $$;
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
+                    , indexType = Nothing
                     }
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do

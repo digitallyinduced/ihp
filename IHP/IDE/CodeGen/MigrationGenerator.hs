@@ -341,7 +341,7 @@ normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = State
 normalizeStatement AddConstraint { tableName, constraint } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
-normalizeStatement CreateIndex { expressions, .. } = [ CreateIndex { expressions = map normalizeExpression expressions, .. } ]
+normalizeStatement CreateIndex { expressions, indexType, .. } = [ CreateIndex { expressions = map normalizeExpression expressions, indexType = normalizeIndexType indexType, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, .. } ]
 normalizeStatement otherwise = [otherwise]
 
@@ -593,3 +593,7 @@ disableTransactionWhileAddingEnumValues statements =
 
         enableIfNotExists statement@(AddValueToEnumType { .. }) = statement { ifNotExists = True }
         enableIfNotExists otherwise = otherwise
+
+normalizeIndexType :: Maybe IndexType -> Maybe IndexType
+normalizeIndexType (Just Btree) = Nothing
+normalizeIndexType indexType = indexType

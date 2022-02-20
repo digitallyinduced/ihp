@@ -507,15 +507,20 @@ createIndex = do
     indexName <- identifier
     lexeme "ON"
     tableName <- qualifiedIdentifier
-    optional do
+    indexType <- optional do
         lexeme "USING"
-        lexeme "btree"
+
+        let btree = do symbol' "btree"; pure Btree
+        let gin = do symbol' "gin"; pure Gin
+        let gist = do symbol' "gist"; pure Gist
+
+        btree <|> gin <|> gist
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
-    pure CreateIndex { indexName, unique, tableName, expressions, whereClause }
+    pure CreateIndex { indexName, unique, tableName, expressions, whereClause, indexType }
 
 createFunction = do
     lexeme "CREATE"

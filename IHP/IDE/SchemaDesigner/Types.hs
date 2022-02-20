@@ -31,7 +31,7 @@ data Statement
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
-    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
+    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression, indexType :: Maybe IndexType }
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
@@ -231,4 +231,7 @@ data PolicyAction
     | PolicyForInsert
     | PolicyForUpdate
     | PolicyForDelete
+    deriving (Eq, Show)
+
+data IndexType = Btree | Gin | Gist
     deriving (Eq, Show)
