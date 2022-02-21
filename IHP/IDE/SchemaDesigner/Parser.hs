@@ -187,10 +187,17 @@ parseColumn = do
     defaultValue <- optional do
         lexeme "DEFAULT"
         expression
+    generator <- optional do
+        lexeme "GENERATED"
+        lexeme "ALWAYS"
+        lexeme "AS"
+        generate <- expression
+        stored <- isJust <$> optional (lexeme "STORED")
+        pure ColumnGenerator { generate, stored }
     primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
     notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
     isUnique <- isJust <$> optional (lexeme "UNIQUE")
-    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique })
+    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique, generator })
 
 sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
@@ -221,6 +228,7 @@ sqlType = choice $ map optionalArray
         , inet
         , tsvector
         , trigger
+        , singleChar
         , customType
         ]
             where
@@ -340,6 +348,10 @@ sqlType = choice $ map optionalArray
                                 Just l -> pure (PCharacterN l)
                         _ -> Prelude.fail "Failed to parse CHARACTER VARYING(..) expression"
 
+                singleChar = do
+                    try (symbol "\"char\"")
+                    pure PSingleChar
+
                 serial = do
                     try (symbol' "SERIAL")
                     pure PSerial
@@ -387,6 +399,7 @@ table = [
             , binary "<"  LessThanExpression
             , binary ">="  GreaterThanOrEqualToExpression
             , binary ">"  GreaterThanExpression
+            , binary "||" ConcatenationExpression
 
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
@@ -494,15 +507,20 @@ createIndex = do
     indexName <- identifier
     lexeme "ON"
     tableName <- qualifiedIdentifier
-    optional do
+    indexType <- optional do
         lexeme "USING"
-        lexeme "btree"
+
+        let btree = do symbol' "btree"; pure Btree
+        let gin = do symbol' "gin"; pure Gin
+        let gist = do symbol' "gist"; pure Gist
+
+        btree <|> gin <|> gist
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
-    pure CreateIndex { indexName, unique, tableName, expressions, whereClause }
+    pure CreateIndex { indexName, unique, tableName, expressions, whereClause, indexType }
 
 createFunction = do
     lexeme "CREATE"

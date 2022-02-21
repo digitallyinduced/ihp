@@ -52,6 +52,7 @@ tests = do
                             , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "firstname"
@@ -59,6 +60,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "lastname"
@@ -66,6 +68,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "password_hash"
@@ -73,6 +76,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "email"
@@ -80,6 +84,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "company_id"
@@ -87,6 +92,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "picture_url"
@@ -94,6 +100,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "created_at"
@@ -101,11 +108,44 @@ tests = do
                             , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     }
+
+        it "should parse a CREATE TABLE with a generated column" do
+            let sql = cs [plain|
+                CREATE TABLE products (
+                        ts tsvector GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), 'A') || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
+                );
+            |]
+            parseSql sql `shouldBe` StatementCreateTable CreateTable
+                    { name = "products"
+                    , columns = [
+                        Column
+                            { name = "ts"
+                            , columnType = PTSVector
+                            , defaultValue = Nothing
+                            , notNull = False
+                            , isUnique = False
+                            , generator = Just $ ColumnGenerator
+                                        { generate =
+                                            ConcatenationExpression
+                                                (ConcatenationExpression
+                                                    (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"],TextExpression "A"])
+                                                    (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
+                                                )
+                                                (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
+                                        , stored = True
+                                        }
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    }
+
 
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
@@ -436,7 +476,39 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
+
+        it "should parse a 'CREATE INDEX .. ON .. USING GIN' statement" do
+            parseSql "CREATE INDEX users_index ON users USING GIN (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gin
+                    }
+
+        it "should parse a 'CREATE INDEX .. ON .. USING btree' statement" do
+            parseSql "CREATE INDEX users_index ON users USING btree (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Btree
+                    }
+
+        it "should parse a 'CREATE INDEX .. ON .. USING GIST' statement" do
+            parseSql "CREATE INDEX users_index ON users USING GIST (user_name);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gist
+                    }
+
         it "should parse a CREATE INDEX statement with multiple columns" do
             parseSql "CREATE INDEX users_index ON users (user_name, project_id);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
@@ -444,6 +516,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
@@ -452,6 +525,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
         it "should parse a CREATE UNIQUE INDEX statement" do
             parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
@@ -460,6 +534,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
@@ -499,14 +574,14 @@ $$;
         it "should parse a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
             let statements =
-                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
                     ]
             parseSqlStatements sql `shouldBe` statements
 
         it "should parse a integer default value" do
             let sql = "CREATE TABLE a(electricity_unit_price INT DEFAULT 0 NOT NULL);"
             let statements =
-                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
                     ]
             parseSqlStatements sql `shouldBe` statements
 
@@ -520,6 +595,7 @@ $$;
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
+                    , indexType = Nothing
                     }
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
@@ -542,7 +618,7 @@ $$;
                         )
                     }
         it "should parse 'ALTER TABLE .. ADD COLUMN' statements" do
-            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = Column { name ="b", columnType = PInt, defaultValue = Nothing, notNull = True, isUnique = False}}
+            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = Column { name ="b", columnType = PInt, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing}}
 
         it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
             parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
@@ -590,7 +666,7 @@ $$;
             let sql = cs [plain|
                 CREATE TABLE a(id UUID DEFAULT public.uuid_generate_v4() NOT NULL);
             |]
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
             parseSql sql `shouldBe` statement
 
 
@@ -608,6 +684,7 @@ $$;
                             , defaultValue = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
                             , notNull = False
                             , isUnique = False
+                            , generator = Nothing
                             }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
@@ -629,6 +706,7 @@ $$;
                             , defaultValue = Just (TypeCastExpression (TextExpression "") PBinary)
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
@@ -819,6 +897,7 @@ col = Column
     , defaultValue = Nothing
     , notNull = False
     , isUnique = False
+    , generator = Nothing
     }
 
 parseSql :: Text -> Statement

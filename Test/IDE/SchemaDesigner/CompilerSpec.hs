@@ -47,6 +47,7 @@ tests = do
                             , defaultValue = Just (CallExpression "uuid_generate_v4" [])
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "firstname"
@@ -54,6 +55,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "lastname"
@@ -61,6 +63,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "password_hash"
@@ -68,6 +71,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "email"
@@ -75,6 +79,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "company_id"
@@ -82,6 +87,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "picture_url"
@@ -89,6 +95,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "created_at"
@@ -96,6 +103,7 @@ tests = do
                             , defaultValue = Just (CallExpression "NOW" [])
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -270,6 +278,7 @@ tests = do
                             , defaultValue = Just (TextExpression "example text")
                             , notNull = True
                             , isUnique = False
+                            , generator = Nothing
                             }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
@@ -296,6 +305,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "b"
@@ -303,6 +313,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "c"
@@ -310,6 +321,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
+                            , generator = Nothing
                             }
                         , Column
                             { name = "d"
@@ -317,6 +329,7 @@ tests = do
                             , defaultValue = Nothing
                             , notNull = False
                             , isUnique = False
+                            , generator = Nothing
                             }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
@@ -409,6 +422,43 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+            compileSql [statement] `shouldBe` sql
+        
+        it "should compile a 'CREATE INDEX .. ON .. USING GIN' statement" do
+            let sql = cs [plain|CREATE INDEX users_index ON users USING GIN (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gin
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a 'CREATE INDEX .. ON .. USING BTREE' statement" do
+            let sql = cs [plain|CREATE INDEX users_index ON users USING BTREE (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Btree
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a 'CREATE INDEX .. ON .. USING GIST' statement" do
+            let sql = cs [plain|CREATE INDEX users_index ON users USING GIST (user_name);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = False
+                    , tableName = "users"
+                    , expressions = [VarExpression "user_name"]
+                    , whereClause = Nothing
+                    , indexType = Just Gist
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -420,6 +470,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name", VarExpression "project_id"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -431,6 +482,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [CallExpression "LOWER" [VarExpression "email"]]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -442,6 +494,7 @@ tests = do
                     , tableName = "users"
                     , expressions = [VarExpression "user_name"]
                     , whereClause = Nothing
+                    , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -478,12 +531,12 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a partial index" do
@@ -497,6 +550,7 @@ tests = do
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
+                    , indexType = Nothing
                     }
             compileSql [index] `shouldBe` sql
 
@@ -660,4 +714,37 @@ tests = do
         it "should compile 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL;' statements" do
             let sql = "COMMIT;\n"
             let statements = [ Commit ]
+            compileSql statements `shouldBe` sql
+        it "should compile 'GENERATED' columns" do
+            let sql = [trimming|
+                CREATE TABLE products (
+                    ts TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), ('A'::"char")) || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
+                );
+            |] <> "\n"
+            let statements = [
+                        StatementCreateTable CreateTable
+                            { name = "products"
+                            , columns = [
+                                Column
+                                    { name = "ts"
+                                    , columnType = PTSVector
+                                    , defaultValue = Nothing
+                                    , notNull = False
+                                    , isUnique = False
+                                    , generator = Just $ ColumnGenerator
+                                                { generate =
+                                                    ConcatenationExpression
+                                                        (ConcatenationExpression
+                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"], TypeCastExpression (TextExpression "A") PSingleChar])
+                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
+                                                        )
+                                                        (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
+                                                , stored = True
+                                                }
+                                    }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , constraints = []
+                            }
+                        ]
             compileSql statements `shouldBe` sql

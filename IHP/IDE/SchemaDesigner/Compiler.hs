@@ -32,7 +32,7 @@ compileStatement DropColumn { tableName, columnName } = "ALTER TABLE " <> compil
 compileStatement RenameColumn { tableName, from, to } = "ALTER TABLE " <> compileIdentifier tableName <> " RENAME COLUMN " <> compileIdentifier from <> " TO " <> compileIdentifier to <> ";"
 compileStatement DropTable { tableName } = "DROP TABLE " <> compileIdentifier tableName <> ";"
 compileStatement Comment { content } = "--" <> content
-compileStatement CreateIndex { indexName, unique, tableName, expressions, whereClause } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
+compileStatement CreateIndex { indexName, unique, tableName, expressions, whereClause, indexType } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> (maybe "" (\indexType -> " USING " <> compileIndexType indexType) indexType) <> " (" <> (intercalate ", " (map compileExpression expressions)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
 compileStatement CreateFunction { functionName, functionBody, orReplace, returns, language } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "() RETURNS " <> compilePostgresType returns <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
@@ -74,11 +74,12 @@ compileOnDelete (Just SetDefault) = "ON DELETE SET DEFAULT"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
-compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique } =
+compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique, generator } =
     unwords (catMaybes
         [ Just (compileIdentifier name)
         , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
+        , fmap compileGenerator generator
         , primaryKeyColumnConstraint
         , if notNull then Just "NOT NULL" else Nothing
         , if isUnique then Just "UNIQUE" else Nothing
@@ -114,6 +115,7 @@ compileExpression (TypeCastExpression value type_) = compileExpression value <> 
 compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
 compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
+compileExpression (ConcatenationExpression a b) = compileExpressionWithOptionalParenthese a <> " || " <> compileExpressionWithOptionalParenthese b
 
 compileExpressionWithOptionalParenthese :: Expression -> Text
 compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr
@@ -128,6 +130,7 @@ compileExpressionWithOptionalParenthese expr@(TextExpression {}) = compileExpres
 compileExpressionWithOptionalParenthese expr@(IntExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DoubleExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(ConcatenationExpression a b ) = compileExpression expr
 compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 compareStatement (CreateEnumType {}) _ = LT
@@ -158,6 +161,7 @@ compilePostgresType (PNumeric Nothing _) = "NUMERIC"
 compilePostgresType (PVaryingN (Just limit)) = "CHARACTER VARYING(" <> show limit <> ")"
 compilePostgresType (PVaryingN Nothing) = "CHARACTER VARYING"
 compilePostgresType (PCharacterN length) = "CHARACTER(" <> show length <> ")"
+compilePostgresType PSingleChar = "\"char\""
 compilePostgresType PSerial = "SERIAL"
 compilePostgresType PBigserial = "BIGSERIAL"
 compilePostgresType PJSONB = "JSONB"
@@ -440,3 +444,15 @@ compilePolicyAction PolicyForSelect = "SELECT"
 compilePolicyAction PolicyForInsert = "INSERT"
 compilePolicyAction PolicyForUpdate = "UPDATE"
 compilePolicyAction PolicyForDelete = "DELETE"
+
+compileGenerator :: ColumnGenerator -> Text
+compileGenerator ColumnGenerator { generate, stored } =
+    "GENERATED ALWAYS AS ("
+    <> compileExpressionWithOptionalParenthese generate
+    <> ")"
+    <> (if stored then " STORED" else "")
+
+compileIndexType :: IndexType -> Text
+compileIndexType Gin = "GIN"
+compileIndexType Btree = "BTREE"
+compileIndexType Gist = "GIST"

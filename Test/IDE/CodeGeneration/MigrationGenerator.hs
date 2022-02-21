@@ -865,8 +865,64 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should run not generate a default value for a generated column" do
+                let targetSchema = sql [i|
+                    CREATE TABLE products (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        sku TEXT NOT NULL,
+                        text_search TSVECTOR GENERATED ALWAYS AS 
+                            ( setweight(to_tsvector('english', sku), 'A') ||
+                              setweight(to_tsvector('english', name), 'B') ||
+                              setweight(to_tsvector('english', description), 'C')
+                            ) STORED
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE products (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        sku TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE products ADD COLUMN text_search TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), 'A') || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should normalize generated columns" do
+                let targetSchema = sql [i|
+                    CREATE TABLE products (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        sku TEXT NOT NULL,
+                        text_search TSVECTOR GENERATED ALWAYS AS 
+                            ( setweight(to_tsvector('english', sku), 'A') ||
+                              setweight(to_tsvector('english', name), 'B') ||
+                              setweight(to_tsvector('english', description), 'C')
+                            ) STORED
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE public.products (
+                        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+                        name text NOT NULL,
+                        description text NOT NULL,
+                        sku text NOT NULL,
+                        text_search tsvector GENERATED ALWAYS AS (((setweight(to_tsvector('english'::regconfig, sku), 'A'::"char") || setweight(to_tsvector('english'::regconfig, name), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, description), 'C'::"char"))) STORED
+                    );
+                |]
+                let migration = sql [i|
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
-    Left parsingFailed -> error (tshow parsingFailed)
+    Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
     Right r -> r

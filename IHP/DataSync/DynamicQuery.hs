@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-|
 Module: IHP.DataSync.DynamicQuery
 Description: The normal IHP query functionality is type-safe. This module provides type-unsafe access to the database.
@@ -5,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.DataSync.DynamicQuery where
 
-import IHP.ControllerPrelude
+import IHP.ControllerPrelude hiding (OrderByClause)
 import Data.Aeson
 import qualified Data.HashMap.Strict as HashMap
 import qualified Database.PostgreSQL.Simple as PG
@@ -16,6 +17,8 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified IHP.QueryBuilder as QueryBuilder
 import Data.Aeson.TH
+import qualified GHC.Generics
+import qualified Control.DeepSeq as DeepSeq
 
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
@@ -45,13 +48,25 @@ data DynamicSQLQuery = DynamicSQLQuery
     , offset :: !(Maybe Int)
     } deriving (Show, Eq)
 
+data OrderByClause
+    = OrderByClause
+        { orderByColumn :: !ByteString
+        , orderByDirection :: !OrderByDirection }
+    | OrderByTSRank { tsvector :: Text, tsquery :: !Text }
+    deriving (Show, Eq, GHC.Generics.Generic, DeepSeq.NFData)
+
 -- | Represents a WHERE conditions of a 'DynamicSQLQuery'
 data ConditionExpression
     = ColumnExpression { field :: !Text }
     | NullExpression
     | InfixOperatorExpression { left :: !ConditionExpression, op :: !ConditionOperator, right :: !ConditionExpression }
     | LiteralExpression { value :: !DynamicValue }
+    | CallExpression { functionCall :: !FunctionCall }
     deriving (Show, Eq)
+
+data FunctionCall
+    = ToTSQuery { text :: !Text } -- ^ to_tsquery('english', text)
+    deriving (Show, Eq, GHC.Generics.Generic, DeepSeq.NFData)
 
 -- | Operators available in WHERE conditions
 data ConditionOperator
@@ -65,6 +80,7 @@ data ConditionOperator
     | OpOr -- ^ a OR b
     | OpIs -- ^ a IS b
     | OpIsNot -- ^ a IS NOT b
+    | OpTSMatch -- ^ tsvec_a @@ tsvec_b
     deriving (Show, Eq)
 
 data SelectedColumns
@@ -148,6 +164,7 @@ $(deriveFromJSON defaultOptions 'SelectAll)
 $(deriveFromJSON defaultOptions ''ConditionOperator)
 $(deriveFromJSON defaultOptions ''ConditionExpression)
 $(deriveFromJSON defaultOptions ''DynamicValue)
+$(deriveFromJSON defaultOptions ''FunctionCall)
 
 instance FromJSON DynamicSQLQuery where
     parseJSON = withObject "DynamicSQLQuery" $ \v -> DynamicSQLQuery
@@ -157,3 +174,18 @@ instance FromJSON DynamicSQLQuery where
         <*> v .: "orderByClause"
         <*> v .:? "limit" -- Limit can be absent in older versions of ihp-datasync.js
         <*> v .:? "offset" -- Offset can be absent in older versions of ihp-datasync.js
+
+
+instance FromJSON OrderByClause where
+    parseJSON = withObject "OrderByClause" $ \v -> do
+        let oldFormat = OrderByClause
+                <$> v .: "orderByColumn"
+                <*> v .: "orderByDirection"
+        let tagged = do
+                tag <- v .: "tag"
+                case tag of
+                    "OrderByClause" -> oldFormat
+                    "OrderByTSRank" -> OrderByTSRank <$> v .: "tsvector" <*> v .: "tsquery"
+                    otherwise -> error ("Invalid tag: " <> otherwise)
+        tagged <|> oldFormat
+

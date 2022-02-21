@@ -341,7 +341,7 @@ normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = State
 normalizeStatement AddConstraint { tableName, constraint } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
-normalizeStatement CreateIndex { expressions, .. } = [ CreateIndex { expressions = map normalizeExpression expressions, .. } ]
+normalizeStatement CreateIndex { expressions, indexType, .. } = [ CreateIndex { expressions = map normalizeExpression expressions, indexType = normalizeIndexType indexType, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, .. } ]
 normalizeStatement otherwise = [otherwise]
 
@@ -395,7 +395,7 @@ normalizeConstraint ForeignKeyConstraint { name, columnName, referenceTable, ref
 normalizeConstraint otherwise = otherwise
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
-normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False }, uniqueConstraint)
+normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
     where
         uniqueConstraint =
             if isUnique
@@ -407,9 +407,12 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
 
         normalizedDefaultValue = case defaultValue of
             Just defaultValue -> Just (normalizeExpression defaultValue)
-            Nothing -> if notNull
+            Nothing -> if notNull || isJust generator
                 then Nothing
                 else Just (VarExpression "null") -- pg_dump columns don't have an explicit default null value
+
+normalizeColumnGenerator :: ColumnGenerator -> ColumnGenerator
+normalizeColumnGenerator generator@(ColumnGenerator { generate }) = generator { generate = normalizeExpression generate }
 
 normalizeExpression :: Expression -> Expression
 normalizeExpression e@(TextExpression {}) = e
@@ -427,6 +430,7 @@ normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normali
 normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression e@(DoubleExpression {}) = e
 normalizeExpression e@(IntExpression {}) = e
+normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
 --
@@ -589,3 +593,7 @@ disableTransactionWhileAddingEnumValues statements =
 
         enableIfNotExists statement@(AddValueToEnumType { .. }) = statement { ifNotExists = True }
         enableIfNotExists otherwise = otherwise
+
+normalizeIndexType :: Maybe IndexType -> Maybe IndexType
+normalizeIndexType (Just Btree) = Nothing
+normalizeIndexType indexType = indexType

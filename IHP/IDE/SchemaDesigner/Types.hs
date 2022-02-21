@@ -31,7 +31,7 @@ data Statement
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
-    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression }
+    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression, indexType :: Maybe IndexType }
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
@@ -85,6 +85,7 @@ data Column = Column
     , defaultValue :: Maybe Expression
     , notNull :: Bool
     , isUnique :: Bool
+    , generator :: Maybe ColumnGenerator
     }
     deriving (Eq, Show)
 
@@ -95,6 +96,12 @@ data OnDelete
     | SetDefault
     | Cascade
     deriving (Show, Eq)
+
+data ColumnGenerator
+    = ColumnGenerator
+    { generate :: !Expression
+    , stored :: !Bool
+    } deriving (Show, Eq)
 
 newtype PrimaryKeyConstraint
   = PrimaryKeyConstraint { primaryKeyColumnNames :: [Text] }
@@ -160,6 +167,7 @@ data Expression =
     | TypeCastExpression Expression PostgresType
     | SelectExpression Select
     | DotExpression Expression Text
+    | ConcatenationExpression Expression Expression -- ^ a || b
     deriving (Eq, Show)
 
 data Select = Select
@@ -188,6 +196,7 @@ data PostgresType
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
     | PVaryingN (Maybe Int)
     | PCharacterN Int
+    | PSingleChar
     | PSerial
     | PBigserial
     | PJSONB
@@ -222,4 +231,7 @@ data PolicyAction
     | PolicyForInsert
     | PolicyForUpdate
     | PolicyForDelete
+    deriving (Eq, Show)
+
+data IndexType = Btree | Gin | Gist
     deriving (Eq, Show)
