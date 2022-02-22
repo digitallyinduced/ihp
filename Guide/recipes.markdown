@@ -406,11 +406,9 @@ And then you can style `.hash-target` instead of `:target`:
 
 ## Add current year to the footer
 
-It's common for the footer to show some copyright like `© All Rights Reserved 2022`, where the 2022 - the current year - is computed, and not hardcoded.
+It's common for the footer to show some copyright like `© All Rights Reserved 2022`, where the current year is computed, and not hardcoded.
 
-To go that, we should get the current time, and pass it to our default layout.
-
-We start by getting the current time, and passing it to our default layout in our `FrontController.hs`:
+We achieve that by first getting the current time, and passing it to our default layout in our `FrontController.hs`:
 
 ```haskell
 instance InitControllerContext WebApplication where
@@ -422,7 +420,7 @@ instance InitControllerContext WebApplication where
         initAutoRefresh
 ```
 
-This means that the `defaultLayout` in the file `Layout.hs` will now get the UTCtime as the first argument. Rendering the footer with the copyright could look like this:
+This means that the `defaultLayout` in the file `Layout.hs` will now get the `UTCtime` as its first argument. Rendering the footer with the copyright could look like this:
 
 
 ```hasekll
