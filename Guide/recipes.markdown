@@ -442,6 +442,7 @@ defaultLayout currentTime inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {renderFlashMessages}
         {inner}
     </main>
+
     {footer currentTime}
 </body>
 |]
