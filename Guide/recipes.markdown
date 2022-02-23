@@ -420,10 +420,10 @@ instance InitControllerContext WebApplication where
         initAutoRefresh
 ```
 
-This means that the `defaultLayout` in the file `Layout.hs` will now get the `UTCtime` as its first argument. Rendering the footer with the copyright could look like this:
+This means that the `defaultLayout` in the file `Layout.hs` will now get the `UTCTime` as its first argument. Rendering the footer with the copyright could look like this:
 
 
-```hasekll
+```haskell
 defaultLayout :: UTCTime -> Html -> Html
 defaultLayout currentTime inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
