@@ -363,7 +363,7 @@ case post of
    Just post -> render ShowView { .. }
 ```
 
-## How to highlight the targeted element
+## Highlight the targeted element
 
 Let's say you have a page with comments, and you link to them with `<a href="#comment-<comment ID>">`.
 
@@ -400,6 +400,53 @@ And then you can style `.hash-target` instead of `:target`:
 }
 ```
 
-## How to integrate a rich text editor
+## Integrate a rich text editor
 
 * Tiptap (a ProseMirror based editor), as used in [windofchange.me](https://windofchange.me): <https://gist.github.com/neongreen/7dbdddae3af0c476340e0dc175552fad>
+
+## Add current year to the footer
+
+It's common for the footer to show some copyright like `© All Rights Reserved 2022`, where the current year is computed, and not hardcoded.
+
+We achieve that by first getting the current time, and passing it to our default layout in our `FrontController.hs`:
+
+```haskell
+instance InitControllerContext WebApplication where
+    initContext = do
+        -- Get the current time.
+        currentTime <- getCurrentTime
+        -- Pass it to the default layout.
+        setLayout (defaultLayout currentTime)
+        initAutoRefresh
+```
+
+This means that the `defaultLayout` in the file `Layout.hs` will now get the `UTCTime` as its first argument. Rendering the footer with the copyright could look like this:
+
+
+```haskell
+defaultLayout :: UTCTime -> Html -> Html
+defaultLayout currentTime inner = H.docTypeHtml ! A.lang "en" $ [hsx|
+<head>
+    {metaTags}
+
+    {stylesheets}
+    {scripts}
+
+    <title>{pageTitleOrDefault "App"}</title>
+</head>
+<body>
+    {header}
+    <main>
+        {renderFlashMessages}
+        {inner}
+    </main>
+
+    {footer currentTime}
+</body>
+|]
+
+footer :: UTCTime -> Html
+footer currentTime = [hsx|
+    © All Rights Reserved {formatTime defaultTimeLocale "%Y" currentTime}</footer>
+|]
+```
