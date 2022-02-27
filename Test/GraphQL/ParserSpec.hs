@@ -56,6 +56,20 @@ tests = do
                         ]
                     }
 
+        it "should parse a multi selection with an alias" do
+            parseGQL "{ users { id } tasks { id } }"  `shouldBe` Document
+                    { definitions =
+                        [ ExecutableDefinition
+                            { operation = OperationDefinition { selectionSet = [
+                                (field "users") { selectionSet = [ field "id" ] },
+                                (field "tasks") { selectionSet = [ field "id" ] }
+                            ] }
+                            , fragment = FragmentDefinition
+                            }
+                        ]
+                    }
+
+
         describe "parseName" do
             it "should accept letters" do
                 runParser Parser.parseName "id" `shouldBe` "id"

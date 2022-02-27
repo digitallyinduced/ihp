@@ -12,10 +12,16 @@ data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 data QueryPart = QueryPart { sql :: PG.Query, params :: [PG.Action] }
 
 compileDocument :: Document -> (PG.Query, [PG.Action])
-compileDocument Document { definitions } = unpackQueryPart $ "SELECT json_agg(_root.data) FROM (" <> unionAll (map compileDefinition definitions) <> ") AS _root"
+compileDocument Document { definitions = [definition] } = unpackQueryPart $ "SELECT json_agg(_root.data) FROM (" <> compileDefinition definition <> ") AS _root"
 
 compileDefinition :: Definition -> QueryPart
-compileDefinition ExecutableDefinition { operation = OperationDefinition { selectionSet = [field@(Field { alias, name = fieldName }) ] } } =
+compileDefinition ExecutableDefinition { operation = OperationDefinition { selectionSet } } =
+    selectionSet
+    |> map compileSelection
+    |> unionAll
+
+compileSelection :: Selection -> QueryPart
+compileSelection field@(Field { alias, name = fieldName }) = 
         ("(SELECT json_build_object(?, json_agg(?.*)) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
         <> selectQueryPieces
         <> (" FROM ?) AS ?)" |> withParams [ PG.toField (PG.Identifier fieldName), PG.toField (PG.Identifier subqueryId) ])

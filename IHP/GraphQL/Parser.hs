@@ -28,6 +28,7 @@ parseSelectionSet = (do
     selectionSet <- many1 parseSelection
     skipSpace
     char '}'
+    skipSpace
     pure selectionSet) <?> "selectionSet"
 
 parseSelection :: Parser Selection
