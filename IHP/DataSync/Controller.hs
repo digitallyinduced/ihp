@@ -5,6 +5,7 @@ import IHP.ControllerPrelude hiding (OrderByClause)
 import qualified Control.Exception as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encoding.Internal as Aeson
 
 import Data.Aeson.TH
 import Data.Aeson
@@ -21,11 +22,17 @@ import IHP.DataSync.DynamicQueryCompiler
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Builder as ByteString
 import qualified IHP.PGListener as PGListener
 import IHP.ApplicationContext
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Pool as Pool
+
+import qualified IHP.GraphQL.Types as GraphQL
+import qualified IHP.GraphQL.Parser as GraphQL
+import qualified IHP.GraphQL.Compiler as GraphQL
+import qualified Data.Attoparsec.Text as Attoparsec
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -54,6 +61,17 @@ instance (
                 result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
 
                 sendJSON DataSyncResult { result, requestId }
+            
+            handleMessage GraphQLRequest { gql, requestId, transactionId } = do
+                let document = case Attoparsec.parseOnly GraphQL.parseDocument gql of
+                        Left parserError -> error (cs $ tshow parserError)
+                        Right statements -> statements
+
+                let (theQuery, theParams) = GraphQL.compileDocument document
+
+                [PG.Only graphQLResult] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
+
+                sendJSON GraphQLResult { graphQLResult, requestId }
             
             handleMessage CreateDataSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
@@ -436,6 +454,16 @@ sqlExecWithRLSAndTransactionId transactionId theQuery theParams = runInModelCont
 
 $(deriveFromJSON defaultOptions 'DataSyncQuery)
 $(deriveToJSON defaultOptions 'DataSyncResult)
+
+instance ToJSON GraphQLResult where
+    toJSON GraphQLResult { requestId, graphQLResult = (UndecodedJSON json) } = object [ "tag" .= ("GraphQLResult" :: Text), "requestId" .= requestId, "graphQLResult" .= ("" :: Text) ]
+    toEncoding GraphQLResult { requestId, graphQLResult = (UndecodedJSON json) } = Aeson.econcat
+        [ Aeson.unsafeToEncoding "{\"tag\":\"GraphQLResult\",\"requestId\":"
+        , Aeson.int requestId
+        , Aeson.unsafeToEncoding ",\"graphQLResult\":"
+        , Aeson.unsafeToEncoding (ByteString.byteString json)
+        , Aeson.unsafeToEncoding "}"
+        ]
 
 instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }

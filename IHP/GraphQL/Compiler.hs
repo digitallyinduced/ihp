@@ -12,7 +12,7 @@ data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 data QueryPart = QueryPart { sql :: PG.Query, params :: [PG.Action] }
 
 compileDocument :: Document -> (PG.Query, [PG.Action])
-compileDocument Document { definitions = [definition] } = unpackQueryPart $ "SELECT json_agg(_root.data) FROM (" <> compileDefinition definition <> ") AS _root"
+compileDocument Document { definitions = [definition] } = unpackQueryPart $ "SELECT json_agg(_root.data) AS data FROM (" <> compileDefinition definition <> ") AS _root"
 
 compileDefinition :: Definition -> QueryPart
 compileDefinition ExecutableDefinition { operation = OperationDefinition { selectionSet } } =
