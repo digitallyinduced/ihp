@@ -32,10 +32,23 @@ parseSelectionSet = (do
 
 parseSelection :: Parser Selection
 parseSelection = (do
-    name <- parseName
+    nameOrAlias <- parseName
+    skipSpace
+    name' <- option Nothing do
+        char ':'
+        skipSpace
+        Just <$> parseName
+
+    let alias = case name' of
+            Just _ -> Just nameOrAlias
+            Nothing -> Nothing
+    let name = case name' of
+            Just name -> name
+            Nothing -> nameOrAlias
+
     skipSpace
     selectionSet <- option [] parseSelectionSet
-    pure Field { alias = Nothing, name, arguments = [], directives = [], selectionSet }
+    pure Field { alias, name, arguments = [], directives = [], selectionSet }
     ) <?> "selection"
 
 parseName :: Parser Text

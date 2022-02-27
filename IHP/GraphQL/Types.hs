@@ -26,3 +26,4 @@ type Directives = [Text]
 
 data FragmentDefinition = FragmentDefinition
     deriving (Eq, Show)
+
