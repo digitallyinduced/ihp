@@ -51,12 +51,20 @@ compileSelection field@(Field { alias, name = fieldName }) =
         compileField Field { alias = Nothing, name    } = "?" |> withParams [ PG.toField (PG.Identifier name) ]
 
 compileMutationSelection :: [Argument] -> Selection -> QueryPart
-compileMutationSelection queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) =
-        case Text.stripPrefix "create" fieldName of
-            Just modelName -> compileSelectionToInsertStatement queryArguments field modelName
-            Nothing -> case Text.stripPrefix "delete" fieldName of
-                Just modelName -> compileSelectionToDeleteStatement queryArguments field modelName
-                Nothing -> error ("Invalid mutation: " <> tshow fieldName)
+compileMutationSelection queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) = fromMaybe (error ("Invalid mutation: " <> tshow fieldName)) do
+        let create = do
+                modelName <- Text.stripPrefix "create" fieldName
+                pure $ compileSelectionToInsertStatement queryArguments field modelName
+
+        let delete = do
+                modelName <- Text.stripPrefix "delete" fieldName
+                pure $ compileSelectionToDeleteStatement queryArguments field modelName
+        
+        let update = do
+                modelName <- Text.stripPrefix "update" fieldName
+                pure $ compileSelectionToUpdateStatement queryArguments field modelName
+
+        create <|> delete <|> update
 
 -- | Turns a @create..@ mutation into a INSERT SQL query
 --
@@ -108,6 +116,59 @@ compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fi
                 |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
                 |> commaSep
 
+-- | Turns a @update..@ mutation into a UPDATE SQL query
+--
+-- Input GraphQL document:
+--
+-- > mutation UpdateProject($projectId: ProjectId, patch: $patch) {
+-- >     updateProject(id: $projectId, patch: $patch) {
+-- >         id title
+-- >     }
+-- > }
+--
+-- Input Arguments:
+--
+-- > projectId = "df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1"
+-- > project =
+-- >     { title: "Hello World"
+-- >     , userId: "dc984c2f-d91c-4143-9091-400ad2333f83"
+-- >     }
+--
+-- Output SQL Query:
+--
+-- > UPDATE projects
+-- >     SET title = 'Hello World', user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83'
+-- >     WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1'
+-- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
+--
+compileSelectionToUpdateStatement :: [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToUpdateStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
+        ("UPDATE ? SET " |> withParams [PG.toField $ PG.Identifier tableName]) <> commaSep setValues <> where_ <> " RETURNING " <> returning
+    where
+        tableName = modelNameToTableName modelName
+
+        where_ = " WHERE id = ?" |> withParams [recordId]
+
+        recordId = case headMay arguments of
+            Just Argument { argumentValue } -> valueToSQL (resolveVariables argumentValue queryArguments)
+            Nothing -> error $ "Expected first argument to " <> fieldName <> " to be an ID, got no arguments"
+
+        patch :: HashMap.HashMap Text Value
+        patch = case headMay <$> tail arguments of
+            Just (Just (Argument { argumentValue })) -> case resolveVariables argumentValue queryArguments of
+                    ObjectValue hashMap -> hashMap
+                    otherwise -> error $ "Expected second argument to " <> fieldName <> " to be an object, got: " <> tshow otherwise
+            _ -> error $ "Expected first argument to " <> fieldName <> " to be an object, got no arguments"
+        
+        setValues = patch
+                |> HashMap.toList
+                |> map (\(fieldName, value) -> ("? = ?" |> withParams [PG.toField (PG.Identifier (fieldNameToColumnName fieldName)), valueToSQL value]))
+
+        returning :: QueryPart
+        returning = "json_build_object(" <> returningArgs <> ")"
+        returningArgs = selectionSet
+                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
+                |> commaSep
 
 -- | Turns a @delete..@ mutation into a DELETE SQL query
 --

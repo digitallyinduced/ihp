@@ -68,6 +68,29 @@ tests = do
             compileGQL mutation arguments `shouldBe` [trimming|
                  DELETE FROM projects WHERE id = 'dc984c2f-d91c-4143-9091-400ad2333f83' RETURNING json_build_object('id', projects.id, 'title', projects.title)
             |]
+        it "should compile a update mutation" do
+            let mutation = [trimming|
+                mutation UpdateProject($$projectId: ProjectId, $$patch: ProjectPatch) {
+                    updateProject(id: $$projectId, set: $$patch) {
+                        id title
+                    }
+                }
+            |]
+            let arguments = [
+                    Argument
+                        { argumentName = "patch"
+                        , argumentValue = parseValue [trimming|
+                            { title: "Hello World"
+                            , userId: "dc984c2f-d91c-4143-9091-400ad2333f83"
+                            }
+                        |] }
+                    , Argument
+                        { argumentName = "projectId"
+                        , argumentValue = parseValue [trimming|"df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1"|] }
+                    ]
+            compileGQL mutation arguments `shouldBe` [trimming|
+                 UPDATE projects SET user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83', title = 'Hello World' WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1' RETURNING json_build_object('id', projects.id, 'title', projects.title)
+            |]
 
 compileGQL gql arguments = gql
         |> parseGQL

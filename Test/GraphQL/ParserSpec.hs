@@ -111,6 +111,32 @@ tests = do
                         ]
                     }
 
+        it "should parse a unnamed mutation" do
+            let query = [trimming|
+                mutation ($$project: Project) {
+                    createProject(project: $$project) {
+                        id title
+                    }
+                }
+            |]
+            parseGQL query  `shouldBe` Document
+                    { definitions =
+                        [ ExecutableDefinition
+                            { operation = OperationDefinition
+                                { operationType = Mutation
+                                , name = Nothing
+                                , variableDefinitions = [VariableDefinition { variableName = "project", variableType = "Project" }]
+                                , selectionSet = [
+                                    (field "createProject")
+                                        { arguments = [Argument { argumentName = "project", argumentValue = Variable "project" }]
+                                        , selectionSet = [ field "id", field "title" ]
+                                        }
+                                ] }
+                            , fragment = FragmentDefinition
+                            }
+                        ]
+                    }
+
         describe "parseName" do
             it "should accept letters" do
                 runParser Parser.parseName "id" `shouldBe` "id"

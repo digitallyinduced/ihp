@@ -26,10 +26,10 @@ executableDefinition = do
     (operationType,  name, variableDefinitions) <- option (Query, Nothing, []) do
         operationType <- (query <|> mutation <|> subscription) <?> "OperationType"
         skipSpace
-        name <- parseName
+        name <- option Nothing (Just <$> parseName)
         skipSpace
         variableDefinitions <- option [] parseVariableDefinitions
-        pure (operationType, Just name, variableDefinitions)
+        pure (operationType, name, variableDefinitions)
 
     selectionSet <- parseSelectionSet
     pure ExecutableDefinition { operation = OperationDefinition { operationType, name, selectionSet, variableDefinitions }, fragment = FragmentDefinition }
@@ -38,7 +38,7 @@ parseVariableDefinitions :: Parser [VariableDefinition]
 parseVariableDefinitions = do
     char '('
     skipSpace
-    variableDefinitions <- many1 parseVariableDefinition
+    variableDefinitions <- parseVariableDefinition `sepBy` (char ',' >> skipSpace)
     skipSpace
     char ')'
     skipSpace
@@ -91,7 +91,8 @@ parseArguments :: Parser [Argument]
 parseArguments = do
     char '('
     skipSpace
-    arguments <- many1 parseArgument
+    arguments <- parseArgument `sepBy` (char ',' >> skipSpace)
+    skipSpace
     char ')'
     skipSpace
     pure arguments
