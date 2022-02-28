@@ -9,6 +9,7 @@ import IHP.Prelude
 import IHP.GraphQL.Types
 import qualified Data.Text as Text
 import Data.Attoparsec.Text
+import qualified Data.HashMap.Strict as HashMap
 
 parseDocument :: Parser Document
 parseDocument = Document <$> many1 parseDefinition
@@ -107,7 +108,25 @@ parseArgument = do
 parseValue :: Parser Value
 parseValue = do
     let variable = Variable <$> parseVariableName
-    variable
+    let object = do
+            char '{'
+            skipSpace
+            values <- parseArgument `sepBy` (char ',' >> skipSpace)
+            skipSpace
+            char '}'
+            skipSpace
+
+            let hashMap :: HashMap.HashMap Text Value = values
+                    |> map (\Argument { argumentName, argumentValue } -> (argumentName, argumentValue))
+                    |> HashMap.fromList
+            pure (ObjectValue hashMap)
+    let string = do
+            char '"'
+            body <- takeTill (== '\"')
+            char '"'
+            skipSpace
+            pure (StringValue body)
+    (variable <?> "Variable") <|> (object <?> "Object") <|> (string <?> "String")
 
 parseName :: Parser Text
 parseName = takeWhile1 isNameChar <?> "Name"

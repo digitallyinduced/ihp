@@ -67,7 +67,7 @@ instance (
                         Left parserError -> error (cs $ tshow parserError)
                         Right statements -> statements
 
-                let (theQuery, theParams) = GraphQL.compileDocument document
+                let [(theQuery, theParams)] = GraphQL.compileDocument [] document
 
                 [PG.Only graphQLResult] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
 

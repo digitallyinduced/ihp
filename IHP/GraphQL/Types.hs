@@ -1,6 +1,7 @@
 module IHP.GraphQL.Types where
 
 import IHP.Prelude
+import qualified Data.HashMap.Strict as HashMap
 
 -- https://spec.graphql.org/June2018/#sec-Appendix-Grammar-Summary.Document
 
@@ -63,5 +64,5 @@ data Value
     | NullValue
     | EnumValue
     | ListValue
-    | ObjectValue
+    | ObjectValue (HashMap.HashMap Text Value)
     deriving (Eq, Show)

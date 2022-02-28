@@ -120,6 +120,9 @@ field name = Field { alias = Nothing, name, arguments = [], directives = [], sel
 parseGQL :: Text -> Document
 parseGQL gql = runParser Parser.parseDocument gql
 
+parseValue :: Text -> Value
+parseValue expression = runParser Parser.parseValue expression
+
 runParser parser text =
     case Attoparsec.parseOnly parser text of
             Left parserError -> error (cs $ tshow parserError)
