@@ -30,7 +30,7 @@ compileDefinition ExecutableDefinition { operation = OperationDefinition { opera
 compileMutationDefinition :: Definition -> [Argument] -> [QueryPart]
 compileMutationDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Mutation, selectionSet } } arguments =
     selectionSet
-    |> map (compileSelectionToInsertStatement arguments)
+    |> map (compileMutationSelection arguments)
 
 compileSelection :: Selection -> QueryPart
 compileSelection field@(Field { alias, name = fieldName }) = 
@@ -50,6 +50,14 @@ compileSelection field@(Field { alias, name = fieldName }) =
         compileField Field { alias = Just alias, name } = "? AS ?" |> withParams [ PG.toField (PG.Identifier name), PG.toField (PG.Identifier alias) ]
         compileField Field { alias = Nothing, name    } = "?" |> withParams [ PG.toField (PG.Identifier name) ]
 
+compileMutationSelection :: [Argument] -> Selection -> QueryPart
+compileMutationSelection queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) =
+        case Text.stripPrefix "create" fieldName of
+            Just modelName -> compileSelectionToInsertStatement queryArguments field modelName
+            Nothing -> case Text.stripPrefix "delete" fieldName of
+                Just modelName -> compileSelectionToDeleteStatement queryArguments field modelName
+                Nothing -> error ("Invalid mutation: " <> tshow fieldName)
+
 -- | Turns a @create..@ mutation into a INSERT SQL query
 --
 -- Input GraphQL document:
@@ -62,9 +70,10 @@ compileSelection field@(Field { alias, name = fieldName }) =
 --
 -- Input Arguments:
 --
--- > { title: "Hello World"
--- > , userId: "dc984c2f-d91c-4143-9091-400ad2333f83"
--- > }
+-- > project =
+-- >     { title: "Hello World"
+-- >     , userId: "dc984c2f-d91c-4143-9091-400ad2333f83"
+-- >     }
 --
 -- Output SQL Query:
 --
@@ -72,11 +81,10 @@ compileSelection field@(Field { alias, name = fieldName }) =
 -- >     VALUES ('dc984c2f-d91c-4143-9091-400ad2333f83', 'Hello World')
 -- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
 --
-compileSelectionToInsertStatement :: [Argument] -> Selection -> QueryPart
-compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) =
+compileSelectionToInsertStatement :: [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
         ("INSERT INTO ? (" |> withParams [PG.toField $ PG.Identifier tableName]) <> commaSep columns <> ") VALUES (" <> commaSep values <> ") RETURNING " <> returning
     where
-        (Just modelName) = Text.stripPrefix "create" fieldName
         tableName = modelNameToTableName modelName
 
         newRecord :: HashMap.HashMap Text Value
@@ -93,16 +101,54 @@ compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fi
                         ("?" |> withParams [valueToSQL value])
                     ))
                 |> unzip
-        
-        valueToSQL :: Value -> PG.Action
-        valueToSQL (IntValue int) = PG.toField int
-        valueToSQL (StringValue string) = PG.toField string
 
         returning :: QueryPart
         returning = "json_build_object(" <> returningArgs <> ")"
         returningArgs = selectionSet
                 |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
                 |> commaSep
+
+
+-- | Turns a @delete..@ mutation into a DELETE SQL query
+--
+-- Input GraphQL document:
+--
+-- > mutation DeleteProject($$projectId: ProjectId) {
+-- >     deleteProject(id: $$project) {
+-- >         id title
+-- >     }
+-- > }
+--
+-- Input Arguments:
+--
+-- > projectId = "dc984c2f-d91c-4143-9091-400ad2333f83"
+--
+-- Output SQL Query:
+--
+-- > DELETE FROM projects
+-- >     WHERE project_id = 'dc984c2f-d91c-4143-9091-400ad2333f83'
+-- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
+--
+compileSelectionToDeleteStatement :: [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToDeleteStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
+        ("DELETE FROM ? WHERE id = ?" |> withParams [PG.toField $ PG.Identifier tableName, recordId]) <> " RETURNING " <> returning
+    where
+        tableName = modelNameToTableName modelName
+
+        recordId = case headMay arguments of
+            Just (Argument { argumentValue }) -> valueToSQL (resolveVariables argumentValue queryArguments)
+            Nothing -> error $ "Expected first argument to " <> fieldName <> " to be an ID, got no arguments"
+        
+        returning :: QueryPart
+        returning = "json_build_object(" <> returningArgs <> ")"
+        returningArgs = selectionSet
+                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
+                |> commaSep
+
+valueToSQL :: Value -> PG.Action
+valueToSQL (IntValue int) = PG.toField int
+valueToSQL (StringValue string) = PG.toField string
+
 
 resolveVariables :: Value -> [Argument] -> Value
 resolveVariables (Variable varName) arguments =

@@ -30,7 +30,7 @@ tests = do
             compileGQL "{ users { id } tasks { id title } }" [] `shouldBe` [trimming|
                  SELECT json_agg(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT id FROM users) AS _users) UNION ALL (SELECT json_build_object('tasks', json_agg(_tasks.*)) AS data FROM (SELECT id, title FROM tasks) AS _tasks)) AS _root
             |]
-        it "should compile a mutation" do
+        it "should compile a create mutation" do
             let mutation = [trimming|
                 mutation CreateProject($$project: Project) {
                     createProject(project: $$project) {
@@ -49,6 +49,24 @@ tests = do
                     ]
             compileGQL mutation arguments `shouldBe` [trimming|
                  INSERT INTO projects (user_id, title) VALUES ('dc984c2f-d91c-4143-9091-400ad2333f83', 'Hello World') RETURNING json_build_object('id', projects.id, 'title', projects.title)
+            |]
+        it "should compile a delete mutation" do
+            let mutation = [trimming|
+                mutation DeleteProject($$projectId: ProjectId) {
+                    deleteProject(id: $$projectId) {
+                        id title
+                    }
+                }
+            |]
+            let arguments = [
+                    Argument
+                        { argumentName = "projectId"
+                        , argumentValue = parseValue [trimming|
+                            "dc984c2f-d91c-4143-9091-400ad2333f83"
+                        |] }
+                    ]
+            compileGQL mutation arguments `shouldBe` [trimming|
+                 DELETE FROM projects WHERE id = 'dc984c2f-d91c-4143-9091-400ad2333f83' RETURNING json_build_object('id', projects.id, 'title', projects.title)
             |]
 
 compileGQL gql arguments = gql
