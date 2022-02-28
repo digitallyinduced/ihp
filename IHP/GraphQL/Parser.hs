@@ -18,8 +18,39 @@ parseDefinition = executableDefinition
 
 executableDefinition :: Parser Definition
 executableDefinition = do
+    let query = string "query" >> pure Query
+    let mutation = string "mutation" >> pure Mutation
+    let subscription = string "subscription" >> pure Subscription
+
+    (operationType,  name, variableDefinitions) <- option (Query, Nothing, []) do
+        operationType <- (query <|> mutation <|> subscription) <?> "OperationType"
+        skipSpace
+        name <- parseName
+        skipSpace
+        variableDefinitions <- option [] parseVariableDefinitions
+        pure (operationType, Just name, variableDefinitions)
+
     selectionSet <- parseSelectionSet
-    pure ExecutableDefinition { operation = OperationDefinition { selectionSet }, fragment = FragmentDefinition }
+    pure ExecutableDefinition { operation = OperationDefinition { operationType, name, selectionSet, variableDefinitions }, fragment = FragmentDefinition }
+
+parseVariableDefinitions :: Parser [VariableDefinition]
+parseVariableDefinitions = do
+    char '('
+    skipSpace
+    variableDefinitions <- many1 parseVariableDefinition
+    skipSpace
+    char ')'
+    skipSpace
+    pure variableDefinitions
+
+parseVariableDefinition :: Parser VariableDefinition
+parseVariableDefinition = do
+    variableName <- parseVariableName
+    skipSpace
+    char ':'
+    skipSpace
+    variableType <- parseName
+    pure VariableDefinition { variableName, variableType }
 
 parseSelectionSet :: Parser [Selection]
 parseSelectionSet = (do
@@ -48,12 +79,41 @@ parseSelection = (do
             Nothing -> nameOrAlias
 
     skipSpace
+
+    arguments <- option [] parseArguments
+
     selectionSet <- option [] parseSelectionSet
-    pure Field { alias, name, arguments = [], directives = [], selectionSet }
+    pure Field { alias, name, arguments, directives = [], selectionSet }
     ) <?> "selection"
+
+parseArguments :: Parser [Argument]
+parseArguments = do
+    char '('
+    skipSpace
+    arguments <- many1 parseArgument
+    char ')'
+    skipSpace
+    pure arguments
+
+parseArgument :: Parser Argument
+parseArgument = do
+    argumentName <- parseName
+    skipSpace
+    char ':'
+    skipSpace
+    argumentValue <- parseValue
+    pure Argument { argumentName, argumentValue }
+
+parseValue :: Parser Value
+parseValue = do
+    let variable = Variable <$> parseVariableName
+    variable
 
 parseName :: Parser Text
 parseName = takeWhile1 isNameChar <?> "Name"
     where
         isNameChar :: Char -> Bool
         isNameChar !char = (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || (char == '_') || (char >= '0' && char <= '9')
+
+parseVariableName :: Parser Text
+parseVariableName = (char '$' >> parseName) <?> "Variable"

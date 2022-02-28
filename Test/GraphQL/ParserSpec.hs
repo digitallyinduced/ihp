@@ -16,9 +16,13 @@ tests = do
             parseGQL "{ user }"  `shouldBe` Document
                     { definitions =
                         [ ExecutableDefinition
-                            { operation = OperationDefinition { selectionSet = [
-                                Field { alias = Nothing, name = "user", arguments = [], directives = [], selectionSet = [] }
-                            ] }
+                            { operation = OperationDefinition
+                                { operationType = Query
+                                , name = Nothing
+                                , variableDefinitions = []
+                                , selectionSet = [
+                                    Field { alias = Nothing, name = "user", arguments = [], directives = [], selectionSet = [] }
+                                ] }
                             , fragment = FragmentDefinition
                             }
                         ]
@@ -28,15 +32,19 @@ tests = do
             parseGQL "{ user { tasks { id name createdAt } } }"  `shouldBe` Document
                     { definitions =
                         [ ExecutableDefinition
-                            { operation = OperationDefinition { selectionSet = [
-                                (field "user") { selectionSet = [
-                                    (field "tasks") { selectionSet =
-                                    [ field "id"
-                                    , field "name"
-                                    , field "createdAt"
+                            { operation = OperationDefinition
+                                { operationType = Query
+                                , name = Nothing
+                                , variableDefinitions = []
+                                , selectionSet = [
+                                    (field "user") { selectionSet = [
+                                        (field "tasks") { selectionSet =
+                                        [ field "id"
+                                        , field "name"
+                                        , field "createdAt"
+                                        ] }
                                     ] }
                                 ] }
-                            ] }
                             , fragment = FragmentDefinition
                             }
                         ]
@@ -46,11 +54,15 @@ tests = do
             parseGQL "{ user { userId: id } }"  `shouldBe` Document
                     { definitions =
                         [ ExecutableDefinition
-                            { operation = OperationDefinition { selectionSet = [
-                                Field { alias = Nothing, name = "user", arguments = [], directives = [], selectionSet = [
-                                    (field "id") { alias = "userId" }
+                            { operation = OperationDefinition
+                                { operationType = Query
+                                , name = Nothing
+                                , variableDefinitions = []
+                                , selectionSet = [
+                                    Field { alias = Nothing, name = "user", arguments = [], directives = [], selectionSet = [
+                                        (field "id") { alias = "userId" }
+                                    ] }
                                 ] }
-                            ] }
                             , fragment = FragmentDefinition
                             }
                         ]
@@ -60,15 +72,44 @@ tests = do
             parseGQL "{ users { id } tasks { id } }"  `shouldBe` Document
                     { definitions =
                         [ ExecutableDefinition
-                            { operation = OperationDefinition { selectionSet = [
-                                (field "users") { selectionSet = [ field "id" ] },
-                                (field "tasks") { selectionSet = [ field "id" ] }
-                            ] }
+                            { operation = OperationDefinition
+                                { operationType = Query
+                                , name = Nothing
+                                , variableDefinitions = []
+                                , selectionSet = [
+                                    (field "users") { selectionSet = [ field "id" ] },
+                                    (field "tasks") { selectionSet = [ field "id" ] }
+                                ] }
                             , fragment = FragmentDefinition
                             }
                         ]
                     }
 
+        it "should parse a mutation" do
+            let query = [trimming|
+                mutation CreateProject($$project: Project) {
+                    createProject(project: $$project) {
+                        id title
+                    }
+                }
+            |]
+            parseGQL query  `shouldBe` Document
+                    { definitions =
+                        [ ExecutableDefinition
+                            { operation = OperationDefinition
+                                { operationType = Mutation
+                                , name = "CreateProject"
+                                , variableDefinitions = [VariableDefinition { variableName = "project", variableType = "Project" }]
+                                , selectionSet = [
+                                    (field "createProject")
+                                        { arguments = [Argument { argumentName = "project", argumentValue = Variable "project" }]
+                                        , selectionSet = [ field "id", field "title" ]
+                                        }
+                                ] }
+                            , fragment = FragmentDefinition
+                            }
+                        ]
+                    }
 
         describe "parseName" do
             it "should accept letters" do
