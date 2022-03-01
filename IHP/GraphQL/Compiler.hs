@@ -17,7 +17,7 @@ compileDocument :: [Argument] -> Document -> [(PG.Query, [PG.Action])]
 compileDocument arguments Document { definitions = [definition] } = 
     case definition of
         ExecutableDefinition { operation = OperationDefinition { operationType = Query } } ->
-            [ unpackQueryPart ("SELECT json_agg(_root.data) FROM (" <> compileDefinition definition arguments <> ") AS _root") ]
+            [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition definition arguments <> ") AS _root") ]
         ExecutableDefinition { operation = OperationDefinition { operationType = Mutation } } ->
             map unpackQueryPart $ compileMutationDefinition definition arguments
 
@@ -35,8 +35,9 @@ compileMutationDefinition ExecutableDefinition { operation = OperationDefinition
 compileSelection :: [Argument] -> Selection -> QueryPart
 compileSelection variables field@(Field { alias, name = fieldName, arguments }) = 
         ("(SELECT json_build_object(?, json_agg(?.*)) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
-        <> selectQueryPieces
+        <> selectQueryPieces (PG.toField (PG.Identifier tableName)) field
         <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
+        <> joins
         <> where_
         <> (") AS ?)" |> withParams [ PG.toField (PG.Identifier subqueryId) ])
     where
@@ -57,14 +58,57 @@ compileSelection variables field@(Field { alias, name = fieldName, arguments }) 
                 [Argument { argumentName = "id", argumentValue }] -> Just argumentValue
                 _ -> Nothing
 
-        selectQueryPieces = field
-                |> get #selectionSet
-                |> map compileField
-                |> commaSep
 
+        isJoinField :: Selection -> Bool
+        isJoinField Field { selectionSet } = not (null selectionSet)
+
+        joins :: QueryPart
+        joins = field
+                |> get #selectionSet
+                |> filter isJoinField
+                |> map (fieldToJoin tableName)
+                |> \case
+                    [] -> ""
+                    joins -> " " <> spaceSep joins
+
+
+selectQueryPieces tableName field = field
+        |> get #selectionSet
+        |> map compileField
+        |> commaSep
+    where
+        qualified field = if isEmpty (get #selectionSet field)
+                then "?." |> withParams [tableName]
+                else ""
         compileField :: Selection -> QueryPart
-        compileField Field { alias = Just alias, name } = "? AS ?" |> withParams [ PG.toField (PG.Identifier name), PG.toField (PG.Identifier alias) ]
-        compileField Field { alias = Nothing, name    } = "?" |> withParams [ PG.toField (PG.Identifier name) ]
+        compileField field@(Field { alias = Just alias, name }) = qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier name), PG.toField (PG.Identifier alias) ]
+        compileField field@(Field { alias = Nothing, name    }) = qualified field <> "?" |> withParams [ PG.toField (PG.Identifier name) ]
+
+fieldToJoin :: Text -> Selection -> QueryPart
+fieldToJoin rootTableName field@(Field { name }) =
+        "LEFT JOIN LATERAL ("
+            <> "SELECT ARRAY("
+                <> "SELECT to_json(_sub) FROM ("
+                    <> "SELECT "
+                    <> selectQueryPieces foreignTable field
+                    <> (" FROM ?" |> withParams [foreignTable])
+                    <> (" WHERE ?.? = ?.?" |> withParams [foreignTable, foreignTableForeignKey, rootTable, rootTablePrimaryKey])
+                <> ") AS _sub"
+            <> (") AS ?" |> withParams [aliasOrName])
+        <> (") ? ON true" |> withParams [aliasOrName])
+    where
+        foreignTable = PG.toField (PG.Identifier name)
+        foreignTableForeignKey = PG.toField (PG.Identifier foreignTableForeignKeyName)
+        foreignTableForeignKeyName = rootTableName
+                |> singularize
+                |> (\name -> name <> "_id")
+        rootTable = PG.toField (PG.Identifier rootTableName)
+        rootTablePrimaryKey = PG.toField (PG.Identifier "id")
+
+        aliasOrName = PG.toField $ PG.Identifier $
+                case get #alias field of
+                    Just alias -> alias
+                    Nothing -> get #name field
 
 compileMutationSelection :: [Argument] -> Selection -> QueryPart
 compileMutationSelection queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) = fromMaybe (error ("Invalid mutation: " <> tshow fieldName)) do
@@ -241,6 +285,9 @@ unionAll list = foldl' (\a b -> if get #sql a == "" then b else a <> " UNION ALL
 
 commaSep :: [QueryPart] -> QueryPart
 commaSep list = foldl' (\a b -> if get #sql a == "" then b else a <> ", " <> b) "" list
+
+spaceSep :: [QueryPart] -> QueryPart
+spaceSep list = foldl' (\a b -> if get #sql a == "" then b else a <> " " <> b) "" list
 
 instance Semigroup QueryPart where
     QueryPart { sql = sqlA, params = paramsA } <> QueryPart { sql = sqlB, params = paramsB } = QueryPart { sql = sqlA <> sqlB, params = paramsA <> paramsB }
