@@ -2,8 +2,23 @@ module IHP.GraphQL.JSON where
 
 import IHP.Prelude
 import qualified IHP.GraphQL.Types as GraphQL
+import qualified IHP.GraphQL.Parser as GraphQL
 import qualified Data.Aeson as Aeson
+import Data.Aeson ((.:))
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Attoparsec.Text as Attoparsec
+
+instance Aeson.FromJSON GraphQL.GraphQLRequest where
+    parseJSON = Aeson.withObject "GraphQLRequest" \v -> do
+        query <- v .: "query"
+        variables <- (v .: "variables") <|> (pure (GraphQL.Variables []))
+        pure GraphQL.GraphQLRequest { query, variables }
+
+instance Aeson.FromJSON GraphQL.Document where
+    parseJSON = Aeson.withText "Document" \gql -> do
+        case Attoparsec.parseOnly GraphQL.parseDocument gql of
+            Left parserError -> fail (cs $ (tshow parserError) <> " while parsing: " <> gql)
+            Right statements -> pure statements
 
 instance Aeson.FromJSON GraphQL.Variables where
     parseJSON = Aeson.withObject "Variables" \hashMap -> do

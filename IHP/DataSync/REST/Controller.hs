@@ -20,6 +20,17 @@ import IHP.DataSync.DynamicQueryCompiler
 import qualified Data.Text as Text
 import qualified Data.Scientific as Scientific
 
+import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Builder as ByteString
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encoding.Internal as Aeson
+
+import qualified IHP.GraphQL.Types as GraphQL
+import qualified IHP.GraphQL.Parser as GraphQL
+import qualified IHP.GraphQL.Compiler as GraphQL
+import IHP.GraphQL.JSON ()
+import qualified Data.Attoparsec.Text as Attoparsec
+
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -143,6 +154,17 @@ instance (
 
         renderJson result
 
+    action GraphQLQueryAction = do
+        graphQLRequest :: GraphQL.GraphQLRequest <- case fromJSON requestBodyJSON of
+                Error errorMessage -> error (cs errorMessage)
+                Data.Aeson.Success value -> pure value
+
+        let [(theQuery, theParams)] = GraphQL.compileDocument (get #variables graphQLRequest) (get #query graphQLRequest)
+
+        [PG.Only graphQLResult] <- sqlQueryWithRLS theQuery theParams
+
+        renderJson (graphQLResult :: UndecodedJSON)
+
 buildDynamicQueryFromRequest table = DynamicSQLQuery
     { table
     , selectedColumns = paramOrDefault SelectAll "fields"
@@ -217,3 +239,17 @@ aesonValueToPostgresValue object@(Object values) =
         if HashMap.size values == 2
             then fromMaybe (PG.toField $ toJSON object) (PG.toField <$> tryDecodeAsPoint)
             else PG.toField (toJSON object)
+
+
+instance ToJSON GraphQLResult where
+    toJSON GraphQLResult { requestId, graphQLResult } = object [ "tag" .= ("GraphQLResult" :: Text), "requestId" .= requestId, "graphQLResult" .= ("" :: Text) ]
+    toEncoding GraphQLResult { requestId, graphQLResult } = Aeson.econcat
+        [ Aeson.unsafeToEncoding "{\"tag\":\"GraphQLResult\",\"requestId\":"
+        , Aeson.int requestId
+        , Aeson.unsafeToEncoding ",\"graphQLResult\":"
+        , toEncoding graphQLResult
+        , Aeson.unsafeToEncoding "}"
+        ]
+instance ToJSON UndecodedJSON where
+    toJSON (UndecodedJSON _) = error "Not implemented"
+    toEncoding (UndecodedJSON json) = Aeson.unsafeToEncoding (ByteString.byteString json)

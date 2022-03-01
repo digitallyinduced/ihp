@@ -456,16 +456,6 @@ sqlExecWithRLSAndTransactionId transactionId theQuery theParams = runInModelCont
 $(deriveFromJSON defaultOptions 'DataSyncQuery)
 $(deriveToJSON defaultOptions 'DataSyncResult)
 
-instance ToJSON GraphQLResult where
-    toJSON GraphQLResult { requestId, graphQLResult = (UndecodedJSON json) } = object [ "tag" .= ("GraphQLResult" :: Text), "requestId" .= requestId, "graphQLResult" .= ("" :: Text) ]
-    toEncoding GraphQLResult { requestId, graphQLResult = (UndecodedJSON json) } = Aeson.econcat
-        [ Aeson.unsafeToEncoding "{\"tag\":\"GraphQLResult\",\"requestId\":"
-        , Aeson.int requestId
-        , Aeson.unsafeToEncoding ",\"graphQLResult\":"
-        , Aeson.unsafeToEncoding (ByteString.byteString json)
-        , Aeson.unsafeToEncoding "}"
-        ]
-
 instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }
 
