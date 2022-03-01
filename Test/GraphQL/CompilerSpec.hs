@@ -34,6 +34,10 @@ tests = do
             compileGQL "query GetUsers { users { id } tasks { id title } }" [] `shouldBe` [trimming|
                  SELECT json_agg(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT id FROM users) AS _users) UNION ALL (SELECT json_build_object('tasks', json_agg(_tasks.*)) AS data FROM (SELECT id, title FROM tasks) AS _tasks)) AS _root
             |]
+        it "should compile a 'user(id: $id)' selection" do
+            compileGQL "{ user(id: \"dde8fd2c-4941-4262-a8e0-cc4cd40bacba\") { id } }" [] `shouldBe` [trimming|
+                 SELECT json_agg(_root.data) FROM ((SELECT json_build_object('user', json_agg(_user.*)) AS data FROM (SELECT id FROM users WHERE id = 'dde8fd2c-4941-4262-a8e0-cc4cd40bacba') AS _user)) AS _root
+            |]
         it "should compile a create mutation" do
             let mutation = [trimming|
                 mutation CreateProject($$project: Project) {

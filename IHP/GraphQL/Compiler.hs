@@ -17,14 +17,14 @@ compileDocument :: [Argument] -> Document -> [(PG.Query, [PG.Action])]
 compileDocument arguments Document { definitions = [definition] } = 
     case definition of
         ExecutableDefinition { operation = OperationDefinition { operationType = Query } } ->
-            [ unpackQueryPart ("SELECT json_agg(_root.data) FROM (" <> compileDefinition definition <> ") AS _root") ]
+            [ unpackQueryPart ("SELECT json_agg(_root.data) FROM (" <> compileDefinition definition arguments <> ") AS _root") ]
         ExecutableDefinition { operation = OperationDefinition { operationType = Mutation } } ->
             map unpackQueryPart $ compileMutationDefinition definition arguments
 
-compileDefinition :: Definition -> QueryPart
-compileDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Query, selectionSet } } =
+compileDefinition :: Definition -> [Argument] -> QueryPart
+compileDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Query, selectionSet } } variables =
     selectionSet
-    |> map compileSelection
+    |> map (compileSelection variables)
     |> unionAll
 
 compileMutationDefinition :: Definition -> [Argument] -> [QueryPart]
@@ -32,14 +32,30 @@ compileMutationDefinition ExecutableDefinition { operation = OperationDefinition
     selectionSet
     |> map (compileMutationSelection arguments)
 
-compileSelection :: Selection -> QueryPart
-compileSelection field@(Field { alias, name = fieldName }) = 
+compileSelection :: [Argument] -> Selection -> QueryPart
+compileSelection variables field@(Field { alias, name = fieldName, arguments }) = 
         ("(SELECT json_build_object(?, json_agg(?.*)) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
         <> selectQueryPieces
-        <> (" FROM ?) AS ?)" |> withParams [ PG.toField (PG.Identifier fieldName), PG.toField (PG.Identifier subqueryId) ])
+        <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
+        <> where_
+        <> (") AS ?)" |> withParams [ PG.toField (PG.Identifier subqueryId) ])
     where
         subqueryId = "_" <> fieldName
         nameOrAlias = fromMaybe fieldName alias
+
+        tableName = if isJust idArgument
+            then pluralize fieldName
+            else fieldName
+
+        where_ :: QueryPart
+        where_ = case idArgument of
+                Just id -> " WHERE id = ?" |> withParams [valueToSQL $ resolveVariables id variables]
+                Nothing -> ""
+
+        idArgument :: Maybe Value
+        idArgument = case arguments of
+                [Argument { argumentName = "id", argumentValue }] -> Just argumentValue
+                _ -> Nothing
 
         selectQueryPieces = field
                 |> get #selectionSet
