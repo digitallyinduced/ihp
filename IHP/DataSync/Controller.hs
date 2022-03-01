@@ -32,6 +32,7 @@ import qualified Data.Pool as Pool
 import qualified IHP.GraphQL.Types as GraphQL
 import qualified IHP.GraphQL.Parser as GraphQL
 import qualified IHP.GraphQL.Compiler as GraphQL
+import IHP.GraphQL.JSON ()
 import qualified Data.Attoparsec.Text as Attoparsec
 
 instance (
@@ -62,12 +63,12 @@ instance (
 
                 sendJSON DataSyncResult { result, requestId }
             
-            handleMessage GraphQLRequest { gql, requestId, transactionId } = do
+            handleMessage GraphQLRequest { gql, variables, requestId, transactionId } = do
                 let document = case Attoparsec.parseOnly GraphQL.parseDocument gql of
                         Left parserError -> error (cs $ tshow parserError)
                         Right statements -> statements
 
-                let [(theQuery, theParams)] = GraphQL.compileDocument [] document
+                let [(theQuery, theParams)] = GraphQL.compileDocument variables document
 
                 [PG.Only graphQLResult] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
 

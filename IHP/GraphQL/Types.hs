@@ -66,3 +66,7 @@ data Value
     | ListValue
     | ObjectValue (HashMap.HashMap Text Value)
     deriving (Eq, Show)
+
+newtype Variables
+    = Variables [Argument]
+    deriving (Eq, Show)

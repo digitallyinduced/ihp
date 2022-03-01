@@ -13,8 +13,8 @@ data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 
 data QueryPart = QueryPart { sql :: PG.Query, params :: [PG.Action] }
 
-compileDocument :: [Argument] -> Document -> [(PG.Query, [PG.Action])]
-compileDocument arguments Document { definitions = [definition] } = 
+compileDocument :: Variables -> Document -> [(PG.Query, [PG.Action])]
+compileDocument (Variables arguments) Document { definitions = [definition] } = 
     case definition of
         ExecutableDefinition { operation = OperationDefinition { operationType = Query } } ->
             [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition definition arguments <> ") AS _root") ]
