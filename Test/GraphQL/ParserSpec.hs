@@ -9,6 +9,7 @@ import IHP.Prelude
 import qualified IHP.GraphQL.Parser as Parser
 import IHP.GraphQL.Types
 import qualified Data.Attoparsec.Text as Attoparsec
+import Data.HashMap.Strict as HashMap
 
 tests = do
     describe "The GraphQL Parser" do
@@ -136,6 +137,45 @@ tests = do
                             }
                         ]
                     }
+        it "should parse a mutation starting with lots of whitespace" do
+            let query = cs [plain|
+                mutation {
+                    createTask(task: {
+                        title: "Hello World",
+                        body: "hello world",
+                        userId: "40f1dbb4-403c-46fd-8062-fcf5362f2154"
+                    }) {
+                        id
+                    }
+                }
+            |]
+            parseGQL query  `shouldBe` Document
+                    { definitions =
+                        [ ExecutableDefinition
+                            { operation = OperationDefinition
+                                { operationType = Mutation
+                                , name = Nothing
+                                , variableDefinitions = []
+                                , selectionSet = [
+                                    (field "createTask")
+                                        { arguments = [
+                                            Argument
+                                            { argumentName = "task"
+                                            , argumentValue = ObjectValue (HashMap.fromList
+                                                [ ("body", StringValue "hello world")
+                                                , ("userId", StringValue "40f1dbb4-403c-46fd-8062-fcf5362f2154")
+                                                , ("title", StringValue "Hello World")
+                                                ]
+                                            ) }
+                                        ]
+                                        , selectionSet = [ field "id" ]
+                                        }
+                                ] }
+                            , fragment = FragmentDefinition
+                            }
+                        ]
+                    }
+
 
         describe "parseName" do
             it "should accept letters" do

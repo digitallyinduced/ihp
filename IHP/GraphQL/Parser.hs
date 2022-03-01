@@ -15,7 +15,7 @@ parseDocument :: Parser Document
 parseDocument = Document <$> many1 parseDefinition
 
 parseDefinition :: Parser Definition
-parseDefinition = executableDefinition
+parseDefinition = skipSpace >> executableDefinition
 
 executableDefinition :: Parser Definition
 executableDefinition = do
