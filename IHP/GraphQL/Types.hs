@@ -14,9 +14,27 @@ newtype Document = Document { definitions :: [Definition] }
     deriving (Eq, Show)
 
 data Definition
-    = ExecutableDefinition { operation :: OperationDefinition, fragment :: FragmentDefinition }
-    | TypeSystemDefintion
+    = ExecutableDefinition { operation :: !OperationDefinition, fragment :: !FragmentDefinition }
+    | TypeSystemDefinition { typeSystemDefinition :: !TypeSystemDefinition }
     | TypeSystemExtension
+    deriving (Eq, Show)
+
+data TypeSystemDefinition
+    = SchemaDefinition
+        { queryType :: !Type
+        , mutationType :: !Type
+        }
+    | TypeDefinition !TypeDefinition
+    | DirectiveDefinition
+    deriving (Eq, Show)
+
+data TypeDefinition
+    = ScalarTypeDefinition { name :: !Text }
+    | ObjectTypeDefinition { name :: !Text, implementsInterfaces :: [Type], fieldDefinitions :: ![FieldDefinition] }
+    | InterfaceTypeDefinition
+    | UnionTypeDefinition
+    | EnumTypeDefinition
+    | InputObjectTypeDefinition
     deriving (Eq, Show)
 
 data OperationDefinition
@@ -26,6 +44,17 @@ data OperationDefinition
     , selectionSet :: ![Selection]
     , variableDefinitions :: ![VariableDefinition]
     } deriving (Eq, Show)
+
+data FieldDefinition
+    = FieldDefinition
+    { description :: !(Maybe Text)
+    , name :: !Text
+    , argumentsDefinition :: Maybe ArgumentsDefinition
+    , type_ :: Type
+    } deriving (Eq, Show)
+
+data ArgumentsDefinition = ArgumentsDefinition
+    deriving (Eq, Show)
 
 data Selection
     = Field
@@ -74,4 +103,10 @@ data Value
 
 newtype Variables
     = Variables [Argument]
+    deriving (Eq, Show)
+
+data Type
+    = NamedType !Text
+    | ListType !Type
+    | NonNullType !Type
     deriving (Eq, Show)

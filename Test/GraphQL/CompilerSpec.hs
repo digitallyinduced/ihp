@@ -110,7 +110,7 @@ tests = do
 
 compileGQL gql arguments = gql
         |> parseGQL
-        |> Compiler.compileDocument arguments
+        |> Compiler.compileDocument (Variables arguments)
         |> map substituteParams
         |> intercalate "\n"
 

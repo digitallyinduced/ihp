@@ -81,8 +81,14 @@ selectQueryPieces tableName field = field
                 then "?." |> withParams [tableName]
                 else ""
         compileField :: Selection -> QueryPart
-        compileField field@(Field { alias = Just alias, name }) = qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier name), PG.toField (PG.Identifier alias) ]
-        compileField field@(Field { alias = Nothing, name    }) = qualified field <> "?" |> withParams [ PG.toField (PG.Identifier name) ]
+        compileField field@(Field { alias = Just alias, name }) = qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier alias) ]
+        compileField field@(Field { alias = Nothing, name    }) =
+            let
+                columnName = fieldNameToColumnName name
+            in
+                if columnName /= name
+                    then qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier name) ]
+                    else qualified field <> "?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)) ]
 
 fieldToJoin :: Text -> Selection -> QueryPart
 fieldToJoin rootTableName field@(Field { name }) =
