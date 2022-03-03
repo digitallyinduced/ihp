@@ -426,6 +426,27 @@ sqlQueryScalar theQuery theParameters = do
         _ -> error "sqlQueryScalar: Expected a scalar result value"
 {-# INLINABLE sqlQueryScalar #-}
 
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string, or nothing
+--
+-- __Example:__
+--
+-- > usersCount <- sqlQueryScalarMaybe "SELECT COUNT(*) FROM users"
+--
+-- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
+sqlQueryScalarMaybe :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarMaybe theQuery theParameters = do
+    result <- measureTimeIfLogging
+        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+            PG.query connection theQuery theParameters
+        )
+        theQuery
+        theParameters
+    pure case result of
+        [] -> Nothing
+        [PG.Only result] -> Just result
+        _ -> error "sqlQueryScalar: Expected a scalar result value or nothing"
+{-# INLINABLE sqlQueryScalarMaybe #-}
+
 -- | Executes the given block with a database transaction
 --
 -- __Example:__
