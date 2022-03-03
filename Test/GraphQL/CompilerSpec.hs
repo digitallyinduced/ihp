@@ -25,6 +25,20 @@ tests = do
             compileGQL "{ users { id userEmail: email } }" [] `shouldBe` [trimming|
                 SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id, users.email AS "userEmail" FROM users) AS _users)) AS _root
             |]
+        it "should compile a trivial selection with a fragment spread" do
+            let query = [trimming|
+                query {
+                    users {
+                        id
+                        ...userFragment
+                    }
+                }
+
+                fragment userFragment { email }
+            |]
+            compileGQL query [] `shouldBe` [trimming|
+                SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id, users.email FROM users) AS _users)) AS _root
+            |]
         
         it "should compile a selection set accessing multiple tables" do
             compileGQL "{ users { id } tasks { id title } }" [] `shouldBe` [trimming|

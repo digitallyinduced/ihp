@@ -14,17 +14,17 @@ data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 data QueryPart = QueryPart { sql :: PG.Query, params :: [PG.Action] }
 
 compileDocument :: Variables -> Document -> [(PG.Query, [PG.Action])]
-compileDocument (Variables arguments) Document { definitions = [definition] } = 
+compileDocument (Variables arguments) document@(Document { definitions = (definition:rest) }) = 
     case definition of
         ExecutableDefinition { operation = OperationDefinition { operationType = Query } } ->
-            [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition definition arguments <> ") AS _root") ]
+            [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition document definition arguments <> ") AS _root") ]
         ExecutableDefinition { operation = OperationDefinition { operationType = Mutation } } ->
             map unpackQueryPart $ compileMutationDefinition definition arguments
 
-compileDefinition :: Definition -> [Argument] -> QueryPart
-compileDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Query, selectionSet } } variables =
+compileDefinition :: Document -> Definition -> [Argument] -> QueryPart
+compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType = Query, selectionSet } } variables =
     selectionSet
-    |> map (compileSelection variables)
+    |> map (compileSelection document variables)
     |> unionAll
 
 compileMutationDefinition :: Definition -> [Argument] -> [QueryPart]
@@ -32,10 +32,10 @@ compileMutationDefinition ExecutableDefinition { operation = OperationDefinition
     selectionSet
     |> map (compileMutationSelection arguments)
 
-compileSelection :: [Argument] -> Selection -> QueryPart
-compileSelection variables field@(Field { alias, name = fieldName, arguments }) = 
+compileSelection :: Document -> [Argument] -> Selection -> QueryPart
+compileSelection document variables field@(Field { alias, name = fieldName, arguments }) = 
         ("(SELECT json_build_object(?, json_agg(?.*)) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
-        <> selectQueryPieces (PG.toField (PG.Identifier tableName)) field
+        <> selectQueryPieces document (PG.toField (PG.Identifier tableName)) field
         <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
         <> joins
         <> where_
@@ -61,25 +61,33 @@ compileSelection variables field@(Field { alias, name = fieldName, arguments }) 
 
         isJoinField :: Selection -> Bool
         isJoinField Field { selectionSet } = not (null selectionSet)
+        isJoinField FragmentSpread {} = False -- TODO: Also support fragment spreads in joined tables
 
         joins :: QueryPart
         joins = field
                 |> get #selectionSet
                 |> filter isJoinField
-                |> map (fieldToJoin tableName)
+                |> map (fieldToJoin document tableName)
                 |> \case
                     [] -> ""
                     joins -> " " <> spaceSep joins
 
 
-selectQueryPieces tableName field = field
+selectQueryPieces :: Document -> PG.Action -> Selection -> QueryPart
+selectQueryPieces document tableName field = field
         |> get #selectionSet
-        |> map compileField
+        |> map compileSelection
+        |> mconcat
         |> commaSep
     where
         qualified field = if isEmpty (get #selectionSet field)
                 then "?." |> withParams [tableName]
                 else ""
+
+        compileSelection :: Selection -> [QueryPart]
+        compileSelection field@(Field {}) = [compileField field]
+        compileSelection fragmentSpread@(FragmentSpread {}) = compileFragmentSpread fragmentSpread
+
         compileField :: Selection -> QueryPart
         compileField field@(Field { alias = Just alias, name }) = qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier alias) ]
         compileField field@(Field { alias = Nothing, name    }) =
@@ -90,13 +98,32 @@ selectQueryPieces tableName field = field
                     then qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier name) ]
                     else qualified field <> "?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)) ]
 
-fieldToJoin :: Text -> Selection -> QueryPart
-fieldToJoin rootTableName field@(Field { name }) =
+        
+        compileFragmentSpread :: Selection -> [QueryPart]
+        compileFragmentSpread FragmentSpread { fragmentName } = 
+                fragment
+                    |> get #selectionSet
+                    |> map compileSelection
+                    |> mconcat
+            where
+                fragment :: Fragment
+                fragment = document
+                    |> get #definitions
+                    |> find (\case
+                            FragmentDefinition (Fragment { name }) -> name == fragmentName
+                            otherwise -> False
+                        )
+                    |> fromMaybe (error $ "Could not find fragment named " <> fragmentName)
+                    |> \case
+                        FragmentDefinition fragment -> fragment
+
+fieldToJoin :: Document -> Text -> Selection -> QueryPart
+fieldToJoin document rootTableName field@(Field { name }) =
         "LEFT JOIN LATERAL ("
             <> "SELECT ARRAY("
                 <> "SELECT to_json(_sub) FROM ("
                     <> "SELECT "
-                    <> selectQueryPieces foreignTable field
+                    <> selectQueryPieces document foreignTable field
                     <> (" FROM ?" |> withParams [foreignTable])
                     <> (" WHERE ?.? = ?.?" |> withParams [foreignTable, foreignTableForeignKey, rootTable, rootTablePrimaryKey])
                 <> ") AS _sub"
