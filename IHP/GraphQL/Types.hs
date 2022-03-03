@@ -92,7 +92,7 @@ data OperationType
 data VariableDefinition
     = VariableDefinition
     { variableName :: !Text
-    , variableType :: !Text
+    , variableType :: !Type
     } deriving (Eq, Show)
 
 data Argument

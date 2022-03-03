@@ -60,7 +60,7 @@ parseVariableDefinition = do
     skipSpace
     char ':'
     skipSpace
-    variableType <- parseName
+    variableType <- parseType
     pure VariableDefinition { variableName, variableType }
 
 parseSelectionSet :: Parser [Selection]
@@ -158,3 +158,13 @@ parseName = takeWhile1 isNameChar <?> "Name"
 
 parseVariableName :: Parser Text
 parseVariableName = (char '$' >> parseName) <?> "Variable"
+
+parseType :: Parser Type
+parseType = do
+    inner <- parseNamedType
+    option inner do
+        string "!"
+        pure (NonNullType inner)
+
+parseNamedType :: Parser Type
+parseNamedType = NamedType <$> parseName

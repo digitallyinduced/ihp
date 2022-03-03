@@ -96,7 +96,7 @@ tests = do
                             { operation = OperationDefinition
                                 { operationType = Mutation
                                 , name = "CreateProject"
-                                , variableDefinitions = [VariableDefinition { variableName = "project", variableType = "Project" }]
+                                , variableDefinitions = [VariableDefinition { variableName = "project", variableType = NamedType "Project" }]
                                 , selectionSet = [
                                     (field "createProject")
                                         { arguments = [Argument { argumentName = "project", argumentValue = Variable "project" }]
@@ -121,7 +121,7 @@ tests = do
                             { operation = OperationDefinition
                                 { operationType = Mutation
                                 , name = Nothing
-                                , variableDefinitions = [VariableDefinition { variableName = "project", variableType = "Project" }]
+                                , variableDefinitions = [VariableDefinition { variableName = "project", variableType = NamedType "Project" }]
                                 , selectionSet = [
                                     (field "createProject")
                                         { arguments = [Argument { argumentName = "project", argumentValue = Variable "project" }]
@@ -203,6 +203,36 @@ tests = do
                             )
                         ]
                     }
+        it "should parse a mutation with a non null type argument" do
+            let query = cs [plain|
+                mutation createUser ($user: NewUser!) {
+                    createUser (user: $user) {
+                        id
+                        email
+                        passwordHash
+                        lockedAt
+                        failedLoginAttempts
+                        tasks {
+                            id
+                            title
+                            body
+                            userId
+                        }
+                    }
+                }
+            |]
+            parseGQL query  `shouldBe` Document
+                { definitions =
+                    [ ExecutableDefinition { operation = OperationDefinition
+                        { operationType = Mutation
+                        , name = "createUser"
+                        , selectionSet = [
+                            (field "createUser")
+                                { arguments = [Argument { argumentName = "user", argumentValue = Variable "user" } ]
+                                , selectionSet = [field "id", field "email", field "passwordHash", field "lockedAt", field "failedLoginAttempts", (field "tasks") { selectionSet = [field "id", field "title", field "body", field "userId"] }]
+                                }
+                        ]
+                        , variableDefinitions = [VariableDefinition {variableName = "user", variableType = NonNullType (NamedType "NewUser")}]}}]}
 
         describe "parseName" do
             it "should accept letters" do
