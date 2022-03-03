@@ -55,6 +55,14 @@ tests = do
                     "Returns all records from the `tasks` table"
                     tasks: [Task!]!
                 }
+                type Mutation {
+                    createUser(user: NewUser!): User!
+                    updateUser(id: ID!, patch: User!): User!
+                    deleteUser(id: ID!): User!
+                    createTask(task: NewTask!): Task!
+                    updateTask(id: ID!, patch: Task!): Task!
+                    deleteTask(id: ID!): Task!
+                }
                 scalar UUID
                 scalar Timestamp
                 type User {
@@ -66,6 +74,19 @@ tests = do
                     tasks: [Task!]!
                 }
                 type Task {
+                    id: ID!
+                    title: String!
+                    body: String!
+                    userId: UUID!
+                }
+                type NewUser {
+                    id: ID!
+                    email: String!
+                    passwordHash: String!
+                    lockedAt: Timestamp
+                    failedLoginAttempts: Int!
+                }
+                type NewTask {
                     id: ID!
                     title: String!
                     body: String!

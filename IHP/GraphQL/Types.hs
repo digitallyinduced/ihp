@@ -50,11 +50,16 @@ data FieldDefinition
     = FieldDefinition
     { description :: !(Maybe Text)
     , name :: !Text
-    , argumentsDefinition :: Maybe ArgumentsDefinition
+    , argumentsDefinition :: ![ArgumentDefinition]
     , type_ :: Type
     } deriving (Eq, Show)
 
-data ArgumentsDefinition = ArgumentsDefinition
+data ArgumentDefinition
+    = ArgumentDefinition
+    { name :: !Text
+    , argumentType :: Type
+    , defaultValue :: Maybe Value
+    }
     deriving (Eq, Show)
 
 data Selection

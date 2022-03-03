@@ -52,15 +52,22 @@ fieldDefinitionToText :: FieldDefinition -> Text
 fieldDefinitionToText FieldDefinition { description, name, argumentsDefinition, type_ } =
     descriptionBlock
     <> [trimming|
-        $name: $renderedType
+        $name$arguments: $renderedType
     |]
     where
         renderedType = typeToText type_
         descriptionBlock = case description of
             Just text -> [trimming|    "$text"|] <> "\n"
             Nothing -> ""
+        arguments =
+            case argumentsDefinition of
+                [] -> ""
+                argumentDefinitions -> "(" <> Text.intercalate ", " (map argumentDefinitionToText argumentDefinitions) <> ")"
 
 typeToText :: Type -> Text
 typeToText (NamedType name) = name
 typeToText (ListType type_) = "[" <> typeToText type_ <> "]"
 typeToText (NonNullType type_) = typeToText type_ <> "!"
+
+argumentDefinitionToText :: ArgumentDefinition -> Text
+argumentDefinitionToText ArgumentDefinition { name, argumentType } = name <> ": " <> typeToText argumentType

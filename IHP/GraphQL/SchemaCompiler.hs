@@ -13,9 +13,11 @@ sqlSchemaToGraphQLSchema :: SqlSchema -> GraphQLSchema
 sqlSchemaToGraphQLSchema statements =
             [ schemaDefinition
             , queryDefinition statements
+            , mutationDefinition statements
             ]
             <> customScalars
             <> recordTypes statements
+            <> newRecordTypes statements
 
 schemaDefinition :: Definition
 schemaDefinition =
@@ -40,6 +42,17 @@ queryDefinition statements = TypeSystemDefinition { typeSystemDefinition = TypeD
                 , fieldDefinitions = mconcat $ map statementToQueryField statements
                 }
 
+
+mutationDefinition :: SqlSchema -> Definition
+mutationDefinition statements = TypeSystemDefinition { typeSystemDefinition = TypeDefinition typeDefinition }
+    where
+        typeDefinition =
+            ObjectTypeDefinition
+                { name = "Mutation"
+                , implementsInterfaces = []
+                , fieldDefinitions = mconcat $ map statementToMutationFields statements
+                }
+
 statementToQueryField :: Statement -> [FieldDefinition]
 statementToQueryField (StatementCreateTable CreateTable { name }) = 
         [ manyRecordsField ]
@@ -47,11 +60,43 @@ statementToQueryField (StatementCreateTable CreateTable { name }) =
         manyRecordsField = FieldDefinition
             { description = Just ("Returns all records from the `" <> name <> "` table")
             , name = lcfirst (tableNameToControllerName name)
-            , argumentsDefinition = Nothing
+            , argumentsDefinition = []
             , type_
             }
         type_ = NonNullType (ListType (NonNullType (NamedType (tableNameToModelName name))))
 statementToQueryField _ = []
+
+statementToMutationFields :: Statement -> [FieldDefinition]
+statementToMutationFields (StatementCreateTable CreateTable { name }) = 
+        [ createRecord, updateRecord, deleteRecord ]
+    where
+        createRecord = FieldDefinition
+            { description = Nothing
+            , name = "create" <> tableNameToModelName name
+            , argumentsDefinition =
+                [ ArgumentDefinition { name = lcfirst (tableNameToModelName name), argumentType = NonNullType (NamedType ("New" <> tableNameToModelName name)), defaultValue = Nothing }
+                ]
+            , type_ = NonNullType (NamedType (tableNameToModelName name))
+            }
+        updateRecord = FieldDefinition
+            { description = Nothing
+            , name = "update" <> tableNameToModelName name
+            , argumentsDefinition =
+                [ ArgumentDefinition { name = "id", argumentType = NonNullType (NamedType "ID"), defaultValue = Nothing }
+                , ArgumentDefinition { name = "patch", argumentType = NonNullType (NamedType (tableNameToModelName name)), defaultValue = Nothing }
+                ]
+            , type_ = NonNullType (NamedType (tableNameToModelName name))
+            }
+        deleteRecord = FieldDefinition
+            { description = Nothing
+            , name = "delete" <> tableNameToModelName name
+            , argumentsDefinition =
+                [ ArgumentDefinition { name = "id", argumentType = NonNullType (NamedType "ID"), defaultValue = Nothing }
+                ]
+            , type_ = NonNullType (NamedType (tableNameToModelName name))
+            }
+
+statementToMutationFields _ = []
 
 recordTypes :: [Statement] -> [Definition]
 recordTypes statements = mapMaybe (recordType statements) statements
@@ -74,18 +119,34 @@ recordType schema (StatementCreateTable table@(CreateTable { name, columns })) =
             Just FieldDefinition
                 { description = Nothing
                 , name = lcfirst (tableNameToControllerName fkTable)
-                , argumentsDefinition = Nothing
+                , argumentsDefinition = []
                 , type_ = NonNullType (ListType (NonNullType (NamedType (tableNameToModelName fkTable))))
                 }
         foreignKeyToHasManyField _ = Nothing
 recordType _ _ = Nothing
+
+newRecordTypes :: [Statement] -> [Definition]
+newRecordTypes statements = mapMaybe (newRecordType statements) statements
+
+newRecordType :: SqlSchema -> Statement -> Maybe Definition
+newRecordType schema (StatementCreateTable table@(CreateTable { name, columns })) = 
+        Just TypeSystemDefinition { typeSystemDefinition = TypeDefinition typeDefinition }
+    where
+        typeDefinition =
+            ObjectTypeDefinition
+                { name = "New" <> tableNameToModelName name
+                , implementsInterfaces = []
+                , fieldDefinitions = map (columnToRecordField table) columns
+                }
+newRecordType _ _ = Nothing
+
 
 columnToRecordField :: CreateTable -> Column -> FieldDefinition
 columnToRecordField table Column { name, columnType, notNull } = 
         FieldDefinition
             { description = Nothing
             , name = columnNameToFieldName name
-            , argumentsDefinition = Nothing
+            , argumentsDefinition = []
             , type_ = 
                 if isPrimaryKey
                     then NonNullType (NamedType "ID")
