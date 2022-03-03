@@ -15,7 +15,7 @@ parseDocument :: Parser Document
 parseDocument = Document <$> many1 parseDefinition
 
 parseDefinition :: Parser Definition
-parseDefinition = skipSpace >> executableDefinition
+parseDefinition = skipSpace >> (executableDefinition <|> parseFragmentDefinition)
 
 executableDefinition :: Parser Definition
 executableDefinition = do
@@ -32,7 +32,17 @@ executableDefinition = do
         pure (operationType, name, variableDefinitions)
 
     selectionSet <- parseSelectionSet
-    pure ExecutableDefinition { operation = OperationDefinition { operationType, name, selectionSet, variableDefinitions }, fragment = FragmentDefinition }
+    pure ExecutableDefinition { operation = OperationDefinition { operationType, name, selectionSet, variableDefinitions } }
+
+parseFragmentDefinition :: Parser Definition
+parseFragmentDefinition = do
+    string "fragment"
+    skipSpace
+    name <- parseName
+    skipSpace
+    selectionSet <- parseSelectionSet
+    pure (FragmentDefinition Fragment { name, selectionSet })
+
 
 parseVariableDefinitions :: Parser [VariableDefinition]
 parseVariableDefinitions = do
@@ -64,7 +74,10 @@ parseSelectionSet = (do
     pure selectionSet) <?> "selectionSet"
 
 parseSelection :: Parser Selection
-parseSelection = (do
+parseSelection = parseField <|> parseFragmentSpread
+
+parseField :: Parser Selection
+parseField = (do
     nameOrAlias <- parseName
     skipSpace
     name' <- option Nothing do
@@ -85,7 +98,15 @@ parseSelection = (do
 
     selectionSet <- option [] parseSelectionSet
     pure Field { alias, name, arguments, directives = [], selectionSet }
-    ) <?> "selection"
+    ) <?> "field"
+
+parseFragmentSpread :: Parser Selection
+parseFragmentSpread = (do
+    string "..."
+    fragmentName <- parseName
+    skipSpace
+    pure FragmentSpread { fragmentName }
+    ) <?> "FragmentSpread"
 
 parseArguments :: Parser [Argument]
 parseArguments = do

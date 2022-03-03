@@ -24,7 +24,6 @@ tests = do
                                 , selectionSet = [
                                     Field { alias = Nothing, name = "user", arguments = [], directives = [], selectionSet = [] }
                                 ] }
-                            , fragment = FragmentDefinition
                             }
                         ]
                     }
@@ -46,7 +45,6 @@ tests = do
                                         ] }
                                     ] }
                                 ] }
-                            , fragment = FragmentDefinition
                             }
                         ]
                     }
@@ -64,7 +62,6 @@ tests = do
                                         (field "id") { alias = "userId" }
                                     ] }
                                 ] }
-                            , fragment = FragmentDefinition
                             }
                         ]
                     }
@@ -81,7 +78,6 @@ tests = do
                                     (field "users") { selectionSet = [ field "id" ] },
                                     (field "tasks") { selectionSet = [ field "id" ] }
                                 ] }
-                            , fragment = FragmentDefinition
                             }
                         ]
                     }
@@ -107,7 +103,6 @@ tests = do
                                         , selectionSet = [ field "id", field "title" ]
                                         }
                                 ] }
-                            , fragment = FragmentDefinition
                             }
                         ]
                     }
@@ -133,7 +128,6 @@ tests = do
                                         , selectionSet = [ field "id", field "title" ]
                                         }
                                 ] }
-                            , fragment = FragmentDefinition
                             }
                         ]
                     }
@@ -171,11 +165,44 @@ tests = do
                                         , selectionSet = [ field "id" ]
                                         }
                                 ] }
-                            , fragment = FragmentDefinition
                             }
                         ]
                     }
 
+        it "should parse a fragment" do
+            let query = cs [plain|
+                fragment user {
+                    id email
+                }
+            |]
+            parseGQL query  `shouldBe` Document
+                    { definitions =
+                        [ FragmentDefinition (Fragment { name = "user", selectionSet = [ field "id", field "email" ] })
+                        ]
+                    }
+
+        it "should parse a fragment spread" do
+            let query = cs [plain|
+                query { users { id ...userFragment } }
+                fragment userFragment { email }
+            |]
+            parseGQL query  `shouldBe` Document
+                    { definitions =
+                        [ ExecutableDefinition
+                            { operation = OperationDefinition
+                                { operationType = Query
+                                , name = Nothing
+                                , selectionSet = [ (field "users") { selectionSet = [field "id", FragmentSpread {fragmentName = "userFragment"} ] } ]
+                                , variableDefinitions = []
+                                }
+                            }
+                        , FragmentDefinition (Fragment
+                                { name = "userFragment"
+                                , selectionSet = [field "email"]
+                                }
+                            )
+                        ]
+                    }
 
         describe "parseName" do
             it "should accept letters" do

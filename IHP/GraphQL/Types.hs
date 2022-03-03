@@ -14,9 +14,10 @@ newtype Document = Document { definitions :: [Definition] }
     deriving (Eq, Show)
 
 data Definition
-    = ExecutableDefinition { operation :: !OperationDefinition, fragment :: !FragmentDefinition }
+    = ExecutableDefinition { operation :: !OperationDefinition }
     | TypeSystemDefinition { typeSystemDefinition :: !TypeSystemDefinition }
     | TypeSystemExtension
+    | FragmentDefinition !Fragment
     deriving (Eq, Show)
 
 data TypeSystemDefinition
@@ -58,16 +59,23 @@ data ArgumentsDefinition = ArgumentsDefinition
 
 data Selection
     = Field
-    { alias :: !(Maybe Text)
-    , name :: !Text
-    , arguments :: ![Argument]
-    , directives :: !Directives
-    , selectionSet :: ![Selection]
-    } deriving (Eq, Show)
+        { alias :: !(Maybe Text)
+        , name :: !Text
+        , arguments :: ![Argument]
+        , directives :: !Directives
+        , selectionSet :: ![Selection]
+        }
+    | FragmentSpread
+        { fragmentName :: !Text }
+    deriving (Eq, Show)
 
 type Directives = [Text]
 
-data FragmentDefinition = FragmentDefinition
+data Fragment
+    = Fragment
+    { name :: Text
+    , selectionSet :: ![Selection]
+    }
     deriving (Eq, Show)
 
 data OperationType
