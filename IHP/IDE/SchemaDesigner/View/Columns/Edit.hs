@@ -20,6 +20,7 @@ instance View EditColumnView where
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName (zip [0..] columns) statements}
         </div>
+        {migrationStatus}
         {renderModal modal}
     |]
         where
@@ -27,34 +28,11 @@ instance View EditColumnView where
             columns = maybe [] (get #columns . unsafeGetCreateTable) table
             primaryKeyColumns = maybe [] (primaryKeyColumnNames . get #primaryKeyConstraint . unsafeGetCreateTable) table
 
-            primaryKeyCheckbox
-                | [name] == primaryKeyColumns =
-                    preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-2" checked> Primary Key
-                        </label>|]
-                | name `elem` primaryKeyColumns =
-                    preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
-                            <input type="checkbox" name="primaryKey" class="mr-2" checked> Primary Key
-                        </label>|]
-                | otherwise =
-                    preEscapedToHtml [plain|<label class="ml-1" style="font-size: 12px">
-                        <input type="checkbox" name="primaryKey" class="mr-2"/> Primary Key
-                    </label>|]
-
-            allowNullCheckbox = if get #notNull column
-                then preEscapedToHtml [plain|<input id="allowNull" type="checkbox" name="allowNull" class="mr-2"/>|]
-                else preEscapedToHtml [plain|<input id="allowNull" type="checkbox" name="allowNull" class="mr-2" checked/>|]
-
-            isUniqueCheckbox = if get #isUnique column
-                then preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2" checked/>|]
-                else preEscapedToHtml [plain|<input type="checkbox" name="isUnique" class="mr-2"/>|]
-
-            isArrayTypeCheckbox = if isArrayType (get #columnType column)
-                then preEscapedToHtml [plain|<input id="isArray" type="checkbox" name="isArray" class="mr-2" checked/>|]
-                else preEscapedToHtml [plain|<input id="isArray" type="checkbox" name="isArray" class="mr-2"/>|]
-
             isArrayType (PArray _) = True
             isArrayType _ = False
+
+            isPrimaryKey :: Bool
+            isPrimaryKey = name `elem` primaryKeyColumns
 
             modalContent = [hsx|
                 <form method="POST" action={UpdateColumnAction}>
@@ -76,17 +54,34 @@ instance View EditColumnView where
                     <div class="form-group">
                         {typeSelector (Just (get #columnType column)) enumNames}
 
-                        <div class="mt-1 text-muted">
-                            <label style="font-size: 12px">
-                                {allowNullCheckbox} Nullable
-                            </label>
-                            <label class="ml-1" style="font-size: 12px">
-                                {isUniqueCheckbox} Unique
-                            </label>
-                            {primaryKeyCheckbox}
-                            <label class="ml-1" style="font-size: 12px">
-                                {isArrayTypeCheckbox} Array Type
-                            </label>
+                        <div class="d-flex text-muted mt-1" id="column-options">
+                            <div class="custom-control custom-checkbox mr-2">
+                                <input id="allowNull" type="checkbox" name="allowNull" class="custom-control-input" checked={not (get #notNull column)}/>
+                                <label class="mr-1 custom-control-label" for="allowNull">
+                                    Nullable
+                                </label>
+                            </div>
+
+                            <div class="custom-control custom-checkbox mr-2">
+                                <input type="checkbox" id="isUnique" name="isUnique" class="custom-control-input" checked={get #isUnique column}/>
+                                <label class="custom-control-label" for="isUnique">
+                                    Unique
+                                </label>
+                            </div>
+
+                            <div class="custom-control custom-checkbox mr-2">
+                                <input type="checkbox" id="primaryKey" name="primaryKey" class="custom-control-input" checked={isPrimaryKey}/>
+                                <label class="custom-control-label" for="primaryKey">
+                                    Primary Key
+                                </label>
+                            </div>
+
+                            <div class="custom-control custom-checkbox mr-2">
+                                <input id="isArray" type="checkbox" name="isArray" class="custom-control-input" checked={isArrayType (get #columnType column)}/>
+                                <label class="custom-control-label">
+                                     Array Type
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -126,7 +121,6 @@ typeSelector postgresType enumNames = [hsx|
                 {option isSelected "REAL" "Float"}
                 {option isSelected "DOUBLE PRECISION" "Double"}
                 {option isSelected "POINT" "Point"}
-                {option isSelected "POLYGON" "Polygon"}
                 {option isSelected "BYTEA" "Binary"}
                 {option isSelected "Time" "Time"}
                 {option isSelected "BIGSERIAL" "Bigserial"}

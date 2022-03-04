@@ -14,5 +14,6 @@ instance View IndexView where
         {modal}
         <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
+            {emptyColumnSelectorContainer}
         </div>
     |]

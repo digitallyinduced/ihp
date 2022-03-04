@@ -41,6 +41,8 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src={assetPath "/IDE/ihp-codegen.js"}></script>
     <script src={assetPath "/IDE/ihp-policy.js"}></script>
     <script src={assetPath "/IDE/ihp-help.js"}></script>
+    <script src={assetPath "/IDE/query-editor.js"}></script>
+    <script src={assetPath "/IDE/data-hovercard.js"}></script>
 
 
     <title>IHP IDE</title>

@@ -20,6 +20,7 @@ instance View NewColumnView where
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
+        {migrationStatus}
         {renderModal modal}
     |]
         where
@@ -27,6 +28,7 @@ instance View NewColumnView where
             columns = maybe [] (get #columns . unsafeGetCreateTable) table
 
             modalContent = [hsx|
+                {renderFlashMessages}
                 <form method="POST" action={CreateColumnAction} id="new-column">
                     <input type="hidden" name="tableName" value={tableName}/>
 
@@ -45,20 +47,36 @@ instance View NewColumnView where
                     <div class="form-group">
                         {typeSelector Nothing enumNames}
 
-                        <div class="mt-1 text-muted">
+                        <div class="mt-1 text-muted d-flex" id="column-options">
                             {generateReferenceCheckboxes}
-                            <label class="mx-2" style="font-size: 12px">
-                                <input id="allowNull" type="checkbox" name="allowNull" class="mr-1"/>Nullable
-                            </label>
-                            <label class="mx-2" style="font-size: 12px">
-                                <input type="checkbox" name="isUnique" class="mr-1"/>Unique
-                            </label>
-                            <label class="mx-2" style="font-size: 12px">
-                                <input type="checkbox" name="primaryKey" class="mr-1"/>Primary Key
-                            </label>
-                            <label class="ml-1" style="font-size: 12px">
-                                <input id="isArray" type="checkbox" name="isArray" class="mr-1"/>Array Type
-                            </label>
+
+                            <div class="custom-control custom-checkbox">
+                                <input id="allowNull" type="checkbox" name="allowNull" class="mr-1 custom-control-input"/>
+                                <label class="custom-control-label mr-2" for="allowNull">
+                                    Nullable
+                                </label>
+                            </div>
+
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" id="isUnique" name="isUnique" class="mr-1 custom-control-input"/>
+                                <label class="mx-2 custom-control-label" for="isUnique">
+                                    Unique
+                                </label>
+                            </div>
+
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" name="primaryKey" id="primaryKey" class="mr-1 custom-control-input"/>
+                                <label class="mx-2 custom-control-label" for="primaryKey">
+                                    Primary Key
+                                </label>
+                            </div>
+
+                            <div class="custom-control custom-checkbox">
+                                <input id="isArray" type="checkbox" name="isArray" class="mr-1 custom-control-input"/>
+                                <label class="mx-2 custom-control-label" for="isArray">
+                                    Array Type
+                                </label>
+                            </div>
                         </div>
                     </div>
 
