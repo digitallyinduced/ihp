@@ -444,7 +444,7 @@ sqlQueryScalarOrNothing theQuery theParameters = do
     pure case result of
         [] -> Nothing
         [PG.Only result] -> Just result
-        _ -> error "sqlQueryScalar: Expected a scalar result value or nothing"
+        _ -> error "sqlQueryScalarOrNothing: Expected a scalar result value or an empty result set"
 {-# INLINABLE sqlQueryScalarOrNothing #-}
 
 -- | Executes the given block with a database transaction
