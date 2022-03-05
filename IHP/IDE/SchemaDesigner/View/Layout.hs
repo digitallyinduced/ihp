@@ -1,8 +1,24 @@
-module IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, visualNav, renderColumnSelector, renderColumn, renderEnumSelector, renderValue, renderObjectSelector, removeQuotes, replace, databaseControls, findForeignKey, findTableIndex) where
+module IHP.IDE.SchemaDesigner.View.Layout
+( schemaDesignerLayout
+, findStatementByName
+, visualNav
+, renderColumnSelector
+, renderColumn
+, renderEnumSelector
+, renderValue
+, renderObjectSelector
+, removeQuotes
+, replace
+, findForeignKey
+, findTableIndex
+, migrationStatus
+, emptyColumnSelectorContainer
+) where
 
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
+import IHP.IDE.ToolServer.Helper.View
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
 import IHP.IDE.SchemaDesigner.Compiler (compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
@@ -11,24 +27,12 @@ import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html
 schemaDesignerLayout inner = toolServerLayout [hsx|
-<div class="container pt-5">
-    {if hasUnmigratedChanges then unmigratedChanges else databaseControls}
-
-    <div class="row mb-2">
-        <div class="col" style="display: flex; align-self: center;">
-            {visualNav}
-        </div>
-
-        <div class="col" style="display: flex; align-self: center; justify-content: center">
-            Application/Schema.sql
-        </div>
-
-        <div class="col">
+    <div class={classes ["d-flex d-flex flex-column h-100", ("migration-status-visible", hasUnmigratedChanges)]}>
+        {visualNav}
+        <div class="h-100 d-flex flex-column">
+            {inner}
         </div>
     </div>
-
-    {inner}
-</div>
 |]
     where
         (DatabaseNeedsMigration hasUnmigratedChanges) = fromFrozenContext @DatabaseNeedsMigration
@@ -43,6 +47,76 @@ unmigratedChanges = [hsx|
     {databaseControls}
 </div>
 |]
+
+
+migrationStatus :: Html
+migrationStatus = fromMaybe mempty migrationStatusOrNothing
+
+migrationStatusOrNothing :: _ => Maybe _
+migrationStatusOrNothing = if hasPendingMigrations
+        then Just pendingMigrations
+        else if databaseNeedsMigration
+            then Just unmigratedChanges
+            else Nothing
+    where
+        (DatabaseNeedsMigration databaseNeedsMigration) = fromFrozenContext @DatabaseNeedsMigration
+        
+        hasPendingMigrations :: Bool
+        hasPendingMigrations = False
+
+        unmigratedChanges :: Html
+        unmigratedChanges = [hsx|
+        <div id="migration-status-container">
+            <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
+                {migrationStatusIcon}
+                <div class="user-select-none">
+                    <div><strong>Unmigrated Changes</strong></div>
+                    Your app database is not in sync with the Schema
+                </div>
+                <div class="ml-auto d-flex justify-content-end">
+                    <a
+                        href={NewMigrationAction}
+                        class="btn px-4 btn-dark"
+                        >Migrate DB <span class="btn-arrow">→</span></a>
+                </div>
+            </div>
+        </div>
+        |]
+
+        pendingMigrations :: Html
+        pendingMigrations = [hsx|
+        <div id="migration-status-container">
+            <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
+                {migrationStatusIcon}
+                <div class="user-select-none">
+                    <div><strong>Pending Changes</strong></div>
+                    You have migrations that haven't been run yet
+                </div>
+                <div class="ml-auto d-flex justify-content-end">
+                    <a
+                        href="#"
+                        class="btn px-4 btn-dark"
+                        >Run Migrations <span class="btn-arrow">→</span></a>
+                </div>
+            </div>
+        </div>
+        |]
+
+        migrationStatusIcon :: Html
+        migrationStatusIcon = preEscapedToHtml [plain|
+            <svg width="33px" height="33px" viewBox="0 0 33 33" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="mr-3">
+                <g id="Schema" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                    <g id="Message" transform="translate(-383.000000, -813.000000)" fill="#FFCD1B">
+                        <g id="Group" transform="translate(383.000000, 813.000000)">
+                            <rect id="Rectangle" fill-opacity="0.322170017" x="0" y="0" width="33" height="33" rx="5"></rect>
+                            <g id="Arrow-Double-3---24px" transform="translate(7.000000, 7.000000)">
+                                <path d="M4.39179,10.2850058 C4.78668,9.89890559 5.41981,9.9060056 5.80592,10.3009058 C6.19203,10.6958061 6.18492,11.3289064 5.79003,11.7150067 L3.4531,14.0000172 L19,14.0000172 C19.5523,14.0000172 20,14.4477083 20,15.0000172 C20,15.5523089 19.5523,16.0000172 19,16.0000172 L3.4531,16.0000172 L5.79003,18.2850105 C6.18492,18.6711107 6.19203,19.3042111 5.80592,19.6991113 C5.41981,20.0940116 4.78668,20.1011116 4.39179,19.7150113 L0.30088,15.715009 C0.10847,15.5269089 0,15.2691087 0,15.0000172 C0,14.7309084 0.10847,14.4731083 0.30088,14.2850082 L4.39179,10.2850058 Z M15.6082,0.284989971 C15.2133,-0.101120255 14.5802,-0.0940002508 14.1941,0.30087998 C13.808,0.695770211 13.8151,1.32890058 14.21,1.71501081 L16.5469,4 L1,4 C0.44772,4 0,4.44771241 0,5 C0,5.55228305 0.44772,6 1,6 L16.5469,6 L14.21,8.28500465 C13.8151,8.67110488 13.808,9.30420525 14.1941,9.69910548 C14.5802,10.0940057 15.2133,10.1011057 15.6082,9.71500549 L19.6991,5.71501315 C19.8915,5.52687304 20,5.26911289 20,5 C20,4.73089257 19.8915,4.47313242 19.6991,4.28499231 L15.6082,0.284989971 Z" id="Shape"></path>
+                            </g>
+                        </g>
+                    </g>
+                </g>
+            </svg>
+        |]
 
 databaseControls :: Html
 databaseControls = [hsx|
@@ -107,31 +181,55 @@ findStatementByName statementName statements = find pred statements
         pred _ = False
 
 visualNav :: Html
-visualNav =
-    if isActivePath ShowCodeAction
-        then [hsx|<a class="custom-control custom-switch visual-switch" href={TablesAction} onclick="checkBeforeUnload()">
-                <input type="checkbox" class="custom-control-input" id="visual-switch" checked="checked"/>
-                <label class="custom-control-label" for="visual-switch">Code Editor</label>
-            </a>|]
-        else [hsx|<a class="custom-control custom-switch visual-switch" href={ShowCodeAction}>
-                <input type="checkbox" class="custom-control-input" id="visual-switch"/>
-                <label class="custom-control-label text-muted" for="visual-switch">Code Editor</label>
-            </a>|]
+visualNav = [hsx|
+    <div class="view-selector">
+        <div class="container-fluid">
+            <a href={TablesAction} class={classes [("active", tableViewActive)]}>
+                Schema Designer
+            </a>
+
+            <a href={ShowCodeAction} class={classes [("active", codeEditorActive)]}>
+                Code Editor
+            </a>
+            <a href={MigrationsAction} class={classes [("active", migrationsActive)]}>
+                Migrations
+            </a>
+        </div>
+    </div>
+|]
+    where
+        codeEditorActive = isActivePath ShowCodeAction
+        tableViewActive = not codeEditorActive && not migrationsActive
+        migrationsActive = isActiveController @MigrationsController
+
+emptyColumnSelectorContainer = [hsx|
+<div class="col-md-8 col-lg-10 column-selector d-flex">
+</div>
+|]
 
 renderColumnSelector :: Text -> [(Int, Column)] -> [Statement] -> Html
 renderColumnSelector tableName columns statements = [hsx|
-<div class="col-8 column-selector d-flex">
+<div class="col-md-8 col-lg-10 column-selector d-flex">
     <section class="flex-grow-1" oncontextmenu="showContextMenu('context-menu-column-root')">
-        <div>
+        <div class="d-flex align-items-center">
             <h5>Columns</h5>
+            <div class="toolbox">
+                <a
+                    href={NewColumnAction tableName}
+                    class="btn btn-link btn-add"
+                    data-toggle="tooltip"
+                    data-placement="bottom"
+                    title="Add Column"
+                >{addIcon}</a>
+            </div>
         </div>
         <table class="table table-hover table-sm">
             <tbody>
                 {forEach columns (\column -> renderColumn (snd column) (fst column) tableName statements)}
             </tbody>
         </table>
+        {suggestedColumnsSection tableName columns}
     </section>
-
     {auth}
 
     <section>
@@ -159,7 +257,116 @@ renderColumnSelector tableName columns statements = [hsx|
         auth :: Html
         auth = renderPolicies tableName statements
 
--- <a href={NewColumnAction tableName} class="text-danger text-center d-block" id="new-column">+ New Column</a>
+suggestedColumnsSection :: Text -> [(Int, Column)] -> Html
+suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
+    <div class="mt-5">
+        {mconcat suggestions}
+    </div>
+|]
+    where
+        columns :: [Column]
+        columns = map snd indexAndColumns
+
+        hasColumn :: Text -> Bool
+        hasColumn name = columns |> find (\column -> get #name column == name) |> isJust
+
+        isUsersTable = tableName == "users"
+
+        suggestions = [createdAt, updatedAt, userId] |> catMaybes
+
+        createdAt = if hasColumn "created_at"
+                then Nothing
+                else Just [hsx|
+                    <form method="POST" action={CreateColumnAction} class="mb-2">
+                        <input type="hidden" name="tableName" value={tableName} />
+                        <input type="hidden" name="name" value="created_at"/>
+                        <input type="hidden" name="columnType" value="TIMESTAMP WITH TIME ZONE"/>
+                        <input type="hidden" name="primaryKey" value={inputValue False}/>
+                        <input type="hidden" name="isArray" value={inputValue False}/>
+                        <input type="hidden" name="defaultValue" value="NOW()"/>
+                        <input type="hidden" name="allowNull" value={inputValue False}/>
+                        <input type="hidden" name="isUnique" value={inputValue False}/>
+                        <input type="hidden" name="isReference" value={inputValue False}/>
+                        <input type="hidden" name="withIndex" value={inputValue True}/>
+                        
+                        <button type="submit" class="btn btn-suggested-table">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                    <tr class="column">
+                                        <td style="width: 40px">+</td>
+                                        <td class="context-column column-name">created_at</td>
+                                        <td class="context-column">TIMESTAMP WITH TIME ZONE</td>
+                                        <td class="context-column">NOW()</td>
+                                        <td class="context-column"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </button>
+                    </form>
+                |]
+
+        updatedAt = if hasColumn "updated_at"
+                then Nothing
+                else Just [hsx|
+                    <form method="POST" action={CreateColumnAction} class="mb-2">
+                        <input type="hidden" name="tableName" value={tableName} />
+                        <input type="hidden" name="name" value="updated_at"/>
+                        <input type="hidden" name="columnType" value="TIMESTAMP WITH TIME ZONE"/>
+                        <input type="hidden" name="primaryKey" value={inputValue False}/>
+                        <input type="hidden" name="isArray" value={inputValue False}/>
+                        <input type="hidden" name="defaultValue" value="NOW()"/>
+                        <input type="hidden" name="allowNull" value={inputValue False}/>
+                        <input type="hidden" name="isUnique" value={inputValue False}/>
+                        <input type="hidden" name="isReference" value={inputValue False}/>
+                        <input type="hidden" name="withIndex" value={inputValue False}/>
+                        
+                        <button type="submit" class="btn btn-suggested-table">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                    <tr class="column">
+                                        <td style="width: 40px">+</td>
+                                        <td class="context-column column-name">updated_at</td>
+                                        <td class="context-column">TIMESTAMP WITH TIME ZONE</td>
+                                        <td class="context-column">NOW()</td>
+                                        <td class="context-column"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </button>
+                    </form>
+                |]
+
+        userId = if hasColumn "user_id"
+            then Nothing
+            else Just [hsx|
+                <form method="POST" action={CreateColumnAction}>
+                    <input type="hidden" name="tableName" value={tableName} />
+                    <input type="hidden" name="name" value="user_id"/>
+                    <input type="hidden" name="columnType" value="UUID"/>
+                    <input type="hidden" name="primaryKey" value={inputValue False}/>
+                    <input type="hidden" name="isArray" value={inputValue False}/>
+                    <input type="hidden" name="defaultValue" value="ihp_user_id()"/>
+                    <input type="hidden" name="allowNull" value={inputValue False}/>
+                    <input type="hidden" name="isUnique" value={inputValue False}/>
+                    <input type="hidden" name="isReference" value={inputValue True}/>
+                    <input type="hidden" name="referenceTable" value="users"/>
+                    
+                    <button type="submit" class="btn btn-suggested-table">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr class="column">
+                                    <td style="width: 40px">+</td>
+                                    <td class="context-column column-name">user_id</td>
+                                    <td class="context-column">UUID</td>
+                                    <td class="context-column"></td>
+                                    <td class="context-column">FOREIGN KEY: users</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </button>
+                </form>
+            |]
+
 
 renderColumn :: Column -> Int -> Text -> [Statement] -> Html
 renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tableName statements = [hsx|
@@ -193,7 +400,7 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
                 Just value -> [hsx|default: {compileExpression value} |]
                 Nothing -> mempty
         renderForeignKey = case findForeignKey statements tableName name of
-            Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable } } -> [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable} class="d-block nounderline" style="color: #808080;">FOREIGN KEY: {referenceTable}</a>|]
+            Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable } } -> [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable} class="d-block nounderline">FOREIGN KEY: {referenceTable}</a>|]
             _ -> mempty
         foreignKeyOption = case findForeignKey statements tableName name of
             Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable } } ->
@@ -282,7 +489,13 @@ renderEnumSelector enumName values = [hsx|
     <div class="d-flex">
         <h5>Enum Values</h5>
         <div class="toolbox">
-            <a href={NewEnumValueAction enumName} class="btn btn-sm btn-outline-primary m-1">New</a>
+            <a
+                href={NewEnumValueAction enumName}
+                class="btn btn-link btn-add mr-1"
+                data-toggle="tooltip"
+                data-placement="bottom"
+                title="Add Table"
+                >{addIcon}</a>
         </div>
     </div>
     <table class="table table-hover table-sm">
@@ -314,10 +527,21 @@ renderValue value valueId enumName = [hsx|
 
 renderObjectSelector statements activeObjectName = [hsx|
     <div class={classes ["col", "object-selector", ("empty", isEmptySelector)]} oncontextmenu="showContextMenu('context-menu-object-root')">
-        <div class="d-flex">
-            <h5>Objects</h5>
+        <div class="d-flex align-items-center pl-2">
+            <h5>Tables</h5>
+            <div class="toolbox">
+                <a
+                    href={NewTableAction}
+                    class="btn btn-link btn-add mr-1"
+                    data-toggle="tooltip"
+                    data-placement="bottom"
+                    title="Add Table"
+                    >{addIcon}</a>
+            </div>
         </div>
-        {forEach statements (\statement -> renderObject (snd statement) (fst statement))}
+        {forEach tableStatements (\statement -> renderObject (snd statement) (fst statement))}
+        {enums}
+
         <div class="text-muted context-menu-notice">Right click to open context menu</div>
     </div>
     <div class="custom-menu menu-for-table shadow backdrop-blur" id="context-menu-object-root">
@@ -329,28 +553,42 @@ renderObjectSelector statements activeObjectName = [hsx|
         isEmptySelector :: Bool
         isEmptySelector = statements |> map snd |> filter shouldRenderObject |> isEmpty
 
+        tableStatements :: [(Int, Statement)]
+        tableStatements = statements |> filter \case
+            (_, StatementCreateTable CreateTable {}) -> True
+            otherwise -> False
+        
+        enumStatements :: [(Int, Statement)]
+        enumStatements = statements |> filter \case
+            (_, CreateEnumType {}) -> True
+            otherwise -> False
+
+        enums = whenNonEmpty enumStatements [hsx|
+            <div class="d-flex pl-2">
+                <h5>Enums</h5>
+            </div>
+            {forEach enumStatements (\statement -> renderObject (snd statement) (fst statement))}
+        |]
+
         renderObject :: Statement -> Int -> Html
         renderObject (StatementCreateTable CreateTable { name }) id = [hsx|
-        <a href={ShowTableAction name} class={classes [("object object-table w-100 context-table", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
-            <div class="d-flex">
-                {tableIcon} {name}
+            <div class={classes [("object object-table w-100 context-table pl-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+                <div class="d-flex justify-content-between">
+                    <a href={ShowTableAction name} class="flex-grow-1">{name}</a>
 
-                {when rlsEnabled rlsIcon}
+                    {when rlsEnabled rlsIcon}
+                </div>
             </div>
-        </a>
-        <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
-            <a href={EditTableAction name id}>Rename Table</a>
-            <a href={DeleteTableAction id name} class="js-delete">Delete Table</a>
-            <div></div>
-            <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
-            {when controllerDoesNotExist generateControllerLink}
-            {unless controllerDoesNotExist openControllerLink}
-            <div></div>
-            <a href={NewColumnAction name}>Add Column to Table</a>
-            <div></div>
-            <a href={NewTableAction}>Add Table</a>
-            <a href={NewEnumAction}>Add Enum</a>
-        </div>
+            <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
+                <a href={EditTableAction name id}>Rename Table</a>
+                <a href={DeleteTableAction id name} class="js-delete">Delete Table</a>
+                <div></div>
+                <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
+                <a href={NewColumnAction name}>Add Column to Table</a>
+                <div></div>
+                <a href={NewTableAction}>Add Table</a>
+                <a href={NewEnumAction}>Add Enum</a>
+            </div>
         |]
             where
                 contextMenuId = "context-menu-" <> tshow id
@@ -377,21 +615,21 @@ renderObjectSelector statements activeObjectName = [hsx|
                         |]
 
         renderObject CreateEnumType { name } id = [hsx|
-        <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
-            <div class="d-flex">
-                {enumIcon} {name}
+            <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum pl-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+                <div class="d-flex">
+                    {name}
+                </div>
+            </a>
+            <div class="custom-menu menu-for-enum shadow backdrop-blur" id={contextMenuId}>
+                <a href={EditEnumAction name id}>Rename Enum</a>
+                <a href={DeleteEnumAction id} class="js-delete">Delete Enum</a>
+                <div></div>
+                <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
+                <a href={NewEnumValueAction name}>Add Column to Table</a>
+                <div></div>
+                <a href={NewTableAction}>Add Table</a>
+                <a href={NewEnumAction}>Add Enum</a>
             </div>
-        </a>
-        <div class="custom-menu menu-for-enum shadow backdrop-blur" id={contextMenuId}>
-            <a href={EditEnumAction name id}>Rename Enum</a>
-            <a href={DeleteEnumAction id} class="js-delete">Delete Enum</a>
-            <div></div>
-            <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
-            <a href={NewEnumValueAction name}>Add Column to Table</a>
-            <div></div>
-            <a href={NewTableAction}>Add Table</a>
-            <a href={NewEnumAction}>Add Enum</a>
-        </div>
         |]
             where
                 contextMenuId = "context-menu-" <> tshow id

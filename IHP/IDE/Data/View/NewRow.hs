@@ -5,6 +5,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
 import Data.Maybe
+import qualified Data.Text as Text
 
 data NewRowView = NewRowView
     { tableNames :: [Text]
@@ -15,14 +16,14 @@ data NewRowView = NewRowView
 
 instance View NewRowView where
     html NewRowView { .. } = [hsx|
-        <div class="mx-2 pt-5">
-            <div class="row no-gutters bg-white">
+        <div class="h-100">
+            {headerNav}
+            <div class="h-100 row no-gutters">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>
-            {customQuery ""}
         </div>
         {renderModal modal}
     |]
@@ -39,6 +40,7 @@ instance View NewRowView where
                 <form method="POST" action={CreateRowAction}>
                     <input type="hidden" name="tableName" value={tableName}/>
                     {forEach tableCols renderFormField}
+                    {renderFlashMessages}
                     <div class="text-right">
                         <button type="submit" class="btn btn-primary">Add Row</button>
                     </div>
@@ -56,7 +58,7 @@ instance View NewRowView where
                             <a class="text-muted row-form">{get #columnType col}</a>
                         </span>
 
-                        <div class="input-group">
+                        <div class="d-flex">
                             {renderInputMethod col}
                         </div>
                     </div>|]
@@ -69,7 +71,7 @@ instance View NewRowView where
                                 id={get #columnName col <> "-alt"}
                                 type="text"
                                 name={get #columnName col <> "-inactive"}
-                                class="form-control text-monospace text-secondary bg-light d-none"
+                                class="form-control text-monospace text-secondary d-none"
                                 />
                             <div class="form-control" id={get #columnName col <> "-boxcontainer"}>
                                 <input
@@ -110,16 +112,11 @@ instance View NewRowView where
                             </div>
                                 |]
             renderInputMethod col = [hsx|
-                            {isBooleanParam False col}
-                            <input
-                                id={get #columnName col <> "-input"}
-                                type="text"
-                                name={get #columnName col}
-                                class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction (getColDefaultValue col))]}
-                                value={renderDefaultWithoutType (getColDefaultValue col)}
-                                oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
-                                />
-                            <div class="input-group-append">
+                                {isBooleanParam False col}
+                                {if isForeignKeyColumn
+                                        then select
+                                        else theInput
+                                }
                                 <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "false"}>DEFAULT</a>
@@ -141,4 +138,34 @@ instance View NewRowView where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>|]
+                            |]
+                                where
+                                    isForeignKeyColumn :: Bool
+                                    isForeignKeyColumn = "_id" `Text.isSuffixOf` (get #columnName col)
+
+
+                                    theInput :: Html
+                                    theInput = [hsx|
+                                        <input
+                                            id={get #columnName col <> "-input"}
+                                            type="text"
+                                            name={get #columnName col}
+                                            class={classes ["form-control", ("text-monospace", isSqlFunction (getColDefaultValue col)), ("is-foreign-key-column", isForeignKeyColumn)]}
+                                            value={renderDefaultWithoutType (getColDefaultValue col)}
+                                            oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
+                                        />
+                                    |]
+
+                                    select :: Html
+                                    select = [hsx|
+                                        <select
+                                            id={get #columnName col <> "-input"}
+                                            name={get #columnName col}
+                                            class={classes ["form-control", ("is-foreign-key-column", isForeignKeyColumn)]}
+                                            value={renderDefaultWithoutType (getColDefaultValue col)}
+                                            data-select-url={selectUrl}
+                                        />
+                                    |]
+
+                                    selectUrl :: Text
+                                    selectUrl = urlTo AutocompleteForeignKeyColumnAction { tableName, columnName = get #columnName col, term = "" }

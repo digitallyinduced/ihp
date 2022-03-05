@@ -20,14 +20,14 @@ data EditRowView = EditRowView
 
 instance View EditRowView where
     html EditRowView { .. } = [hsx|
-        <div class="mx-2 pt-5">
-            <div class="row no-gutters bg-white">
+        <div class="h-100">
+            {headerNav}
+            <div class="h-100 row no-gutters">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                 </div>
             </div>
-            {customQuery ""}
         </div>
         {renderModal modal}
     |]
@@ -187,7 +187,7 @@ instance View EditRowView where
                                             id={get #columnName def <> "-sqlbox"}
                                             type="checkbox"
                                             name={get #columnName def <> "_"}
-                                            checked={isSQLMode}
+                                            checked={isSqlFunction_ (value val)}
                                             class="mr-1"
                                             onclick={"sqlModeCheckbox('" <> get #columnName def <> "', this)"}
                                             />
@@ -200,11 +200,5 @@ instance View EditRowView where
                                         />
                                 </div>
                             </div>|]
-                                where
-                                    isNull = isNothing (get #fieldValue val)
-                                    isSQLMode = isSqlFunction_ (value val) || isNull
 
-value :: DynamicField -> ByteString
-value dynamicField = case get #fieldValue dynamicField of
-    Just string -> string
-    Nothing -> "NULL"
+value val = fromMaybe BS.empty (get #fieldValue val)

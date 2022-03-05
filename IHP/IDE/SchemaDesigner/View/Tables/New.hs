@@ -12,7 +12,9 @@ instance View NewTableView where
     html NewTableView { .. } = [hsx|
         <div class="row no-gutters bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
+            {emptyColumnSelectorContainer}
         </div>
+        {migrationStatus}
         {renderModal modal}
     |]
         where

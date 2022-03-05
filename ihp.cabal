@@ -308,6 +308,7 @@ library
         , IHP.IDE.SchemaDesigner.Controller.Tables
         , IHP.IDE.SchemaDesigner.Controller.Validation
         , IHP.IDE.SchemaDesigner.Controller.Policies
+        , IHP.IDE.SchemaDesigner.Controller.Migrations
         , IHP.IDE.SchemaDesigner.View.Columns.Edit
         , IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
         , IHP.IDE.SchemaDesigner.View.Columns.New
@@ -328,6 +329,9 @@ library
         , IHP.IDE.SchemaDesigner.View.Tables.Show
         , IHP.IDE.SchemaDesigner.View.Policies.New
         , IHP.IDE.SchemaDesigner.View.Policies.Edit
+        , IHP.IDE.SchemaDesigner.View.Migrations.Edit
+        , IHP.IDE.SchemaDesigner.View.Migrations.Index
+        , IHP.IDE.SchemaDesigner.View.Migrations.New
         , IHP.IDE.SchemaDesigner.SchemaOperations
         , IHP.IDE.Data.Controller
         , IHP.IDE.Data.View.EditRow
@@ -337,6 +341,7 @@ library
         , IHP.IDE.Data.View.ShowDatabase
         , IHP.IDE.Data.View.ShowQuery
         , IHP.IDE.Data.View.ShowTableRows
+        , IHP.IDE.Data.View.ShowForeignKeyHoverCard
         , IHP.IDE.CodeGen.View.Generators
         , IHP.IDE.CodeGen.View.NewAction
         , IHP.IDE.CodeGen.View.NewApplication
@@ -349,6 +354,7 @@ library
         , IHP.IDE.CodeGen.View.NewMail
         , IHP.IDE.ToolServer
         , IHP.IDE.ToolServer.Helper.Controller
+        , IHP.IDE.ToolServer.Helper.View
         , IHP.IDE.ToolServer.Layout
         , IHP.IDE.ToolServer.Routes
         , IHP.IDE.ToolServer.Types

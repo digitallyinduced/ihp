@@ -5,6 +5,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Layout
 import IHP.IDE.CodeGen.Types
 import qualified Data.Text as Text
+import IHP.IDE.ToolServer.Helper.View
 
 data GeneratorsView = GeneratorsView
 
@@ -20,7 +21,7 @@ instance View GeneratorsView where
                     {generator "Mail" (pathTo NewMailAction) copyIcon}
                     {generator "Background Job" (pathTo NewJobAction) cogsIcon}
                     {generator "Script" (pathTo NewScriptAction) copyIcon}
-                    {generator "Migration" (pathTo NewMigrationAction) databaseIcon}
+                    {generator "Migration" (pathTo NewMigrationAction) dataIcon}
                     {generator "Application" (pathTo NewApplicationAction) copyIcon}
                 </div>
             </div>

@@ -23,16 +23,19 @@ import IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.LibDir as LibDir
 
-buildPlan :: Text -> IO (Int, [GeneratorAction])
-buildPlan description = do
+buildPlan :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
+buildPlan description sqlStatements = do
     revision <- round <$> POSIX.getPOSIXTime
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
 
-    appDiff <- diffAppDatabase
-    let migrationSql = if isEmpty appDiff
-        then "-- Write your SQL migration code in here\n"
-        else compileSql appDiff
+    migrationSql <- case sqlStatements of
+        Just sql -> pure sql
+        Nothing -> do
+            appDiff <- diffAppDatabase
+            pure $ if isEmpty appDiff
+                then "-- Write your SQL migration code in here\n"
+                else compileSql appDiff
     pure (revision,
             [ EnsureDirectory { directory = "Application/Migration" }
             , CreateFile { filePath = "Application/Migration/" <> migrationFile, fileContent = migrationSql }

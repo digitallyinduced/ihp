@@ -1,0 +1,48 @@
+.migration {
+    margin-bottom: 1rem;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.migration.pending {
+    padding: 1rem;
+    background-color: #0A4151;
+    border: 1px solid #0B5163;
+    border-radius: 6px;
+}
+
+.migration pre > code, .migration .ace_editor {
+    background-color: #0A4151;
+}
+
+.migration-error-tooltip .tooltip-inner {
+    background-color: #342B3E;
+    border: 1px solid #FF2E45 !important;
+    color: #FF2E45;
+    font-weight: 500;
+    border-radius: 8px;
+    box-shadow: 0 1rem 3rem rgba(0,0,0,.175)!important;
+}
+
+.migration.is-completed {
+    border-bottom: 1px solid #0B5163;
+}
+
+.migration.is-completed:last-child {
+    border-bottom: 0;
+}
+
+.migration .source-code, .migration .source-code code, .migration pre {
+    background-color: transparent;
+}
+
+.migration-actions {
+}
+
+.migration pre > code {
+    padding: 0;
+}
+
+.migration time {
+    font-size: 12px;
+}

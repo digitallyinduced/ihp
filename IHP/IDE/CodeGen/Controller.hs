@@ -27,7 +27,6 @@ import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
 import System.Directory
 import qualified IHP.SchemaMigration as SchemaMigration
-import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.Log.Types
 
 instance Controller CodeGenController where
@@ -148,32 +147,6 @@ instance Controller CodeGenController where
         executePlan plan
         setSuccessMessage "Application generated"
         redirectTo GeneratorsAction
-
-    action NewMigrationAction = do
-        let description = paramOrDefault "" "description"
-        (_, plan') <- MigrationGenerator.buildPlan description
-        let plan = Right plan'
-        let runMigration = paramOrDefault True "runMigration"
-        render NewMigrationView { .. }
-
-    action CreateMigrationAction = do
-        let description = param "description"
-        (revision, plan) <- MigrationGenerator.buildPlan description
-        let path = MigrationGenerator.migrationPathFromPlan plan
-
-        executePlan plan
-
-        let runMigration = paramOrDefault True "runMigration"
-        if runMigration
-            then do
-                migrateAppDB revision
-            else do
-                setSuccessMessage ("Migration generated: " <> path)
-                openEditor path 0 0
-
-        clearDatabaseNeedsMigration
-
-        redirectTo TablesAction
 
     action NewJobAction = do
         let jobName = paramOrDefault "" "name"
@@ -336,21 +309,3 @@ appendLineAfter file isRelevantLine newLines =
             |> lastMay
             |> fmap fst
     in fmap (\lastImportLine -> unlines $ (take lastImportLine content) <> newLines <> (drop lastImportLine content)) lastImportLine
-
-
-migrateAppDB revision = do
-    frameworkConfig <- buildFrameworkConfig (pure ())
-    logger <- defaultLogger
-
-    modelContext <- createModelContext
-        (get #dbPoolIdleTime frameworkConfig)
-        (get #dbPoolMaxConnections frameworkConfig)
-        (get #databaseUrl frameworkConfig)
-        logger
-
-    let ?modelContext = modelContext
-
-    let minimumRevision = Just (revision - 1)
-    SchemaMigration.migrate SchemaMigration.MigrateOptions { minimumRevision }
-
-    logger |> cleanup

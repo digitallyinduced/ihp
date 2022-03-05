@@ -17,6 +17,7 @@ instance View ShowView where
             {renderObjectSelector (zip [0..] statements) (Just name)}
             {renderColumnSelector name (zip [0..] columns) statements}
         </div>
+        {migrationStatus}
     |]
         where
             columns = get #columns (unsafeGetCreateTable table)

@@ -21,7 +21,14 @@ instance Controller TablesController where
 
     action TablesAction = do
         statements <- readSchema
-        render IndexView { .. }
+
+        let tableNames = statements |> mapMaybe \case
+                StatementCreateTable CreateTable { name } -> Just name
+                otherwise -> Nothing
+
+        case headMay tableNames of
+            Just tableName -> redirectTo ShowTableAction { tableName }
+            otherwise -> render IndexView { .. }
 
     action ShowTableAction { tableName } = do
         let name = tableName

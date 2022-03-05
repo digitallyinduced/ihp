@@ -18,6 +18,7 @@ instance View EditEnumValueView where
             {renderObjectSelector (zip [0..] statements) (Just enumName)}
             {renderEnumSelector enumName (zip [0..] values)}
         </div>
+        {migrationStatus}
         {renderModal modal}
     |]
         where

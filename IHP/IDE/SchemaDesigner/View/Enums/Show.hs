@@ -17,6 +17,7 @@ instance View ShowEnumView where
             {renderObjectSelector (zip [0..] statements) (Just name)}
             {renderEnumSelector name (zip [0..] values)}
         </div>
+        {migrationStatus}
     |]
         where
             table = findStatementByName name statements
