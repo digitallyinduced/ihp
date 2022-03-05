@@ -43,6 +43,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src={assetPath "/IDE/ihp-help.js"}></script>
     <script src={assetPath "/IDE/query-editor.js"}></script>
     <script src={assetPath "/IDE/data-hovercard.js"}></script>
+    <script src={assetPath "/IDE/migration-editor.js"}></script>
 
 
     <title>IHP IDE</title>
@@ -86,7 +87,8 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                     || isActiveController @TablesController
                     || isActiveController @ColumnsController
                     || isActiveController @EnumsController
-                    || isActiveController @EnumValuesController )
+                    || isActiveController @EnumValuesController
+                    || isActiveController @MigrationsController )
 
         help :: Html
         help = [hsx|

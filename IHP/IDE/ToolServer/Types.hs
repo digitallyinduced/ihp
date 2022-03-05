@@ -95,7 +95,6 @@ data CodeGenController
     | NewMailAction
     | NewActionAction
     | NewApplicationAction
-    | NewMigrationAction
     | NewJobAction
     | CreateControllerAction
     | CreateScriptAction
@@ -103,11 +102,19 @@ data CodeGenController
     | CreateMailAction
     | CreateActionAction
     | CreateApplicationAction
-    | CreateMigrationAction
     | CreateJobAction
     | OpenControllerAction
     deriving (Eq, Show, Data)
 
+data MigrationsController
+    = MigrationsAction
+    | NewMigrationAction
+    | CreateMigrationAction
+    | EditMigrationAction { migrationId :: !Int }
+    | UpdateMigrationAction { migrationId :: !Int }
+    | DeleteMigrationAction { migrationId :: !Int }
+    | RunMigrationAction { migrationId :: !Int }
+    deriving (Eq, Show, Data)
 
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString

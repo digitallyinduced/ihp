@@ -19,6 +19,7 @@ import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes
 import qualified Data.Text as Text
+import IHP.IDE.ToolServer.Helper.View
 
 customQuery :: Text -> Html
 customQuery input = [hsx|<div class="p-2 rounded mt-2" style="background-color: #002B36;"><div id="queryInput" style="height:16px">{input}</div></div>|]
@@ -126,7 +127,3 @@ headerNav = [hsx|
 
         sqlActive :: Bool
         sqlActive = False
-
-
-addIcon :: Html
-addIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" height="1rem" viewBox="0 0 24 24" fill="currentColor"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>|]

@@ -18,6 +18,7 @@ module IHP.IDE.SchemaDesigner.View.Layout
 import IHP.ViewPrelude
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
+import IHP.IDE.ToolServer.Helper.View
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
 import IHP.IDE.SchemaDesigner.Compiler (compilePostgresType, compileExpression)
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
@@ -190,7 +191,7 @@ visualNav = [hsx|
             <a href={ShowCodeAction} class={classes [("active", codeEditorActive)]}>
                 Code Editor
             </a>
-            <a href="#" class={classes [("active", migrationsActive)]}>
+            <a href={MigrationsAction} class={classes [("active", migrationsActive)]}>
                 Migrations
             </a>
         </div>
@@ -199,7 +200,7 @@ visualNav = [hsx|
     where
         codeEditorActive = isActivePath ShowCodeAction
         tableViewActive = not codeEditorActive && not migrationsActive
-        migrationsActive = False
+        migrationsActive = isActiveController @MigrationsController
 
 emptyColumnSelectorContainer = [hsx|
 <div class="col-md-8 col-lg-10 column-selector d-flex">
@@ -710,6 +711,3 @@ unknownIcon = preEscapedToHtml [plain|<svg id="_1" data-name="1" xmlns="http://w
 
 -- | https://fonts.google.com/icons?icon.query=shield
 shieldIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 24 24" height="1rem" viewBox="0 0 24 24" width="1rem" fill="currentColor"><g><rect fill="none" height="24" width="24"/></g><g><path d="M12,2L4,5v6.09c0,5.05,3.41,9.76,8,10.91c4.59-1.15,8-5.86,8-10.91V5L12,2z M18,11.09c0,4-2.55,7.7-6,8.83 c-3.45-1.13-6-4.82-6-8.83v-4.7l6-2.25l6,2.25V11.09z"/></g></svg>|]
-
-addIcon :: Html
-addIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" height="1rem" viewBox="0 0 24 24" fill="currentColor"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>|]
