@@ -6,6 +6,7 @@
 @import "/IDE/table.css";
 @import "/IDE/form.css";
 @import "/IDE/code.css";
+@import "/IDE/migrations.css";
 
 .object-selector h5 {
     font-size: 14px;
