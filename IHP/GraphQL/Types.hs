@@ -35,7 +35,7 @@ data TypeDefinition
     | InterfaceTypeDefinition
     | UnionTypeDefinition
     | EnumTypeDefinition
-    | InputObjectTypeDefinition
+    | InputObjectTypeDefinition { name :: !Text, fieldDefinitions :: ![FieldDefinition] }
     deriving (Eq, Show)
 
 data OperationDefinition

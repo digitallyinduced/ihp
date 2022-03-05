@@ -47,6 +47,15 @@ typeDefinitionToText ObjectTypeDefinition { name, implementsInterfaces, fieldDef
         fields = fieldDefinitions
             |> map fieldDefinitionToText
             |> Text.intercalate "\n"
+typeDefinitionToText InputObjectTypeDefinition { name, fieldDefinitions } = [trimming|
+    input $name {
+        $fields
+    }
+|]
+    where
+        fields = fieldDefinitions
+            |> map fieldDefinitionToText
+            |> Text.intercalate "\n"
 
 fieldDefinitionToText :: FieldDefinition -> Text
 fieldDefinitionToText FieldDefinition { description, name, argumentsDefinition, type_ } =
