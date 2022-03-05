@@ -57,10 +57,10 @@ tests = do
                 }
                 type Mutation {
                     createUser(user: NewUser!): User!
-                    updateUser(id: ID!, patch: User!): User!
+                    updateUser(id: ID!, patch: UserPatch!): User!
                     deleteUser(id: ID!): User!
                     createTask(task: NewTask!): Task!
-                    updateTask(id: ID!, patch: Task!): Task!
+                    updateTask(id: ID!, patch: TaskPatch!): Task!
                     deleteTask(id: ID!): Task!
                 }
                 scalar UUID
@@ -79,14 +79,27 @@ tests = do
                     body: String!
                     userId: UUID!
                 }
-                type NewUser {
+                input NewUser {
                     id: ID!
                     email: String!
                     passwordHash: String!
                     lockedAt: Timestamp
                     failedLoginAttempts: Int!
                 }
-                type NewTask {
+                input NewTask {
+                    id: ID!
+                    title: String!
+                    body: String!
+                    userId: UUID!
+                }
+                input UserPatch {
+                    id: ID!
+                    email: String!
+                    passwordHash: String!
+                    lockedAt: Timestamp
+                    failedLoginAttempts: Int!
+                }
+                input TaskPatch {
                     id: ID!
                     title: String!
                     body: String!
