@@ -18,6 +18,7 @@ sqlSchemaToGraphQLSchema statements =
             <> customScalars
             <> recordTypes statements
             <> newRecordTypes statements
+            <> patchTypes statements
 
 schemaDefinition :: Definition
 schemaDefinition =
@@ -83,7 +84,7 @@ statementToMutationFields (StatementCreateTable CreateTable { name }) =
             , name = "update" <> tableNameToModelName name
             , argumentsDefinition =
                 [ ArgumentDefinition { name = "id", argumentType = NonNullType (NamedType "ID"), defaultValue = Nothing }
-                , ArgumentDefinition { name = "patch", argumentType = NonNullType (NamedType (tableNameToModelName name)), defaultValue = Nothing }
+                , ArgumentDefinition { name = "patch", argumentType = NonNullType (NamedType ((tableNameToModelName name) <> "Patch")), defaultValue = Nothing }
                 ]
             , type_ = NonNullType (NamedType (tableNameToModelName name))
             }
@@ -133,13 +134,25 @@ newRecordType schema (StatementCreateTable table@(CreateTable { name, columns })
         Just TypeSystemDefinition { typeSystemDefinition = TypeDefinition typeDefinition }
     where
         typeDefinition =
-            ObjectTypeDefinition
+            InputObjectTypeDefinition
                 { name = "New" <> tableNameToModelName name
-                , implementsInterfaces = []
                 , fieldDefinitions = map (columnToRecordField table) columns
                 }
 newRecordType _ _ = Nothing
 
+patchTypes :: [Statement] -> [Definition]
+patchTypes statements = mapMaybe (patchType statements) statements
+
+patchType :: SqlSchema -> Statement -> Maybe Definition
+patchType schema (StatementCreateTable table@(CreateTable { name, columns })) = 
+        Just TypeSystemDefinition { typeSystemDefinition = TypeDefinition typeDefinition }
+    where
+        typeDefinition =
+            InputObjectTypeDefinition
+                { name = tableNameToModelName name <> "Patch"
+                , fieldDefinitions = map (columnToRecordField table) columns
+                }
+patchType _ _ = Nothing
 
 columnToRecordField :: CreateTable -> Column -> FieldDefinition
 columnToRecordField table Column { name, columnType, notNull } = 
