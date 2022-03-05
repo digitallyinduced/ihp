@@ -123,7 +123,7 @@ headerNav = [hsx|
 |]
     where
         databaseActive :: Bool
-        databaseActive = isActiveController @DataController
+        databaseActive = isActiveController @DataController && not sqlActive
 
         sqlActive :: Bool
-        sqlActive = False
+        sqlActive = isActivePath NewQueryAction || isActivePath QueryAction
