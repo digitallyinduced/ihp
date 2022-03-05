@@ -354,6 +354,7 @@ library
         , IHP.IDE.CodeGen.View.NewMail
         , IHP.IDE.ToolServer
         , IHP.IDE.ToolServer.Helper.Controller
+        , IHP.IDE.ToolServer.Helper.View
         , IHP.IDE.ToolServer.Layout
         , IHP.IDE.ToolServer.Routes
         , IHP.IDE.ToolServer.Types
