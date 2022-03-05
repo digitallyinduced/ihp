@@ -1,7 +1,6 @@
 module IHP.IDE.Data.View.Layout
     ( customQuery
     , tableHead
-    , renderColumnHead
     , renderRows
     , sqlValueToText
     , renderId
@@ -13,10 +12,12 @@ module IHP.IDE.Data.View.Layout
     , renderRowValue
     , renderDefaultWithoutType
     , isBooleanParam
+    , headerNav
     ) where
 
 import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
+import IHP.IDE.ToolServer.Routes
 import qualified Data.Text as Text
 
 customQuery :: Text -> Html
@@ -24,14 +25,31 @@ customQuery input = [hsx|<div class="p-2 rounded mt-2" style="background-color: 
 
 tableHead :: [[DynamicField]] -> Text -> Html
 tableHead rows tableName =
-    [hsx|<thead><tr>{forEach (columnNames rows) renderColumnHead}</tr></thead>|]
+    [hsx|
+        <thead>
+            <tr>
+                {forEach (columnNames rows) renderColumnHead}
+                <th>
+                    <div class="d-flex">
+                        <a
+                            href={NewRowAction tableName}
+                            class="btn btn-link btn-add"
+                            data-toggle="tooltip"
+                            data-placement="bottom"
+                            title={"Add " <> tableNameToModelName tableName}
+                        >{addIcon}</a>
+                    </div>
+                </th>
+            </tr>
+        </thead>
+    |]
     where
         columnNames rows = map (get #fieldName) (fromMaybe [] (head rows))
-renderColumnHead name = [hsx|<th>{name}</th>|]
+        renderColumnHead name = [hsx|<th>{name}</th>|]
 
 renderRows :: [[DynamicField]] -> Html -> Text -> Html
 renderRows rows body tableName = [hsx|
-    <table class="table table-sm table-hover table-striped data-rows-table">
+    <table class="table table-sm table-hover data-rows-table">
         {tableHead rows tableName}
         {body}
     </table>
@@ -86,3 +104,29 @@ isBooleanParam isBool def = [hsx|
     value={inputValue isBool}
     />
 |]
+
+
+headerNav :: Html
+headerNav = [hsx|
+    <div class="view-selector">
+        <div class="container-fluid">
+            <a href={ShowDatabaseAction} class={classes [("active", databaseActive)]}>
+                Database
+            </a>
+
+            <a href={NewQueryAction} class={classes [("active", sqlActive)]}>
+                SQL
+            </a>
+        </div>
+    </div>
+|]
+    where
+        databaseActive :: Bool
+        databaseActive = isActiveController @DataController
+
+        sqlActive :: Bool
+        sqlActive = False
+
+
+addIcon :: Html
+addIcon = preEscapedToHtml [plain|<svg xmlns="http://www.w3.org/2000/svg" height="1rem" viewBox="0 0 24 24" fill="currentColor"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>|]

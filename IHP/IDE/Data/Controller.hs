@@ -8,6 +8,7 @@ import IHP.IDE.Data.View.ShowQuery
 import IHP.IDE.Data.View.NewRow
 import IHP.IDE.Data.View.EditRow
 import IHP.IDE.Data.View.EditValue
+import IHP.IDE.Data.View.ShowForeignKeyHoverCard
 
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
@@ -23,7 +24,9 @@ instance Controller DataController where
         connection <- connectToAppDb
         tableNames <- fetchTableNames connection
         PG.close connection
-        render ShowDatabaseView { .. }
+        case headMay tableNames of
+            Just tableName -> jumpToAction ShowTableRowsAction { tableName }
+            Nothing -> render ShowDatabaseView { .. }
 
     action ShowTableRowsAction { tableName } = do
         let page :: Int = paramOrDefault @Int 1 "page"
@@ -37,16 +40,23 @@ instance Controller DataController where
         PG.close connection
         render ShowTableRowsView { .. }
 
-    action ShowQueryAction = do
+    action NewQueryAction = do
+        let queryText = ""
+        let queryResult = Nothing
+        render ShowQueryView { .. }
+
+    action QueryAction = do
         connection <- connectToAppDb
         let queryText = param @Text "query"
-        when (queryText == "") $ redirectTo ShowDatabaseAction
+        when (isEmpty queryText) do
+            redirectTo NewQueryAction
+
         let query = fromString $ cs queryText
 
-        queryResult :: Either PG.SqlError [[DynamicField]] <- if isQuery queryText then
-                (PG.query_ connection query <&> Right) `catch` (pure . Left)
+        queryResult :: Maybe (Either PG.SqlError SqlConsoleResult) <- Just <$> if isQuery queryText then
+                (Right . SelectQueryResult <$> PG.query_ connection query) `catch` (pure . Left)
             else
-                (PG.execute_ connection query >> pure (Right [])) `catch` (pure . Left)
+                (Right . InsertOrUpdateResult <$> PG.execute_ connection query) `catch` (pure . Left)
 
         PG.close connection
         render ShowQueryView { .. }
@@ -155,6 +165,39 @@ instance Controller DataController where
         PG.close connection
         redirectTo ShowTableRowsAction { .. }
 
+    action AutocompleteForeignKeyColumnAction { tableName, columnName, term } = do
+        connection <- connectToAppDb
+        rows :: Maybe [[DynamicField]] <- do
+            foreignKeyInfo <- fetchForeignKeyInfo connection tableName columnName
+
+            case foreignKeyInfo of
+                Just (foreignTable, foreignColumn) -> Just <$> fetchRowsPage connection foreignTable 1 50
+                Nothing -> pure Nothing
+        
+        PG.close connection
+        
+        case rows of
+            Just rows -> renderJson rows
+            Nothing -> renderNotFound
+
+    action ShowForeignKeyHoverCardAction { tableName, id, columnName } = do
+        connection <- connectToAppDb
+        hovercardData <- do
+            [Only (foreignId :: UUID)] <- PG.query connection "SELECT ? FROM ? WHERE id = ?" (PG.Identifier columnName, PG.Identifier tableName, id)
+
+            foreignKeyInfo <- fetchForeignKeyInfo connection tableName columnName
+
+            case foreignKeyInfo of
+                Just (foreignTable, foreignColumn) -> do
+                    [record] <- PG.query connection "SELECT * FROM ? WHERE ? = ? LIMIT 1" (PG.Identifier foreignTable, PG.Identifier foreignColumn, foreignId)
+                    pure $ Just (record, foreignTable)
+                Nothing -> pure Nothing
+        PG.close connection
+
+        case hovercardData of
+            Just (record, foreignTableName) -> render ShowForeignKeyHoverCardView { record, foreignTableName }
+            Nothing -> renderNotFound
+
 connectToAppDb :: (?context :: ControllerContext) => IO PG.Connection
 connectToAppDb = PG.connectPostgreSQL $ fromConfig databaseUrl
 
@@ -230,3 +273,41 @@ updateValues list = map (\elem -> fst elem <> " = " <> snd elem) list
 
 isQuery sql = T.isInfixOf "SELECT" u
     where u = T.toUpper sql
+
+
+
+fetchForeignKeyInfo :: PG.Connection -> Text -> Text -> IO (Maybe (Text, Text))
+fetchForeignKeyInfo connection tableName columnName = do
+    let sql = [plain|
+        SELECT
+            ccu.table_name AS foreign_table_name,
+            ccu.column_name AS foreign_column_name 
+        FROM 
+            information_schema.table_constraints AS tc 
+            JOIN information_schema.key_column_usage AS kcu
+              ON tc.constraint_name = kcu.constraint_name
+              AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage AS ccu
+              ON ccu.constraint_name = tc.constraint_name
+              AND ccu.table_schema = tc.table_schema
+        WHERE
+            tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_name = ?
+            AND kcu.column_name = ?
+    |]
+    let args = (tableName, columnName)
+    result <- PG.query connection (PG.Query $ cs sql) args 
+    case result of
+        [(foreignTableName, foreignColumnName)] -> pure $ Just (foreignTableName, foreignColumnName)
+        otherwise -> pure $ Nothing
+
+instance {-# OVERLAPS #-} ToJSON [DynamicField] where
+    toJSON fields = object (map (\DynamicField { fieldName, fieldValue } -> (cs fieldName) .= (fieldValueToJSON fieldValue)) fields)
+        where
+            fieldValueToJSON (Just bs) = toJSON ((cs bs) :: Text)
+            fieldValueToJSON Nothing = toJSON Null
+    toEncoding fields = pairs $ foldl' (<>) mempty (encodedFields)
+        where
+            encodedFields = (map (\DynamicField { fieldName, fieldValue } -> (cs fieldName) .= (fieldValueToJSON fieldValue)) fields)
+            fieldValueToJSON (Just bs) = toJSON ((cs bs) :: Text)
+            fieldValueToJSON Nothing = toJSON Null

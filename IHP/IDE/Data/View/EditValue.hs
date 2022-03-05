@@ -16,15 +16,15 @@ data EditValueView = EditValueView
 
 instance View EditValueView where
     html EditValueView { .. } = [hsx|
-        <div class="mx-2 pt-5">
-            <div class="row no-gutters bg-white">
+        <div class="h-100">
+            {headerNav}
+            <div class="h-100 row no-gutters">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
                     <div class="text-muted context-menu-notice">Press Enter to save your changes or click somewhere else to discard them.</div>
                 </div>
             </div>
-            {customQuery ""}
         </div>
         {script}
     |]
@@ -35,7 +35,7 @@ instance View EditValueView where
             </tr>
             <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
                 <a href={EditRowAction tableName id}>Edit Row</a>
-                <a href={DeleteEntryAction id tableName} class="js-delete">Delete Row</a>
+                <a href={DeleteEntryAction tableName id} class="js-delete">Delete Row</a>
                 <div></div>
                 <a href={NewRowAction tableName}>Add Row</a>
             </div>|]
@@ -45,7 +45,7 @@ instance View EditValueView where
 
             renderField id DynamicField { .. } | (tshow targetName) == (tshow fieldName) && targetId == id = [hsx|<td>
                 <form id="fieldForm" method="POST" action={UpdateValueAction}>
-                    <input id="editField" autofocus="autofocus" type="text" name="targetValue" value={fromMaybe "" fieldValue}/>
+                    <input id="editField" class="form-control" autofocus="autofocus" type="text" name="targetValue" value={fromMaybe "" fieldValue}/>
                     <input id="inputField" type="hidden" name="tableName" value={tableName}/>
                     <input type="hidden" name="id" value={id}/>
                     <input type="hidden" name="targetName" value={targetName}/>

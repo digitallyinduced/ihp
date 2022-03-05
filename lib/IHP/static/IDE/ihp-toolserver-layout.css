@@ -10,6 +10,11 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+body, .modal-content {
+    background-color: #002b36;
+    color: #fff;
+}
+
 #nav {
     width: 80px;
     height: 100%;
@@ -18,6 +23,8 @@ body {
     font-size: 10px;
     display: flex;
     flex-direction: column;
+    padding-bottom: 1rem;
+    border-right: 1px solid #0A4151;
 }
 
 #nav > * { transition: all 0.2s }
@@ -45,6 +52,12 @@ body {
 #nav .nav-item:hover svg {
     transform: scale(1.25);
     opacity: 1;
+}
+
+#nav a {
+    user-select: none;
+    user-drag: none;
+    -webkit-user-drag: none;
 }
 
 #nav .nav-item.active {
@@ -212,6 +225,7 @@ body {
 
 .data-rows-table {
     font-size: 14px;
+    width: 100%;
 }
 
 .data-rows-table [data-fieldname$="id"] { font-size: 8px }
@@ -254,4 +268,85 @@ body {
 .btn-primary:focus {
     background-color:  hsla(192, 81%, 36%, 1);
     border: 1px solid hsla(192, 81%, 19%, 0.1);
+}
+
+.text-body {
+    color: #fff !important;
+}
+
+.table td, .table th {
+    border-top: 1px solid #0A4151;
+}
+
+::selection {
+    background-color: #2aa198;
+    color: #fdf6e3;
+}
+
+.border, .border-left, .border-bottom, .border-right, .border-top {
+    border-color: #0A4151 !important;
+}
+
+.text-muted {
+    color: hsla(196, 13%, 80%, 1) !important;
+}
+
+.modal-header {
+    border-bottom: 1px solid #0A4151
+}
+
+.modal-header .close {
+    color: hsl(192deg 100% 30% / 50%);
+    transition: all 0.2s;
+}
+
+.btn-primary:disabled {
+    background-color:  hsl(192deg 81% 42% / 50%);
+    border:  1px solid hsl(192deg 81% 42% / 100%);
+}
+
+.btn-primary:focus {
+    box-shadow:  0 0 0 0.2rem hsl(192deg 81% 42% / 50%) !important;
+}
+
+a, a:hover {
+    color: #E5EAEB;
+    text-decoration: none;
+}
+
+.btn.btn-link {
+    color: hsla(196, 13%, 80%, 1);
+}
+
+.btn.btn-link:hover {
+    background-color: hsla(196, 13%, 80%, 0.1);
+}
+
+.btn-add {
+    padding-left: 4px;
+    padding-right: 4px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    display: flex;
+    align-items: center;
+}
+
+
+.btn {
+    user-select: none;
+    -webkit-user-drag: none;
+    user-drag: none;
+}
+
+.btn-secondary {
+    background-color: #2AA198;
+    border: 0;
+}
+
+.btn.btn-secondary:hover {
+    background-color: hsl(175deg 59% 33%);
+}
+
+.btn-secondary:not(:disabled):not(.disabled).active, .btn-secondary:not(:disabled):not(.disabled):active, .show>.btn-secondary.dropdown-toggle {
+    background-color: hsl(175deg 59% 33%);   
 }

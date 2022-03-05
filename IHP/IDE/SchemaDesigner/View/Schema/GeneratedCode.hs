@@ -14,7 +14,6 @@ instance View GeneratedCodeView where
     html GeneratedCodeView { .. } = [hsx|
         {visualNav}
         <div class="container">
-            {databaseControls}
             <div class="row no-gutters bg-white">
                 {renderObjectSelector (zip [0..] statements) Nothing}
             </div>
