@@ -14,7 +14,7 @@ main = withUtf8 do
     ensureIsInAppDirectory
 
     let doCreateMigration description = do
-            (_, plan) <- MigrationGenerator.buildPlan description
+            (_, plan) <- MigrationGenerator.buildPlan description Nothing
             executePlan plan
             let path = MigrationGenerator.migrationPathFromPlan plan
             putStrLn $ "Created migration: " <> path
