@@ -352,7 +352,7 @@ attributes = Set.fromList
         , "visibility", "word-spacing", "writing-mode", "is"
         , "cellspacing", "cellpadding", "bgcolor", "classes"
         , "loading"
-        , "frameborder", "allow", "allowfullscreen"
+        , "frameborder", "allow", "allowfullscreen", "nonce"
         ]
 
 parents :: Set Text
