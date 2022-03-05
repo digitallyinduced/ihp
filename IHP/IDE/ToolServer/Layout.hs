@@ -56,12 +56,8 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         {apps}
         {schema}
         {data_}
-        {codegen}
         {logs}
-        {deploy}
-        {docu}
 
-        {when isBasicEdition getPro}
         {help}
         <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
     </div>
