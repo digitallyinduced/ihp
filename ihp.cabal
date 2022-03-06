@@ -378,6 +378,12 @@ library
         , IHP.IDE.SchemaDesigner.Compiler
         , IHP.IDE.SchemaDesigner.Parser
         , IHP.IDE.SchemaDesigner.Types
+        , IHP.GraphQL.Compiler
+        , IHP.GraphQL.JSON
+        , IHP.GraphQL.Parser
+        , IHP.GraphQL.SchemaCompiler
+        , IHP.GraphQL.ToText
+        , IHP.GraphQL.Types
 
 executable RunDevServer
     import: shared-properties
