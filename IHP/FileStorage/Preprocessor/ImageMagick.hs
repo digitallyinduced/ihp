@@ -20,7 +20,7 @@ import qualified System.Process as Process
 -- __Example:__ Transform an uploaded image to a PNG file, resize it to 512x512 and strip meta data
 --
 -- > let uploadLogo = uploadToStorageWithOptions $ def
--- >         { preprocess = applyImageMagick "png" "-resize '512x512^' -gravity north -extent 512x512 -quality 100% -strip" }
+-- >         { preprocess = applyImageMagick "png" ["-resize", "512x512^", "-gravity", "north", "-extent" , "512x512", "-quality", "100%", "-strip"] }
 -- >
 -- > company <- fetch companyId
 -- > company
@@ -36,7 +36,7 @@ import qualified System.Process as Process
 -- __Example:__ Transform an uploaded image to a JPEG file and strip meta data
 --
 -- > let uploadLogo = uploadToStorageWithOptions $ def
--- >         { preprocess = applyImageMagick "jpg" "-strip" }
+-- >         { preprocess = applyImageMagick "jpg" ["-strip"] }
 -- >
 -- > company <- fetch companyId
 -- > company
@@ -48,7 +48,7 @@ import qualified System.Process as Process
 -- >             company <- company |> updateRecord
 -- >             redirectTo EditCompanyAction { .. }
 --
-applyImageMagick :: Text -> String -> Wai.FileInfo LByteString -> IO (Wai.FileInfo LByteString)
+applyImageMagick :: Text -> [String] -> Wai.FileInfo LByteString -> IO (Wai.FileInfo LByteString)
 applyImageMagick convertTo otherParams fileInfo = do
     Temp.withTempDirectory "/tmp" "ihp-upload" $ \tempPath -> do
         let tempFilePath = tempPath <> "/image"
@@ -58,10 +58,8 @@ applyImageMagick convertTo otherParams fileInfo = do
             |> get #fileContent
             |> LBS.writeFile tempFilePath
 
-        let imageMagickCommand = ("convert " <> tempFilePath <> " " <> otherParams <> " " <> cs convertedFilePath)
-
-        imageMagickProcess <- Process.runCommand (cs imageMagickCommand)
-        imageMagickExitCode <- Process.waitForProcess imageMagickProcess
+        let params :: [String] = [tempFilePath] <> otherParams <> [convertedFilePath]
+        Process.callProcess "convert" params
 
         newContent <- LBS.readFile convertedFilePath
         pure fileInfo { Wai.fileContent = newContent }
