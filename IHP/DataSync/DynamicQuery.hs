@@ -33,6 +33,9 @@ data DynamicValue
     | Null
     deriving (Show, Eq)
 
+newtype UndecodedJSON = UndecodedJSON ByteString
+    deriving (Show, Eq)
+
 -- | Similiar to IHP.QueryBuilder.SQLQuery, but is designed to be accessed by external users
 --
 -- When compiling to SQL we have to be extra careful to escape all identifers and variables in the query.
@@ -128,6 +131,9 @@ instance PG.FromField Field where
             fromFieldCustomEnum field (Just value) = pure (TextValue (cs value))
             fromFieldCustomEnum field Nothing      = pure IHP.DataSync.DynamicQuery.Null
 
+instance PG.FromField UndecodedJSON where
+    fromField field (Just value) = pure (UndecodedJSON value)
+    fromField field Nothing = pure (UndecodedJSON "null")
 
 -- | Returns a list of all id's in a result
 recordIds :: [[Field]] -> [UUID]

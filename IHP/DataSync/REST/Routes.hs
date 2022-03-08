@@ -6,14 +6,20 @@ import IHP.DataSync.REST.Types
 instance CanRoute ApiController where
     parseRoute' = do
         string "/api/"
-        table <- parseText
+
         let
-            createRecordAction = do
+            graphQLQueryAction = do
+                string "graphql"
+                endOfInput
+                onlyAllowMethods [POST]
+                pure GraphQLQueryAction
+
+            createRecordAction table = do
                 endOfInput
                 onlyAllowMethods [POST]
                 pure CreateRecordAction { table }
 
-            updateOrDeleteRecordAction = do
+            updateOrDeleteRecordAction table = do
                 string "/"
                 id <- parseUUID
 
@@ -25,15 +31,20 @@ instance CanRoute ApiController where
                     GET    -> pure ShowRecordAction { table, id }
                     DELETE -> pure DeleteRecordAction { table, id }
 
-            listRecordsAction = do
+            listRecordsAction table = do
                 endOfInput
                 method <- getMethod
                 case method of
                     GET -> pure ListRecordsAction { table }
 
-        updateOrDeleteRecordAction <|> createRecordAction <|> listRecordsAction
+            crud = do
+                table <- parseText
+                updateOrDeleteRecordAction table <|> createRecordAction table <|> listRecordsAction table
+
+        graphQLQueryAction <|> crud
 
 instance HasPath ApiController where
     pathTo CreateRecordAction { table } = "/api/" <> table
     pathTo UpdateRecordAction { table, id } = "/api/" <> table <> "/" <> tshow id
     pathTo DeleteRecordAction { table, id } = "/api/" <> table <> "/" <> tshow id
+    pathTo GraphQLQueryAction = "/api/graphql"
