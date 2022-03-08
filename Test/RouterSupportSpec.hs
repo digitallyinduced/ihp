@@ -214,6 +214,10 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             pathTo (TestTextListAction ["hello", "there"]) `shouldBe` "/test/TestTextList?textList=hello%2Cthere"
         it "generates correct path for [Int] param" $ withContext do
             pathTo (TestIntListAction [1,2,3]) `shouldBe` "/test/TestIntList?intList=1%2C2%2C3"
+        it "generates correct path for UUID param" $ withContext do
+            pathTo (TestUUIDId "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "generates correct path for [UUID] param" $ withContext do
+            pathTo (TestUUIDList ["8dd57d19-490a-4323-8b94-6081ab93bf34", "fdb15f8e-2fe9-441a-ae0e-da56956b1722"]) `shouldBe` "/test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34%2Cfdb15f8e-2fe9-441a-ae0e-da56956b1722"
         it "generates correct path when used with Breadcrumbs" $ withContext do
             let breadcrumb = breadcrumbLink "Test" TestAction
             get #url breadcrumb `shouldBe` Just "/test/Test"
