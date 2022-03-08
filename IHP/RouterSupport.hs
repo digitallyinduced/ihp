@@ -179,6 +179,18 @@ parseFuncs parseIdType = [
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
 
+            -- Try and parse a raw [UUID]
+            \queryValue -> case eqT :: Maybe (d :~: [UUID]) of
+                Just Refl -> case queryValue of
+                    Just queryValue -> queryValue
+                        |> cs
+                        |> Text.splitOn ","
+                        |> map (fromASCIIBytes . cs)
+                        |> catMaybes
+                        |> Right
+                    Nothing -> Right []
+                Nothing -> Left NotMatched,
+
             -- Try and parse a raw UUID
             \queryValue -> case eqT :: Maybe (d :~: UUID) of
                 Just Refl -> case queryValue of
@@ -618,12 +630,12 @@ post path action = do
 -- >
 -- >            updateRecordAction = do
 -- >                onlyAllowMethods [PATCH]
--- >                
+-- >
 -- >                table <- parseText
 -- >                string "/"
 -- >                id <- parseUUID
 -- >                pure UpdateRecordAction { table, id }
--- >        
+-- >
 -- > createRecordAction <|> updateRecordAction
 --
 onlyAllowMethods :: (?context :: RequestContext) => [StdMethod] -> Parser ()
