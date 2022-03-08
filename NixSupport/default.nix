@@ -18,7 +18,7 @@ let
       else ghc.ghcWithPackages)
         (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
     allNativePackages = builtins.concatLists [ (otherDeps pkgs)
-    [(pkgs.postgresql_13.withPackages postgresExtensions) pkgs.makeWrapper] (if pkgs.stdenv.isDarwin then [] else []) ];
+    [pkgs.postgresql_14 pkgs.makeWrapper] (if pkgs.stdenv.isDarwin then [] else []) ];
 
     appBinary = if optimized
       then "build/bin/RunOptimizedProdServer"
@@ -66,6 +66,9 @@ in
           mkdir -p $out/bin
 
           mv ${appBinary} $out/bin/RunProdServerWithoutOptions
+          mv build/bin/RunDevServer $out/bin/RunDevServerWithoutWrapper
+          makeWrapper $out/bin/RunDevServerWithoutWrapper $out/bin/RunDevServer --prefix PATH : ${pkgs.lib.makeBinPath allNativePackages}
+
           INPUT_HASH="$((basename $out) | cut -d - -f 1)"
           makeWrapper $out/bin/RunProdServerWithoutOptions $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
@@ -86,6 +89,8 @@ in
           mkdir -p "$out/lib/build"
           cp -R "${ihp}/lib/IHP" "$out/lib/build/ihp-lib"
           mv static "$out/lib/static"
+
+          cp Application/Schema.sql "$out/lib/Schema.sql"
         '';
         dontFixup = true;
         src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] projectPath;

@@ -12,3 +12,4 @@ instance AutoRoute LogsController
 instance AutoRoute DataController
 instance AutoRoute CodeGenController
 instance AutoRoute MigrationsController
+instance AutoRoute GraphController

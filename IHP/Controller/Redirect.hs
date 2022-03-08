@@ -18,6 +18,7 @@ import IHP.Controller.RequestContext
 import IHP.RouterSupport (HasPath (pathTo))
 import IHP.FrameworkConfig
 import Network.HTTP.Types.Status
+import qualified Network.Wai as Wai
 
 import IHP.Controller.Context
 import IHP.ControllerSupport
@@ -43,7 +44,7 @@ redirectTo action = redirectToPath (pathTo action)
 --
 -- Use 'redirectTo' if you want to redirect to a controller action.
 redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
-redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
+redirectToPath path = redirectToUrl (appHost <> path)
 {-# INLINABLE redirectToPath #-}
 
 -- | Redirects to a url (given as a string)
@@ -65,6 +66,20 @@ redirectToUrl url = do
     respondAndExit redirectResponse
 {-# INLINABLE redirectToUrl #-}
 
+appHost :: (?context :: ControllerContext) => Text
+appHost =
+    let
+        request = ?context
+            |> get #requestContext
+            |> get #request
+        protocol = if Wai.isSecure request
+                then "https"
+                else "http"
+    in request
+        |> Wai.requestHeaderHost
+        |> \case
+            Just host -> protocol <> "://" <> cs host
+            Nothing -> fromConfig baseUrl
 
 -- | Redirects back to the last page
 --

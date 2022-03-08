@@ -1,0 +1,56 @@
+.doc-explorer-title-bar {
+    opacity: 0;
+}
+
+.graphiql-container .secondary-editor-title {
+    background-color: inherit !important;
+    border-bottom: 1px solid #0A4151 !important;
+    border-top: 1px solid #0A4151 !important;
+}
+
+.docExplorerWrap {
+    border-right: 1px solid #0A4151;
+    background-color: rgb(6, 54, 66);
+}
+
+.editorWrap .title {
+    color: #fff;
+}
+
+.graphiql-container .variable-editor-title-text.active {
+    color: #fff !important;
+    opacity: 0.9;
+    font-weight: bold;
+}
+
+.graphiql-container .topBar {
+    border-bottom: 1px solid #0A4151 !important;
+    background: rgb(6, 54, 66) !important;
+}
+
+.CodeMirror-foldgutter {
+    border-left: 1px solid #0A4151 !important;
+    border-right: 1px solid #0A4151 !important;
+    background: rgb(6, 54, 66) !important;
+}
+
+.graphiql-container .resultWrap {
+    border-left: 1px solid #0A4151 !important;
+}
+
+.graphiql-explorer-node {
+    font-family: Inter;
+    font-size: 14px;
+}
+
+.graphiql-explorer-node .custom-checkbox .custom-control-input:checked~.custom-control-label::after {
+    top: 4px;
+}
+
+.graphiql-explorer-actions {
+    display: none !important;
+}
+
+.graphiql-operation-title-bar {
+    display: none;
+}

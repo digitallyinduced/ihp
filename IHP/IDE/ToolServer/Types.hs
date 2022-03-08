@@ -116,6 +116,11 @@ data MigrationsController
     | RunMigrationAction { migrationId :: !Int }
     deriving (Eq, Show, Data)
 
+data GraphController
+    = ExploreAction
+    | SchemaAction
+    deriving (Eq, Show, Data)
+
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString
     , fieldName :: ByteString

@@ -384,6 +384,10 @@ library
         , IHP.GraphQL.SchemaCompiler
         , IHP.GraphQL.ToText
         , IHP.GraphQL.Types
+        , IHP.IDE.Graph.Controller
+        , IHP.IDE.Graph.View.Explore
+        , IHP.IDE.Graph.View.Schema
+        , IHP.IDE.Graph.View.Layout
 
 executable RunDevServer
     import: shared-properties
