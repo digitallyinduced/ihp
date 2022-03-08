@@ -1,0 +1,22 @@
+.DS_Store
+.envrc
+.idea
+tmp
+result
+node_modules
+bin
+*.iml
+Generated
+dist
+*.dyn_hi
+*.dyn_o
+*.hi
+*.o
+build
+gen
+del
+static/prod.*
+Config/client_session_key.aes
+
+# Ignore locally checked out IHP version
+IHP
